@@ -1,3 +1,7 @@
+# For CUDA
+find_package(CUDA REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})
+
 # Google C++ testing framework
 if (BUILD_TEST)
   set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")

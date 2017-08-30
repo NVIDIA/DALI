@@ -1,7 +1,6 @@
 # Build test suite
 if (BUILD_TEST)
   # get all test srcs
-  message(STATUS "Building test stuff")
   set(NDLL_TEST_SRCS)
   add_subdirectory(test)
   
@@ -12,5 +11,5 @@ if (BUILD_TEST)
   # add_dependencies()
 
   # We'll have to add dependency libs
-  target_link_libraries(${test_main_bin} gtest)
+  target_link_libraries(${test_main_bin} ${CUDA_LIBRARIES} gtest)
 endif()

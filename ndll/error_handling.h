@@ -4,6 +4,8 @@
 #include <sstream>
 #include <string>
 
+#include <cuda_runtime_api.h>
+
 namespace ndll {
 
 // Note: We won't control all of the code that is executing in this
