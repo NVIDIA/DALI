@@ -3,14 +3,18 @@
 #ifndef NDLL_COMMON_H_
 #define NDLL_COMMON_H_
 
+#include <array>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
 // Using declaration for common types
+using std::array;
 using std::cout;
 using std::endl;
 using std::vector;
+using std::shared_ptr;
 using std::string;
 
 namespace ndll {

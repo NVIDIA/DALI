@@ -5,6 +5,7 @@
 #include "ndll/allocator.h"
 #include "ndll/batch.h"
 #include "ndll/error_handling.h"
+#include "ndll/operator.h"
 #include "ndll/stream_pool.h"
 
 namespace ndll {
