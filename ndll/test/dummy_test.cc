@@ -10,11 +10,10 @@
 
 namespace ndll {
 
-TEST(DummyTests, DummyTest) {
+TEST(DISABLED_DummyTests, DummyTest) {
   // Do some dumb stuff
   try {
-    if (true)
-      NDLL_ASSERT(false) << "user error stuff";
+    if (true) NDLL_ASSERT(false, "user error stuff");
   } catch(ndll::NdllException &e) {
     std::cout << e.what() << std::endl;
   }

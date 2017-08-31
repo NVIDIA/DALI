@@ -29,32 +29,10 @@ public:
   const char* what() {
     return str_.c_str();
   }
-
-  // TODO(tgale): This currently only supports basic types. Things like
-  // std::endl that are functions don't work with this yet. Need to add
-  // support. See https://stackoverflow.com/questions/1134388/.
-  template <typename T>
-  NdllException& operator<<(const T &info) {
-    std::stringstream ss;
-    ss << info;
-    this->str_.append(ss.str());
-    return *this;
-  }
   
 private:
   std::string str_;
 };
-
-inline NdllException failed_assert(std::string statement,
-    std::string file, int line) {
-  std::string error = "[" + file + ":" + std::to_string(line) +
-    "]: Assert on \"" + statement + "\" failed: ";
-  return NdllException(error);
-}
-
-// Note: These can only be called from inside the ndll namespace
-#define NDLL_ASSERT(val)                                  \
-  if (!val) throw failed_assert(#val, __FILE__, __LINE__)
 
 // CUDA error checking utility
 #define CUDA_CALL(code)                             \
@@ -69,6 +47,35 @@ inline NdllException failed_assert(std::string statement,
       throw NdllException(error);                   \
     }                                               \
   } while (0)
+
+inline string GetErrorString(string statement, string file, int line) {
+  string line_str = std::to_string(line);
+  std::string error = "[" + file + ":" + line_str +
+    "]: Assert on \"" + statement +
+    "\" failed";
+  return error;
+}
+
+#define ASRT_1(code)                                            \
+  do {                                                          \
+    if (!code) {                                                \
+      string error = GetErrorString(#code, __FILE__, __LINE__); \
+      throw NdllException(error);                               \
+    }                                                           \
+  } while(0)
+
+#define ASRT_2(code, str)                                       \
+  do {                                                          \
+    if (!code) {                                                \
+      string error = GetErrorString(#code, __FILE__, __LINE__); \
+      string usr_str = str;                                     \
+      error += ": " + usr_str;                                  \
+      throw NdllException(error);                               \
+    }                                                           \
+  } while(0)
+
+#define GET_MACRO(_1, _2, NAME, ...) NAME
+#define NDLL_ASSERT(...) GET_MACRO(__VA_ARGS__, ASRT_2, ASRT_1)(__VA_ARGS__)
 
 // Note: We can define error checking for other libraries
 // here. E.g. CUBLAS_CALL, NPP_CALL, etc.

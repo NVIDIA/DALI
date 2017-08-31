@@ -3,6 +3,8 @@
 #ifndef NDLL_COMMON_H_
 #define NDLL_COMMON_H_
 
+#include <cstdint>
+
 #include <array>
 #include <iostream>
 #include <memory>
@@ -16,6 +18,9 @@ using std::endl;
 using std::vector;
 using std::shared_ptr;
 using std::string;
+
+// Common types
+typedef uint8_t uint8;
 
 namespace ndll {
 

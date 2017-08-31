@@ -5,6 +5,14 @@ project(NDLL CXX)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
+option(DUMP_IMAGES "Dump the raw images for inpsection in the test suite" ON)
+
+if (DUMP_IMAGES)
+  add_definitions(-DDUMP_IMAGES)
+endif()
+
+# Cmake path
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Dependencies
 include(cmake/Dependencies.cmake)
