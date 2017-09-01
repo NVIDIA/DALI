@@ -2,6 +2,7 @@
 #define NDLL_IMAGE_JPEG_H_
 
 #include "ndll/common.h"
+#include "ndll/error_handling.h"
 
 namespace ndll {
 
@@ -13,12 +14,12 @@ bool CheckIsJPEG(const uint8 *jpeg, int size);
 /**
  * @brief Gets the dimensions of the jpeg encoded image
  */
-void GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
+NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
 
 /**
  * @brief Decodes `jpeg` into the the buffer pointed to by `image`
  */
-void DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
+NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
     int h, int w, uint8 *image);
 
 // Note: The only jpeg decoder that we can make support jpeg parser caching is

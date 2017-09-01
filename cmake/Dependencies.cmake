@@ -2,7 +2,6 @@
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
-
 # Google C++ testing framework
 if (BUILD_TEST)
   set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")
@@ -12,6 +11,15 @@ if (BUILD_TEST)
 endif()
 
 # LibJpegTurbo
-find_package(JpegTurbo)
-include_directories(${JPEG_TURBO_INCLUDE_DIR})
+find_package(JpegTurbo REQUIRED)
+include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
 list(APPEND NDLL_LIBS ${JPEG_TURBO_LIBRARY})
+
+# OpenCV
+find_package(OpenCV REQUIRED COMPONENTS core imgcodecs)
+if (OpenCV_FOUND)
+  message(STATUS "Found OpenCV (libs: ${OpenCV_LIBRARIES})")
+  message(STATUS ${OpenCV_INCLUDE_DIRS})
+endif()
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+list(APPEND NDLL_LIBS ${OpenCV_LIBRARIES})

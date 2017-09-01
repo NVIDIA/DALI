@@ -8,21 +8,14 @@
 
 namespace ndll {
 
-// Note: We won't control all of the code that is executing in this
-// library because users can define their own ops. Because of this,
-// we can't use fixed error types like other Nvidia libraries. To
-// deal with this, we'll define an exception type and allow users
-// to pass in error strings so that they can be propagated out to
-// the caller when an error occurs.
-
 /**
  * @brief Basic exception class used by ndll error checking.
- */
-class NdllException {
+ */ 
+class NDLLException {
 public:
-  NdllException() {}
+  NDLLException() {}
   
-  explicit NdllException(std::string str) {
+  explicit NDLLException(std::string str) {
     str_.append(str);
   }
 
@@ -31,8 +24,26 @@ public:
   }
   
 private:
-  std::string str_;
+  string str_;
 };
+
+// TODO(tgale): We need a better way of handling internal
+// cuda errors. We should really have some way of getting
+// the error string from cuda.
+
+/**
+ * @brief Error object returned by ndll functions
+ */
+enum NDLLError_t {
+  NDLLSuccess = 0,
+  NDLLError = 1 /* Something bad happened */, 
+  NDLLCudaError = 2 /* CUDA broke */
+};
+
+// Note: If the library ever gets more complicated than data
+// augmentation primitives we will need more sophisticated
+// error handling. Errors will need to be propagated out of
+// nested functions and passed back to the user.
 
 // CUDA error checking utility
 #define CUDA_CALL(code)                             \
@@ -44,7 +55,7 @@ private:
       std::string error = "[" + file + ":" + line + \
         "]: CUDA error \"" +                        \
         cudaGetErrorString(code) + "\"";            \
-      throw NdllException(error);                   \
+      return NDLLCudaError;                    \
     }                                               \
   } while (0)
 
@@ -60,9 +71,9 @@ inline string GetErrorString(string statement, string file, int line) {
   do {                                                          \
     if (!code) {                                                \
       string error = GetErrorString(#code, __FILE__, __LINE__); \
-      throw NdllException(error);                               \
+      return NDLLError;                                         \
     }                                                           \
-  } while(0)
+  } while (0)
 
 #define ASRT_2(code, str)                                       \
   do {                                                          \
@@ -70,9 +81,9 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = GetErrorString(#code, __FILE__, __LINE__); \
       string usr_str = str;                                     \
       error += ": " + usr_str;                                  \
-      throw NdllException(error);                               \
+      return NDLLError;                                         \
     }                                                           \
-  } while(0)
+  } while (0)
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
 #define NDLL_ASSERT(...) GET_MACRO(__VA_ARGS__, ASRT_2, ASRT_1)(__VA_ARGS__)

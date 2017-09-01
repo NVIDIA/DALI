@@ -2,8 +2,6 @@
 
 #include <turbojpeg.h>
 
-#include "ndll/error_handling.h"
-
 namespace ndll {
 
 namespace {
@@ -37,7 +35,6 @@ void PrintSubsampling(int sampling) {
     cout << "unknown sampling ratio" << endl;
   }
 }
-
 } // namespace
 
 bool CheckIsJPEG(const uint8 *jpeg, int size) {
@@ -47,7 +44,7 @@ bool CheckIsJPEG(const uint8 *jpeg, int size) {
   return false;
 }
 
-void GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
+NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
   // Note: For now we use turbo-jpeg header decompression. This
   // may be more expensive than using the hacky method MXNet has.
   // Worth benchmarking this at a later point
@@ -61,13 +58,15 @@ void GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 #ifdef DUMP_IMAGES
   PrintSubsampling(sampling);
 #endif // DUMP_IMAGES
+  return NDLLSuccess;
 }
 
-void DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
+NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
     int h, int w, uint8 *image) {
   tjhandle handle = tjInitDecompress();
   TJPG_CALL(tjDecompress2(handle, jpeg, size, image,
           w, 0, h, color ? TJPF_RGB : TJPF_GRAY, 0));
+  return NDLLSuccess;
 }
 
 } // namespace ndll
