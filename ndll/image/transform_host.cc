@@ -5,8 +5,8 @@
 namespace ndll {
 
 NDLLError_t ResizeCropMirrorHost(const uint8 *image, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_x, int crop_y, int crop_h, int crop_w,
-    bool mirror, uint8 *out_img) {
+    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
+    int crop_w, bool mirror, uint8 *out_img) {
   // TODO(tgale): Validate input parameters for crop & resize
   NDLL_ASSERT((C == 3) || (C == 1));
 
@@ -50,4 +50,5 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *image, int H, int W, int C,
   }
   return NDLLSuccess;
 }
+
 } // namespace ndll
