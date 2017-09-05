@@ -69,7 +69,7 @@ inline string GetErrorString(string statement, string file, int line) {
 
 #define ASRT_1(code)                                            \
   do {                                                          \
-    if (!code) {                                                \
+    if (!(code)) {                                              \
       string error = GetErrorString(#code, __FILE__, __LINE__); \
       return NDLLError;                                         \
     }                                                           \
@@ -77,7 +77,7 @@ inline string GetErrorString(string statement, string file, int line) {
 
 #define ASRT_2(code, str)                                       \
   do {                                                          \
-    if (!code) {                                                \
+    if (!(code)) {                                              \
       string error = GetErrorString(#code, __FILE__, __LINE__); \
       string usr_str = str;                                     \
       error += ": " + usr_str;                                  \
