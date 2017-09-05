@@ -1,6 +1,9 @@
 #include "ndll/image/jpeg.h"
 
+#include <cmath>
+
 #include <fstream>
+#include <numeric>
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
@@ -64,12 +67,15 @@ public:
     }
   }
 
-  // Image is assumed to be stored HWC in memory
-  void DumpToFile(uint8 *img, int h, int w, int c, int stride, string file_name) {
+  // Image is assumed to be stored HWC in memory. Data-type is cast to unsigned int before
+  // being written to file.
+  template <typename T>
+  void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
     CHECK_CUDA(cudaDeviceSynchronize());
-    uint8 *tmp = new uint8[h*w*c];
+    T *tmp = new T[h*w*c];
 
-    CHECK_CUDA(cudaMemcpy2D(tmp, w*c, img, stride, w*c, h, cudaMemcpyDefault));
+    CHECK_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+            w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
 
@@ -103,46 +109,72 @@ public:
       (*image)[i] = (uint8)tmp;
     }
   }
-
-  cv::Mat OpenCVDecode(uint8 *jpeg, int size) {
-    cv::Mat jpeg_mat = cv::Mat(1, size, CV_8UC1, reinterpret_cast<unsigned char*>(jpeg));
-    cv::Mat img;
-
-    cv::Mat in = cv::imread(image_folder + "/cat.jpg");
-    if (in.data == nullptr) {
-      cout << "IMREADNULLPTR" << endl;
-    }
-    
-    cv::imdecode(jpeg_mat, color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE, &img);
-
-    if (img.data == nullptr) {
-      cout << "NULLPTR" << endl;
-    }
-    return img;
-  }
   
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) {
     // Compare w/ opencv result
     cv::Mat ver;
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
-    cout << jpeg.rows << " " << jpeg.cols << endl;
-    cout << (long long)jpeg.ptr() << endl;
-    cout << (long long)jpegs_[img_id] << endl;
-    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));
-    
+    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
     int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
-    // Note: Need to do BGR->RGB here
-    ASSERT_EQ(h, ver.rows);
-    ASSERT_EQ(w, ver.cols);
-    for (int i = 0; i < h*w*c_; ++i) {
-      // Check the difference
-      cout << int(ver.ptr()[i] - img[i]) << endl;
+#ifdef DUMP_IMAGES
+    // Dump the opencv image
+    this->DumpToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
+#endif // DUMP_IMAGES
+    
+    cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
+    if (color_) {
+      // Convert from BGR to RGB for verification
+      cv::cvtColor(ver, ver_img, CV_BGR2RGB);
+    } else {
+      ver_img = ver;
     }
+    
+    ASSERT_EQ(h, ver_img.rows);
+    ASSERT_EQ(w, ver_img.cols);
+    vector<int> diff(h*w*c_, 0);
+    for (int i = 0; i < h*w*c_; ++i) {
+      diff[i] = abs(int(ver_img.ptr()[i] - img[i]));
+    }
+
+#ifdef DUMP_IMAGES
+    // Dump the absolute differences
+    this->DumpToFile(diff.data(), h, w, c_, w*c_, "diff_" + std::to_string(img_id));
+#endif // DUMP_IMAGES
+    
+    // calculate the MSE
+    float mean, std;
+    MeanStdDev(diff, &mean, &std);
+
+#ifdef DUMP_IMAGES
+    cout << "num: " << diff.size() << endl;
+    cout << "mean: " << mean << endl;
+    cout << "std: " << std << endl;
+#endif // DUMP_IMAGES
+
+    // Note: We allow a slight deviation from the ground truth.
+    // This value was picked fairly arbitrarily to let the test
+    // pass for libjpeg turbo
+    ASSERT_LT(mean, 2.f);
+    ASSERT_LT(std, 3.f);
   }
 
+  void MeanStdDev(const vector<int> &diff, float *mean, float *std) {
+    // Avoid division by zero
+    ASSERT_NE(diff.size(), 0);
+    
+    double sum = 0, var_sum = 0;
+    for (auto &val : diff) {
+      sum += val;
+    }
+    *mean = sum / diff.size();
+    for (auto &val : diff) {
+      var_sum += (val - *mean)*(val - *mean);
+    }
+    *std = sqrt(var_sum / diff.size());
+  }
 
 protected:
   bool color_;
@@ -155,12 +187,6 @@ protected:
 // Run RGB & grayscale tests
 typedef ::testing::Types<RGB, Gray> Types;
 TYPED_TEST_CASE(JpegDecodeTest, Types);
-
-TYPED_TEST(JpegDecodeTest, DecodeOpenCV) {
-  for (int img = 0; img < this->jpegs_.size(); ++img) {
-    cv::Mat image = this->OpenCVDecode(this->jpegs_[img], this->jpeg_sizes_[img]);
-  }
-}
 
 TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   // Decode all jpegs and see what they look like!
@@ -183,7 +209,6 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
     this->DumpToFile(image.data(), h, w, this->c_, w*this->c_, std::to_string(img));
 #endif // DUMP_IMAGES
     this->VerifyDecode(image.data(), h, w, img);
-    break;
   }
 }
 

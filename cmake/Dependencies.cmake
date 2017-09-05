@@ -16,7 +16,12 @@ include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
 list(APPEND NDLL_LIBS ${JPEG_TURBO_LIBRARY})
 
 # OpenCV
-find_package(OpenCV REQUIRED COMPONENTS core imgcodecs)
+# Note: OpenCV 3.* 'imdeocde()' is in the imgcodecs library. In
+# earlier versions (like the one that can be installed w/ apt-get)
+# it is in the highgui library. Building OCV from source has
+# failed over and over, so we're now working with the apt-get version
+# find_package(OpenCV REQUIRED COMPONENTS core imgcodecs)
+find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc)
 if (OpenCV_FOUND)
   message(STATUS "Found OpenCV (libs: ${OpenCV_LIBRARIES})")
   message(STATUS ${OpenCV_INCLUDE_DIRS})
