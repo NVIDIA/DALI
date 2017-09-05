@@ -225,6 +225,28 @@ protected:
 typedef ::testing::Types<RGB, Gray> Types;
 TYPED_TEST_CASE(TransformTest, Types);
 
+// For functions that are the output of a pipeline,
+// we want to test with all the output types
+template <typename Types>
+class OutputTransformTest : public TransformTest<typename Types::test_color> {
+public:
+protected:
+};
+
+template <typename color, typename OUT>
+struct OutputTestTypes {
+  typedef color test_color;
+  typedef OUT TEST_OUT;
+};
+
+typedef ::testing::Types<OutputTestTypes<RGB, float16>,
+                         OutputTestTypes<RGB, float>,
+                         OutputTestTypes<RGB, double>,
+                         OutputTestTypes<Gray, float16>,
+                         OutputTestTypes<Gray, float>,
+                         OutputTestTypes<Gray, double>> OutputTypes;
+TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
+
 TYPED_TEST(TransformTest, TestResizeCrop) {
   std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img;
@@ -243,8 +265,9 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     bool mirror = false;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    CHECK_NDLL(ResizeCropMirror(this->images_[i], this->image_dims_[i].h, this->image_dims_[i].w,
-            this->c_, rsz_h, rsz_w, crop_y, crop_x, crop_h, crop_w, mirror, out_img.data()));
+    CHECK_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+            this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
+            crop_x, crop_h, crop_w, mirror, out_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -268,6 +291,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
             this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
 #endif // DUMP_IMAGES
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
+    break;
   }
 }
 
@@ -289,8 +313,9 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     bool mirror = true;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    CHECK_NDLL(ResizeCropMirror(this->images_[i], this->image_dims_[i].h, this->image_dims_[i].w,
-            this->c_, rsz_h, rsz_w, crop_y, crop_x, crop_h, crop_w, mirror, out_img.data()));
+    CHECK_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+            this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
+            crop_x, crop_h, crop_w, mirror, out_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -313,27 +338,8 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
   }
 }
 
-// TYPED_TEST(TransformTest, TestResizeCropMirror) {
-// #ifdef DUMP_IMAGES
-//   uint8 *img = new uint8[256*256*3];
-//   uint8 *ver = new uint8[256*256*3];
-//   for (int i = 0; i < this->images_.size(); ++i) {
-//     this->DumpToFile(this->images_[i], this->image_dims_[i].h, this->image_dims_[i].w,
-//         this->c_, this->image_dims_[i].w*this->c_, std::to_string(i));
+TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
 
-    
-//     ResizeCropMirror(this->images_[i], this->image_dims_[i].h, this->image_dims_[i].w,
-//         this->c_, 512, 512, 0, 0, 256, 256, true, img);
-//     this->DumpToFile(img, 256, 256, this->c_, 256*this->c_, "crop_" + std::to_string(i));
-//     this->OpenCVResizeCropMirror(this->images_[i], this->image_dims_[i].h,
-//         this->image_dims_[i].w, this->c_, 512, 512, 0, 0, 256, 256, true, ver);
-//     this->DumpToFile(ver, 256, 256, this->c_, 256*this->c_, "ver_" + std::to_string(i));
-//     this->VerifyImage(img, ver, 256*256*3);
-//     break;
-//   }
-//   delete[] img;
-//   delete[] ver;
-// #endif // DUMP_IMAGES
-// }
+}
 
 } // namespace ndll

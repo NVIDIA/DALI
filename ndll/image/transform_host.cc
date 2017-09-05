@@ -4,16 +4,16 @@
 
 namespace ndll {
 
-NDLLError_t ResizeCropMirror(const uint8 *image, int h, int w, int c,
-    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img) {
+NDLLError_t ResizeCropMirrorHost(const uint8 *image, int H, int W, int C,
+    int rsz_h, int rsz_w, int crop_x, int crop_y, int crop_h, int crop_w,
+    bool mirror, uint8 *out_img) {
   // TODO(tgale): Validate input parameters for crop & resize
-  NDLL_ASSERT((c == 3) || (c == 1));
+  NDLL_ASSERT((C == 3) || (C == 1));
 
   // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
   // is kinda icky to const_cast away the const-ness, but there isn't another way without
   // making the input argument non-const.
-  const cv::Mat cv_img = cv::Mat(h, w, c == 3 ? CV_8UC3 : CV_8UC1, const_cast<uint8*>(image));
+  const cv::Mat cv_img = cv::Mat(H, W, C == 3 ? CV_8UC3 : CV_8UC1, const_cast<uint8*>(image));
 
   // Note: We need an intermediate buffer to work in for the resize.
   // This means that we will have host memory allocations inside this
@@ -29,10 +29,10 @@ NDLLError_t ResizeCropMirror(const uint8 *image, int h, int w, int c,
   if (mirror) {
     for (int i = 0; i < crop_h; ++i) {
       for (int j = 0; j < crop_w; ++j) {
-        int pxl_off = i*crop_w*c + j*c;
+        int pxl_off = i*crop_w*C + j*C;
         int mirror_j = (crop_w-j-1);
-        int src_off = (i+crop_y)*rsz_w*c + (mirror_j+crop_x)*c;
-        for (int k = 0; k < c; ++k) {
+        int src_off = (i+crop_y)*rsz_w*C + (mirror_j+crop_x)*C;
+        for (int k = 0; k < C; ++k) {
           out_img[pxl_off + k] = rsz_img.ptr()[src_off + k];
         }
       }
@@ -40,9 +40,9 @@ NDLLError_t ResizeCropMirror(const uint8 *image, int h, int w, int c,
   } else {
     for (int i = 0; i < crop_h; ++i) {
       for (int j = 0; j < crop_w; ++j) {
-        int pxl_off = i*crop_w*c + j*c;
-        int src_off = (i+crop_y)*rsz_w*c + (j+crop_x)*c;
-        for (int k = 0; k < c; ++k) {
+        int pxl_off = i*crop_w*C + j*C;
+        int src_off = (i+crop_y)*rsz_w*C + (j+crop_x)*C;
+        for (int k = 0; k < C; ++k) {
           out_img[pxl_off + k] = rsz_img.ptr()[src_off + k];
         }
       }
@@ -50,5 +50,4 @@ NDLLError_t ResizeCropMirror(const uint8 *image, int h, int w, int c,
   }
   return NDLLSuccess;
 }
-
 } // namespace ndll

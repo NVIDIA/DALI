@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include <cuda_fp16.h> // for __half & related methods
+
 // Using declaration for common types
 using std::array;
 using std::cout;
@@ -21,6 +23,7 @@ using std::string;
 
 // Common types
 typedef uint8_t uint8;
+typedef __half float16;
 
 namespace ndll {
 
