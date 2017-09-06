@@ -13,6 +13,8 @@
 
 #include <cuda_fp16.h> // for __half & related methods
 
+namespace ndll {
+
 // Using declaration for common types
 using std::array;
 using std::cout;
@@ -23,9 +25,10 @@ using std::string;
 
 // Common types
 typedef uint8_t uint8;
+
+// Only supported on the GPU
 typedef __half float16;
 
-namespace ndll {
 
 // Source: based on Caffe macro of the same name. Impl uses 'delete'
 // instead of just making these functions private

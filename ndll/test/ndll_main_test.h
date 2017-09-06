@@ -1,6 +1,7 @@
 #ifndef NDLL_TEST_NDLL_MAIN_TEST_H_
 #define NDLL_TEST_NDLL_MAIN_TEST_H_
 
+#include "ndll/common.h"
 #include "ndll/error_handling.h"
 
 namespace ndll {
@@ -14,12 +15,12 @@ namespace ndll {
 #define CHECK_CUDA(code)                            \
   do {                                              \
     cudaError_t status = code;                      \
-    if (code != cudaSuccess) {                      \
-      std::string file = __FILE__;                  \
-      std::string line = std::to_string(__LINE__);  \
-      std::string error = "[" + file + ":" + line + \
+    if (status != cudaSuccess) {                    \
+      string file = __FILE__;                       \
+      string line = std::to_string(__LINE__);       \
+      string error = "[" + file + ":" + line +      \
         "]: CUDA error \"" +                        \
-        cudaGetErrorString(code) + "\"";            \
+        cudaGetErrorString(status) + "\"";          \
       ASSERT_TRUE(false) << error;                  \
     }                                               \
   } while (0)

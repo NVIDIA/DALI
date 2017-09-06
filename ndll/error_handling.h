@@ -6,6 +6,8 @@
 
 #include <cuda_runtime_api.h>
 
+#include "ndll/common.h"
+
 namespace ndll {
 
 /**
@@ -15,7 +17,7 @@ class NDLLException {
 public:
   NDLLException() {}
   
-  explicit NDLLException(std::string str) {
+  explicit NDLLException(string str) {
     str_.append(str);
   }
 
@@ -49,19 +51,19 @@ enum NDLLError_t {
 #define CUDA_CALL(code)                             \
   do {                                              \
     cudaError_t status = code;                      \
-    if (code != cudaSuccess) {                      \
-      std::string file = __FILE__;                  \
-      std::string line = std::to_string(__LINE__);  \
-      std::string error = "[" + file + ":" + line + \
+    if (status != cudaSuccess) {                    \
+      string file = __FILE__;                       \
+      string line = std::to_string(__LINE__);       \
+      string error = "[" + file + ":" + line +      \
         "]: CUDA error \"" +                        \
-        cudaGetErrorString(code) + "\"";            \
-      return NDLLCudaError;                    \
+        cudaGetErrorString(status) + "\"";          \
+      return NDLLCudaError;                         \
     }                                               \
   } while (0)
 
 inline string GetErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
-  std::string error = "[" + file + ":" + line_str +
+  string error = "[" + file + ":" + line_str +
     "]: Assert on \"" + statement +
     "\" failed";
   return error;
@@ -71,6 +73,7 @@ inline string GetErrorString(string statement, string file, int line) {
   do {                                                          \
     if (!(code)) {                                              \
       string error = GetErrorString(#code, __FILE__, __LINE__); \
+      cout << error << endl;                                    \
       return NDLLError;                                         \
     }                                                           \
   } while (0)
@@ -81,6 +84,7 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = GetErrorString(#code, __FILE__, __LINE__); \
       string usr_str = str;                                     \
       error += ": " + usr_str;                                  \
+      cout << error << endl;                                    \
       return NDLLError;                                         \
     }                                                           \
   } while (0)

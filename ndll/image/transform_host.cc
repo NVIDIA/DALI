@@ -7,9 +7,24 @@ namespace ndll {
 NDLLError_t ResizeCropMirrorHost(const uint8 *image, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
     int crop_w, bool mirror, uint8 *out_img) {
-  // TODO(tgale): Validate input parameters for crop & resize
+  // TODO(tgale): Figure out which ones of these we actually want to check.
+  // We need a better way of error checking so that the user actually knows
+  // what they did wrong.
+  NDLL_ASSERT(image != nullptr);
+  NDLL_ASSERT(out_img != nullptr);
+  NDLL_ASSERT(H > 0);
+  NDLL_ASSERT(W > 0);
   NDLL_ASSERT((C == 3) || (C == 1));
-
+  NDLL_ASSERT(rsz_h > 0);
+  NDLL_ASSERT(rsz_w > 0);
+  // Crop must be valid
+  NDLL_ASSERT(crop_y >= 0);
+  NDLL_ASSERT(crop_x >= 0);
+  NDLL_ASSERT(crop_h > 0);
+  NDLL_ASSERT(crop_w > 0);
+  NDLL_ASSERT((crop_y + crop_h) <= rsz_h);
+  NDLL_ASSERT((crop_x + crop_w) <= rsz_w);
+  
   // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
   // is kinda icky to const_cast away the const-ness, but there isn't another way without
   // making the input argument non-const.

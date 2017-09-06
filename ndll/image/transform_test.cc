@@ -6,6 +6,7 @@
 #include <fstream>
 #include <random>
 
+#include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 
@@ -13,6 +14,7 @@
 #include "ndll/image/jpeg.h"
 #include "ndll/image/transform.h"
 #include "ndll/test/ndll_main_test.h"
+#include "ndll/test/type_conversion.h"
 
 namespace ndll {
 
@@ -45,7 +47,7 @@ public:
     DecodeJPEGS();
   }
 
-  void TearDown() {
+  virtual void TearDown() {
     for (auto ptr : jpegs_) delete[] ptr;
     for (auto ptr : images_) delete[] ptr;
   }
@@ -179,7 +181,7 @@ public:
     for (int i = 0; i < n; ++i) {
       abs_diff[i] = abs(int(img[i] - ground_truth[i]));
     }
-    float mean, std;
+    double mean, std;
     MeanStdDev(abs_diff, &mean, &std);
 
 #ifdef DUMP_IMAGES
@@ -191,11 +193,12 @@ public:
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
     // pass for libjpeg turbo
-    ASSERT_LT(mean, 2.f);
-    ASSERT_LT(std, 3.f);
+    ASSERT_LT(mean, 2.0);
+    ASSERT_LT(std, 3.0);
   }
 
-  void MeanStdDev(const vector<int> &diff, float *mean, float *std) {
+  template <typename T>
+  void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
     // Avoid division by zero
     ASSERT_NE(diff.size(), 0);
     
@@ -209,6 +212,19 @@ public:
     }
     *std = sqrt(var_sum / diff.size());
   }
+
+  // Resizes the images to the crop size
+  void MakeImageBatch(int n, int h, int w, uint8 *batch) {
+    // resize & crop to the same size
+    vector<uint8> img(h*w*c_, 0);
+    for (int i = 0; i < n; ++i) {
+      OpenCVResizeCropMirror(images_[i], image_dims_[i].h,
+          image_dims_[i].w, c_, h, w, 0, 0, h, w, false, img.data());
+
+      // Copy into the batch
+      std::memcpy(batch + i*h*w*c_, img.data(), h*w*c_);
+    }
+  }
   
 protected:
   bool color_;
@@ -219,6 +235,9 @@ protected:
 
   vector<uint8*> images_;
   vector<Dims> image_dims_;
+
+  uint8* image_batch_;
+  int n_, h_, w_;
 };
 
 // Run RGB & grayscale tests
@@ -228,8 +247,41 @@ TYPED_TEST_CASE(TransformTest, Types);
 // For functions that are the output of a pipeline,
 // we want to test with all the output types
 template <typename Types>
+// class OutputTransformTest : public TransformTest<typename Types::test_color> {
 class OutputTransformTest : public TransformTest<typename Types::test_color> {
 public:
+  typedef typename Types::test_color color;
+  // Comparison for other types. We use double for the ground truth.
+  // Input data is assumed to be on the GPU
+  template <typename T>
+  void CompareData(T *data, double *ground_truth, int n) {
+    // Conver the input data to double
+    double *tmp_gpu = nullptr;
+    CHECK_CUDA(cudaMalloc((void**)&tmp_gpu, sizeof(double)*n));
+    Convert(data, n, tmp_gpu);
+    
+    vector<double> tmp(n, 0);
+    CHECK_CUDA(cudaMemcpy(tmp.data(), tmp_gpu, n*sizeof(double),
+            cudaMemcpyDeviceToHost));
+
+    vector<double> abs_diff(n, 0);
+    for (int i = 0; i < n; ++i) {
+      abs_diff[i] = abs(tmp[i] - ground_truth[i]);
+    }
+    double mean, std;
+    TransformTest<color>::MeanStdDev(abs_diff, &mean, &std);
+
+#ifdef DUMP_IMAGES
+    cout << "num: " << abs_diff.size() << endl;
+    cout << "mean: " << mean << endl;
+    cout << "std: " << std << endl;
+#endif // DUMP_IMAGES
+    
+    ASSERT_LT(mean, 0.000001);
+    ASSERT_LT(std, 0.000001);
+    CHECK_CUDA(cudaFree(tmp_gpu));
+  }
+  
 protected:
 };
 
@@ -291,12 +343,11 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
             this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
 #endif // DUMP_IMAGES
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
-    break;
   }
 }
 
 TYPED_TEST(TransformTest, TestResizeCropMirror) {
-  std::mt19937 rand_gen(0);
+  std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img;
   for (int i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
@@ -338,8 +389,76 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
   }
 }
 
-TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
+// TODO(tgale): There is probably a better place to put this than right here.
+template <typename T>
+void CPUBatchedNormalizePermute(const uint8 *image_batch,
+    int N, int H, int W, int C,  float *mean, float *std,
+    T *out_batch) {
+  ASSERT_TRUE(image_batch != nullptr);
+  ASSERT_TRUE(mean != nullptr);
+  ASSERT_TRUE(std != nullptr);
+  ASSERT_TRUE(out_batch != nullptr);
+  ASSERT_TRUE(N > 0);
+  ASSERT_TRUE((C == 1) || (C == 3));
+  ASSERT_TRUE(W > 0);
+  ASSERT_TRUE(H > 0);
 
+  for (int n = 0; n < N; ++n) {
+    for (int c = 0; c < C; ++c) {
+      for (int h = 0; h < H; ++h) {
+        for (int w = 0; w < W; ++w) {
+          // Data comes in as NHWC & goes out NCHW
+          int in_idx = n*H*W*C + h*W*C + w*C + c;
+          int out_idx = n*H*W*C + c*H*W + h*W + w;
+
+          out_batch[out_idx] = static_cast<T>(
+              (static_cast<float>(image_batch[in_idx]) - mean[c]) / std[c]);
+        }
+      }
+    }
+  }
+}
+
+TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
+  // To make the test a bit more succinct
+  typedef typename TypeParam::TEST_OUT T;
+  
+  std::mt19937 rand_gen(time(nullptr));
+  int n = std::uniform_int_distribution<>(4, this->jpegs_.size())(rand_gen);
+  int h = std::uniform_int_distribution<>(32, 512)(rand_gen);
+  int w = std::uniform_int_distribution<>(32, 512)(rand_gen);
+  vector<uint8> batch(n*h*w*this->c_, 0);
+  this->MakeImageBatch(n, h, w, batch.data());
+
+  // Set up the mean & std dev
+  vector<float> vals(this->c_*2, 128);
+  float *mean = nullptr;
+  CHECK_CUDA(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
+  CHECK_CUDA(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
+  float *std = mean + this->c_;
+    
+  // Move the batch to GPU
+  uint8 *batch_gpu = nullptr;
+  CHECK_CUDA(cudaMalloc((void**)&batch_gpu, n*h*w*this->c_));
+  CHECK_CUDA(cudaMemcpy(batch_gpu, batch.data(), n*h*w*this->c_, cudaMemcpyHostToDevice));
+
+  // Run the method
+  T *output_batch = nullptr;
+  CHECK_CUDA(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
+  
+  CHECK_NDLL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
+          mean, std, output_batch, 0));
+
+  vector<double> output_batch_ver(n*h*w*this->c_, 0);
+  CPUBatchedNormalizePermute(batch.data(), n, h, w, this->c_,
+      vals.data(), vals.data()+this->c_, output_batch_ver.data());
+
+  this->CompareData(output_batch, output_batch_ver.data(), n*h*w*this->c_);
+  
+  CHECK_CUDA(cudaDeviceSynchronize());
+  CHECK_CUDA(cudaFree(mean));
+  CHECK_CUDA(cudaFree(batch_gpu));
+  CHECK_CUDA(cudaFree(output_batch));
 }
 
 } // namespace ndll

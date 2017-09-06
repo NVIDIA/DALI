@@ -4,7 +4,7 @@ namespace ndll {
 
 namespace {
 // Source: Based off kernel from caffe2/image/transform_gpu.cu. This was
-// written by slayton I believe and the file has a Nvidia license at the top
+// written by slayton I believe and the file has an Nvidia license at the top
 //
 // TODO(tgale): We'll need to do some funky-ness to add fp16 support to
 // this and other similar functions.
@@ -16,7 +16,7 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *image_batch,
   const int stride = H*W*C;
 
   // Get pointer to my blocks image
-  uint8 *in = image_batch + n * stride;
+  const uint8 *in = image_batch + n * stride;
   OUT *out = out_batch + n * stride;
 
   for (int c = 0; c < C; ++c) {
@@ -24,7 +24,7 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *image_batch,
       for (int w = threadIdx.x; w < W; w += blockDim.x) {
         // TODO(tgale): Should we take in the inverse std dev
         // and do a multiply here?
-        out[c*H*W + H*w + w] = static_cast<OUT>(
+        out[c*H*W + h*W + w] = static_cast<OUT>(
             (static_cast<float>(in[h*W*C + w*C + c]) - mean[c]) / std[c]);
       }
     }
@@ -47,7 +47,7 @@ NDLLError_t BatchedNormalizePermute(const uint8 *image_batch,
   NDLL_ASSERT(W > 0);
   NDLL_ASSERT(H > 0);
   
-  BatchedNormalizePermuateKernel<<<N, dim3(16, 16), 0, stream>>>(
+  BatchedNormalizePermuteKernel<<<N, dim3(16, 16), 0, stream>>>(
       image_batch, N, H, W, C, mean, std, out_batch);
   return NDLLSuccess;
 }
@@ -63,7 +63,5 @@ template NDLLError_t BatchedNormalizePermute<float>(const uint8 *image_batch,
 template NDLLError_t BatchedNormalizePermute<double>(const uint8 *image_batch,
     int N, int H, int W, int C, float *mean, float *std, double *out_batch,
     cudaStream_t stream);
-
-
 
 } // namespace ndll
