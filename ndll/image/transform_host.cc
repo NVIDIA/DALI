@@ -4,6 +4,7 @@
 
 namespace ndll {
 
+// Note: User is responsible for avoiding division by 0 w/ the std deviation
 NDLLError_t ResizeCropMirrorHost(const uint8 *image, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
     int crop_w, bool mirror, uint8 *out_img) {
