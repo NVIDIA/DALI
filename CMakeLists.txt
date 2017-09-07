@@ -7,10 +7,17 @@ project(NDLL CXX)
 option(BUILD_TEST "Build googletest test suite" ON)
 option(DUMP_IMAGES "Dump the raw images for inpsection in the test suite" ON)
 
+# Helper function to remove elements from a variable
+function (remove TARGET INPUT)
+  foreach(ITEM ${ARGN})
+    list(REMOVE_ITEM INPUT "${ITEM}")
+  endforeach()
+  set(${TARGET} ${INPUT} PARENT_SCOPE)
+endfunction(remove)
+
 if (DUMP_IMAGES)
   add_definitions(-DDUMP_IMAGES)
 endif()
-add_definitions(-DCUDA_NO_HALF)
 
 # Cmake path
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)

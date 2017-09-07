@@ -1,6 +1,9 @@
 # Get all the source files
 file(GLOB tmp *.cc *.cu)
-set(NDLL_SRCS ${NDLL_SRCS} ${tmp} PARENT_SCOPE)
+set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
+file(GLOB tmp *_test.cc)
+remove(NDLL_SRCS "${NDLL_SRCS}" ${tmp})
+set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
   # get all the test srcs

@@ -53,13 +53,10 @@ public:
     completed_.wait(lock, [this] { return this->work_complete_; });
   }
   
-  // DISABLE_COPY_ASSIGN(ThreadPool);
+  DISABLE_COPY_ASSIGN(ThreadPool);
 private:
   void ThreadMain(int thread_id) {
     while (running_) {
-      // DEBUG
-      usleep(10000000);
-      
       // Block on the condition to wait for work
       std::unique_lock<std::mutex> lock(mutex_);
       condition_.wait(lock, [this] { return !(running_ && work_queue_.empty()); });
