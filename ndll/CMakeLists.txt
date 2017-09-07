@@ -4,6 +4,7 @@ set(NDLL_TEST_SRCS)
 
 # Build the library
 add_subdirectory(image)
+add_subdirectory(pipeline)
 
 # TODO(tgale): Build to a shared library instead
 set(ndll_lib "ndll")
