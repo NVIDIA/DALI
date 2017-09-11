@@ -1,42 +1,103 @@
 #ifndef NDLL_PIPELINE_OPERATOR_H_
 #define NDLL_PIPELINE_OPERATOR_H_
 
+#include <type_traits>
 #include <utility>
 
 #include "ndll/common.h"
+#include "ndll/error_handling.h"
+#include "ndll/pipeline/backend.h"
+#include "ndll/pipeline/buffer.h"
 
 namespace ndll {
 
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline
  */
+template <typename Backend>
 class Operator {
 public:
-  Operator() : id_(num_ops_) { ++num_ops_; }
+  Operator() {}
   virtual ~Operator() = default;
 
+  // Note: An operator defines a computation that can be performed in the pipeline.
+  // Operators can be run per image on the cpu or batched on the gpu. Each execution
+  // method takes in slightly different paramters, and only works with certain cases
+  // of the 'Backend' template paramter. We wan't to enforce that the execution method
+  // for each 'Backend' can only be called when the template parameter is correct. To
+  // do this, we use 'enable_if'. If the wrong method is called for the template paramter
+  // this will result in a compiler error. An alternative is to check at runtime w/
+  // 'dynamic_cast', but this is grosser and moves a check we can do at compile time
+  // into run time.
+  
   /**
-   * Move constructor to allow transfer of ownership of the 
-   * op from the user to the pipeline
+   * @brief executes the op on a single datum on cpu 
    */
-  Operator(Operator &&op) noexcept {
-    std::swap(id_, op.id_);
+  template <typename T = Backend>
+  typename std::enable_if<std::is_base_of<CPUBackend, T >::value, int >::type
+  Run(const Buffer<Backend> &input, Buffer<Backend> *output, int data_idx) {
+    RunPerDatumCPU(input, output, data_idx);
   }
 
-  int id() const { return id_; }
-  
-  Operator& operator=(Operator &&op) = delete;
-  DISABLE_COPY_ASSIGN(Operator);
-private:
-  int id_;
+  /**
+   * @brief Executes the op on the whole batch of data on the gpu
+   */
+  template <typename T = Backend>
+  typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
+  Run(const Buffer<Backend> &input, Buffer<Backend> *output) {
+    RunBatchedGPU(input, output);
+  }
 
-  static int num_ops_;
+  /**
+   * @brief Per image CPU computation of the operator to be 
+   * implemented by derived ops.
+   */
+  virtual void RunPerDatumCPU(const Buffer<Backend> &input,
+      Buffer<Backend> *output, int data_idx) {
+    NDLL_ENFORCE(false, "RunPerDatumCPU not implemented");
+  }
+
+  /**
+   * @brief Batched GPU computation of the operator to be 
+   * implemented by derived ops.
+   */
+  virtual void RunBatchedGPU(const Buffer<Backend> &input,
+      Buffer<Backend> *output) {
+    NDLL_ENFORCE(false, "RunBatchedGPU not implemented");
+  }
+
+  /**
+   * @brief returns the output op shape given the input shape and data
+   */
+  virtual vector<Dim> InferOutputShape(const Buffer<Backend> &input) = 0;
+  
+  /**
+   * Move constructor to allow transfer of ownership of the 
+   * op from the user to the pipeline. This must be implemented
+   * by any derived op.
+   */
+  Operator(Operator &&op) noexcept { }
+
+  DISABLE_COPY_ASSIGN(Operator);
 };
 
-class Decoder : public Operator {
+template <typename Backend>
+class Decoder : public Operator<Backend> {
 public:
   Decoder() {}
   virtual ~Decoder() = default;
+  
+  vector<Dim> InferOutputShape(const Buffer<Backend> &input) {
+    return vector<Dim>{};
+  }
+
+  /**
+   * Move constructor to allow transfer of ownership of the
+   * decoder from the user to the pipeline. Must be implemented
+   * by any derived decoder.
+   */
+  Decoder(Decoder &&dec) {}
+  
   DISABLE_COPY_ASSIGN(Decoder);
 private:
 };

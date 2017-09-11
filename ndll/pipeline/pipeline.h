@@ -30,8 +30,10 @@ public:
    * main_stream. The non-blocking flag specifies whether additional 
    * streams should be allocated as non-blocking streams.
    */
-  Pipeline(int num_threads, cudaStream_t main_stream, int max_streams, bool non_blocking) :
-    thread_pool_(num_threads), stream_pool_(main_stream, max_streams, non_blocking) {}
+  Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
+      int max_streams, bool non_blocking)
+    : batch_size_(batch_size), thread_pool_(num_threads),
+      stream_pool_(main_stream, max_streams, non_blocking) {}
   
   ~Pipeline() = default;
 
@@ -39,7 +41,7 @@ public:
    * @brief Adds an op to the prefetch stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  void AddPrefetchOp(Operator &op) {
+  void AddPrefetchOp(Operator<CPUBackend> &op) {
     prefetch_ops_.push_back(std::move(op));
   }
 
@@ -47,7 +49,7 @@ public:
    * @brief Adds an op to the forward stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  void AddForwardOp(Operator &op) {
+  void AddForwardOp(Operator<GPUBackend> &op) {
     forward_ops_.push_back(std::move(op));
   }
 
@@ -70,6 +72,17 @@ public:
    * @brief Run the prefetch stage of the pipeline
    */
   void RunPrefetch() {
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      // TODO(tgale): How do we enforce that the data that comes in
+      // is actually the same number of samples as the batch size set in the
+      // pipeline? This pipeline doesn't see the buffer at all so it can't verify
+      // We can operator on BufferBase objects so we could look at that theoretically
+
+      // TODO(tgale): How should we pass the function of 'run all host-side ops'
+      // to the thread pool? Should we do a lambda in a loop? Should we define
+      // helper functions in this class to use?
+    }
+    
     // Run the decoder to get output dimensions, then do a shape inference pass
     // to let the ops set up their shit and also let the forward ops tell us
     // how much memory they need for their params for the forward pass
@@ -108,12 +121,15 @@ public:
   
   DISABLE_COPY_ASSIGN(Pipeline);
 private:
+  int batch_size_;
   StreamPool stream_pool_;
   ThreadPool thread_pool_;
-  
-  Decoder decoder_;
-  vector<Operator> prefetch_ops_;
-  vector<Operator> forward_ops_;
+
+  // TODO(tgale): Add support for GPU decoders by moving
+  // the dec into the vectors for simplified execution.
+  Decoder<CPUBackend> decoder_;
+  vector<Operator<CPUBackend>> prefetch_ops_;
+  vector<Operator<GPUBackend>> forward_ops_;
 
   std::shared_ptr<vector<BufferBase> > cpu_buffers_;
   std::shared_ptr<vector<BufferBase> > gpu_buffers_;

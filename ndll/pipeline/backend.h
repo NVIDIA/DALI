@@ -8,45 +8,74 @@
 namespace ndll {
 
 /**
- * @brief Default GPU allocator for buffer types. User defined 
- * allocators must implement the same interface. The second
- * parameter to the 'Delete' method is the size of the allocation
- * in bytes, which is required for some types/implementations of
- * memory allocators used by the frameworks.
+ * @brief Base class for all backend types. Defines the 
+ * interface that must be implemented by all backends
  */
-class GPUBackend {
+class BackendBase {
 public:
-  static void* New(size_t bytes) {
+  /**
+   * @brief Allocates `bytes` bytes of memory and returns 
+   * a pointer to the newly allocated memory
+   */
+  virtual void* New(size_t bytes) = 0;
+
+  /**
+   * @brief Frees the memory pointed to by 'ptr'. Supports `bytes`
+   * argument for certain types of allocators.
+   */
+  virtual void Delete(void *ptr, size_t bytes) = 0;
+
+  /**
+   * @brief Indicates if the memory allocated is on GPU
+   */
+  virtual bool OnDevice() = 0;
+};
+
+/**
+ * @brief Default GPU backend. User defined GPU backends must
+ * derive from this class and override 'New' and 'Delete' as
+ * they desire.
+ */
+class GPUBackend : BackendBase {
+public:
+  void* New(size_t bytes) override {
     void *ptr = nullptr;
     CUDA_ENFORCE(cudaMalloc(&ptr, bytes));
     return ptr;
   }
-  static void Delete(void *ptr, size_t /* unused */) {
+  void Delete(void *ptr, size_t /* unused */) override{
     CUDA_ENFORCE(cudaFree(ptr));
   }
+  bool OnDevice() final { return true; }
 };
 
-class CPUBackend {
+/**
+ * @brief Default CPU backend. User defined CPU backends must
+ * derive from this class and override 'New' and 'Delete' as
+ * they desire.
+ */
+class CPUBackend : BackendBase {
 public:
-  static void* New(size_t bytes) {
+  void* New(size_t bytes) override {
     return ::operator new(bytes);
   }
-  static void Delete(void *ptr, size_t /* unused */) {
+  void Delete(void *ptr, size_t /* unused */) override {
     ::operator delete(ptr);
   }
+  bool OnDevice() final { return false; }
 };
 
 /**
  * @brief Allocates page-locked host memory
  */
-class PinnedCPUBackend {
+class PinnedCPUBackend : CPUBackend {
 public:
-  static void* New(size_t bytes) {
+  void* New(size_t bytes) override {
     void *ptr = nullptr;
     CUDA_ENFORCE(cudaMallocHost(&ptr, bytes));
     return ptr;
   }
-  static void Delete(void *ptr, size_t /* unused */) {
+  void Delete(void *ptr, size_t /* unused */) override {
     CUDA_ENFORCE(cudaFreeHost(ptr));
   }
 };

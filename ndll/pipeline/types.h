@@ -1,0 +1,104 @@
+#ifndef NDLL_PIPELINE_TYPES_H_
+#define NDLL_PIPELINE_TYPES_H_
+
+#include <cstdint>
+
+#include <typeindex>
+#include <typeinfo>
+#include <unordered_map>
+
+#include "ndll/common.h"
+#include "ndll/error_handling.h"
+
+namespace ndll {
+
+typedef int64_t TypeID;
+constexpr TypeID NO_TYPE = -1;
+  
+/**
+ * @brief Keeps track of mappings between types and unique identifiers.
+ */
+class TypeTable {
+public:
+  
+  template <typename T>
+  static TypeID GetTypeID();
+  
+  template <typename T>
+  static string GetTypeName();
+  
+private:
+  // TypeTable should only be referenced through its static members
+  TypeTable();
+
+  // Used by DEFINE_TYPE macros to register a type in the type table
+  template <typename T>
+  static TypeID RegisterType() {
+    static int id = 0;
+    
+    // Check the map for this types id
+    auto id_it = type_map_.find(typeid(T));
+    
+    // This method should only be called once per type. It shouldn't
+    // even be possible to call this twice without compiler errors
+    // because it is only called from the explicit specialization of
+    // GetIDForType().
+    NDLL_ENFORCE(id_it == type_map_.end(),
+        "Re-registration of type, check for duplicate DEFINE_TYPE calls");
+        
+    int new_id = id;
+    type_map_[typeid(T)] = new_id;
+    ++id;
+    return new_id;
+  }
+  
+  static std::unordered_map<std::type_index, TypeID> type_map_;
+};
+
+// Stores the unqiue ID for a type and its size in bytes
+class TypeMeta {
+public:
+  TypeMeta() : id_(NO_TYPE), type_size_(0) { }
+
+  template <typename T>
+  void SetType() {
+    id_ = TypeTable::GetTypeID<T>();
+    type_size_ = sizeof(T);
+    name_ = TypeTable::GetTypeName<T>();
+  }
+
+  TypeID id() const {
+    return id_;
+  }
+
+  size_t size() const {
+    return type_size_;
+  }
+
+  string name() const {
+    return name_;
+  }
+  
+private:
+  TypeID id_;
+  size_t type_size_;
+  string name_;
+};
+
+// Used to define a type for use in ndll. Inserts the type into the
+// TypeTable w/ a unique id and creates a method to get the name of
+// the type as a string. This does not work for non-fundamental types,
+// as we do not have any mechanism for calling the constructor of the
+// type when the buffer allocates the memory.
+#define DEFINE_TYPE(Type)                                         \
+  template <> string TypeTable::GetTypeName<Type>() {             \
+    return #Type;                                                 \
+  }                                                               \
+  template <> TypeID TypeTable::GetTypeID<Type>() {               \
+    static TypeID type_id = TypeTable::RegisterType<Type>();      \
+    return type_id;                                               \
+  }
+
+} // namespace ndll
+
+#endif // NDLL_PIPELINE_TYPES_H_

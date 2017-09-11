@@ -123,7 +123,7 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = GetErrorString(#code, __FILE__, __LINE__); \
       string usr_str = str;                                     \
       error += ": " + usr_str;                                  \
-      return NDLLException(error);                              \
+      throw NDLLException(error);                               \
     }                                                           \
   } while (0)
 
