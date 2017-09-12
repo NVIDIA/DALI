@@ -15,22 +15,23 @@ protected:
 };
 
 TEST_F(PipelineTest, TestBuildPipeline) {
-  Pipeline<CPUBackend, GPUBackend> pipe(6, 4, 0, 8, true);
+  try {
+  Pipeline<CPUBackend, GPUBackend> pipe(4, 0, 8, true);
 
-  Buffer<GPUBackend> buf, buf2;
-  Decoder<GPUBackend> dec;
-  dec.Run(buf, &buf2);
+  Decoder<CPUBackend> dec;
+  pipe.AddPrefetchOp(dec);
+  pipe.Build();
 
-  Buffer<CPUBackend> cbuf, cbuf2;
-  Decoder<CPUBackend> dec2;
-  dec2.Run(cbuf, &cbuf2, 0);
+  int batch_size = 32, sample_dim = 128;
+  Buffer<CPUBackend> input;
+  input.Resize({batch_size, sample_dim});
+
+  // Run the pipeline
+  pipe.RunPrefetch(&input);
   
-  // for (int i = 0; i < 100; ++i) {
-  //   Operator op;
-  //   cout << op.id() << endl;
-  //   pipe.AddPrefetchOp(op);
-  //   cout << op.id() << endl;
-  // }
+  } catch (NDLLException &e) {
+    FAIL() << e.what();
+  }
 }
 
 } // namespace ndll

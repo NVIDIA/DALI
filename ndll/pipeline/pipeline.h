@@ -1,6 +1,7 @@
 #ifndef NDLL_PIPELINE_PIPELINE_H_
 #define NDLL_PIPELINE_PIPELINE_H_
 
+#include <functional>
 #include <memory>
 
 #include "ndll/common.h"
@@ -30,10 +31,10 @@ public:
    * main_stream. The non-blocking flag specifies whether additional 
    * streams should be allocated as non-blocking streams.
    */
-  Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
-      int max_streams, bool non_blocking)
-    : batch_size_(batch_size), thread_pool_(num_threads),
-      stream_pool_(main_stream, max_streams, non_blocking) {}
+  inline Pipeline(int num_threads, cudaStream_t main_stream,
+      int max_streams,  bool non_blocking) :
+    built_(false), decode_location_(DECODE_NONE), thread_pool_(num_threads),
+    stream_pool_(main_stream, max_streams, non_blocking) {}
   
   ~Pipeline() = default;
 
@@ -41,7 +42,9 @@ public:
    * @brief Adds an op to the prefetch stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  void AddPrefetchOp(Operator<CPUBackend> &op) {
+  inline void AddPrefetchOp(Operator<CPUBackend> &op) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
     prefetch_ops_.push_back(std::move(op));
   }
 
@@ -49,79 +52,160 @@ public:
    * @brief Adds an op to the forward stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  void AddForwardOp(Operator<GPUBackend> &op) {
+  inline void AddForwardOp(Operator<GPUBackend> &op) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
     forward_ops_.push_back(std::move(op));
   }
 
+  /**
+   * @brief Inserts the decoder on the front of the prefetch stage of the pipeline.
+   * The op is moved into the pipeline and left in a default state
+   */
+  inline void AddDecoder(Operator<CPUBackend> &dec) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+            "\"Build()\" has been called are not allowed");
+    NDLL_ENFORCE(decode_location_ == DECODE_NONE,
+        "A Decoder already exists in the pipeline");
+    prefetch_ops_.insert(prefetch_ops_.begin(), std::move(dec));
+    decode_location_ = DECODE_PREFETCH;
+  }
+  
+  /**
+   * @brief Inserts the decoder on the front of the forward stage of the pipeline.
+   * The op is moved into the pipeline and left in a default state.
+   *
+   * Decoders are special ops that can only appear once in the pipeline, and must
+   * appear first. Decoders can also have data dependent shape inference methods
+   * Adding the Decoder to forward stage implies that their are no prefetch ops. 
+   * If this is not the case, 'Build()' will throw an error.
+   */
+  inline void AddDecoder(Decoder<GPUBackend> &dec) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
+    NDLL_ENFORCE(decode_location_ == DECODE_NONE,
+        "A Decoder already exists in the pipeline");
+    forward_ops_.insert(prefetch_ops_.begin(), std::move(dec));
+    decode_location_ = DECODE_FORWARD;
+  }
+
+  
+  /**
+   * @brief Performs some checks on the user-constructed pipeline, setups data
+   * for intermediate results, and marks as ready for execution.
+   */
+  inline void Build() {
+    // Make sure the decoder is the first op in the pipeline
+    if (decode_location_ == DECODE_FORWARD) {
+      NDLL_ENFORCE(prefetch_ops_.size() == 0,
+          "The Decoder is set to occur in the forward "
+          "pipeline stage but prefetch operators exist");
+    }
+
+    // Create buffers for intermediate pipeline results. We need 1
+    // buffer for each cpu side op output, and 1 buffer for each
+    // gpu side op input. The input to the pipeline and the output
+    // to the pipeline are passed into the "RunPrefetch" and
+    // "RunForward" methods
+    for (int i = 0; i < prefetch_ops_.size(); ++i) {
+      BufferPtr<CPUBackend> tmp_cpu;
+      cpu_buffers_.push_back(std::move(tmp_cpu));
+    }
+    for (int i = 0; i < forward_ops_.size(); ++i) {
+      BufferPtr<GPUBackend> tmp_gpu;
+      gpu_buffers_.push_back(std::move(tmp_gpu));
+    }
+
+    // TODO(tgale): Is it actually worth enforcing this? We need
+    // to do this setup before "Run*" is called but we also don't
+    // really want to check this flag every time those methods
+    // are called. For now we will check.
+    built_ = true;
+  }
+  
   /**
    * @brief Pairs CPUBuffers w/ GPUBuffers for transfering data to the GPU
    *
    * TODO(tgale): Make sure this stores the correct references 
    * and pointers that will still be in scope
    */
-  void AddCopyBuffers(std::shared_ptr<vector<BufferBase> > cpu_buffers,
-      std::shared_ptr<vector<BufferBase> > gpu_buffers) {
-    NDLL_ENFORCE(cpu_buffers != nullptr);
-    NDLL_ENFORCE(gpu_buffers != nullptr);
-    NDLL_ENFORCE(cpu_buffers->size() == gpu_buffers->size());
-    cpu_buffers_ = cpu_buffers;
-    gpu_buffers_ = gpu_buffers;
-  }
+  // void AddCopyBuffers(std::shared_ptr<vector<BufferBase> > cpu_buffers,
+  //     std::shared_ptr<vector<BufferBase> > gpu_buffers) {
+  //   // TODO(tgale): Should we provide this method or just let the user handle other
+  //   // outputs externally? Yes, for the case where an op in forward needs and output in
+  //   // prefetch this is useful.    
+  //   NDLL_ENFORCE(cpu_buffers != nullptr);
+  //   NDLL_ENFORCE(gpu_buffers != nullptr);
+  //   NDLL_ENFORCE(cpu_buffers->size() == gpu_buffers->size());
+  //   cpu_buffers_ = cpu_buffers;
+  //   gpu_buffers_ = gpu_buffers;
+  // }
 
   /**
    * @brief Run the prefetch stage of the pipeline
    */
-  void RunPrefetch() {
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      // TODO(tgale): How do we enforce that the data that comes in
-      // is actually the same number of samples as the batch size set in the
-      // pipeline? This pipeline doesn't see the buffer at all so it can't verify
-      // We can operator on BufferBase objects so we could look at that theoretically
+  inline void RunPrefetch(Buffer<CPUBackend> *input) {
+    // We assume the input Buffer is of shape [N, ...], where 'N'
+    // is the number of sample and '...' is the dimension of each sample
+    NDLL_ENFORCE(built_,
+        "\"Build()\" must be called before the pipeline is executed");
+    NDLL_ENFORCE(input->ndim() > 0);
+    Dim batch_size = input->dim(0);
 
-      // TODO(tgale): How should we pass the function of 'run all host-side ops'
-      // to the thread pool? Should we do a lambda in a loop? Should we define
-      // helper functions in this class to use?
+    for (Dim i = 0; i < batch_size; ++i) {
+      // TODO(tgale): Save all the dims and resize the intermediate buffers. Look
+      // into what temporary objects are created to avoid unescesary cost.
+
+      // Run type inference for this image on the whole pipeline
+      thread_pool_.DoWorkWithID(std::bind(
+              [this, &input] (int data_idx, int tid) {
+                SubBuffer<CPUBackend> sub_buf(input, data_idx);
+                vector<Dim> dims;
+                dims = prefetch_ops_[0].InferOutputShape(sub_buf);
+                for (int j = 1; j < prefetch_ops_.size(); ++j) {
+                  sub_buf.Reset(cpu_buffers_[j-1].get(), data_idx);
+                  dims = prefetch_ops_[j].InferOutputShape(sub_buf);
+                }
+              }, i, std::placeholders::_1));
     }
-    
-    // Run the decoder to get output dimensions, then do a shape inference pass
-    // to let the ops set up their shit and also let the forward ops tell us
-    // how much memory they need for their params for the forward pass
-
-    // Run another thread loop to finish all host-side processing.
-    // Then do another pass through all the forward ops to let them setup their
-    // batched forward params in our mega buffer?
-    // Document all assumptions of this execution pattern:
-    // 1. Size of the output is assumed to be only dependent on the input data shape.
-    //    for things like bounding box crops that would be produced in the decoder,
-    //    This is stil ok because we execute the decoder stage first.
+    thread_pool_.WaitForWork();
   }
 
   /**
    * @brief Copy the host buffers into their device-side counterparts
    */
-  void RunCopy() {
-    for (int i = 0; i < cpu_buffers_->size(); ++i) {
-      // TODO(tgale): Should we enforce this or resize the
-      // device buffer appropriately?
-      NDLL_ENFORCE((*cpu_buffers_)[i].shape() == (*gpu_buffers_)[i].shape());
+  // void RunCopy() {
+  //   for (int i = 0; i < cpu_buffers_->size(); ++i) {
+  //     // TODO(tgale): Should we enforce this or resize the
+  //     // device buffer appropriately?
+  //     NDLL_ENFORCE((*cpu_buffers_)[i].shape() == (*gpu_buffers_)[i].shape());
       
-      CUDA_ENFORCE(cudaMemcpyAsync((*gpu_buffers_)[i].raw_data(),
-              (*cpu_buffers_)[i].raw_data(), (*cpu_buffers_)[i].bytes(),
-              cudaMemcpyHostToDevice, stream_pool_.GetStream()));
-    }
-  }
+  //     CUDA_ENFORCE(cudaMemcpyAsync((*gpu_buffers_)[i].raw_data(),
+  //             (*cpu_buffers_)[i].raw_data(), (*cpu_buffers_)[i].bytes(),
+  //             cudaMemcpyHostToDevice, stream_pool_.GetStream()));
+  //   }
+  // }
 
   /**
    * @brief Run the forward stage of the pipeline
    */
-  void RunForward() {
+  inline void RunForward() {
     // Launch all the kernels, then use the stream pool to insert
     // events to enforce synchronization behavior
+    NDLL_ENFORCE(built_,
+        "\"Build()\" must be called before the pipeline is executed");
   }
   
   DISABLE_COPY_ASSIGN(Pipeline);
 private:
-  int batch_size_;
+  enum DecodeLocation {
+    DECODE_NONE,
+    DECODE_PREFETCH,
+    DECODE_FORWARD
+  };
+  DecodeLocation decode_location_;
+  bool built_;
+  
   StreamPool stream_pool_;
   ThreadPool thread_pool_;
 
@@ -131,8 +215,14 @@ private:
   vector<Operator<CPUBackend>> prefetch_ops_;
   vector<Operator<GPUBackend>> forward_ops_;
 
-  std::shared_ptr<vector<BufferBase> > cpu_buffers_;
-  std::shared_ptr<vector<BufferBase> > gpu_buffers_;
+  template <typename T>
+  using BufferPtr = std::unique_ptr<Buffer<T>>;
+  
+  vector<BufferPtr<CPUBackend>> cpu_buffers_;
+  vector<BufferPtr<GPUBackend>> gpu_buffers_;
+  
+  // std::shared_ptr<vector<BufferBase> > cpu_buffers_;
+  // std::shared_ptr<vector<BufferBase> > gpu_buffers_;
 };
 
 } // namespace ndll

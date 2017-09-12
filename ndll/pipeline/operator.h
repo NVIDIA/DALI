@@ -54,7 +54,7 @@ public:
    */
   virtual void RunPerDatumCPU(const Buffer<Backend> &input,
       Buffer<Backend> *output, int data_idx) {
-    NDLL_ENFORCE(false, "RunPerDatumCPU not implemented");
+    NDLL_FAIL("RunPerDatumCPU not implemented");
   }
 
   /**
@@ -63,20 +63,22 @@ public:
    */
   virtual void RunBatchedGPU(const Buffer<Backend> &input,
       Buffer<Backend> *output) {
-    NDLL_ENFORCE(false, "RunBatchedGPU not implemented");
+    NDLL_FAIL("RunBatchedGPU not implemented");
   }
 
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual vector<Dim> InferOutputShape(const Buffer<Backend> &input) = 0;
+  virtual vector<Dim> InferOutputShape(const Buffer<Backend> &input) {
+    NDLL_FAIL("InferOutputShape not implemented");
+  }
   
   /**
    * Move constructor to allow transfer of ownership of the 
    * op from the user to the pipeline. This must be implemented
    * by any derived op.
    */
-  Operator(Operator &&op) noexcept { }
+  Operator(Operator &&op) noexcept {}
 
   DISABLE_COPY_ASSIGN(Operator);
 };

@@ -129,6 +129,14 @@ inline string GetErrorString(string statement, string file, int line) {
 
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
 
+#define NDLL_FAIL(str)                                    \
+  do {                                                    \
+    string file = __FILE__;                               \
+    string line = std::to_string(__LINE__);               \
+    string error = "[" + file + ":" + line + " " + str;   \
+    throw NDLLException(str);                             \
+  } while (0)
+
 } // namespace ndll
 
 #endif // NDLL_ERROR_HANDLING_H_
