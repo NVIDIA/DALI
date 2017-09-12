@@ -4,10 +4,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "ndll/pipeline/batch.h"
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/backend.h"
-#include "ndll/pipeline/buffer.h"
 
 namespace ndll {
 
@@ -35,7 +35,7 @@ public:
    */
   template <typename T = Backend>
   typename std::enable_if<std::is_base_of<CPUBackend, T >::value, int >::type
-  Run(const Buffer<Backend> &input, Buffer<Backend> *output, int data_idx) {
+  Run(const Batch<Backend> &input, Batch<Backend> *output, int data_idx) {
     RunPerDatumCPU(input, output, data_idx);
   }
 
@@ -44,7 +44,7 @@ public:
    */
   template <typename T = Backend>
   typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  Run(const Buffer<Backend> &input, Buffer<Backend> *output) {
+  Run(const Batch<Backend> &input, Batch<Backend> *output) {
     RunBatchedGPU(input, output);
   }
 
@@ -52,8 +52,8 @@ public:
    * @brief Per image CPU computation of the operator to be 
    * implemented by derived ops.
    */
-  virtual void RunPerDatumCPU(const Buffer<Backend> &input,
-      Buffer<Backend> *output, int data_idx) {
+  virtual void RunPerDatumCPU(const Batch<Backend> &input,
+      Batch<Backend> *output, int data_idx) {
     NDLL_FAIL("RunPerDatumCPU not implemented");
   }
 
@@ -61,15 +61,15 @@ public:
    * @brief Batched GPU computation of the operator to be 
    * implemented by derived ops.
    */
-  virtual void RunBatchedGPU(const Buffer<Backend> &input,
-      Buffer<Backend> *output) {
+  virtual void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) {
     NDLL_FAIL("RunBatchedGPU not implemented");
   }
 
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual vector<Dim> InferOutputShape(const Buffer<Backend> &input) {
+  virtual vector<Dim> InferOutputShape(const Datum<Backend> &input) {
     NDLL_FAIL("InferOutputShape not implemented");
   }
   
@@ -90,7 +90,7 @@ public:
   Decoder() {}
   virtual ~Decoder() = default;
   
-  vector<Dim> InferOutputShape(const Buffer<Backend> &input) {
+  vector<Dim> InferOutputShape(const Datum<Backend> &input) {
     return vector<Dim>{};
   }
 

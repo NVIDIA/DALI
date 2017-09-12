@@ -20,8 +20,8 @@ inline Dim Product(const vector<Dim> &shape) {
 }
 
 /**
- * @brief the basic unit of data storage for the Pipeline and Operators.
- * Uses input 'Backend' type to allocate and free memory.
+ * @brief Base class for pipeline data storage classes. This should not be used,
+ * it does not provide any method for altering the size of the underlying data
  */
 template <typename Backend>
 class Buffer {
@@ -30,36 +30,6 @@ public:
 
   virtual ~Buffer() {
     backend_.Delete(data_, true_size_*type_.size());
-  }
-
-  /**
-   * @brief Resizes the buffer to fit `size` elements. 
-   * The underlying storage is only reallocated in the case that
-   * the current buffer is not large enough for the requested 
-   * number of elements.
-   */
-  inline virtual void Resize(int new_size) {
-    if (new_size == size_) return;
-    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
-        "storage, calling 'Resize()' not allowed");
-    if (type_.id() == NO_TYPE) {
-      // If the type has not been set yet, we just set the size
-      // and shape of the buffer and do not allocate any memory.
-      // Any previous resize dims are overwritten.
-      size_ = new_size;
-      true_size_ = new_size;
-      return;
-    }
-
-    if (new_size > true_size_) {
-      // Re-allocate the buffer to meet the new size requirements
-      backend_.Delete(data_, true_size_*type_.size());
-      data_ = backend_.New(new_size*type_.size());
-      true_size_ = new_size;
-    }
-
-    // If we have enough storage already allocated, don't reallocate
-    size_ = new_size;
   }
   
   template <typename T>

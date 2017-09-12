@@ -15,45 +15,18 @@ typedef vector<Dim> Shape;
 template <typename Backend>
 class Batch : public Buffer<Backend> {
 public:
-  Batch() : jagged_(false) {}
+  Batch() {}
   ~Batch() = default;
 
-  // For base class 'Resize()' method
-  using Buffer<Backend>::Resize;
-  
   /**
    * @brief Basic resize function to create dense batches.
    * The 0th value in the input shape is assumed to be
    * the samples dimension, i.e. N = shape[0]
    */
   inline void Resize(const vector<Dim> &shape) {
-    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
-        "storage, calling 'Resize()' not allowed");
-    // This tensor is not jagged
-    jagged_ = false; 
-    offsets_.clear();
-    
-    int new_size = Product(shape);
-    if (type_.id() == NO_TYPE) {
-      // If the type has not been set yet, we just set the size
-      // and shape of the buffer and do not allocate any memory.
-      // Any previous resize dims are overwritten.
-      size_ = new_size;
-      true_size_ = new_size;
-      batch_shape_ = {shape};
-      return;
-    }
-
-    if (new_size > true_size_) {
-      // Re-allocate the buffer to meet the new size requirements
-      backend_.Delete(data_, true_size_*type_.size());
-      data_ = backend_.New(new_size*type_.size());
-      true_size_ = new_size;
-    }
-
-    // If we have enough storage already allocated, don't reallocate
-    size_ = new_size;
-    batch_shape_ = {shape};
+    vector<Dim> sample_shape(shape.begin()+1, shape.end());
+    vector<Shape> tmp_shape(shape[0], sample_shape);
+    Resize(tmp_shape);
   }
 
   /**
@@ -67,16 +40,6 @@ public:
     if (shape == batch_shape_) return;
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
-    // User called the wrong method, forward the shape to
-    // the more non-jagged version
-    if (shape.size() == 0) {
-      Resize({});
-      return;
-    } else if (shape.size() == 1) {
-      Resize(shape[0]);
-      return;
-    }
-    jagged_ = true;
 
     // Calculate the new size
     int new_size = 1;
@@ -124,11 +87,7 @@ public:
    * @brief Returns the number of samples in the batch
    */
   inline int ndatum() const {
-    if (jagged_) {
-      return batch_shape_.size();
-    } else {
-      return batch_shape_[0][0];
-    }
+    return batch_shape_.size();
   }
 
   /**
@@ -139,11 +98,7 @@ public:
     NDLL_ENFORCE(idx > 0, "Negative index not supported");
     NDLL_ENFORCE(idx < offsets_.size(), "Index out of offset range");
 #endif
-    if (jagged_) {
-      return offsets_[idx];
-    } else {
-      return idx * (Product(batch_shape_[0]) / batch_shape_[0][0]);
-    }
+    return offsets_[idx];
   }
 
   /**
@@ -154,18 +109,7 @@ public:
     NDLL_ENFORCE(idx > 0, "Negative index not supported");
     NDLL_ENFORCE(idx < batch_shape_.size(), "Index out of offset range");
 #endif
-    if (jagged_) {
-      return batch_shape_[idx];
-    } else {
-      return batch_shape_[0];
-    }
-  }
-  
-  inline bool jagged() const {
-    if (batch_shape_.size() < 2) {
-      return false;
-    }
-    return true;
+    return batch_shape_[idx];
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Batch);
@@ -183,13 +127,9 @@ protected:
   }
   
   // We maintain a vector of 'Shape's to allow us to store
-  // jagged tensors. If the outer vector is of length 1,
-  // the tensor is assumed to be dense. We also cache the
-  // offsets of each sample in the jagged tensor. If the
-  // Tensor is dense, these offsets are not created
+  // jagged tensors.  We also cache the offset of each sample
   vector<Shape> batch_shape_;
   vector<Dim> offsets_;
-  bool jagged_;
 
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;

@@ -26,11 +26,12 @@ TEST_F(PipelineTest, TestBuildPipeline) {
   pipe.Build();
 
   int batch_size = 32, sample_dim = 128;
+  vector<Dim> size;
   Batch<CPUBackend> input;
-  input.Resize(5);
+  input.Resize(size);
 
   Tensor<CPUBackend> ten;
-  ten.Resize(5);
+  ten.Resize(size);
 
   // Run the pipeline
   pipe.RunPrefetch(&input);

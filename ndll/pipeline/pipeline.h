@@ -109,11 +109,11 @@ public:
     // to the pipeline are passed into the "RunPrefetch" and
     // "RunForward" methods
     for (int i = 0; i < prefetch_ops_.size(); ++i) {
-      BufferPtr<CPUBackend> tmp_cpu;
+      BatchPtr<CPUBackend> tmp_cpu;
       cpu_buffers_.push_back(std::move(tmp_cpu));
     }
     for (int i = 0; i < forward_ops_.size(); ++i) {
-      BufferPtr<GPUBackend> tmp_gpu;
+      BatchPtr<GPUBackend> tmp_gpu;
       gpu_buffers_.push_back(std::move(tmp_gpu));
     }
 
@@ -158,16 +158,16 @@ public:
       // into what temporary objects are created to avoid unescesary cost.
 
       // Run type inference for this image on the whole pipeline
-      // thread_pool_.DoWorkWithID(std::bind(
-      //         [this, &input] (int data_idx, int tid) {
-      //           SubBuffer<CPUBackend> sub_buf(input, data_idx);
-      //           vector<Dim> dims;
-      //           dims = prefetch_ops_[0].InferOutputShape(sub_buf);
-      //           for (int j = 1; j < prefetch_ops_.size(); ++j) {
-      //             sub_buf.Reset(cpu_buffers_[j-1].get(), data_idx);
-      //             dims = prefetch_ops_[j].InferOutputShape(sub_buf);
-      //           }
-      //         }, i, std::placeholders::_1));
+      thread_pool_.DoWorkWithID(std::bind(
+              [this, &input] (int data_idx, int tid) {
+                Datum<CPUBackend> datum(input, data_idx);
+                vector<Dim> dims;
+                dims = prefetch_ops_[0].InferOutputShape(datum);
+                for (int j = 1; j < prefetch_ops_.size(); ++j) {
+                  datum.Reset(cpu_buffers_[j-1].get(), data_idx);
+                  dims = prefetch_ops_[j].InferOutputShape(datum);
+                }
+              }, i, std::placeholders::_1));
     }
     thread_pool_.WaitForWork();
   }
@@ -217,10 +217,10 @@ private:
   vector<Operator<GPUBackend>> forward_ops_;
 
   template <typename T>
-  using BufferPtr = std::unique_ptr<Buffer<T>>;
+  using BatchPtr = std::unique_ptr<Batch<T>>;
   
-  vector<BufferPtr<CPUBackend>> cpu_buffers_;
-  vector<BufferPtr<GPUBackend>> gpu_buffers_;
+  vector<BatchPtr<CPUBackend>> cpu_buffers_;
+  vector<BatchPtr<GPUBackend>> gpu_buffers_;
   
   // std::shared_ptr<vector<BufferBase> > cpu_buffers_;
   // std::shared_ptr<vector<BufferBase> > gpu_buffers_;

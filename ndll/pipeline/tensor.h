@@ -17,9 +17,6 @@ public:
   Tensor() {}
   ~Tensor() = default;
 
-  // For base class 'Resize()' method
-  using Buffer<Backend>::Resize;
-  
   /**
    * @brief Resizes the buffer to fit `Product(shape)` elements.
    * The underlying storage is only reallocated in the case that
@@ -30,10 +27,25 @@ public:
    */
   inline virtual void Resize(const vector<Dim> &shape) {
     if (shape == shape_) return;
+    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
+        "storage, calling 'Resize()' not allowed");
     int new_size = Product(shape);
-    Resize(new_size);
+    if (type_.id() == NO_TYPE) {
+      // If the type has not been set yet, we just set the size
+      // and shape of the buffer and do not allocate any memory.
+      // Any previous resize dims are overwritten.
+      size_ = new_size;
+      true_size_ = new_size;
+      shape_ = shape;
+      return;
+    }
 
-    // Save the new shape
+    if (new_size > true_size_) {
+      // Re-allocate the buffer to meet the new size requirements
+      backend_.Delete(data_, true_size_*type_.size());
+      data_ = backend_.New(new_size*type_.size());
+      true_size_ = new_size;
+    }
     shape_ = shape;
   }
 
@@ -56,6 +68,14 @@ public:
   DISABLE_COPY_MOVE_ASSIGN(Tensor);
 protected:
   vector<Dim> shape_;
+
+  // So we don't have to put 'this->' everywhere
+  using Buffer<Backend>::backend_;
+  using Buffer<Backend>::type_;
+  using Buffer<Backend>::owned_;
+  using Buffer<Backend>::data_;
+  using Buffer<Backend>::size_;
+  using Buffer<Backend>::true_size_;
 };
 } // namespace ndll
 
