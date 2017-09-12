@@ -190,7 +190,7 @@ TYPED_TEST_CASE(JpegDecodeTest, Types);
 TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   // Decode all jpegs and see what they look like!
   vector<uint8> image;
-  for (int img = 0; img < this->jpegs_.size(); ++img) {
+  for (size_t img = 0; img < this->jpegs_.size(); ++img) {
     int h, w;
 
     CHECK_NDLL(GetJPEGImageDims(this->jpegs_[img],

@@ -25,7 +25,7 @@ public:
     non_blocking_(non_blocking ? cudaStreamNonBlocking : cudaStreamDefault) {}
 
   ~StreamPool() {
-    for (int i = 1; i < streams_.size(); ++i) {
+    for (size_t i = 1; i < streams_.size(); ++i) {
       CUDA_ENFORCE(cudaStreamDestroy(streams_[i]));
     }
     for (auto &event : events_) {
@@ -69,7 +69,7 @@ public:
 
     // Note: We will have to see if calling 'StreamWaitEvent()' on
     // every stream other than the main is costly
-    for (int i = 1; i < streams_.size(); ++i) {
+    for (size_t i = 1; i < streams_.size(); ++i) {
       CUDA_ENFORCE(cudaEventRecord(events_[i-1], streams_[i]));
       CUDA_ENFORCE(cudaStreamWaitEvent(streams_[0], events_[i-1], 0));
     }

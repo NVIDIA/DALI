@@ -26,7 +26,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 include(cmake/Dependencies.cmake)
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 
 # TODO(tgale): Add sm targets
 # Note: Adding this causes nvcc to throw error that 'std' was redefined

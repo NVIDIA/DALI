@@ -16,8 +16,11 @@ public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
   
-  ThreadPool(int num_thread) : running_(true), work_complete_(false),
-                               active_threads_(0), threads_(num_thread) {
+  ThreadPool(int num_thread)
+    : threads_(num_thread),
+      running_(true),
+      work_complete_(false),
+      active_threads_(0) {
     // Start the threads in the main loop
     for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i));

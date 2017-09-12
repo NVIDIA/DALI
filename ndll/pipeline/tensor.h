@@ -29,7 +29,7 @@ public:
     if (shape == shape_) return;
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
-    int new_size = Product(shape);
+    Dim new_size = Product(shape);
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
       // and shape of the buffer and do not allocate any memory.

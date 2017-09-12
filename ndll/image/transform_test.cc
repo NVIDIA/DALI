@@ -79,7 +79,7 @@ public:
   void DecodeJPEGS() {
     images_.resize(jpegs_.size());
     image_dims_.resize(jpegs_.size());
-    for (int i = 0; i < jpegs_.size(); ++i) {
+    for (size_t i = 0; i < jpegs_.size(); ++i) {
       cv::Mat img;
       cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
       
@@ -302,7 +302,7 @@ TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
 TYPED_TEST(TransformTest, TestResizeCrop) {
   std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img;
-  for (int i = 0; i < this->images_.size(); ++i) {
+  for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
     int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
     int rsz_w = std::uniform_int_distribution<>(32, 512)(rand_gen);
@@ -349,7 +349,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
 TYPED_TEST(TransformTest, TestResizeCropMirror) {
   std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img;
-  for (int i = 0; i < this->images_.size(); ++i) {
+  for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
     int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
     int rsz_w = std::uniform_int_distribution<>(32, 512)(rand_gen);
