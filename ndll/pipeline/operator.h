@@ -79,8 +79,9 @@ public:
    * by any derived op.
    */
   Operator(Operator &&op) noexcept {}
-
-  DISABLE_COPY_ASSIGN(Operator);
+  Operator(const Operator&) = delete;
+  Operator& operator=(Operator&&) = delete;
+  Operator& operator=(const Operator&) = delete;
 };
 
 template <typename Backend>
@@ -98,9 +99,11 @@ public:
    * decoder from the user to the pipeline. Must be implemented
    * by any derived decoder.
    */
-  Decoder(Decoder &&dec) {}
-  
-  DISABLE_COPY_ASSIGN(Decoder);
+  Decoder(Decoder &&dec) noexcept {}
+  Decoder(const Decoder&) = delete;
+  Decoder& operator=(Decoder&&) = delete;
+  Decoder& operator=(const Decoder&) = delete;
+
 private:
 };
 

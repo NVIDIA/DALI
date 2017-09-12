@@ -53,7 +53,7 @@ public:
     completed_.wait(lock, [this] { return this->work_complete_; });
   }
   
-  DISABLE_COPY_ASSIGN(ThreadPool);
+  DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 private:
   void ThreadMain(int thread_id) {
     while (running_) {

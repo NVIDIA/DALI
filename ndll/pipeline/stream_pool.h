@@ -75,7 +75,7 @@ public:
     }
   }
 
-  DISABLE_COPY_ASSIGN(StreamPool);
+  DISABLE_COPY_MOVE_ASSIGN(StreamPool);
 private:
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;

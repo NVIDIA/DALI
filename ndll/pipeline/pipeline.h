@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "ndll/common.h"
+#include "ndll/pipeline/batch.h"
 #include "ndll/pipeline/buffer.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/stream_pool.h"
@@ -144,29 +145,29 @@ public:
   /**
    * @brief Run the prefetch stage of the pipeline
    */
-  inline void RunPrefetch(Buffer<CPUBackend> *input) {
+  inline void RunPrefetch(Batch<CPUBackend> *input) {
     // We assume the input Buffer is of shape [N, ...], where 'N'
     // is the number of sample and '...' is the dimension of each sample
     NDLL_ENFORCE(built_,
         "\"Build()\" must be called before the pipeline is executed");
-    NDLL_ENFORCE(input->ndim() > 0);
-    Dim batch_size = input->dim(0);
+    Dim batch_size = input->ndatum();
+    NDLL_ENFORCE(batch_size > 0);
 
     for (Dim i = 0; i < batch_size; ++i) {
       // TODO(tgale): Save all the dims and resize the intermediate buffers. Look
       // into what temporary objects are created to avoid unescesary cost.
 
       // Run type inference for this image on the whole pipeline
-      thread_pool_.DoWorkWithID(std::bind(
-              [this, &input] (int data_idx, int tid) {
-                SubBuffer<CPUBackend> sub_buf(input, data_idx);
-                vector<Dim> dims;
-                dims = prefetch_ops_[0].InferOutputShape(sub_buf);
-                for (int j = 1; j < prefetch_ops_.size(); ++j) {
-                  sub_buf.Reset(cpu_buffers_[j-1].get(), data_idx);
-                  dims = prefetch_ops_[j].InferOutputShape(sub_buf);
-                }
-              }, i, std::placeholders::_1));
+      // thread_pool_.DoWorkWithID(std::bind(
+      //         [this, &input] (int data_idx, int tid) {
+      //           SubBuffer<CPUBackend> sub_buf(input, data_idx);
+      //           vector<Dim> dims;
+      //           dims = prefetch_ops_[0].InferOutputShape(sub_buf);
+      //           for (int j = 1; j < prefetch_ops_.size(); ++j) {
+      //             sub_buf.Reset(cpu_buffers_[j-1].get(), data_idx);
+      //             dims = prefetch_ops_[j].InferOutputShape(sub_buf);
+      //           }
+      //         }, i, std::placeholders::_1));
     }
     thread_pool_.WaitForWork();
   }
@@ -196,7 +197,7 @@ public:
         "\"Build()\" must be called before the pipeline is executed");
   }
   
-  DISABLE_COPY_ASSIGN(Pipeline);
+  DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
   enum DecodeLocation {
     DECODE_NONE,

@@ -34,9 +34,14 @@ typedef __half float16;
 // instead of just making these functions private
 //
 // Helper to delete copy constructor & copy-assignment operator
-#define DISABLE_COPY_ASSIGN(name)               \
+#define DISABLE_COPY_MOVE_ASSIGN(name)          \
   name(const name&) = delete;                   \
-  name& operator=(const name&) = delete
+  name& operator=(const name&) = delete;        \
+  name(name&&) = delete;                        \
+  name& operator=(name&&) = delete
+  
+
+
 
 } // namespace ndll
 

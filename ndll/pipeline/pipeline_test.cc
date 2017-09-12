@@ -4,8 +4,11 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/backend.h"
+#include "ndll/pipeline/batch.h"
 #include "ndll/pipeline/buffer.h"
 #include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/tensor.h"
+
 
 namespace ndll {
 
@@ -23,11 +26,16 @@ TEST_F(PipelineTest, TestBuildPipeline) {
   pipe.Build();
 
   int batch_size = 32, sample_dim = 128;
-  Buffer<CPUBackend> input;
-  input.Resize({batch_size, sample_dim});
+  Batch<CPUBackend> input;
+  input.Resize(5);
+
+  Tensor<CPUBackend> ten;
+  ten.Resize(5);
 
   // Run the pipeline
   pipe.RunPrefetch(&input);
+
+  Datum<CPUBackend> datum(&input, 0);
   
   } catch (NDLLException &e) {
     FAIL() << e.what();
