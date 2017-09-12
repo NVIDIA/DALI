@@ -11,6 +11,10 @@
 
 namespace ndll {
 
+// TODO(tgale): Make sure the data storage hierarchy makes sense in terms of
+// how the owned flag is used, where and when allocation occur, and when types
+// are required to be setup
+
 // Basic type for Buffer dimensions
 typedef int64_t Dim;
 
@@ -29,7 +33,9 @@ public:
   inline Buffer() : owned_(true), data_(nullptr), size_(0), true_size_(0) {}
 
   virtual ~Buffer() {
-    backend_.Delete(data_, true_size_*type_.size());
+    if (owned_) {
+      backend_.Delete(data_, true_size_*type_.size());
+    }
   }
   
   template <typename T>
@@ -43,16 +49,18 @@ public:
           "Buffer does not have type and does not own underlying "
           "storage. Calling 'data' not allowed");
       type_.SetType<T>();
-      
-      // TODO(tgale): If true_size == 0, make sure this
-      // keeps our pointer set to nullptr
-      data_ = backend_.New(true_size_*type_.size());
+
+      // Make sure we keep our nullptr if we don't allocate anything
+      size_t mem_size = true_size_*type_.size();
+      if (mem_size != 0) {
+        data_ = backend_.New(true_size_*type_.size());
+      }
     }
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
         "Calling type does not match buffer data type: " +
         TypeTable::GetTypeName<T>() + " v. " + type_.name());
     
-    return data_;
+    return static_cast<T*>(data_);
   }
 
   template <typename T>
@@ -63,7 +71,7 @@ public:
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
         "Calling type does not match buffer data type: " +
         TypeTable::GetTypeName<T>() + " v. " + type_.name());
-    return data_;
+    return static_cast<T*>(data_);
   }
   
   inline void* raw_data() {

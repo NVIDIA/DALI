@@ -58,25 +58,34 @@ private:
 // Stores the unqiue ID for a type and its size in bytes
 class TypeMeta {
 public:
-  TypeMeta() : id_(NO_TYPE), type_size_(0) { }
+  inline TypeMeta() : id_(NO_TYPE), type_size_(0) { }
 
   template <typename T>
-  void SetType() {
+  inline void SetType() {
     id_ = TypeTable::GetTypeID<T>();
     type_size_ = sizeof(T);
     name_ = TypeTable::GetTypeName<T>();
   }
 
-  TypeID id() const {
+  inline TypeID id() const {
     return id_;
   }
 
-  size_t size() const {
+  inline size_t size() const {
     return type_size_;
   }
 
-  string name() const {
+  inline string name() const {
     return name_;
+  }
+
+  inline bool operator==(const TypeMeta &rhs) const {
+    if ((rhs.id_ == id_) &&
+        (rhs.type_size_ == type_size_) &&
+        (rhs.name_ == name_)) {
+      return true;
+    }
+    return false;
   }
   
 private:

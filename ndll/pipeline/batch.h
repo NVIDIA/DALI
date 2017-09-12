@@ -19,17 +19,6 @@ public:
   ~Batch() = default;
 
   /**
-   * @brief Basic resize function to create dense batches.
-   * The 0th value in the input shape is assumed to be
-   * the samples dimension, i.e. N = shape[0]
-   */
-  inline void Resize(const vector<Dim> &shape) {
-    vector<Dim> sample_shape(shape.begin()+1, shape.end());
-    vector<Shape> tmp_shape(shape[0], sample_shape);
-    Resize(tmp_shape);
-  }
-
-  /**
    * @brief Resize function to create jagged batches. The outer vector
    * size is taken to be the samples dimension, i.e. N = shape.size();
    *
@@ -37,18 +26,19 @@ public:
    * later use. Calling it repeatedly will be of non-negligible cost.
    */
   inline void Resize(const vector<Shape> &shape) {
-    if (shape == batch_shape_) return;
+    NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single datum");
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
+    if (shape == batch_shape_) return;
 
     // Calculate the new size
-    int new_size = 1;
+    Dim new_size = 0;
     for (auto &vec : shape) {
-      for (auto &val : vec) {
-        new_size *= val;
-      }
+      Dim tmp = 1;
+      for (auto &val : vec) tmp *= val;
+      new_size += tmp;
     }
-    
+
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
       // and shape of the buffer and do not allocate any memory.
@@ -78,7 +68,7 @@ public:
    */
   inline void* raw_datum(int idx) {
     return static_cast<void*>(
-        static_cast<uint8*>(data_) +
+        static_cast<uint8*>(this->raw_data()) +
         (datum_offset(idx) * type_.size())
         );
   }
@@ -119,7 +109,7 @@ protected:
     int batch_size = batch_shape_.size();
     offsets_.resize(batch_size);
     
-    int offset = 0;
+    Dim offset = 0;
     for (int i = 0; i < batch_size; ++i) {
       offsets_[i] = offset;
       offset += Product(batch_shape_[i]);
@@ -145,7 +135,7 @@ protected:
  * not own the underlying storage.
  */
 template <typename Backend>
-class Datum : Buffer<Backend> {
+class Datum : public Buffer<Backend> {
 public:
   /**
    * @brief Construct a sub-buffer that wraps a single datum from 
@@ -170,9 +160,18 @@ public:
     true_size_ = Product(shape_);
     size_ = true_size_;
 
+    // Calling raw_datum here will enforce that the type is valid
     type_ = batch->type();
     data_ = batch->raw_datum(sample_idx);
   }
+
+  /**
+   * @brief get the shape of the datum
+   */
+  inline vector<Dim> shape() const {
+    return shape_;
+  }
+  
 protected:
   // Stores the shape of the sample
   vector<Dim> shape_;
