@@ -12,7 +12,6 @@ class BatchTest : public ::testing::Test {
 public:
   void SetUp() {
     rand_gen_.seed(time(nullptr));
-    rand_gen_.seed(0);
   }
 
   void TearDown() {

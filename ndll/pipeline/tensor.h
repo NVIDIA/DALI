@@ -12,7 +12,7 @@ namespace ndll {
  * for handling dimensions and shapes of the stored data.
  */
 template <typename Backend>
-class Tensor : Buffer<Backend> {
+class Tensor : public Buffer<Backend> {
 public:
   Tensor() {}
   ~Tensor() = default;
@@ -26,7 +26,6 @@ public:
    * Passing in a shape of '{}' indicates a scalar value
    */
   inline virtual void Resize(const vector<Dim> &shape) {
-    if (shape == shape_) return;
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
     Dim new_size = Product(shape);
