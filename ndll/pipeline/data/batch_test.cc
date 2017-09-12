@@ -1,9 +1,9 @@
-#include "ndll/pipeline/batch.h"
+#include "ndll/pipeline/data/batch.h"
 
 #include <gtest/gtest.h>
 
-#include "ndll/pipeline/backend.h"
-#include "ndll/pipeline/buffer.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/buffer.h"
 
 namespace ndll {
 

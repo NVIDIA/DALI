@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_BUFFER_H_
-#define NDLL_PIPELINE_BUFFER_H_
+#ifndef NDLL_PIPELINE_DATA_BUFFER_H_
+#define NDLL_PIPELINE_DATA_BUFFER_H_
 
 #include <limits>
 #include <numeric>
@@ -7,7 +7,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/types.h"
+#include "ndll/pipeline/data/types.h"
 
 namespace ndll {
 
@@ -118,4 +118,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_BUFFER_H_
+#endif // NDLL_PIPELINE_DATA_BUFFER_H_

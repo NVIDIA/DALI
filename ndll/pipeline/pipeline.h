@@ -5,11 +5,11 @@
 #include <memory>
 
 #include "ndll/common.h"
-#include "ndll/pipeline/batch.h"
-#include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/stream_pool.h"
-#include "ndll/pipeline/tensor.h"
-#include "ndll/pipeline/thread_pool.h"
+#include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/tensor.h"
+#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/util/stream_pool.h"
+#include "ndll/pipeline/util/thread_pool.h"
 
 namespace ndll {
 
@@ -34,8 +34,9 @@ public:
    */
   inline Pipeline(int num_threads, cudaStream_t main_stream,
       int max_streams,  bool non_blocking) :
-    built_(false), decode_location_(DECODE_NONE), thread_pool_(num_threads),
-    stream_pool_(main_stream, max_streams, non_blocking) {}
+    decode_location_(DECODE_NONE), built_(false), 
+    stream_pool_(main_stream, max_streams, non_blocking),
+    thread_pool_(num_threads) {}
   
   ~Pipeline() = default;
 

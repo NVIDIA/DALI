@@ -1,9 +1,9 @@
-#ifndef NDLL_PIPELINE_TENSOR_H_
-#define NDLL_PIPELINE_TENSOR_H_
+#ifndef NDLL_PIPELINE_DATA_TENSOR_H_
+#define NDLL_PIPELINE_DATA_TENSOR_H_
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/buffer.h"
+#include "ndll/pipeline/data/buffer.h"
 
 namespace ndll {
 
@@ -78,4 +78,4 @@ protected:
 };
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_TENSOR_H_
+#endif // NDLL_PIPELINE_DATA_TENSOR_H_

@@ -1,4 +1,4 @@
-#include "ndll/pipeline/types.h"
+#include "ndll/pipeline/data/types.h"
 
 namespace ndll {
 std::unordered_map<std::type_index, TypeID> TypeTable::type_map_;

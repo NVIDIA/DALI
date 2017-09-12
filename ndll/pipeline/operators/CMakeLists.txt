@@ -1,8 +1,3 @@
-# Add all subdirectories
-add_subdirectory(data)
-add_subdirectory(operators)
-add_subdirectory(util)
-
 # Get all the source files and dump test files
 file(GLOB tmp *.cc)
 set(NDLL_SRCS ${NDLL_SRCS} ${tmp})

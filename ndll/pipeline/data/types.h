@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_TYPES_H_
-#define NDLL_PIPELINE_TYPES_H_
+#ifndef NDLL_PIPELINE_DATA_TYPES_H_
+#define NDLL_PIPELINE_DATA_TYPES_H_
 
 #include <cstdint>
 
@@ -110,4 +110,4 @@ private:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_TYPES_H_
+#endif // NDLL_PIPELINE_DATA_TYPES_H_

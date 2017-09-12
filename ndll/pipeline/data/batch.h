@@ -1,7 +1,7 @@
-#ifndef NDLL_PIPELINE_BATCH_H_
-#define NDLL_PIPELINE_BATCH_H_
+#ifndef NDLL_PIPELINE_DATA_BATCH_H_
+#define NDLL_PIPELINE_DATA_BATCH_H_
 
-#include "ndll/pipeline/buffer.h"
+#include "ndll/pipeline/data/buffer.h"
 
 namespace ndll {
 
@@ -187,4 +187,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_BATCH_H_
+#endif // NDLL_PIPELINE_DATA_BATCH_H_

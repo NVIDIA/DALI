@@ -1,13 +1,13 @@
-#ifndef NDLL_PIPELINE_OPERATOR_H_
-#define NDLL_PIPELINE_OPERATOR_H_
+#ifndef NDLL_PIPELINE_OPERATORS_OPERATOR_H_
+#define NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 
 #include <type_traits>
 #include <utility>
 
-#include "ndll/pipeline/batch.h"
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/backend.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/batch.h"
 
 namespace ndll {
 
@@ -109,4 +109,4 @@ private:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATOR_H_
+#endif // NDLL_PIPELINE_OPERATORS_OPERATOR_H_
