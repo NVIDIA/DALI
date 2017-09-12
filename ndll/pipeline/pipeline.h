@@ -6,9 +6,9 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/batch.h"
-#include "ndll/pipeline/buffer.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/stream_pool.h"
+#include "ndll/pipeline/tensor.h"
 #include "ndll/pipeline/thread_pool.h"
 
 namespace ndll {
@@ -117,75 +117,55 @@ public:
       gpu_buffers_.push_back(std::move(tmp_gpu));
     }
 
+    // Even though it is not managed by the pipeline, we need to keep track of
+    // and resize the output batch for the case where the output shape
+    // depends on something decided by one of the operators. For the case with
+    // determinitic output shape, this resize should just be a no-op after we
+    // resize the output buffer on the first forward pass.
+    intermediate_shapes_.resize(cpu_buffers_.size() + gpu_buffers_.size() + 1);
+    
     // TODO(tgale): Is it actually worth enforcing this? We need
     // to do this setup before "Run*" is called but we also don't
     // really want to check this flag every time those methods
     // are called. For now we will check.
     built_ = true;
   }
-  
-  /**
-   * @brief Pairs CPUBuffers w/ GPUBuffers for transfering data to the GPU
-   *
-   * TODO(tgale): Make sure this stores the correct references 
-   * and pointers that will still be in scope
-   */
-  // void AddCopyBuffers(std::shared_ptr<vector<BufferBase> > cpu_buffers,
-  //     std::shared_ptr<vector<BufferBase> > gpu_buffers) {
-  //   // TODO(tgale): Should we provide this method or just let the user handle other
-  //   // outputs externally? Yes, for the case where an op in forward needs and output in
-  //   // prefetch this is useful.    
-  //   NDLL_ENFORCE(cpu_buffers != nullptr);
-  //   NDLL_ENFORCE(gpu_buffers != nullptr);
-  //   NDLL_ENFORCE(cpu_buffers->size() == gpu_buffers->size());
-  //   cpu_buffers_ = cpu_buffers;
-  //   gpu_buffers_ = gpu_buffers;
-  // }
 
   /**
    * @brief Run the prefetch stage of the pipeline
    */
   inline void RunPrefetch(Batch<CPUBackend> *input) {
-    // We assume the input Buffer is of shape [N, ...], where 'N'
-    // is the number of sample and '...' is the dimension of each sample
     NDLL_ENFORCE(built_,
         "\"Build()\" must be called before the pipeline is executed");
-    Dim batch_size = input->ndatum();
+    Index batch_size = input->ndatum();
     NDLL_ENFORCE(batch_size > 0);
 
-    for (Dim i = 0; i < batch_size; ++i) {
+    // Size all the intermediate shapes for threads to write into
+    for (auto &shape : intermediate_shapes_) {
+      shape.resize(batch_size);
+    }
+    
+    for (Index i = 0; i < batch_size; ++i) {
       // TODO(tgale): Save all the dims and resize the intermediate buffers. Look
       // into what temporary objects are created to avoid unescesary cost.
-
+      
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this, &input] (int data_idx, int tid) {
                 Datum<CPUBackend> datum(input, data_idx);
-                vector<Dim> dims;
-                dims = prefetch_ops_[0].InferOutputShape(datum);
+                vector<Index> dims;
+                intermediate_shapes_[0][data_idx] =
+                  prefetch_ops_[0].InferOutputShape(datum);
+                
                 for (int j = 1; j < prefetch_ops_.size(); ++j) {
                   datum.Reset(cpu_buffers_[j-1].get(), data_idx);
-                  dims = prefetch_ops_[j].InferOutputShape(datum);
+                  intermediate_shapes_[j][data_idx] =
+                    prefetch_ops_[j].InferOutputShape(datum);
                 }
               }, i, std::placeholders::_1));
     }
     thread_pool_.WaitForWork();
   }
-
-  /**
-   * @brief Copy the host buffers into their device-side counterparts
-   */
-  // void RunCopy() {
-  //   for (int i = 0; i < cpu_buffers_->size(); ++i) {
-  //     // TODO(tgale): Should we enforce this or resize the
-  //     // device buffer appropriately?
-  //     NDLL_ENFORCE((*cpu_buffers_)[i].shape() == (*gpu_buffers_)[i].shape());
-      
-  //     CUDA_ENFORCE(cudaMemcpyAsync((*gpu_buffers_)[i].raw_data(),
-  //             (*cpu_buffers_)[i].raw_data(), (*cpu_buffers_)[i].bytes(),
-  //             cudaMemcpyHostToDevice, stream_pool_.GetStream()));
-  //   }
-  // }
 
   /**
    * @brief Run the forward stage of the pipeline
@@ -216,14 +196,19 @@ private:
   vector<Operator<CPUBackend>> prefetch_ops_;
   vector<Operator<GPUBackend>> forward_ops_;
 
+  // Batch objects to store intermediate results of the
+  // pipeline. Could probably do this with more efficient
+  // memory usage than just 1 buffer per intermediate...
   template <typename T>
   using BatchPtr = std::unique_ptr<Batch<T>>;
-  
   vector<BatchPtr<CPUBackend>> cpu_buffers_;
   vector<BatchPtr<GPUBackend>> gpu_buffers_;
-  
-  // std::shared_ptr<vector<BufferBase> > cpu_buffers_;
-  // std::shared_ptr<vector<BufferBase> > gpu_buffers_;
+
+  // Vectors to keep track of the shape of each sample
+  // at each stage as collected during the shape inference
+  // pass. We pre-allocate these so threads can directly
+  // write to the appropriate locations.
+  vector<vector<Dims>> intermediate_shapes_;
 };
 
 } // namespace ndll

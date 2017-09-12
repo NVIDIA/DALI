@@ -15,12 +15,12 @@ namespace ndll {
 // how the owned flag is used, where and when allocation occur, and when types
 // are required to be setup
 
-// Basic type for Buffer dimensions
-typedef int64_t Dim;
+// Basic data type for our indices and dimension sizes
+typedef int64_t Index;
 
 // Helper function to get product of dims
-inline Dim Product(const vector<Dim> &shape) {
-  return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<Dim>());
+inline Index Product(const vector<Index> &shape) {
+  return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<Index>());
 }
 
 /**
@@ -88,7 +88,7 @@ public:
     return static_cast<void*>(data_);
   }
 
-  inline Dim size() const { return size_; }
+  inline Index size() const { return size_; }
   
   inline size_t nbytes() const {
     return size_*type_.size();
@@ -109,11 +109,11 @@ protected:
 
   // Pointer to underlying storage & meta-data
   void *data_;
-  Dim size_;
+  Index size_;
   
   // To keep track of the true size
   // of the underlying allocation
-  Dim true_size_;
+  Index true_size_;
 };
 
 } // namespace ndll

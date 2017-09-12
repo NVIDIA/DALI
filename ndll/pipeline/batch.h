@@ -5,7 +5,7 @@
 
 namespace ndll {
 
-typedef vector<Dim> Shape;
+typedef vector<Index> Dims;
 
 /**
  * @brief Stores a batch of 'N' samples. Supports batches of 
@@ -25,16 +25,16 @@ public:
    * Note: this method calculate some meta-data on the jagged tensor for
    * later use. Calling it repeatedly will be of non-negligible cost.
    */
-  inline void Resize(const vector<Shape> &shape) {
+  inline void Resize(const vector<Dims> &shape) {
     NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single datum");
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
     if (shape == batch_shape_) return;
 
     // Calculate the new size
-    Dim new_size = 0;
+    Index new_size = 0;
     for (auto &vec : shape) {
-      Dim tmp = 1;
+      Index tmp = 1;
       for (auto &val : vec) tmp *= val;
       new_size += tmp;
     }
@@ -83,7 +83,7 @@ public:
   /**
    * @brief returns the offset of the sample with the given index
    */
-  inline Dim datum_offset(int idx) const {
+  inline Index datum_offset(int idx) const {
 #ifdef DEBUG
     NDLL_ENFORCE(idx > 0, "Negative index not supported");
     NDLL_ENFORCE(idx < offsets_.size(), "Index out of offset range");
@@ -94,7 +94,7 @@ public:
   /**
    * @brief return the shape of the sample with the given index
    */
-  inline vector<Dim> datum_shape(int idx) const {
+  inline vector<Index> datum_shape(int idx) const {
 #ifdef DEBUG
     NDLL_ENFORCE(idx > 0, "Negative index not supported");
     NDLL_ENFORCE(idx < batch_shape_.size(), "Index out of offset range");
@@ -109,17 +109,17 @@ protected:
     int batch_size = batch_shape_.size();
     offsets_.resize(batch_size);
     
-    Dim offset = 0;
+    Index offset = 0;
     for (int i = 0; i < batch_size; ++i) {
       offsets_[i] = offset;
       offset += Product(batch_shape_[i]);
     }
   }
   
-  // We maintain a vector of 'Shape's to allow us to store
+  // We maintain a vector of 'Dims' to allow us to store
   // jagged tensors.  We also cache the offset of each sample
-  vector<Shape> batch_shape_;
-  vector<Dim> offsets_;
+  vector<Dims> batch_shape_;
+  vector<Index> offsets_;
 
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;
@@ -168,13 +168,13 @@ public:
   /**
    * @brief get the shape of the datum
    */
-  inline vector<Dim> shape() const {
+  inline vector<Index> shape() const {
     return shape_;
   }
   
 protected:
   // Stores the shape of the sample
-  vector<Dim> shape_;
+  vector<Index> shape_;
 
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;

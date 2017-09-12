@@ -69,7 +69,7 @@ public:
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual vector<Dim> InferOutputShape(const Datum<Backend> &input) {
+  virtual vector<Index> InferOutputShape(const Datum<Backend> &input) {
     NDLL_FAIL("InferOutputShape not implemented");
   }
   
@@ -90,8 +90,8 @@ public:
   Decoder() {}
   virtual ~Decoder() = default;
   
-  vector<Dim> InferOutputShape(const Datum<Backend> &input) {
-    return vector<Dim>{};
+  vector<Index> InferOutputShape(const Datum<Backend> &input) {
+    return vector<Index>{};
   }
 
   /**

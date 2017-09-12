@@ -27,12 +27,12 @@ public:
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
-  vector<Shape> GetRandShape() {
+  vector<Dims> GetRandShape() {
     int batch_size = this->RandInt(0, 128);
-    vector<Shape> shape(batch_size);
+    vector<Dims> shape(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       int dims = this->RandInt(0, 3);
-      vector<Dim> sample_shape(dims, 0);
+      vector<Index> sample_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
         sample_shape[j] = this->RandInt(1, 512);
       }
@@ -54,10 +54,10 @@ TYPED_TEST(BatchTest, TestResize) {
     Batch<TypeParam> batch;
 
     // Setup shape and offsets
-    vector<Shape> shape = this->GetRandShape();
+    vector<Dims> shape = this->GetRandShape();
     int batch_size = shape.size();
-    vector<Dim> offsets;
-    Dim offset = 0;
+    vector<Index> offsets;
+    Index offset = 0;
     for (auto &tmp : shape) {
       offsets.push_back(offset);
       offset += Product(tmp);
@@ -83,15 +83,15 @@ TYPED_TEST(BatchTest, TestMultipleResize) {
     Batch<TypeParam> batch;
 
     int rand = this->RandInt(1, 20);
-    vector<Shape> shape;
-    vector<Dim> offsets;
+    vector<Dims> shape;
+    vector<Index> offsets;
     int batch_size = 0;
     for (int i = 0; i < rand; ++i) {
       offsets.clear();
       // Setup shape and offsets
       shape = this->GetRandShape();
       batch_size = shape.size();
-      Dim offset = 0;
+      Index offset = 0;
       for (auto &tmp : shape) {
         offsets.push_back(offset);
         offset += Product(tmp);
@@ -118,7 +118,7 @@ TYPED_TEST(BatchTest, TestGetDatum) {
   try {
     // Setup batch of samples
     Batch<TypeParam> batch;
-    vector<Shape> shape = this->GetRandShape();
+    vector<Dims> shape = this->GetRandShape();
     int batch_size = shape.size();
     batch.Resize(shape);
     batch.template data<float>();

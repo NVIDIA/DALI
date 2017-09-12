@@ -25,10 +25,10 @@ public:
    *
    * Passing in a shape of '{}' indicates a scalar value
    */
-  inline virtual void Resize(const vector<Dim> &shape) {
+  inline virtual void Resize(const vector<Index> &shape) {
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage, calling 'Resize()' not allowed");
-    Dim new_size = Product(shape);
+    Index new_size = Product(shape);
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
       // and shape of the buffer and do not allocate any memory.
@@ -48,7 +48,7 @@ public:
     shape_ = shape;
   }
 
-  inline vector<Dim> shape() const {
+  inline vector<Index> shape() const {
     return shape_;
   }
 
@@ -56,7 +56,7 @@ public:
     return shape_.size();
   }
 
-  inline virtual Dim dim(int idx) const {
+  inline virtual Index dim(int idx) const {
 #ifdef DEBUG
     NDLL_ENFORCE(i < shape_.size(), "index exceeds ndim");
     NDLL_ENFORCE(i > 0, "negative index not supported");
@@ -66,7 +66,7 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Tensor);
 protected:
-  vector<Dim> shape_;
+  vector<Index> shape_;
 
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;

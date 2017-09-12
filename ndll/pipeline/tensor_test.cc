@@ -27,9 +27,9 @@ public:
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
-  vector<Dim> GetRandShape() {
+  vector<Index> GetRandShape() {
     int dims = this->RandInt(0, 5);
-    vector<Dim> shape(dims, 0);
+    vector<Index> shape(dims, 0);
     for (auto &val : shape) {
       // Dims cannot be of size 0
       val = this->RandInt(1, 50);
@@ -51,7 +51,7 @@ TYPED_TEST(TensorTest, TestResize) {
     Tensor<TypeParam> tensor;
 
     // Get shape
-    vector<Dim> shape = this->GetRandShape();
+    vector<Index> shape = this->GetRandShape();
     tensor.Resize(shape);
 
     // Verify the settings
@@ -72,7 +72,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
     Tensor<TypeParam> tensor;
 
     // Get shape
-    vector<Dim> shape = {};
+    vector<Index> shape = {};
     tensor.Resize(shape);
        
     // Verify the settings
