@@ -6,6 +6,7 @@ project(NDLL CXX)
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
 option(DUMP_IMAGES "Dump the raw images for inpsection in the test suite" ON)
+option(DEBUG "Adds additional debug checking" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
@@ -17,6 +18,11 @@ endfunction(remove)
 
 if (DUMP_IMAGES)
   add_definitions(-DDUMP_IMAGES)
+endif()
+
+if (DEBUG)
+  add_definitions(-DDEBUG)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
 endif()
 
 # Cmake path

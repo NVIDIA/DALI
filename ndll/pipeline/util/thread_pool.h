@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_THREAD_POOL_H_
 #define NDLL_PIPELINE_THREAD_POOL_H_
 
+#include <cstdlib>
+
 #include <condition_variable>
 #include <functional>
 #include <mutex>
@@ -67,7 +69,6 @@ private:
       // If we're no longer running, exit the run loop
       if (!running_) break;
 
-      cout << "thread running" << endl;
       // Get work from the queue & mark
       // this thread as active
       Work work = work_queue_.front();
@@ -80,8 +81,9 @@ private:
       // TODO(tgale): Send the errors back to the main thread
       try {
         work(thread_id);
-      } catch(...) {
-        cout << "Caught exception from work" << endl;
+      } catch(NDLLException &e) {
+        cout << "Caught exception in thread " << e.what() << endl;
+        exit(EXIT_FAILURE);
       }
 
       // Mark this thread as idle & check for complete work

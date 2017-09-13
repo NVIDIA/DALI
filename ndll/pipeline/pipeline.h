@@ -44,32 +44,35 @@ public:
    * @brief Adds an op to the prefetch stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  inline void AddPrefetchOp(Operator<CPUBackend> &op) {
+  inline void AddPrefetchOp(const Operator<CPUBackend> &op) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    prefetch_ops_.push_back(std::move(op));
+    OpPtr<CPUBackend> tmp(op.Clone());
+    prefetch_ops_.push_back(std::move(tmp));
   }
 
   /**
    * @brief Adds an op to the forward stage of the pipeline. The input op is
    * moved into the pipeline and left in a default state
    */
-  inline void AddForwardOp(Operator<GPUBackend> &op) {
+  inline void AddForwardOp(const Operator<GPUBackend> &op) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    forward_ops_.push_back(std::move(op));
+    OpPtr<GPUBackend> tmp(op.Clone());
+    forward_ops_.push_back(std::move(tmp));
   }
 
   /**
    * @brief Inserts the decoder on the front of the prefetch stage of the pipeline.
    * The op is moved into the pipeline and left in a default state
    */
-  inline void AddDecoder(Operator<CPUBackend> &dec) {
+  inline void AddDecoder(const Operator<CPUBackend> &dec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
             "\"Build()\" has been called are not allowed");
     NDLL_ENFORCE(decode_location_ == DECODE_NONE,
         "A Decoder already exists in the pipeline");
-    prefetch_ops_.insert(prefetch_ops_.begin(), std::move(dec));
+    OpPtr<CPUBackend> tmp(dec.Clone());
+    prefetch_ops_.insert(prefetch_ops_.begin(), std::move(tmp));
     decode_location_ = DECODE_PREFETCH;
   }
   
@@ -82,21 +85,23 @@ public:
    * Adding the Decoder to forward stage implies that their are no prefetch ops. 
    * If this is not the case, 'Build()' will throw an error.
    */
-  inline void AddDecoder(Decoder<GPUBackend> &dec) {
+  inline void AddDecoder(const Operator<GPUBackend> &dec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     NDLL_ENFORCE(decode_location_ == DECODE_NONE,
         "A Decoder already exists in the pipeline");
-    forward_ops_.insert(prefetch_ops_.begin(), std::move(dec));
+    OpPtr<GPUBackend> tmp(dec.Clone());
+    forward_ops_.insert(forward_ops_.begin(), std::move(tmp));
     decode_location_ = DECODE_FORWARD;
   }
 
   
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
-   * for intermediate results, and marks as ready for execution.
+   * for intermediate results, and marks as ready for execution. Optionally
+   * takes in the input type if the first ops output type is input type dependent
    */
-  inline void Build() {
+  inline void Build(const TypeMeta *input_type_ptr = nullptr) {
     // Make sure the decoder is the first op in the pipeline
     if (decode_location_ == DECODE_FORWARD) {
       NDLL_ENFORCE(prefetch_ops_.size() == 0,
@@ -104,20 +109,33 @@ public:
           "pipeline stage but prefetch operators exist");
     }
 
+    TypeMeta input_type;
+    if (input_type_ptr != nullptr) {
+      input_type = *input_type_ptr;
+    }
+    
     // Create buffers for intermediate pipeline results. We need 1
     // buffer for each cpu side op output, and 1 buffer for each
     // gpu side op input. The input to the pipeline and the output
     // to the pipeline are passed into the "RunPrefetch" and
     // "RunForward" methods
+    //
+    // For the Prefetch ops, we also need to set the output buffer
+    // types so that the memory can be allocated prior to wrapping
+    // individual samples in 'Datum' objects. The forward ops get
+    // the whole batch at once, so we can just call their
+    // 'SetOutputType()' methods before launching the kernels
     for (size_t i = 0; i < prefetch_ops_.size(); ++i) {
-      BatchPtr<CPUBackend> tmp_cpu;
+      BatchPtr<CPUBackend> tmp_cpu(new Batch<CPUBackend>);
       cpu_buffers_.push_back(std::move(tmp_cpu));
+      prefetch_ops_[i]->SetOutputType(cpu_buffers_[i].get(), input_type);
+      input_type = cpu_buffers_[i]->type();
     }
     for (size_t i = 0; i < forward_ops_.size(); ++i) {
-      BatchPtr<GPUBackend> tmp_gpu;
+      BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
       gpu_buffers_.push_back(std::move(tmp_gpu));
     }
-
+    
     // Even though it is not managed by the pipeline, we need to keep track of
     // and resize the output batch for the case where the output shape
     // depends on something decided by one of the operators. For the case with
@@ -134,6 +152,15 @@ public:
 
   /**
    * @brief Run the prefetch stage of the pipeline
+   *
+   * TODO(tgale): We also want to be able to run this with the first op reading the data
+   * from the database as well. Running in this fashion we may see some slowdown because
+   * all the reading of data will be serialized before this function can be called. 
+   *
+   * We could also add a data reader to this if we want. Some frameworks may serialize
+   * data reading to deal with non-thread-safe databases, we'll want to be able to
+   * overlap reading with processing for the previous datum, so we'll have to do it in
+   * this first loop.
    */
   inline void RunPrefetch(Batch<CPUBackend> *input) {
     NDLL_ENFORCE(built_,
@@ -150,26 +177,58 @@ public:
       // TODO(tgale): Save all the dims and resize the intermediate buffers. Look
       // into what temporary objects are created to avoid unescesary cost.
 
-      // TODO(tgale): Threads seem to be silently dying. Figure out why this
-      // is happening and how our error checking can be better
-      cout << "running work" << endl;
-      
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this, &input] (int data_idx, int tid) {
                 Datum<CPUBackend> datum(input, data_idx);
-                vector<Index> dims;
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0].InferOutputShape(datum);
-
+                  prefetch_ops_[0]->InferOutputShape(datum);
+                datum.Resize(intermediate_shapes_[0][data_idx]);
+                
                 // DEBUG
-                for (auto &val : intermediate_shapes_[0][data_idx]) cout << val << " ";
-                cout << endl;
+                // for (auto &val : intermediate_shapes_[0][data_idx]) cout << val << " ";
+                // cout << endl;
                 
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                  datum.Reset(cpu_buffers_[j-1].get(), data_idx);
                   intermediate_shapes_[j][data_idx] =
-                    prefetch_ops_[j].InferOutputShape(datum);
+                    prefetch_ops_[j]->InferOutputShape(datum);
+                  datum.Resize(intermediate_shapes_[j][data_idx]);
+                }
+              }, i, std::placeholders::_1));
+    }
+    thread_pool_.WaitForWork();
+
+    // TODO(tgale): These resizes set the dims for the buffers but not the types.
+    // We need some way to get the types for these buffers from the operators
+    // so that when we wrap them with datum the type has already been set and the
+    // memory has been allocated. We can do a pass over the ops in the 'Build()'
+    // function and call 'data<T>()' on the nullptr buffers to set the type
+    
+    // Resize the intermidate buffers
+    for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
+      cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
+    }
+    for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
+      gpu_buffers_[i]->Resize(
+          intermediate_shapes_[i + cpu_buffers_.size()]
+          );
+    }
+
+    // Execute all the prefetch ops
+    for (Index i = 0; i < batch_size; ++i) {
+      thread_pool_.DoWorkWithID(std::bind(
+              [this, &input] (int data_idx, int tid) {
+                // We're going to ping-pong back and forth between these Datums
+                // So we can cut the number of calls to "Reset()" in half.
+                vector<Datum<CPUBackend>> datums(2);
+                datums[0].Reset(input, data_idx);
+                datums[1].Reset(cpu_buffers_[0].get(), data_idx);
+                
+                prefetch_ops_[0]->Run(datums[0], &datums[1]);
+                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
+                  // Get the other datum to output this ops result into
+                  datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
+                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)]);
                 }
               }, i, std::placeholders::_1));
     }
@@ -201,9 +260,13 @@ private:
 
   // TODO(tgale): Add support for GPU decoders by moving
   // the dec into the vectors for simplified execution.
-  Decoder<CPUBackend> decoder_;
-  vector<Operator<CPUBackend>> prefetch_ops_;
-  vector<Operator<GPUBackend>> forward_ops_;
+  // How are we supposed to know where the decoder is and
+  // whether to give it data dependent shape infer? Is
+  // this guaranteed by the setup we currently have?
+  template <typename T>
+  using OpPtr = std::unique_ptr<Operator<T>>;
+  vector<OpPtr<CPUBackend>> prefetch_ops_;
+  vector<OpPtr<GPUBackend>> forward_ops_;
 
   // Batch objects to store intermediate results of the
   // pipeline. Could probably do this with more efficient

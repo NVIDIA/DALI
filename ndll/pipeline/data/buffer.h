@@ -100,6 +100,14 @@ public:
   inline TypeMeta type() const {
     return type_;
   }
+
+  /**
+   * @brief Sets the type of the buffer. Fails if buffer already has a type
+   */
+  inline void set_type(TypeMeta type) {
+    NDLL_ENFORCE(type_.id() == NO_TYPE, "Cannot set type on typed buffer");
+    type_ = type;
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 protected:

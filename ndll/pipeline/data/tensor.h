@@ -58,8 +58,8 @@ public:
 
   inline virtual Index dim(int idx) const {
 #ifdef DEBUG
-    NDLL_ENFORCE(i < shape_.size(), "index exceeds ndim");
-    NDLL_ENFORCE(i > 0, "negative index not supported");
+    NDLL_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
+    NDLL_ENFORCE((size_t)idx >= 0, "negative index not supported");
 #endif
     return shape_[idx];
   }

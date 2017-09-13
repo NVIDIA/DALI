@@ -66,17 +66,21 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
   DECLTYPES();
   try {
     // Create the pipeline
-    Pipeline<HostBackend, DeviceBackend> pipe(4, 0, 8, true);
+    Pipeline<HostBackend, DeviceBackend> pipe(1, 0, 8, true);
     
     // Add a decoder and some transformers
     TJPGDecoder<HostBackend> jpg_decoder(true);
     pipe.AddDecoder(jpg_decoder);
 
-    pipe.Build();
+    // Add a dump image op
+    DumpImageOp<HostBackend> dump_image_op;
+    pipe.AddPrefetchOp(dump_image_op);
 
     Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
-
+    pipe.Build();
     pipe.RunPrefetch(batch);
+
+    delete batch;
   } catch (NDLLException &e) {
     FAIL() << e.what();
   }

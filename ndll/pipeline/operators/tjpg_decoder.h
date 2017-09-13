@@ -1,6 +1,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
 #define NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
 
+#include <fstream>
 #include <utility>
 
 #include "ndll/common.h"
@@ -18,6 +19,7 @@ public:
    * `color` == true, otherwise outputs grayscale images.
    */
   inline TJPGDecoder(bool color) : color_(color), c_(color ? 3 : 1) {}
+  
   virtual inline ~TJPGDecoder() = default;
 
   inline void RunPerDatumCPU(const Datum<Backend> &input,
@@ -36,27 +38,76 @@ public:
     return {h, w, c_};
   }
 
-
-  inline TJPGDecoder(TJPGDecoder &&op) noexcept {
-    std::swap(color_, op.color_);
-    std::swap(c_, op.c_);
-  }
-  inline TJPGDecoder& operator=(TJPGDecoder &&op) noexcept {
-    if (&op != this) {
-      std::swap(color_, op.color_);
-      std::swap(c_, op.c_);
-    }
-    return *this;
+  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+    output->template data<uint8>();
   }
   
-  TJPGDecoder(const TJPGDecoder&) = delete;
-  TJPGDecoder& operator=(const TJPGDecoder&) = delete;
+  inline TJPGDecoder* Clone() const override {
+    TJPGDecoder *new_decoder = new TJPGDecoder(color_);
+    return new_decoder;
+  }
   
+  DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
 protected:
   bool color_;
   int c_;
 };
 
+template <typename Backend>
+class DumpImageOp : public Transformer<Backend> {
+public:
+  inline DumpImageOp() {}
+  virtual inline ~DumpImageOp() = default;
+
+  inline void RunPerDatumCPU(const Datum<Backend> &input, Datum<Backend> *output) override {
+    // Dump the input image to file
+    NDLL_ENFORCE(input.shape().size() == 3);
+    const uint8 *img = input.template data<uint8>();
+    int h = input.shape()[0];
+    int w = input.shape()[1];
+    int c = input.shape()[2];
+
+    CUDA_ENFORCE(cudaDeviceSynchronize());
+    uint8 *tmp = new uint8[h*w*c];
+
+    CUDA_ENFORCE(cudaMemcpy2D(tmp, w*c*sizeof(uint8), img, w*c*sizeof(uint8),
+            w*c*sizeof(uint8), h, cudaMemcpyDefault));
+
+    static int i = 0;
+    std::ofstream file(std::to_string(i) + ".jpg.txt");
+    ++i;
+    
+    NDLL_ENFORCE(file.is_open());
+
+    file << h << " " << w << " " << c << endl;
+    for (int i = 0; i < h; ++i) {
+      for (int j = 0; j < w; ++j) {
+        for (int k = 0; k < c; ++k) {
+          file << unsigned(tmp[i*w*c + j*c + k]) << " ";
+        }
+      }
+      file << endl;
+    }
+    delete[] tmp;
+  }
+  
+  inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape) override {
+    // This op does not produce any outputs
+    return vector<Index>{};
+  }
+  
+  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+    // This doesn't matter
+    output->template data<uint8>();
+  }
+  
+  inline DumpImageOp* Clone() const override {
+    return new DumpImageOp;
+  }
+  
+protected:
+};
+  
 } // namespace ndll
 
 #endif // NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_

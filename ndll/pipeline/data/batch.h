@@ -85,8 +85,8 @@ public:
    */
   inline Index datum_offset(int idx) const {
 #ifdef DEBUG
-    NDLL_ENFORCE(idx > 0, "Negative index not supported");
-    NDLL_ENFORCE(idx < offsets_.size(), "Index out of offset range");
+    NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
+    NDLL_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
 #endif
     return offsets_[idx];
   }
@@ -96,8 +96,8 @@ public:
    */
   inline vector<Index> datum_shape(int idx) const {
 #ifdef DEBUG
-    NDLL_ENFORCE(idx > 0, "Negative index not supported");
-    NDLL_ENFORCE(idx < batch_shape_.size(), "Index out of offset range");
+    NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
+    NDLL_ENFORCE((size_t)idx < batch_shape_.size(), "Index out of offset range");
 #endif
     return batch_shape_[idx];
   }
@@ -131,12 +131,17 @@ protected:
 };
 
 /**
- * @brief Wraps a single datum from a Batch. Datum does
- * not own the underlying storage.
+ * @brief Datum can either allocate its own storage or 
+ * wrap a single datum from a batch.
  */
 template <typename Backend>
 class Datum : public Buffer<Backend> {
 public:
+  /**
+   * @brief Creates a default Datum that holds no data
+   */
+  inline Datum() {}
+  
   /**
    * @brief Construct a sub-buffer that wraps a single datum from 
    * the input buffer. Outer dimension of the buffer is assumed 
@@ -146,8 +151,46 @@ public:
     Reset(batch, sample_idx);
   }
 
+  /**
+   * @brief Resizes the Datum. If the Datum is currently wrapping data
+   * that it does not own, it will detach from the wrapped data and
+   * allocate its own data.
+   */
+  inline void Resize(const vector<Index> &shape) {
+    if (!owned_) {
+      // Reset to a default state
+      data_ = nullptr;
+      shape_.clear();
+      true_size_ = 0;
+      size_ = 0;
+
+      TypeMeta new_type;
+      type_ = new_type;
+    }
+
+    Index new_size = Product(shape);
+    if (type_.id() == NO_TYPE) {
+      // If the type has not been set yet, we just set the size
+      // and shape of the buffer and do not allocate any memory.
+      // Any previous resize dims are overwritten.
+      size_ = new_size;
+      true_size_ = new_size;
+      shape_ = shape;
+      return;
+    }
+
+    if (new_size > true_size_) {
+      // Re-allocate the buffer to meet the new size requirements
+      backend_.Delete(data_, true_size_*type_.size());
+      data_ = backend_.New(new_size*type_.size());
+      true_size_ = new_size;
+    }
+    shape_ = shape;
+  }
+  
   inline void Reset(Batch<Backend> *batch, int sample_idx) {
 #ifdef DEBUG
+    NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
     NDLL_ENFORCE(sample_idx >= 0, "Negative index not supported");
     NDLL_ENFORCE(sample_idx < batch->ndatum(), "Sample index out of range");
 #endif
@@ -171,7 +214,8 @@ public:
   inline vector<Index> shape() const {
     return shape_;
   }
-  
+
+  DISABLE_COPY_MOVE_ASSIGN(Datum);
 protected:
   // Stores the shape of the sample
   vector<Index> shape_;
