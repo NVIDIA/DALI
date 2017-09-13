@@ -18,12 +18,6 @@
 
 namespace ndll {
 
-namespace {
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/image/testing_jpegs";
-const string image_list = image_folder + "/image_list.txt";
-} // namespace
-
 // Our test "types"
 struct RGB {};
 struct Gray {};
@@ -111,10 +105,10 @@ public:
   // being written to file.
   template <typename T>
   void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
-    CHECK_CUDA(cudaDeviceSynchronize());
+    TEST_CUDA(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
 
-    CHECK_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+    TEST_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
             w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
@@ -161,7 +155,7 @@ public:
     cv::Mat crop_img(crop_h, crop_w, c == 3 ? CV_8UC3 : CV_8UC1);
     int crop_offset = crop_y*rsz_w*c + crop_x*c;
     uint8 *crop_ptr = rsz_img.ptr() + crop_offset;
-    CHECK_CUDA(cudaMemcpy2D(crop_img.ptr(), crop_w*c, crop_ptr,
+    TEST_CUDA(cudaMemcpy2D(crop_img.ptr(), crop_w*c, crop_ptr,
             rsz_w*c, crop_w*c, crop_h, cudaMemcpyHostToHost));
 
     // Random mirror
@@ -257,11 +251,11 @@ public:
   void CompareData(T *data, double *ground_truth, int n) {
     // Conver the input data to double
     double *tmp_gpu = nullptr;
-    CHECK_CUDA(cudaMalloc((void**)&tmp_gpu, sizeof(double)*n));
+    TEST_CUDA(cudaMalloc((void**)&tmp_gpu, sizeof(double)*n));
     Convert(data, n, tmp_gpu);
     
     vector<double> tmp(n, 0);
-    CHECK_CUDA(cudaMemcpy(tmp.data(), tmp_gpu, n*sizeof(double),
+    TEST_CUDA(cudaMemcpy(tmp.data(), tmp_gpu, n*sizeof(double),
             cudaMemcpyDeviceToHost));
 
     vector<double> abs_diff(n, 0);
@@ -279,7 +273,7 @@ public:
     
     ASSERT_LT(mean, 0.000001);
     ASSERT_LT(std, 0.000001);
-    CHECK_CUDA(cudaFree(tmp_gpu));
+    TEST_CUDA(cudaFree(tmp_gpu));
   }
   
 protected:
@@ -317,7 +311,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     bool mirror = false;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    CHECK_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+    TEST_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
             crop_x, crop_h, crop_w, mirror, out_img.data()));
 
@@ -364,7 +358,7 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     bool mirror = true;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    CHECK_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+    TEST_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
             crop_x, crop_h, crop_w, mirror, out_img.data()));
 
@@ -433,20 +427,20 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
   // Set up the mean & std dev
   vector<float> vals(this->c_*2, 128);
   float *mean = nullptr;
-  CHECK_CUDA(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
-  CHECK_CUDA(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
+  TEST_CUDA(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
+  TEST_CUDA(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
   float *std = mean + this->c_;
     
   // Move the batch to GPU
   uint8 *batch_gpu = nullptr;
-  CHECK_CUDA(cudaMalloc((void**)&batch_gpu, n*h*w*this->c_));
-  CHECK_CUDA(cudaMemcpy(batch_gpu, batch.data(), n*h*w*this->c_, cudaMemcpyHostToDevice));
+  TEST_CUDA(cudaMalloc((void**)&batch_gpu, n*h*w*this->c_));
+  TEST_CUDA(cudaMemcpy(batch_gpu, batch.data(), n*h*w*this->c_, cudaMemcpyHostToDevice));
 
   // Run the method
   T *output_batch = nullptr;
-  CHECK_CUDA(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
+  TEST_CUDA(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
   
-  CHECK_NDLL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
+  TEST_NDLL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
           mean, std, output_batch, 0));
 
   vector<double> output_batch_ver(n*h*w*this->c_, 0);
@@ -455,10 +449,10 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
 
   this->CompareData(output_batch, output_batch_ver.data(), n*h*w*this->c_);
   
-  CHECK_CUDA(cudaDeviceSynchronize());
-  CHECK_CUDA(cudaFree(mean));
-  CHECK_CUDA(cudaFree(batch_gpu));
-  CHECK_CUDA(cudaFree(output_batch));
+  TEST_CUDA(cudaDeviceSynchronize());
+  TEST_CUDA(cudaFree(mean));
+  TEST_CUDA(cudaFree(batch_gpu));
+  TEST_CUDA(cudaFree(output_batch));
 }
 
 } // namespace ndll

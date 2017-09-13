@@ -28,7 +28,7 @@ public:
   }
 
   vector<Dims> GetRandShape() {
-    int batch_size = this->RandInt(0, 128);
+    int batch_size = this->RandInt(1, 128);
     vector<Dims> shape(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       int dims = this->RandInt(0, 3);

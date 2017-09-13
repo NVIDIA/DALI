@@ -15,6 +15,9 @@ namespace ndll {
 // how the owned flag is used, where and when allocation occur, and when types
 // are required to be setup
 
+// TODO(tgale): Make sure we aren't losing perf with all these
+// copies of tensor/batch/datum shape vectors
+
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 

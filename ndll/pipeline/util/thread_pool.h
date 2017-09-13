@@ -67,6 +67,7 @@ private:
       // If we're no longer running, exit the run loop
       if (!running_) break;
 
+      cout << "thread running" << endl;
       // Get work from the queue & mark
       // this thread as active
       Work work = work_queue_.front();
@@ -79,7 +80,9 @@ private:
       // TODO(tgale): Send the errors back to the main thread
       try {
         work(thread_id);
-      } catch(...) {}
+      } catch(...) {
+        cout << "Caught exception from work" << endl;
+      }
 
       // Mark this thread as idle & check for complete work
       lock.lock();

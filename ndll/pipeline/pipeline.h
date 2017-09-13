@@ -109,11 +109,11 @@ public:
     // gpu side op input. The input to the pipeline and the output
     // to the pipeline are passed into the "RunPrefetch" and
     // "RunForward" methods
-    for (int i = 0; i < prefetch_ops_.size(); ++i) {
+    for (size_t i = 0; i < prefetch_ops_.size(); ++i) {
       BatchPtr<CPUBackend> tmp_cpu;
       cpu_buffers_.push_back(std::move(tmp_cpu));
     }
-    for (int i = 0; i < forward_ops_.size(); ++i) {
+    for (size_t i = 0; i < forward_ops_.size(); ++i) {
       BatchPtr<GPUBackend> tmp_gpu;
       gpu_buffers_.push_back(std::move(tmp_gpu));
     }
@@ -149,6 +149,10 @@ public:
     for (Index i = 0; i < batch_size; ++i) {
       // TODO(tgale): Save all the dims and resize the intermediate buffers. Look
       // into what temporary objects are created to avoid unescesary cost.
+
+      // TODO(tgale): Threads seem to be silently dying. Figure out why this
+      // is happening and how our error checking can be better
+      cout << "running work" << endl;
       
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
@@ -157,8 +161,12 @@ public:
                 vector<Index> dims;
                 intermediate_shapes_[0][data_idx] =
                   prefetch_ops_[0].InferOutputShape(datum);
+
+                // DEBUG
+                for (auto &val : intermediate_shapes_[0][data_idx]) cout << val << " ";
+                cout << endl;
                 
-                for (int j = 1; j < prefetch_ops_.size(); ++j) {
+                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   datum.Reset(cpu_buffers_[j-1].get(), data_idx);
                   intermediate_shapes_[j][data_idx] =
                     prefetch_ops_[j].InferOutputShape(datum);

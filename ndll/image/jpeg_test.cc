@@ -12,12 +12,6 @@
 
 namespace ndll {
 
-namespace {
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/image/testing_jpegs";
-const string image_list = image_folder + "/image_list.txt";
-} // namespace
-
 // Our test "types"
 struct RGB {};
 struct Gray {};
@@ -70,10 +64,10 @@ public:
   // being written to file.
   template <typename T>
   void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
-    CHECK_CUDA(cudaDeviceSynchronize());
+    TEST_CUDA(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
 
-    CHECK_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+    TEST_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
             w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
@@ -193,11 +187,11 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   for (size_t img = 0; img < this->jpegs_.size(); ++img) {
     int h, w;
 
-    CHECK_NDLL(GetJPEGImageDims(this->jpegs_[img],
+    TEST_NDLL(GetJPEGImageDims(this->jpegs_[img],
             this->jpeg_sizes_[img], &h, &w));
     
     image.resize(h * w * this->c_);
-    CHECK_NDLL(DecodeJPEGHost(this->jpegs_[img],
+    TEST_NDLL(DecodeJPEGHost(this->jpegs_[img],
             this->jpeg_sizes_[img],
             this->color_, h, w,
             image.data()));

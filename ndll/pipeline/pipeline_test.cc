@@ -1,5 +1,8 @@
 #include "ndll/pipeline/pipeline.h"
 
+#include <cassert>
+
+#include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 
 #include "ndll/common.h"
@@ -8,45 +11,40 @@
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operators/tjpg_decoder.h"
+#include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
 
 template <typename BackendPair>
-class PipelineTest : public ::testing::Test {
+class PipelineTest : public NDLLTest {
 public:
-  void SetUp() {
-    rand_gen_.seed(time(nullptr));
-  }
+  typedef typename BackendPair::TCPUBackend HostBackend;
+  typedef typename BackendPair::TGPUBackend DeviceBackend;
 
-  void TearDown() {
-
-  }
-
-  int RandInt(int a, int b) {
-    return std::uniform_int_distribution<>(a, b)(rand_gen_);
-  }
-
-  template <typename T>
-  auto RandReal(int a, int b) -> T {
-    return std::uniform_real_distribution<>(a, b)(rand_gen_);
-  }
-
-  vector<Dims> GetRandShape() {
-    int batch_size = this->RandInt(0, 128);
-    vector<Dims> shape(batch_size);
-    for (int i = 0; i < batch_size; ++i) {
-      int dims = this->RandInt(0, 3);
-      vector<Index> sample_shape(dims, 0);
-      for (int j = 0; j < dims; ++j) {
-        sample_shape[j] = this->RandInt(1, 512);
-      }
-      shape[i] = sample_shape;
+  template <typename Backend>
+  auto CreateJPEGBatch(int size) -> Batch<Backend>* {
+    assert(size_t(size) < jpegs_.size());
+    Batch<Backend> *batch = new Batch<Backend>();
+    // Create the shape
+    vector<Dims> shape(size);
+    for (int i = 0; i < size; ++i) {
+      shape[i] = {Index(jpeg_sizes_[i])};
     }
-    return shape;
+    batch->Resize(shape);
+
+    // Copy in the data
+    batch->template data<uint8>();
+    for (int i = 0; i < size; ++i) {
+      TEST_CUDA(cudaMemcpy(batch->raw_datum(i),
+              jpegs_[i], jpeg_sizes_[i],
+              cudaMemcpyDefault));
+    }
+    return batch;
   }
   
 protected:
-  std::mt19937 rand_gen_;
+  
 };
 
 template <typename CPUBackend, typename GPUBackend>
@@ -69,8 +67,16 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
   try {
     // Create the pipeline
     Pipeline<HostBackend, DeviceBackend> pipe(4, 0, 8, true);
-
+    
     // Add a decoder and some transformers
+    TJPGDecoder<HostBackend> jpg_decoder(true);
+    pipe.AddDecoder(jpg_decoder);
+
+    pipe.Build();
+
+    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
+
+    pipe.RunPrefetch(batch);
   } catch (NDLLException &e) {
     FAIL() << e.what();
   }
