@@ -43,6 +43,19 @@ public:
     }
     return batch;
   }
+
+  template <typename T, typename Backend>
+  void DumpImageBatchToFile(Batch<Backend> &batch) {
+    int batch_size = batch.ndatum();
+    for (int i = 0; i < batch_size; ++i) {
+      vector<Index> shape = batch.datum_shape(i);
+      assert(shape.size() == 3);
+      int h = shape[0], w = shape[1], c = shape[2];
+
+      this->DumpToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
+    }
+    
+  }
   
 protected:
   
@@ -77,7 +90,7 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     DumpImageOp<HostBackend> dump_image_op(pipe.num_thread(), pipe.stream_pool());
     pipe.AddPrefetchOp(dump_image_op);
     
-    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(1);
+    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
     Batch<DeviceBackend> output_batch;
     TypeMeta input_type = batch->type();
 
@@ -89,6 +102,8 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     pipe.RunPrefetch(batch);
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
+
+    this->template DumpImageBatchToFile<uint8>(output_batch);
 
     TEST_CUDA(cudaDeviceSynchronize());
     delete batch;
