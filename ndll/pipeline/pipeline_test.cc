@@ -79,18 +79,19 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
 TYPED_TEST(PipelineTest, TestBuildPipeline) {
   DECLTYPES();
   try {
+    int batch_size = 4;
     // Create the pipeline
-    Pipeline<HostBackend, DeviceBackend> pipe(1, 0, 8, true);
+    Pipeline<HostBackend, DeviceBackend> pipe(batch_size, 1, 0, 8, true);
     
     // Add a decoder and some transformers
-    TJPGDecoder<HostBackend> jpg_decoder(pipe.num_thread(), pipe.stream_pool(), true);
+    TJPGDecoder<HostBackend> jpg_decoder(true);
     pipe.AddDecoder(jpg_decoder);
 
     // Add a dump image op
-    DumpImageOp<HostBackend> dump_image_op(pipe.num_thread(), pipe.stream_pool());
+    DumpImageOp<HostBackend> dump_image_op;
     pipe.AddPrefetchOp(dump_image_op);
     
-    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
+    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(batch_size);
     Batch<DeviceBackend> output_batch;
 
     // Build and run the pipeline

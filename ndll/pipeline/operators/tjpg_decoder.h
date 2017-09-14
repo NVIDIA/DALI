@@ -20,8 +20,7 @@ public:
    * @brief Constructs a turbo-jpeg decoder. Outputs RGB images if 
    * `color` == true, otherwise outputs grayscale images.
    */
-  inline TJPGDecoder(int num_threads, std::shared_ptr<StreamPool> stream_pool, bool color)
-    : Decoder<Backend>(num_threads, stream_pool), color_(color), c_(color ? 3 : 1) {}
+  inline TJPGDecoder(bool color) : color_(color), c_(color ? 3 : 1) {}
   
   virtual inline ~TJPGDecoder() = default;
 
@@ -47,7 +46,7 @@ public:
   }
   
   inline TJPGDecoder* Clone() const override {
-    TJPGDecoder *new_decoder = new TJPGDecoder(num_threads_, stream_pool_, color_);
+    TJPGDecoder *new_decoder = new TJPGDecoder(color_);
     return new_decoder;
   }
 
@@ -67,8 +66,7 @@ protected:
 template <typename Backend>
 class DumpImageOp : public Transformer<Backend> {
 public:
-  inline DumpImageOp(int num_threads, std::shared_ptr<StreamPool> stream_pool)
-    : Transformer<Backend>(num_threads, stream_pool) {}
+  inline DumpImageOp() {}
   virtual inline ~DumpImageOp() = default;
 
   // This op forwards the data and writes it to files
@@ -117,7 +115,7 @@ public:
   }
   
   inline DumpImageOp* Clone() const override {
-    return new DumpImageOp(num_threads_, stream_pool_);
+    return new DumpImageOp;
   }
 
   inline string name() const override {

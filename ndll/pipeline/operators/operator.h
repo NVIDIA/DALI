@@ -23,8 +23,10 @@ namespace ndll {
 template <typename Backend>
 class Operator {
 public:
-  inline Operator(int num_threads, std::shared_ptr<StreamPool> stream_pool)
-    : num_threads_(num_threads), stream_pool_(stream_pool) {}
+  inline Operator()
+    : num_threads_(-1),
+      batch_size_(-1),
+      stream_pool_(nullptr) {}
   virtual inline ~Operator() = default;
 
   // Note: An operator defines a computation that can be performed in the pipeline.
@@ -43,6 +45,12 @@ public:
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
   Run(const Datum<Backend> &input, Datum<Backend> *output) {
+#ifdef DEBUG
+    NDLL_ENFORCE(num_threads_ > 0,
+        "Num threads must be set before \"Run()\" is called");
+    NDLL_ENFORCE(batch_size_ > 0,
+        "Batch size must be set before \"Run()\" is called");
+#endif
     RunPerDatumCPU(input, output);
   }
 
@@ -52,6 +60,12 @@ public:
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
   Run(const Batch<Backend> &input, Batch<Backend> *output) {
+#ifdef DEBUG
+    NDLL_ENFORCE(batch_size_ == input.ndatum(),
+        "Batch size must be set before \"Run()\" is called");
+    NDLL_ENFORCE(stream_pool_.get() != nullptr,
+        "Stream pool must be set before \"Run()\" is called");
+#endif
     RunBatchedGPU(input, output);
   }
 
@@ -94,10 +108,27 @@ public:
    * @brief returns the name of the operator
    */
   virtual string name() const = 0;
+
+  //
+  /// Setters for operator meta-data required to execute the op
+  //
+  
+  void set_num_threads(int num_threads) {
+    num_threads_ = num_threads;
+  }
+  
+  void set_batch_size(int batch_size) {
+    batch_size_ = batch_size;
+  }
+
+  void set_stream_pool(std::shared_ptr<StreamPool> stream_pool) {
+    stream_pool_ = stream_pool;
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(Operator);
 protected:
   int num_threads_;
+  int batch_size_;
   std::shared_ptr<StreamPool> stream_pool_;
 };
 
@@ -106,8 +137,7 @@ protected:
 template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:
-  inline Decoder(int num_threads, std::shared_ptr<StreamPool> stream_pool)
-    : Operator<Backend>(num_threads, stream_pool) {}
+  inline Decoder() {}
   virtual inline ~Decoder() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Decoder);
@@ -117,8 +147,7 @@ protected:
 template <typename Backend>
 class Transformer : public Operator<Backend> {
 public:
-  inline Transformer(int num_threads, std::shared_ptr<StreamPool> stream_pool)
-    : Operator<Backend>(num_threads, stream_pool) {}
+  inline Transformer() {}
   virtual inline ~Transformer() = default;
 
   inline vector<Index> InferOutputShape(const Datum<Backend> &input) override {

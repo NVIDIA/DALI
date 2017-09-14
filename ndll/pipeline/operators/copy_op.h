@@ -8,8 +8,7 @@ namespace ndll {
 template <typename Backend>
 class CopyOp : public Transformer<Backend> {
 public:
-  inline CopyOp(int num_threads, std::shared_ptr<StreamPool> stream_pool)
-    : Transformer<Backend>(num_threads, stream_pool) {}
+  inline CopyOp() {}
   virtual inline ~CopyOp() = default;
 
   inline void RunBatchedGPU(const Batch<Backend> &input,
@@ -31,7 +30,7 @@ public:
   }
   
   inline CopyOp* Clone() const override {
-    return new CopyOp(num_threads_, stream_pool_);
+    return new CopyOp;
   }
 
   inline string name() const override {

@@ -23,6 +23,7 @@ public:
       running_(true),
       work_complete_(false),
       active_threads_(0) {
+    NDLL_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
     // Start the threads in the main loop
     for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i));

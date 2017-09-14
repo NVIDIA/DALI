@@ -34,11 +34,13 @@ public:
    * main_stream. The non-blocking flag specifies whether additional 
    * streams should be allocated as non-blocking streams.
    */
-  inline Pipeline(int num_threads, cudaStream_t main_stream,
+  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
       int max_streams,  bool non_blocking) :
-    decode_location_(DECODE_NONE), built_(false), 
+    decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
     stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
-    thread_pool_(num_threads) {}
+    thread_pool_(num_threads) {
+    NDLL_ENFORCE(batch_size_ > 0);
+  }
   
   ~Pipeline() = default;
 
@@ -144,7 +146,7 @@ public:
     // If we don't have any user-defined forward ops, add a CopyOp
     // that will copy the data into the output batch
     if (forward_ops_.size() == 0) {
-      OpPtr<GPUBackend> tmp(new CopyOp<GPUBackend>(num_thread(), stream_pool_));
+      OpPtr<GPUBackend> tmp(new CopyOp<GPUBackend>);
       forward_ops_.push_back(std::move(tmp));
     }
     
@@ -154,6 +156,23 @@ public:
     // determinitic output shape, this resize should just be a no-op after we
     // resize the output buffer on the first forward pass.
     intermediate_shapes_.resize(cpu_buffers_.size() + gpu_buffers_.size() + 1);
+
+    // Size all the intermediate shapes for threads to write into
+    for (auto &shape : intermediate_shapes_) {
+      shape.resize(batch_size_);
+    }
+
+    // Set important meta-data for all the operators in the pipeline
+    for (auto &op : prefetch_ops_) {
+      op->set_num_threads(num_thread());
+      op->set_batch_size(batch_size_);
+      op->set_stream_pool(stream_pool_);
+    }
+    for (auto &op : forward_ops_) {
+      op->set_num_threads(num_thread());
+      op->set_batch_size(batch_size_);
+      op->set_stream_pool(stream_pool_);
+    }
     
     // TODO(tgale): Is it actually worth enforcing this? We need
     // to do this setup before "Run*" is called but we also don't
@@ -177,15 +196,10 @@ public:
   inline void RunPrefetch(Batch<CPUBackend> *input) {
     NDLL_ENFORCE(built_,
         "\"Build()\" must be called before the pipeline is executed");
-    Index batch_size = input->ndatum();
-    NDLL_ENFORCE(batch_size > 0);
-
-    // Size all the intermediate shapes for threads to write into
-    for (auto &shape : intermediate_shapes_) {
-      shape.resize(batch_size);
-    }
+    NDLL_ENFORCE(input->ndatum() == batch_size_,
+        "Calling batch size does not match pipeline parameter");
     
-    for (Index i = 0; i < batch_size; ++i) {
+    for (Index i = 0; i < batch_size_; ++i) {
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this, &input] (int data_idx, int tid) {
@@ -230,7 +244,7 @@ public:
     }
 
     // Execute all the prefetch ops
-    for (Index i = 0; i < batch_size; ++i) {
+    for (Index i = 0; i < batch_size_; ++i) {
       thread_pool_.DoWorkWithID(std::bind(
               [this, &input] (int data_idx, int tid) {
                 // We're going to ping-pong back and forth between these Datums
@@ -333,7 +347,8 @@ private:
   };
   DecodeLocation decode_location_;
   bool built_;
-  
+
+  int batch_size_;
   std::shared_ptr<StreamPool> stream_pool_;
   ThreadPool thread_pool_;
 
