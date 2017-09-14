@@ -14,7 +14,7 @@ namespace ndll {
 
 typedef int64_t TypeID;
 constexpr TypeID NO_TYPE = -1;
-  
+
 /**
  * @brief Keeps track of mappings between types and unique identifiers.
  */
@@ -93,6 +93,12 @@ private:
   size_t type_size_;
   string name_;
 };
+
+// Utility to check types
+template <typename T>
+constexpr bool IsType(TypeMeta type) {
+  return type.id() == TypeTable::GetTypeID<T>();
+}
 
 // Used to define a type for use in ndll. Inserts the type into the
 // TypeTable w/ a unique id and creates a method to get the name of

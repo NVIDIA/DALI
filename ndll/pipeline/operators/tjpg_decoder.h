@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
 #define NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
 
+#include <cstring>
+
 #include <fstream>
 #include <utility>
 
@@ -18,7 +20,8 @@ public:
    * @brief Constructs a turbo-jpeg decoder. Outputs RGB images if 
    * `color` == true, otherwise outputs grayscale images.
    */
-  inline TJPGDecoder(bool color) : color_(color), c_(color ? 3 : 1) {}
+  inline TJPGDecoder(int num_threads, std::shared_ptr<StreamPool> stream_pool, bool color)
+    : Decoder<Backend>(num_threads, stream_pool), color_(color), c_(color ? 3 : 1) {}
   
   virtual inline ~TJPGDecoder() = default;
 
@@ -39,26 +42,36 @@ public:
   }
 
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+    NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template data<uint8>();
   }
   
   inline TJPGDecoder* Clone() const override {
-    TJPGDecoder *new_decoder = new TJPGDecoder(color_);
+    TJPGDecoder *new_decoder = new TJPGDecoder(num_threads_, stream_pool_, color_);
     return new_decoder;
+  }
+
+  inline string name() const override {
+    return "TurboJPEG Decoder";
   }
   
   DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
 protected:
   bool color_;
   int c_;
+
+  using Operator<Backend>::num_threads_;
+  using Operator<Backend>::stream_pool_;
 };
 
 template <typename Backend>
 class DumpImageOp : public Transformer<Backend> {
 public:
-  inline DumpImageOp() {}
+  inline DumpImageOp(int num_threads, std::shared_ptr<StreamPool> stream_pool)
+    : Transformer<Backend>(num_threads, stream_pool) {}
   virtual inline ~DumpImageOp() = default;
 
+  // This op forwards the data and writes it to files
   inline void RunPerDatumCPU(const Datum<Backend> &input, Datum<Backend> *output) override {
     // Dump the input image to file
     NDLL_ENFORCE(input.shape().size() == 3);
@@ -89,23 +102,31 @@ public:
       file << endl;
     }
     delete[] tmp;
+
+    // Copy from input to output
+    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
   }
   
   inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape) override {
-    // This op does not produce any outputs
-    return vector<Index>{};
+    return input_shape;
   }
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
-    // This doesn't matter
+    NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template data<uint8>();
   }
   
   inline DumpImageOp* Clone() const override {
-    return new DumpImageOp;
+    return new DumpImageOp(num_threads_, stream_pool_);
+  }
+
+  inline string name() const override {
+    return "Dump Image Op";
   }
   
 protected:
+  using Operator<Backend>::num_threads_;
+  using Operator<Backend>::stream_pool_;
 };
   
 } // namespace ndll

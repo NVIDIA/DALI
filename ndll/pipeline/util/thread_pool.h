@@ -18,7 +18,7 @@ public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
   
-  ThreadPool(int num_thread)
+  inline ThreadPool(int num_thread)
     : threads_(num_thread),
       running_(true),
       work_complete_(false),
@@ -29,7 +29,7 @@ public:
     }
   }
 
-  ~ThreadPool() {
+  inline ~ThreadPool() {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       running_ = false;
@@ -41,7 +41,7 @@ public:
     }
   }
 
-  void DoWorkWithID(Work work) {
+  inline void DoWorkWithID(Work work) {
     {
       // Add work to the queue
       std::lock_guard<std::mutex> lock(mutex_);
@@ -53,14 +53,18 @@ public:
   }
 
   // Blocks until all work issued to the thread pool is complete
-  void WaitForWork() {
+  inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);
     completed_.wait(lock, [this] { return this->work_complete_; });
   }
   
+  inline int size() const {
+    return threads_.size();
+  }
+  
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 private:
-  void ThreadMain(int thread_id) {
+  inline void ThreadMain(int thread_id) {
     while (running_) {
       // Block on the condition to wait for work
       std::unique_lock<std::mutex> lock(mutex_);

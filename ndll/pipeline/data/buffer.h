@@ -102,11 +102,35 @@ public:
   }
 
   /**
-   * @brief Sets the type of the buffer. Fails if buffer already has a type
+   * @brief Sets the type of the buffer. Fails if buffer already has a type.
+   * If the buffer has no type but has non-zero size, we allocate the memory
+   *
+   * Setting type is only allowed if:
+   * a) the buffer had no type
+   * b) the buffer owns the underlying storage
    */
   inline void set_type(TypeMeta type) {
     NDLL_ENFORCE(type_.id() == NO_TYPE, "Cannot set type on typed buffer");
+    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
+        "storage. Setting type not allowed");
+#ifdef DEBUG
+    NDLL_ENFORCE(data_ == nullptr, "Buffer must be nullpltr if it has no type");
+#endif
+
     type_ = type;
+
+    // If the buffer has a set size (and the new type is a real type),
+    // allocate the memory for the size of the buffer
+    if ((true_size_ != 0) && (type_.id() != NO_TYPE)) {
+      NDLL_ENFORCE(data_ == nullptr,
+          "data ptr is non-nullptr even though type was NO_TYPE");
+      
+      // Make sure we keep our nullptr if we don't allocate anything
+      size_t mem_size = true_size_*type_.size();
+      if (mem_size != 0) {
+        data_ = backend_.New(true_size_*type_.size());
+      }
+    }
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Buffer);

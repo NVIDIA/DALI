@@ -19,6 +19,14 @@ public:
   ~Batch() = default;
 
   /**
+   * @brief Resizes this batch to match the shape of the input batch
+   */
+  template <typename InBackend>
+  inline void ResizeLike(const Batch<InBackend> &other) {
+    Resize(other.batch_shape_);
+  }
+  
+  /**
    * @brief Resize function to create jagged batches. The outer vector
    * size is taken to be the samples dimension, i.e. N = shape.size();
    *
@@ -101,6 +109,11 @@ public:
 #endif
     return batch_shape_[idx];
   }
+
+  // So we can access the members of other Batches
+  // w/ different template types
+  template <typename InBackend>
+  friend class Batch;
   
   DISABLE_COPY_MOVE_ASSIGN(Batch);
 protected:
@@ -141,6 +154,13 @@ public:
    * @brief Creates a default Datum that holds no data
    */
   inline Datum() {}
+
+  /**
+   * @brief Creates a Datum object with the input shape
+   */
+  inline Datum(const vector<Index> &shape) {
+    Resize(shape);
+  }
   
   /**
    * @brief Construct a sub-buffer that wraps a single datum from 

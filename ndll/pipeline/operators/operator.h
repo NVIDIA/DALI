@@ -1,6 +1,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 #define NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -8,6 +9,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/util/stream_pool.h"
 
 namespace ndll {
 
@@ -21,7 +23,8 @@ namespace ndll {
 template <typename Backend>
 class Operator {
 public:
-  inline Operator() {}
+  inline Operator(int num_threads, std::shared_ptr<StreamPool> stream_pool)
+    : num_threads_(num_threads), stream_pool_(stream_pool) {}
   virtual inline ~Operator() = default;
 
   // Note: An operator defines a computation that can be performed in the pipeline.
@@ -87,7 +90,15 @@ public:
    */
   virtual Operator* Clone() const = 0;
 
+  /**
+   * @brief returns the name of the operator
+   */
+  virtual string name() const = 0;
+  
   DISABLE_COPY_MOVE_ASSIGN(Operator);
+protected:
+  int num_threads_;
+  std::shared_ptr<StreamPool> stream_pool_;
 };
 
 // TODO(tgale): Is there any point to having this? It does not
@@ -95,7 +106,8 @@ public:
 template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:
-  inline Decoder() {}
+  inline Decoder(int num_threads, std::shared_ptr<StreamPool> stream_pool)
+    : Operator<Backend>(num_threads, stream_pool) {}
   virtual inline ~Decoder() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Decoder);
@@ -105,7 +117,8 @@ protected:
 template <typename Backend>
 class Transformer : public Operator<Backend> {
 public:
-  inline Transformer() {}
+  inline Transformer(int num_threads, std::shared_ptr<StreamPool> stream_pool)
+    : Operator<Backend>(num_threads, stream_pool) {}
   virtual inline ~Transformer() = default;
 
   inline vector<Index> InferOutputShape(const Datum<Backend> &input) override {

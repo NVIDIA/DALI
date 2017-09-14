@@ -12,6 +12,7 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/operators/tjpg_decoder.h"
+#include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
@@ -69,17 +70,27 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     Pipeline<HostBackend, DeviceBackend> pipe(1, 0, 8, true);
     
     // Add a decoder and some transformers
-    TJPGDecoder<HostBackend> jpg_decoder(true);
+    TJPGDecoder<HostBackend> jpg_decoder(pipe.num_thread(), pipe.stream_pool(), true);
     pipe.AddDecoder(jpg_decoder);
 
     // Add a dump image op
-    DumpImageOp<HostBackend> dump_image_op;
+    DumpImageOp<HostBackend> dump_image_op(pipe.num_thread(), pipe.stream_pool());
     pipe.AddPrefetchOp(dump_image_op);
+    
+    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(1);
+    Batch<DeviceBackend> output_batch;
+    TypeMeta input_type = batch->type();
 
-    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
-    pipe.Build();
+    // Build and run the pipeline
+    pipe.Build(&input_type);
+
+    pipe.Print();
+    
     pipe.RunPrefetch(batch);
+    pipe.RunCopy();
+    pipe.RunForward(&output_batch);
 
+    TEST_CUDA(cudaDeviceSynchronize());
     delete batch;
   } catch (NDLLException &e) {
     FAIL() << e.what();
