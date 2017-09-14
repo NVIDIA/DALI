@@ -116,7 +116,6 @@ public:
 #ifdef DEBUG
     NDLL_ENFORCE(data_ == nullptr, "Buffer must be nullpltr if it has no type");
 #endif
-
     type_ = type;
 
     // If the buffer has a set size (and the new type is a real type),

@@ -45,11 +45,6 @@ enum NDLLError_t {
   NDLLCudaError = 2 /* CUDA broke */
 };
 
-// Note: If the library ever gets more complicated than data
-// augmentation primitives we will need more sophisticated
-// error handling. Errors will need to be propagated out of
-// nested functions and passed back to the user.
-
 // CUDA error checking utility
 #define CUDA_CALL(code)                             \
   do {                                              \
@@ -137,6 +132,11 @@ inline string GetErrorString(string statement, string file, int line) {
     throw NDLLException(str);                             \
   } while (0)
 
+#define NDLL_CALL(code)                         \
+  do {                                          \
+    assert(!code);                              \
+  } while (0)
+  
 } // namespace ndll
 
 #endif // NDLL_ERROR_HANDLING_H_

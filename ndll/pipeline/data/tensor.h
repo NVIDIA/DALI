@@ -3,6 +3,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
 
 namespace ndll {
@@ -17,6 +18,17 @@ public:
   Tensor() {}
   ~Tensor() = default;
 
+  /**
+   * Loads the tensor with data from the input vector
+   */
+  template <typename T>
+  inline void Copy(const vector<T> &data) {
+    // Resize buffer to match input & load data
+    this->template data<T>();
+    Resize({(Index)data.size()});
+    MemCopy(this->raw_data(), data.data(), this->nbytes());
+  }
+  
   /**
    * @brief Resizes the buffer to fit `Product(shape)` elements.
    * The underlying storage is only reallocated in the case that
@@ -45,6 +57,7 @@ public:
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
+    size_ = true_size_;
     shape_ = shape;
   }
 

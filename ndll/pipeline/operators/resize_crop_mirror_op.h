@@ -2,10 +2,12 @@
 #define NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_OP_H_
 
 #include <random>
+#include <type_traits>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/image/transform.h"
+#include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/operators/operator.h"
 
 namespace ndll {
@@ -82,24 +84,6 @@ public:
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int data_idx) override {
-    // TODO(tgale): This is kind of gross and unintuitive that we
-    // can't do this in the constructor. In reality this info is
-    // we just also don't want the user to have to pass in the
-    // same meta-data over and over and over again. is there a
-    // better way to do this? We kind of violate RAII a bit w/ this...
-    // a) Macro-ed wrappers to declare entry functions that handle gross-ness
-    //   - a bit opaque, but just provides a convenience layer
-    //   - tough because we have to differentiate between prefetch & forward
-    //     - can we do this with template specialization on the Backend? Probably...
-    // b) Alternate constructors that set the desired meta-data. have the pipeline
-    //    call these when it constructs the ops ... nvm, "Clone()" is called to construct
-    //    the ops so the pipeline can't affect the constructor. Would have to add params
-    //    to this, which would be grosser. Very much ties these classes to the pipeline
-    // a seems like the best route.
-    //
-    // We're guaranteed that the batch size is set by now,
-    // use it to resize our transform params
-    if (transform_params_.size() == 0) transform_params_.resize(batch_size_);
 #ifdef DEBUG
     NDLL_ENFORCE(data_idx < batch_size_, "data_idx out of range");
 #endif
@@ -182,6 +166,16 @@ public:
   inline string name() const override {
     return "ResizeCropMirrorOp";
   }
+
+  inline void set_num_threads(int num_threads) override {
+    num_threads_ = num_threads;
+  }
+
+  // User can override if they need to setup meta-data
+  inline void set_batch_size(int batch_size) override {
+    batch_size_ = batch_size;
+    transform_params_.resize(batch_size_);
+  }
   
 protected:
   std::mt19937 rand_gen_;
@@ -211,6 +205,6 @@ protected:
   using Operator<Backend>::stream_pool_;
 };
 
-}
+} // namespace ndll
 
 #endif // NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_OP_H_

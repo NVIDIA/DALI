@@ -13,6 +13,8 @@
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/operators/tjpg_decoder.h"
 #include "ndll/pipeline/operators/copy_op.h"
+#include "ndll/pipeline/operators/normalize_permute_op.h"
+#include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
@@ -45,7 +47,7 @@ public:
   }
 
   template <typename T, typename Backend>
-  void DumpImageBatchToFile(Batch<Backend> &batch) {
+  void DumpHWCImageBatchToFile(Batch<Backend> &batch) {
     int batch_size = batch.ndatum();
     for (int i = 0; i < batch_size; ++i) {
       vector<Index> shape = batch.datum_shape(i);
@@ -53,6 +55,19 @@ public:
       int h = shape[0], w = shape[1], c = shape[2];
 
       this->DumpToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
+    }
+    
+  }
+
+    template <typename T, typename Backend>
+  void DumpCHWImageBatchToFile(Batch<Backend> &batch) {
+    int batch_size = batch.ndatum();
+    for (int i = 0; i < batch_size; ++i) {
+      vector<Index> shape = batch.datum_shape(i);
+      assert(shape.size() == 3);
+      int c = shape[0], h = shape[1], w = shape[2];
+
+      this->DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
     }
     
   }
@@ -99,10 +114,15 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     // Add a dump image op
     DumpImageOp<HostBackend> dump_image_op2;
     pipe.AddPrefetchOp(dump_image_op2);
+
+    // Add normalize permute op
+    NormalizePermuteOp<DeviceBackend, float> norm_permute_op(
+        {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
+    pipe.AddForwardOp(norm_permute_op);
     
     Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(batch_size);
     Batch<DeviceBackend> output_batch;
-
+    
     // Build and run the pipeline
     pipe.Build(batch->type());
 
@@ -112,7 +132,7 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
 
-    this->template DumpImageBatchToFile<uint8>(output_batch);
+    this->template DumpCHWImageBatchToFile<float>(output_batch);
 
     TEST_CUDA(cudaDeviceSynchronize());
     delete batch;

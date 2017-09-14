@@ -22,8 +22,6 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *image_batch,
   for (int c = 0; c < C; ++c) {
     for (int h = threadIdx.y; h < H; h += blockDim.y) {
       for (int w = threadIdx.x; w < W; w += blockDim.x) {
-        // TODO(tgale): Should we take in the inverse std dev
-        // and do a multiply here?
         out[c*H*W + h*W + w] = static_cast<OUT>(
             (static_cast<float>(in[h*W*C + w*C + c]) - mean[c]) / std[c]);
       }
@@ -46,7 +44,7 @@ NDLLError_t BatchedNormalizePermute(const uint8 *image_batch,
   NDLL_ASSERT((C == 1) || (C == 3));
   NDLL_ASSERT(W > 0);
   NDLL_ASSERT(H > 0);
-  
+
   BatchedNormalizePermuteKernel<<<N, dim3(16, 16), 0, stream>>>(
       image_batch, N, H, W, C, mean, std, out_batch);
   return NDLLSuccess;

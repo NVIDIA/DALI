@@ -30,11 +30,21 @@ def load_image(image_file):
         cmap = None
     else:
         cmap = 'gray'
-    
+        
     return img, cmap
 
 if __name__ == '__main__':
+    assert len(argv) == 2 or len(argv) == 4
     img, cmap = load_image(argv[1])
+
+    if len(argv) == 4:
+        img = img.astype(np.float)
+        mean = float(argv[2])
+        std = float(argv[3])
+        img *= std
+        img += mean
+        img = img.astype(np.uint8)
+        
     plt.imshow(img, cmap = cmap)
     plt.show()
     

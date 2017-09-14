@@ -10,7 +10,6 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/pipeline/operators/operator.h"
-#include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
@@ -291,6 +290,8 @@ public:
     // ops are free to run their kernels in other streams. Is there a
     // better way to prevent this from happening?
     CUDA_ENFORCE(cudaStreamSynchronize(stream_pool_->GetStream()));
+
+    // TODO(tgale): I think this type setting is redundant...remove it
     
     // Run all the forward ops
     TypeMeta input_type = gpu_buffers_[0]->type();

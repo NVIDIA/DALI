@@ -24,11 +24,6 @@ public:
    * argument for certain types of allocators.
    */
   virtual void Delete(void *ptr, size_t bytes) = 0;
-
-  /**
-   * @brief Indicates if the memory allocated is on GPU
-   */
-  virtual bool OnDevice() = 0;
 };
 
 /**
@@ -46,7 +41,6 @@ public:
   void Delete(void *ptr, size_t /* unused */) override{
     CUDA_ENFORCE(cudaFree(ptr));
   }
-  bool OnDevice() final { return true; }
 };
 
 /**
@@ -62,7 +56,6 @@ public:
   void Delete(void *ptr, size_t /* unused */) override {
     ::operator delete(ptr);
   }
-  bool OnDevice() final { return false; }
 };
 
 /**
@@ -79,6 +72,15 @@ public:
     CUDA_ENFORCE(cudaFreeHost(ptr));
   }
 };
+
+// Utility to copy between backends
+inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
+#ifdef DEBUG
+  NDLL_ENFORCE(dst != nullptr);
+  NDLL_ENFORCE(src != nullptr);
+#endif
+  CUDA_ENFORCE(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
+}
 
 } // namespace ndll
 

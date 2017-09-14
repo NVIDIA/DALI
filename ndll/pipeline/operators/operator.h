@@ -112,16 +112,18 @@ public:
   //
   /// Setters for operator meta-data required to execute the op
   //
-  
-  void set_num_threads(int num_threads) {
+
+  // User can override if they need to setup meta-data
+  virtual inline void set_num_threads(int num_threads) {
     num_threads_ = num_threads;
   }
-  
-  void set_batch_size(int batch_size) {
+
+  // User can override if they need to setup meta-data
+  virtual inline void set_batch_size(int batch_size) {
     batch_size_ = batch_size;
   }
 
-  void set_stream_pool(std::shared_ptr<StreamPool> stream_pool) {
+  inline void set_stream_pool(std::shared_ptr<StreamPool> stream_pool) {
     stream_pool_ = stream_pool;
   }
   

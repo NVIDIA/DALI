@@ -86,7 +86,30 @@ public:
     for (int i = 0; i < h; ++i) {
       for (int j = 0; j < w; ++j) {
         for (int k = 0; k < c; ++k) {
-          file << unsigned(tmp[i*w*c + j*c + k]) << " ";
+          file << float(tmp[i*w*c + j*c + k]) << " ";
+        }
+      }
+      file << endl;
+    }
+    delete[] tmp;
+  }
+
+  // Dump CHW image to file as HWC
+  template <typename T>
+  void DumpCHWToFile(T *img, int h, int w, int c, string file_name) {
+    TEST_CUDA(cudaDeviceSynchronize());
+    T *tmp = new T[h*w*c];
+    
+    TEST_CUDA(cudaMemcpy(tmp, img, h*w*c*sizeof(T), cudaMemcpyDefault));
+    std::ofstream file(file_name + ".jpg.txt");
+    ASSERT_TRUE(file.is_open());
+
+    // write the image as HWC for our scripts
+    file << h << " " << w << " " << c << endl;
+    for (int i = 0; i < h; ++i) {
+      for (int j = 0; j < w; ++j) {
+        for (int k = 0; k < c; ++k) {
+          file << float(tmp[k*h*w + i*w +j]) << " ";
         }
       }
       file << endl;
