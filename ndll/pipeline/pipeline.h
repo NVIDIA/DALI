@@ -102,14 +102,15 @@ public:
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
    */
-  inline void Build(const TypeMeta *input_type_ptr) {
+  inline void Build(TypeMeta input_type) {
     // Make sure the decoder is the first op in the pipeline
     if (decode_location_ == DECODE_FORWARD) {
       NDLL_ENFORCE(prefetch_ops_.size() == 0,
           "The Decoder is set to occur in the forward "
           "pipeline stage but prefetch operators exist");
     }
-    TypeMeta input_type = *input_type_ptr;
+    NDLL_ENFORCE(prefetch_ops_.size() + forward_ops_.size() > 0,
+        "Pipeline must have at least one operator");
     
     // Create buffers for intermediate pipeline results. We need 1
     // buffer for each cpu side op output, and 1 buffer for each

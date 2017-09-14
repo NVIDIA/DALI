@@ -92,10 +92,9 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     
     Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(4);
     Batch<DeviceBackend> output_batch;
-    TypeMeta input_type = batch->type();
 
     // Build and run the pipeline
-    pipe.Build(&input_type);
+    pipe.Build(batch->type());
 
     pipe.Print();
     
