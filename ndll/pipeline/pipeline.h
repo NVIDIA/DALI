@@ -120,8 +120,8 @@ public:
     // For the Prefetch ops, we also need to set the output buffer
     // types so that the memory can be allocated prior to wrapping
     // individual samples in 'Datum' objects. The forward ops get
-    // the whole batch at once, so we can just call their
-    // 'SetOutputType()' methods before launching the kernels
+    // the whole batch at once, but we call these methods here as
+    // well to avoid as much work as possible during training
     for (size_t i = 0; i < prefetch_ops_.size(); ++i) {
       BatchPtr<CPUBackend> tmp_cpu(new Batch<CPUBackend>);
       cpu_buffers_.push_back(std::move(tmp_cpu));
@@ -131,10 +131,13 @@ public:
     // We always need at least one gpu buffer to copy into
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
+    gpu_buffers_[0]->set_type(input_type);
     
     for (size_t i = 1; i < forward_ops_.size(); ++i) {
       BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
       gpu_buffers_.push_back(std::move(tmp_gpu));
+      forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
+      input_type = gpu_buffers_[i]->type();
     }
 
     // If we don't have any user-defined forward ops, add a CopyOp
@@ -220,28 +223,10 @@ public:
     }
 
     // Resize the gpu-size intermediate buffers & set the types
-    gpu_buffers_[0]->set_type(cpu_buffers_[cpu_buffers_.size()-1]->type());
-    gpu_buffers_[0]->Resize(intermediate_shapes_[cpu_buffers_.size()]);
-
-    TypeMeta input_type = gpu_buffers_[0]->type();
-    for (size_t i = 1; i < gpu_buffers_.size(); ++i) {
-      // Set the type for this buffer
-      forward_ops_[i-1]->SetOutputType(
-          gpu_buffers_[i].get(), input_type);
+    for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
       gpu_buffers_[i]->Resize(
           intermediate_shapes_[i + cpu_buffers_.size()]);
     }
-    
-    // TypeMeta input_type = gpu_buffers_[0]->type();
-    // for (size_t i = 1; i < forward_ops_.size(); ++i) {
-    //   forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
-    //   gpu_buffers_[i-1]->Resize(
-    //       intermediate_shapes_[i + cpu_buffers_.size()]);
-    // }
-    // for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
-    //   gpu_buffers_[i]->Resize(
-    //       intermediate_shapes_[i + cpu_buffers_.size()]);
-    // }
 
     // Execute all the prefetch ops
     for (Index i = 0; i < batch_size; ++i) {
