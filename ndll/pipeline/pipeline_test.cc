@@ -79,7 +79,7 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
 TYPED_TEST(PipelineTest, TestBuildPipeline) {
   DECLTYPES();
   try {
-    int batch_size = 4;
+    int batch_size = 1;
     // Create the pipeline
     Pipeline<HostBackend, DeviceBackend> pipe(batch_size, 1, 0, 8, true);
     
@@ -90,6 +90,15 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     // Add a dump image op
     DumpImageOp<HostBackend> dump_image_op;
     pipe.AddPrefetchOp(dump_image_op);
+
+    // Add a resize+crop+mirror op
+    ResizeCropMirrorOp<HostBackend> resize_crop_mirror_op(
+        true, false, 256, 480, true, 224, 224, 0.5f);
+    pipe.AddPrefetchOp(resize_crop_mirror_op);
+
+    // Add a dump image op
+    DumpImageOp<HostBackend> dump_image_op2;
+    pipe.AddPrefetchOp(dump_image_op2);
     
     Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(batch_size);
     Batch<DeviceBackend> output_batch;

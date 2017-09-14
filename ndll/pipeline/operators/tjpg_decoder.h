@@ -25,13 +25,13 @@ public:
   virtual inline ~TJPGDecoder() = default;
 
   inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output) override {
+      Datum<Backend> *output, int /* unused */) override {
     DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
         output->shape()[0], output->shape()[1], output->template data<uint8>());
   }
   
-  inline vector<Index>
-  InferOutputShape(const Datum<Backend> &input) override {
+  inline vector<Index> InferOutputShape(
+      const Datum<Backend> &input, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 1,
         "TJPGDecoder expects 1D encoded jpeg strings as input");
 
@@ -51,7 +51,7 @@ public:
   }
 
   inline string name() const override {
-    return "TurboJPEG Decoder";
+    return "TJPGDecoder";
   }
   
   DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
@@ -70,7 +70,8 @@ public:
   virtual inline ~DumpImageOp() = default;
 
   // This op forwards the data and writes it to files
-  inline void RunPerDatumCPU(const Datum<Backend> &input, Datum<Backend> *output) override {
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx) override {
     // Dump the input image to file
     NDLL_ENFORCE(input.shape().size() == 3);
     const uint8 *img = input.template data<uint8>();
@@ -105,7 +106,8 @@ public:
     std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
   }
   
-  inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape) override {
+  inline vector<Index> InferOutputShapeFromShape(
+      const vector<Index> &input_shape, int /* unused */) override {
     return input_shape;
   }
   
@@ -119,7 +121,7 @@ public:
   }
 
   inline string name() const override {
-    return "Dump Image Op";
+    return "DumpImageOp";
   }
   
 protected:

@@ -10,6 +10,7 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
@@ -174,10 +175,7 @@ public:
       op->set_stream_pool(stream_pool_);
     }
     
-    // TODO(tgale): Is it actually worth enforcing this? We need
-    // to do this setup before "Run*" is called but we also don't
-    // really want to check this flag every time those methods
-    // are called. For now we will check.
+    // Mark the pipeline as built so we know it is safe to run
     built_ = true;
   }
 
@@ -206,12 +204,12 @@ public:
                 // Get the output shape for the cpu-side results
                 Datum<CPUBackend> datum(input, data_idx);
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(datum);
+                  prefetch_ops_[0]->InferOutputShape(datum, data_idx);
                 datum.Resize(intermediate_shapes_[0][data_idx]);
                 
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   intermediate_shapes_[j][data_idx] =
-                    prefetch_ops_[j]->InferOutputShape(datum);
+                    prefetch_ops_[j]->InferOutputShape(datum, data_idx);
                   datum.Resize(intermediate_shapes_[j][data_idx]);
                 }
 
@@ -225,7 +223,7 @@ public:
                 Datum<GPUBackend> datum_gpu(datum.shape());
                 for (size_t j = 0; j < forward_ops_.size(); ++j) {
                   intermediate_shapes_[j + offset][data_idx] =
-                    forward_ops_[j]->InferOutputShape(datum_gpu);
+                    forward_ops_[j]->InferOutputShape(datum_gpu, data_idx);
                   datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
                 }
               }, i, std::placeholders::_1));
@@ -253,11 +251,11 @@ public:
                 datums[0].Reset(input, data_idx);
                 datums[1].Reset(cpu_buffers_[0].get(), data_idx);
                 
-                prefetch_ops_[0]->Run(datums[0], &datums[1]);
+                prefetch_ops_[0]->Run(datums[0], &datums[1], data_idx);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   // Get the other datum to output this ops result into
                   datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
-                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)]);
+                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx);
                 }
               }, i, std::placeholders::_1));
     }

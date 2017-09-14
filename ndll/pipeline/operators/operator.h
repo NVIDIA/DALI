@@ -44,14 +44,14 @@ public:
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
-  Run(const Datum<Backend> &input, Datum<Backend> *output) {
+  Run(const Datum<Backend> &input, Datum<Backend> *output, int data_idx) {
 #ifdef DEBUG
     NDLL_ENFORCE(num_threads_ > 0,
         "Num threads must be set before \"Run()\" is called");
     NDLL_ENFORCE(batch_size_ > 0,
         "Batch size must be set before \"Run()\" is called");
 #endif
-    RunPerDatumCPU(input, output);
+    RunPerDatumCPU(input, output, data_idx);
   }
 
   /**
@@ -74,7 +74,7 @@ public:
    * implemented by derived ops.
    */
   virtual inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output) {
+      Datum<Backend> *output, int data_idx) {
     NDLL_FAIL("RunPerDatumCPU not implemented");
   }
 
@@ -90,7 +90,7 @@ public:
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual inline vector<Index> InferOutputShape(const Datum<Backend> &input) {
+  virtual inline vector<Index> InferOutputShape(const Datum<Backend> &input, int data_idx) {
     NDLL_FAIL("InferOutputShape not implemented");
   }
 
@@ -150,17 +150,18 @@ public:
   inline Transformer() {}
   virtual inline ~Transformer() = default;
 
-  inline vector<Index> InferOutputShape(const Datum<Backend> &input) override {
+  inline vector<Index> InferOutputShape(const Datum<Backend> &input, int data_idx) override {
     // Transfomers cannot have data dependent output shapes, we override
     // this method and allow the user to define a simpler method that
     // only receives the input shape
-    return InferOutputShapeFromShape(input.shape());
+    return InferOutputShapeFromShape(input.shape(), data_idx);
   }
 
   // TODO(tgale): Can we make this not copy another vector? Will it
   // even make two tmps or will the compiler just forward them on
   // through the return statement?
-  virtual vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape) = 0;
+  virtual vector<Index> InferOutputShapeFromShape(
+      const vector<Index> &input_shape, int data_idx) = 0;
 
   DISABLE_COPY_MOVE_ASSIGN(Transformer);
 protected:

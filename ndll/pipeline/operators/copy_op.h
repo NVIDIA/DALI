@@ -21,7 +21,8 @@ public:
             stream_pool_->GetStream()));
   }
   
-  inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape) override {
+  inline vector<Index> InferOutputShapeFromShape(
+      const vector<Index> &input_shape, int /* unused */) override {
     return input_shape;
   }
   
@@ -34,7 +35,7 @@ public:
   }
 
   inline string name() const override {
-    return "Copy Op";
+    return "CopyOp";
   }
 protected:
   using Operator<Backend>::num_threads_;
