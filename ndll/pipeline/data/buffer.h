@@ -113,7 +113,7 @@ public:
     NDLL_ENFORCE(type_.id() == NO_TYPE, "Cannot set type on typed buffer");
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage. Setting type not allowed");
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(data_ == nullptr, "Buffer must be nullpltr if it has no type");
 #endif
     type_ = type;

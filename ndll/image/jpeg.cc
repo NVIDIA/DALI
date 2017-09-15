@@ -54,10 +54,9 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
   int sampling, color;
   TJPG_CALL(tjDecompressHeader3(handle,
           jpeg, size, w, h, &sampling, &color));
-
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
   PrintSubsampling(sampling);
-#endif // DUMP_IMAGES
+#endif 
   return NDLLSuccess;
 }
 

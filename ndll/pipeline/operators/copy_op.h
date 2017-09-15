@@ -13,7 +13,7 @@ public:
 
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    CUDA_ENFORCE(cudaMemcpyAsync(
+    CUDA_CALL(cudaMemcpyAsync(
             output->raw_data(),
             input.raw_data(),
             input.nbytes(),

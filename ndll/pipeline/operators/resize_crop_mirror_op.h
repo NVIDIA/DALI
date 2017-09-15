@@ -62,7 +62,7 @@ public:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx) override {
     TransformMeta &meta = transform_params_[data_idx];
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(input.shape().size() == 3);
     NDLL_ENFORCE(input.shape()[0] == meta.H);
     NDLL_ENFORCE(input.shape()[1] == meta.W);
@@ -84,7 +84,7 @@ public:
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int data_idx) override {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(data_idx < batch_size_, "data_idx out of range");
 #endif
     NDLL_ENFORCE(input_shape.size() == 3, "ResizeCropMirror requires 3-dim image");

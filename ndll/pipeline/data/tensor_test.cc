@@ -62,7 +62,7 @@ TYPED_TEST(TensorTest, TestResize) {
       ASSERT_EQ(tensor.dim(i), shape[i]);      
     }
     
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }
@@ -79,7 +79,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
     ASSERT_NE(tensor.template data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), Product(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }

@@ -86,7 +86,7 @@ private:
       // TODO(tgale): Send the errors back to the main thread
       try {
         work(thread_id);
-      } catch(NDLLException &e) {
+      } catch(std::runtime_error &e) {
         cout << "Caught exception in thread " << e.what() << endl;
         exit(EXIT_FAILURE);
       }

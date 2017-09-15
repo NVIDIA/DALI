@@ -5,8 +5,7 @@ project(NDLL CXX)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
-option(DUMP_IMAGES "Dump the raw images for inpsection in the test suite" ON)
-option(DEBUG "Adds additional debug checking" ON)
+option(BUILD_BENCHMARK "Build benchmark suite" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
@@ -16,12 +15,13 @@ function (remove TARGET INPUT)
   set(${TARGET} ${INPUT} PARENT_SCOPE)
 endfunction(remove)
 
-if (DUMP_IMAGES)
-  add_definitions(-DDUMP_IMAGES)
+# Default to debug build
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
-if (DEBUG)
-  add_definitions(-DDEBUG)
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  message(STATUS "Building in DEBUG mode")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
 endif()
 
@@ -32,7 +32,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 include(cmake/Dependencies.cmake)
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-function")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-function -fno-strict-aliasing")
 
 # TODO(tgale): Add sm targets
 # Note: Adding this causes nvcc to throw error that 'std' was redefined

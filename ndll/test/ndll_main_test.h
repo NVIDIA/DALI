@@ -4,31 +4,12 @@
 #include <cassert>
 #include <fstream>
 
+#include <gtest/gtest.h>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 
 namespace ndll {
-
-// Error checking for the test suite
-#define TEST_NDLL(error)                        \
-  do {                                          \
-    assert(!error);                             \
-  } while (0)
-
-#define TEST_CUDA(code)                             \
-  do {                                              \
-    cudaError_t status = code;                      \
-    if (status != cudaSuccess) {                    \
-      string file = __FILE__;                       \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
-        "]: CUDA error \"" +                        \
-        cudaGetErrorString(status) + "\"";          \
-      cout << error << endl;                        \
-      assert(false);                                \
-    }                                               \
-  } while (0)
-
 
 // Note: this is setup for the binary to be executed from "build"
 const string image_folder = "../ndll/image/testing_jpegs";
@@ -74,10 +55,10 @@ public:
   // being written to file.
   template <typename T>
   void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
-    TEST_CUDA(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
 
-    TEST_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+    CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
             w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
@@ -97,10 +78,10 @@ public:
   // Dump CHW image to file as HWC
   template <typename T>
   void DumpCHWToFile(T *img, int h, int w, int c, string file_name) {
-    TEST_CUDA(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
     
-    TEST_CUDA(cudaMemcpy(tmp, img, h*w*c*sizeof(T), cudaMemcpyDefault));
+    CUDA_CALL(cudaMemcpy(tmp, img, h*w*c*sizeof(T), cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
 

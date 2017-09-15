@@ -25,9 +25,9 @@ public:
 
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    NDLL_CALL(BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
-            mean_.template data<float>(), std_.template data<float>(),
-            output->template data<OUT>(), stream_pool_->GetStream()));
+    BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
+        mean_.template data<float>(), std_.template data<float>(),
+        output->template data<OUT>(), stream_pool_->GetStream());
   }
   
   inline vector<Index> InferOutputShapeFromShape(

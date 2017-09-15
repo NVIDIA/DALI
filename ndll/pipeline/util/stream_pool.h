@@ -26,10 +26,10 @@ public:
 
   ~StreamPool() {
     for (size_t i = 1; i < streams_.size(); ++i) {
-      CUDA_ENFORCE(cudaStreamDestroy(streams_[i]));
+      CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
     for (auto &event : events_) {
-      CUDA_ENFORCE(cudaEventDestroy(event));
+      CUDA_CALL(cudaEventDestroy(event));
     }
   }
 
@@ -40,7 +40,7 @@ public:
     int num_new_streams = max_streams_ - streams_.size();
     for (int i = 0; i < num_new_streams; ++i) {
       cudaStream_t new_stream;
-      CUDA_ENFORCE(cudaStreamCreateWithFlags(&new_stream, non_blocking_));
+      CUDA_CALL(cudaStreamCreateWithFlags(&new_stream, non_blocking_));
       streams_.push_back(new_stream);
     }
     return streams_;
@@ -62,7 +62,7 @@ public:
     int num_new_event = (streams_.size() - 1) - events_.size();
     for (int i = 0; i < num_new_event; ++i) {
       cudaEvent_t new_event;
-      CUDA_ENFORCE(cudaEventCreateWithFlags(&new_event,
+      CUDA_CALL(cudaEventCreateWithFlags(&new_event,
               cudaEventDisableTiming));
       events_.push_back(new_event);
     }
@@ -70,8 +70,8 @@ public:
     // Note: We will have to see if calling 'StreamWaitEvent()' on
     // every stream other than the main is costly
     for (size_t i = 1; i < streams_.size(); ++i) {
-      CUDA_ENFORCE(cudaEventRecord(events_[i-1], streams_[i]));
-      CUDA_ENFORCE(cudaStreamWaitEvent(streams_[0], events_[i-1], 0));
+      CUDA_CALL(cudaEventRecord(events_[i-1], streams_[i]));
+      CUDA_CALL(cudaStreamWaitEvent(streams_[0], events_[i-1], 0));
     }
   }
 

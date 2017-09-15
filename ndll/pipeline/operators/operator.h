@@ -45,7 +45,7 @@ public:
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
   Run(const Datum<Backend> &input, Datum<Backend> *output, int data_idx) {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(num_threads_ > 0,
         "Num threads must be set before \"Run()\" is called");
     NDLL_ENFORCE(batch_size_ > 0,
@@ -60,7 +60,7 @@ public:
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
   Run(const Batch<Backend> &input, Batch<Backend> *output) {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(batch_size_ == input.ndatum(),
         "Batch size must be set before \"Run()\" is called");
     NDLL_ENFORCE(stream_pool_.get() != nullptr,

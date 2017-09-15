@@ -1,6 +1,7 @@
 # Set variables used by subdirectories
 set(NDLL_SRCS)
 set(NDLL_TEST_SRCS)
+set(NDLL_BENCHMARK_SRCS)
 
 # Build the library
 add_subdirectory(image)
@@ -24,4 +25,18 @@ if (BUILD_TEST)
 
   # We'll have to add dependency libs
   target_link_libraries(${test_main_bin} ${NDLL_LIBS} ${ndll_lib} gtest)
+endif()
+
+# Build benchmark suite
+if (BUILD_BENCHMARK)
+  # get benchmark main
+  add_subdirectory(benchmark)
+
+  set(benchmark_bin "run_benchmarks")
+  cuda_add_executable(${benchmark_bin} "${NDLL_BENCHMARK_SRCS}")
+
+  # Link to the ndll lib
+  add_dependencies(${benchmark_bin} ${ndll_lib})
+
+  target_link_libraries(${benchmark_bin} ${NDLL_LIBS} ${ndll_lib} benchmark pthread)
 endif()

@@ -35,11 +35,11 @@ class GPUBackend : BackendBase {
 public:
   void* New(size_t bytes) override {
     void *ptr = nullptr;
-    CUDA_ENFORCE(cudaMalloc(&ptr, bytes));
+    CUDA_CALL(cudaMalloc(&ptr, bytes));
     return ptr;
   }
   void Delete(void *ptr, size_t /* unused */) override{
-    CUDA_ENFORCE(cudaFree(ptr));
+    CUDA_CALL(cudaFree(ptr));
   }
 };
 
@@ -65,21 +65,21 @@ class PinnedCPUBackend : CPUBackend {
 public:
   void* New(size_t bytes) override {
     void *ptr = nullptr;
-    CUDA_ENFORCE(cudaMallocHost(&ptr, bytes));
+    CUDA_CALL(cudaMallocHost(&ptr, bytes));
     return ptr;
   }
   void Delete(void *ptr, size_t /* unused */) override {
-    CUDA_ENFORCE(cudaFreeHost(ptr));
+    CUDA_CALL(cudaFreeHost(ptr));
   }
 };
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
-#ifdef DEBUG
-  NDLL_ENFORCE(dst != nullptr);
-  NDLL_ENFORCE(src != nullptr);
+#ifndef NDEBUG
+  NDLL_CALL(dst != nullptr);
+  NDLL_CALL(src != nullptr);
 #endif
-  CUDA_ENFORCE(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
+  CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
 }
 
 } // namespace ndll

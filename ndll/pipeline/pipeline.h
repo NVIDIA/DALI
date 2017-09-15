@@ -270,7 +270,7 @@ public:
     Batch<GPUBackend> *dst = gpu_buffers_[0].get();
     
     // Copy the data to the GPU in the main stream
-    CUDA_ENFORCE(cudaMemcpyAsync(
+    CUDA_CALL(cudaMemcpyAsync(
             dst->raw_data(),
             src.raw_data(),
             src.nbytes(),
@@ -289,7 +289,7 @@ public:
     // to make sure that the copy from "RunCopy" has completed before
     // ops are free to run their kernels in other streams. Is there a
     // better way to prevent this from happening?
-    CUDA_ENFORCE(cudaStreamSynchronize(stream_pool_->GetStream()));
+    CUDA_CALL(cudaStreamSynchronize(stream_pool_->GetStream()));
 
     // TODO(tgale): I think this type setting is redundant...remove it
     

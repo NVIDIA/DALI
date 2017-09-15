@@ -39,7 +39,7 @@ public:
     // Copy in the data
     batch->template data<uint8>();
     for (int i = 0; i < size; ++i) {
-      TEST_CUDA(cudaMemcpy(batch->raw_datum(i),
+      CUDA_CALL(cudaMemcpy(batch->raw_datum(i),
               jpegs_[i], jpeg_sizes_[i],
               cudaMemcpyDefault));
     }
@@ -134,9 +134,9 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
 
     this->template DumpCHWImageBatchToFile<float>(output_batch);
 
-    TEST_CUDA(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     delete batch;
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }

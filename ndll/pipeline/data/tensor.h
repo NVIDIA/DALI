@@ -70,7 +70,7 @@ public:
   }
 
   inline virtual Index dim(int idx) const {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
     NDLL_ENFORCE((size_t)idx >= 0, "negative index not supported");
 #endif

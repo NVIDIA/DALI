@@ -92,7 +92,7 @@ public:
    * @brief returns the offset of the sample with the given index
    */
   inline Index datum_offset(int idx) const {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
 #endif
@@ -103,7 +103,7 @@ public:
    * @brief return the shape of the sample with the given index
    */
   inline vector<Index> datum_shape(int idx) const {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < batch_shape_.size(), "Index out of offset range");
 #endif
@@ -209,7 +209,7 @@ public:
   }
   
   inline void Reset(Batch<Backend> *batch, int sample_idx) {
-#ifdef DEBUG
+#ifndef NDEBUG
     NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
     NDLL_ENFORCE(sample_idx >= 0, "Negative index not supported");
     NDLL_ENFORCE(sample_idx < batch->ndatum(), "Sample index out of range");

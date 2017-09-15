@@ -79,10 +79,10 @@ public:
     int w = input.shape()[1];
     int c = input.shape()[2];
 
-    CUDA_ENFORCE(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     uint8 *tmp = new uint8[h*w*c];
 
-    CUDA_ENFORCE(cudaMemcpy2D(tmp, w*c*sizeof(uint8), img, w*c*sizeof(uint8),
+    CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(uint8), img, w*c*sizeof(uint8),
             w*c*sizeof(uint8), h, cudaMemcpyDefault));
 
     static int i = 0;

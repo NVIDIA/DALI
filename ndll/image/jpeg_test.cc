@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include <fstream>
+#include <stdexcept>
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
@@ -64,10 +65,10 @@ public:
   // being written to file.
   template <typename T>
   void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
-    TEST_CUDA(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
 
-    TEST_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+    CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
             w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
@@ -112,10 +113,10 @@ public:
     int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     // Dump the opencv image
     this->DumpToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
-#endif // DUMP_IMAGES
+#endif 
     
     cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
     if (color_) {
@@ -132,20 +133,20 @@ public:
       diff[i] = abs(int(ver_img.ptr()[i] - img[i]));
     }
 
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     // Dump the absolute differences
     this->DumpToFile(diff.data(), h, w, c_, w*c_, "diff_" + std::to_string(img_id));
-#endif // DUMP_IMAGES
+#endif 
     
     // calculate the MSE
     float mean, std;
     MeanStdDev(diff, &mean, &std);
 
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << "num: " << diff.size() << endl;
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
-#endif // DUMP_IMAGES
+#endif 
 
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
@@ -185,22 +186,21 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   // Decode all jpegs and see what they look like!
   vector<uint8> image;
   for (size_t img = 0; img < this->jpegs_.size(); ++img) {
-    int h, w;
+    int h = 0, w = 0;
 
-    TEST_NDLL(GetJPEGImageDims(this->jpegs_[img],
+    NDLL_CALL(GetJPEGImageDims(this->jpegs_[img],
             this->jpeg_sizes_[img], &h, &w));
     
     image.resize(h * w * this->c_);
-    TEST_NDLL(DecodeJPEGHost(this->jpegs_[img],
+    NDLL_CALL(DecodeJPEGHost(this->jpegs_[img],
             this->jpeg_sizes_[img],
             this->color_, h, w,
             image.data()));
-
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << img << " " << this->jpeg_names_[img] << " " << this->jpeg_sizes_[img] << endl;
     cout << "dims: " << w << "x" << h << endl;
     this->DumpToFile(image.data(), h, w, this->c_, w*this->c_, std::to_string(img));
-#endif // DUMP_IMAGES
+#endif 
     this->VerifyDecode(image.data(), h, w, img);
   }
 }

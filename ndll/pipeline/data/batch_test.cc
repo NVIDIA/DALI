@@ -73,7 +73,7 @@ TYPED_TEST(BatchTest, TestResize) {
       ASSERT_EQ(batch.datum_shape(i), shape[i]);
       ASSERT_EQ(batch.datum_offset(i), offsets[i]);
     }
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }
@@ -109,7 +109,7 @@ TYPED_TEST(BatchTest, TestMultipleResize) {
       ASSERT_EQ(batch.datum_shape(i), shape[i]);
       ASSERT_EQ(batch.datum_offset(i), offsets[i]);
     }
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }
@@ -133,7 +133,7 @@ TYPED_TEST(BatchTest, TestGetDatum) {
     ASSERT_EQ(datum.shape(), batch.datum_shape(datum_idx));
     ASSERT_EQ(datum.nbytes(),
         Product(batch.datum_shape(datum_idx))*batch.type().size());
-  } catch (NDLLException &e) {
+  } catch (std::runtime_error &e) {
     FAIL() << e.what();
   }
 }

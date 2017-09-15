@@ -105,10 +105,10 @@ public:
   // being written to file.
   template <typename T>
   void DumpToFile(T *img, int h, int w, int c, int stride, string file_name) {
-    TEST_CUDA(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     T *tmp = new T[h*w*c];
 
-    TEST_CUDA(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
+    CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
             w*c*sizeof(T), h, cudaMemcpyDefault));
     std::ofstream file(file_name + ".jpg.txt");
     ASSERT_TRUE(file.is_open());
@@ -155,7 +155,7 @@ public:
     cv::Mat crop_img(crop_h, crop_w, c == 3 ? CV_8UC3 : CV_8UC1);
     int crop_offset = crop_y*rsz_w*c + crop_x*c;
     uint8 *crop_ptr = rsz_img.ptr() + crop_offset;
-    TEST_CUDA(cudaMemcpy2D(crop_img.ptr(), crop_w*c, crop_ptr,
+    CUDA_CALL(cudaMemcpy2D(crop_img.ptr(), crop_w*c, crop_ptr,
             rsz_w*c, crop_w*c, crop_h, cudaMemcpyHostToHost));
 
     // Random mirror
@@ -178,11 +178,11 @@ public:
     double mean, std;
     MeanStdDev(abs_diff, &mean, &std);
 
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << "num: " << abs_diff.size() << endl;
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
-#endif // DUMP_IMAGES
+#endif 
     
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
@@ -251,11 +251,11 @@ public:
   void CompareData(T *data, double *ground_truth, int n) {
     // Conver the input data to double
     double *tmp_gpu = nullptr;
-    TEST_CUDA(cudaMalloc((void**)&tmp_gpu, sizeof(double)*n));
+    CUDA_CALL(cudaMalloc((void**)&tmp_gpu, sizeof(double)*n));
     Convert(data, n, tmp_gpu);
     
     vector<double> tmp(n, 0);
-    TEST_CUDA(cudaMemcpy(tmp.data(), tmp_gpu, n*sizeof(double),
+    CUDA_CALL(cudaMemcpy(tmp.data(), tmp_gpu, n*sizeof(double),
             cudaMemcpyDeviceToHost));
 
     vector<double> abs_diff(n, 0);
@@ -265,15 +265,15 @@ public:
     double mean, std;
     TransformTest<color>::MeanStdDev(abs_diff, &mean, &std);
 
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << "num: " << abs_diff.size() << endl;
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
-#endif // DUMP_IMAGES
+#endif 
     
     ASSERT_LT(mean, 0.000001);
     ASSERT_LT(std, 0.000001);
-    TEST_CUDA(cudaFree(tmp_gpu));
+    CUDA_CALL(cudaFree(tmp_gpu));
   }
   
 protected:
@@ -311,7 +311,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     bool mirror = false;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    TEST_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+    NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
             crop_x, crop_h, crop_w, mirror, out_img.data()));
 
@@ -325,7 +325,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     // have to use these ifdefs. We should add some logging functionality
     // that takes this into account so we don't have to dirty the code
     // up everywhere.
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << i << " " << this->jpeg_names_[i] << endl;
     cout << "dims: " << this->image_dims_[i].h << "x" << this->image_dims_[i].w << endl;
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
@@ -335,7 +335,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
         this->c_, crop_w*this->c_, std::to_string(i));
     this->DumpToFile(ver_img.data(), crop_h, crop_w,
             this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
-#endif // DUMP_IMAGES
+#endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
 }
@@ -358,7 +358,7 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     bool mirror = true;
 
     out_img.resize(crop_h*crop_w*this->c_);
-    TEST_NDLL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+    NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
             crop_x, crop_h, crop_w, mirror, out_img.data()));
 
@@ -368,7 +368,7 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
         this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y, crop_x,
         crop_h, crop_w, mirror, ver_img.data());
     
-#ifdef DUMP_IMAGES
+#ifndef NDEBUG
     cout << i << " " << this->jpeg_names_[i] << endl;
     cout << "dims: " << this->image_dims_[i].h << "x" << this->image_dims_[i].w << endl;
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
@@ -378,7 +378,7 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
         this->c_, crop_w*this->c_, std::to_string(i));
     this->DumpToFile(ver_img.data(), crop_h, crop_w,
             this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
-#endif // DUMP_IMAGES
+#endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
 }
@@ -427,21 +427,21 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
   // Set up the mean & std dev
   vector<float> vals(this->c_*2, 128);
   float *mean = nullptr;
-  TEST_CUDA(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
-  TEST_CUDA(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
-  float *std = mean + this->c_;
+  CUDA_CALL(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
+  CUDA_CALL(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
+  float *stddev = mean + this->c_;
     
   // Move the batch to GPU
   uint8 *batch_gpu = nullptr;
-  TEST_CUDA(cudaMalloc((void**)&batch_gpu, n*h*w*this->c_));
-  TEST_CUDA(cudaMemcpy(batch_gpu, batch.data(), n*h*w*this->c_, cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMalloc((void**)&batch_gpu, n*h*w*this->c_));
+  CUDA_CALL(cudaMemcpy(batch_gpu, batch.data(), n*h*w*this->c_, cudaMemcpyHostToDevice));
 
   // Run the method
   T *output_batch = nullptr;
-  TEST_CUDA(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
-  
-  TEST_NDLL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
-          mean, std, output_batch, 0));
+  CUDA_CALL(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
+
+  NDLL_CALL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
+          mean, stddev, output_batch, 0));
 
   vector<double> output_batch_ver(n*h*w*this->c_, 0);
   CPUBatchedNormalizePermute(batch.data(), n, h, w, this->c_,
@@ -449,10 +449,10 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
 
   this->CompareData(output_batch, output_batch_ver.data(), n*h*w*this->c_);
   
-  TEST_CUDA(cudaDeviceSynchronize());
-  TEST_CUDA(cudaFree(mean));
-  TEST_CUDA(cudaFree(batch_gpu));
-  TEST_CUDA(cudaFree(output_batch));
+  CUDA_CALL(cudaDeviceSynchronize());
+  CUDA_CALL(cudaFree(mean));
+  CUDA_CALL(cudaFree(batch_gpu));
+  CUDA_CALL(cudaFree(output_batch));
 }
 
 } // namespace ndll
