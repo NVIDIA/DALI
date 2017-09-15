@@ -1,7 +1,6 @@
 #ifndef NDLL_TEST_NDLL_MAIN_TEST_H_
 #define NDLL_TEST_NDLL_MAIN_TEST_H_
 
-#include <cassert>
 #include <fstream>
 
 #include <gtest/gtest.h>

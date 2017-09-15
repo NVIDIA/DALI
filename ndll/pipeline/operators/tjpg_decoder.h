@@ -10,6 +10,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/image/jpeg.h"
 #include "ndll/pipeline/operators/operator.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -26,6 +27,7 @@ public:
 
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int /* unused */) override {
+    
     DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
         output->shape()[0], output->shape()[1], output->template data<uint8>());
   }
@@ -72,35 +74,14 @@ public:
   // This op forwards the data and writes it to files
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx) override {
-    // Dump the input image to file
     NDLL_ENFORCE(input.shape().size() == 3);
+
+    // Dump the data to file
     const uint8 *img = input.template data<uint8>();
     int h = input.shape()[0];
     int w = input.shape()[1];
     int c = input.shape()[2];
-
-    CUDA_CALL(cudaDeviceSynchronize());
-    uint8 *tmp = new uint8[h*w*c];
-
-    CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(uint8), img, w*c*sizeof(uint8),
-            w*c*sizeof(uint8), h, cudaMemcpyDefault));
-
-    static int i = 0;
-    std::ofstream file(std::to_string(i) + ".jpg.txt");
-    ++i;
-    
-    NDLL_ENFORCE(file.is_open());
-
-    file << h << " " << w << " " << c << endl;
-    for (int i = 0; i < h; ++i) {
-      for (int j = 0; j < w; ++j) {
-        for (int k = 0; k < c; ++k) {
-          file << unsigned(tmp[i*w*c + j*c + k]) << " ";
-        }
-      }
-      file << endl;
-    }
-    delete[] tmp;
+    DumpHWCToFile(img, h, w, c, w*c, std::to_string(data_idx));
 
     // Copy from input to output
     std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());

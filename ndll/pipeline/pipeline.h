@@ -1,7 +1,6 @@
 #ifndef NDLL_PIPELINE_PIPELINE_H_
 #define NDLL_PIPELINE_PIPELINE_H_
 
-#include <cassert>
 #include <functional>
 #include <memory>
 
@@ -202,16 +201,18 @@ public:
               [this, &input] (int data_idx, int tid) {
                 // Get the output shape for the cpu-side results
                 Datum<CPUBackend> datum(input, data_idx);
+                cout << "input shape: " << ShapeString(datum.shape()) << endl;
                 intermediate_shapes_[0][data_idx] =
                   prefetch_ops_[0]->InferOutputShape(datum, data_idx);
                 datum.Resize(intermediate_shapes_[0][data_idx]);
                 
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
+                  cout << "stage " << j << " shape: " << ShapeString(datum.shape()) << endl;
                   intermediate_shapes_[j][data_idx] =
                     prefetch_ops_[j]->InferOutputShape(datum, data_idx);
                   datum.Resize(intermediate_shapes_[j][data_idx]);
                 }
-
+                
                 // Save the shape of the gpu-side copy buffer
                 int offset = prefetch_ops_.size();
                 intermediate_shapes_[offset][data_idx] =
@@ -221,10 +222,12 @@ public:
                 ++offset;
                 Datum<GPUBackend> datum_gpu(datum.shape());
                 for (size_t j = 0; j < forward_ops_.size(); ++j) {
+                  cout << "stage " << j + offset << " shape: " << ShapeString(datum.shape()) << endl;
                   intermediate_shapes_[j + offset][data_idx] =
                     forward_ops_[j]->InferOutputShape(datum_gpu, data_idx);
                   datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
                 }
+                cout << "output shape: " << ShapeString(datum.shape()) << endl;
               }, i, std::placeholders::_1));
     }
     thread_pool_.WaitForWork();

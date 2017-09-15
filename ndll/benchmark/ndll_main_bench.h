@@ -1,19 +1,30 @@
 #ifndef NDLL_BENCHMARK_NDLL_MAIN_BENCH_H_
 #define NDLL_BENCHMARK_NDLL_MAIN_BENCH_H_
 
+#include <random>
+
 #include <benchmark/benchmark.h>
+
+#include "ndll/common.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
+// Note: this is setup for the binary to be executed from "build"
+const string image_folder = "../ndll/image/testing_jpegs";
+
 class NDLLBenchmark : public benchmark::Fixture {
 public:
-    virtual void SetUp() {
+  NDLLBenchmark() {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_, &jpeg_sizes_);
   }
 
-  virtual void TearDown() {
-    for (auto &ptr : jpegs_) delete[] ptr;
+  virtual ~NDLLBenchmark() {
+    for (auto &ptr : jpegs_) {
+      cout << "deleting: " << (long long)ptr << endl;
+      delete[] ptr;
+    }
   }
     
   int RandInt(int a, int b) {
@@ -25,9 +36,6 @@ public:
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
-  // Load a batch of the input size from our jpegs. If we don't
-  // have enough images, loop and add duplicates
-  
 protected:
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;

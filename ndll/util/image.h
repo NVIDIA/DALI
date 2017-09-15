@@ -27,7 +27,12 @@ void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
  * Writes an HWC image to the specified file. Add the file extension '.txt'
  */
 template <typename T>
-void DumpHWCToFile(T *img, int h, int w, int c, int stride, string file_name) {
+void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_name) {
+  NDLL_ENFORCE(img != nullptr);
+  NDLL_ENFORCE(h > 0);
+  NDLL_ENFORCE(w > 0);
+  NDLL_ENFORCE(c > 0);
+  NDLL_ENFORCE(stride >= c*w);
   CUDA_CALL(cudaDeviceSynchronize());
   T *tmp = new T[h*w*c];
 
@@ -53,7 +58,7 @@ void DumpHWCToFile(T *img, int h, int w, int c, int stride, string file_name) {
  * The data will be written in HWC format
  */
 template <typename T>
-void DumpCHWToFile(T *img, int h, int w, int c, string file_name) {
+void DumpCHWToFile(const T *img, int h, int w, int c, string file_name) {
   CUDA_CALL(cudaDeviceSynchronize());
   T *tmp = new T[h*w*c];
     
@@ -102,7 +107,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
   for (int i = 0; i < batch_size; ++i) {
     CUDA_CALL(cudaMemcpy(batch->raw_datum(i),
             jpegs[i % jpegs.size()],
-            jpeg_sizes[i & jpegs.size()],
+            jpeg_sizes[i % jpegs.size()],
             cudaMemcpyDefault));
   }
   return batch;

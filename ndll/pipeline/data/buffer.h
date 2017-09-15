@@ -26,6 +26,13 @@ inline Index Product(const vector<Index> &shape) {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<Index>());
 }
 
+// Helper function to get a string of the data shape
+inline string ShapeString(vector<Index> shape) {
+  string tmp;
+  for (auto &val : shape) tmp += std::to_string(val) + " ";
+  return tmp;
+}
+
 /**
  * @brief Base class for pipeline data storage classes. This should not be used,
  * it does not provide any method for altering the size of the underlying data

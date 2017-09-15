@@ -3,6 +3,7 @@
 
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/operator.h"
 
 namespace ndll {

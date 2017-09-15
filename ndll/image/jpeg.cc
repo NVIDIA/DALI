@@ -62,6 +62,13 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
     int h, int w, uint8 *image) {
+#ifndef NDEBUG
+  NDLL_ASSERT(jpeg != nullptr);
+  NDLL_ASSERT(size > 0);
+  NDLL_ASSERT(h > 0);
+  NDLL_ASSERT(w > 0);
+  NDLL_ASSERT(image != nullptr);
+#endif
   tjhandle handle = tjInitDecompress();
   TJPG_CALL(tjDecompress2(handle, jpeg, size, image,
           w, 0, h, color ? TJPF_RGB : TJPF_GRAY, 0));
