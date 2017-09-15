@@ -22,7 +22,7 @@ namespace ndll {
 struct RGB {};
 struct Gray {};
 
-struct Dims { int h = 0, w = 0; };
+struct DimPair { int h = 0, w = 0; };
 
 // TODO(tgale): Move the methods used by common test fixtures
 // into parent class for all NDLL tests, then derive from that
@@ -157,7 +157,7 @@ protected:
   int c_;
 
   vector<uint8*> images_;
-  vector<Dims> image_dims_;
+  vector<DimPair> image_dims_;
 
   uint8* image_batch_;
   int n_, h_, w_;

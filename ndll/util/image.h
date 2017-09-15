@@ -7,10 +7,11 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/batch.h"
 
-//
-/// This file contains useful image utilities for reading and writing images
-//
+// This file contains useful image utilities for reading and writing images.
+// These functions are for testing and debugging, they should not be used
+// inside the library as they throw exceptions on error.
 
 namespace ndll {
 
@@ -77,6 +78,60 @@ void DumpCHWToFile(T *img, int h, int w, int c, string file_name) {
  * Loads an image dumped by one of the previous two images
  */
 void LoadFromFile(string file_name, uint8 **image, int *h, int *w, int *c);
+
+/**
+ * Creates a batch of jpegs from the input vector of jpegs. If not enough
+ * jpegs are input, insert duplicates
+ */
+template <typename Backend>
+auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
+    int batch_size) -> Batch<Backend>* {
+  NDLL_ENFORCE(jpegs.size() > 0);
+  NDLL_ENFORCE(jpegs.size() == jpeg_sizes.size());
+  Batch<Backend> *batch = new Batch<Backend>();
+
+  // Create the shape
+  vector<Dims> shape(batch_size);
+  for (int i = 0; i < batch_size; ++i) {
+    shape[i] = {Index(jpeg_sizes[i % jpegs.size()])};
+  }
+  batch->Resize(shape);
+    
+  // Copy in the data
+  batch->template data<uint8>();
+  for (int i = 0; i < batch_size; ++i) {
+    CUDA_CALL(cudaMemcpy(batch->raw_datum(i),
+            jpegs[i % jpegs.size()],
+            jpeg_sizes[i & jpegs.size()],
+            cudaMemcpyDefault));
+  }
+  return batch;
+}
+
+template <typename T, typename Backend>
+void DumpHWCImageBatchToFile(Batch<Backend> &batch) {
+  int batch_size = batch.ndatum();
+  for (int i = 0; i < batch_size; ++i) {
+    vector<Index> shape = batch.datum_shape(i);
+    NDLL_ENFORCE(shape.size() == 3);
+    int h = shape[0], w = shape[1], c = shape[2];
+
+    DumpHWCToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
+  }
+}
+  
+template <typename T, typename Backend>
+void DumpCHWImageBatchToFile(Batch<Backend> &batch) {
+  int batch_size = batch.ndatum();
+  for (int i = 0; i < batch_size; ++i) {
+    vector<Index> shape = batch.datum_shape(i);
+    NDLL_ENFORCE(shape.size() == 3);
+    int c = shape[0], h = shape[1], w = shape[2];
+
+    DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
+  }
+    
+}
 
 } // namespace ndll
 

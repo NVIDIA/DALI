@@ -1,7 +1,5 @@
 #include "ndll/pipeline/pipeline.h"
 
-#include <cassert>
-
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 
@@ -25,55 +23,8 @@ class PipelineTest : public NDLLTest {
 public:
   typedef typename BackendPair::TCPUBackend HostBackend;
   typedef typename BackendPair::TGPUBackend DeviceBackend;
-
-  template <typename Backend>
-  auto CreateJPEGBatch(int size) -> Batch<Backend>* {
-    assert(size_t(size) < jpegs_.size());
-    Batch<Backend> *batch = new Batch<Backend>();
-    // Create the shape
-    vector<Dims> shape(size);
-    for (int i = 0; i < size; ++i) {
-      shape[i] = {Index(jpeg_sizes_[i])};
-    }
-    batch->Resize(shape);
-
-    // Copy in the data
-    batch->template data<uint8>();
-    for (int i = 0; i < size; ++i) {
-      CUDA_CALL(cudaMemcpy(batch->raw_datum(i),
-              jpegs_[i], jpeg_sizes_[i],
-              cudaMemcpyDefault));
-    }
-    return batch;
-  }
-
-  template <typename T, typename Backend>
-  void DumpHWCImageBatchToFile(Batch<Backend> &batch) {
-    int batch_size = batch.ndatum();
-    for (int i = 0; i < batch_size; ++i) {
-      vector<Index> shape = batch.datum_shape(i);
-      assert(shape.size() == 3);
-      int h = shape[0], w = shape[1], c = shape[2];
-
-      DumpHWCToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
-    }
-  }
-  
-  template <typename T, typename Backend>
-  void DumpCHWImageBatchToFile(Batch<Backend> &batch) {
-    int batch_size = batch.ndatum();
-    for (int i = 0; i < batch_size; ++i) {
-      vector<Index> shape = batch.datum_shape(i);
-      assert(shape.size() == 3);
-      int c = shape[0], h = shape[1], w = shape[2];
-
-      DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
-    }
-    
-  }
   
 protected:
-  
 };
 
 template <typename CPUBackend, typename GPUBackend>
@@ -120,7 +71,8 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
         {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
     pipe.AddForwardOp(norm_permute_op);
     
-    Batch<HostBackend> *batch = this->template CreateJPEGBatch<HostBackend>(batch_size);
+    Batch<HostBackend> *batch = CreateJPEGBatch<HostBackend>(
+        this->jpegs_, this->jpeg_sizes_, batch_size);
     Batch<DeviceBackend> output_batch;
     
     // Build and run the pipeline
@@ -132,7 +84,7 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
 
-    this->template DumpCHWImageBatchToFile<float>(output_batch);
+    DumpCHWImageBatchToFile<float>(output_batch);
 
     CUDA_CALL(cudaDeviceSynchronize());
     delete batch;
