@@ -6,6 +6,7 @@ set(NDLL_BENCHMARK_SRCS)
 # Build the library
 add_subdirectory(image)
 add_subdirectory(pipeline)
+add_subdirectory(util)
 
 # TODO(tgale): Build to a shared library instead
 set(ndll_lib "ndll")

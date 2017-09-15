@@ -16,6 +16,7 @@
 #include "ndll/pipeline/operators/normalize_permute_op.h"
 #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/test/ndll_main_test.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -54,12 +55,11 @@ public:
       assert(shape.size() == 3);
       int h = shape[0], w = shape[1], c = shape[2];
 
-      this->DumpToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
+      DumpHWCToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
     }
-    
   }
-
-    template <typename T, typename Backend>
+  
+  template <typename T, typename Backend>
   void DumpCHWImageBatchToFile(Batch<Backend> &batch) {
     int batch_size = batch.ndatum();
     for (int i = 0; i < batch_size; ++i) {
@@ -67,7 +67,7 @@ public:
       assert(shape.size() == 3);
       int c = shape[0], h = shape[1], w = shape[2];
 
-      this->DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
+      DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
     }
     
   }
