@@ -76,8 +76,8 @@ public:
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
 #ifndef NDEBUG
-  NDLL_CALL(dst != nullptr);
-  NDLL_CALL(src != nullptr);
+  NDLL_ENFORCE(dst != nullptr);
+  NDLL_ENFORCE(src != nullptr);
 #endif
   CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
 }
