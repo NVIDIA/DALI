@@ -33,6 +33,7 @@ template <typename Backend>
 class ResizeCropMirrorOp : public Transformer<Backend> {
 public:
   inline ResizeCropMirrorOp(
+      bool modified_resize,
       bool random_resize,
       bool warp_resize,
       int resize_a,
@@ -42,14 +43,15 @@ public:
       int crop_w,
       float mirror_prob)
     : rand_gen_(time(nullptr)),
-    random_resize_(random_resize),
-    warp_resize_(warp_resize),
-    resize_a_(resize_a),
-    resize_b_(resize_b),
-    random_crop_(random_crop),
-    crop_h_(crop_h),
-    crop_w_(crop_w),
-    mirror_prob_(mirror_prob) {
+      modified_resize_(modified_resize),
+      random_resize_(random_resize),
+      warp_resize_(warp_resize),
+      resize_a_(resize_a),
+      resize_b_(resize_b),
+      random_crop_(random_crop),
+      crop_h_(crop_h),
+      crop_w_(crop_w),
+      mirror_prob_(mirror_prob) {
     // Validate input parameters
     NDLL_ENFORCE(resize_a > 0 && resize_b > 0);
     NDLL_ENFORCE(resize_a <= resize_b);
@@ -143,6 +145,18 @@ public:
 
     // Set mirror parameters
     meta.mirror = std::bernoulli_distribution(mirror_prob_)(rand_gen_);
+
+    // MODIFIED RESIZE: We are going to do a crop, so we back-project the crop into the
+    // input image, get an ROI on this region, and then resize to the crop dimensions
+    // this effectively does the resize+crop in one step, then we just mirror.
+    //
+    // How should we do the modified resize?
+    // - we can do it here by offsetting the input ptr (effectively getting ROI) and then
+    //   resizing to the crop dimensions
+    // - we can do it in-library w/ a separate method
+    // In library seems better because then anyone who uses the library who can get the
+    // speedup and they don't need to use this op
+
     
     // DEBUG
     // cout << "resize dims: " << meta.rsz_h << "x" << meta.rsz_w << endl;

@@ -9,11 +9,13 @@
 
 namespace ndll {
 
+// TODO(tgale): Add arguments and metrics for framerate
 BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
-  int batch_size = 4;
-  int num_thread = 1;
-  int num_stream = 8;
-  cudaStream_t main_stream = 0;
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  int num_stream = st.range(2);
+  cudaStream_t main_stream;
+  CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
   bool stream_non_blocking = true;
  
   // Create the pipeline
@@ -28,10 +30,6 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   bool color = true;
   TJPGDecoder<CPUBackend> jpg_decoder(color);
   pipe.AddDecoder(jpg_decoder);
-
-  // Add a dump image op
-  DumpImageOp<CPUBackend> dump_image_op;
-  pipe.AddPrefetchOp(dump_image_op);
     
   // Add a resize+crop+mirror op
   ResizeCropMirrorOp<CPUBackend> resize_crop_mirror_op(
@@ -51,18 +49,40 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   pipe.Build(batch->type());
 
   // Run once to allocate the memory
-  pipe.Print();
   pipe.RunPrefetch(batch);
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
 
-  DumpCHWImageBatchToFile<float>(output_batch);
-
   while(st.KeepRunning()) {
-    
+    pipe.RunPrefetch(batch);
+    pipe.RunCopy();
+    pipe.RunForward(&output_batch);
+    CUDA_CALL(cudaDeviceSynchronize());
+  }
+  st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
+}
+
+// static void ArgsToRun(benchmark::internal::Benchmark *b) {
+//   for (int batch_size = 32; batch_size <= 256; batch_size += 32) {
+//     for (int num_thread = 1; num_thread <= 8; ++num_thread) {
+//       for (int num_stream = 4; num_stream <= 16; num_stream += 4) {
+//         b->Args({batch_size, num_thread, num_stream});
+//       }
+//     }
+//   }
+// }
+
+static void ArgsToRun(benchmark::internal::Benchmark *b) {
+  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+        b->Args({batch_size, num_thread, 8});
+    }
   }
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(10);
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(ArgsToRun);
 
 } // namespace ndll

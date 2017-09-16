@@ -22,7 +22,6 @@ public:
 
   virtual ~NDLLBenchmark() {
     for (auto &ptr : jpegs_) {
-      cout << "deleting: " << (long long)ptr << endl;
       delete[] ptr;
     }
   }
