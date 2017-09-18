@@ -6,6 +6,7 @@
 #include <string>
 
 #include <cuda_runtime_api.h>
+#include <nvml.h>
 
 #include "ndll/common.h"
 
@@ -81,6 +82,20 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = "[" + file + ":" + line +      \
         "]: CUDA error \"" +                        \
         cudaGetErrorString(status) + "\"";          \
+      throw std::runtime_error(error);              \
+    }                                               \
+  } while (0)
+
+// For calling NVML library functions
+#define NVML_CALL(code)                             \
+  do {                                              \
+    nvmlReturn_t status = code;                     \
+    if (status != NVML_SUCCESS) {                   \
+      string file = __FILE__;                       \
+      string line = std::to_string(__LINE__);       \
+      string error = "[" + file + ":" + line +      \
+        "]: NVML error \"" +                        \
+        nvmlErrorString(status) + "\"";             \
       throw std::runtime_error(error);              \
     }                                               \
   } while (0)

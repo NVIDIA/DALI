@@ -34,11 +34,20 @@ public:
    * streams should be allocated as non-blocking streams.
    */
   inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
-      int max_streams,  bool non_blocking) :
+      int max_streams,  bool non_blocking, int device_id) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
     stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
-    thread_pool_(num_threads) {
+    thread_pool_(num_threads, device_id) {
     NDLL_ENFORCE(batch_size_ > 0);
+
+    // Note: We do not set device/thread affinity in the pipeline anywhere
+    // because frameworks like C2 could have different threads running
+    // through this code. We do however require that the device is set
+    // to match the input device id on construction before any of the
+    // pipeline method are called.
+    //
+    // In the thread pool that we control, we configure affinity to ensure
+    // good NUMA configuration and correct device settings
   }
   
   ~Pipeline() = default;

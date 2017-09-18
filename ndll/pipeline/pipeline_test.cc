@@ -47,7 +47,7 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
   try {
     int batch_size = 1;
     // Create the pipeline
-    Pipeline<HostBackend, DeviceBackend> pipe(batch_size, 1, 0, 8, true);
+    Pipeline<HostBackend, DeviceBackend> pipe(batch_size, 1, 0, 8, true, 0);
     
     // Add a decoder and some transformers
     TJPGDecoder<HostBackend> jpg_decoder(true);

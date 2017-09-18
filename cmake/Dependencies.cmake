@@ -2,6 +2,12 @@
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
+message(STATUS "${CUDA_LIBRARIES}")
+message(STATUS ${CUDA_TOOLKIT_ROOT_DIR})
+  
+# TODO(tgale): Is there a way to automate this and not hack
+# in the path off the base CUDA install?
+list(APPEND NDLL_LIBS ${CUDA_TOOLKIT_ROOT_DIR}/targets/x86_64-linux/lib/stubs/libnvidia-ml.so)
 
 # Google C++ testing framework
 if (BUILD_TEST)

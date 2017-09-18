@@ -24,7 +24,8 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
       num_thread,
       main_stream,
       num_stream,
-      stream_non_blocking);
+      stream_non_blocking,
+      0);
     
   // Add a decoder and some transformers
   bool color = true;

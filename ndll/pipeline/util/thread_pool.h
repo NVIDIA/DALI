@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "ndll/common.h"
+#include "ndll/util/nvml.h"
 
 namespace ndll {
 
@@ -18,15 +19,16 @@ public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
   
-  inline ThreadPool(int num_thread)
+  inline ThreadPool(int num_thread, int device_id)
     : threads_(num_thread),
       running_(true),
       work_complete_(false),
       active_threads_(0) {
     NDLL_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
+    nvml::Init();
     // Start the threads in the main loop
     for (int i = 0; i < num_thread; ++i) {
-      threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i));
+      threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id));
     }
   }
 
@@ -40,6 +42,7 @@ public:
     for (auto &thread : threads_) {
       thread.join();
     }
+    nvml::Shutdown();
   }
 
   inline void DoWorkWithID(Work work) {
@@ -65,7 +68,11 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 private:
-  inline void ThreadMain(int thread_id) {
+  inline void ThreadMain(int thread_id, int device_id) {
+    // Set device affinity
+    CUDA_CALL(cudaSetDevice(device_id));
+    nvml::SetCPUAffinity();
+    
     while (running_) {
       // Block on the condition to wait for work
       std::unique_lock<std::mutex> lock(mutex_);
