@@ -290,12 +290,8 @@ public:
     // better way to prevent this from happening?
     CUDA_CALL(cudaStreamSynchronize(stream_pool_->GetStream()));
 
-    // TODO(tgale): I think this type setting is redundant...remove it
-    
     // Run all the forward ops
-    TypeMeta input_type = gpu_buffers_[0]->type();
     for (size_t i = 1; i < forward_ops_.size(); ++i) {
-      forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
       forward_ops_[i-1]->Run(*gpu_buffers_[i-1], gpu_buffers_[i].get());
     }
 
@@ -303,7 +299,7 @@ public:
     // guaranteed To have this op because we insert a CopyOp if
     // there are no user defined ops in the forward stage
     int idx = forward_ops_.size() - 1;
-    forward_ops_[idx]->SetOutputType(output, input_type);
+    forward_ops_[idx]->SetOutputType(output, gpu_buffers_[idx]->type());
     output->Resize(intermediate_shapes_[intermediate_shapes_.size()-1]);
     forward_ops_[idx]->Run(*gpu_buffers_[idx], output);
 
@@ -350,11 +346,6 @@ private:
   std::shared_ptr<StreamPool> stream_pool_;
   ThreadPool thread_pool_;
 
-  // TODO(tgale): Add support for GPU decoders by moving
-  // the dec into the vectors for simplified execution.
-  // How are we supposed to know where the decoder is and
-  // whether to give it data dependent shape infer? Is
-  // this guaranteed by the setup we currently have?
   template <typename T>
   using OpPtr = std::unique_ptr<Operator<T>>;
   vector<OpPtr<CPUBackend>> prefetch_ops_;
