@@ -33,7 +33,6 @@ template <typename Backend>
 class ResizeCropMirrorOp : public Transformer<Backend> {
 public:
   inline ResizeCropMirrorOp(
-      bool fast_resize,
       bool random_resize,
       bool warp_resize,
       int resize_a,
@@ -43,7 +42,6 @@ public:
       int crop_w,
       float mirror_prob)
     : rand_gen_(time(nullptr)),
-      fast_resize_(fast_resize),
       random_resize_(random_resize),
       warp_resize_(warp_resize),
       resize_a_(resize_a),
@@ -62,7 +60,7 @@ public:
   virtual inline ~ResizeCropMirrorOp() = default;
 
   inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx) override {
+      Datum<Backend> *output, int data_idx, int thread_idx) override {
     TransformMeta &meta = transform_params_[data_idx];
 #ifndef NDEBUG
     NDLL_ENFORCE(input.shape().size() == 3);
@@ -74,6 +72,7 @@ public:
     NDLL_ENFORCE(output->shape()[1] == crop_w_);
     NDLL_ENFORCE(output->shape()[2] == meta.C);
 #endif
+    tl_workspace_[thread_idx].resize(meta.rsz_h*meta.rsz_w*meta.C);
     ResizeCropMirrorHost(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
@@ -81,7 +80,8 @@ public:
         meta.crop_y, meta.crop_x,
         crop_h_, crop_w_,
         meta.mirror,
-        output->template data<uint8>());
+        output->template data<uint8>(),
+        tl_workspace_[thread_idx].data());
   }
   
   inline vector<Index> InferOutputShapeFromShape(
@@ -145,25 +145,6 @@ public:
 
     // Set mirror parameters
     meta.mirror = std::bernoulli_distribution(mirror_prob_)(rand_gen_);
-
-    // FAST RESIZE: We are going to do a crop, so we back-project the crop into the
-    // input image, get an ROI on this region, and then resize to the crop dimensions
-    // this effectively does the resize+crop in one step, then we just mirror.
-    //
-    // How should we do the fast resize?
-    // - we can do it here by offsetting the input ptr (effectively getting ROI) and then
-    //   resizing to the crop dimensions
-    // - we can do it in-library w/ a separate method
-    // In library seems better because then anyone who uses the library who can get the
-    // speedup and they don't need to use this op
-
-    
-    // DEBUG
-    // cout << "resize dims: " << meta.rsz_h << "x" << meta.rsz_w << endl;
-    // cout << "crop dims: " << crop_h_ << "x" << crop_w_ << endl;
-    // cout << "crop offset: " << meta.crop_y << " " << meta.crop_x << endl;
-    // cout << "mirror: " << meta.mirror << endl;
-
     return std::vector<Index>{crop_h_, crop_w_, meta.C};
   }
   
@@ -173,7 +154,7 @@ public:
   }
   
   inline ResizeCropMirrorOp* Clone() const override {
-    return new ResizeCropMirrorOp(fast_resize_, random_resize_, warp_resize_,
+    return new ResizeCropMirrorOp(random_resize_, warp_resize_,
         resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
   }
 
@@ -183,6 +164,7 @@ public:
 
   inline void set_num_threads(int num_threads) override {
     num_threads_ = num_threads;
+    tl_workspace_.resize(num_threads);
   }
 
   // User can override if they need to setup meta-data
@@ -195,7 +177,6 @@ protected:
   std::mt19937 rand_gen_;
   
   // Resize meta-data
-  bool fast_resize_;
   bool random_resize_;
   bool warp_resize_;
   int resize_a_, resize_b_;
@@ -214,10 +195,86 @@ protected:
     bool mirror;
   };
   vector<TransformMeta> transform_params_;
+  vector<vector<uint8>> tl_workspace_;
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_pool_;
+};
+
+/**
+ * Performs resize+crop+mirror using fast, backprojection ResizeCropMirror function
+ */ 
+template <typename Backend>
+class FastResizeCropMirrorOp : public ResizeCropMirrorOp<Backend> {
+public:
+  inline FastResizeCropMirrorOp(
+      bool random_resize,
+      bool warp_resize,
+      int resize_a,
+      int resize_b,
+      bool random_crop,
+      int crop_h,
+      int crop_w,
+      float mirror_prob) :
+    ResizeCropMirrorOp<Backend>(
+        random_resize,
+        warp_resize,
+        resize_a,
+        resize_b,
+        random_crop,
+        crop_h,
+        crop_w,
+        mirror_prob) {}
+
+  virtual inline ~FastResizeCropMirrorOp() = default;
+
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx, int thread_idx) override {
+    typename ResizeCropMirrorOp<Backend>::TransformMeta &meta =
+      transform_params_[data_idx];
+#ifndef NDEBUG
+    NDLL_ENFORCE(input.shape().size() == 3);
+    NDLL_ENFORCE(input.shape()[0] == meta.H);
+    NDLL_ENFORCE(input.shape()[1] == meta.W);
+    NDLL_ENFORCE(input.shape()[2] == meta.C);
+    NDLL_ENFORCE(output->shape().size() == 3);
+    NDLL_ENFORCE(output->shape()[0] == crop_h_);
+    NDLL_ENFORCE(output->shape()[1] == crop_w_);
+    NDLL_ENFORCE(output->shape()[2] == meta.C);
+#endif
+    tl_workspace_[thread_idx].resize(crop_h_*crop_w_*meta.C);
+    FastResizeCropMirrorHost(
+        input.template data<uint8>(),
+        meta.H, meta.W, meta.C,
+        meta.rsz_h, meta.rsz_w,
+        meta.crop_y, meta.crop_x,
+        crop_h_, crop_w_,
+        meta.mirror,
+        output->template data<uint8>(),
+        tl_workspace_[thread_idx].data());
+  }
+  
+  inline FastResizeCropMirrorOp* Clone() const override {
+    return new FastResizeCropMirrorOp(random_resize_, warp_resize_,
+        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
+  }
+
+  inline string name() const override {
+    return "FastResizeCropMirrorOp";
+  }
+  
+protected:
+  using ResizeCropMirrorOp<Backend>::random_resize_;
+  using ResizeCropMirrorOp<Backend>::warp_resize_;
+  using ResizeCropMirrorOp<Backend>::resize_a_;
+  using ResizeCropMirrorOp<Backend>::resize_b_;
+  using ResizeCropMirrorOp<Backend>::random_crop_;
+  using ResizeCropMirrorOp<Backend>::crop_h_;
+  using ResizeCropMirrorOp<Backend>::crop_w_;
+  using ResizeCropMirrorOp<Backend>::mirror_prob_;
+  using ResizeCropMirrorOp<Backend>::transform_params_;
+  using ResizeCropMirrorOp<Backend>::tl_workspace_;
 };
 
 } // namespace ndll

@@ -44,14 +44,14 @@ public:
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
-  Run(const Datum<Backend> &input, Datum<Backend> *output, int data_idx) {
+  Run(const Datum<Backend> &input, Datum<Backend> *output, int data_idx, int thread_idx) {
 #ifndef NDEBUG
     NDLL_ENFORCE(num_threads_ > 0,
         "Num threads must be set before \"Run()\" is called");
     NDLL_ENFORCE(batch_size_ > 0,
         "Batch size must be set before \"Run()\" is called");
 #endif
-    RunPerDatumCPU(input, output, data_idx);
+    RunPerDatumCPU(input, output, data_idx, thread_idx);
   }
 
   /**
@@ -74,7 +74,7 @@ public:
    * implemented by derived ops.
    */
   virtual inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx) {
+      Datum<Backend> *output, int data_idx, int thread_idx) {
     NDLL_FAIL("RunPerDatumCPU not implemented");
   }
 

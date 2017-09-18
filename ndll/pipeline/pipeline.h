@@ -249,11 +249,11 @@ public:
                 datums[0].Reset(input, data_idx);
                 datums[1].Reset(cpu_buffers_[0].get(), data_idx);
                 
-                prefetch_ops_[0]->Run(datums[0], &datums[1], data_idx);
+                prefetch_ops_[0]->Run(datums[0], &datums[1], data_idx, tid);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   // Get the other datum to output this ops result into
                   datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
-                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx);
+                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
                 }
               }, i, std::placeholders::_1));
     }

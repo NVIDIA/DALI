@@ -26,7 +26,7 @@ public:
   virtual inline ~TJPGDecoder() = default;
 
   inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int /* unused */) override {
+      Datum<Backend> *output, int /* unused */, int /* unused */) override {
     
     DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
         output->shape()[0], output->shape()[1], output->template data<uint8>());
@@ -73,7 +73,7 @@ public:
 
   // This op forwards the data and writes it to files
   inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx) override {
+      Datum<Backend> *output, int data_idx, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 3);
 
     // Dump the data to file
