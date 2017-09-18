@@ -33,7 +33,7 @@ template <typename Backend>
 class ResizeCropMirrorOp : public Transformer<Backend> {
 public:
   inline ResizeCropMirrorOp(
-      bool modified_resize,
+      bool fast_resize,
       bool random_resize,
       bool warp_resize,
       int resize_a,
@@ -43,7 +43,7 @@ public:
       int crop_w,
       float mirror_prob)
     : rand_gen_(time(nullptr)),
-      modified_resize_(modified_resize),
+      fast_resize_(fast_resize),
       random_resize_(random_resize),
       warp_resize_(warp_resize),
       resize_a_(resize_a),
@@ -146,11 +146,11 @@ public:
     // Set mirror parameters
     meta.mirror = std::bernoulli_distribution(mirror_prob_)(rand_gen_);
 
-    // MODIFIED RESIZE: We are going to do a crop, so we back-project the crop into the
+    // FAST RESIZE: We are going to do a crop, so we back-project the crop into the
     // input image, get an ROI on this region, and then resize to the crop dimensions
     // this effectively does the resize+crop in one step, then we just mirror.
     //
-    // How should we do the modified resize?
+    // How should we do the fast resize?
     // - we can do it here by offsetting the input ptr (effectively getting ROI) and then
     //   resizing to the crop dimensions
     // - we can do it in-library w/ a separate method
@@ -173,8 +173,8 @@ public:
   }
   
   inline ResizeCropMirrorOp* Clone() const override {
-    return new ResizeCropMirrorOp(random_resize_, warp_resize_, resize_a_,
-        resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
+    return new ResizeCropMirrorOp(fast_resize_, random_resize_, warp_resize_,
+        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
   }
 
   inline string name() const override {
@@ -195,6 +195,7 @@ protected:
   std::mt19937 rand_gen_;
   
   // Resize meta-data
+  bool fast_resize_;
   bool random_resize_;
   bool warp_resize_;
   int resize_a_, resize_b_;

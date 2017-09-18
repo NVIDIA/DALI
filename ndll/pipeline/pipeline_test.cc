@@ -59,7 +59,7 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
 
     // Add a resize+crop+mirror op
     ResizeCropMirrorOp<HostBackend> resize_crop_mirror_op(
-        true, false, 256, 480, true, 224, 224, 0.5f);
+        false, true, false, 256, 480, true, 224, 224, 0.5f);
     pipe.AddPrefetchOp(resize_crop_mirror_op);
 
     // Add a dump image op

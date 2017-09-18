@@ -102,7 +102,8 @@ public:
     std::memcpy(out_image, mirror_img.ptr(), crop_h*crop_w*c);
   }
 
-  void VerifyImage(uint8 *img, uint8 *ground_truth, int n) {
+  void VerifyImage(uint8 *img, uint8 *ground_truth, int n,
+      float mean_bound = 2.0, float std_bound = 3.0) {
     vector<int> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
       abs_diff[i] = abs(int(img[i] - ground_truth[i]));
@@ -119,8 +120,8 @@ public:
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
     // pass for libjpeg turbo
-    ASSERT_LT(mean, 2.0);
-    ASSERT_LT(std, 3.0);
+    ASSERT_LT(mean, mean_bound);
+    ASSERT_LT(std, std_bound);
   }
 
   template <typename T>
@@ -223,7 +224,7 @@ TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
 
 TYPED_TEST(TransformTest, TestResizeCrop) {
   std::mt19937 rand_gen(time(nullptr));
-  vector<uint8> out_img, ver_img;
+  vector<uint8> out_img, ver_img, tmp_img;
   for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
     int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
@@ -239,9 +240,10 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     bool mirror = false;
 
     out_img.resize(crop_h*crop_w*this->c_);
+    tmp_img.resize(rsz_h*rsz_w*this->c_);
     NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
-            crop_x, crop_h, crop_w, mirror, out_img.data()));
+            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -270,7 +272,7 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
 
 TYPED_TEST(TransformTest, TestResizeCropMirror) {
   std::mt19937 rand_gen(time(nullptr));
-  vector<uint8> out_img, ver_img;
+  vector<uint8> out_img, ver_img, tmp_img;
   for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
     int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
@@ -286,9 +288,10 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     bool mirror = true;
 
     out_img.resize(crop_h*crop_w*this->c_);
+    tmp_img.resize(rsz_h*rsz_w*this->c_);
     NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
-            crop_x, crop_h, crop_w, mirror, out_img.data()));
+            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -308,6 +311,101 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
             this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
 #endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
+  }
+}
+
+TYPED_TEST(TransformTest, TestFastResizeCrop) {
+  this->rand_gen_.seed(0);
+  vector<uint8> out_img, ver_img;
+  for (size_t i = 0; i < this->images_.size(); ++i) {
+    // Generate random resize params
+    int rsz_h = this->RandInt(32, 512);
+    int rsz_w = this->RandInt(32, 512);
+    
+    // Generate random crop params
+    int crop_h = this->RandInt(32, rsz_h);
+    int crop_w = this->RandInt(32, rsz_w);
+    int crop_y = this->RandInt(0, rsz_h - crop_h);
+    int crop_x = this->RandInt(0, rsz_w - crop_w);
+    
+    // Select whether to mirror
+    bool mirror = false;
+
+    out_img.resize(crop_h*crop_w*this->c_);
+    NDLL_CALL(FastResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+            this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
+            crop_x, crop_h, crop_w, mirror, out_img.data()));
+
+    // Verify the output
+    ver_img.resize(crop_h*crop_w*this->c_);
+    this->OpenCVResizeCropMirror(this->images_[i], this->image_dims_[i].h,
+        this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y, crop_x,
+        crop_h, crop_w, mirror, ver_img.data());
+
+#ifndef NDEBUG
+    cout << i << " " << this->jpeg_names_[i] << endl;
+    cout << "dims: " << this->image_dims_[i].h << "x" << this->image_dims_[i].w << endl;
+    cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
+    cout << "crop: " << crop_h << "x" << crop_w << endl;
+    cout << "mirror: " << mirror << endl;
+    DumpHWCToFile(out_img.data(), crop_h, crop_w,
+        this->c_, crop_w*this->c_, std::to_string(i));
+    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
+            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+#endif
+    // TODO(tgale): We need a better way to evaluate similarity for the
+    // FastResizeCropMirror method. The resulting image is very close,
+    // but is slightly shifted (about a pixel), which causes higher MSE
+    // and standard deviation than we would normally want to tolerate
+    this->VerifyImage(out_img.data(), ver_img.data(), out_img.size(), 16.f, 25.f);
+  }
+}
+
+TYPED_TEST(TransformTest, TestFastResizeMirror) {
+  this->rand_gen_.seed(0);
+  vector<uint8> out_img, ver_img, tmp_img;
+  for (size_t i = 0; i < this->images_.size(); ++i) {
+    // Generate random resize params
+    int rsz_h = this->RandInt(32, 512);
+    int rsz_w = this->RandInt(32, 512);
+    
+    // Generate random crop params
+    int crop_h = this->RandInt(32, rsz_h);
+    int crop_w = this->RandInt(32, rsz_w);
+    int crop_y = this->RandInt(0, rsz_h - crop_h);
+    int crop_x = this->RandInt(0, rsz_w - crop_w);
+    
+    // Select whether to mirror
+    bool mirror = true;
+
+    out_img.resize(crop_h*crop_w*this->c_);
+    tmp_img.resize(crop_h*crop_w*this->c_);
+    NDLL_CALL(FastResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
+            this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
+            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
+
+    // Verify the output
+    ver_img.resize(crop_h*crop_w*this->c_);
+    this->OpenCVResizeCropMirror(this->images_[i], this->image_dims_[i].h,
+        this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y, crop_x,
+        crop_h, crop_w, mirror, ver_img.data());
+
+#ifndef NDEBUG
+    cout << i << " " << this->jpeg_names_[i] << endl;
+    cout << "dims: " << this->image_dims_[i].h << "x" << this->image_dims_[i].w << endl;
+    cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
+    cout << "crop: " << crop_h << "x" << crop_w << endl;
+    cout << "mirror: " << mirror << endl;
+    DumpHWCToFile(out_img.data(), crop_h, crop_w,
+        this->c_, crop_w*this->c_, std::to_string(i));
+    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
+            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+#endif
+    // TODO(tgale): We need a better way to evaluate similarity for the
+    // FastResizeCropMirror method. The resulting image is very close,
+    // but is slightly shifted (about a pixel), which causes higher MSE
+    // and standard deviation than we would normally want to tolerate
+    this->VerifyImage(out_img.data(), ver_img.data(), out_img.size(), 16.f, 25.f);
   }
 }
 
