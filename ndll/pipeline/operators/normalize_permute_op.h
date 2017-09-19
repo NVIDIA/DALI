@@ -32,7 +32,7 @@ public:
   }
   
   inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int /* unused */) override {    
+      const vector<Index> &input_shape, int /* unused */, int /* unused */) override {    
     // Outputs images in CHW layout
     NDLL_ENFORCE(input_shape.size() == 3);
     NDLL_ENFORCE(input_shape[0] == H_);

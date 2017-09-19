@@ -11,7 +11,7 @@ add_subdirectory(util)
 # TODO(tgale): Build to a shared library instead
 set(ndll_lib "ndll")
 cuda_add_library(${ndll_lib} STATIC ${NDLL_SRCS})
-target_link_libraries(${ndll_lib} ${NDLL_LIBS})
+target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
 
 # Build test suite
 if (BUILD_TEST)

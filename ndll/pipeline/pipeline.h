@@ -211,12 +211,12 @@ public:
                 // Get the output shape for the cpu-side results
                 Datum<CPUBackend> datum(input, data_idx);
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(datum, data_idx);
+                  prefetch_ops_[0]->InferOutputShape(datum, data_idx, tid);
                 datum.Resize(intermediate_shapes_[0][data_idx]);
                 
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   intermediate_shapes_[j][data_idx] =
-                    prefetch_ops_[j]->InferOutputShape(datum, data_idx);
+                    prefetch_ops_[j]->InferOutputShape(datum, data_idx, tid);
                   datum.Resize(intermediate_shapes_[j][data_idx]);
                 }
                 
@@ -230,7 +230,7 @@ public:
                 Datum<GPUBackend> datum_gpu(datum.shape());
                 for (size_t j = 0; j < forward_ops_.size(); ++j) {
                   intermediate_shapes_[j + offset][data_idx] =
-                    forward_ops_[j]->InferOutputShape(datum_gpu, data_idx);
+                    forward_ops_[j]->InferOutputShape(datum_gpu, data_idx, tid);
                   datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
                 }
               }, i, std::placeholders::_1));
@@ -318,6 +318,8 @@ public:
     stream_pool_->SetMainStreamEvents();
   }
 
+  // TODO(tgale): These two getters below are unused. Remove them
+  
   // Accessor for the stream pool
   inline std::shared_ptr<StreamPool> stream_pool() {
     return stream_pool_;

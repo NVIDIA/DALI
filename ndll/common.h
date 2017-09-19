@@ -25,6 +25,7 @@ using std::string;
 
 // Common types
 typedef uint8_t uint8;
+typedef int16_t int16;
 
 // Only supported on the GPU
 typedef __half float16;

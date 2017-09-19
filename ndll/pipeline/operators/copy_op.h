@@ -22,7 +22,7 @@ public:
   }
   
   inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int /* unused */) override {
+      const vector<Index> &input_shape, int /* unused */, int /* unused */) override {
     return input_shape;
   }
   

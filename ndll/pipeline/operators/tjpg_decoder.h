@@ -33,7 +33,7 @@ public:
   }
   
   inline vector<Index> InferOutputShape(
-      const Datum<Backend> &input, int /* unused */) override {
+      const Datum<Backend> &input, int /* unused */, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 1,
         "TJPGDecoder expects 1D encoded jpeg strings as input");
 
@@ -88,7 +88,7 @@ public:
   }
   
   inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int /* unused */) override {
+      const vector<Index> &input_shape, int /* unused */, int /* unused */) override {
     return input_shape;
   }
   

@@ -90,7 +90,8 @@ public:
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual inline vector<Index> InferOutputShape(const Datum<Backend> &input, int data_idx) {
+  virtual inline vector<Index> InferOutputShape(const Datum<Backend> &input,
+      int data_idx, int thread_idx) {
     NDLL_FAIL("InferOutputShape not implemented");
   }
 
@@ -152,18 +153,19 @@ public:
   inline Transformer() {}
   virtual inline ~Transformer() = default;
 
-  inline vector<Index> InferOutputShape(const Datum<Backend> &input, int data_idx) override {
+  inline vector<Index> InferOutputShape(const Datum<Backend> &input,
+      int data_idx, int thread_idx) override {
     // Transfomers cannot have data dependent output shapes, we override
     // this method and allow the user to define a simpler method that
     // only receives the input shape
-    return InferOutputShapeFromShape(input.shape(), data_idx);
+    return InferOutputShapeFromShape(input.shape(), data_idx, thread_idx);
   }
 
   // TODO(tgale): Can we make this not copy another vector? Will it
   // even make two tmps or will the compiler just forward them on
   // through the return statement?
   virtual vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int data_idx) = 0;
+      const vector<Index> &input_shape, int data_idx, int thread_idx) = 0;
 
   DISABLE_COPY_MOVE_ASSIGN(Transformer);
 protected:

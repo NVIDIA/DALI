@@ -85,7 +85,7 @@ public:
   }
   
   inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int data_idx) override {
+      const vector<Index> &input_shape, int data_idx, int /* unused */) override {
 #ifndef NDEBUG
     NDLL_ENFORCE(data_idx < batch_size_, "data_idx out of range");
 #endif
