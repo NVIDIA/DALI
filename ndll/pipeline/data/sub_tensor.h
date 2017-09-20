@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_DATA_SUBTENSOR_H_
-#define NDLL_PIPELINE_DATA_SUBTENSOR_H_
+#ifndef NDLL_PIPELINE_DATA_SUB_TENSOR_H_
+#define NDLL_PIPELINE_DATA_SUB_TENSOR_H_
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -27,6 +27,8 @@ namespace ndll {
  */
 class CPUSubTensor {
 public:
+  CPUSubTensor() : data_(nullptr), size_(0) {}
+  
   /**
    * Wraps the portion of the input 1D tensor from [in.data()+start, in.data()+end)
    */
@@ -90,6 +92,8 @@ protected:
  */
 class GPUSubTensor {
 public:
+  GPUSubTensor() : data_(nullptr), size_(0) {}
+  
   /**
    * Wraps the portion of the input 1D tensor from [in.data()+start, in.data()+end)
    */
@@ -150,5 +154,5 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_SUBTENSOR_H_
+#endif // NDLL_PIPELINE_DATA_SUB_TENSOR_H_
 

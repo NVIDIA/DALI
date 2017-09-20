@@ -39,7 +39,10 @@ public:
     stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
     thread_pool_(num_threads, device_id) {
     NDLL_ENFORCE(batch_size_ > 0);
-
+    // Set the data type for our mega-buffers
+    mega_buffer_.template data<uint8>();
+    mega_buffer_gpu_.template data<uint8>();
+    
     // Note: We do not set device/thread affinity in the pipeline anywhere
     // because frameworks like C2 could have different threads running
     // through this code. We do however require that the device is set
@@ -288,6 +291,14 @@ public:
             src.nbytes(),
             cudaMemcpyHostToDevice,
             stream_pool_->GetStream()));
+
+    // Copy the mega-buffer to GPU in the main stream
+    CUDA_CALL(cudaMemcpyAsync(
+            mega_buffer_gpu_.raw_data(),
+            mega_buffer_.raw_data(),
+            mega_buffer_.nbytes(),
+            cudaMemcpyHostToDevice,
+            stream_pool_->GetStream()));
   }
   
   /**
@@ -337,10 +348,54 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
+  // Return the nearest multiple of 8 that is >= base_ptr_offset
+  inline size_t round_up_to_8(size_t base_ptr_offset) {
+    if (base_ptr_offset & 7) {
+      base_ptr_offset = (base_ptr_offset & 7) + 8;
+    }
+    return base_ptr_offset;
+  }
+  
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
-  void MegaBufferSetupAndDistribution() {
+  inline void MegaBufferSetupAndDistribution() {
+    // Query all the forward ops for mega-buffer sizes
+    size_t total_bytes = 0;
+    vector<size_t> offsets;
+    vector<int> num_buff_for_op(forward_ops_.size(), 0);
+    for (size_t i = 0; i < forward_ops_.size(); ++i) {
+      const vector<size_t>& sizes =
+        forward_ops_[i]->GetBatchedParameterSize();
+      num_buff_for_op[i] = sizes.size();
+      for (auto &num_bytes : sizes) {
+        // Align the start of each buffer to 8-bytes
+        size_t aligned_num_bytes = round_up_to_8(num_bytes);
+        offsets.push_back(total_bytes);
+        total_bytes += aligned_num_bytes;
+      }
+    }
+    offsets.push_back(total_bytes);
+    
+    // Allocate the tensors on host & device
+    mega_buffer_.Resize({(Index)total_bytes});
+    mega_buffer_gpu_.Resize({(Index)total_bytes});
 
+    // Hand out SubTensors for all the ops batched parameters
+    int buffer_id = 0;
+    for (size_t i = 0; i < forward_ops_.size(); ++i) {
+      vector<CPUSubTensor> cpu_buffers(num_buff_for_op[i]);
+      vector<GPUSubTensor> gpu_buffers(num_buff_for_op[i]);
+      for (int j = 0; j < num_buff_for_op[i]; ++j) {
+        CPUSubTensor sub_buffer(&mega_buffer_,
+            offsets[buffer_id], offsets[buffer_id+1]);
+        GPUSubTensor sub_buffer_gpu(&mega_buffer_gpu_,
+            offsets[buffer_id], offsets[buffer_id+1]);
+        cpu_buffers[j] = sub_buffer;
+        gpu_buffers[j] = sub_buffer_gpu;
+      }
+      forward_ops_[i]->
+        SetBatchedParameterBuffers(cpu_buffers, gpu_buffers);
+    }
   }
   
   enum DecodeLocation {
@@ -373,6 +428,12 @@ private:
   // pass. We pre-allocate these so threads can directly
   // write to the appropriate locations.
   vector<vector<Dims>> intermediate_shapes_;
+
+  // Tensors to store all batched op parameters for ops in
+  // the forward pass. Enables single copy of paramters
+  // instead of copies per operator
+  Tensor<CPUBackend> mega_buffer_;
+  Tensor<GPUBackend> mega_buffer_gpu_;
 };
 
 } // namespace ndll

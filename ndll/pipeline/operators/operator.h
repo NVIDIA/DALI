@@ -9,7 +9,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
-#include "ndll/pipeline/data/subtensor.h"
+#include "ndll/pipeline/data/sub_tensor.h"
 #include "ndll/pipeline/util/stream_pool.h"
 
 namespace ndll {
@@ -86,19 +86,19 @@ public:
    */
   template <typename T = Backend> inline
   typename std::enable_if<std::is_base_of<GPUBackend, T>::value, const vector<size_t>&>::type
-  GetBatchedParameterSize() const {
+  GetBatchedParameterSize() {
     CalculateBatchedParameterSize();
     return batched_param_sizes_;
   }
 
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  SetBatchedParamBuffers(vector<CPUSubTensor> *buffers,
-      vector<GPUSubTensor> *gpu_buffers) {
-    NDLL_ENFORCE(buffers->size() == gpu_buffers->size());
-    NDLL_ENFORCE(buffers->size() == batched_param_sizes_.size());
-    buffers_.resize(buffers->size());
-    gpu_buffers_.resize(gpu_buffers->size());
+  SetBatchedParameterBuffers(const vector<CPUSubTensor> &buffers,
+      const vector<GPUSubTensor> &gpu_buffers) {
+    NDLL_ENFORCE(buffers.size() == gpu_buffers.size());
+    NDLL_ENFORCE(buffers.size() == batched_param_sizes_.size());
+    buffers_ = buffers;
+    gpu_buffers_ = gpu_buffers;
 
     // Run any batched parameter setup
     BatchedParameterSetup();
