@@ -11,7 +11,8 @@
 namespace ndll {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/image/testing_jpegs";
+// const string image_folder = "../ndll/image/testing_jpegs";
+const string image_folder = "/home/tgale/data/raw-train-c2-480";
 
 class NDLLBenchmark : public benchmark::Fixture {
 public:

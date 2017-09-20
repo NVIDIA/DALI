@@ -7,13 +7,12 @@ list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
 # in the path off the base CUDA install?
 list(APPEND NDLL_LIBS ${CUDA_TOOLKIT_ROOT_DIR}/targets/x86_64-linux/lib/stubs/libnvidia-ml.so)
 
-# Note: this is a hack to build against the npp static libs (until the shared
-# libs get fixed and actually have the functions we need in them)
-list(APPEND NDLL_LIBS "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppicom_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppicc_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppc_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a")
-
+# NVTX for profiling
+if (USE_NVTX)
+  find_cuda_helper_libs(nvToolsExt)
+  list(APPEND NDLL_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  add_definitions(-DNDLL_USE_NVTX)
+endif()
 
 # Google C++ testing framework
 if (BUILD_TEST)

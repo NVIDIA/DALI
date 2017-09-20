@@ -96,6 +96,9 @@ private:
       } catch(std::runtime_error &e) {
         cout << "Caught exception in thread " << e.what() << endl;
         exit(EXIT_FAILURE);
+      } catch(...) {
+        cout << "Caught unknown exception in thread" << endl;
+        exit(EXIT_FAILURE);
       }
 
       // Mark this thread as idle & check for complete work

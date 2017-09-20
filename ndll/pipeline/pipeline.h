@@ -172,12 +172,12 @@ public:
 
     // Set important meta-data for all the operators in the pipeline
     for (auto &op : prefetch_ops_) {
-      op->set_num_threads(num_thread());
+      op->set_num_threads(thread_pool_.size());
       op->set_batch_size(batch_size_);
       op->set_stream_pool(stream_pool_);
     }
     for (auto &op : forward_ops_) {
-      op->set_num_threads(num_thread());
+      op->set_num_threads(thread_pool_.size());
       op->set_batch_size(batch_size_);
       op->set_stream_pool(stream_pool_);
     }
@@ -316,18 +316,6 @@ public:
     // streams used by the ops to ensure proper synchronization
     // behavior with the main stream
     stream_pool_->SetMainStreamEvents();
-  }
-
-  // TODO(tgale): These two getters below are unused. Remove them
-  
-  // Accessor for the stream pool
-  inline std::shared_ptr<StreamPool> stream_pool() {
-    return stream_pool_;
-  }
-
-  // Accessor for the size of the thread pool
-  inline int num_thread() const {
-    return thread_pool_.size();
   }
 
   inline void Print() const {

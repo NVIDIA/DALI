@@ -6,6 +6,7 @@ project(NDLL CXX)
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
+option(USE_NVTX "Build with NVTX profiling enabled" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
@@ -32,7 +33,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 include(cmake/Dependencies.cmake)
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-function -fno-strict-aliasing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-function -fno-strict-aliasing -O2 -fPIC")
 
 # TODO(tgale): Add sm targets
 # Note: Adding this causes nvcc to throw error that 'std' was redefined

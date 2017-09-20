@@ -117,6 +117,7 @@ public:
    * b) the buffer owns the underlying storage
    */
   inline void set_type(TypeMeta type) {
+    if (type.id() == type_.id()) return;
     NDLL_ENFORCE(type_.id() == NO_TYPE, "Cannot set type on typed buffer");
     NDLL_ENFORCE(owned_, "Buffer does not own underlying "
         "storage. Setting type not allowed");
@@ -125,9 +126,9 @@ public:
 #endif
     type_ = type;
 
-    // If the buffer has a set size (and the new type is a real type),
-    // allocate the memory for the size of the buffer
-    if ((true_size_ != 0) && (type_.id() != NO_TYPE)) {
+    // If the buffer has a set size allocate the
+    // memory for the size of the buffer
+    if (true_size_ != 0) {
       NDLL_ENFORCE(data_ == nullptr,
           "data ptr is non-nullptr even though type was NO_TYPE");
       

@@ -12,6 +12,14 @@ list(APPEND HYBRID_DECODE_LIBS
   "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a"
   )
 
+# Compile w/ NVTX
+if (USE_NVTX)
+  message(STATUS "COMPILING HYBDEC W/ TIMERANGES")
+  find_cuda_helper_libs(nvToolsExt)
+  list(APPEND HYBRID_DECODE_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  add_definitions(-DENABLE_TIMERANGES)
+endif()
+
 # Google C++ testing framework
 # HACK: build against the gtest build done by ndll
 # find_package(GTest REQUIRED)

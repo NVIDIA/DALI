@@ -13,6 +13,10 @@
 
 #include <cuda_fp16.h> // for __half & related methods
 
+#ifdef NDLL_USE_NVTX
+#include "nvToolsExt.h"
+#endif
+
 namespace ndll {
 
 // Using declaration for common types
@@ -40,7 +44,20 @@ typedef __half float16;
   name& operator=(const name&) = delete;        \
   name(name&&) = delete;                        \
   name& operator=(name&&) = delete
-  
+
+// Basic timerange for profiling
+struct TimeRange {
+TimeRange(const char *name) {
+#ifdef NDLL_USE_NVTX
+  nvtxRangePushA(name);
+#endif
+}
+~TimeRange() {
+#ifdef NDLL_USE_NVTX
+  nvtxRangePop();
+#endif
+}
+};
 
 
 

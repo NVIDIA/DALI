@@ -25,6 +25,11 @@ void
 HostBuffer::resize(unsigned int nSize) {
   if (nSize > nSize_) {
     nSize_ = 0;
+    
+    // HACK: We can't allocate memory while a NCCL op is in flight.
+    // allocate way more than we'll need upfront so that we never
+    // free memory
+    nSize += 1000000;
     CHECK_CUDA(cudaFreeHost(pData_));
     CHECK_CUDA(cudaHostAlloc((void**)&pData_, nSize, cudaHostAllocDefault));
     nSize_ = nSize;
