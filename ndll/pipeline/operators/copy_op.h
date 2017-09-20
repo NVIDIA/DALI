@@ -10,16 +10,6 @@ class CopyOp : public Transformer<Backend> {
 public:
   inline CopyOp() {}
   virtual inline ~CopyOp() = default;
-
-  inline void RunBatchedGPU(const Batch<Backend> &input,
-      Batch<Backend> *output) override {
-    CUDA_CALL(cudaMemcpyAsync(
-            output->raw_data(),
-            input.raw_data(),
-            input.nbytes(),
-            cudaMemcpyDeviceToDevice,
-            stream_pool_->GetStream()));
-  }
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int /* unused */, int /* unused */) override {
@@ -38,6 +28,16 @@ public:
     return "CopyOp";
   }
 protected:
+  inline void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) override {
+    CUDA_CALL(cudaMemcpyAsync(
+            output->raw_data(),
+            input.raw_data(),
+            input.nbytes(),
+            cudaMemcpyDeviceToDevice,
+            stream_pool_->GetStream()));
+  }
+  
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::stream_pool_;
 };

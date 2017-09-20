@@ -24,13 +24,6 @@ public:
   inline TJPGDecoder(bool color) : color_(color), c_(color ? 3 : 1) {}
   
   virtual inline ~TJPGDecoder() = default;
-
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int /* unused */, int /* unused */) override {
-    
-    DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
-        output->shape()[0], output->shape()[1], output->template data<uint8>());
-  }
   
   inline vector<Index> InferOutputShape(
       const Datum<Backend> &input, int /* unused */, int /* unused */) override {
@@ -58,6 +51,14 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
 protected:
+
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int /* unused */, int /* unused */) override {
+    
+    DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
+        output->shape()[0], output->shape()[1], output->template data<uint8>());
+  }
+  
   bool color_;
   int c_;
 

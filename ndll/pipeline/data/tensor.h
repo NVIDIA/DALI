@@ -89,6 +89,7 @@ protected:
   using Buffer<Backend>::size_;
   using Buffer<Backend>::true_size_;
 };
+
 } // namespace ndll
 
 #endif // NDLL_PIPELINE_DATA_TENSOR_H_

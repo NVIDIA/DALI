@@ -34,25 +34,6 @@ public:
     NDLL_ENFORCE(channel != nullptr);
   }
   virtual inline ~HuffmanDecoder() = default;
-
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) override {
-    // Perform the huffman decode into the datum object
-    HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
-    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
-    vector<int16*> dct_coeff_ptrs(jpeg.components);
-
-    // Gather the pointers to each image component's dct coefficients
-    int offset = 0;
-    for (int i = 0; i < jpeg.components; ++i) {
-      dct_coeff_ptrs[i] = output->template data<int16>() + offset;
-      offset += jpeg.dctSize[i] / sizeof(int16);
-    }
-
-    // Perform the Huffman decode into the output buffer
-    TimeRange _tr("HuffmanDecodePerImage");
-    huffmanDecodeHost(jpeg, &state, &dct_coeff_ptrs);
-  }
   
   inline vector<Index> InferOutputShape(
       const Datum<Backend> &input, int data_idx, int thread_idx) override {
@@ -105,6 +86,25 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(HuffmanDecoder);
 protected:
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx, int thread_idx) override {
+    // Perform the huffman decode into the datum object
+    HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
+    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    vector<int16*> dct_coeff_ptrs(jpeg.components);
+
+    // Gather the pointers to each image component's dct coefficients
+    int offset = 0;
+    for (int i = 0; i < jpeg.components; ++i) {
+      dct_coeff_ptrs[i] = output->template data<int16>() + offset;
+      offset += jpeg.dctSize[i] / sizeof(int16);
+    }
+
+    // Perform the Huffman decode into the output buffer
+    TimeRange _tr("HuffmanDecodePerImage");
+    huffmanDecodeHost(jpeg, &state, &dct_coeff_ptrs);
+  }
+  
   shared_ptr<HybridJPEGDecodeChannel> channel_;
   vector<JpegParserState> tl_parser_state_;
   vector<HuffmanDecoderState> tl_huffman_state_;
@@ -113,6 +113,80 @@ protected:
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_pool_;
 };
+
+template <typename Backend>
+class DCTQuantInvOp : public Transformer<Backend> {
+public:
+  inline DCTQuantInvOp(bool color, shared_ptr<HybridJPEGDecodeChannel> channel) :
+    color_(color), C_(color ? 3 : 1), channel_(channel) {
+    NDLL_ENFORCE(channel != nullptr);
+  }
+  
+  virtual inline ~DCTQuantInvOp() = default;
+  
+  inline vector<Index> InferOutputShapeFromShape(
+      const vector<Index> &input_shape, int data_idx, int /* unused */) override {
+    // The output shape is determined by the encoded jpeg, whose meta-data
+    // we access through the Channel connected to the huffman decoder
+    return vector<Index>{channel_->parsed_jpegs[data_idx].imgDims.height,
+        channel_->parsed_jpegs[data_idx].imgDims.width, C_};
+  }
+  
+  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+    NDLL_ENFORCE(IsType<int16>(input_type));
+    output->template data<uint8>();
+  }
+  
+  inline DCTQuantInvOp* Clone() const override {
+    return new DCTQuantInvOp(color_, channel_);
+  }
+
+  inline string name() const override {
+    return "DCTQuantInvOp";
+  }
+  
+  inline void set_num_threads(int num_threads) override {
+    num_threads_ = num_threads;
+  }
+
+  inline void set_batch_size(int batch_size) override {
+    batch_size_ = batch_size;
+  }
+
+protected:
+  inline void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) override {
+    /* Need to setup:
+     * 1) quant tables (8-bit only)
+     *    - can pack into mega-buffer once we've received our pointers
+     * 2) image idxs, gridinfo, number of CTAs to launch
+     *    - can calculate mostly in parallel w/ reduction over num blocks 
+     *      and offset calculation happening serially
+     * 3) params for each image component
+     *    - if grayscale we can do all in parallel (we ignore u&v components)
+     *    - if color, we need to calculate offsets so each thread can save in the
+     *      correct place (or can we still make the params and let imgidxs skip over
+     *      them?)
+     */
+    // Batched methods need to specify number of ptrs & sizes so pipeline can align them
+    // all correctly and just hand the op ptrs
+    //
+    // Batched methods need a serial section to setup params (and place them into the megabuffer)
+    // Batched methods need a threaded section to setup params (and place them into the megabuffer)
+  }
+  
+  bool color_;
+  Index C_;
+  shared_ptr<HybridJPEGDecodeChannel> channel_;
+
+  using Operator<Backend>::num_threads_;
+  using Operator<Backend>::batch_size_;
+  using Operator<Backend>::stream_pool_;
+};
+
+
+
+
 
 } // namespace ndll
 

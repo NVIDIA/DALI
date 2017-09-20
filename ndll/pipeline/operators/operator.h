@@ -9,13 +9,16 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/subtensor.h"
 #include "ndll/pipeline/util/stream_pool.h"
 
 namespace ndll {
 
-// TODO(tgale): Need to try and define and op that uses some complex internal
-// storage (e.g. a Tensor) to make sure defining move & move-assignment ops
-// is not a huge burden
+// Note: The original rationale behind having cpu & gpu ops be the same class was that
+// the cpu & gpu implementations share alot of the same code (InferOutputShape, for example),
+// but now this sharing of code is starting to stress the abstraction to the point that
+// it is a bit hacky. Can we refactor so that shared methods and backend specific methods
+// are separate?
 
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline
@@ -28,16 +31,6 @@ public:
       batch_size_(-1),
       stream_pool_(nullptr) {}
   virtual inline ~Operator() = default;
-
-  // Note: An operator defines a computation that can be performed in the pipeline.
-  // Operators can be run per image on the cpu or batched on the gpu. Each execution
-  // method takes in slightly different paramters, and only works with certain cases
-  // of the 'Backend' template paramter. We wan't to enforce that the execution method
-  // for each 'Backend' can only be called when the template parameter is correct. To
-  // do this, we use 'enable_if'. If the wrong method is called for the template paramter
-  // this will result in a compiler error. An alternative is to check at runtime w/
-  // 'dynamic_cast', but this is grosser and moves a check we can do at compile time
-  // into run time.
   
   /**
    * @brief executes the op on a single datum on cpu 
@@ -70,30 +63,52 @@ public:
   }
 
   /**
-   * @brief Per image CPU computation of the operator to be 
-   * implemented by derived ops.
+   * @brief Returns a vector where each element represents the size of
+   * different parameters for 'RunBatchedGPU' that must be setup. By
+   * default the sizes are 0, and on space is allocate for the Ops
+   * batched parameters.
+   *
+   * Running operations on whole batches of data on GPU often requires
+   * that lots of meta-data be copied to the GPU prior to kernel launch.
+   * To do this efficiently, the pipeline manages a mega-buffer to store
+   * all batched params for all operators. The parameters can then be
+   * moved to device all at once.
+   *
+   * To take advantage of this feature, operators should override this
+   * method to specify the sizes it needs. This method will be called
+   * by the executor after the shape inference loop, so any data
+   * dependent params should be setup in InferOutputShape. In general,
+   * ops should prefer to do work in threaded methods (RunPerDatumCPU, 
+   * InferOutputShape) to minimize serial workload in the pipeline
+   *
+   * If this method is overriden, 'SetBatchedParamBuffers()' must be
+   * as well so the operator can be handed the allocate buffers.
    */
-  virtual inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) {
-    NDLL_FAIL("RunPerDatumCPU not implemented");
+  template <typename T = Backend> inline
+  typename std::enable_if<std::is_base_of<GPUBackend, T>::value, const vector<size_t>&>::type
+  GetBatchedParameterSize() const {
+    CalculateBatchedParameterSize();
+    return batched_param_sizes_;
   }
 
-  /**
-   * @brief Batched GPU computation of the operator to be 
-   * implemented by derived ops.
-   */
-  virtual inline void RunBatchedGPU(const Batch<Backend> &input,
-      Batch<Backend> *output) {
-    NDLL_FAIL("RunBatchedGPU not implemented");
-  }
+  template <typename T = Backend>
+  inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
+  SetBatchedParamBuffers(vector<CPUSubTensor> *buffers,
+      vector<GPUSubTensor> *gpu_buffers) {
+    NDLL_ENFORCE(buffers->size() == gpu_buffers->size());
+    NDLL_ENFORCE(buffers->size() == batched_param_sizes_.size());
+    buffers_.resize(buffers->size());
+    gpu_buffers_.resize(gpu_buffers->size());
 
+    // Run any batched parameter setup
+    BatchedParameterSetup();
+  }
+  
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual inline vector<Index> InferOutputShape(const Datum<Backend> &input,
-      int data_idx, int thread_idx) {
-    NDLL_FAIL("InferOutputShape not implemented");
-  }
+  virtual vector<Index> InferOutputShape(const Datum<Backend> &input,
+      int data_idx, int thread_idx) = 0;
 
   /**
    * @brief sets the type of the input batch based on the input type
@@ -124,15 +139,55 @@ public:
     batch_size_ = batch_size;
   }
 
-  inline void set_stream_pool(std::shared_ptr<StreamPool> stream_pool) {
+  inline void set_stream_pool(shared_ptr<StreamPool> stream_pool) {
     stream_pool_ = stream_pool;
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Operator);
 protected:
+  /**
+   * @brief Per image CPU computation of the operator to be 
+   * implemented by derived ops.
+   */
+  virtual inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx, int thread_idx) {
+    NDLL_FAIL("RunPerDatumCPU not implemented");
+  }
+
+  /**
+   * @brief Batched GPU computation of the operator to be 
+   * implemented by derived ops.
+   */
+  virtual inline void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) {
+    NDLL_FAIL("RunBatchedGPU not implemented");
+  }
+
+  /**
+   * @brief Performs and serial calculation neccessary for batched parameter
+   * size calculation. Ops should do any work possible in the threaded methods
+   * to avoid doing unnecessarily serial work
+   */
+  virtual void CalculateBatchedParameterSize() {
+    // Deafult does nothing
+  }
+
+  /**
+   * @brief Performs any serial batched parameter setup that needs to be done 
+   * by the op. Ops should do any work possible in the threaded methods to 
+   * avoid doing unnecessarily serial work
+   */
+  virtual void BatchedParameterSetup() {
+    // Default does nothing
+  }
+  
   int num_threads_;
   int batch_size_;
   std::shared_ptr<StreamPool> stream_pool_;
+
+  vector<size_t> batched_param_sizes_;
+  vector<CPUSubTensor> buffers_;
+  vector<GPUSubTensor> gpu_buffers_;
 };
 
 // TODO(tgale): Is there any point to having this? It does not
@@ -154,7 +209,7 @@ public:
   virtual inline ~Transformer() = default;
 
   inline vector<Index> InferOutputShape(const Datum<Backend> &input,
-      int data_idx, int thread_idx) override {
+      int data_idx, int thread_idx) override final {
     // Transfomers cannot have data dependent output shapes, we override
     // this method and allow the user to define a simpler method that
     // only receives the input shape

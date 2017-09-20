@@ -248,6 +248,10 @@ public:
           intermediate_shapes_[i + cpu_buffers_.size()]);
     }
 
+    // Setup the mega-buffer & distribute sub-buffers to
+    // the ops in the forward pass
+    MegaBufferSetupAndDistribution();
+    
     // Execute all the prefetch ops
     for (Index i = 0; i < batch_size_; ++i) {
       thread_pool_.DoWorkWithID(std::bind(
@@ -333,6 +337,12 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
+  // Helper function to setup mega-buffer and distribute
+  // sub-buffers to the ops in the forward pass
+  void MegaBufferSetupAndDistribution() {
+
+  }
+  
   enum DecodeLocation {
     DECODE_NONE,
     DECODE_PREFETCH,

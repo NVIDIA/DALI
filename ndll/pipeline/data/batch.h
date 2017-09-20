@@ -210,10 +210,10 @@ public:
   
   inline void Reset(Batch<Backend> *batch, int sample_idx) {
 #ifndef NDEBUG
-    NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
     NDLL_ENFORCE(sample_idx >= 0, "Negative index not supported");
     NDLL_ENFORCE(sample_idx < batch->ndatum(), "Sample index out of range");
 #endif
+    NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
     
     // The sub-batch does not own its memory
     owned_ = false;

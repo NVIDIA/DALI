@@ -23,13 +23,6 @@ public:
   }
   
   virtual inline ~NormalizePermuteOp() = default;
-
-  inline void RunBatchedGPU(const Batch<Backend> &input,
-      Batch<Backend> *output) override {
-    BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
-        mean_.template data<float>(), std_.template data<float>(),
-        output->template data<OUT>(), stream_pool_->GetStream());
-  }
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int /* unused */, int /* unused */) override {    
@@ -55,6 +48,13 @@ public:
     return "NormalizePermuteOp";
   }
 protected:
+  inline void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) override {
+    BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
+        mean_.template data<float>(), std_.template data<float>(),
+        output->template data<OUT>(), stream_pool_->GetStream());
+  }
+  
   Tensor<Backend> mean_, std_;
   vector<float> mean_vec_, std_vec_;
   int H_, W_, C_;

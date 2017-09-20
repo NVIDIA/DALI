@@ -58,31 +58,6 @@ public:
   }
 
   virtual inline ~ResizeCropMirrorOp() = default;
-
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) override {
-    TransformMeta &meta = transform_params_[data_idx];
-#ifndef NDEBUG
-    NDLL_ENFORCE(input.shape().size() == 3);
-    NDLL_ENFORCE(input.shape()[0] == meta.H);
-    NDLL_ENFORCE(input.shape()[1] == meta.W);
-    NDLL_ENFORCE(input.shape()[2] == meta.C);
-    NDLL_ENFORCE(output->shape().size() == 3);
-    NDLL_ENFORCE(output->shape()[0] == crop_h_);
-    NDLL_ENFORCE(output->shape()[1] == crop_w_);
-    NDLL_ENFORCE(output->shape()[2] == meta.C);
-#endif
-    tl_workspace_[thread_idx].resize(meta.rsz_h*meta.rsz_w*meta.C);
-    ResizeCropMirrorHost(
-        input.template data<uint8>(),
-        meta.H, meta.W, meta.C,
-        meta.rsz_h, meta.rsz_w,
-        meta.crop_y, meta.crop_x,
-        crop_h_, crop_w_,
-        meta.mirror,
-        output->template data<uint8>(),
-        tl_workspace_[thread_idx].data());
-  }
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int data_idx, int /* unused */) override {
@@ -174,6 +149,31 @@ public:
   }
   
 protected:
+   inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx, int thread_idx) override {
+    TransformMeta &meta = transform_params_[data_idx];
+#ifndef NDEBUG
+    NDLL_ENFORCE(input.shape().size() == 3);
+    NDLL_ENFORCE(input.shape()[0] == meta.H);
+    NDLL_ENFORCE(input.shape()[1] == meta.W);
+    NDLL_ENFORCE(input.shape()[2] == meta.C);
+    NDLL_ENFORCE(output->shape().size() == 3);
+    NDLL_ENFORCE(output->shape()[0] == crop_h_);
+    NDLL_ENFORCE(output->shape()[1] == crop_w_);
+    NDLL_ENFORCE(output->shape()[2] == meta.C);
+#endif
+    tl_workspace_[thread_idx].resize(meta.rsz_h*meta.rsz_w*meta.C);
+    ResizeCropMirrorHost(
+        input.template data<uint8>(),
+        meta.H, meta.W, meta.C,
+        meta.rsz_h, meta.rsz_w,
+        meta.crop_y, meta.crop_x,
+        crop_h_, crop_w_,
+        meta.mirror,
+        output->template data<uint8>(),
+        tl_workspace_[thread_idx].data());
+  }
+  
   std::mt19937 rand_gen_;
   
   // Resize meta-data
@@ -228,8 +228,18 @@ public:
         mirror_prob) {}
 
   virtual inline ~FastResizeCropMirrorOp() = default;
+  
+  inline FastResizeCropMirrorOp* Clone() const override {
+    return new FastResizeCropMirrorOp(random_resize_, warp_resize_,
+        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
+  }
 
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
+  inline string name() const override {
+    return "FastResizeCropMirrorOp";
+  }
+  
+protected:
+    inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int thread_idx) override {
     typename ResizeCropMirrorOp<Backend>::TransformMeta &meta =
       transform_params_[data_idx];
@@ -255,16 +265,6 @@ public:
         tl_workspace_[thread_idx].data());
   }
   
-  inline FastResizeCropMirrorOp* Clone() const override {
-    return new FastResizeCropMirrorOp(random_resize_, warp_resize_,
-        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
-  }
-
-  inline string name() const override {
-    return "FastResizeCropMirrorOp";
-  }
-  
-protected:
   using ResizeCropMirrorOp<Backend>::random_resize_;
   using ResizeCropMirrorOp<Backend>::warp_resize_;
   using ResizeCropMirrorOp<Backend>::resize_a_;
