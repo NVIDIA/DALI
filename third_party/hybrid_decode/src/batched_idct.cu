@@ -457,6 +457,11 @@ __global__ __launch_bounds__(256, 6) void batchedInverseDct32x8Kernel(
   // The global offset for the block.
   for( int k = 0, i = threadIdx.y ; k < 4 ; ++k, i += 8 )
     if( i < numBlocks ) {
+      // DEBUG
+      if (threadIdx.x == 0 && threadIdx.y == 4 && blockIdx.x == 409) {
+        printf("accessing dct ptr (%lld) at offset %d", dct, dctOffset+32*i+threadIdx.x*sizeof(int));
+      }
+      
       reinterpret_cast<int*>(smemBlock)[33*i + threadIdx.x] = dct[dctOffset + 32*i + threadIdx.x];
     }
   __syncthreads();

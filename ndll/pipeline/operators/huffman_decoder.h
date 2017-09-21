@@ -167,25 +167,21 @@ public:
 
   inline void set_batch_size(int batch_size) override {
     batch_size_ = batch_size;
-    num_component_ = batch_size_*C_;
+    num_component_ = batch_size_*C_;    
     yuv_dims_.resize(num_component_);
     dct_step_.resize(num_component_);
     grid_info_.resize(num_component_);
     yuv_offsets_.resize(num_component_);
+
+    // DEBUG
+    // num_component_ = C_;
   }
   
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    cout << "RUNNING BATCHED GPU" << endl;
-    CUDA_CALL(cudaDeviceSynchronize());
     // TODO(tgale): set stream here for npp
-
-    GPUSubTensor &img_idxs = batch_param_gpu_buffers_[2];
-    cout << "img idxs meta-data: " << endl;
-    cout << img_idxs.size() << endl;
-    cout << (long long)img_idxs.template data<int>() << endl;
-    cout << "num block: " << num_cuda_blocks_ << endl;
+    CUDA_CALL(cudaDeviceSynchronize());
     
     // Run the batched kernel
     batchedDctQuantInv(
@@ -196,10 +192,12 @@ protected:
         );
     CUDA_CALL(cudaDeviceSynchronize());
 
-    // DEBUG dump the output
-    DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[0].dst,
-        channel_->parsed_jpegs[0].imgDims.height, channel_->parsed_jpegs[0].imgDims.width, 1,
-        channel_->parsed_jpegs[0].imgDims.width, "yuv_img");
+    for (int i = 0; i < num_component_; ++i) {
+      // DEBUG dump the output
+      DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
+          yuv_dims_[i].height, yuv_dims_[i].width, 1,
+          yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
+    }
   }
 
   inline void CalculateBatchedParameterSize() override {
@@ -219,8 +217,8 @@ protected:
     batched_param_sizes_[0] = 64*num_component_; // quant tables
     batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
     batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int);
-    cout << "requested imgidx bytes: " << batched_param_sizes_[2] << endl;
-
+    cout << "num_block: " << num_cuda_blocks_ << endl;
+    
     // Calculate the size of the YUV intermediate
     // data and resize the intermediate buffer
     size_t yuv_size = 0;
@@ -256,9 +254,12 @@ protected:
     int dct_offset = 0;
     for (int i = 0; i < 3; ++i) {
       int comp_id = data_idx*3 + i;
-      param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i];
+      param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
       param->src = static_cast<const int16*>(input.raw_datum(data_idx)) + dct_offset;
+      cout << "offset for datum (" << data_idx << ") = " << input.datum_offset(data_idx) << endl;
+      cout << "dctoff[" << comp_id << "]: " << dct_offset << endl;
       param->srcStep = dct_step_[comp_id];
+      cout << "dctstep[" << comp_id << "]: " << dct_step_[comp_id] << endl;
       param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
       param->dstWidth = yuv_dims_[comp_id].width;
       param->gridInfo = grid_info_[comp_id];
@@ -266,6 +267,7 @@ protected:
       // Offset for the next set of DCT coefficients for this image
       dct_offset += jpeg.dctSize[i] / sizeof(int16);
     }
+    cout << "input bytes: " << input.nbytes() << endl;
   }
   
   bool color_;

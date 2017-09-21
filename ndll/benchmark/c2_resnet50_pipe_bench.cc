@@ -103,16 +103,16 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.Build(batch->type());
 
   // Run once to allocate the memory
-  pipe.Print();
+  // pipe.Print();
   pipe.RunPrefetch(batch);
-  pipe.RunCopy();
-  pipe.RunForward(&output_batch);
+  // pipe.RunCopy();
+  // pipe.RunForward(&output_batch);
 
   while(st.KeepRunning()) {
-    pipe.RunPrefetch(batch);
-    pipe.RunCopy();
-    pipe.RunForward(&output_batch);
-    CUDA_CALL(cudaDeviceSynchronize());
+    // pipe.RunPrefetch(batch);
+    // pipe.RunCopy();
+    // pipe.RunForward(&output_batch);
+    // CUDA_CALL(cudaDeviceSynchronize());
   }
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
@@ -138,7 +138,7 @@ static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
   //     b->Args({batch_size, num_thread, 8});
   //   }
   // }
-  b->Args({1, 1, 1});
+  b->Args({1, 2, 1});
 }
 
 BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)

@@ -299,10 +299,6 @@ public:
             cudaMemcpyHostToDevice,
             stream_pool_->GetStream()));
 
-    // DEBUG
-    CUDA_CALL(cudaDeviceSynchronize());
-    cout << "hsize: " << mega_buffer_.nbytes() << endl;
-    cout << "dsize: " << mega_buffer_gpu_.nbytes() << endl;
     // Copy the mega-buffer to GPU in the main stream
     CUDA_CALL(cudaMemcpyAsync(
             mega_buffer_gpu_.raw_data(),
@@ -310,9 +306,6 @@ public:
             mega_buffer_.nbytes(),
             cudaMemcpyHostToDevice,
             stream_pool_->GetStream()));
-
-    // DEBUG
-    CUDA_CALL(cudaDeviceSynchronize());
   }
   
   /**
@@ -382,13 +375,10 @@ private:
         forward_ops_[i]->GetBatchedParameterSize();
       num_buff_for_op[i] = sizes.size();
       for (auto &num_bytes : sizes) {
-        cout << "pipeline got request for bytes: " << num_bytes << endl;
         // Align the start of each buffer to 8-bytes
         size_t aligned_num_bytes = round_up_to_8(num_bytes);
         offsets.push_back(total_bytes);
         total_bytes += aligned_num_bytes;
-
-        cout << "pipeline providing bytes: " << aligned_num_bytes << endl;
       }
     }
     offsets.push_back(total_bytes);
