@@ -177,6 +177,16 @@ public:
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
+    cout << "RUNNING BATCHED GPU" << endl;
+    CUDA_CALL(cudaDeviceSynchronize());
+    // TODO(tgale): set stream here for npp
+
+    GPUSubTensor &img_idxs = batch_param_gpu_buffers_[2];
+    cout << "img idxs meta-data: " << endl;
+    cout << img_idxs.size() << endl;
+    cout << (long long)img_idxs.template data<int>() << endl;
+    cout << "num block: " << num_cuda_blocks_ << endl;
+    
     // Run the batched kernel
     batchedDctQuantInv(
         batch_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
@@ -184,6 +194,12 @@ protected:
         batch_param_gpu_buffers_[2].template data<int>(),
         num_cuda_blocks_
         );
+    CUDA_CALL(cudaDeviceSynchronize());
+
+    // DEBUG dump the output
+    DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[0].dst,
+        channel_->parsed_jpegs[0].imgDims.height, channel_->parsed_jpegs[0].imgDims.width, 1,
+        channel_->parsed_jpegs[0].imgDims.width, "yuv_img");
   }
 
   inline void CalculateBatchedParameterSize() override {
@@ -202,7 +218,8 @@ protected:
     // output batch
     batched_param_sizes_[0] = 64*num_component_; // quant tables
     batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
-    batched_param_sizes_[2] = num_cuda_blocks_;
+    batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int);
+    cout << "requested imgidx bytes: " << batched_param_sizes_[2] << endl;
 
     // Calculate the size of the YUV intermediate
     // data and resize the intermediate buffer
@@ -236,14 +253,18 @@ protected:
     // TODO(tgale): Make sure we don't create params for invalid
     // components i.e. those unused by a grayscale image
     DctQuantInvImageParam *param = nullptr;
+    int dct_offset = 0;
     for (int i = 0; i < 3; ++i) {
       int comp_id = data_idx*3 + i;
       param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i];
-      param->src = static_cast<const int16*>(input.raw_datum(comp_id));
+      param->src = static_cast<const int16*>(input.raw_datum(data_idx)) + dct_offset;
       param->srcStep = dct_step_[comp_id];
       param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
       param->dstWidth = yuv_dims_[comp_id].width;
       param->gridInfo = grid_info_[comp_id];
+
+      // Offset for the next set of DCT coefficients for this image
+      dct_offset += jpeg.dctSize[i] / sizeof(int16);
     }
   }
   

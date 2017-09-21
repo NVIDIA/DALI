@@ -19,6 +19,7 @@ endif()
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message(STATUS "Building in DEBUG mode")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G")
 endif()
 
 # Cmake path

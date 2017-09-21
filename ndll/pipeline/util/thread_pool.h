@@ -94,10 +94,10 @@ private:
       try {
         work(thread_id);
       } catch(std::runtime_error &e) {
-        cout << "Caught exception in thread " << e.what() << endl;
+        cout << "CAUGHT EXCEPTION IN THREAD" << endl << e.what() << endl;
         exit(EXIT_FAILURE);
       } catch(...) {
-        cout << "Caught unknown exception in thread" << endl;
+        cout << "CAUGHT UNKNOWN EXCEPTION IN THREAD" << endl;
         exit(EXIT_FAILURE);
       }
 

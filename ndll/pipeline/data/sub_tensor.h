@@ -43,7 +43,7 @@ public:
 #ifndef NDEBUG
     NDLL_ENFORCE(start >= 0);
     NDLL_ENFORCE(end > start);
-    NDLL_ENFORCE(end <= in.size());
+    NDLL_ENFORCE(end <= in->size());
 #endif
     NDLL_ENFORCE(in->ndim() == 1, "This method only supports wrapping in 1-dimension");
     NDLL_ENFORCE(in != nullptr);
@@ -108,7 +108,7 @@ public:
 #ifndef NDEBUG
     NDLL_ENFORCE(start >= 0);
     NDLL_ENFORCE(end > start);
-    NDLL_ENFORCE(end <= in.size());
+    NDLL_ENFORCE(end <= in->size());
 #endif
     NDLL_ENFORCE(in->ndim() == 1, "This method only supports wrapping in 1-dimension");
     NDLL_ENFORCE(in != nullptr);

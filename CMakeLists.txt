@@ -24,6 +24,7 @@ endif()
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message(STATUS "Building in DEBUG mode")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G")
 endif()
 
 # Cmake path
@@ -36,8 +37,7 @@ include(cmake/Dependencies.cmake)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-function -fno-strict-aliasing -O2 -fPIC")
 
 # TODO(tgale): Add sm targets
-# Note: Adding this causes nvcc to throw error that 'std' was redefined
-# set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
+# set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G")
 
 # Project dir
 include_directories(${PROJECT_SOURCE_DIR})
