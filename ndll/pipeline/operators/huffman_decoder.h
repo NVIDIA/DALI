@@ -178,6 +178,12 @@ protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     // Run the batched kernel
+    batchedDctQuantInv(
+        batch_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
+        batch_param_gpu_buffers_[0].template data<uint8>(),
+        batch_param_gpu_buffers_[2].template data<int>(),
+        num_cuda_blocks_
+        );
   }
 
   inline void CalculateBatchedParameterSize() override {
