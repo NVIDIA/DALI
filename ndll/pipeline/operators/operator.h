@@ -97,11 +97,25 @@ public:
       const vector<GPUSubTensor> &gpu_buffers) {
     NDLL_ENFORCE(buffers.size() == gpu_buffers.size());
     NDLL_ENFORCE(buffers.size() == batched_param_sizes_.size());
-    buffers_ = buffers;
-    gpu_buffers_ = gpu_buffers;
+    batch_param_buffers_ = buffers;
+    batch_param_gpu_buffers_ = gpu_buffers;
+  }
 
-    // Run any batched parameter setup
-    BatchedParameterSetup();
+  template <typename T = Backend>
+  inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
+  BatchedParameterSetup(const Batch<Backend> &input) {
+    SerialBatchedParameterSetup(input);
+  }
+
+  /**
+   * @brief Gives Operators a chance to perform batched parameter setup
+   * in the executors threads to minimize serial work
+   */
+  template <typename T = Backend>
+  inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
+  BatchedParameterSetupPerDatum(const Batch<Backend> &input,
+      int data_idx, int thread_idx) {
+    ThreadedBatchedParameterSetup(input, data_idx, thread_idx);
   }
   
   /**
@@ -166,18 +180,44 @@ protected:
   /**
    * @brief Performs and serial calculation neccessary for batched parameter
    * size calculation. Ops should do any work possible in the threaded methods
-   * to avoid doing unnecessarily serial work
+   * to avoid doing unnecessary serial work
    */
   virtual void CalculateBatchedParameterSize() {
-    // Deafult does nothing
+    // Default does nothing
   }
 
+  // TODO(tgale): We need to know the output buffer to really support batched
+  // parameter setup where all kernels can see the input and output buffers
+  // they will be working on. Can we alter the pipeline to take a fixed output
+  // buffer? Yes, this would not be too bad. How would this affect framework
+  // integration? We can't resize the output if we've wrapped one of their
+  // buffers. This is what we do currently anyways. For pipelines where the
+  // output is variable size, they'll just have to do an extra copy on the
+  // forward pass to get the result out
+  
   /**
    * @brief Performs any serial batched parameter setup that needs to be done 
    * by the op. Ops should do any work possible in the threaded methods to 
-   * avoid doing unnecessarily serial work
+   * avoid doing unnecessary serial work
+   *
+   * The input batch is provided for ops that need to set ptr offsets. We
+   * cannot provide the output batch for all ops, as the last op in the 
+   * pipeline won't have its output batch set until 'RunForward' is called
    */
-  virtual void BatchedParameterSetup() {
+  virtual void SerialBatchedParameterSetup(const Batch<Backend> &input) {
+    // Default does nothing
+  }
+
+  /**
+   * Can be overriden by a derive op to perform any needed batched parameter
+   * setup in the executors threads to avoid doing unnecessary serial work
+   *
+   * The input batch is provided for ops that need to set ptr offsets. We
+   * cannot provide the output batch for all ops, as the last op in the 
+   * pipeline won't have its output batch set until 'RunForward' is called
+   */
+  virtual void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
+      int data_idx, int thread_idx) {
     // Default does nothing
   }
   
@@ -186,8 +226,8 @@ protected:
   std::shared_ptr<StreamPool> stream_pool_;
 
   vector<size_t> batched_param_sizes_;
-  vector<CPUSubTensor> buffers_;
-  vector<GPUSubTensor> gpu_buffers_;
+  vector<CPUSubTensor> batch_param_buffers_;
+  vector<GPUSubTensor> batch_param_gpu_buffers_;
 };
 
 // TODO(tgale): Is there any point to having this? It does not

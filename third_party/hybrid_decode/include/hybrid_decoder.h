@@ -103,7 +103,7 @@ private:
 void batchedDctQuantInv(BatchedDctParam *param);
 
 struct DctQuantInvImageParam {
-  Npp16s *src = nullptr;
+  const Npp16s *src = nullptr;
   int srcStep = 0;
   
   Npp8u *dst = nullptr;

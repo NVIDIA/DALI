@@ -91,27 +91,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
-  
-  // // Add a decoder and some transformers
-  // bool color = true;
-  // TJPGDecoder<PinnedCPUBackend> jpg_decoder(color);
-  // pipe.AddDecoder(jpg_decoder);
-    
-  // // Add a resize+crop+mirror op
-  // if (fast_resize) {
-  //   FastResizeCropMirrorOp<PinnedCPUBackend> resize_crop_mirror_op(
-  //       true, false, 256, 480, true, 224, 224, 0.5f);
-  //   pipe.AddPrefetchOp(resize_crop_mirror_op);
-  // } else {
-  //   ResizeCropMirrorOp<PinnedCPUBackend> resize_crop_mirror_op(
-  //       true, false, 256, 480, true, 224, 224, 0.5f);
-  //   pipe.AddPrefetchOp(resize_crop_mirror_op);
-  // }
 
-  // // Add normalize permute op
-  // NormalizePermuteOp<GPUBackend, float> norm_permute_op(
-  //     {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
-  // pipe.AddForwardOp(norm_permute_op);
+  DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
+  pipe.AddForwardOp(idct_op);
     
   Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
       this->jpegs_, this->jpeg_sizes_, batch_size);
@@ -121,6 +103,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.Build(batch->type());
 
   // Run once to allocate the memory
+  pipe.Print();
   pipe.RunPrefetch(batch);
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
@@ -157,7 +140,7 @@ static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1000)
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);

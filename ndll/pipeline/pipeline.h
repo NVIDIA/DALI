@@ -271,6 +271,13 @@ public:
                   datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
                   prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
                 }
+
+                // Give the forward ops a chance to set up
+                // parameters for their kernel launches
+                for (size_t j = 0; j < forward_ops_.size(); ++j) {
+                  forward_ops_[j]->BatchedParameterSetupPerDatum(
+                      *gpu_buffers_[j], data_idx, tid);
+                }
               }, i, std::placeholders::_1));
     }
     thread_pool_.WaitForWork();
@@ -395,6 +402,8 @@ private:
       }
       forward_ops_[i]->
         SetBatchedParameterBuffers(cpu_buffers, gpu_buffers);
+      forward_ops_[i]->
+        BatchedParameterSetup(*gpu_buffers_[i]);
     }
   }
   

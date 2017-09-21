@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_HUFFMAN_DECODER_H_
 #define NDLL_PIPELINE_OPERATORS_HUFFMAN_DECODER_H_
 
+#include <cstring>
+
 #include <hybrid_decoder.h>
 
 #include "ndll/common.h"
@@ -120,16 +122,30 @@ public:
   inline DCTQuantInvOp(bool color, shared_ptr<HybridJPEGDecodeChannel> channel) :
     color_(color), C_(color ? 3 : 1), channel_(channel) {
     NDLL_ENFORCE(channel != nullptr);
+
+    // We need three buffers for our parameters
+    batched_param_sizes_.resize(3);
+    yuv_data_.template data<uint8>();
   }
   
   virtual inline ~DCTQuantInvOp() = default;
   
-  inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int data_idx, int /* unused */) override {
+  inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape,
+      int data_idx, int /* unused */) override {
+    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    for (int i = 0; i < jpeg.components; ++i) {
+      // We currently only support 8-bit quant tables
+      NDLL_ENFORCE(jpeg.quantTables[i].nPrecision ==
+          QuantizationTable::PRECISION_8_BIT,
+          "Hybrid decode currently only supports 8-bit quantization tables");
+      
+      // save the yuv dims and dct steps
+      yuv_dims_[data_idx*3 + i] = jpeg.yCbCrDims[i];
+      dct_step_[data_idx*3 + i] = jpeg.dctLineStep[i];
+    }
     // The output shape is determined by the encoded jpeg, whose meta-data
     // we access through the Channel connected to the huffman decoder
-    return vector<Index>{channel_->parsed_jpegs[data_idx].imgDims.height,
-        channel_->parsed_jpegs[data_idx].imgDims.width, C_};
+    return vector<Index>{jpeg.imgDims.height, jpeg.imgDims.width, C_};
   }
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
@@ -151,37 +167,100 @@ public:
 
   inline void set_batch_size(int batch_size) override {
     batch_size_ = batch_size;
+    num_component_ = batch_size_*C_;
+    yuv_dims_.resize(num_component_);
+    dct_step_.resize(num_component_);
+    grid_info_.resize(num_component_);
+    yuv_offsets_.resize(num_component_);
   }
-
+  
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    /* Need to setup:
-     * 1) quant tables (8-bit only)
-     *    - can pack into mega-buffer once we've received our pointers
-     * 2) image idxs, gridinfo, number of CTAs to launch
-     *    - can calculate mostly in parallel w/ reduction over num blocks 
-     *      and offset calculation happening serially
-     * 3) params for each image component
-     *    - if grayscale we can do all in parallel (we ignore u&v components)
-     *    - if color, we need to calculate offsets so each thread can save in the
-     *      correct place (or can we still make the params and let imgidxs skip over
-     *      them?)
-     */
-    // Batched methods need to specify number of ptrs & sizes so pipeline can align them
-    // all correctly and just hand the op ptrs
+    // Run the batched kernel
+  }
+
+  inline void CalculateBatchedParameterSize() override {
+    int num_image_planes = 0;
+    for (int i = 0; i < batch_size_; ++i) {
+      // Note: Could do thread-wise reductions first
+      num_image_planes += channel_->parsed_jpegs[i].components;
+    }
+
+    validateBatchedDctQuantInvParams(dct_step_.data(), yuv_dims_.data(), num_component_);
+    getBatchedInvDctLaunchParams(yuv_dims_.data(), num_component_,
+        &num_cuda_blocks_, grid_info_.data());
+
+    // TODO(tgale): If we are outputting grayscale images, only do the idct
+    // for the Y plane of the images and output the result directly to the
+    // output batch
+    batched_param_sizes_[0] = 64*num_component_; // quant tables
+    batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
+    batched_param_sizes_[2] = num_cuda_blocks_;
+
+    // Calculate the size of the YUV intermediate
+    // data and resize the intermediate buffer
+    size_t yuv_size = 0;
+    for (int i = 0; i < num_component_; ++i) {
+      yuv_offsets_[i] = yuv_size;
+      yuv_size += yuv_dims_[i].height * yuv_dims_[i].width;
+    }
+    yuv_data_.Resize({(Index)yuv_size});
+  }
+
+  inline void SerialBatchedParameterSetup(const Batch<Backend> & /* unused */) override {
+    // Setup image indices for batched idct kernel launch
+    getBatchedInvDctImageIndices(yuv_dims_.data(),
+        num_component_, batch_param_buffers_[2].template data<int>());
+  }
+
+  inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
+      int data_idx, int thread_idx) override {
+    // Copy quant tables into mega-buffer
+    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    for (int i = 0; i < jpeg.components; ++i) {
+      int comp_id = data_idx*3 + i;
+      std::memcpy(batch_param_buffers_[0].template data<uint8>() + (comp_id * 64),
+          jpeg.quantTables[i].aTable.lowp, 64);
+    }
+
+
+    // Setup batched idct parameters
     //
-    // Batched methods need a serial section to setup params (and place them into the megabuffer)
-    // Batched methods need a threaded section to setup params (and place them into the megabuffer)
+    // TODO(tgale): Make sure we don't create params for invalid
+    // components i.e. those unused by a grayscale image
+    DctQuantInvImageParam *param = nullptr;
+    for (int i = 0; i < 3; ++i) {
+      int comp_id = data_idx*3 + i;
+      param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i];
+      param->src = static_cast<const int16*>(input.raw_datum(comp_id));
+      param->srcStep = dct_step_[comp_id];
+      param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
+      param->dstWidth = yuv_dims_[comp_id].width;
+      param->gridInfo = grid_info_[comp_id];
+    }
   }
   
   bool color_;
-  Index C_;
+  int C_, num_component_;
   shared_ptr<HybridJPEGDecodeChannel> channel_;
 
+  // image meta-data extracted from parsed jpegs
+  vector<NppiSize> yuv_dims_;
+  vector<int> dct_step_;
+  int num_cuda_blocks_;
+  vector<int2> grid_info_;
+
+  // Stored intermediate result of idct+iquant step
+  Tensor<Backend> yuv_data_;
+  vector<int> yuv_offsets_;
+  
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_pool_;
+  using Operator<Backend>::batched_param_sizes_;
+  using Operator<Backend>::batch_param_buffers_;
+  using Operator<Backend>::batch_param_gpu_buffers_;
 };
 
 

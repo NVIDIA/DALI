@@ -80,6 +80,13 @@ public:
         (datum_offset(idx) * type_.size())
         );
   }
+
+  inline const void* raw_datum(int idx) const {
+    return static_cast<const void*>(
+        static_cast<const uint8*>(this->raw_data()) +
+        (datum_offset(idx) * type_.size())
+        );
+  }
   
   /**
    * @brief Returns the number of samples in the batch
