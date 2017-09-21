@@ -440,10 +440,6 @@ __global__ __launch_bounds__(256, 6) void batchedInverseDct32x8Kernel(
   int blockOffset = param.gridInfo.y;
   int xBlockId = (blockIdx.x - blockOffset) % param.gridInfo.x;
   int yBlockId = (blockIdx.x - blockOffset) / param.gridInfo.x;
-
-  // if (xBlockId == 0 && yBlockId == 0 && threadIdx.x == 0 && threadIdx.y == 0) {
-  //   printf("comp/outptr: %d / %lld\n", imgIdx, (long long)img);
-  // }
   
   // Shared memory to transpose blocks.
   __shared__ float smemBlock[8][256];
@@ -457,11 +453,6 @@ __global__ __launch_bounds__(256, 6) void batchedInverseDct32x8Kernel(
   // The global offset for the block.
   for( int k = 0, i = threadIdx.y ; k < 4 ; ++k, i += 8 )
     if( i < numBlocks ) {
-      // DEBUG
-      if (threadIdx.x == 0 && threadIdx.y == 4 && blockIdx.x == 409) {
-        printf("accessing dct ptr (%lld) at offset %d", dct, dctOffset+32*i+threadIdx.x*sizeof(int));
-      }
-      
       reinterpret_cast<int*>(smemBlock)[33*i + threadIdx.x] = dct[dctOffset + 32*i + threadIdx.x];
     }
   __syncthreads();

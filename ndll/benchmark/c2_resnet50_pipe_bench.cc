@@ -105,14 +105,14 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   // Run once to allocate the memory
   // pipe.Print();
   pipe.RunPrefetch(batch);
-  // pipe.RunCopy();
-  // pipe.RunForward(&output_batch);
+  pipe.RunCopy();
+  pipe.RunForward(&output_batch);
 
   while(st.KeepRunning()) {
-    // pipe.RunPrefetch(batch);
-    // pipe.RunCopy();
-    // pipe.RunForward(&output_batch);
-    // CUDA_CALL(cudaDeviceSynchronize());
+    pipe.RunPrefetch(batch);
+    pipe.RunCopy();
+    pipe.RunForward(&output_batch);
+    CUDA_CALL(cudaDeviceSynchronize());
   }
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
@@ -127,21 +127,20 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(250)
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
-  // for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
-  //   for (int num_thread = 1; num_thread <= 1; ++num_thread) {
-  //     b->Args({batch_size, num_thread, 8});
-  //   }
-  // }
-  b->Args({1, 2, 1});
+  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+      b->Args({batch_size, num_thread, 8});
+    }
+  }
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);

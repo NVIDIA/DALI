@@ -259,8 +259,7 @@ void getBatchedInvDctLaunchParams(const NppiSize *dims, int num,
   for (int i = 0; i < num; ++i) {
     gridInfo[i].x = DivUp(dims[i].width, 256);
     gridInfo[i].y = *numBlocks; // Offset in thet grid for this image
-    cout << "num blocks: " << *numBlocks << endl;
-    cout << "dims: " << dims[i].width << "x" << dims[i].height << endl;
+
     (*numBlocks) += DivUp(dims[i].width, 256) * dims[i].height / 8;
   }
 }

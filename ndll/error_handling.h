@@ -9,6 +9,7 @@
 #include <nvml.h>
 
 #include "ndll/common.h"
+#include "ndll/util/npp.h"
 
 namespace ndll {
 
@@ -96,6 +97,20 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = "[" + file + ":" + line +      \
         "]: NVML error \"" +                        \
         nvmlErrorString(status) + "\"";             \
+      throw std::runtime_error(error);              \
+    }                                               \
+  } while (0)
+
+// For calling NPP library functions
+#define NPP_CALL(code)                              \
+  do {                                              \
+    NppStatus status = code;                        \
+    if (status != NPP_SUCCESS) {                    \
+      string file = __FILE__;                       \
+      string line = std::to_string(__LINE__);       \
+      string error = "[" + file + ":" + line +      \
+        "]: NPP error \"" +                         \
+        nppErrorString(status) + "\"";              \
       throw std::runtime_error(error);              \
     }                                               \
   } while (0)
