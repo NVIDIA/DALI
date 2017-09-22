@@ -126,7 +126,9 @@ protected:
 // with our extra parameters, but greatly simplifies the code so it is ok for now.
 //
 // When we are outputting grayscale images, we only bother to do the idcts for the chrominance
-// planes of the jpegs. We do this directly into the output buffer.
+// planes of the jpegs. We do this into our intermediate buffer because the output of the idct
+// is still aligned to jpeg block stuff, and then we just perform dev-to-dev copies to get
+// the final grayscale images into the output buffer
 template <typename Backend>
 class DCTQuantInvOp : public Transformer<Backend> {
 public:
@@ -144,15 +146,21 @@ public:
   inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape,
       int data_idx, int /* unused */) override {
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
-    for (int i = 0; i < jpeg.components; ++i) {
+    for (int i = 0; i < C_; ++i) {
+      // Note: We only iterate over the number of output channels. In the case we
+      // are outputting color images, we want to copy all the image meta-data
+      // (even the zero-dim components for grayscale images) so that the launch
+      // parameters are set up correctly. In the case we are outputing grayscale
+      // images, we don't care about the chrominance planes of the input images
+      
       // We currently only support 8-bit quant tables
       NDLL_ENFORCE(jpeg.quantTables[i].nPrecision ==
           QuantizationTable::PRECISION_8_BIT,
           "Hybrid decode currently only supports 8-bit quantization tables");
       
       // save the yuv dims and dct steps
-      yuv_dims_[data_idx*3 + i] = jpeg.yCbCrDims[i];
-      dct_step_[data_idx*3 + i] = jpeg.dctLineStep[i];
+      yuv_dims_[data_idx*C_ + i] = jpeg.yCbCrDims[i];
+      dct_step_[data_idx*C_ + i] = jpeg.dctLineStep[i];
     }
     // The output shape is determined by the encoded jpeg, whose meta-data
     // we access through the Channel connected to the huffman decoder
@@ -208,6 +216,25 @@ protected:
           yuv_dims_[i].height, yuv_dims_[i].width, 1,
           yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
     }
+
+    if (color_) {
+      // YUV->RGB here
+    } else {
+      // Stream device to device copies to the output buffer
+      vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
+      for (int i = 0; i < batch_size_; ++i) {
+        // Note: Need to do a 2D memcpy to handle padding in the width dimension
+        const vector<Index> &out_dims = output->datum_shape(i);
+        CUDA_CALL(cudaMemcpy2DAsync(output->raw_datum(i), // dst
+                out_dims[1], // dptich
+                yuv_data_.template data<uint8>() + yuv_offsets_[i], // src
+                yuv_dims_[i].width, // spitch
+                out_dims[1], // width
+                out_dims[0], // height
+                cudaMemcpyDeviceToDevice,
+                streams[i % streams.size()]));
+      }
+    }
   }
 
   inline void CalculateBatchedParameterSize() override {
@@ -222,9 +249,7 @@ protected:
     getBatchedInvDctLaunchParams(yuv_dims_.data(), num_component_,
         &num_cuda_blocks_, grid_info_.data());
 
-    // TODO(tgale): If we are outputting grayscale images, only do the idct
-    // for the Y plane of the images and output the result directly to the
-    // output batch
+    // Setup the sizes for all of our batched parameters
     batched_param_sizes_[0] = 64*num_component_; // quant tables
     batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
     batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int); // img idxs
@@ -249,21 +274,18 @@ protected:
       int data_idx, int thread_idx) override {
     // Copy quant tables into mega-buffer
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
-    for (int i = 0; i < jpeg.components; ++i) {
-      int comp_id = data_idx*3 + i;
+    for (int i = 0; i < C_; ++i) {
+      int comp_id = data_idx*C_ + i;
       std::memcpy(batch_param_buffers_[0].template data<uint8>() + (comp_id * 64),
           jpeg.quantTables[i].aTable.lowp, 64);
     }
 
 
     // Setup batched idct parameters
-    //
-    // TODO(tgale): Make sure we don't create params for invalid
-    // components i.e. those unused by a grayscale image
     DctQuantInvImageParam *param = nullptr;
     int dct_offset = 0;
-    for (int i = 0; i < 3; ++i) {
-      int comp_id = data_idx*3 + i;
+    for (int i = 0; i < C_; ++i) {
+      int comp_id = data_idx*C_ + i;
       param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
       param->src = static_cast<const int16*>(input.raw_datum(data_idx)) + dct_offset;
       param->srcStep = dct_step_[comp_id];

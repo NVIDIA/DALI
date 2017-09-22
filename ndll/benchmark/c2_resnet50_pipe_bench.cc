@@ -92,7 +92,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
-  DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
+  DCTQuantInvOp<GPUBackend> idct_op(false, decode_channel);
   pipe.AddForwardOp(idct_op);
     
   Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
@@ -114,6 +114,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
     pipe.RunForward(&output_batch);
     CUDA_CALL(cudaDeviceSynchronize());
   }
+
+  // DEBUG
+  DumpHWCImageBatchToFile<uint8>(output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 
@@ -138,7 +141,7 @@ static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
   //     b->Args({batch_size, num_thread, 8});
   //   }
   // }
-  b->Args({4, 1, 1});
+  b->Args({32, 1, 1});
 }
 
 BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)
