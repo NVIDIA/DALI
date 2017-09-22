@@ -299,26 +299,29 @@ void getImageSizeStepAndOffset(int w, int h, int c,
     int *offset) {
   roi->width = w;
   roi->height = h;
-  // Handle padding for different sampling ratios
-  switch (ratio) {
-  case YCbCr_422:
-    if (w & 1) { // Must be multiple of 2
-      roi->width = w + 1;
+  if (c == 3) {
+    // For RGB images, handle padding required by NPP
+    // for different sampling ratios
+    switch (ratio) {
+    case YCbCr_422:
+      if (w & 1) { // Must be multiple of 2
+        roi->width = w + 1;
+      }
+      break;
+    case YCbCr_420:
+      if (h & 1) { // Must be multiple of 2
+        roi->height = h + 1;
+      }
+      if (w & 1) {
+        roi->width = w + 1;
+      }
+      break;
+    case YCbCr_411:
+      if (w & 3) { // Must be multiple of 4
+        roi->width = (w & ~3) + 4;
+      }
+      break;
     }
-    break;
-  case YCbCr_420:
-    if (h & 1) { // Must be multiple of 2
-      roi->height = h + 1;
-    }
-    if (w & 1) {
-      roi->width = w + 1;
-    }
-    break;
-  case YCbCr_411:
-    if (w & 3) { // Must be multiple of 4
-      roi->width = (w & ~3) + 4;
-    }
-    break;
   }
   *offset = roi->width * roi->height * c;
   *step = roi->width * c;

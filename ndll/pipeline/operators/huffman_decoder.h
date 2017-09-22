@@ -139,6 +139,7 @@ public:
     // We need three buffers for our parameters
     batched_param_sizes_.resize(3);
     yuv_data_.template data<uint8>();
+    strided_imgs_.template data<uint8>();
   }
   
   virtual inline ~DCTQuantInvOp() = default;
@@ -162,6 +163,19 @@ public:
       yuv_dims_[data_idx*C_ + i] = jpeg.yCbCrDims[i];
       dct_step_[data_idx*C_ + i] = jpeg.dctLineStep[i];
     }
+
+    // Calculate output image meta-data
+    if (color_) {
+      int tmp;
+      getImageSizeStepAndOffset(
+          jpeg.imgDims.width,
+          jpeg.imgDims.height,
+          jpeg.components, jpeg.sRatio,
+          &img_rois_[data_idx],
+          &img_steps_[data_idx],
+          &tmp);
+    }
+    
     // The output shape is determined by the encoded jpeg, whose meta-data
     // we access through the Channel connected to the huffman decoder
     return vector<Index>{jpeg.imgDims.height, jpeg.imgDims.width, C_};
@@ -191,6 +205,12 @@ public:
     dct_step_.resize(num_component_);
     grid_info_.resize(num_component_);
     yuv_offsets_.resize(num_component_);
+
+    if (color_) {
+      img_rois_.resize(batch_size_);
+      img_steps_.resize(batch_size_);
+      img_offsets_.resize(batch_size_);
+    }
   }
   
 protected:
@@ -211,14 +231,16 @@ protected:
         );
 
     // DEBUG dump the output
-    for (int i = 0; i < num_component_; ++i) {
-      DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
-          yuv_dims_[i].height, yuv_dims_[i].width, 1,
-          yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
-    }
+    // for (int i = 0; i < num_component_; ++i) {
+    //   DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
+    //       yuv_dims_[i].height, yuv_dims_[i].width, 1,
+    //       yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
+    // }
 
     if (color_) {
-      // YUV->RGB here
+      // Convert the strided and subsampled YUV images to unstrided,
+      // RGB images packed densely into the output batch
+      YUVToRGBHelper(output);
     } else {
       // Stream device to device copies to the output buffer
       vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
@@ -237,6 +259,61 @@ protected:
     }
   }
 
+  inline void YUVToRGBHelper(Batch<Backend> *output) {
+    uint8 *yuv_data_ptr = yuv_data_.template data<uint8>();
+    vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
+    for (int i = 0; i < batch_size_; ++i) {
+      ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
+      if (jpeg.components == 3) {
+        uint8 *yuv_planes[3] = {yuv_data_ptr + yuv_offsets_[i*3],
+                                yuv_data_ptr + yuv_offsets_[i*3 + 1],
+                                yuv_data_ptr + yuv_offsets_[i*3 + 2]};
+        int yuv_steps[3] = {yuv_dims_[i*3].width,
+                            yuv_dims_[i*3 + 1].width,
+                            yuv_dims_[i*3 + 2].width};
+        uint8 *strided_img = strided_imgs_.template data<uint8>() + img_offsets_[i];
+        ComponentSampling sampling_ratio = jpeg.sRatio;
+
+        // Note: NPP yuv->rgb + upsample methods are very rigid. With odd dimensioned
+        // images, we need to stride the output image. We could add support for strided
+        // images in batches, but that would be a pain and force batched ops to support
+        // this if they want to be used w/ hybrid jpeg decode. To handle strides,
+        // we do the yuv->rgb+upsample into a tmp buffer and then do a small dev2dev
+        // 2d memcpy so that the output is dense.
+        //
+        // We could avoid all this hassle if NPP would just add the little condition 
+        // to their kernels...
+          
+        // Run the yuv->rgb + upsampling kernel
+        nppSetStream(streams[i % streams.size()]);
+        yCbCrToRgb((const uint8**)yuv_planes,
+            yuv_steps, strided_img, img_steps_[i],
+            img_rois_[i], sampling_ratio);
+
+        // Run a 2D memcpy to get rid of image stride
+        const vector<Index> &out_dims = output->datum_shape(i);
+        CUDA_CALL(cudaMemcpy2DAsync(
+                output->raw_datum(i), // dst
+                out_dims[1]*C_, // dpitch
+                strided_img, // src
+                img_rois_[i].width*C_, // spitch
+                out_dims[1]*C_, // width
+                out_dims[0], // height
+                cudaMemcpyDeviceToDevice,
+                streams[i % streams.size()]
+                ));
+      } else { // Handle grayscale image
+        // For grayscale images, convert to RGB straight into the output batch
+        uint8 *y_plane = yuv_data_ptr + yuv_offsets_[i*3];
+        int step = yuv_dims_[i*3].width;
+        yToRgb(y_plane, step,
+            (uint8*)output->raw_datum(i),
+            img_steps_[i], img_rois_[i],
+            streams[i % streams.size()]);
+      }
+    }
+  }
+  
   inline void CalculateBatchedParameterSize() override {
     int num_image_planes = 0;
     for (int i = 0; i < batch_size_; ++i) {
@@ -262,6 +339,18 @@ protected:
       yuv_size += yuv_dims_[i].height * yuv_dims_[i].width;
     }
     yuv_data_.Resize({(Index)yuv_size});
+
+    if (color_) {
+      // Calculate the size of the strided image intermediate buffer
+      // & resize. We waste a little memory here allocating tmp storage
+      // for grayscale images
+      size_t strided_imgs_size = 0;
+      for (int i = 0; i < batch_size_; ++i) {
+        img_offsets_[i] = strided_imgs_size;
+        strided_imgs_size += img_rois_[i].width*img_rois_[i].height*C_;
+      }
+      strided_imgs_.Resize({(Index)strided_imgs_size});
+    }
   }
 
   inline void SerialBatchedParameterSetup(const Batch<Backend> & /* unused */) override {
@@ -311,6 +400,12 @@ protected:
   // Stored intermediate result of idct+iquant step
   Tensor<Backend> yuv_data_;
   vector<int> yuv_offsets_;
+
+  // Image meta-data used for yuv->rgb conversion
+  Tensor<Backend> strided_imgs_;
+  vector<NppiSize> img_rois_;
+  vector<int> img_steps_;
+  vector<int> img_offsets_;
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;

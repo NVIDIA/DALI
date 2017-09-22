@@ -20,5 +20,9 @@ __global__ void grayToRgbKernel(const Npp8u *img, int step, Npp8u *dst,
 
 void grayToRgb(const Npp8u *img, int step, Npp8u *dst, int dstStep,
     NppiSize dims, cudaStream_t stream) {
-  grayToRgbKernel<<<1, dim3(16, 16), 0, stream>>>(img, step, dst, dstStep, dims);
+  // TODO: The launch params on this have a large effect on perf.
+  // We should try launching more blocks and maybe adapt block size
+  // to image dimensions. We could also make a batched version of this
+  // quite easily
+  grayToRgbKernel<<<1, dim3(64, 64), 0, stream>>>(img, step, dst, dstStep, dims);
 }

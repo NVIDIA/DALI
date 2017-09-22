@@ -116,7 +116,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   }
 
   // DEBUG
-  DumpHWCImageBatchToFile<uint8>(output_batch);
+  // DumpHWCImageBatchToFile<uint8>(output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 
