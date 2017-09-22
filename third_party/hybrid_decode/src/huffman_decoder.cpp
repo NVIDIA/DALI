@@ -162,7 +162,7 @@ void HuffmanDecoder::decode() {
           aBlocks[iComponent] = aHostBlocksDCT_[iComponent].blockData();
           aLineSteps[iComponent] = aHostBlocksDCT_[iComponent].lineStep();
         }
-            
+
         NPP_CHECK_NPP(nppiDecodeHuffmanScanHost_JPEG_8u16s_P3R(rScan.bufferData(),
                 rScan.bufferSize(), rScan.restartInterval(), 
                 rScan.scanHeader().nSs, rScan.scanHeader().nSe, 
