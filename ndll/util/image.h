@@ -24,6 +24,13 @@ void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
 
 /**
+ * Loads all jpegs from the list of image names. Assumes names contains
+ * full path
+ */
+void LoadJPEGS(const vector<string> &jpeg_names,
+    vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
+
+/**
  * Writes an HWC image to the specified file. Add the file extension '.txt'
  */
 template <typename T>

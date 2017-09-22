@@ -43,6 +43,7 @@ public:
 
   virtual void TearDown() {
     for (auto ptr : images_) delete[] ptr;
+    NDLLTest::TearDown();
   }
   
   void DecodeJPEGS() {

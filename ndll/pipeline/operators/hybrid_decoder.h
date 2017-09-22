@@ -415,10 +415,6 @@ protected:
   using Operator<Backend>::batch_param_gpu_buffers_;
 };
 
-
-
-
-
 } // namespace ndll
 
 #endif // NDLL_PIPELINE_OPERATORS_HYBRID_DECODER_H_

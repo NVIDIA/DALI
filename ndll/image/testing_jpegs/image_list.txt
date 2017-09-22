@@ -1,5 +1,6 @@
-1x1-1x1-1x1.jpg
-1x1.jpg
-1x2-1x1-1x1.jpg
-2x1-1x1-1x1.jpg
-2x2-1x1-1x1.jpg
+420.jpg
+422.jpg
+440.jpg
+444.jpg
+cmyk.jpg
+gray.jpg
