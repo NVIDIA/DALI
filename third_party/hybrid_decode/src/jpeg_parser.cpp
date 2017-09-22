@@ -324,6 +324,13 @@ void JpegParser::parse(InputStreamJPEG *inputJpeg) {
         // Save the quantization table for each component
         storeQuantTable(&jpeg_.quantTables[i], i);
     }
+
+    // Set the dims for all non-existent components to 0
+    for (int i = jpeg_.components; i < 3; ++i) {
+      jpeg_.dctSize[i] = 0;
+      jpeg_.dctLineStep[i] = 0;
+      jpeg_.yCbCrDims[i] = {0, 0};
+    }
 }
 
 void JpegParser::addScan(Scan * pScan) {

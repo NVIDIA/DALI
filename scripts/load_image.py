@@ -44,7 +44,9 @@ if __name__ == '__main__':
         img *= std
         img += mean
         img = img.astype(np.uint8)
-        
+    if img.shape[0] == 0 or img.shape[1] == 0:
+        print("Image " + argv[1] + " has no size: " + str(img.shape))
+        exit()
     plt.imshow(img, cmap = cmap)
     plt.show()
     

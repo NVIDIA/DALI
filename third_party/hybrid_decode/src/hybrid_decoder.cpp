@@ -240,19 +240,24 @@ void batchedDctQuantInv(BatchedDctParam *param) {
 }
 
 bool validateBatchedDctQuantInvParams(const int *srcSteps, const NppiSize *dstDims, int num) {
-  assert(num > 0);
+  if (num <= 0) return false;
   for (int i = 0; i < num; ++i) {
     // Input DCT coefficients are layed out in blocks of
     // 64x1, the stride must must be a multiple of this
-    assert((srcSteps[i] % (64 * sizeof(Npp16s))) == 0);
+    if ((srcSteps[i] % (64 * sizeof(Npp16s))) != 0) return false;
 
     // The output YUV components are decoded into blocks of 8x8
-    assert(dstDims[i].width >= 0 && dstDims[i].height >= 0);
-    assert(dstDims[i].width % 8 == 0);
-    assert(dstDims[i].height % 8 == 0);
+    if (dstDims[i].width < 0 && dstDims[i].height < 0) return false;
+    if (dstDims[i].width % 8 != 0) return false;
+    if (dstDims[i].height % 8 != 0) return false;
   }
+  return true;
 }
 
+// Note: The two following functions can take in dims of 0 with no affect. This is very
+// useful for supporting grayscale images and color with the same code.
+// 'getBatchedInvDctLaunchParams' only adds CTAs for components of non-zero size
+// 'getBatchedInvDctImageIndices' only adds any image indices for components of non-zero size
 void getBatchedInvDctLaunchParams(const NppiSize *dims, int num,
   int *numBlocks, int2 *gridInfo) {
   *numBlocks = 0;

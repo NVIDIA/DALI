@@ -116,6 +116,17 @@ protected:
   using Operator<Backend>::stream_pool_;
 };
 
+// Note: Our handling of grayscale images is a bit nuanced. In the case that we are outputting
+// color (rgb) images, we always rely on the paramters setup calls from hybrid_decoder (i.e.
+// validateBatchedDctQuantInvParams, getBatchedInvDctLaunchParams, getBatchedInvDctImageIndices)
+// to handle grayscale images that may be mixed into our input batch. Even for grayscale images
+// (images with a single component), we create parameters for all three components. The component
+// indices that are set up by the hybrid_decoder calls will take into account that these components
+// are non-existent and create no indices for these components. This is a small waste of memory
+// with our extra parameters, but greatly simplifies the code so it is ok for now.
+//
+// When we are outputting grayscale images, we only bother to do the idcts for the chrominance
+// planes of the jpegs. We do this directly into the output buffer.
 template <typename Backend>
 class DCTQuantInvOp : public Transformer<Backend> {
 public:
@@ -192,11 +203,11 @@ protected:
         );
 
     // DEBUG dump the output
-    // for (int i = 0; i < num_component_; ++i) {
-    //   DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
-    //       yuv_dims_[i].height, yuv_dims_[i].width, 1,
-    //       yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
-    // }
+    for (int i = 0; i < num_component_; ++i) {
+      DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
+          yuv_dims_[i].height, yuv_dims_[i].width, 1,
+          yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
+    }
   }
 
   inline void CalculateBatchedParameterSize() override {
@@ -206,7 +217,8 @@ protected:
       num_image_planes += channel_->parsed_jpegs[i].components;
     }
 
-    validateBatchedDctQuantInvParams(dct_step_.data(), yuv_dims_.data(), num_component_);
+    NDLL_ENFORCE(validateBatchedDctQuantInvParams(dct_step_.data(),
+            yuv_dims_.data(), num_component_));
     getBatchedInvDctLaunchParams(yuv_dims_.data(), num_component_,
         &num_cuda_blocks_, grid_info_.data());
 
@@ -215,7 +227,7 @@ protected:
     // output batch
     batched_param_sizes_[0] = 64*num_component_; // quant tables
     batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
-    batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int);
+    batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int); // img idxs
     
     // Calculate the size of the YUV intermediate
     // data and resize the intermediate buffer

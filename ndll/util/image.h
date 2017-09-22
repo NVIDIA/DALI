@@ -29,9 +29,9 @@ void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
 template <typename T>
 void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_name) {
   NDLL_ENFORCE(img != nullptr);
-  NDLL_ENFORCE(h > 0);
-  NDLL_ENFORCE(w > 0);
-  NDLL_ENFORCE(c > 0);
+  NDLL_ENFORCE(h >= 0);
+  NDLL_ENFORCE(w >= 0);
+  NDLL_ENFORCE(c >= 0);
   NDLL_ENFORCE(stride >= c*w);
   CUDA_CALL(cudaDeviceSynchronize());
   T *tmp = new T[h*w*c];
