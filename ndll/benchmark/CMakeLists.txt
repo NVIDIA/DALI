@@ -14,8 +14,3 @@ set(test_bin_2 "no_pipeline")
 cuda_add_executable(${test_bin_2} "test_2.cc")
 add_dependencies(${test_bin_2} ndll)
 target_link_libraries(${test_bin_2} ${NDLL_LIBS} ndll)
-
-set(test_bin_3 "raw")
-cuda_add_executable(${test_bin_3} "test_3.cc")
-add_dependencies(${test_bin_3} ndll)
-target_link_libraries(${test_bin_3} ${NDLL_LIBS} ndll)
