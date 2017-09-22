@@ -366,6 +366,7 @@ private:
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   inline void MegaBufferSetupAndDistribution() {
+    TimeRange _tr("mega-buffer-setup");
     // Query all the forward ops for mega-buffer sizes
     size_t total_bytes = 0;
     vector<size_t> offsets;

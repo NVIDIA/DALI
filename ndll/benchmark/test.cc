@@ -57,8 +57,6 @@ int main() {
   int iters = 100;
   for (int i = 0; i < iters; ++i) {
     pipe.RunPrefetch(batch);
-    pipe.RunCopy();
-    CUDA_CALL(cudaDeviceSynchronize());
   }
   
   t2 = high_resolution_clock::now();

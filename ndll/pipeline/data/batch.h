@@ -126,6 +126,7 @@ public:
 protected:
   // Helper to calculate datum offsets
   void CalculateOffsets() {
+    TimeRange _tr("batch-offset-calculation");
     int batch_size = batch_shape_.size();
     offsets_.resize(batch_size);
     

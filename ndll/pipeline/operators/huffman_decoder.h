@@ -90,6 +90,7 @@ public:
 protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int thread_idx) override {
+    TimeRange _tr("huffman-decode-per-image");
     // Perform the huffman decode into the datum object
     HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
@@ -103,7 +104,6 @@ protected:
     }
 
     // Perform the Huffman decode into the output buffer
-    TimeRange _tr("HuffmanDecodePerImage");
     huffmanDecodeHost(jpeg, &state, &dct_coeff_ptrs);
   }
   

@@ -136,15 +136,14 @@ BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(100)
 ->Apply(PipeArgs);
 
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
-  // for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
-  //   for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-  //     b->Args({batch_size, num_thread, 8});
-  //   }
-  // }
-  b->Args({32, 1, 1});
+  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+      b->Args({batch_size, num_thread, 8});
+    }
+  }
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);
