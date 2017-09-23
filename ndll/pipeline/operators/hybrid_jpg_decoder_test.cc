@@ -1,40 +1,35 @@
-#include "ndll/image/jpeg.h"
-
-#include <cmath>
-
-#include <fstream>
-#include <stdexcept>
+#include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 
 #include "ndll/common.h"
+#include "ndll/error_handling.h"
+#include "ndll/image/jpeg.h"
+#include "ndll/pipeline/pipeline.h"
 #include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
 
 namespace {
-// Our turbo jpeg decoder cannot handle CMYK images
-const vector<string> tjpg_test_images = {
+// 440 & 411 not supported by npp
+const vector<string> hybdec_images = {
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
-  image_folder + "/440.jpg",
   image_folder + "/444.jpg",
   image_folder + "/gray.jpg"
 };
-}
+} // namespace
 
 // Our test "types"
 struct RGB {};
 struct Gray {};
 
-// Fixture for jpeg decode testing. Templated
-// to make googletest run our tests grayscale & rgb
-template <typename color>
-class JpegDecodeTest : public NDLLTest {
+template <typename Color>
+class HybridDecoderTest : public NDLLTest {
 public:
   void SetUp() {
-    if (std::is_same<color, RGB>::value) {
+    if (std::is_same<Color, RGB>::value) {
       color_ = true;
       c_ = 3;
     } else {
@@ -43,14 +38,18 @@ public:
     }
 
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(tjpg_test_images, &jpegs_, &jpeg_sizes_);
+    LoadJPEGS(hybdec_images, &jpegs_, &jpeg_sizes_);
   }
 
   void TearDown() {
     NDLLTest::TearDown();
   }
-  
+
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) {
+    // Load the image to host
+    uint8 *host_img = new uint8[h*w*c_];
+    CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
+      
     // Compare w/ opencv result
     cv::Mat ver;
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
@@ -59,11 +58,6 @@ public:
     int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
-#ifndef NDEBUG
-    // Dump the opencv image
-    DumpHWCToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
-#endif 
-    
     cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
     if (color_) {
       // Convert from BGR to RGB for verification
@@ -72,11 +66,16 @@ public:
       ver_img = ver;
     }
     
+#ifndef NDEBUG
+    // Dump the opencv image
+    DumpHWCToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
+#endif
+    
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
     vector<int> diff(h*w*c_, 0);
     for (int i = 0; i < h*w*c_; ++i) {
-      diff[i] = abs(int(ver_img.ptr()[i] - img[i]));
+      diff[i] = abs(int(ver_img.ptr()[i] - host_img[i]));
     }
 
 #ifndef NDEBUG
@@ -115,35 +114,62 @@ public:
     }
     *std = sqrt(var_sum / diff.size());
   }
-
+  
 protected:
   bool color_;
   int c_;
 };
 
-// Run RGB & grayscale tests
 typedef ::testing::Types<RGB, Gray> Types;
-TYPED_TEST_CASE(JpegDecodeTest, Types);
+TYPED_TEST_CASE(HybridDecoderTest, Types);
 
-TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
-  vector<uint8> image;
-  for (size_t img = 0; img < this->jpegs_.size(); ++img) {
-    int h = 0, w = 0;
+TYPED_TEST(HybridDecoderTest, JPEGDecode) {
+  int batch_size = this->jpegs_.size();
+  int num_thread = 1;
+  int num_stream = 8;
+  cudaStream_t main_stream;
+  CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
+  bool stream_non_blocking = true;
+ 
+  // Create the pipeline
+  Pipeline<PinnedCPUBackend, GPUBackend> pipe(
+      batch_size,
+      num_thread,
+      main_stream,
+      num_stream,
+      stream_non_blocking,
+      0);
 
-    NDLL_CALL(GetJPEGImageDims(this->jpegs_[img],
-            this->jpeg_sizes_[img], &h, &w));
+  // Add a hybrid jpeg decoder
+  shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
+  HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
+  pipe.AddDecoder(huffman_decoder);
 
-    image.resize(h * w * this->c_);
-    NDLL_CALL(DecodeJPEGHost(this->jpegs_[img],
-            this->jpeg_sizes_[img],
-            this->color_, h, w,
-            image.data()));
+  DCTQuantInvOp<GPUBackend> idct_op(this->color_, decode_channel);
+  pipe.AddForwardOp(idct_op);
+    
+  Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
+      this->jpegs_, this->jpeg_sizes_, batch_size);
+  Batch<GPUBackend> output_batch;
+    
+  // Build and run the pipeline
+  pipe.Build(batch->type());
+
+  // Decode the images
+  pipe.RunPrefetch(batch);
+  pipe.RunCopy();
+  pipe.RunForward(&output_batch);
+  CUDA_CALL(cudaDeviceSynchronize());
+
 #ifndef NDEBUG
-    cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;
-    cout << "dims: " << w << "x" << h << endl;
-    DumpHWCToFile(image.data(), h, w, this->c_, w*this->c_, std::to_string(img));
-#endif 
-    this->VerifyDecode(image.data(), h, w, img);
+  DumpHWCImageBatchToFile<uint8>(output_batch);
+#endif
+  
+  // Verify the results
+  for (int i = 0; i < batch_size; ++i) {
+    this->VerifyDecode(output_batch.template datum<uint8>(i),
+        output_batch.datum_shape(i)[0],
+        output_batch.datum_shape(i)[1], i);
   }
 }
 

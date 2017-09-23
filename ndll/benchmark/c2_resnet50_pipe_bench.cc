@@ -1,7 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include "ndll/benchmark/ndll_main_bench.h"
-#include "ndll/pipeline/operators/hybrid_decoder.h"
+#include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
 #include "ndll/pipeline/operators/normalize_permute_op.h"
 #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/pipeline/operators/tjpg_decoder.h"
@@ -92,7 +92,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
-  DCTQuantInvOp<GPUBackend> idct_op(false, decode_channel);
+  DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
   pipe.AddForwardOp(idct_op);
     
   Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(

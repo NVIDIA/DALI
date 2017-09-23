@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_OPERATORS_HYBRID_DECODER_H_
-#define NDLL_PIPELINE_OPERATORS_HYBRID_DECODER_H_
+#ifndef NDLL_PIPELINE_OPERATORS_HYBRID_JPG_DECODER_H_
+#define NDLL_PIPELINE_OPERATORS_HYBRID_JPG_DECODER_H_
 
 #include <cstring>
 
@@ -9,6 +9,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/channel.h"
 #include "ndll/pipeline/operators/operator.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -243,7 +244,7 @@ protected:
       YUVToRGBHelper(output);
     } else {
       // Stream device to device copies to the output buffer
-      vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
+      // vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
         const vector<Index> &out_dims = output->datum_shape(i);
@@ -254,14 +255,14 @@ protected:
                 out_dims[1], // width
                 out_dims[0], // height
                 cudaMemcpyDeviceToDevice,
-                streams[i % streams.size()]));
+                stream_pool_->GetStream()));
       }
     }
   }
 
   inline void YUVToRGBHelper(Batch<Backend> *output) {
     uint8 *yuv_data_ptr = yuv_data_.template data<uint8>();
-    vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
+    // vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
     for (int i = 0; i < batch_size_; ++i) {
       ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
       if (jpeg.components == 3) {
@@ -285,7 +286,7 @@ protected:
         // to their kernels...
           
         // Run the yuv->rgb + upsampling kernel
-        nppSetStream(streams[i % streams.size()]);
+        // nppSetStream(streams[i % streams.size()]);
         yCbCrToRgb((const uint8**)yuv_planes,
             yuv_steps, strided_img, img_steps_[i],
             img_rois_[i], sampling_ratio);
@@ -300,7 +301,7 @@ protected:
                 out_dims[1]*C_, // width
                 out_dims[0], // height
                 cudaMemcpyDeviceToDevice,
-                streams[i % streams.size()]
+                stream_pool_->GetStream()
                 ));
       } else { // Handle grayscale image
         // For grayscale images, convert to RGB straight into the output batch
@@ -309,7 +310,7 @@ protected:
         yToRgb(y_plane, step,
             (uint8*)output->raw_datum(i),
             img_steps_[i], img_rois_[i],
-            streams[i % streams.size()]);
+            stream_pool_->GetStream());
       }
     }
   }
@@ -417,4 +418,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_HYBRID_DECODER_H_
+#endif // NDLL_PIPELINE_OPERATORS_HYBRID_JPG_DECODER_H_

@@ -72,6 +72,25 @@ public:
   }
 
   /**
+   * @brief returns a typed pointer to the sample with the given index
+   */
+  template <typename T>
+  inline T* datum(int idx) {
+    return static_cast<T*>(
+        static_cast<uint8*>(this->raw_data()) +
+        (datum_offset(idx) * type_.size())
+        );
+  }
+
+  template <typename T>
+  inline const T* datum(int idx) const {
+    return static_cast<T*>(
+        static_cast<uint8*>(this->raw_data()) +
+        (datum_offset(idx) * type_.size())
+        );
+  }
+  
+  /**
    * @brief returns a raw pointer to the sample with the given index
    */
   inline void* raw_datum(int idx) {

@@ -1,6 +1,6 @@
 #include <chrono>
 
-#include "ndll/pipeline/operators/hybrid_decoder.h"
+#include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
 #include "ndll/pipeline/operators/normalize_permute_op.h"
 #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/pipeline/operators/tjpg_decoder.h"

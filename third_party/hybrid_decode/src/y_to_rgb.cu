@@ -24,5 +24,5 @@ void grayToRgb(const Npp8u *img, int step, Npp8u *dst, int dstStep,
   // We should try launching more blocks and maybe adapt block size
   // to image dimensions. We could also make a batched version of this
   // quite easily
-  grayToRgbKernel<<<1, dim3(64, 64), 0, stream>>>(img, step, dst, dstStep, dims);
+  grayToRgbKernel<<<1, dim3(32, 32), 0, stream>>>(img, step, dst, dstStep, dims);
 }

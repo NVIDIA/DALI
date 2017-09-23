@@ -53,19 +53,23 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     TJPGDecoder<HostBackend> jpg_decoder(true);
     pipe.AddDecoder(jpg_decoder);
 
+#ifndef NDEBUG
     // Add a dump image op
     DumpImageOp<HostBackend> dump_image_op;
     pipe.AddPrefetchOp(dump_image_op);
-
+#endif
+    
     // Add a resize+crop+mirror op
     ResizeCropMirrorOp<HostBackend> resize_crop_mirror_op(
         true, false, 256, 480, true, 224, 224, 0.5f);
     pipe.AddPrefetchOp(resize_crop_mirror_op);
-
+    
+#ifndef NDEBUG
     // Add a dump image op
     DumpImageOp<HostBackend> dump_image_op2;
     pipe.AddPrefetchOp(dump_image_op2);
-
+#endif
+    
     // Add normalize permute op
     NormalizePermuteOp<DeviceBackend, float> norm_permute_op(
         {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
@@ -84,8 +88,10 @@ TYPED_TEST(PipelineTest, TestBuildPipeline) {
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
 
+#ifndef NDEBUG
     DumpCHWImageBatchToFile<float>(output_batch);
-
+#endif
+    
     CUDA_CALL(cudaDeviceSynchronize());
     delete batch;
   } catch (std::runtime_error &e) {

@@ -43,6 +43,14 @@ void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_na
   CUDA_CALL(cudaDeviceSynchronize());
   T *tmp = new T[h*w*c];
 
+  // cout << (long long)tmp << endl;
+  // cout << (long long)img << endl;
+  // cout << "h: " << h << endl;
+  // cout << "w: " << w << endl;
+  // cout << "c: " << c << endl;
+  // cout << "stride: " << stride << endl;
+  // cout << "size(T): " << sizeof(T) << endl;
+  
   CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
           w*c*sizeof(T), h, cudaMemcpyDefault));
   std::ofstream file(file_name + ".txt");
