@@ -164,7 +164,7 @@ public:
       yuv_dims_[data_idx*C_ + i] = jpeg.yCbCrDims[i];
       dct_step_[data_idx*C_ + i] = jpeg.dctLineStep[i];
     }
-
+    
     // Calculate output image meta-data
     if (color_) {
       int tmp;

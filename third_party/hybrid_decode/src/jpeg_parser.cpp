@@ -401,7 +401,7 @@ ComponentSampling JpegParser::getSamplingRatio() {
                 eComponentSampling = YCbCr_420;
             }
         } 
-        else if (abs(static_cast<float>(yWidth - 4 * cbWidth)) < 3) {
+        else if (abs(static_cast<float>(yWidth - 4 * cbWidth)) < 4) {
             if (yHeight == cbHeight) {
                 // cout << "selected 411" << endl;
                 eComponentSampling = YCbCr_411;

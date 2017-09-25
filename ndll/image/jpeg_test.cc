@@ -15,12 +15,19 @@ namespace ndll {
 
 namespace {
 // Our turbo jpeg decoder cannot handle CMYK images
+// or 410 images
 const vector<string> tjpg_test_images = {
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
   image_folder + "/440.jpg",
   image_folder + "/444.jpg",
-  image_folder + "/gray.jpg"
+  image_folder + "/gray.jpg",
+  image_folder + "/411.jpg",
+  image_folder + "/411-non-multiple-4-width.jpg",
+  image_folder + "/420-odd-height.jpg",
+  image_folder + "/420-odd-width.jpg",
+  image_folder + "/420-odd-both.jpg",
+  image_folder + "/422-odd-width.jpg"
 };
 }
 
@@ -129,7 +136,6 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   vector<uint8> image;
   for (size_t img = 0; img < this->jpegs_.size(); ++img) {
     int h = 0, w = 0;
-
     NDLL_CALL(GetJPEGImageDims(this->jpegs_[img],
             this->jpeg_sizes_[img], &h, &w));
 

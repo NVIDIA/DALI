@@ -42,7 +42,9 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
   typedef typename TypeParam::TCPUBackend HostBackend;    \
   typedef typename TypeParam::TGPUBackend DeviceBackend
   
-TYPED_TEST(PipelineTest, TestBuildPipeline) {
+// TODO(tgale): This isnt actually a test. Need to
+// build real tests for the pipeline
+TYPED_TEST(PipelineTest, DISABLED_TestBuildPipeline) {
   DECLTYPES();
   try {
     int batch_size = 1;

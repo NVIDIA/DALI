@@ -12,12 +12,18 @@
 namespace ndll {
 
 namespace {
-// 440 & 411 not supported by npp
+// 440 & 410 not supported by npp
 const vector<string> hybdec_images = {
+  image_folder + "/411.jpg",
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
   image_folder + "/444.jpg",
-  image_folder + "/gray.jpg"
+  image_folder + "/gray.jpg",
+  image_folder + "/411-non-multiple-4-width.jpg",
+  image_folder + "/420-odd-height.jpg",
+  image_folder + "/420-odd-width.jpg",
+  image_folder + "/420-odd-both.jpg",
+  image_folder + "/422-odd-width.jpg"
 };
 } // namespace
 

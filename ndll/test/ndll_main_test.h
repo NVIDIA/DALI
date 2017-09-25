@@ -12,7 +12,7 @@
 namespace ndll {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/image/testing_jpegs";
+const string image_folder = "../ndll/test/test_images";
 
 // Main testing fixture to provide common functionality across tests
 class NDLLTest : public ::testing::Test {
