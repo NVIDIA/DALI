@@ -171,6 +171,7 @@ protected:
         crop_h_, crop_w_,
         meta.mirror,
         output->template data<uint8>(),
+        NDLL_INTERP_LINEAR,
         tl_workspace_[thread_idx].data());
   }
   
@@ -262,6 +263,7 @@ protected:
         crop_h_, crop_w_,
         meta.mirror,
         output->template data<uint8>(),
+        NDLL_INTERP_LINEAR,
         tl_workspace_[thread_idx].data());
   }
   

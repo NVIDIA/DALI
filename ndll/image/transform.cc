@@ -1,15 +1,15 @@
 #include "ndll/image/transform.h"
 
-#include <opencv2/opencv.hpp>
-
 #include "ndll/util/image.h"
+#include "ndll/util/ocv.h"
 
 namespace ndll {
 
 // Note: User is responsible for avoiding division by 0 w/ the std deviation
 NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img, uint8 *workspace) {
+    int crop_w, bool mirror, uint8 *out_img, NDLLInterpType type,
+    uint8 *workspace) {
   // TODO(tgale): Figure out which ones of these we actually want to check.
   // We need a better way of error checking so that the user actually knows
   // what they did wrong.
@@ -39,9 +39,12 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     // need a buffer of rsz_h*rsz_w*C bytes. Wrap this buffer w/ a cv::Mat
     rsz_img = cv::Mat(rsz_h, rsz_w, channel_flag, workspace);
   }
+
+  int ocv_type;
+  NDLL_FORWARD_ERROR(OCVInterpForNDLLInterp(type, &ocv_type));
   cv::resize(cv_img, rsz_img,
       cv::Size(rsz_w, rsz_h),
-      0, 0, cv::INTER_LINEAR);
+      0, 0, ocv_type);
   
   // Do the crop/mirror into the output buffer
   if (mirror) {
@@ -71,7 +74,8 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
 
 NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img, uint8 *workspace) {
+    int crop_w, bool mirror, uint8 *out_img, NDLLInterpType type,
+    uint8 *workspace) {
   // TODO(tgale): Figure out which ones of these we actually want to check.
   // We need a better way of error checking so that the user actually knows
   // what they did wrong.
@@ -125,9 +129,12 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     // header
     rsz_img = cv::Mat(crop_h, crop_w, channel_flag, workspace);
   }
+  
+  int ocv_type;
+  NDLL_FORWARD_ERROR(OCVInterpForNDLLInterp(type, &ocv_type));
   cv::resize(cv_img, rsz_img,
       cv::Size(crop_w, crop_h),
-      0, 0, cv::INTER_LINEAR);
+      0, 0, ocv_type);
 
   // Mirror the image into the output image buffer
   for (int i = 0; i < crop_h; ++i) {

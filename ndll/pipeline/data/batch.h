@@ -77,7 +77,7 @@ public:
   template <typename T>
   inline T* datum(int idx) {
     return static_cast<T*>(
-        static_cast<uint8*>(this->raw_data()) +
+        static_cast<uint8*>(this->template data<T>()) +
         (datum_offset(idx) * type_.size())
         );
   }
@@ -85,7 +85,7 @@ public:
   template <typename T>
   inline const T* datum(int idx) const {
     return static_cast<T*>(
-        static_cast<uint8*>(this->raw_data()) +
+        static_cast<uint8*>(this->template data<T>()) +
         (datum_offset(idx) * type_.size())
         );
   }

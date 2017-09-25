@@ -73,6 +73,27 @@ inline string GetErrorString(string statement, string file, int line) {
 #define GET_MACRO(_1, _2, NAME, ...) NAME
 #define NDLL_ASSERT(...) GET_MACRO(__VA_ARGS__, ASRT_2, ASRT_1)(__VA_ARGS__)
 
+#define NDLL_FORWARD_ERROR(code) \
+  if ((code) == NDLLError) {     \
+    return NDLLError;            \
+  }
+
+// For checking npp return errors in ndll library functions
+#define NDLL_CHECK_NPP(code)                        \
+  do {                                              \
+    NppStatus status = code;                        \
+    if (status != NPP_SUCCESS) {                    \
+      string file = __FILE__;                       \
+      string line = std::to_string(__LINE__);       \
+      string error = "[" + file + ":" + line +      \
+        "]: NPP error \"" +                         \
+        nppErrorString(status) + "\"";              \
+      cout << error << endl;                        \
+      return NDLLError;                             \
+    }                                               \
+  } while (0)
+
+
 // For calling CUDA library functions
 #define CUDA_CALL(code)                             \
   do {                                              \
@@ -97,20 +118,6 @@ inline string GetErrorString(string statement, string file, int line) {
       string error = "[" + file + ":" + line +      \
         "]: NVML error \"" +                        \
         nvmlErrorString(status) + "\"";             \
-      throw std::runtime_error(error);              \
-    }                                               \
-  } while (0)
-
-// For calling NPP library functions
-#define NPP_CALL(code)                              \
-  do {                                              \
-    NppStatus status = code;                        \
-    if (status != NPP_SUCCESS) {                    \
-      string file = __FILE__;                       \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
-        "]: NPP error \"" +                         \
-        nppErrorString(status) + "\"";              \
       throw std::runtime_error(error);              \
     }                                               \
   } while (0)

@@ -13,8 +13,11 @@
 #include "ndll/common.h"
 #include "ndll/image/jpeg.h"
 #include "ndll/image/transform.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/batch.h"
 #include "ndll/test/ndll_main_test.h"
 #include "ndll/test/type_conversion.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -105,9 +108,12 @@ public:
 
   void VerifyImage(uint8 *img, uint8 *ground_truth, int n,
       float mean_bound = 2.0, float std_bound = 3.0) {
+    vector<uint8> host_img(n);
+    CUDA_CALL(cudaMemcpy(host_img.data(), img, n, cudaMemcpyDefault));
+    
     vector<int> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(int(img[i] - ground_truth[i]));
+      abs_diff[i] = abs(int(host_img[i] - ground_truth[i]));
     }
     double mean, std;
     MeanStdDev(abs_diff, &mean, &std);
@@ -151,6 +157,22 @@ public:
 
       // Copy into the batch
       std::memcpy(batch + i*h*w*c_, img.data(), h*w*c_);
+    }
+  }
+
+  // Produces jagged batch
+  void MakeImageBatch(int n, Batch<CPUBackend> *batch) {
+    vector<Dims> shape(n);
+    for (int i = 0; i < n; ++i) {
+      shape[i] = {image_dims_[i].h, image_dims_[i].w, c_};
+    }
+    batch->template data<uint8>();
+    batch->Resize(shape);
+
+    for (int i = 0; i < n; ++i) {
+      std::memcpy(batch->template datum<uint8>(i),
+          images_[i % images_.size()],
+          Product(batch->datum_shape(i)));
     }
   }
   
@@ -224,18 +246,17 @@ typedef ::testing::Types<OutputTestTypes<RGB, float16>,
 TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
 
 TYPED_TEST(TransformTest, TestResizeCrop) {
-  std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img, tmp_img;
   for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
-    int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
-    int rsz_w = std::uniform_int_distribution<>(32, 512)(rand_gen);
+    int rsz_h = this->RandInt(32, 512);
+    int rsz_w = this->RandInt(32, 512);
     
     // Generate random crop params
-    int crop_h = std::uniform_int_distribution<>(32, rsz_h)(rand_gen);
-    int crop_w = std::uniform_int_distribution<>(32, rsz_w)(rand_gen);
-    int crop_y = std::uniform_int_distribution<>(0, rsz_h - crop_h)(rand_gen);
-    int crop_x = std::uniform_int_distribution<>(0, rsz_w - crop_w)(rand_gen);
+    int crop_h = this->RandInt(32, rsz_h);
+    int crop_w = this->RandInt(32, rsz_w);
+    int crop_y = this->RandInt(0, rsz_h - crop_h);
+    int crop_x = this->RandInt(0, rsz_w - crop_w);
     
     // Select whether to mirror
     bool mirror = false;
@@ -244,7 +265,8 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     tmp_img.resize(rsz_h*rsz_w*this->c_);
     NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
-            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
+            crop_x, crop_h, crop_w, mirror, out_img.data(), NDLL_INTERP_LINEAR,
+            tmp_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -272,18 +294,17 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
 }
 
 TYPED_TEST(TransformTest, TestResizeCropMirror) {
-  std::mt19937 rand_gen(time(nullptr));
   vector<uint8> out_img, ver_img, tmp_img;
   for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
-    int rsz_h = std::uniform_int_distribution<>(32, 512)(rand_gen);
-    int rsz_w = std::uniform_int_distribution<>(32, 512)(rand_gen);
+    int rsz_h = this->RandInt(32, 512);
+    int rsz_w = this->RandInt(32, 512);
     
     // Generate random crop params
-    int crop_h = std::uniform_int_distribution<>(32, rsz_h)(rand_gen);
-    int crop_w = std::uniform_int_distribution<>(32, rsz_w)(rand_gen);
-    int crop_y = std::uniform_int_distribution<>(0, rsz_h - crop_h)(rand_gen);
-    int crop_x = std::uniform_int_distribution<>(0, rsz_w - crop_w)(rand_gen);
+    int crop_h = this->RandInt(32, rsz_h);
+    int crop_w = this->RandInt(32, rsz_w);
+    int crop_y = this->RandInt(0, rsz_h - crop_h);
+    int crop_x = this->RandInt(0, rsz_w - crop_w);
 
     // Select whether to mirror
     bool mirror = true;
@@ -292,7 +313,8 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     tmp_img.resize(rsz_h*rsz_w*this->c_);
     NDLL_CALL(ResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
-            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
+            crop_x, crop_h, crop_w, mirror, out_img.data(), NDLL_INTERP_LINEAR,
+            tmp_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -316,7 +338,6 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
 }
 
 TYPED_TEST(TransformTest, TestFastResizeCrop) {
-  this->rand_gen_.seed(0);
   vector<uint8> out_img, ver_img;
   for (size_t i = 0; i < this->images_.size(); ++i) {
     // Generate random resize params
@@ -358,7 +379,7 @@ TYPED_TEST(TransformTest, TestFastResizeCrop) {
     // FastResizeCropMirror method. The resulting image is very close,
     // but is slightly shifted (about a pixel), which causes higher MSE
     // and standard deviation than we would normally want to tolerate
-    this->VerifyImage(out_img.data(), ver_img.data(), out_img.size(), 16.f, 25.f);
+    this->VerifyImage(out_img.data(), ver_img.data(), out_img.size(), 30.f, 32.f);
   }
 }
 
@@ -383,7 +404,8 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
     tmp_img.resize(crop_h*crop_w*this->c_);
     NDLL_CALL(FastResizeCropMirrorHost(this->images_[i], this->image_dims_[i].h,
             this->image_dims_[i].w, this->c_, rsz_h, rsz_w, crop_y,
-            crop_x, crop_h, crop_w, mirror, out_img.data(), tmp_img.data()));
+            crop_x, crop_h, crop_w, mirror, out_img.data(), NDLL_INTERP_LINEAR,
+            tmp_img.data()));
 
     // Verify the output
     ver_img.resize(crop_h*crop_w*this->c_);
@@ -407,6 +429,79 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
     // but is slightly shifted (about a pixel), which causes higher MSE
     // and standard deviation than we would normally want to tolerate
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size(), 16.f, 25.f);
+  }
+}
+
+TYPED_TEST(TransformTest, TestBatchedResize) {
+  int batch_size = this->RandInt(1, 1);
+  batch_size = this->images_.size();
+  Batch<CPUBackend> batch;
+  this->MakeImageBatch(batch_size, &batch);
+  
+  Batch<GPUBackend> gpu_batch;
+  gpu_batch.template data<uint8>();
+  gpu_batch.ResizeLike(batch);
+  CUDA_CALL(cudaMemcpy(
+          gpu_batch.template data<uint8>(),
+          batch.template data<uint8>(),
+          batch.nbytes(),
+          cudaMemcpyHostToDevice)
+      );
+  
+  // Setup resize parameters
+  vector<uint8*> in_ptrs(batch_size, nullptr), out_ptrs(batch_size, nullptr);
+  vector<NDLLSize> in_sizes(batch_size), out_sizes(batch_size);
+  NDLLInterpType type = NDLL_INTERP_LINEAR;
+  vector<Dims> output_shape(batch_size);
+  for (int i = 0; i < batch_size; ++i) {
+    in_ptrs[i] = gpu_batch.template datum<uint8>(i);
+    in_sizes[i].height = gpu_batch.datum_shape(i)[0];
+    in_sizes[i].width = gpu_batch.datum_shape(i)[1];
+    
+    out_sizes[i].height = this->RandInt(32, 480);
+    out_sizes[i].width = this->RandInt(32, 480);
+    vector<Index> shape = {out_sizes[i].height, out_sizes[i].width, this->c_};
+    output_shape[i] = shape;
+  }
+
+  Batch<GPUBackend> gpu_output_batch;
+  gpu_output_batch.template data<uint8>();
+  gpu_output_batch.Resize(output_shape);
+  for (int i = 0; i < batch_size; ++i) {
+    out_ptrs[i] = gpu_output_batch.template datum<uint8>(i);
+  }
+
+  NDLL_CALL(BatchedResize(
+          (const uint8**)in_ptrs.data(),
+          batch_size,
+          this->c_,
+          in_sizes.data(),
+          out_ptrs.data(),
+          out_sizes.data(),
+          type));
+
+#ifndef NDEBUG
+  DumpHWCImageBatchToFile<uint8>(gpu_output_batch);
+#endif
+  
+  // verify the resize
+  for (int i = 0; i < batch_size; ++i) {
+    cv::Mat img = cv::Mat(in_sizes[i].height, in_sizes[i].width,
+        this->c_ == 3 ? CV_8UC3 : CV_8UC1, batch.template datum<uint8>(i));
+
+    cv::Mat ground_truth;
+    cv::resize(img, ground_truth,
+        cv::Size(out_sizes[i].width, out_sizes[i].height),
+        0, 0, cv::INTER_LINEAR);
+
+#ifndef NDEBUG
+    DumpHWCToFile(ground_truth.ptr(), ground_truth.rows, ground_truth.cols,
+        ground_truth.channels(), ground_truth.cols*ground_truth.channels(),
+        "ver_" + std::to_string(i));
+#endif
+    
+    this->VerifyImage(gpu_output_batch.template datum<uint8>(i), ground_truth.ptr(),
+        out_sizes[i].height * out_sizes[i].width * this->c_, 10.f, 25.f);
   }
 }
 
@@ -444,10 +539,9 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
   // To make the test a bit more succinct
   typedef typename TypeParam::TEST_OUT T;
   
-  std::mt19937 rand_gen(time(nullptr));
-  int n = std::uniform_int_distribution<>(4, this->jpegs_.size())(rand_gen);
-  int h = std::uniform_int_distribution<>(32, 512)(rand_gen);
-  int w = std::uniform_int_distribution<>(32, 512)(rand_gen);
+  int n = this->RandInt(4, this->jpegs_.size());
+  int h = this->RandInt(32, 512);
+  int w = this->RandInt(32, 512);
   vector<uint8> batch(n*h*w*this->c_, 0);
   this->MakeImageBatch(n, h, w, batch.data());
 

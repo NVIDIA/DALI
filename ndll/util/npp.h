@@ -3,7 +3,13 @@
 
 #include <npp.h>
 
+#include "ndll/common.h"
+
 namespace ndll {
+
+typedef NppiSize NDLLSize;
+
+int NPPInterpForNDLLInterp(NDLLInterpType type, NppiInterpolationMode *npp_type);
 
 static const char *nppErrorString(NppStatus error)
 {

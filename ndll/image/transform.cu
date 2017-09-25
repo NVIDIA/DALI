@@ -1,13 +1,12 @@
 #include "ndll/image/transform.h"
 
+#include "ndll/util/npp.h"
+
 namespace ndll {
 
 namespace {
 // Source: Based off kernel from caffe2/image/transform_gpu.cu. This was
 // written by slayton I believe and the file has an Nvidia license at the top
-//
-// TODO(tgale): We'll need to do some funky-ness to add fp16 support to
-// this and other similar functions.
 template <typename OUT>
 __global__ void BatchedNormalizePermuteKernel(const uint8 *in_batch,
     int N, int H, int W, int C,  float *mean, float *std, OUT *out_batch) {
@@ -61,5 +60,41 @@ template NDLLError_t BatchedNormalizePermute<float>(const uint8 *in_batch,
 template NDLLError_t BatchedNormalizePermute<double>(const uint8 *in_batch,
     int N, int H, int W, int C, float *mean, float *std, double *out_batch,
     cudaStream_t stream);
+
+NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *in_sizes,
+    uint8 **out_batch, const NDLLSize *out_sizes, NDLLInterpType type) {
+  NDLL_ASSERT(N > 0);
+  NDLL_ASSERT(C == 1 || C == 3);
+  NDLL_ASSERT(in_sizes != nullptr);
+  NDLL_ASSERT(out_sizes != nullptr);
+
+  NppiInterpolationMode npp_type;
+  NDLL_FORWARD_ERROR(NPPInterpForNDLLInterp(type, &npp_type));
+  
+  for (int i = 0; i < N; ++i) {
+    NDLL_ASSERT(in_batch[i] != nullptr);
+    NDLL_ASSERT(out_batch[i] != nullptr);
+    
+    // Setup region of interests to whole image
+    NppiRect in_roi, out_roi;
+    in_roi.x = 0; in_roi.y = 0;
+    in_roi.width = in_sizes[i].width;
+    in_roi.height = in_sizes[i].height;
+    out_roi.x = 0; out_roi.y = 0;
+    out_roi.width = out_sizes[i].width;
+    out_roi.height = out_sizes[i].height;
+    
+    // TODO: Can move condition out w/ function ptr or std::function obj
+    if (C == 3) {
+      NDLL_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
+              in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
+    } else {
+      NDLL_CHECK_NPP(nppiResize_8u_C1R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
+              in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
+    }
+    CUDA_CALL(cudaDeviceSynchronize());
+  }
+  return NDLLSuccess;
+}
 
 } // namespace ndll

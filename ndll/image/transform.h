@@ -26,7 +26,8 @@ namespace ndll {
  */
 NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_x, int crop_y, int crop_h, int crop_w,
-    bool mirror, uint8 *out_img, uint8 *workspace = nullptr);
+    bool mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
+    uint8 *workspace = nullptr);
 
 /**
  * @brief Performs resize, crop, & random mirror on the input image on the CPU. Input
@@ -46,8 +47,9 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
  * of the memory pointed to by 'workspace' should be crop_h*crop_w*C bytes
  */
 NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img, uint8 *workspace = nullptr);
+    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h, int crop_w,
+    bool mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
+    uint8 *workspace = nullptr);
   
 /**
  * @brief Performs mean subtraction & stddev division per channel, cast 
@@ -61,6 +63,19 @@ template <typename OUT>
 NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
     int N, int H, int W, int C,  float *mean, float *std,
     OUT *out_batch, cudaStream_t stream);
+
+/**
+ * @brief Resizes an input batch of images. 
+ *
+ * Note: This API is subject to change. It currently launches a kernel
+ * for every image in the batch, but if we move to a fully batched kernel
+ * we will likely need more meta-data setup beforehand
+ *
+ * This method currently uses an npp kernel, to set the stream for this
+ * kernel, call 'nppSetStream()' prior to calling.
+ */
+NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *in_sizes,
+    uint8 **out_batch, const NDLLSize *out_sizes, NDLLInterpType type = NDLL_INTERP_LINEAR);
 
 } // namespace ndll
 

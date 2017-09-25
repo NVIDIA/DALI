@@ -34,6 +34,14 @@ typedef int16_t int16;
 // Only supported on the GPU
 typedef __half float16;
 
+/**
+ * @brief Supported interpolation types
+ */
+enum NDLLInterpType {
+  NDLL_INTERP_NN = 0,
+  NDLL_INTERP_LINEAR = 1,
+  NDLL_INTERP_CUBIC = 2
+};
 
 // Source: based on Caffe macro of the same name. Impl uses 'delete'
 // instead of just making these functions private
