@@ -243,6 +243,7 @@ typedef ::testing::Types<OutputTestTypes<RGB, float16>,
                          OutputTestTypes<Gray, float16>,
                          OutputTestTypes<Gray, float>,
                          OutputTestTypes<Gray, double>> OutputTypes;
+
 TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
 
 TYPED_TEST(TransformTest, TestResizeCrop) {
@@ -578,10 +579,22 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
 TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   // To make the test a bit more succinct
   typedef typename TypeParam::TEST_OUT T;
-
   int batch_size = this->images_.size();
-  int crop_h = this->RandInt(32, 512);
-  int crop_w = this->RandInt(32, 512);
+  
+  // set valid crop dims
+  int min_w = this->image_dims_[0].w;
+  int min_h = this->image_dims_[0].h;
+  for (int i = 1; i < batch_size; ++i) {
+    if (this->image_dims_[i].w < min_w) {
+      min_w = this->image_dims_[i].w;
+    }
+    if (this->image_dims_[i].h < min_h) {
+      min_h = this->image_dims_[i].h;
+    }
+  }
+  int crop_h = this->RandInt(1, min_h);
+  int crop_w = this->RandInt(1, min_w);
+  
   Batch<CPUBackend> batch;
   this->MakeImageBatch(batch_size, &batch);
   
@@ -603,14 +616,20 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   vector<float> std(this->c_);
 
   // choose crop offsets & whether to mirror
+  vector<int> crop_xs(batch_size);
+  vector<int> crop_ys(batch_size);
   for (int i = 0; i < batch_size; ++i) {
     int crop_y = this->RandInt(0, this->image_dims_[i].h - crop_h);
     int crop_x = this->RandInt(0, this->image_dims_[i].w - crop_w);
 
     int crop_offset = crop_y * this->image_dims_[i].w * this->c_ + crop_x * this->c_;
-    in_ptrs[i] = gpu_batch.template data<uint8>() + crop_offset;
-    
+    in_ptrs[i] = gpu_batch.template datum<uint8>(i) + crop_offset;
     strides[i] = this->image_dims_[i].w*this->c_;
+
+    // Save the crop offsets
+    crop_xs[i] = crop_x;
+    crop_ys[i] = crop_y;
+    
     mirror[i] = std::bernoulli_distribution(0.5)(this->rand_gen_);
   }
 
@@ -620,8 +639,10 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
     std[i] = this->RandInt(1, 128);
   }
 
+
+
   T *out_batch = nullptr;
-  CUDA_CALL(cudaMalloc((void**)&out_batch, batch_size*crop_h*crop_w*this->c_));
+  CUDA_CALL(cudaMalloc((void**)&out_batch, batch_size*crop_h*crop_w*this->c_*sizeof(T)));
   
   // validate parameters
   NDLL_CALL(ValidateBatchedCropMirrorNormalizePermute((const uint8 * const *)in_ptrs.data(),
@@ -636,10 +657,78 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           out_batch));
 
   // Copy the parameters to the gpu
+  uint8 **gpu_in_ptrs = nullptr;
+  int *gpu_in_strides = nullptr;
+  bool *gpu_mirror = nullptr;
+  float *gpu_mean = nullptr;
+  float *gpu_std = nullptr;
+  cudaStream_t stream = 0;
+  
+  CUDA_CALL(cudaMalloc((void**)&gpu_in_ptrs, batch_size*sizeof(uint8*)));
+  CUDA_CALL(cudaMalloc((void**)&gpu_in_strides, batch_size*sizeof(int)));
+  CUDA_CALL(cudaMalloc((void**)&gpu_mirror, batch_size*sizeof(bool)));
+  CUDA_CALL(cudaMalloc((void**)&gpu_mean, this->c_*sizeof(float)));
+  CUDA_CALL(cudaMalloc((void**)&gpu_std, this->c_*sizeof(float)));
+
+  CUDA_CALL(cudaMemcpy(gpu_in_ptrs, in_ptrs.data(),
+          batch_size*sizeof(uint8*), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(gpu_in_strides, strides.data(),
+          batch_size*sizeof(int), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(gpu_mirror, mirror,
+          batch_size*sizeof(bool), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(gpu_mean, mean.data(),
+          this->c_*sizeof(float), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(gpu_std, std.data(),
+          this->c_*sizeof(float), cudaMemcpyHostToDevice));
+  
   // Run the kernel
-  // Run the validation
-  // compare the results
+  NDLL_CALL(BatchedCropMirrorNormalizePermute(
+          gpu_in_ptrs,
+          gpu_in_strides,
+          batch_size,
+          crop_h,
+          crop_w,
+          this->c_,
+          gpu_mirror,
+          gpu_mean,
+          gpu_std,
+          out_batch,
+          stream));
+  
+  
+  for (int i = 0; i < batch_size; ++i) {
+    vector<uint8> crop_mirror_image(crop_h*crop_w*this->c_);
+    this->OpenCVResizeCropMirror(
+        batch.template datum<uint8>(i),
+        batch.datum_shape(i)[0],
+        batch.datum_shape(i)[1],
+        this->c_,
+        batch.datum_shape(i)[0],
+        batch.datum_shape(i)[1],
+        crop_ys[i], crop_xs[i],
+        crop_h, crop_w, mirror[i],
+        crop_mirror_image.data());
+
+    vector<double> ground_truth_img(crop_h*crop_w*this->c_);
+    CPUBatchedNormalizePermute(
+        crop_mirror_image.data(),
+        1, crop_h, crop_w, this->c_,
+        mean.data(), std.data(),
+        ground_truth_img.data());
+
+    // Compare the images
+    this->CompareData(out_batch + i*(crop_h*crop_w*this->c_),
+        ground_truth_img.data(), crop_h*crop_w*this->c_);
+  }
+  
+  // Clean up
   delete[] mirror;
+  CUDA_CALL(cudaFree(gpu_in_ptrs));
+  CUDA_CALL(cudaFree(gpu_in_strides));
+  CUDA_CALL(cudaFree(gpu_mirror));
+  CUDA_CALL(cudaFree(gpu_mean));
+  CUDA_CALL(cudaFree(gpu_std));
+  CUDA_CALL(cudaFree(out_batch));
 }
 
 } // namespace ndll

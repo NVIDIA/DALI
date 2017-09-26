@@ -59,9 +59,9 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
           int mirrored_width = (W - 1) - w;
           int in_idx = c + C*mirrored_width + in_step*h;  // HWC, mirrored
           int out_idx = c*H*W + h*W + w;  // CHW
-          
+
           output_ptr[out_idx] = static_cast<Out>(
-              (static_cast<float>(input_ptr[in_idx])-mean[c]) * std[c]);
+              (static_cast<float>(input_ptr[in_idx])-mean[c]) / std[c]);
         }
       }
     }
@@ -74,7 +74,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
           int out_idx = c*H*W + h*W + w;  // CHW
 
           output_ptr[out_idx] = static_cast<Out>(
-              (static_cast<float>(input_ptr[in_idx])-mean[c]) * std[c]);
+              (static_cast<float>(input_ptr[in_idx])-mean[c]) / std[c]);
         }
       }
     }
