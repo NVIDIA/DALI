@@ -55,15 +55,15 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   Batch<GPUBackend> output_batch;
     
   // Build and run the pipeline
-  pipe.Build(batch->type());
+  pipe.Build();
 
   // Run once to allocate the memory
-  pipe.RunPrefetch(batch);
+  pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
 
   while(st.KeepRunning()) {
-    pipe.RunPrefetch(batch);
+    pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
     CUDA_CALL(cudaDeviceSynchronize());
@@ -87,7 +87,15 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
       num_stream,
       stream_non_blocking,
       0);
-
+  
+  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+          this->jpegs_, this->jpeg_sizes_, batch_size));
+  Batch<GPUBackend> output_batch;
+  
+  // Add the data reader
+  BatchDataReader<PinnedCPUBackend> reader(batch);
+  pipe.AddDataReader(reader);
+  
   // Add a hybrid jpeg decoder
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
@@ -95,29 +103,25 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
 
   DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
   pipe.AddForwardOp(idct_op);
-    
-  Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
-      this->jpegs_, this->jpeg_sizes_, batch_size);
-  Batch<GPUBackend> output_batch;
-    
+  
   // Build and run the pipeline
-  pipe.Build(batch->type());
+  pipe.Build();
 
   // Run once to allocate the memory
   // pipe.Print();
-  pipe.RunPrefetch(batch);
+  pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
 
   while(st.KeepRunning()) {
-    pipe.RunPrefetch(batch);
+    pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
   // DEBUG
-  // DumpHWCImageBatchToFile<uint8>(output_batch);
+  DumpHWCImageBatchToFile<uint8>(output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

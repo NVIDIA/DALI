@@ -17,7 +17,7 @@ namespace ndll {
  * safe.
  */
 template <typename Backend,
-  typename std::enable_if<std::is_base_of<CPUBackend, Backend>::value>::type = 0>
+          typename std::enable_if<std::is_base_of<CPUBackend, Backend>::value, int>::type = 0>
 class DataReaderBase {
 public:
   DataReaderBase(){}
@@ -27,6 +27,13 @@ public:
    * @brief fills the input Datum object with a single data sample
    */
   virtual void Read(Datum<Backend> *datum) = 0;
+
+  /**
+   * @brief returns meta-data about the output data type
+   */
+  virtual TypeMeta OutputType() = 0;
+  
+  virtual DataReaderBase* Clone() const = 0;
   
   DISABLE_COPY_MOVE_ASSIGN(DataReaderBase);
 private:
@@ -42,7 +49,7 @@ template <typename Backend>
 class BatchDataReader : public DataReaderBase<Backend> {
 public:
   BatchDataReader(shared_ptr<Batch<Backend>> data_store)
-    : data_store_(data_store), cursor_(0), batch_size_(data_store.ndatum()) {
+    : data_store_(data_store), cursor_(0), batch_size_(data_store->ndatum()) {
     NDLL_ENFORCE(data_store_ != nullptr);
     NDLL_ENFORCE(batch_size_ > 0);
   }
@@ -51,6 +58,14 @@ public:
    * @brief Wraps the input Datum object around a single data sample
    */
   void Read(Datum<Backend> *datum) override;
+
+  TypeMeta OutputType() override {
+    return data_store_->type();
+  }
+  
+  BatchDataReader<Backend>* Clone() const override {
+    return new BatchDataReader(data_store_);
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(BatchDataReader);
 private:

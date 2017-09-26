@@ -38,7 +38,7 @@ public:
       int max_streams,  bool non_blocking, int device_id) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
     stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
-    thread_pool_(num_threads, device_id) {
+    thread_pool_(num_threads, device_id), input_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template data<uint8>();
@@ -111,12 +111,23 @@ public:
     decode_location_ = DECODE_FORWARD;
   }
 
+  /**
+   * @brief Adds the input DataReader to the pipeline. The DataReader will
+   * provide access to single data samples during execution, and allow us
+   * to overlap the reading of data with the processing of data in the
+   * thread pool
+   */
+  inline void AddDataReader(const DataReaderBase<CPUBackend> &reader) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
+    data_reader_.reset(reader.Clone());
+  }
   
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
    */
-  inline void Build(TypeMeta input_type) {
+  inline void Build() {
     // Make sure the decoder is the first op in the pipeline
     if (decode_location_ == DECODE_FORWARD) {
       NDLL_ENFORCE(prefetch_ops_.size() == 0,
@@ -125,6 +136,12 @@ public:
     }
     NDLL_ENFORCE(prefetch_ops_.size() + forward_ops_.size() > 0,
         "Pipeline must have at least one operator");
+    NDLL_ENFORCE(data_reader_ != nullptr,
+        "The Pipeline must have a data reader to be built");
+
+    // Get the input data type to the pipeline
+    TypeMeta input_type = data_reader_->OutputType();
+    NDLL_ENFORCE(input_type.id() != NO_TYPE);
     
     // Create buffers for intermediate pipeline results. We need 1
     // buffer for each cpu side op output, and 1 buffer for each
@@ -192,32 +209,22 @@ public:
 
   /**
    * @brief Run the prefetch stage of the pipeline
-   *
-   * TODO(tgale): We also want to be able to run this with the first op reading the data
-   * from the database as well. Running in this fashion we may see some slowdown because
-   * all the reading of data will be serialized before this function can be called. 
-   *
-   * We could also add a data reader to this if we want. Some frameworks may serialize
-   * data reading to deal with non-thread-safe databases, we'll want to be able to
-   * overlap reading with processing for the previous datum, so we'll have to do it in
-   * this first loop.
    */
-  inline void RunPrefetch(Batch<CPUBackend> *input) {
-    NDLL_ENFORCE(built_,
-        "\"Build()\" must be called before the pipeline is executed");
-    NDLL_ENFORCE(input->ndatum() == batch_size_,
-        "Calling batch size does not match pipeline parameter");
+  inline void RunPrefetch() {
+    NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
     
     for (Index i = 0; i < batch_size_; ++i) {
+      // Get a Datum from the reader
+      data_reader_->Read(&input_datum_[i]);
+      
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
-              [this, &input] (int data_idx, int tid) {
+              [this] (int data_idx, int tid) {
                 // Get the output shape for the cpu-side results
-                Datum<CPUBackend> datum(input, data_idx);
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(datum, data_idx, tid);
-                datum.Resize(intermediate_shapes_[0][data_idx]);
+                  prefetch_ops_[0]->InferOutputShape(input_datum_[data_idx], data_idx, tid);
                 
+                Datum<CPUBackend> datum(intermediate_shapes_[0][data_idx]);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   intermediate_shapes_[j][data_idx] =
                     prefetch_ops_[j]->InferOutputShape(datum, data_idx, tid);
@@ -259,14 +266,13 @@ public:
     // Execute all the prefetch ops
     for (Index i = 0; i < batch_size_; ++i) {
       thread_pool_.DoWorkWithID(std::bind(
-              [this, &input] (int data_idx, int tid) {
+              [this] (int data_idx, int tid) {
                 // We're going to ping-pong back and forth between these Datums
                 // So we can cut the number of calls to "Reset()" in half.
                 vector<Datum<CPUBackend>> datums(2);
-                datums[0].Reset(input, data_idx);
                 datums[1].Reset(cpu_buffers_[0].get(), data_idx);
                 
-                prefetch_ops_[0]->Run(datums[0], &datums[1], data_idx, tid);
+                prefetch_ops_[0]->Run(input_datum_[data_idx], &datums[1], data_idx, tid);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   // Get the other datum to output this ops result into
                   datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
@@ -419,11 +425,11 @@ private:
   bool built_;
 
   int batch_size_;
-  std::shared_ptr<StreamPool> stream_pool_;
+  shared_ptr<StreamPool> stream_pool_;
   ThreadPool thread_pool_;
 
   template <typename T>
-  using OpPtr = std::unique_ptr<Operator<T>>;
+  using OpPtr = unique_ptr<Operator<T>>;
   vector<OpPtr<CPUBackend>> prefetch_ops_;
   vector<OpPtr<GPUBackend>> forward_ops_;
 
@@ -431,10 +437,14 @@ private:
   // pipeline. Could probably do this with more efficient
   // memory usage than just 1 buffer per intermediate...
   template <typename T>
-  using BatchPtr = std::unique_ptr<Batch<T>>;
+  using BatchPtr = unique_ptr<Batch<T>>;
   vector<BatchPtr<CPUBackend>> cpu_buffers_;
   vector<BatchPtr<GPUBackend>> gpu_buffers_;
 
+  // DataReader to query for datum during execution
+  unique_ptr<DataReaderBase<CPUBackend>> data_reader_;
+  vector<Datum<CPUBackend>> input_datum_;
+  
   // Vectors to keep track of the shape of each sample
   // at each stage as collected during the shape inference
   // pass. We pre-allocate these so threads can directly

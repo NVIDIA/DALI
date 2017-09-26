@@ -159,10 +159,10 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   Batch<GPUBackend> output_batch;
     
   // Build and run the pipeline
-  pipe.Build(batch->type());
+  pipe.Build();
 
   // Decode the images
-  pipe.RunPrefetch(batch);
+  pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
   CUDA_CALL(cudaDeviceSynchronize());

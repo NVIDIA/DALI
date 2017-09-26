@@ -276,7 +276,7 @@ public:
   inline vector<Index> shape() const {
     return shape_;
   }
-
+  
   DISABLE_COPY_MOVE_ASSIGN(Datum);
 protected:
   // Stores the shape of the sample

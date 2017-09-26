@@ -23,9 +23,11 @@ namespace ndll {
 using std::array;
 using std::cout;
 using std::endl;
-using std::vector;
 using std::shared_ptr;
 using std::string;
+using std::unique_ptr;
+using std::vector;
+
 
 // Common types
 typedef uint8_t uint8;

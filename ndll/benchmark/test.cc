@@ -44,10 +44,10 @@ int main() {
   Batch<GPUBackend> output_batch;
     
   // Build and run the pipeline
-  pipe.Build(batch->type());
+  pipe.Build();
 
   // Run once to allocate the memory
-  pipe.RunPrefetch(batch);
+  pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward(&output_batch);
 
@@ -56,7 +56,7 @@ int main() {
 
   int iters = 100;
   for (int i = 0; i < iters; ++i) {
-    pipe.RunPrefetch(batch);
+    pipe.RunPrefetch();
   }
   
   t2 = high_resolution_clock::now();

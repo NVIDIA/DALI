@@ -82,11 +82,11 @@ TYPED_TEST(PipelineTest, DISABLED_TestBuildPipeline) {
     Batch<DeviceBackend> output_batch;
     
     // Build and run the pipeline
-    pipe.Build(batch->type());
+    pipe.Build();
 
     pipe.Print();
     
-    pipe.RunPrefetch(batch);
+    pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward(&output_batch);
 
