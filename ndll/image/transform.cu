@@ -27,6 +27,60 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *in_batch,
     }
   }
 }
+
+// Crop, mirror, mean sub, stddev div, NHWC->NCHW, Npp8u->fp32
+template <typename Out>
+__global__ void BatchedCropMirrorNormalizePermuteKernel(
+    const int N,
+    const int C,
+    const int H,
+    const int W,
+    const bool *mirror,
+    const float* mean,
+    const float* std,
+    const uint8* const * img_ptrs,
+    const int *input_steps,
+    Out* out) {
+  const int n = blockIdx.x;
+
+  const int nStride = C*H*W;
+
+  // pointers to data for this image
+  const uint8* input_ptr = img_ptrs[n];
+  int in_step = input_steps[n];
+  Out* output_ptr = &out[n*nStride];
+  bool mirror_image = mirror[n];
+  
+  if (mirror_image) {
+    // Mirror the image - coalesced writes
+    for (int c=0; c < C; ++c) {
+      for (int h=threadIdx.y; h < H; h += blockDim.y) {
+        for (int w=threadIdx.x; w < W; w += blockDim.x) {
+          int mirrored_width = (W - 1) - w;
+          int in_idx = c + C*mirrored_width + in_step*h;  // HWC, mirrored
+          int out_idx = c*H*W + h*W + w;  // CHW
+          
+          output_ptr[out_idx] = static_cast<Out>(
+              (static_cast<float>(input_ptr[in_idx])-mean[c]) * std[c]);
+        }
+      }
+    }
+  } else {
+    // Copy normally - coalesced writes
+    for (int c=0; c < C; ++c) {
+      for (int h=threadIdx.y; h < H; h += blockDim.y) {
+        for (int w=threadIdx.x; w < W; w += blockDim.x) {
+          int in_idx = c + C*w + in_step*h;  // HWC
+          int out_idx = c*H*W + h*W + w;  // CHW
+
+          output_ptr[out_idx] = static_cast<Out>(
+              (static_cast<float>(input_ptr[in_idx])-mean[c]) * std[c]);
+        }
+      }
+    }
+  }
+}
+
 } // namespace
 
 template <typename OUT>
@@ -60,6 +114,69 @@ template NDLLError_t BatchedNormalizePermute<float>(const uint8 *in_batch,
 template NDLLError_t BatchedNormalizePermute<double>(const uint8 *in_batch,
     int N, int H, int W, int C, float *mean, float *std, double *out_batch,
     cudaStream_t stream);
+
+template <typename OUT>
+NDLLError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
+    const int *in_strides, int N, int H, int W, int C, const bool *mirror,
+    const float *mean, const float *std, OUT *out_batch, cudaStream_t stream) {
+  NDLL_ASSERT(in_batch != nullptr);
+  NDLL_ASSERT(in_strides != nullptr);
+  NDLL_ASSERT(mirror != nullptr);
+  NDLL_ASSERT(mean != nullptr);
+  NDLL_ASSERT(std != nullptr);
+  NDLL_ASSERT(out_batch != nullptr);
+  BatchedCropMirrorNormalizePermuteKernel<<<N, dim3(16, 16), 0, stream>>>(
+      N, C, H, W, mirror, mean, std, in_batch, in_strides, out_batch);
+  return NDLLSuccess;
+}
+
+template NDLLError_t BatchedCropMirrorNormalizePermute<float16>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, float16 *out_batch,
+    cudaStream_t stream);
+
+template NDLLError_t BatchedCropMirrorNormalizePermute<float>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, float *out_batch,
+    cudaStream_t stream);
+
+template NDLLError_t BatchedCropMirrorNormalizePermute<double>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, double *out_batch,
+    cudaStream_t stream);
+
+template <typename OUT>
+NDLLError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
+    const int *in_strides, int N, int H, int W, int C, const bool *mirror,
+    const float *mean, const float *std, OUT *out_batch) {
+  NDLL_ASSERT(N > 0);
+  NDLL_ASSERT(H > 0);
+  NDLL_ASSERT(W > 0);
+  NDLL_ASSERT(C == 1 || C == 3);
+  NDLL_ASSERT(in_batch != nullptr);
+  NDLL_ASSERT(in_strides != nullptr);
+  NDLL_ASSERT(std != nullptr);
+  for (int i = 0; i < N; ++i) {
+    NDLL_ASSERT(in_batch[i] != nullptr);
+    NDLL_ASSERT(in_strides[i] >= C*W);
+  }
+  for (int i = 0; i < C; ++i) {
+    NDLL_ASSERT(std[i] != 0);
+  }
+  return NDLLSuccess;
+}
+
+template NDLLError_t ValidateBatchedCropMirrorNormalizePermute<float16>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, float16 *out_batch);
+
+template NDLLError_t ValidateBatchedCropMirrorNormalizePermute<float>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, float *out_batch);
+
+template NDLLError_t ValidateBatchedCropMirrorNormalizePermute<double>(
+    const uint8 * const *in_batch, const int *in_strides, int N, int H, int W, int C,
+    const bool *mirror, const float *mean, const float *std, double *out_batch);
 
 NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *in_sizes,
     uint8 **out_batch, const NDLLSize *out_sizes, NDLLInterpType type) {
