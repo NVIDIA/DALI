@@ -41,15 +41,15 @@ int main() {
     
   Batch<CPUBackend> *batch = CreateJPEGBatch<CPUBackend>(
       jpegs_, jpeg_sizes_, batch_size);
-  Batch<GPUBackend> output_batch;
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
     
   // Build and run the pipeline
-  pipe.Build();
+  pipe.Build(output_batch);
 
   // Run once to allocate the memory
   pipe.RunPrefetch();
   pipe.RunCopy();
-  pipe.RunForward(&output_batch);
+  pipe.RunForward();
 
   high_resolution_clock::time_point t1, t2;
   t1 = high_resolution_clock::now();

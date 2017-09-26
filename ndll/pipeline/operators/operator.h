@@ -230,8 +230,6 @@ protected:
   vector<GPUSubTensor> batch_param_gpu_buffers_;
 };
 
-// TODO(tgale): Is there any point to having this? It does not
-// change anything from the base Operator class.
 template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:

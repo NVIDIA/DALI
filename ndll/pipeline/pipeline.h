@@ -141,11 +141,16 @@ public:
    * buffer for the forward stage
    */
   void RunCopy();
+
+  // Note: While RunPrefetch & RunCopy can be run in prefetch threads to
+  // overlap with the forward-backward pass, RunForward must be called
+  // Before RunPrefetch & RunCopy can be called again. Thus, we do not
+  // prefetch more than a single batch at once
   
   /**
-   * @brief Run the forward stage of the pipeline
+   * @brief Run the forward stage of the pipeline into the output buffer
    */
-  void RunForward(Batch<GPUBackend> *output);
+  void RunForward();
 
   inline void Print() const {
     // Print all the operators in the pipeline
@@ -194,11 +199,18 @@ private:
   // Batch objects to store intermediate results of the
   // pipeline. Could probably do this with more efficient
   // memory usage than just 1 buffer per intermediate...
+  //
+  // Note: we use shared_ptrs here because our output buffer
+  // is a shared_ptr and we want to be able to simply insert
+  // it into this vector to make the copy & forward simpler
   template <typename T>
-  using BatchPtr = unique_ptr<Batch<T>>;
+  using BatchPtr = shared_ptr<Batch<T>>;
   vector<BatchPtr<CPUBackend>> cpu_buffers_;
   vector<BatchPtr<GPUBackend>> gpu_buffers_;
 
+  // Batch to output the result of the pipeline to
+  shared_ptr<Batch<GPUBackend>> output_buffer_;
+  
   // DataReader to query for datum during execution
   unique_ptr<DataReaderBase<CPUBackend>> data_reader_;
   vector<Datum<CPUBackend>> input_datum_;
@@ -219,7 +231,7 @@ private:
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> output) {
   NDLL_ENFORCE(output != nullptr, "Output batch must point to valid Batch object");
-  output_batch_ = output;
+  output_buffer_ = output;
   
   // Make sure the decoder is the first op in the pipeline
   if (decode_location_ == DECODE_FORWARD) {
@@ -253,11 +265,19 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     prefetch_ops_[i]->SetOutputType(cpu_buffers_[i].get(), input_type);
     input_type = cpu_buffers_[i]->type();
   }
-  // We always need at least one gpu buffer to copy into
-  BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-  gpu_buffers_.push_back(std::move(tmp_gpu));
-  gpu_buffers_[0]->set_type(input_type);
-    
+
+  if (forward_ops_.size() == 0) {
+    // Copy directly into the output buffer
+    gpu_buffers_.push_back(output_buffer_);
+    gpu_buffers_[0]->set_type(input_type);
+  } else {
+    // Create a buffer to copy into
+    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
+    gpu_buffers_.push_back(std::move(tmp_gpu));
+    gpu_buffers_[0]->set_type(input_type);
+  }
+
+  // Create the rest of the input buffers
   for (size_t i = 1; i < forward_ops_.size(); ++i) {
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
@@ -265,19 +285,31 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     input_type = gpu_buffers_[i]->type();
   }
 
+  // If we do have forward ops, add the output buffer to the
+  // gpu_buffers and set its output type from the last op
+  if (forward_ops_.size() > 0) {
+    gpu_buffers_.push_back(output_buffer_);
+    forward_ops_[forward_ops_.size()-1]->
+      SetOutputType(output_buffer_.get(), input_type);
+  }
+
+  // TODO(tgale): We no longer need the copy op as we have access to the output
+  // buffer from the start. If there are not ops in the forward pass, make the
+  // copy occur directly into the output batch. This is a bit tricky, as we
+  // unfortunately can't just insert the output buffer into the gpu_buffers
+  // vector. We can easily do it by adding conditions that check if the
+  // forward stage is empty, but this is icky. Find a nice way to do this
+  
   // If we don't have any user-defined forward ops, add a CopyOp
   // that will copy the data into the output batch
-  if (forward_ops_.size() == 0) {
-    OpPtr<GPUBackend> tmp(new CopyOp<GPUBackend>);
-    forward_ops_.push_back(std::move(tmp));
-  }
-    
-  // Even though it is not managed by the pipeline, we need to keep track of
-  // and resize the output batch for the case where the output shape
-  // depends on something decided by one of the operators. For the case with
-  // determinitic output shape, this resize should just be a no-op after we
-  // resize the output buffer on the first forward pass.
-  intermediate_shapes_.resize(cpu_buffers_.size() + gpu_buffers_.size() + 1);
+  // if (forward_ops_.size() == 0) {
+  //   OpPtr<GPUBackend> tmp(new CopyOp<GPUBackend>);
+  //   forward_ops_.push_back(std::move(tmp));
+  // }
+
+  // Vector of shapes for all of the intermediate operator results as
+  // well as the output gpu buffer
+  intermediate_shapes_.resize(cpu_buffers_.size() + gpu_buffers_.size());
 
   // Size all the intermediate shapes for threads to write into
   for (auto &shape : intermediate_shapes_) {
@@ -404,7 +436,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
 }
 
 template <typename CPUBackend, typename GPUBackend>
-void Pipeline<CPUBackend, GPUBackend>::RunForward(Batch<GPUBackend> *output) {
+void Pipeline<CPUBackend, GPUBackend>::RunForward() {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
 
@@ -415,17 +447,17 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward(Batch<GPUBackend> *output) {
   CUDA_CALL(cudaStreamSynchronize(stream_pool_->GetStream()));
 
   // Run all the forward ops
-  for (size_t i = 1; i < forward_ops_.size(); ++i) {
-    forward_ops_[i-1]->Run(*gpu_buffers_[i-1], gpu_buffers_[i].get());
+  for (size_t i = 0; i < forward_ops_.size(); ++i) {
+    forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());
   }
 
   // Run the last op to output into the passed in batch. We are
   // guaranteed To have this op because we insert a CopyOp if
   // there are no user defined ops in the forward stage
-  int idx = forward_ops_.size() - 1;
-  forward_ops_[idx]->SetOutputType(output, gpu_buffers_[idx]->type());
-  output->Resize(intermediate_shapes_[intermediate_shapes_.size()-1]);
-  forward_ops_[idx]->Run(*gpu_buffers_[idx], output);
+  // int idx = forward_ops_.size() - 1;
+  // forward_ops_[idx]->SetOutputType(output, gpu_buffers_[idx]->type());
+  // output->Resize(intermediate_shapes_[intermediate_shapes_.size()-1]);
+  // forward_ops_[idx]->Run(*gpu_buffers_[idx], output);
 
   // insert cudaEvents and 'cudaStreamWaitEvent()'s into all extra
   // streams used by the ops to ensure proper synchronization

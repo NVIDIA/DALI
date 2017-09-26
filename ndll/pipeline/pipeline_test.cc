@@ -79,19 +79,19 @@ TYPED_TEST(PipelineTest, DISABLED_TestBuildPipeline) {
     
     Batch<HostBackend> *batch = CreateJPEGBatch<HostBackend>(
         this->jpegs_, this->jpeg_sizes_, batch_size);
-    Batch<DeviceBackend> output_batch;
+    shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
     
     // Build and run the pipeline
-    pipe.Build();
+    pipe.Build(output_batch);
 
     pipe.Print();
     
     pipe.RunPrefetch();
     pipe.RunCopy();
-    pipe.RunForward(&output_batch);
+    pipe.RunForward();
 
 #ifndef NDEBUG
-    DumpCHWImageBatchToFile<float>(output_batch);
+    DumpCHWImageBatchToFile<float>(*output_batch);
 #endif
     
     CUDA_CALL(cudaDeviceSynchronize());

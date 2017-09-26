@@ -52,20 +52,20 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
     
   Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
       this->jpegs_, this->jpeg_sizes_, batch_size);
-  Batch<GPUBackend> output_batch;
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
     
   // Build and run the pipeline
-  pipe.Build();
+  pipe.Build(output_batch);
 
   // Run once to allocate the memory
   pipe.RunPrefetch();
   pipe.RunCopy();
-  pipe.RunForward(&output_batch);
+  pipe.RunForward();
 
   while(st.KeepRunning()) {
     pipe.RunPrefetch();
     pipe.RunCopy();
-    pipe.RunForward(&output_batch);
+    pipe.RunForward();
     CUDA_CALL(cudaDeviceSynchronize());
   }
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
@@ -90,7 +90,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   
   shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
-  Batch<GPUBackend> output_batch;
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
   BatchDataReader<PinnedCPUBackend> reader(batch);
@@ -105,23 +105,23 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddForwardOp(idct_op);
   
   // Build and run the pipeline
-  pipe.Build();
+  pipe.Build(output_batch);
 
   // Run once to allocate the memory
   // pipe.Print();
   pipe.RunPrefetch();
   pipe.RunCopy();
-  pipe.RunForward(&output_batch);
+  pipe.RunForward();
 
   while(st.KeepRunning()) {
     pipe.RunPrefetch();
     pipe.RunCopy();
-    pipe.RunForward(&output_batch);
+    pipe.RunForward();
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
   // DEBUG
-  DumpHWCImageBatchToFile<uint8>(output_batch);
+  DumpHWCImageBatchToFile<uint8>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

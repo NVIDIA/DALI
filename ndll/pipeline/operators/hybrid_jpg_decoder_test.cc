@@ -156,26 +156,26 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
     
   Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
       this->jpegs_, this->jpeg_sizes_, batch_size);
-  Batch<GPUBackend> output_batch;
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
     
   // Build and run the pipeline
-  pipe.Build();
+  pipe.Build(output_batch);
 
   // Decode the images
   pipe.RunPrefetch();
   pipe.RunCopy();
-  pipe.RunForward(&output_batch);
+  pipe.RunForward();
   CUDA_CALL(cudaDeviceSynchronize());
 
 #ifndef NDEBUG
-  DumpHWCImageBatchToFile<uint8>(output_batch);
+  DumpHWCImageBatchToFile<uint8>(*output_batch);
 #endif
   
   // Verify the results
   for (int i = 0; i < batch_size; ++i) {
-    this->VerifyDecode(output_batch.template datum<uint8>(i),
-        output_batch.datum_shape(i)[0],
-        output_batch.datum_shape(i)[1], i);
+    this->VerifyDecode(output_batch->template datum<uint8>(i),
+        output_batch->datum_shape(i)[0],
+        output_batch->datum_shape(i)[1], i);
   }
 }
 
