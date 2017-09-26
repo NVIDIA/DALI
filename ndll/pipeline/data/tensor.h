@@ -57,7 +57,7 @@ public:
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
-    size_ = true_size_;
+    size_ = new_size;
     shape_ = shape;
   }
 

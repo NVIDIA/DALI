@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "ndll/common.h"
+#include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operators/copy_op.h"

@@ -250,6 +250,10 @@ public:
 
   inline vector<Index> InferOutputShape(const Datum<Backend> &input,
       int data_idx, int thread_idx) override final {
+#ifndef NDEBUG
+    NDLL_ENFORCE(data_idx < batch_size_, "data_idx out of range");
+#endif
+    
     // Transfomers cannot have data dependent output shapes, we override
     // this method and allow the user to define a simpler method that
     // only receives the input shape

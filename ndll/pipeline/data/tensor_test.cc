@@ -67,6 +67,29 @@ TYPED_TEST(TensorTest, TestResize) {
   }
 }
 
+TYPED_TEST(TensorTest, TestMultipleResize) {
+  try {
+    Tensor<TypeParam> tensor;
+
+    int num = this->RandInt(2, 20);
+    for (int i = 0; i < num; ++i) {
+      // Get shape
+      vector<Index> shape = this->GetRandShape();
+      tensor.Resize(shape);
+      
+      // Verify the settings
+      ASSERT_NE(tensor.template data<float>(), nullptr);
+      ASSERT_EQ(tensor.size(), Product(shape));
+      ASSERT_EQ(tensor.ndim(), shape.size());
+      for (size_t i = 0; i < shape.size(); ++i) {
+        ASSERT_EQ(tensor.dim(i), shape[i]);      
+      }
+    }
+  } catch (std::runtime_error &e) {
+    FAIL() << e.what();
+  }
+}
+
 TYPED_TEST(TensorTest, TestResizeScalar) {
   try {
     Tensor<TypeParam> tensor;

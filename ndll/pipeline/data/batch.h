@@ -213,6 +213,7 @@ public:
 
       TypeMeta new_type;
       type_ = new_type;
+      owned_ = true;
     }
 
     Index new_size = Product(shape);
@@ -232,6 +233,7 @@ public:
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
+    size_ = new_size;
     shape_ = shape;
   }
   
@@ -241,6 +243,19 @@ public:
     NDLL_ENFORCE(sample_idx < batch->ndatum(), "Sample index out of range");
 #endif
     NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
+
+    if (owned_ && true_size_ > 0) {
+      // Clean up the current underlying storage
+      backend_.Delete(data_, true_size_*type_.size());
+
+      // Set back to default state
+      data_ = nullptr;
+      size_ = 0;
+      true_size_ = 0;
+      shape_.clear();
+      TypeMeta new_type;
+      type_ = new_type;
+    }
     
     // The sub-batch does not own its memory
     owned_ = false;

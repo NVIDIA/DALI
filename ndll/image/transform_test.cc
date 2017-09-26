@@ -639,8 +639,6 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
     std[i] = this->RandInt(1, 128);
   }
 
-
-
   T *out_batch = nullptr;
   CUDA_CALL(cudaMalloc((void**)&out_batch, batch_size*crop_h*crop_w*this->c_*sizeof(T)));
   
