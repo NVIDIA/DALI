@@ -225,9 +225,9 @@ protected:
     
     // Run the batched kernel
     batchedDctQuantInv(
-        batch_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
-        batch_param_gpu_buffers_[0].template data<uint8>(),
-        batch_param_gpu_buffers_[2].template data<int>(),
+        batched_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
+        batched_param_gpu_buffers_[0].template data<uint8>(),
+        batched_param_gpu_buffers_[2].template data<int>(),
         num_cuda_blocks_
         );
 
@@ -358,7 +358,7 @@ protected:
       Batch<Backend>* /* unused */) override {
     // Setup image indices for batched idct kernel launch
     getBatchedInvDctImageIndices(yuv_dims_.data(),
-        num_component_, batch_param_buffers_[2].template data<int>());
+        num_component_, batched_param_buffers_[2].template data<int>());
   }
 
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
@@ -367,7 +367,7 @@ protected:
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      std::memcpy(batch_param_buffers_[0].template data<uint8>() + (comp_id * 64),
+      std::memcpy(batched_param_buffers_[0].template data<uint8>() + (comp_id * 64),
           jpeg.quantTables[i].aTable.lowp, 64);
     }
 
@@ -377,7 +377,7 @@ protected:
     int dct_offset = 0;
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      param = &batch_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
+      param = &batched_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
       param->src = static_cast<const int16*>(input.raw_datum(data_idx)) + dct_offset;
       param->srcStep = dct_step_[comp_id];
       param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
@@ -413,8 +413,8 @@ protected:
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_pool_;
   using Operator<Backend>::batched_param_sizes_;
-  using Operator<Backend>::batch_param_buffers_;
-  using Operator<Backend>::batch_param_gpu_buffers_;
+  using Operator<Backend>::batched_param_buffers_;
+  using Operator<Backend>::batched_param_gpu_buffers_;
 };
 
 } // namespace ndll

@@ -97,8 +97,8 @@ public:
       const vector<GPUSubTensor> &gpu_buffers) {
     NDLL_ENFORCE(buffers.size() == gpu_buffers.size());
     NDLL_ENFORCE(buffers.size() == batched_param_sizes_.size());
-    batch_param_buffers_ = buffers;
-    batch_param_gpu_buffers_ = gpu_buffers;
+    batched_param_buffers_ = buffers;
+    batched_param_gpu_buffers_ = gpu_buffers;
   }
 
   template <typename T = Backend>
@@ -213,8 +213,8 @@ protected:
   std::shared_ptr<StreamPool> stream_pool_;
 
   vector<size_t> batched_param_sizes_;
-  vector<CPUSubTensor> batch_param_buffers_;
-  vector<GPUSubTensor> batch_param_gpu_buffers_;
+  vector<CPUSubTensor> batched_param_buffers_;
+  vector<GPUSubTensor> batched_param_gpu_buffers_;
 };
 
 template <typename Backend>

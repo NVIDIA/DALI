@@ -18,6 +18,9 @@ public:
     NDLL_ENFORCE(C_ == 3 || C_ == 1);
     NDLL_ENFORCE((int)mean.size() == C_);
     NDLL_ENFORCE((int)std.size() == C_);
+    for (auto &val : std) {
+      NDLL_ENFORCE(val != 0, "stddev must be non-zero");
+    }
     mean_.Copy(mean);
     std_.Copy(std);
   }

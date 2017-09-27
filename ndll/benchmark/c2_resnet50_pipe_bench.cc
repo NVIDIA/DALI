@@ -1,6 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include "ndll/benchmark/ndll_main_bench.h"
+#include "ndll/pipeline/operators/crop_mirror_normalize_permute_op.h"
 #include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
 #include "ndll/pipeline/operators/normalize_permute_op.h"
 #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
@@ -115,7 +116,12 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   // Add a batched resize op
   ResizeOp<GPUBackend> resize_op(true, false, 256, 480, true, NDLL_INTERP_LINEAR);
   pipe.AddForwardOp(resize_op);
-    
+
+  // Add a bached crop+mirror+normalize+permute op
+  CropMirrorNormalizePermuteOp<GPUBackend, float> final_op(
+      true, 224, 224, 0.5f, true, {128, 128, 128}, {1, 1, 1});
+  pipe.AddForwardOp(final_op);
+  
   // Build and run the pipeline
   pipe.Build(output_batch);
 
@@ -133,7 +139,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   }
 
   // DEBUG
-  DumpHWCImageBatchToFile<uint8>(*output_batch);
+  // DumpCHWImageBatchToFile<float>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

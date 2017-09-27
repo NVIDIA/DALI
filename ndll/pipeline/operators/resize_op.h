@@ -35,9 +35,6 @@ public:
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int data_idx, int /* unused */) override {
-#ifndef NDEBUG
-    NDLL_ENFORCE(data_idx < batch_size_, "data_idx out of range");
-#endif
     NDLL_ENFORCE(input_shape.size() == 3, "Resize requires 3-dim image");
     NDLL_ENFORCE(input_shape[2] == C_,
         "Input channel dimension does not match the number of " 
@@ -101,11 +98,6 @@ public:
     return "ResizeOp";
   }
 
-  inline void set_num_threads(int num_threads) override {
-    num_threads_ = num_threads;
-  }
-
-  // User can override if they need to setup meta-data
   inline void set_batch_size(int batch_size) override {
     batch_size_ = batch_size;
 
