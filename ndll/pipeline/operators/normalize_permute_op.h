@@ -18,11 +18,15 @@ public:
     NDLL_ENFORCE(C_ == 3 || C_ == 1);
     NDLL_ENFORCE((int)mean.size() == C_);
     NDLL_ENFORCE((int)std.size() == C_);
-    for (auto &val : std) {
-      NDLL_ENFORCE(val != 0, "stddev must be non-zero");
+
+    // Inverse the std-deviation
+    vector<float> inv_std(C_);
+    for (int i = 0; i < C_; ++i) {
+      inv_std[i] = 1.f / std[i];
     }
+    
     mean_.Copy(mean);
-    std_.Copy(std);
+    inv_std_.Copy(inv_std);
   }
   
   virtual inline ~NormalizePermuteOp() = default;
@@ -54,11 +58,11 @@ protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
-        mean_.template data<float>(), std_.template data<float>(),
+        mean_.template data<float>(), inv_std_.template data<float>(),
         output->template data<OUT>(), stream_pool_->GetStream());
   }
   
-  Tensor<Backend> mean_, std_;
+  Tensor<Backend> mean_, inv_std_;
   vector<float> mean_vec_, std_vec_;
   int H_, W_, C_;
   

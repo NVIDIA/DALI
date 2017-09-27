@@ -91,7 +91,6 @@ public:
 protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int thread_idx) override {
-    TimeRange _tr("huffman-decode-per-image");
     // Perform the huffman decode into the datum object
     HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
@@ -281,9 +280,6 @@ protected:
         // this if they want to be used w/ hybrid jpeg decode. To handle strides,
         // we do the yuv->rgb+upsample into a tmp buffer and then do a small dev2dev
         // 2d memcpy so that the output is dense.
-        //
-        // We could avoid all this hassle if NPP would just add the little condition 
-        // to their kernels...
           
         // Run the yuv->rgb + upsampling kernel
         // nppSetStream(streams[i % streams.size()]);

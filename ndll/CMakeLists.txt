@@ -8,6 +8,10 @@ add_subdirectory(image)
 add_subdirectory(pipeline)
 add_subdirectory(util)
 
+# Collect files in this directory
+file(GLOB tmp *.cc)
+set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
+
 # TODO(tgale): Build to a shared library instead
 set(ndll_lib "ndll")
 cuda_add_library(${ndll_lib} STATIC ${NDLL_SRCS})

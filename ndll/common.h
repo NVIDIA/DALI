@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <cuda_fp16.h> // for __half & related methods
+#include <cuda_profiler_api.h>
 
 #ifdef NDLL_USE_NVTX
 #include "nvToolsExt.h"
@@ -55,16 +56,36 @@ enum NDLLInterpType {
   name(name&&) = delete;                        \
   name& operator=(name&&) = delete
 
+// HACK: This global exists so that we have a way to enable/disable
+// nvtx like we can with the cuda profiler. Could move this to a
+// static variable in the TimeRange class
+extern bool PROFILE;
+
+// Starts profiling NDLL
+inline void NDLLProfilerStart() {
+  cudaProfilerStart();
+  PROFILE = true;
+}
+
+inline void NDLLProfilerStop() {
+  PROFILE = false;
+  cudaProfilerStop();
+}
+
 // Basic timerange for profiling
 struct TimeRange {
 TimeRange(const char *name) {
 #ifdef NDLL_USE_NVTX
-  nvtxRangePushA(name);
+  if (PROFILE) {
+    nvtxRangePushA(name);
+  }
 #endif
 }
 ~TimeRange() {
 #ifdef NDLL_USE_NVTX
-  nvtxRangePop();
+  if (PROFILE) {
+    nvtxRangePop();
+  }
 #endif
 }
 };

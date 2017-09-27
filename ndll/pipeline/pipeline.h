@@ -335,82 +335,91 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
   NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
-    
-  for (Index i = 0; i < batch_size_; ++i) {
-    // Get a Datum from the reader
-    data_reader_->Read(&input_datum_[i]);
+
+  {
+    TimeRange _tr("size-inference-loop");
+    for (Index i = 0; i < batch_size_; ++i) {
+      // Get a Datum from the reader
+      data_reader_->Read(&input_datum_[i]);
       
-    // Run type inference for this image on the whole pipeline
-    thread_pool_.DoWorkWithID(std::bind(
-            [this] (int data_idx, int tid) {
-              // Get the output shape for the cpu-side results
-              intermediate_shapes_[0][data_idx] =
-                prefetch_ops_[0]->InferOutputShape(input_datum_[data_idx], data_idx, tid);
+      // Run type inference for this image on the whole pipeline
+      thread_pool_.DoWorkWithID(std::bind(
+              [this] (int data_idx, int tid) {
+                // Get the output shape for the cpu-side results
+                intermediate_shapes_[0][data_idx] =
+                  prefetch_ops_[0]->InferOutputShape(input_datum_[data_idx], data_idx, tid);
                 
-              Datum<CPUBackend> datum(intermediate_shapes_[0][data_idx]);
-              for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                intermediate_shapes_[j][data_idx] =
-                  prefetch_ops_[j]->InferOutputShape(datum, data_idx, tid);
-                datum.Resize(intermediate_shapes_[j][data_idx]);
-              }
+                Datum<CPUBackend> datum(intermediate_shapes_[0][data_idx]);
+                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
+                  intermediate_shapes_[j][data_idx] =
+                    prefetch_ops_[j]->InferOutputShape(datum, data_idx, tid);
+                  datum.Resize(intermediate_shapes_[j][data_idx]);
+                }
                 
-              // Save the shape of the gpu-side copy buffer
-              int offset = prefetch_ops_.size();
-              intermediate_shapes_[offset][data_idx] =
-                intermediate_shapes_[offset - 1][data_idx];
+                // Save the shape of the gpu-side copy buffer
+                int offset = prefetch_ops_.size();
+                intermediate_shapes_[offset][data_idx] =
+                  intermediate_shapes_[offset - 1][data_idx];
 
-              // Get the output shape for the gpu-side results
-              ++offset;
-              Datum<GPUBackend> datum_gpu(datum.shape());
-              for (size_t j = 0; j < forward_ops_.size(); ++j) {
-                intermediate_shapes_[j + offset][data_idx] =
-                  forward_ops_[j]->InferOutputShape(datum_gpu, data_idx, tid);
-                datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
-              }
-            }, i, std::placeholders::_1));
+                // Get the output shape for the gpu-side results
+                ++offset;
+                Datum<GPUBackend> datum_gpu(datum.shape());
+                for (size_t j = 0; j < forward_ops_.size(); ++j) {
+                  intermediate_shapes_[j + offset][data_idx] =
+                    forward_ops_[j]->InferOutputShape(datum_gpu, data_idx, tid);
+                  datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
+                }
+              }, i, std::placeholders::_1));
+    }
+    thread_pool_.WaitForWork();
   }
-  thread_pool_.WaitForWork();
-    
-  // Resize the intermidate buffers
-  for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
-    cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
-  }
+  
+  {
+    TimeRange _tr("resize-buffer-setup-prefetch");
+    // Resize the intermidate buffers
+    for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
+      cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
+    }
 
-  // Resize the gpu-size intermediate buffers & set the types
-  for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
-    gpu_buffers_[i]->Resize(
-        intermediate_shapes_[i + cpu_buffers_.size()]);
-  }
+    // Resize the gpu-size intermediate buffers & set the types
+    for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
+      gpu_buffers_[i]->Resize(
+          intermediate_shapes_[i + cpu_buffers_.size()]);
+    }
 
-  // Setup the mega-buffer & distribute sub-buffers to
-  // the ops in the forward pass
-  MegaBufferSetupAndDistribution();
-    
+    // Setup the mega-buffer & distribute sub-buffers to
+    // the ops in the forward pass
+    MegaBufferSetupAndDistribution();
+  }
+  
   // Execute all the prefetch ops
-  for (Index i = 0; i < batch_size_; ++i) {
-    thread_pool_.DoWorkWithID(std::bind(
-            [this] (int data_idx, int tid) {
-              // We're going to ping-pong back and forth between these Datums
-              // So we can cut the number of calls to "Reset()" in half.
-              vector<Datum<CPUBackend>> datums(2);
-              datums[1].Reset(cpu_buffers_[0].get(), data_idx);
+  {
+    TimeRange _tr("prefetch-work-loop");
+    for (Index i = 0; i < batch_size_; ++i) {
+      thread_pool_.DoWorkWithID(std::bind(
+              [this] (int data_idx, int tid) {
+                // We're going to ping-pong back and forth between these Datums
+                // So we can cut the number of calls to "Reset()" in half.
+                vector<Datum<CPUBackend>> datums(2);
+                datums[1].Reset(cpu_buffers_[0].get(), data_idx);
                 
-              prefetch_ops_[0]->Run(input_datum_[data_idx], &datums[1], data_idx, tid);
-              for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                // Get the other datum to output this ops result into
-                datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
-                prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
-              }
+                prefetch_ops_[0]->Run(input_datum_[data_idx], &datums[1], data_idx, tid);
+                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
+                  // Get the other datum to output this ops result into
+                  datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
+                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
+                }
 
-              // Give the forward ops a chance to set up
-              // parameters for their kernel launches
-              for (size_t j = 0; j < forward_ops_.size(); ++j) {
-                forward_ops_[j]->BatchedParameterSetupPerDatum(
-                    *gpu_buffers_[j], gpu_buffers_[j+1].get(), data_idx, tid);
-              }
-            }, i, std::placeholders::_1));
+                // Give the forward ops a chance to set up
+                // parameters for their kernel launches
+                for (size_t j = 0; j < forward_ops_.size(); ++j) {
+                  forward_ops_[j]->BatchedParameterSetupPerDatum(
+                      *gpu_buffers_[j], gpu_buffers_[j+1].get(), data_idx, tid);
+                }
+              }, i, std::placeholders::_1));
+    }
+    thread_pool_.WaitForWork();
   }
-  thread_pool_.WaitForWork();
 }
 
 template <typename CPUBackend, typename GPUBackend>
@@ -433,10 +442,15 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
           mega_buffer_.nbytes(),
           cudaMemcpyHostToDevice,
           stream_pool_->GetStream()));
+
+  // cout << "data bytes: " << src.nbytes() << endl;
+  // cout << "param bytes: " << mega_buffer_.nbytes() << endl;
+  // cout << "total bytes: " << src.nbytes() + mega_buffer_.nbytes() << endl;
 }
 
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::RunForward() {
+  TimeRange _tr("RunForward");
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
 
@@ -467,7 +481,6 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward() {
 
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::MegaBufferSetupAndDistribution() {
-  TimeRange _tr("mega-buffer-setup");
   // Query all the forward ops for mega-buffer sizes
   size_t total_bytes = 0;
   vector<size_t> offsets;

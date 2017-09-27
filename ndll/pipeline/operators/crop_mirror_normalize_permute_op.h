@@ -37,11 +37,14 @@ public:
     // Validate & save mean & std params
     NDLL_ENFORCE((int)mean.size() == C_);
     NDLL_ENFORCE((int)std.size() == C_);
-    for (auto &val : std) {
-      NDLL_ENFORCE(val != 0, "stddev must be non-zero");
+    
+    // Inverse the std-deviation
+    inv_std_vec_.resize(C_);
+    for (int i = 0; i < C_; ++i) {
+      inv_std_vec_[i] = 1.f / std[i];
     }
     mean_.Copy(mean);
-    std_.Copy(std);
+    inv_std_.Copy(inv_std_vec_);
 
     // We need three buffers for our batched parameters
     // in_ptrs, in_strides, and mirror parameters per image
@@ -115,7 +118,7 @@ protected:
             batch_size_, crop_h_, crop_w_, C_,
             batched_param_gpu_buffers_[2].template data<bool>(),
             mean_.template data<float>(),
-            std_.template data<float>(),
+            inv_std_.template data<float>(),
             output->template data<OUT>(),
             stream_pool_->GetStream()));
   }
@@ -148,7 +151,7 @@ protected:
             batched_param_buffers_[1].template data<int>(),
             batch_size_, crop_h_, crop_w_, C_,
             batched_param_buffers_[2].template data<bool>(),
-            mean_vec_.data(), std_vec_.data(),
+            mean_vec_.data(), inv_std_vec_.data(),
             output->template data<OUT>()));
   }
   
@@ -171,8 +174,8 @@ protected:
   vector<bool> mirror_;
 
   // Tensor to store mean & stddiv 
-  Tensor<Backend> mean_, std_;
-  vector<float> mean_vec_, std_vec_;
+  Tensor<Backend> mean_, inv_std_;
+  vector<float> mean_vec_, std_vec_, inv_std_vec_;
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;

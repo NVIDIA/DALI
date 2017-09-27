@@ -547,10 +547,15 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
 
   // Set up the mean & std dev
   vector<float> vals(this->c_*2, 128);
+  vector<float> std(this->c_, 128);
+  for (int i = 0; i < this->c_; ++i) {
+    // inverse the standard deviation
+    vals[this->c_+i] = 1 / 128.f;
+  }
   float *mean = nullptr;
   CUDA_CALL(cudaMalloc((void**)&mean, sizeof(float)*2*this->c_));
   CUDA_CALL(cudaMemcpy(mean, vals.data(), sizeof(float)*2*this->c_, cudaMemcpyHostToDevice));
-  float *stddev = mean + this->c_;
+  float *inv_std = mean + this->c_;
   
   // Move the batch to GPU
   uint8 *batch_gpu = nullptr;
@@ -562,11 +567,11 @@ TYPED_TEST(OutputTransformTest, TestBatchedNormalizePermute) {
   CUDA_CALL(cudaMalloc((void**)&output_batch, n*h*w*this->c_*sizeof(T)));
 
   NDLL_CALL(BatchedNormalizePermute(batch_gpu, n, h, w, this->c_,
-          mean, stddev, output_batch, 0));
+          mean, inv_std, output_batch, 0));
 
   vector<double> output_batch_ver(n*h*w*this->c_, 0);
   CPUBatchedNormalizePermute(batch.data(), n, h, w, this->c_,
-      vals.data(), vals.data()+this->c_, output_batch_ver.data());
+      vals.data(), std.data(), output_batch_ver.data());
 
   this->CompareData(output_batch, output_batch_ver.data(), n*h*w*this->c_);
   
@@ -614,7 +619,8 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   bool *mirror = new bool[batch_size];
   vector<float> mean(this->c_);
   vector<float> std(this->c_);
-
+  vector<float> inv_std(this->c_);
+  
   // choose crop offsets & whether to mirror
   vector<int> crop_xs(batch_size);
   vector<int> crop_ys(batch_size);
@@ -637,6 +643,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   for (int i = 0; i < this->c_; ++i) {
     mean[i] = this->RandInt(1, 128);
     std[i] = this->RandInt(1, 128);
+    inv_std[i] = 1 / std[i];
   }
 
   T *out_batch = nullptr;
@@ -651,7 +658,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           this->c_,
           mirror,
           mean.data(),
-          std.data(),
+          inv_std.data(),
           out_batch));
 
   // Copy the parameters to the gpu
@@ -659,14 +666,14 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   int *gpu_in_strides = nullptr;
   bool *gpu_mirror = nullptr;
   float *gpu_mean = nullptr;
-  float *gpu_std = nullptr;
+  float *gpu_inv_std = nullptr;
   cudaStream_t stream = 0;
   
   CUDA_CALL(cudaMalloc((void**)&gpu_in_ptrs, batch_size*sizeof(uint8*)));
   CUDA_CALL(cudaMalloc((void**)&gpu_in_strides, batch_size*sizeof(int)));
   CUDA_CALL(cudaMalloc((void**)&gpu_mirror, batch_size*sizeof(bool)));
   CUDA_CALL(cudaMalloc((void**)&gpu_mean, this->c_*sizeof(float)));
-  CUDA_CALL(cudaMalloc((void**)&gpu_std, this->c_*sizeof(float)));
+  CUDA_CALL(cudaMalloc((void**)&gpu_inv_std, this->c_*sizeof(float)));
 
   CUDA_CALL(cudaMemcpy(gpu_in_ptrs, in_ptrs.data(),
           batch_size*sizeof(uint8*), cudaMemcpyHostToDevice));
@@ -676,7 +683,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           batch_size*sizeof(bool), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(gpu_mean, mean.data(),
           this->c_*sizeof(float), cudaMemcpyHostToDevice));
-  CUDA_CALL(cudaMemcpy(gpu_std, std.data(),
+  CUDA_CALL(cudaMemcpy(gpu_inv_std, inv_std.data(),
           this->c_*sizeof(float), cudaMemcpyHostToDevice));
   
   // Run the kernel
@@ -689,7 +696,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           this->c_,
           gpu_mirror,
           gpu_mean,
-          gpu_std,
+          gpu_inv_std,
           out_batch,
           stream));
   
@@ -725,7 +732,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   CUDA_CALL(cudaFree(gpu_in_strides));
   CUDA_CALL(cudaFree(gpu_mirror));
   CUDA_CALL(cudaFree(gpu_mean));
-  CUDA_CALL(cudaFree(gpu_std));
+  CUDA_CALL(cudaFree(gpu_inv_std));
   CUDA_CALL(cudaFree(out_batch));
 }
 

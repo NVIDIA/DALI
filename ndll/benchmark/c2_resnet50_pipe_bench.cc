@@ -1,6 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include "ndll/benchmark/ndll_main_bench.h"
+#include "ndll/common.h"
 #include "ndll/pipeline/operators/crop_mirror_normalize_permute_op.h"
 #include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
 #include "ndll/pipeline/operators/normalize_permute_op.h"
@@ -131,13 +132,15 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.RunCopy();
   pipe.RunForward();
 
+  NDLLProfilerStart();
   while(st.KeepRunning()) {
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
     CUDA_CALL(cudaDeviceSynchronize());
   }
-
+  NDLLProfilerStop();
+  
   // DEBUG
   // DumpCHWImageBatchToFile<float>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);

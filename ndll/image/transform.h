@@ -55,13 +55,13 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
  * @brief Performs mean subtraction & stddev division per channel, cast 
  * to output type, and NHWC->NCHW permutation.
  *
- * 'mean' and 'std' are assumed to point to device memory of size `c`.
+ * 'mean' and 'inv_std' are assumed to point to device memory of size `c`.
  * Input data is assumed to be stored in NHWC layout in memory. Output
  * data will be stored in NCHW.
  */
 template <typename OUT>
 NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
-    int N, int H, int W, int C,  float *mean, float *std,
+    int N, int H, int W, int C,  float *mean, float *inv_std,
     OUT *out_batch, cudaStream_t stream);
 
 /**
@@ -85,7 +85,7 @@ NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
  * @param C number of channels of images in the batch
  * @param mean device pointer of length `C` to the mean to subtract for 
  * each image channel
- * @param std device pointer of length `C` to the std dev. to divide by 
+ * @param std device pointer of length `C` to the inverse std dev. to multiply by 
  * for each image channel
  * @param out_batch pointer of size `N*C*H*W` to store the dense, cropped, 
  * NCHW output batch
@@ -94,7 +94,7 @@ NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
 template <typename OUT>
 NDLLError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
     const int *in_strides, int N, int H, int W, int C, const bool *mirror,
-    const float *mean, const float *std, OUT *out_batch, cudaStream_t stream);
+    const float *mean, const float *inv_std, OUT *out_batch, cudaStream_t stream);
 
 /**
  * @brief Validates the parameters for 'BatchedCropMirrorNormalizePermute' 
@@ -110,12 +110,11 @@ NDLLError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
  * - in_batch device pointers are not nullptr
  * - in_strides values are >= W*C
  * - N > 0, H > 0, W > 0, C == 1 || C == 3
- * - std deviation values are non-zero
  */
 template <typename OUT>
 NDLLError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
     const int *in_strides, int N, int H, int W, int C, const bool *mirror,
-    const float *mean, const float *std, OUT *out_batch);
+    const float *mean, const float *inv_std, OUT *out_batch);
 
 /**
  * @brief Resizes an input batch of images. 

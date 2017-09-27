@@ -14,10 +14,10 @@ list(APPEND HYBRID_DECODE_LIBS
 
 # Compile w/ NVTX
 if (USE_NVTX)
-  message(STATUS "COMPILING HYBDEC W/ TIMERANGES")
-  find_cuda_helper_libs(nvToolsExt)
-  list(APPEND HYBRID_DECODE_LIBS ${CUDA_nvToolsExt_LIBRARY})
-  add_definitions(-DENABLE_TIMERANGES)
+  # message(STATUS "COMPILING HYBDEC W/ TIMERANGES")
+  # find_cuda_helper_libs(nvToolsExt)
+  # list(APPEND HYBRID_DECODE_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  # add_definitions(-DENABLE_TIMERANGES)
 endif()
 
 # Google C++ testing framework
