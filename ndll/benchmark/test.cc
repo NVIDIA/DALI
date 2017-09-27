@@ -34,15 +34,19 @@ int main() {
       stream_non_blocking,
       0);
 
+  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
+          jpegs_, jpeg_sizes_, batch_size));
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
+
+  // Add the data reader
+  BatchDataReader<CPUBackend> reader(batch);
+  pipe.AddDataReader(reader);
+  
   // Add a hybrid jpeg decoder
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
   ndll::HuffmanDecoder<CPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
-    
-  Batch<CPUBackend> *batch = CreateJPEGBatch<CPUBackend>(
-      jpegs_, jpeg_sizes_, batch_size);
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
-    
+
   // Build and run the pipeline
   pipe.Build(output_batch);
 

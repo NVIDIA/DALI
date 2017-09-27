@@ -129,7 +129,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 }
 
 template <typename T, typename Backend>
-void DumpHWCImageBatchToFile(Batch<Backend> &batch) {
+void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
   int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
     vector<Index> shape = batch.datum_shape(i);
@@ -141,7 +141,7 @@ void DumpHWCImageBatchToFile(Batch<Backend> &batch) {
 }
   
 template <typename T, typename Backend>
-void DumpCHWImageBatchToFile(Batch<Backend> &batch) {
+void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
   int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
     vector<Index> shape = batch.datum_shape(i);

@@ -28,7 +28,15 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
       num_stream,
       stream_non_blocking,
       0);
-    
+
+  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+          this->jpegs_, this->jpeg_sizes_, batch_size));
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
+  
+  // Add the data reader
+  BatchDataReader<PinnedCPUBackend> reader(batch);
+  pipe.AddDataReader(reader);
+  
   // Add a decoder and some transformers
   bool color = true;
   TJPGDecoder<PinnedCPUBackend> jpg_decoder(color);
@@ -49,15 +57,12 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   NormalizePermuteOp<GPUBackend, float> norm_permute_op(
       {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
   pipe.AddForwardOp(norm_permute_op);
-    
-  Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
-      this->jpegs_, this->jpeg_sizes_, batch_size);
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
-    
+  
   // Build and run the pipeline
   pipe.Build(output_batch);
 
   // Run once to allocate the memory
+  // pipe.Print();
   pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward();
@@ -68,6 +73,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
     pipe.RunForward();
     CUDA_CALL(cudaDeviceSynchronize());
   }
+  
+  // DEBUG
+  // DumpCHWImageBatchToFile<float>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 
@@ -121,7 +129,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   }
 
   // DEBUG
-  DumpHWCImageBatchToFile<uint8>(*output_batch);
+  // DumpHWCImageBatchToFile<uint8>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

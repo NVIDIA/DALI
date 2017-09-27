@@ -146,6 +146,14 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
       stream_non_blocking,
       0);
 
+  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+          this->jpegs_, this->jpeg_sizes_, batch_size));
+  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
+
+  // Add the data reader
+  BatchDataReader<PinnedCPUBackend> reader(batch);
+  pipe.AddDataReader(reader);
+  
   // Add a hybrid jpeg decoder
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
@@ -153,10 +161,6 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
 
   DCTQuantInvOp<GPUBackend> idct_op(this->color_, decode_channel);
   pipe.AddForwardOp(idct_op);
-    
-  Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
-      this->jpegs_, this->jpeg_sizes_, batch_size);
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
     
   // Build and run the pipeline
   pipe.Build(output_batch);
