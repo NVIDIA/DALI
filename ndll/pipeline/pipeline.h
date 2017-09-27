@@ -12,6 +12,7 @@
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
+#include "ndll/util/npp.h"
 
 namespace ndll {
 
@@ -43,6 +44,11 @@ public:
     // Set the data type for our mega-buffers
     mega_buffer_.template data<uint8>();
     mega_buffer_gpu_.template data<uint8>();
+
+    // Note: For now we set the NPP stream here so that all of the ops that use NPP do
+    // not need to. If multiple threads can execute can call "RunForward", they must
+    // also set the npp stream to avoid data corruption w/ ops that use NPP
+    nppSetStream(stream_pool_->GetStream());
     
     // Note: We do not set device/thread affinity in the pipeline anywhere
     // because frameworks like C2 could have different threads running

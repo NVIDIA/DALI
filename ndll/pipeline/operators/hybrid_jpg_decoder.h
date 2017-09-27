@@ -216,12 +216,6 @@ public:
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    // TODO(tgale): We could theoretically mess with other users of
-    // NPP by setting the stream here because this function will be
-    // called in the main thread. Do we need to do something special
-    // to make sure we don't have any issues with this?
-    nppSetStream(stream_pool_->GetStream());
-    
     // Run the batched kernel
     batchedDctQuantInv(
         batched_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
@@ -282,7 +276,6 @@ protected:
         // 2d memcpy so that the output is dense.
           
         // Run the yuv->rgb + upsampling kernel
-        // nppSetStream(streams[i % streams.size()]);
         yCbCrToRgb((const uint8**)yuv_planes,
             yuv_steps, strided_img, img_steps_[i],
             img_rois_[i], sampling_ratio);

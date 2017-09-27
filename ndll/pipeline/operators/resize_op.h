@@ -110,7 +110,6 @@ public:
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    nppSetStream(stream_pool_->GetStream());
     BatchedResize((const uint8**)input_ptrs_.data(), batch_size_, C_, input_sizes_.data(),
         output_ptrs_.data(), output_sizes_.data(), type_);
   }
