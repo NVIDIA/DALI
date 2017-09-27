@@ -111,7 +111,11 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
 
   DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
   pipe.AddForwardOp(idct_op);
-  
+
+  // Add a batched resize op
+  ResizeOp<GPUBackend> resize_op(true, false, 256, 480, true, NDLL_INTERP_LINEAR);
+  pipe.AddForwardOp(resize_op);
+    
   // Build and run the pipeline
   pipe.Build(output_batch);
 
@@ -129,7 +133,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   }
 
   // DEBUG
-  // DumpHWCImageBatchToFile<uint8>(*output_batch);
+  DumpHWCImageBatchToFile<uint8>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

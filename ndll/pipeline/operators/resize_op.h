@@ -17,7 +17,7 @@ public:
       int resize_a,
       int resize_b,
       bool color,
-      NDLLInterpType type)
+      NDLLInterpType type = NDLL_INTERP_LINEAR)
     : rand_gen_(time(nullptr)),
       random_resize_(random_resize),
       warp_resize_(warp_resize),
@@ -118,12 +118,16 @@ public:
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    // Set stream, run kernel
+    nppSetStream(stream_pool_->GetStream());
+    BatchedResize((const uint8**)input_ptrs_.data(), batch_size_, C_, input_sizes_.data(),
+        output_ptrs_.data(), output_sizes_.data(), type_);
   }
   
-  inline void SerialBatchedParameterSetup(const Batch<Backend> &input,
-      Batch<Backend> *output) override {
+  inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
+      Batch<Backend> *output, int data_idx, int /* unused */) override {
     // Setup input & output ptrs for each image
+    input_ptrs_[data_idx] = input.template datum<uint8>(data_idx);
+    output_ptrs_[data_idx] = output->template datum<uint8>(data_idx);
   }
   
   std::mt19937 rand_gen_;
@@ -132,13 +136,17 @@ protected:
   bool random_resize_;
   bool warp_resize_;
   int resize_a_, resize_b_;
-  NDLLInterpType type_;
 
   // Input/output channels meta-data
   bool color_;
   int C_;
+
+  // Interpolation type
+  NDLLInterpType type_;
   
-  vector<uint8*> input_ptrs_, output_ptrs_;
+  vector<const uint8*> input_ptrs_;
+  vector<uint8*> output_ptrs_;
+  
   vector<NDLLSize> input_sizes_, output_sizes_;
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
