@@ -121,7 +121,8 @@ protected:
     // Set stream, run kernel
   }
   
-  inline void SerialBatchedParameterSetup(const Batch<Backend> &input) override {
+  inline void SerialBatchedParameterSetup(const Batch<Backend> &input,
+      Batch<Backend> *output) override {
     // Setup input & output ptrs for each image
   }
   

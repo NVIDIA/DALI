@@ -103,8 +103,8 @@ public:
 
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  BatchedParameterSetup(const Batch<Backend> &input) {
-    SerialBatchedParameterSetup(input);
+  BatchedParameterSetup(const Batch<Backend> &input, Batch<Backend> *output) {
+    SerialBatchedParameterSetup(input, output);
   }
 
   /**
@@ -113,9 +113,9 @@ public:
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  BatchedParameterSetupPerDatum(const Batch<Backend> &input,
+  BatchedParameterSetupPerDatum(const Batch<Backend> &input, Batch<Backend> *output,
       int data_idx, int thread_idx) {
-    ThreadedBatchedParameterSetup(input, data_idx, thread_idx);
+    ThreadedBatchedParameterSetup(input, output, data_idx, thread_idx);
   }
   
   /**
@@ -185,26 +185,13 @@ protected:
   virtual void CalculateBatchedParameterSize() {
     // Default does nothing
   }
-
-  // TODO(tgale): We need to know the output buffer to really support batched
-  // parameter setup where all kernels can see the input and output buffers
-  // they will be working on. Can we alter the pipeline to take a fixed output
-  // buffer? Yes, this would not be too bad. How would this affect framework
-  // integration? We can't resize the output if we've wrapped one of their
-  // buffers. This is what we do currently anyways. For pipelines where the
-  // output is variable size, they'll just have to do an extra copy on the
-  // forward pass to get the result out
   
   /**
    * @brief Performs any serial batched parameter setup that needs to be done 
    * by the op. Ops should do any work possible in the threaded methods to 
    * avoid doing unnecessary serial work
-   *
-   * The input batch is provided for ops that need to set ptr offsets. We
-   * cannot provide the output batch for all ops, as the last op in the 
-   * pipeline won't have its output batch set until 'RunForward' is called
    */
-  virtual void SerialBatchedParameterSetup(const Batch<Backend> &input) {
+  virtual void SerialBatchedParameterSetup(const Batch<Backend> &input, Batch<Backend> *output) {
     // Default does nothing
   }
 
@@ -217,7 +204,7 @@ protected:
    * pipeline won't have its output batch set until 'RunForward' is called
    */
   virtual void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
-      int data_idx, int thread_idx) {
+      Batch<Backend> *output, int data_idx, int thread_idx) {
     // Default does nothing
   }
   

@@ -406,7 +406,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
               // parameters for their kernel launches
               for (size_t j = 0; j < forward_ops_.size(); ++j) {
                 forward_ops_[j]->BatchedParameterSetupPerDatum(
-                    *gpu_buffers_[j], data_idx, tid);
+                    *gpu_buffers_[j], gpu_buffers_[j+1].get(), data_idx, tid);
               }
             }, i, std::placeholders::_1));
   }
@@ -506,7 +506,7 @@ void Pipeline<CPUBackend, GPUBackend>::MegaBufferSetupAndDistribution() {
     forward_ops_[i]->
       SetBatchedParameterBuffers(cpu_buffers, gpu_buffers);
     forward_ops_[i]->
-      BatchedParameterSetup(*gpu_buffers_[i]);
+      BatchedParameterSetup(*gpu_buffers_[i], gpu_buffers_[i+1].get());
   }
 }
 

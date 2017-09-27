@@ -354,14 +354,15 @@ protected:
     }
   }
 
-  inline void SerialBatchedParameterSetup(const Batch<Backend> & /* unused */) override {
+  inline void SerialBatchedParameterSetup(const Batch<Backend>& /* unused */,
+      Batch<Backend>* /* unused */) override {
     // Setup image indices for batched idct kernel launch
     getBatchedInvDctImageIndices(yuv_dims_.data(),
         num_component_, batch_param_buffers_[2].template data<int>());
   }
 
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
-      int data_idx, int thread_idx) override {
+      Batch<Backend>* /* unused */, int data_idx, int thread_idx) override {
     // Copy quant tables into mega-buffer
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
     for (int i = 0; i < C_; ++i) {
