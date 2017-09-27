@@ -98,7 +98,7 @@ NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
   NDLL_ASSERT(W > 0);
   NDLL_ASSERT(H > 0);
 
-  BatchedNormalizePermuteKernel<<<N, dim3(16, 16), 0, stream>>>(
+  BatchedNormalizePermuteKernel<<<N, dim3(32, 32), 0, stream>>>(
       in_batch, N, H, W, C, mean, inv_std, out_batch);
   return NDLLSuccess;
 }

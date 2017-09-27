@@ -35,16 +35,18 @@ public:
 
   /**
    * @brief Returns the maximum amount of streams allowed
+   *
+   * Note: Don't use this until we resolve stream design issue
    */
-  vector<cudaStream_t> GetMaxStreams() {
-    int num_new_streams = max_streams_ - streams_.size();
-    for (int i = 0; i < num_new_streams; ++i) {
-      cudaStream_t new_stream;
-      CUDA_CALL(cudaStreamCreateWithFlags(&new_stream, non_blocking_));
-      streams_.push_back(new_stream);
-    }
-    return streams_;
-  }
+  // vector<cudaStream_t> GetMaxStreams() {
+  //   int num_new_streams = max_streams_ - streams_.size();
+  //   for (int i = 0; i < num_new_streams; ++i) {
+  //     cudaStream_t new_stream;
+  //     CUDA_CALL(cudaStreamCreateWithFlags(&new_stream, non_blocking_));
+  //     streams_.push_back(new_stream);
+  //   }
+  //   return streams_;
+  // }
 
   /**
    * @brief Returns the main stream

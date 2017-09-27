@@ -453,30 +453,10 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward() {
   TimeRange _tr("RunForward");
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
-
-  // TODO(tgale): Having to synchronize here is not ideal. We do this
-  // to make sure that the copy from "RunCopy" has completed before
-  // ops are free to run their kernels in other streams. Is there a
-  // better way to prevent this from happening?
-  CUDA_CALL(cudaStreamSynchronize(stream_pool_->GetStream()));
-
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {
     forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());
   }
-
-  // Run the last op to output into the passed in batch. We are
-  // guaranteed To have this op because we insert a CopyOp if
-  // there are no user defined ops in the forward stage
-  // int idx = forward_ops_.size() - 1;
-  // forward_ops_[idx]->SetOutputType(output, gpu_buffers_[idx]->type());
-  // output->Resize(intermediate_shapes_[intermediate_shapes_.size()-1]);
-  // forward_ops_[idx]->Run(*gpu_buffers_[idx], output);
-
-  // insert cudaEvents and 'cudaStreamWaitEvent()'s into all extra
-  // streams used by the ops to ensure proper synchronization
-  // behavior with the main stream
-  stream_pool_->SetMainStreamEvents();
 }
 
 template <typename CPUBackend, typename GPUBackend>
