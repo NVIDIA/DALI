@@ -1,7 +1,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 #define NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 
-#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operator.h"
 
 namespace ndll {
 

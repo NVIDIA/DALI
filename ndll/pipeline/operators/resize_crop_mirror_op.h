@@ -8,7 +8,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operator.h"
 
 namespace ndll {
 

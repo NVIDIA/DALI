@@ -5,6 +5,7 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/datum.h"
 
 namespace ndll {
 
@@ -36,8 +37,7 @@ public:
   virtual DataReaderBase* Clone() const = 0;
   
   DISABLE_COPY_MOVE_ASSIGN(DataReaderBase);
-private:
-  
+protected:
 };
 
 /**
@@ -46,7 +46,7 @@ private:
  * compatibility with the way we have been doing things before-data-reader.
  */
 template <typename Backend>
-class BatchDataReader : public DataReaderBase<Backend> {
+class BatchDataReader final : public DataReaderBase<Backend> {
 public:
   BatchDataReader(shared_ptr<Batch<Backend>> data_store)
     : data_store_(data_store), cursor_(0), batch_size_(data_store->ndatum()) {
@@ -81,7 +81,7 @@ private:
 
 template <typename Backend>
 void BatchDataReader<Backend>::Read(Datum<Backend> *datum) {
-  datum->Reset(data_store_.get(), cursor_);
+  datum->WrapSample(data_store_.get(), cursor_);
   cursor_ = (cursor_ + 1) % batch_size_;
 }
 

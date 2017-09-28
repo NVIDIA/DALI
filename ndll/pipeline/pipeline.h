@@ -7,9 +7,10 @@
 #include "ndll/common.h"
 #include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/tensor.h"
+#include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/copy_op.h"
-#include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/npp.h"
@@ -405,14 +406,14 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
                 // We're going to ping-pong back and forth between these Datums
-                // So we can cut the number of calls to "Reset()" in half.
+                // So we can cut the number of calls to "WrapSample()" in half.
                 vector<Datum<CPUBackend>> datums(2);
-                datums[1].Reset(cpu_buffers_[0].get(), data_idx);
+                datums[1].WrapSample(cpu_buffers_[0].get(), data_idx);
                 
                 prefetch_ops_[0]->Run(input_datum_[data_idx], &datums[1], data_idx, tid);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   // Get the other datum to output this ops result into
-                  datums[!(j&1)].Reset(cpu_buffers_[j].get(), data_idx);
+                  datums[!(j&1)].WrapSample(cpu_buffers_[j].get(), data_idx);
                   prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
                 }
 

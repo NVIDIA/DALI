@@ -9,6 +9,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/sub_tensor.h"
 #include "ndll/pipeline/util/stream_pool.h"
 
@@ -217,12 +218,14 @@ protected:
   vector<GPUSubTensor> batched_param_gpu_buffers_;
 };
 
+// Decoders are special operations that can have data-dependent shape inference.
+// For this reason, they are always first in the pipeline.
 template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:
   inline Decoder() {}
   virtual inline ~Decoder() = default;
-
+  
   DISABLE_COPY_MOVE_ASSIGN(Decoder);
 protected:
 };

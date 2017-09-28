@@ -4,6 +4,7 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
+#include "ndll/pipeline/data/datum.h"
 
 namespace ndll {
 
