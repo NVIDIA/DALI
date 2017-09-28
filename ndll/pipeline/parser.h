@@ -3,7 +3,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/batch.h"
+#include "ndll/pipeline/data/batch.h"
 
 namespace ndll {
 
@@ -25,6 +25,8 @@ public:
    * prior to accessing its data
    */
   virtual void Run(const Datum<Backend> &input, Datum<Backend> *output) = 0;
+
+  virtual Parser* Clone() const = 0;
   
   DISABLE_COPY_MOVE_ASSIGN(Parser);
 protected:
@@ -40,12 +42,16 @@ template <typename Backend>
 class DefaultParser final : public Parser<Backend> {
 public:
   DefaultParser() {}
-  ~DeafultParser() {}
+  ~DefaultParser() {}
 
   void Run(const Datum<Backend> &input, Datum<Backend> *output) {
     output->Copy(input);
   }
 
+  DefaultParser* Clone() const override {
+    return new DefaultParser;
+  }
+  
   DISABLE_COPY_MOVE_ASSIGN(DefaultParser);
 protected:
 };

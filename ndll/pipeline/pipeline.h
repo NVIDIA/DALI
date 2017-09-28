@@ -11,6 +11,7 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/copy_op.h"
+#include "ndll/pipeline/parser.h"
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/npp.h"
@@ -40,7 +41,8 @@ public:
       int max_streams,  bool non_blocking, int device_id) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
     stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
-    thread_pool_(num_threads, device_id), input_datum_(batch_size) {
+    thread_pool_(num_threads, device_id), data_reader_(nullptr),
+    input_datum_(batch_size), data_parser_(nullptr), parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template data<uint8>();
@@ -124,10 +126,22 @@ public:
    * to overlap the reading of data with the processing of data in the
    * thread pool
    */
-  inline void AddDataReader(const DataReaderBase<CPUBackend> &reader) {
+  inline void AddDataReader(const DataReader<CPUBackend> &reader) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     data_reader_.reset(reader.Clone());
+  }
+
+  /**
+   * @brief Add the input Parser to the pipeline. The parser will be
+   * called on the Datum produced by the DataReader. This allows support
+   * for custom data formats w/o altering the basic ops defined for the 
+   * pipeline
+   */
+  inline void AddParser(const Parser<CPUBackend> &parser) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
+    data_parser_.reset(parser.Clone());
   }
   
   /**
@@ -197,7 +211,7 @@ private:
   int batch_size_;
   shared_ptr<StreamPool> stream_pool_;
   ThreadPool thread_pool_;
-
+  
   template <typename T>
   using OpPtr = unique_ptr<Operator<T>>;
   vector<OpPtr<CPUBackend>> prefetch_ops_;
@@ -219,8 +233,12 @@ private:
   shared_ptr<Batch<GPUBackend>> output_buffer_;
   
   // DataReader to query for datum during execution
-  unique_ptr<DataReaderBase<CPUBackend>> data_reader_;
+  unique_ptr<DataReader<CPUBackend>> data_reader_;
   vector<Datum<CPUBackend>> input_datum_;
+
+  // The parser to handle custom input data formats
+  unique_ptr<Parser<CPUBackend>> data_parser_;
+  vector<Datum<CPUBackend>> parsed_datum_;
   
   // Vectors to keep track of the shape of each sample
   // at each stage as collected during the shape inference
@@ -251,6 +269,11 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
   NDLL_ENFORCE(data_reader_ != nullptr,
       "The Pipeline must have a data reader to be built");
 
+  // If we don't have a Parser set, add a default parser to the pipeline
+  if (data_parser_ == nullptr) {
+    data_parser_.reset(new DefaultParser<CPUBackend>);
+  }
+  
   // Get the input data type to the pipeline
   TypeMeta input_type = data_reader_->OutputType();
   NDLL_ENFORCE(input_type.id() != NO_TYPE);
@@ -352,9 +375,12 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
+                // Run the Parser
+                data_parser_->Run(input_datum_[data_idx], &parsed_datum_[data_idx]);
+                
                 // Get the output shape for the cpu-side results
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(input_datum_[data_idx], data_idx, tid);
+                  prefetch_ops_[0]->InferOutputShape(parsed_datum_[data_idx], data_idx, tid);
                 
                 Datum<CPUBackend> datum(intermediate_shapes_[0][data_idx]);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
@@ -410,7 +436,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
                 vector<Datum<CPUBackend>> datums(2);
                 datums[1].WrapSample(cpu_buffers_[0].get(), data_idx);
                 
-                prefetch_ops_[0]->Run(input_datum_[data_idx], &datums[1], data_idx, tid);
+                prefetch_ops_[0]->Run(parsed_datum_[data_idx], &datums[1], data_idx, tid);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   // Get the other datum to output this ops result into
                   datums[!(j&1)].WrapSample(cpu_buffers_[j].get(), data_idx);

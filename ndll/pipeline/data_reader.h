@@ -19,10 +19,10 @@ namespace ndll {
  */
 template <typename Backend,
           typename std::enable_if<std::is_base_of<CPUBackend, Backend>::value, int>::type = 0>
-class DataReaderBase {
+class DataReader {
 public:
-  DataReaderBase(){}
-  virtual ~DataReaderBase() = default;
+  DataReader(){}
+  virtual ~DataReader() = default;
 
   /**
    * @brief fills the input Datum object with a single data sample
@@ -34,9 +34,9 @@ public:
    */
   virtual TypeMeta OutputType() = 0;
   
-  virtual DataReaderBase* Clone() const = 0;
+  virtual DataReader* Clone() const = 0;
   
-  DISABLE_COPY_MOVE_ASSIGN(DataReaderBase);
+  DISABLE_COPY_MOVE_ASSIGN(DataReader);
 protected:
 };
 
@@ -46,7 +46,7 @@ protected:
  * compatibility with the way we have been doing things before-data-reader.
  */
 template <typename Backend>
-class BatchDataReader final : public DataReaderBase<Backend> {
+class BatchDataReader final : public DataReader<Backend> {
 public:
   BatchDataReader(shared_ptr<Batch<Backend>> data_store)
     : data_store_(data_store), cursor_(0), batch_size_(data_store->ndatum()) {
