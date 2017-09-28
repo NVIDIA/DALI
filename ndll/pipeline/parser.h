@@ -24,7 +24,8 @@ public:
    * Note: The parser is responsible for resizing its output Datum
    * prior to accessing its data
    */
-  virtual void Run(const Datum<Backend> &input, Datum<Backend> *output) = 0;
+  virtual void Run(const Datum<Backend> &input, Datum<Backend> *output,
+      int data_idx, int thread_idx) = 0;
 
   virtual Parser* Clone() const = 0;
   
@@ -44,7 +45,8 @@ public:
   DefaultParser() {}
   ~DefaultParser() {}
 
-  void Run(const Datum<Backend> &input, Datum<Backend> *output) {
+  void Run(const Datum<Backend> &input, Datum<Backend> *output,
+      int /* unused */, int /* unused */) override {
     output->Copy(input);
   }
 

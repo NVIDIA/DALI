@@ -376,7 +376,8 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
                 // Run the Parser
-                data_parser_->Run(input_datum_[data_idx], &parsed_datum_[data_idx]);
+                data_parser_->Run(input_datum_[data_idx],
+                    &parsed_datum_[data_idx], data_idx, tid);
                 
                 // Get the output shape for the cpu-side results
                 intermediate_shapes_[0][data_idx] =
