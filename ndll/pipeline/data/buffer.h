@@ -59,7 +59,7 @@ public:
           "Buffer does not have type and does not own underlying "
           "storage. Calling 'data' not allowed");
       type_.SetType<T>();
-      
+
       // Make sure we keep our nullptr if we don't allocate anything
       size_t mem_size = true_size_*type_.size();
       if (mem_size != 0) {

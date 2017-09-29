@@ -35,7 +35,7 @@ public:
     return {h, w, c_};
   }
 
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) override {
     NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template data<uint8>();
   }

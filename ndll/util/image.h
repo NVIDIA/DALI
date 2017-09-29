@@ -8,6 +8,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/types.h"
 
 // This file contains useful image utilities for reading and writing images.
 // These functions are for testing and debugging, they should not be used
@@ -130,6 +131,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 
 template <typename T, typename Backend>
 void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
+  NDLL_ENFORCE(IsType<T>(batch.type()));
   int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
     vector<Index> shape = batch.datum_shape(i);
@@ -142,6 +144,7 @@ void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
   
 template <typename T, typename Backend>
 void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
+  NDLL_ENFORCE(IsType<T>(batch.type()));
   int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
     vector<Index> shape = batch.datum_shape(i);

@@ -273,11 +273,11 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
   if (data_parser_ == nullptr) {
     data_parser_.reset(new DefaultParser<CPUBackend>);
   }
-  
+
   // Get the input data type to the pipeline
   TypeMeta input_type = data_reader_->OutputType();
   NDLL_ENFORCE(input_type.id() != NO_TYPE);
-    
+
   // Create buffers for intermediate pipeline results. We need 1
   // buffer for each cpu side op output, and 1 buffer for each
   // gpu side op input. The input to the pipeline and the output
@@ -306,7 +306,6 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     gpu_buffers_.push_back(std::move(tmp_gpu));
     gpu_buffers_[0]->set_type(input_type);
   }
-
   // Create the rest of the input buffers
   for (size_t i = 1; i < forward_ops_.size(); ++i) {
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
@@ -322,20 +321,6 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     forward_ops_[forward_ops_.size()-1]->
       SetOutputType(output_buffer_.get(), input_type);
   }
-
-  // TODO(tgale): We no longer need the copy op as we have access to the output
-  // buffer from the start. If there are not ops in the forward pass, make the
-  // copy occur directly into the output batch. This is a bit tricky, as we
-  // unfortunately can't just insert the output buffer into the gpu_buffers
-  // vector. We can easily do it by adding conditions that check if the
-  // forward stage is empty, but this is icky. Find a nice way to do this
-  
-  // If we don't have any user-defined forward ops, add a CopyOp
-  // that will copy the data into the output batch
-  // if (forward_ops_.size() == 0) {
-  //   OpPtr<GPUBackend> tmp(new CopyOp<GPUBackend>);
-  //   forward_ops_.push_back(std::move(tmp));
-  // }
 
   // Vector of shapes for all of the intermediate operator results as
   // well as the output gpu buffer
