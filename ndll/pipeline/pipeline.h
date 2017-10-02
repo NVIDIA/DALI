@@ -49,8 +49,9 @@ public:
     mega_buffer_gpu_.template data<uint8>();
 
     // Note: For now we set the NPP stream here so that all of the ops that use NPP do
-    // not need to. If multiple threads can execute can call "RunForward", they must
-    // also set the npp stream to avoid data corruption w/ ops that use NPP
+    // not need to. We also set it on every call to 'RunForward' to ensure that
+    // the depndency between the Copy and the RunForward kernel is maintained even in
+    // the case that different threads call 'RunForward' on each iteration.
     nppSetStream(stream_pool_->GetStream());
     
     // Note: We do not set device/thread affinity in the pipeline anywhere
@@ -173,6 +174,11 @@ public:
    */
   void RunForward();
 
+  /**
+   * @brief Returns the main stream that this pipeline is working in
+   */
+  cudaStream_t stream() const { return stream_pool_->GetStream(); }
+  
   inline void Print() const {
     // Print all the operators in the pipeline
     cout << "Printing Pipeline Operators: " << endl;
@@ -350,7 +356,7 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
   NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
-
+  
   {
     TimeRange _tr("size-inference-loop");
     for (Index i = 0; i < batch_size_; ++i) {
@@ -472,6 +478,13 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward() {
   TimeRange _tr("RunForward");
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
+
+  // Note: We need to set the stream here each time so that frameworks
+  // like C2 that have different threads running through this method
+  // on any given iteration have the correct stream to maintain the
+  // dependency between the copy and these kernels.
+  nppSetStream(stream_pool_->GetStream());
+  
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {
     forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());

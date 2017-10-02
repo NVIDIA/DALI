@@ -3,7 +3,9 @@
 
 #include <cstring>
 
-#include <hybrid_decoder.h>
+// TODO(tgale): Fix this include setup so that we can use this
+// from external code
+#include <third_party/hybrid_decode/include/hybrid_decoder.h>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -226,7 +228,7 @@ protected:
 
     // DEBUG dump the output
     // for (int i = 0; i < num_component_; ++i) {
-    //   DumpHWCToFile(batch_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
+    //   DumpHWCToFile(batched_param_buffers_[1].template data<DctQuantInvImageParam>()[i].dst,
     //       yuv_dims_[i].height, yuv_dims_[i].width, 1,
     //       yuv_dims_[i].width, "yuv_img_" + std::to_string(i));
     // }

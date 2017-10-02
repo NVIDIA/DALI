@@ -11,12 +11,13 @@ function (remove TARGET INPUT)
   set(${TARGET} ${INPUT} PARENT_SCOPE)
 endfunction(remove)
 
-# Default to debug build
+# Default to release build
 if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Debug")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+    "Build type from [Debug, Release]. For perf testing, build Release")
 endif()
 
-if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   message(STATUS "Building in DEBUG mode")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G")
