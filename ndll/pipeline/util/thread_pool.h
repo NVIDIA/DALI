@@ -69,10 +69,13 @@ public:
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 private:
   inline void ThreadMain(int thread_id, int device_id) {
-    // TODO(tgale): Add this back  once nvml bug is resolved
-    // Set device affinity
-    // CUDA_CALL(cudaSetDevice(device_id));
-    // nvml::SetCPUAffinity();
+    {
+      // Set device affinity. Lock to ensure we don't hit
+      // the thread safety issue in NVML
+      std::lock_guard<std::mutex> lock(mutex_);
+      CUDA_CALL(cudaSetDevice(device_id));
+      nvml::SetCPUAffinity();
+    }
     
     while (running_) {
       // Block on the condition to wait for work

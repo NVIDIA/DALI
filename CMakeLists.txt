@@ -19,7 +19,7 @@ endfunction(remove)
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
-    "Build type from [Debug, Release]. For perf testing, build Release")
+    "Build type from [Debug, Release]. For perf testing, build Release" FORCE)
 endif()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
