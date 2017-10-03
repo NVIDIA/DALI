@@ -12,7 +12,6 @@
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/pipeline/parser.h"
-#include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/npp.h"
 
@@ -37,12 +36,11 @@ public:
    * main_stream. The non-blocking flag specifies whether additional 
    * streams should be allocated as non-blocking streams.
    */
-  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
-      int max_streams,  bool non_blocking, int device_id) :
+  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream, int device_id) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-    stream_pool_(new StreamPool(main_stream, max_streams, non_blocking)),
-    thread_pool_(num_threads, device_id), data_reader_(nullptr),
-    input_datum_(batch_size), data_parser_(nullptr), parsed_datum_(batch_size) {
+    main_stream_(main_stream), thread_pool_(num_threads, device_id),
+    data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
+    parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template data<uint8>();
@@ -52,7 +50,7 @@ public:
     // not need to. We also set it on every call to 'RunForward' to ensure that
     // the depndency between the Copy and the RunForward kernel is maintained even in
     // the case that different threads call 'RunForward' on each iteration.
-    nppSetStream(stream_pool_->GetStream());
+    nppSetStream(main_stream_);
     
     // Note: We do not set device/thread affinity in the pipeline anywhere
     // because frameworks like C2 could have different threads running
@@ -177,7 +175,7 @@ public:
   /**
    * @brief Returns the main stream that this pipeline is working in
    */
-  cudaStream_t stream() const { return stream_pool_->GetStream(); }
+  cudaStream_t stream() const { return main_stream_; }
   
   inline void Print() const {
     // Print all the operators in the pipeline
@@ -215,7 +213,7 @@ private:
   bool built_;
 
   int batch_size_;
-  shared_ptr<StreamPool> stream_pool_;
+  cudaStream_t main_stream_;
   ThreadPool thread_pool_;
   
   template <typename T>
@@ -341,12 +339,12 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
   for (auto &op : prefetch_ops_) {
     op->set_num_threads(thread_pool_.size());
     op->set_batch_size(batch_size_);
-    op->set_stream_pool(stream_pool_);
+    op->set_stream(main_stream_);
   }
   for (auto &op : forward_ops_) {
     op->set_num_threads(thread_pool_.size());
     op->set_batch_size(batch_size_);
-    op->set_stream_pool(stream_pool_);
+    op->set_stream(main_stream_);
   }
     
   // Mark the pipeline as built so we know it is safe to run
@@ -458,7 +456,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
           src.raw_data(),
           src.nbytes(),
           cudaMemcpyHostToDevice,
-          stream_pool_->GetStream()));
+          main_stream_));
 
   // Copy the mega-buffer to GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
@@ -466,11 +464,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
           mega_buffer_.raw_data(),
           mega_buffer_.nbytes(),
           cudaMemcpyHostToDevice,
-          stream_pool_->GetStream()));
-
-  // cout << "data bytes: " << src.nbytes() << endl;
-  // cout << "param bytes: " << mega_buffer_.nbytes() << endl;
-  // cout << "total bytes: " << src.nbytes() + mega_buffer_.nbytes() << endl;
+          main_stream_));
 }
 
 template <typename CPUBackend, typename GPUBackend>
@@ -483,7 +477,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward() {
   // like C2 that have different threads running through this method
   // on any given iteration have the correct stream to maintain the
   // dependency between the copy and these kernels.
-  nppSetStream(stream_pool_->GetStream());
+  nppSetStream(main_stream_);
   
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {

@@ -63,7 +63,6 @@ protected:
   int c_;
 
   using Operator<Backend>::num_threads_;
-  using Operator<Backend>::stream_pool_;
 };
 
 template <typename Backend>
@@ -108,7 +107,6 @@ public:
   
 protected:
   using Operator<Backend>::num_threads_;
-  using Operator<Backend>::stream_pool_;
 };
   
 } // namespace ndll

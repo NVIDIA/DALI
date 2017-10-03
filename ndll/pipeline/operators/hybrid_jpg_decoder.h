@@ -115,7 +115,6 @@ protected:
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
 };
 
 // Note: Our handling of grayscale images is a bit nuanced. In the case that we are outputting
@@ -238,8 +237,6 @@ protected:
       // RGB images packed densely into the output batch
       YUVToRGBHelper(output);
     } else {
-      // Stream device to device copies to the output buffer
-      // vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
         const vector<Index> &out_dims = output->datum_shape(i);
@@ -250,14 +247,13 @@ protected:
                 out_dims[1], // width
                 out_dims[0], // height
                 cudaMemcpyDeviceToDevice,
-                stream_pool_->GetStream()));
+                stream_));
       }
     }
   }
 
   inline void YUVToRGBHelper(Batch<Backend> *output) {
     uint8 *yuv_data_ptr = yuv_data_.template data<uint8>();
-    // vector<cudaStream_t> streams = stream_pool_->GetMaxStreams();
     for (int i = 0; i < batch_size_; ++i) {
       ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
       if (jpeg.components == 3) {
@@ -292,7 +288,7 @@ protected:
                 out_dims[1]*C_, // width
                 out_dims[0], // height
                 cudaMemcpyDeviceToDevice,
-                stream_pool_->GetStream()
+                stream_
                 ));
       } else { // Handle grayscale image
         // For grayscale images, convert to RGB straight into the output batch
@@ -301,7 +297,7 @@ protected:
         yToRgb(y_plane, step,
             (uint8*)output->raw_datum(i),
             img_steps_[i], img_rois_[i],
-            stream_pool_->GetStream());
+            stream_);
       }
     }
   }
@@ -402,7 +398,7 @@ protected:
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
+  using Operator<Backend>::stream_;
   using Operator<Backend>::batched_param_sizes_;
   using Operator<Backend>::batched_param_buffers_;
   using Operator<Backend>::batched_param_gpu_buffers_;

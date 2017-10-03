@@ -200,7 +200,6 @@ protected:
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
 };
 
 /**

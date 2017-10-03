@@ -120,7 +120,7 @@ protected:
             mean_.template data<float>(),
             inv_std_.template data<float>(),
             output->template data<OUT>(),
-            stream_pool_->GetStream()));
+            stream_));
   }
   
   inline void CalculateBatchedParameterSize() override {
@@ -179,7 +179,7 @@ protected:
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
+  using Operator<Backend>::stream_;
   using Operator<Backend>::batched_param_sizes_;
   using Operator<Backend>::batched_param_buffers_;
   using Operator<Backend>::batched_param_gpu_buffers_;

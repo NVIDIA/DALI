@@ -132,18 +132,14 @@ TYPED_TEST_CASE(HybridDecoderTest, Types);
 TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   int batch_size = this->jpegs_.size();
   int num_thread = 1;
-  int num_stream = 8;
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
-  bool stream_non_blocking = true;
  
   // Create the pipeline
   Pipeline<PinnedCPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
-      num_stream,
-      stream_non_blocking,
       0);
 
   shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(

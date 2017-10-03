@@ -20,18 +20,14 @@ int main() {
   
   int batch_size = 32;
   int num_thread = 1;
-  int num_stream = 8;
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
-  bool stream_non_blocking = true;
  
   // Create the pipeline
   Pipeline<CPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
-      num_stream,
-      stream_non_blocking,
       0);
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(

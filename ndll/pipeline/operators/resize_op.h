@@ -141,7 +141,6 @@ protected:
   vector<NDLLSize> input_sizes_, output_sizes_;
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
 };
 
 } // namespace ndll

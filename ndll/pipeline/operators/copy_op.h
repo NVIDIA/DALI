@@ -35,11 +35,11 @@ protected:
             input.raw_data(),
             input.nbytes(),
             cudaMemcpyDeviceToDevice,
-            stream_pool_->GetStream()));
+            stream_));
   }
   
   using Operator<Backend>::num_threads_;
-  using Operator<Backend>::stream_pool_;
+  using Operator<Backend>::stream_;
 };
 
 } // namespace ndll

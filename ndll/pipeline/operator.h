@@ -11,7 +11,6 @@
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/sub_tensor.h"
-#include "ndll/pipeline/util/stream_pool.h"
 
 namespace ndll {
 
@@ -30,7 +29,7 @@ public:
   inline Operator()
     : num_threads_(-1),
       batch_size_(-1),
-      stream_pool_(nullptr) {}
+      has_stream_(false) {}
   virtual inline ~Operator() = default;
   
   /**
@@ -57,8 +56,8 @@ public:
 #ifndef NDEBUG
     NDLL_ENFORCE(batch_size_ == input.ndatum(),
         "Batch size must be set before \"Run()\" is called");
-    NDLL_ENFORCE(stream_pool_.get() != nullptr,
-        "Stream pool must be set before \"Run()\" is called");
+    NDLL_ENFORCE(has_stream_,
+        "Stream must be set before \"Run()\" is called");
 #endif
     RunBatchedGPU(input, output);
   }
@@ -154,8 +153,9 @@ public:
     batch_size_ = batch_size;
   }
 
-  inline void set_stream_pool(shared_ptr<StreamPool> stream_pool) {
-    stream_pool_ = stream_pool;
+  inline void set_stream(cudaStream_t stream) {
+    has_stream_ = true;
+    stream_ = stream;
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Operator);
@@ -211,8 +211,9 @@ protected:
   
   int num_threads_;
   int batch_size_;
-  std::shared_ptr<StreamPool> stream_pool_;
-
+  cudaStream_t stream_;
+  bool has_stream_;
+  
   vector<size_t> batched_param_sizes_;
   vector<CPUSubTensor> batched_param_buffers_;
   vector<GPUSubTensor> batched_param_gpu_buffers_;

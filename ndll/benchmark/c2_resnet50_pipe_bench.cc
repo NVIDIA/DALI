@@ -17,18 +17,14 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   bool fast_resize = st.range(0);
   int batch_size = st.range(1);
   int num_thread = st.range(2);
-  int num_stream = st.range(3);
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
-  bool stream_non_blocking = true;
  
   // Create the pipeline
   Pipeline<PinnedCPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
-      num_stream,
-      stream_non_blocking,
       0);
 
   shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
@@ -84,18 +80,14 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
 BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
-  int num_stream = st.range(2);
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
-  bool stream_non_blocking = true;
  
   // Create the pipeline
   Pipeline<PinnedCPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
-      num_stream,
-      stream_non_blocking,
       0);
   
   shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
@@ -150,7 +142,7 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
     for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
       for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-        b->Args({fast_resize, batch_size, num_thread, 8});
+        b->Args({fast_resize, batch_size, num_thread});
       }
     }
   }
@@ -164,7 +156,7 @@ BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(100)
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
   for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
     for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-      b->Args({batch_size, num_thread, 8});
+      b->Args({batch_size, num_thread});
     }
   }
 }

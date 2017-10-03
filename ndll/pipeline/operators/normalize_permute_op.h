@@ -59,7 +59,7 @@ protected:
       Batch<Backend> *output) override {
     BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
         mean_.template data<float>(), inv_std_.template data<float>(),
-        output->template data<OUT>(), stream_pool_->GetStream());
+        output->template data<OUT>(), stream_);
   }
   
   Tensor<Backend> mean_, inv_std_;
@@ -68,7 +68,7 @@ protected:
   
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
-  using Operator<Backend>::stream_pool_;
+  using Operator<Backend>::stream_;
 };
 
 } // namespace ndll
