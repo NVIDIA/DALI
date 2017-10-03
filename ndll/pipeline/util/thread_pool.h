@@ -61,7 +61,7 @@ public:
   inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);
     completed_.wait(lock, [this] { return this->work_complete_; });
-
+    
     // Check for errors
     for (size_t i = 0; i < threads_.size(); ++i) {
       if (!tl_errors_[i].empty()) {

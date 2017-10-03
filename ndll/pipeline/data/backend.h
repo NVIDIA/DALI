@@ -38,7 +38,7 @@ public:
     CUDA_CALL(cudaMalloc(&ptr, bytes));
     return ptr;
   }
-  void Delete(void *ptr, size_t /* unused */) override{
+  void Delete(void *ptr, size_t bytes) override{
     CUDA_CALL(cudaFree(ptr));
   }
 };
@@ -68,7 +68,7 @@ public:
     CUDA_CALL(cudaMallocHost(&ptr, bytes));
     return ptr;
   }
-  void Delete(void *ptr, size_t /* unused */) override {
+  void Delete(void *ptr, size_t bytes) override {
     CUDA_CALL(cudaFreeHost(ptr));
   }
 };

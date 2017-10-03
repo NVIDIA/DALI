@@ -11,13 +11,6 @@
 
 namespace ndll {
 
-// TODO(tgale): Make sure the data storage hierarchy makes sense in terms of
-// how the owned flag is used, where and when allocation occur, and when types
-// are required to be setup
-
-// TODO(tgale): Make sure we aren't losing perf with all these
-// copies of tensor/batch/datum shape vectors
-
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
@@ -34,16 +27,17 @@ inline string ShapeString(vector<Index> shape) {
 }
 
 /**
- * @brief Base class for pipeline data storage classes. This should not be used,
- * it does not provide any method for altering the size of the underlying data
+ * @brief Base class to provide basic functionality needed by Pipeline data
+ * structures. Not meant for use, does not provide methods for allocating
+ * any actual storage.
  */
 template <typename Backend>
 class Buffer {
 public:
-  inline Buffer() : owned_(true), data_(nullptr), size_(0), true_size_(0) {}
+  inline Buffer() : data_(nullptr), size_(0), true_size_(0) {}
 
   virtual ~Buffer() {
-    if (owned_) {
+    if (true_size_*type_.size() > 0) {
       backend_.Delete(data_, true_size_*type_.size());
     }
   }
@@ -55,14 +49,14 @@ public:
     if (type_.id() == NO_TYPE) {
       NDLL_ENFORCE(data_ == nullptr,
           "data ptr is non-nullptr, something has gone wrong");
-      NDLL_ENFORCE(owned_,
-          "Buffer does not have type and does not own underlying "
-          "storage. Calling 'data' not allowed");
-      type_.SetType<T>();
 
-      // Make sure we keep our nullptr if we don't allocate anything
-      size_t mem_size = true_size_*type_.size();
-      if (mem_size != 0) {
+      type_.SetType<T>();
+      NDLL_ENFORCE(type_.size() > 0,
+          "Set datatype must have non-zero element size");
+      
+      // Make sure we keep our nullptr if we don't
+      // have anything to allocate
+      if (true_size_ > 0) {
         data_ = backend_.New(true_size_*type_.size());
       }
     }
@@ -111,32 +105,20 @@ public:
   /**
    * @brief Sets the type of the buffer. Fails if buffer already has a type.
    * If the buffer has no type but has non-zero size, we allocate the memory
-   *
-   * Setting type is only allowed if:
-   * a) the buffer had no type
-   * b) the buffer owns the underlying storage
    */
   inline void set_type(TypeMeta type) {
     if (type.id() == type_.id()) return;
-    NDLL_ENFORCE(type_.id() == NO_TYPE, "Cannot set type on typed buffer");
-    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
-        "storage. Setting type not allowed");
-#ifndef NDEBUG
-    NDLL_ENFORCE(data_ == nullptr, "Buffer must be nullpltr if it has no type");
-#endif
+    NDLL_ENFORCE(type_.id() == NO_TYPE, "Buffer already has valid type");
+    NDLL_ENFORCE(type.size() > 0,
+        "Set datatype must have non-zero element size");
+    NDLL_ENFORCE(data_ == nullptr,
+        "Something has gone wrong. Untyped buffer cannot store data");
     type_ = type;
 
     // If the buffer has a set size allocate the
     // memory for the size of the buffer
-    if (true_size_ != 0) {
-      NDLL_ENFORCE(data_ == nullptr,
-          "data ptr is non-nullptr even though type was NO_TYPE");
-      
-      // Make sure we keep our nullptr if we don't allocate anything
-      size_t mem_size = true_size_*type_.size();
-      if (mem_size != 0) {
-        data_ = backend_.New(true_size_*type_.size());
-      }
+    if (true_size_ > 0) {
+      data_ = backend_.New(true_size_*type_.size());
     }
   }
   
@@ -144,10 +126,6 @@ public:
 protected:
   Backend backend_;
   TypeMeta type_;
-
-  // Indicates if this object owns the underlying data.
-  // Buffers always own their underlying storage.
-  bool owned_;
 
   // Pointer to underlying storage & meta-data
   void *data_;

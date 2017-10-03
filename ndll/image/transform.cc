@@ -93,7 +93,7 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   NDLL_ASSERT(crop_w > 0);
   NDLL_ASSERT((crop_y + crop_h) <= rsz_h);
   NDLL_ASSERT((crop_x + crop_w) <= rsz_w);
-
+  
   // FAST RESIZE: We are going to do a crop, so we back-project the crop into the
   // input image, get an ROI on this region, and then resize to the crop dimensions
   // this effectively does the resize+crop in one step, then we just mirror.

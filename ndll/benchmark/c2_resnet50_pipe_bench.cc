@@ -39,7 +39,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   bool color = true;
   TJPGDecoder<PinnedCPUBackend> jpg_decoder(color);
   pipe.AddDecoder(jpg_decoder);
-    
+
   // Add a resize+crop+mirror op
   if (fast_resize) {
     FastResizeCropMirrorOp<PinnedCPUBackend> resize_crop_mirror_op(
@@ -64,7 +64,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   pipe.RunPrefetch();
   pipe.RunCopy();
   pipe.RunForward();
-
+  
   while(st.KeepRunning()) {
     pipe.RunPrefetch();
     pipe.RunCopy();
@@ -132,7 +132,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
     CUDA_CALL(cudaDeviceSynchronize());
   }
   NDLLProfilerStop();
-  
+
   // DEBUG
   // DumpCHWImageBatchToFile<float>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);

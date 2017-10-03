@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 #define NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 
+#include <cstring>
+
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -28,6 +30,12 @@ public:
     return "CopyOp";
   }
 protected:
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int /* unused */, int /* unused */) override {
+    NDLL_ENFORCE(input.shape() == output->shape());
+    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
+  }
+  
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     CUDA_CALL(cudaMemcpyAsync(

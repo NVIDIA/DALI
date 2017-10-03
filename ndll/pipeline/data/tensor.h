@@ -38,8 +38,6 @@ public:
    * Passing in a shape of '{}' indicates a scalar value
    */
   inline virtual void Resize(const vector<Index> &shape) {
-    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
-        "storage, calling 'Resize()' not allowed");
     Index new_size = Product(shape);
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
@@ -53,10 +51,16 @@ public:
 
     if (new_size > true_size_) {
       // Re-allocate the buffer to meet the new size requirements
-      backend_.Delete(data_, true_size_*type_.size());
+      if (true_size_ > 0) {
+        // Only delete if we have something to delete. Note that
+        // we are guaranteed to have a type w/ non-zero size here
+        backend_.Delete(data_, true_size_*type_.size());
+      }
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
+
+    // If we have enough storage already allocated, don't re-allocate
     size_ = new_size;
     shape_ = shape;
   }
@@ -84,7 +88,6 @@ protected:
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;
   using Buffer<Backend>::type_;
-  using Buffer<Backend>::owned_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
   using Buffer<Backend>::true_size_;

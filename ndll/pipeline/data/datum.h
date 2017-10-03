@@ -17,8 +17,19 @@ public:
   /**
    * @brief Creates a default Datum that holds no data
    */
-  inline Datum() {}
+  inline Datum() : owned_(true) {}
 
+  ~Datum() {
+    // If we don't own our data, clear it so the parent
+    // class does not clean it up
+    if (!owned_) {
+      data_ = nullptr;
+      shape_.clear();
+      true_size_ = 0;
+      size_ = 0;
+    }
+  }
+  
   /**
    * @brief Creates a Datum object with the input shape
    */
@@ -66,10 +77,16 @@ public:
 
     if (new_size > true_size_) {
       // Re-allocate the buffer to meet the new size requirements
-      backend_.Delete(data_, true_size_*type_.size());
+      if (true_size_ > 0) {
+        // Only delete if we have something to delete. Note that
+        // we are guaranteed to have a type w/ non-zero size here
+        backend_.Delete(data_, true_size_*type_.size());
+      }
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
+
+    // If we have enough storage already allocated, don't re-allocate
     size_ = new_size;
     shape_ = shape;
   }
@@ -97,8 +114,9 @@ public:
 #endif
     NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
 
-    if (owned_ && true_size_ > 0) {
-      // Clean up the current underlying storage
+    if (owned_ && true_size_*type_.size() > 0) {
+      // If we own our data and we have data allocated,
+      // clean up the underlying storage
       backend_.Delete(data_, true_size_*type_.size());
 
       // Set back to default state
@@ -110,7 +128,7 @@ public:
       type_ = new_type;
     }
     
-    // The sub-batch does not own its memory
+    // The datum does not own its memory
     owned_ = false;
 
     // Get the shape of this sample
@@ -135,10 +153,12 @@ protected:
   // Stores the shape of the sample
   vector<Index> shape_;
 
-  // So we don't have to put 'this->' everywhere
+  // Indicates whether the Datum
+  // owns it underlying storage
+  bool owned_;
+  
   using Buffer<Backend>::backend_;
   using Buffer<Backend>::type_;
-  using Buffer<Backend>::owned_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
   using Buffer<Backend>::true_size_;

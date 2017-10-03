@@ -27,16 +27,14 @@ public:
   }
   
   /**
-   * @brief Resize function to create jagged batches. The outer vector
+   * @brief Resize function to create batches. The outer vector
    * size is taken to be the samples dimension, i.e. N = shape.size();
    *
-   * Note: this method calculate some meta-data on the jagged tensor for
+   * Note: this method calculates some meta-data on the jagged tensor for
    * later use. Calling it repeatedly will be of non-negligible cost.
    */
   inline void Resize(const vector<Dims> &shape) {
     NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single datum");
-    NDLL_ENFORCE(owned_, "Buffer does not own underlying "
-        "storage, calling 'Resize()' not allowed");
     if (shape == batch_shape_) return;
 
     // Calculate the new size
@@ -46,6 +44,7 @@ public:
       for (auto &val : vec) tmp *= val;
       new_size += tmp;
     }
+    NDLL_ENFORCE(new_size > 0, "Input dims must specify batch of non-zero size");
 
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
@@ -60,7 +59,11 @@ public:
     
     if (new_size > true_size_) {
       // Re-allocate the buffer to meet the new size requirements
-      backend_.Delete(data_, true_size_*type_.size());
+      if (true_size_ > 0) {
+        // Only delete if we have something to delete. Note that
+        // we are guaranteed to have a type w/ non-zero size here
+        backend_.Delete(data_, true_size_*type_.size());
+      }
       data_ = backend_.New(new_size*type_.size());
       true_size_ = new_size;
     }
@@ -76,18 +79,12 @@ public:
    */
   template <typename T>
   inline T* datum(int idx) {
-    return static_cast<T*>(
-        static_cast<uint8*>(this->template data<T>()) +
-        (datum_offset(idx) * type_.size())
-        );
+    return this->template data<T>() + datum_offset(idx);
   }
 
   template <typename T>
   inline const T* datum(int idx) const {
-    return static_cast<const T*>(
-        static_cast<const uint8*>(this->template data<T>()) +
-        (datum_offset(idx) * type_.size())
-        );
+    return this->template data<T>() + datum_offset(idx);
   }
   
   /**
@@ -163,7 +160,6 @@ protected:
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;
   using Buffer<Backend>::type_;
-  using Buffer<Backend>::owned_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
   using Buffer<Backend>::true_size_;

@@ -364,7 +364,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
-                // Run the Parser
+                // Run the Parsers
                 data_parser_->Run(input_datum_[data_idx],
                     &parsed_datum_[data_idx], data_idx, tid);
                 
