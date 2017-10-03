@@ -31,7 +31,7 @@ public:
         "TJPGDecoder expects 1D encoded jpeg strings as input");
 
     int h, w;
-    GetJPEGImageDims(input.template data<uint8>(), input.size(), &h, &w);
+    NDLL_CALL(GetJPEGImageDims(input.template data<uint8>(), input.size(), &h, &w));
     return {h, w, c_};
   }
 
@@ -55,8 +55,8 @@ protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int /* unused */, int /* unused */) override {
     
-    DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
-        output->shape()[0], output->shape()[1], output->template data<uint8>());
+    NDLL_CALL(DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
+            output->shape()[0], output->shape()[1], output->template data<uint8>()));
   }
   
   bool color_;

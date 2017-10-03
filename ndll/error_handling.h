@@ -13,36 +13,26 @@
 
 namespace ndll {
 
-// TODO(tgale): We need a better way of handling internal
-// cuda errors. We should really have some way of getting
-// the error string from cuda.
-
 /**
- * @brief Error object returned by ndll functions
+ * @brief Error object returned by ndll functions. If an error is returned ('NDLLError'),
+ * a string explaining the error can be found by calling 'NDLLGetLastError'
  */
 enum NDLLError_t {
   NDLLSuccess = 0,
-  NDLLError = 1 /* Something bad happened */, 
-  NDLLCudaError = 2 /* CUDA broke */
+  NDLLError = 1
 };
 
-/*
-// CUDA error checking utility
-#define CUDA_CALL(code)                             \
-  do {                                              \
-    cudaError_t status = code;                      \
-    if (status != cudaSuccess) {                    \
-      string file = __FILE__;                       \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
-        "]: CUDA error \"" +                        \
-        cudaGetErrorString(status) + "\"";          \
-      return NDLLCudaError;                         \
-    }                                               \
-  } while (0)
-*/
+/**
+ * @brief Returns a string explaining the last error that occured. Calling this function
+ * clears the error. If no error has occured (or it has been wiped out by a previous call
+ * to this function), this function returns an empty string
+ */
+string NDLLGetLastError();
 
-inline string GetErrorString(string statement, string file, int line) {
+// Sets the error string. Used internally by NDLL to pass error strings out to the user
+void NDLLSetLastError(string error_str);
+
+inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
   string error = "[" + file + ":" + line_str +
     "]: Assert on \"" + statement +
@@ -50,24 +40,24 @@ inline string GetErrorString(string statement, string file, int line) {
   return error;
 }
 
-#define ASRT_1(code)                                            \
-  do {                                                          \
-    if (!(code)) {                                              \
-      string error = GetErrorString(#code, __FILE__, __LINE__); \
-      cout << error << endl;                                    \
-      return NDLLError;                                         \
-    }                                                           \
+#define ASRT_1(code)                                              \
+  do {                                                            \
+    if (!(code)) {                                                \
+      string error = BuildErrorString(#code, __FILE__, __LINE__); \
+      NDLLSetLastError(error);                                    \
+      return NDLLError;                                           \
+    }                                                             \
   } while (0)
 
-#define ASRT_2(code, str)                                       \
-  do {                                                          \
-    if (!(code)) {                                              \
-      string error = GetErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                     \
-      error += ": " + usr_str;                                  \
-      cout << error << endl;                                    \
-      return NDLLError;                                         \
-    }                                                           \
+#define ASRT_2(code, str)                                         \
+  do {                                                            \
+    if (!(code)) {                                                \
+      string error = BuildErrorString(#code, __FILE__, __LINE__); \
+      string usr_str = str;                                       \
+      error += ": " + usr_str;                                    \
+      NDLLSetLastError(error);                                    \
+      return NDLLError;                                           \
+    }                                                             \
   } while (0)
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
@@ -83,16 +73,19 @@ inline string GetErrorString(string statement, string file, int line) {
   do {                                              \
     NppStatus status = code;                        \
     if (status != NPP_SUCCESS) {                    \
-      string file = __FILE__;                       \
+    string file = __FILE__;                         \
       string line = std::to_string(__LINE__);       \
       string error = "[" + file + ":" + line +      \
         "]: NPP error \"" +                         \
         nppErrorString(status) + "\"";              \
-      cout << error << endl;                        \
+      NDLLSetLastError(error);                      \
       return NDLLError;                             \
     }                                               \
   } while (0)
 
+//////////////////////////////////////////////////////
+/// Error checking utilities for the NDLL pipeline ///
+//////////////////////////////////////////////////////
 
 // For calling CUDA library functions
 #define CUDA_CALL(code)                             \
@@ -129,29 +122,28 @@ inline string GetErrorString(string statement, string file, int line) {
     if (status != NDLLSuccess) {                                \
       string file = __FILE__;                                   \
       string line = std::to_string(__LINE__);                   \
-      string error = "[" + file + ":" + line +                  \
-        "]: NDLL error";                                        \
+      string error = NDLLGetLastError();                        \
       throw std::runtime_error(error);                          \
     }                                                           \
   } while (0)
-
+    
 // Excpetion throwing checks for pipeline code
-#define ENFRC_1(code)                                           \
-  do {                                                          \
-    if (!(code)) {                                              \
-      string error = GetErrorString(#code, __FILE__, __LINE__); \
-      throw std::runtime_error(error);                          \
-    }                                                           \
+#define ENFRC_1(code)                                             \
+    do {                                                          \
+    if (!(code)) {                                                \
+      string error = BuildErrorString(#code, __FILE__, __LINE__); \
+      throw std::runtime_error(error);                            \
+    }                                                             \
   } while (0)
 
-#define ENFRC_2(code, str)                                      \
-  do {                                                          \
-    if (!(code)) {                                              \
-      string error = GetErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                     \
-      error += ": " + usr_str;                                  \
-      throw std::runtime_error(error);                          \
-    }                                                           \
+#define ENFRC_2(code, str)                                        \
+    do {                                                          \
+      if (!(code)) {                                              \
+      string error = BuildErrorString(#code, __FILE__, __LINE__); \
+      string usr_str = str;                                       \
+      error += ": " + usr_str;                                    \
+      throw std::runtime_error(error);                            \
+      }                                                           \
   } while (0)
 
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)

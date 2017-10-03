@@ -30,6 +30,7 @@ public:
     for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id));
     }
+    tl_errors_.resize(num_thread);
   }
 
   inline ~ThreadPool() {
@@ -60,6 +61,19 @@ public:
   inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);
     completed_.wait(lock, [this] { return this->work_complete_; });
+
+    // Check for errors
+    for (size_t i = 0; i < threads_.size(); ++i) {
+      if (!tl_errors_[i].empty()) {
+        // TODO(tgale): What is the desired behavior when
+        // more than one error occurs?
+        
+        // Throw the first error that occured
+        string error = "Error in thread " +
+          std::to_string(i) + ": " + tl_errors_[i].front();
+        throw std::runtime_error(error);
+      }
+    }
   }
   
   inline int size() const {
@@ -94,15 +108,15 @@ private:
       // Unlock the lock
       lock.unlock();
 
-      // TODO(tgale): Send the errors back to the main thread
+      // If an error occurs, we save it in tl_errors_. When
+      // WaitForWork is called, we will check for any errors
+      // in the threads and return an error if one occured.
       try {
         work(thread_id);
       } catch(std::runtime_error &e) {
-        cout << "CAUGHT EXCEPTION IN THREAD" << endl << e.what() << endl;
-        exit(EXIT_FAILURE);
+        tl_errors_[thread_id].push(e.what());
       } catch(...) {
-        cout << "CAUGHT UNKNOWN EXCEPTION IN THREAD" << endl;
-        exit(EXIT_FAILURE);
+        tl_errors_[thread_id].push("Caught unknown exception");
       }
 
       // Mark this thread as idle & check for complete work
@@ -123,6 +137,9 @@ private:
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;
+
+  // Stored error strings for each thread
+  vector<std::queue<string>> tl_errors_;
 };
 
 } // namespace ndll
