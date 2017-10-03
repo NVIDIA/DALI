@@ -50,7 +50,6 @@
 #include "debug.h"
 #include "input_stream_jpeg.h"
 
-#include <cassert>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -292,7 +291,7 @@ void JpegParser::parse(InputStreamJPEG *inputJpeg) {
     jpeg_.components = oFrameHeader_.components();
 
     // NOTE: See TODO below
-    assert(jpeg_.components < 4);
+    ASSERT(jpeg_.components < 4);
     
     for (int i = 0; i < jpeg_.components; ++i) {
         // The width & height of the dct coeffs is expressed in 8x8 blocks. We calculate the

@@ -18,25 +18,50 @@
 #include <iostream>
 
 #define FOO1(ans) { gpuAssert1((ans), __FILE__, __LINE__); }
-inline void gpuAssert1(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-     fprintf(stderr,"CUDA error: %s at %s %d\n", cudaGetErrorString(code), file, line);
-     if (abort) exit(code);
-   }
+inline void gpuAssert1(cudaError_t code, std::string file, int line) {
+  if (code != cudaSuccess) {
+    std::string error_str = file + ":" + std::to_string(line) +
+      "CUDA error " + cudaGetErrorString(code);
+    throw error_str;
+  }
 }
 
 #define FOO2(ans, str) { gpuAssert2((ans), (str), __FILE__, __LINE__); }
-inline void gpuAssert2(cudaError_t code, const char *str,
-        const char *file, int line, bool abort=true) {
-    if (code != cudaSuccess) {
-        fprintf(stderr,"CUDA error: %s at %s %d:%s\n", cudaGetErrorString(code), file, line, str);
-        if (abort) exit(code);
-    }
+inline void gpuAssert2(cudaError_t code, std::string str,
+    std::string file, int line) {
+  if (code != cudaSuccess) {
+    std::string error_str = file + ":" + std::to_string(line) +
+      "CUDA error " + cudaGetErrorString(code) + ": " + str;
+    throw error_str;
+  }
 }
 
 #define GET_MACRO(_1, _2, NAME,...) NAME
 #define CHECK_CUDA(...) GET_MACRO(__VA_ARGS__, FOO2, FOO1)(__VA_ARGS__)
 
+#define ASSERT_1(cond)                                              \
+  do {                                                              \
+    if (!(cond)) {                                                  \
+      string file = __FILE__;                                       \
+      string line = std::to_string(__LINE__);                       \
+      string error_str = "Assert failed at " +                      \
+        file + ":" + line;                                          \
+      throw error_str;                                              \
+    }                                                               \
+  } while (0)
+
+#define ASSERT_2(cond, str)                                         \
+  do {                                                              \
+    if (!(cond)) {                                                  \
+      string file = __FILE__;                                       \
+      string line = std::to_string(__LINE__);                       \
+      string error_str = "Assert failed at " +                      \
+        file + ":" + line + ": " + str;                             \
+      throw error_str;                                              \
+    }                                                               \
+  } while (0)
+
+#define ASSERT(...) GET_MACRO(__VA_ARGS__, ASSERT_2, ASSERT_1)(__VA_ARGS__)
 
 static const char *_cudaGetErrorEnum(NppStatus error)
 {

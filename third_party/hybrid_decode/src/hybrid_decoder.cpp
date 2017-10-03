@@ -5,7 +5,6 @@
 #include "host_buffer.h"
 #include "y_to_rgb.h"
 
-#include <cassert>
 #include <cstring>
 #include <stdexcept>
 
@@ -128,10 +127,10 @@ void BatchedDctParam::loadToDevice(const vector<const Npp16s*> &dctCoeff,
   QuantizationTable::QuantizationTablePrecision prec) {
   TimeRange _tr("load_to_device");
   int num = dctCoeff.size();
-  assert(dst.size() == num);
-  assert(dstStep.size() == num);
-  assert(dstSize.size() == num);
-  assert(quantTable.size() == num);
+  ASSERT(dst.size() == num);
+  ASSERT(dstStep.size() == num);
+  ASSERT(dstSize.size() == num);
+  ASSERT(quantTable.size() == num);
   p = prec;
   numBlocks = 0;
 
@@ -198,23 +197,23 @@ void BatchedDctParam::initParamsAndGridInfo(DctParams *params, int2 *gridInfo,
   int *numBlocks, const Npp16s *pSrc, int nSrcStep, Npp8u *pDst, int nDstStep,
   const void *pQuantizationTable, NppiSize oSizeROI) {
   // Basic input validation
-  assert(pDst);
-  assert(pSrc);
-  assert(oSizeROI.width >= 0 && oSizeROI.height >= 0);
+  ASSERT(pDst);
+  ASSERT(pSrc);
+  ASSERT(oSizeROI.width >= 0 && oSizeROI.height >= 0);
     
   // 8-byte aligned output pointer
   //
   // TODO(Trevor): Do we guarantee this with the
   // way we allocate the output memory?
-  assert(nDstStep % 8 == 0);
+  ASSERT(nDstStep % 8 == 0);
     
   // Output YCbCr channels are decoded into blocks of 8x8
-  assert(oSizeROI.width % 8 == 0);
-  assert(oSizeROI.height % 8 == 0);
+  ASSERT(oSizeROI.width % 8 == 0);
+  ASSERT(oSizeROI.height % 8 == 0);
 
   // Input dct coeffs are layed out in blocks of
   // 64x1, the stride must be a multiple of this
-  assert(nSrcStep % (64 * sizeof(Npp16s)) == 0);
+  ASSERT(nSrcStep % (64 * sizeof(Npp16s)) == 0);
     
   params->numBlocksPerRow = DivUp(oSizeROI.width, 8);
   params->img = (uint2*)((void*)(pDst));
@@ -232,7 +231,7 @@ void BatchedDctParam::initParamsAndGridInfo(DctParams *params, int2 *gridInfo,
 
 void batchedDctQuantInv(BatchedDctParam *param) {
   TimeRange _tr("batched_idct");
-  assert(param);
+  ASSERT(param);
     
   NPP_CHECK_NPP(batchedDCTQuantInv8x8xLS_JPEG_16s8u_C1R_NEW(param->dParams,
       param->dGridInfo, param->dImgIdxs, param->numBlocks),

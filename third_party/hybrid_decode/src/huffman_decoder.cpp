@@ -4,8 +4,6 @@
 #include "debug.h"
 #include "jpeg_parser.h"
 
-#include <cassert>
-
 //
 /// HuffmanDecoderState
 //
@@ -45,7 +43,7 @@ HuffmanDecoder::HuffmanDecoder(const ParsedJpeg &jpeg, HuffmanDecoderState *stat
                                         aHostBlocksDCT_(*dctCoeffs),
                                         apHuffmanDCTable_(state->apHuffmanDCTable),
                                         apHuffmanACTable_(state->apHuffmanACTable) {
-  assert(dctCoeffs->size() == jpeg.components);
+  ASSERT(dctCoeffs->size() == jpeg.components);
 }
 
 void HuffmanDecoder::decode() {
