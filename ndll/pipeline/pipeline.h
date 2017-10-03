@@ -259,6 +259,7 @@ private:
 
 template <typename CPUBackend, typename GPUBackend>
 void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> output) {
+  NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   NDLL_ENFORCE(output != nullptr, "Output batch must point to valid Batch object");
   output_buffer_ = output;
   
@@ -278,6 +279,15 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     data_parser_.reset(new DefaultParser<CPUBackend>);
   }
 
+  // Note: In the case where we have no operators in the prefetch stage,
+  // we need a way to get the output of the data reader + parser into a
+  // Batch so that it can be copied to the gpu and passed to the forward
+  // stage operators. For now, we insert a CopyOp to handle this
+  if (prefetch_ops_.size() == 0) {
+    OpPtr<CPUBackend> tmp(new CopyOp<CPUBackend>);
+    prefetch_ops_.push_back(std::move(tmp));
+  }
+  
   // Get the input data type to the pipeline
   TypeMeta input_type = data_reader_->OutputType();
   NDLL_ENFORCE(input_type.id() != NO_TYPE);

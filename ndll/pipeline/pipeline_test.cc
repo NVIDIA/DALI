@@ -23,81 +23,134 @@ class PipelineTest : public NDLLTest {
 public:
   typedef typename BackendPair::TCPUBackend HostBackend;
   typedef typename BackendPair::TGPUBackend DeviceBackend;
+
+  void SetUp() {
+    NDLLTest::SetUp();
+    NDLLTest::DecodeJPEGS(true);
+  }
+
+  template <typename T>
+  void CompareData(T* data, T* ground_truth, int n) {
+    vector<T> tmp_cpu(n);
+    CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T)*n, cudaMemcpyDefault));
+
+    vector<double> abs_diff(n, 0);
+    for (int i = 0; i < n; ++i) {
+      abs_diff[i] = abs(double(tmp_cpu[i]) - double(ground_truth[i]));
+    }
+    double mean, std;
+    NDLLTest::MeanStdDev(abs_diff, &mean, &std);
+
+#ifndef NDEBUG
+    cout << "num: " << abs_diff.size() << endl;
+    cout << "mean: " << mean << endl;
+    cout << "std: " << std << endl;
+#endif
+    
+    ASSERT_LT(mean, 0.000001);
+    ASSERT_LT(std, 0.000001);
+  }
   
 protected:
 };
 
-template <typename CPUBackend, typename GPUBackend>
+template <typename CPUBackend, typename GPUBackend, int number_of_threads>
 struct PipelineTestTypes {
   typedef CPUBackend TCPUBackend;
   typedef GPUBackend TGPUBackend;
+  static const int nt = number_of_threads;
 };
 
-typedef ::testing::Types<PipelineTestTypes<CPUBackend, GPUBackend>,
-                         PipelineTestTypes<PinnedCPUBackend, GPUBackend>
+// TODO(tgale): Add more thread counts
+typedef ::testing::Types<PipelineTestTypes<CPUBackend, GPUBackend, 1>,
+                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 1>,
+                         PipelineTestTypes<CPUBackend, GPUBackend, 2>,
+                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 2>,
+                         PipelineTestTypes<CPUBackend, GPUBackend, 3>,
+                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 3>,
+                         PipelineTestTypes<CPUBackend, GPUBackend, 4>,
+                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 4>
                          > BackendTypes;
 TYPED_TEST_CASE(PipelineTest, BackendTypes);
 
 #define DECLTYPES()                                       \
   typedef typename TypeParam::TCPUBackend HostBackend;    \
-  typedef typename TypeParam::TGPUBackend DeviceBackend
-  
-// TODO(tgale): This isnt actually a test. Need to
-// build real tests for the pipeline
-TYPED_TEST(PipelineTest, DISABLED_TestBuildPipeline) {
+  typedef typename TypeParam::TGPUBackend DeviceBackend;  \
+  int num_thread = TypeParam::nt
+
+TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   DECLTYPES();
-  try {
-    int batch_size = 1;
-    // Create the pipeline
-    Pipeline<HostBackend, DeviceBackend> pipe(batch_size, 1, 0, 0);
-    
-    // Add a decoder and some transformers
-    TJPGDecoder<HostBackend> jpg_decoder(true);
-    pipe.AddDecoder(jpg_decoder);
+  int batch_size = this->RandInt(1, 256);
+  Pipeline<HostBackend, DeviceBackend> pipe(batch_size, num_thread, 0, 0);
 
-#ifndef NDEBUG
-    // Add a dump image op
-    DumpImageOp<HostBackend> dump_image_op;
-    pipe.AddPrefetchOp(dump_image_op);
-#endif
-    
-    // Add a resize+crop+mirror op
-    ResizeCropMirrorOp<HostBackend> resize_crop_mirror_op(
-        true, false, 256, 480, true, 224, 224, 0.5f);
-    pipe.AddPrefetchOp(resize_crop_mirror_op);
-    
-#ifndef NDEBUG
-    // Add a dump image op
-    DumpImageOp<HostBackend> dump_image_op2;
-    pipe.AddPrefetchOp(dump_image_op2);
-#endif
-    
-    // Add normalize permute op
-    NormalizePermuteOp<DeviceBackend, float> norm_permute_op(
-        {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
-    pipe.AddForwardOp(norm_permute_op);
-    
-    Batch<HostBackend> *batch = CreateJPEGBatch<HostBackend>(
-        this->jpegs_, this->jpeg_sizes_, batch_size);
-    shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
-    
-    // Build and run the pipeline
-    pipe.Build(output_batch);
+  Batch<CPUBackend> tmp_batch;
+  this->MakeImageBatch(batch_size, &tmp_batch);
+  
+  // Create a batches of data to work with
+  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
+  shared_ptr<Batch<DeviceBackend>> output_batch(new Batch<GPUBackend>);
+  batch->Copy(tmp_batch);
 
-    pipe.Print();
-    
+  // Add a data reader
+  BatchDataReader<HostBackend> reader(batch);
+  pipe.AddDataReader(reader);
+
+  // Add a single op to the prefetch stage
+  CopyOp<HostBackend> copy_op;
+  pipe.AddPrefetchOp(copy_op);
+
+  // Build the pipeline
+  pipe.Build(output_batch);
+  
+  // Run the pipeline
+  for (int i = 0; i < 5; ++i) {
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
 
-#ifndef NDEBUG
-    DumpCHWImageBatchToFile<float>(*output_batch);
-#endif
-    
-    CUDA_CALL(cudaDeviceSynchronize());
-    delete batch;
-  } catch (std::runtime_error &e) {
-    FAIL() << e.what();
+    // Verify the results
+    this->CompareData(
+        output_batch->template data<uint8>(),
+        batch->template data<uint8>(),
+        batch->size());
+  }
+}
+
+TYPED_TEST(PipelineTest, TestSingleForwardOp) {
+  DECLTYPES();
+  int batch_size = this->RandInt(1, 256);
+  Pipeline<HostBackend, DeviceBackend> pipe(batch_size, num_thread, 0, 0);
+
+  Batch<CPUBackend> tmp_batch;
+  this->MakeImageBatch(batch_size, &tmp_batch);
+  
+  // Create a batches of data to work with
+  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
+  shared_ptr<Batch<DeviceBackend>> output_batch(new Batch<GPUBackend>);
+  batch->Copy(tmp_batch);
+
+  // Add a data reader
+  BatchDataReader<HostBackend> reader(batch);
+  pipe.AddDataReader(reader);
+
+  // Add a single op to the forward stage
+  CopyOp<DeviceBackend> copy_op;
+  pipe.AddForwardOp(copy_op);
+
+  // Build the pipeline
+  pipe.Build(output_batch);
+  
+  // Run the pipeline
+  for (int i = 0; i < 5; ++i) {
+    pipe.RunPrefetch();
+    pipe.RunCopy();
+    pipe.RunForward();
+
+    // Verify the results
+    this->CompareData(
+        output_batch->template data<uint8>(),
+        batch->template data<uint8>(),
+        batch->size());
   }
 }
 

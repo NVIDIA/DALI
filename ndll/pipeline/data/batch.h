@@ -25,6 +25,16 @@ public:
   inline void ResizeLike(const Batch<InBackend> &other) {
     Resize(other.batch_shape_);
   }
+
+  /**
+   * @brief Copies the input batch, resizing this batch if needed
+   */
+  template <typename InBackend>
+  inline void Copy(const Batch<InBackend> &other) {
+    this->set_type(other.type());
+    this->ResizeLike(other);
+    MemCopy(this->raw_data(), other.raw_data(), other.nbytes());
+  }
   
   /**
    * @brief Resize function to create batches. The outer vector

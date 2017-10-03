@@ -25,8 +25,6 @@ namespace ndll {
 struct RGB {};
 struct Gray {};
 
-struct DimPair { int h = 0, w = 0; };
-
 // TODO(tgale): Move the methods used by common test fixtures
 // into parent class for all NDLL tests, then derive from that
 template <typename color>
@@ -164,7 +162,9 @@ public:
   void MakeImageBatch(int n, Batch<CPUBackend> *batch) {
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {image_dims_[i].h, image_dims_[i].w, c_};
+      shape[i] = {image_dims_[i % images_.size()].h,
+                  image_dims_[i % images_.size()].w,
+                  c_};
     }
     batch->template data<uint8>();
     batch->Resize(shape);
