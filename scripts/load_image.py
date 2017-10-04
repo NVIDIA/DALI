@@ -26,7 +26,7 @@ def load_image(image_file):
     img = np.asarray(img)
     if components == 3:
         img = img.reshape([height, width, components])
-        img = img.astype(np.uint8)
+        # img = img.astype(np.uint8)
         cmap = None
     else:
         cmap = 'gray'

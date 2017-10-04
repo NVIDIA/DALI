@@ -68,7 +68,7 @@ protected:
 template <typename Backend, typename T>
 class DumpImageOp : public Transformer<Backend> {
 public:
-  inline DumpImageOp(bool hwc = true) : hwc_(hwc) {}
+  inline DumpImageOp(const string suffix = "", bool hwc = true) : suffix_(suffix), hwc_(hwc) {}
   virtual inline ~DumpImageOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(
@@ -82,7 +82,7 @@ public:
   }
   
   inline DumpImageOp* Clone() const override {
-    return new DumpImageOp(hwc_);
+    return new DumpImageOp(suffix_, hwc_);
   }
 
   inline string name() const override {
@@ -101,9 +101,9 @@ protected:
     int w = input.shape()[1];
     int c = input.shape()[2];
     if (hwc_) {
-      DumpHWCToFile(img, h, w, c, w*c, std::to_string(data_idx));
+      DumpHWCToFile(img, h, w, c, std::to_string(data_idx) + suffix_);
     } else {
-      DumpCHWToFile(img, h, w, c, std::to_string(data_idx));
+      DumpCHWToFile(img, h, w, c, std::to_string(data_idx) + suffix_);
     }
 
     // Copy from input to output
@@ -113,12 +113,14 @@ protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     if (hwc_) {
-      DumpHWCImageBatchToFile<T>(input, "");
+      DumpHWCImageBatchToFile<T>(input, suffix_);
     } else {
-      DumpCHWImageBatchToFile<T>(input, "");
+      DumpCHWImageBatchToFile<T>(input, suffix_);
     }
+    output->Copy(input);
   }
 
+  const string suffix_;
   bool hwc_;
 };
   

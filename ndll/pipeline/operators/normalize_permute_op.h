@@ -57,9 +57,9 @@ public:
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
-        mean_.template data<float>(), inv_std_.template data<float>(),
-        output->template data<OUT>(), stream_);
+    NDLL_CALL(BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
+            mean_.template data<float>(), inv_std_.template data<float>(),
+            output->template data<OUT>(), stream_));
   }
   
   Tensor<Backend> mean_, inv_std_;
