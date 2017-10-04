@@ -1,5 +1,5 @@
-#ifndef NDLL_TEST_TYPE_CONVERSIONS_H_
-#define NDLL_TEST_TYPE_CONVERSIONS_H_
+#ifndef NDLL_UTIL_TYPE_CONVERSIONS_H_
+#define NDLL_UTIL_TYPE_CONVERSIONS_H_
 
 #include "ndll/common.h"
 
@@ -12,4 +12,4 @@ void Convert(const IN *data, int n, OUT *out);
 
 } // namespace ndll
 
-#endif // NDLL_TEST_TYPE_CONVERSIONS_H_
+#endif // NDLL_UTIL_TYPE_CONVERSIONS_H_

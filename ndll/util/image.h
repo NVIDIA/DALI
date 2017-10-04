@@ -7,8 +7,10 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/types.h"
+#include "ndll/util/type_conversion.h"
 
 // This file contains useful image utilities for reading and writing images.
 // These functions are for testing and debugging, they should not be used
@@ -132,26 +134,44 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 template <typename T, typename Backend>
 void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
   NDLL_ENFORCE(IsType<T>(batch.type()));
-  int batch_size = batch.ndatum();
+
+  // Convert the batch to double data. This allows
+  // us to support fp16 data dumping
+  Batch<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Copy(batch);
+  double_gpu.ResizeLike(tmp_gpu);
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(),
+      double_gpu.template data<double>());
+  
+  int batch_size = double_gpu.ndatum();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = batch.datum_shape(i);
+    vector<Index> shape = double_gpu.datum_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int h = shape[0], w = shape[1], c = shape[2];
 
-    DumpHWCToFile((T*)batch.raw_datum(i), h, w, c, w*c, std::to_string(i) + "-batch");
+    DumpHWCToFile(double_gpu.template datum<double>(i), h, w, c, w*c, std::to_string(i) + "-batch");
   }
 }
   
 template <typename T, typename Backend>
 void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
   NDLL_ENFORCE(IsType<T>(batch.type()));
-  int batch_size = batch.ndatum();
+
+  // Convert the batch to double data. This allows
+  // us to support fp16 data dumping
+  Batch<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Copy(batch);
+  double_gpu.ResizeLike(tmp_gpu);
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(),
+      double_gpu.template data<double>());
+  
+  int batch_size = double_gpu.ndatum();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = batch.datum_shape(i);
+    vector<Index> shape = double_gpu.datum_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int c = shape[0], h = shape[1], w = shape[2];
 
-    DumpCHWToFile((T*)batch.raw_datum(i), h, w, c, std::to_string(i) + "-batch");
+    DumpCHWToFile(double_gpu.template datum<double>(i), h, w, c, std::to_string(i) + "-batch");
   }
     
 }

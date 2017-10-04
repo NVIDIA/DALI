@@ -370,7 +370,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
     for (Index i = 0; i < batch_size_; ++i) {
       // Get a Datum from the reader
       data_reader_->Read(&input_datum_[i]);
-      
+
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {

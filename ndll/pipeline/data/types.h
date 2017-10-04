@@ -3,6 +3,7 @@
 
 #include <cstdint>
 
+#include <mutex>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
@@ -34,7 +35,9 @@ private:
   // Used by DEFINE_TYPE macros to register a type in the type table
   template <typename T>
   static TypeID RegisterType() {
-    static int id = 0;
+    // Lock the mutex to ensure correct setup even if this
+    // method is triggered from threads
+    std::lock_guard<std::mutex> lock(mutex_);
     
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));
@@ -45,13 +48,15 @@ private:
     // GetIDForType().
     NDLL_ENFORCE(id_it == type_map_.end(),
         "Re-registration of type, check for duplicate DEFINE_TYPE calls");
-        
-    int new_id = id;
+
+    int new_id = id_;
     type_map_[typeid(T)] = new_id;
-    ++id;
+    ++id_;
     return new_id;
   }
-  
+
+  static std::mutex mutex_;
+  static int id_;
   static std::unordered_map<std::type_index, TypeID> type_map_;
 };
 

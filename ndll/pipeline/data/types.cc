@@ -1,6 +1,8 @@
 #include "ndll/pipeline/data/types.h"
 
 namespace ndll {
+std::mutex TypeTable::mutex_;
+int TypeTable::id_ = 0;
 std::unordered_map<std::type_index, TypeID> TypeTable::type_map_;
 
 // Instantiate some basic types
