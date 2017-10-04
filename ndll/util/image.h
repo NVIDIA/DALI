@@ -133,7 +133,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 }
 
 template <typename T, typename Backend>
-void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
+void DumpHWCImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
   CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
 
@@ -151,12 +151,12 @@ void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
     NDLL_ENFORCE(shape.size() == 3);
     int h = shape[0], w = shape[1], c = shape[2];
 
-    DumpHWCToFile(double_gpu.template datum<double>(i), h, w, c, w*c, std::to_string(i) + "-batch");
+    DumpHWCToFile(double_gpu.template datum<double>(i), h, w, c, w*c, std::to_string(i) + suffix);
   }
 }
   
 template <typename T, typename Backend>
-void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
+void DumpCHWImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
   CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
 
@@ -174,12 +174,12 @@ void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
     NDLL_ENFORCE(shape.size() == 3);
     int c = shape[0], h = shape[1], w = shape[2];
 
-    DumpCHWToFile(double_gpu.template datum<double>(i), h, w, c, std::to_string(i) + "-batch");
+    DumpCHWToFile(double_gpu.template datum<double>(i), h, w, c, std::to_string(i) + suffix);
   }   
 }
 
 template <typename T>
-void DumpHWCRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
+void DumpHWCRawImageBatchToFile(T *ptr, int n, int h, int w, int c, const string suffix = "-batch") {
   CUDA_CALL(cudaDeviceSynchronize());
   
   // Convert the batch to double data. This allows
@@ -195,12 +195,12 @@ void DumpHWCRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
   
   for (int i = 0; i < n; ++i) {
     DumpHWCToFile(double_gpu.template data<double>() + i *c*h*w,
-        h, w, c, w*c, std::to_string(i) + "-batch");
+        h, w, c, w*c, std::to_string(i) + suffix);
   }
 }
 
 template <typename T>
-void DumpCHWRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
+void DumpCHWRawImageBatchToFile(T *ptr, int n, int h, int w, int c, const string suffix = "-batch") {
   CUDA_CALL(cudaDeviceSynchronize());
   
   // Convert the batch to double data. This allows
@@ -216,7 +216,7 @@ void DumpCHWRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
   
   for (int i = 0; i < n; ++i) {
     DumpCHWToFile(double_gpu.template data<double>() + i *c*h*w,
-        h, w, c, std::to_string(i) + "-batch");
+        h, w, c, std::to_string(i) + suffix);
   }
 }
 
