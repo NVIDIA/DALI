@@ -9,6 +9,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/types.h"
 #include "ndll/util/type_conversion.h"
 
@@ -133,6 +134,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 
 template <typename T, typename Backend>
 void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
+  CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
 
   // Convert the batch to double data. This allows
@@ -155,6 +157,7 @@ void DumpHWCImageBatchToFile(const Batch<Backend> &batch) {
   
 template <typename T, typename Backend>
 void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
+  CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
 
   // Convert the batch to double data. This allows
@@ -172,8 +175,49 @@ void DumpCHWImageBatchToFile(const Batch<Backend> &batch) {
     int c = shape[0], h = shape[1], w = shape[2];
 
     DumpCHWToFile(double_gpu.template datum<double>(i), h, w, c, std::to_string(i) + "-batch");
+  }   
+}
+
+template <typename T>
+void DumpHWCRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
+  CUDA_CALL(cudaDeviceSynchronize());
+  
+  // Convert the batch to double data. This allows
+  // us to support fp16 data dumping
+  Tensor<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Resize({n, h, w, c});
+  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  double_gpu.Resize({n, h, w, c});
+
+  // Perform the copy & conversion
+  MemCopy(tmp_gpu.template data<T>(), ptr, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+  
+  for (int i = 0; i < n; ++i) {
+    DumpHWCToFile(double_gpu.template data<double>() + i *c*h*w,
+        h, w, c, w*c, std::to_string(i) + "-batch");
   }
-    
+}
+
+template <typename T>
+void DumpCHWRawImageBatchToFile(T *ptr, int n, int h, int w, int c) {
+  CUDA_CALL(cudaDeviceSynchronize());
+  
+  // Convert the batch to double data. This allows
+  // us to support fp16 data dumping
+  Tensor<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Resize({n, c, h, w});
+  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  double_gpu.Resize({n, c, h, w});
+
+  // Perform the copy & conversion
+  MemCopy(tmp_gpu.template data<T>(), ptr, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+  
+  for (int i = 0; i < n; ++i) {
+    DumpCHWToFile(double_gpu.template data<double>() + i *c*h*w,
+        h, w, c, std::to_string(i) + "-batch");
+  }
 }
 
 } // namespace ndll

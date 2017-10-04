@@ -111,7 +111,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddForwardOp(resize_op);
 
   // Add a bached crop+mirror+normalize+permute op
-  CropMirrorNormalizePermuteOp<GPUBackend, float16> final_op(
+  CropMirrorNormalizePermuteOp<GPUBackend, float> final_op(
       true, 224, 224, 0.5f, true, {128, 128, 128}, {1, 1, 1});
   pipe.AddForwardOp(final_op);
   
