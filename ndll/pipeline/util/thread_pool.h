@@ -19,7 +19,7 @@ public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
   
-  inline ThreadPool(int num_thread, int device_id)
+  inline ThreadPool(int num_thread, int device_id, bool set_affinity)
     : threads_(num_thread),
       running_(true),
       work_complete_(false),
@@ -28,7 +28,8 @@ public:
     nvml::Init();
     // Start the threads in the main loop
     for (int i = 0; i < num_thread; ++i) {
-      threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id));
+      threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain,
+              this, i, device_id, set_affinity));
     }
     tl_errors_.resize(num_thread);
   }
@@ -82,12 +83,12 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 private:
-  inline void ThreadMain(int thread_id, int device_id) {
-    {
+  inline void ThreadMain(int thread_id, int device_id, bool set_affinity) {
+    CUDA_CALL(cudaSetDevice(device_id));
+    if (set_affinity) {
       // Set device affinity. Lock to ensure we don't hit
       // the thread safety issue in NVML
       std::lock_guard<std::mutex> lock(mutex_);
-      CUDA_CALL(cudaSetDevice(device_id));
       nvml::SetCPUAffinity();
     }
     

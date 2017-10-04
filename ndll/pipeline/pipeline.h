@@ -36,9 +36,10 @@ public:
    * main_stream. The non-blocking flag specifies whether additional 
    * streams should be allocated as non-blocking streams.
    */
-  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream, int device_id) :
+  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
+      int device_id, bool set_affinity = true) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-    main_stream_(main_stream), thread_pool_(num_threads, device_id),
+    main_stream_(main_stream), thread_pool_(num_threads, device_id, set_affinity),
     data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
     parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
