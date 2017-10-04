@@ -111,7 +111,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddForwardOp(resize_op);
 
   // Add a bached crop+mirror+normalize+permute op
-  CropMirrorNormalizePermuteOp<GPUBackend, float> final_op(
+  CropMirrorNormalizePermuteOp<GPUBackend, float16> final_op(
       true, 224, 224, 0.5f, true, {128, 128, 128}, {1, 1, 1});
   pipe.AddForwardOp(final_op);
   
@@ -154,12 +154,12 @@ BENCHMARK_REGISTER_F(NDLLBenchmark, C2ResNet50Pipeline)->Iterations(100)
 ->Apply(PipeArgs);
 
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
-  // for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
-  //   for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-  //     b->Args({batch_size, num_thread});
-  //   }
-  // }
-  b->Args({32, 1});
+  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+      b->Args({batch_size, num_thread});
+    }
+  }
+  // b->Args({32, 1});
 }
 
 BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)

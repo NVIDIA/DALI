@@ -68,7 +68,7 @@ public:
 
 #ifndef NDEBUG
     // Dump the opencv image
-    DumpHWCToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
+    DumpHWCToFile(ver.ptr(), h, w, c_, "ver_" + std::to_string(img_id));
 #endif 
     
     cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
@@ -88,7 +88,7 @@ public:
 
 #ifndef NDEBUG
     // Dump the absolute differences
-    DumpHWCToFile(diff.data(), h, w, c_, w*c_, "diff_" + std::to_string(img_id));
+    DumpHWCToFile(diff.data(), h, w, c_, "diff_" + std::to_string(img_id));
 #endif 
     
     // calculate the MSE
@@ -147,7 +147,7 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
 #ifndef NDEBUG
     cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;
     cout << "dims: " << w << "x" << h << endl;
-    DumpHWCToFile(image.data(), h, w, this->c_, w*this->c_, std::to_string(img));
+    DumpHWCToFile(image.data(), h, w, this->c_, std::to_string(img));
 #endif 
     this->VerifyDecode(image.data(), h, w, img);
   }

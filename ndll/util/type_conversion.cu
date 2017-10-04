@@ -23,7 +23,9 @@ void Convert(const IN *data, int n, OUT *out) {
 
 // Note: These are used in the test suite for output verification, we
 // don't care if we do extra copy from T to T.
+template void Convert<uint8, double>(const uint8*, int, double*);
 template void Convert<float16, double>(const float16*, int, double*);
+template void Convert<int, double>(const int*, int, double*);
 template void Convert<float, double>(const float*, int, double*);
 template void Convert<double, double>(const double*, int, double*);
 

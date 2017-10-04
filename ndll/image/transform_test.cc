@@ -286,9 +286,9 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
     DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, crop_w*this->c_, std::to_string(i));
+        this->c_, std::to_string(i));
     DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+            this->c_, "ver_" + std::to_string(i));
 #endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
@@ -330,9 +330,9 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
     DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, crop_w*this->c_, std::to_string(i));
+        this->c_, std::to_string(i));
     DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+            this->c_, "ver_" + std::to_string(i));
 #endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
@@ -372,9 +372,9 @@ TYPED_TEST(TransformTest, TestFastResizeCrop) {
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
     DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, crop_w*this->c_, std::to_string(i));
+        this->c_, std::to_string(i));
     DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+            this->c_, "ver_" + std::to_string(i));
 #endif
     // TODO(tgale): We need a better way to evaluate similarity for the
     // FastResizeCropMirror method. The resulting image is very close,
@@ -420,9 +420,9 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
     DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, crop_w*this->c_, std::to_string(i));
+        this->c_, std::to_string(i));
     DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, crop_w*this->c_, "ver_" + std::to_string(i));
+            this->c_, "ver_" + std::to_string(i));
 #endif
     // TODO(tgale): We need a better way to evaluate similarity for the
     // FastResizeCropMirror method. The resulting image is very close,
@@ -496,8 +496,7 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
 
 #ifndef NDEBUG
     DumpHWCToFile(ground_truth.ptr(), ground_truth.rows, ground_truth.cols,
-        ground_truth.channels(), ground_truth.cols*ground_truth.channels(),
-        "ver_" + std::to_string(i));
+        ground_truth.channels(), "ver_" + std::to_string(i));
 #endif
     
     this->VerifyImage(gpu_output_batch.template datum<uint8>(i), ground_truth.ptr(),

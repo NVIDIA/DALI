@@ -65,27 +65,11 @@ protected:
   using Operator<Backend>::num_threads_;
 };
 
-template <typename Backend>
+template <typename Backend, typename T>
 class DumpImageOp : public Transformer<Backend> {
 public:
-  inline DumpImageOp() {}
+  inline DumpImageOp(bool hwc = true) : hwc_(hwc) {}
   virtual inline ~DumpImageOp() = default;
-
-  // This op forwards the data and writes it to files
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int /* unused */) override {
-    NDLL_ENFORCE(input.shape().size() == 3);
-
-    // Dump the data to file
-    const uint8 *img = input.template data<uint8>();
-    int h = input.shape()[0];
-    int w = input.shape()[1];
-    int c = input.shape()[2];
-    DumpHWCToFile(img, h, w, c, w*c, std::to_string(data_idx));
-
-    // Copy from input to output
-    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
-  }
   
   inline vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int /* unused */, int /* unused */) override {
@@ -93,12 +77,12 @@ public:
   }
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
-    NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<uint8>();
+    NDLL_ENFORCE(IsType<T>(input_type));
+    output->template data<T>();
   }
   
   inline DumpImageOp* Clone() const override {
-    return new DumpImageOp;
+    return new DumpImageOp(hwc_);
   }
 
   inline string name() const override {
@@ -106,7 +90,36 @@ public:
   }
   
 protected:
-  using Operator<Backend>::num_threads_;
+  // This op forwards the data and writes it to files
+  inline void RunPerDatumCPU(const Datum<Backend> &input,
+      Datum<Backend> *output, int data_idx, int /* unused */) override {
+    NDLL_ENFORCE(input.shape().size() == 3);
+    
+    // Dump the data to file
+    const T *img = input.template data<T>();
+    int h = input.shape()[0];
+    int w = input.shape()[1];
+    int c = input.shape()[2];
+    if (hwc_) {
+      DumpHWCToFile(img, h, w, c, w*c, std::to_string(data_idx));
+    } else {
+      DumpCHWToFile(img, h, w, c, std::to_string(data_idx));
+    }
+
+    // Copy from input to output
+    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
+  }
+
+  inline void RunBatchedGPU(const Batch<Backend> &input,
+      Batch<Backend> *output) override {
+    if (hwc_) {
+      DumpHWCImageBatchToFile<T>(input, "");
+    } else {
+      DumpCHWImageBatchToFile<T>(input, "");
+    }
+  }
+
+  bool hwc_;
 };
   
 } // namespace ndll

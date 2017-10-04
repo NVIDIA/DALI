@@ -74,7 +74,7 @@ public:
     
 #ifndef NDEBUG
     // Dump the opencv image
-    DumpHWCToFile(ver.ptr(), h, w, c_, w*c_, "ver_" + std::to_string(img_id));
+    DumpHWCToFile(ver.ptr(), h, w, c_, "ver_" + std::to_string(img_id));
 #endif
     
     ASSERT_EQ(h, ver_img.rows);
@@ -86,7 +86,7 @@ public:
 
 #ifndef NDEBUG
     // Dump the absolute differences
-    DumpHWCToFile(diff.data(), h, w, c_, w*c_, "diff_" + std::to_string(img_id));
+    DumpHWCToFile(diff.data(), h, w, c_, "diff_" + std::to_string(img_id));
 #endif 
     
     // calculate the MSE

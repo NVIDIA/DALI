@@ -38,25 +38,23 @@ void LoadJPEGS(const vector<string> &jpeg_names,
  * Writes an HWC image to the specified file. Add the file extension '.txt'
  */
 template <typename T>
-void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_name) {
+void DumpHWCToFile(const T *img, int h, int w, int c, string file_name) {
   NDLL_ENFORCE(img != nullptr);
   NDLL_ENFORCE(h >= 0);
   NDLL_ENFORCE(w >= 0);
   NDLL_ENFORCE(c >= 0);
-  NDLL_ENFORCE(stride >= c*w);
   CUDA_CALL(cudaDeviceSynchronize());
-  T *tmp = new T[h*w*c];
+  Tensor<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Resize({h, w, c});
+  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  double_gpu.Resize({h, w, c});
 
-  // cout << (long long)tmp << endl;
-  // cout << (long long)img << endl;
-  // cout << "h: " << h << endl;
-  // cout << "w: " << w << endl;
-  // cout << "c: " << c << endl;
-  // cout << "stride: " << stride << endl;
-  // cout << "size(T): " << sizeof(T) << endl;
-  
-  CUDA_CALL(cudaMemcpy2D(tmp, w*c*sizeof(T), img, stride*sizeof(T),
-          w*c*sizeof(T), h, cudaMemcpyDefault));
+  // Copy the data and convert to double
+  MemCopy(tmp_gpu.template data<T>(), img, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+
+  vector<double> tmp(h*w*c, 0);
+  MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
   std::ofstream file(file_name + ".txt");
   NDLL_ENFORCE(file.is_open());
 
@@ -69,7 +67,6 @@ void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_na
     }
     file << endl;
   }
-  delete[] tmp;
 }
 
 /**
@@ -79,9 +76,18 @@ void DumpHWCToFile(const T *img, int h, int w, int c, int stride, string file_na
 template <typename T>
 void DumpCHWToFile(const T *img, int h, int w, int c, string file_name) {
   CUDA_CALL(cudaDeviceSynchronize());
-  T *tmp = new T[h*w*c];
-    
-  CUDA_CALL(cudaMemcpy(tmp, img, h*w*c*sizeof(T), cudaMemcpyDefault));
+  Tensor<GPUBackend> tmp_gpu, double_gpu;
+  tmp_gpu.Resize({c, h, w});
+  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  double_gpu.Resize({c, h, w});
+
+  // Copy the data and convert to double
+  MemCopy(tmp_gpu.template data<T>(), img, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+
+  vector<double> tmp(c*h*w, 0);
+  MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
+
   std::ofstream file(file_name + ".txt");
   NDLL_ENFORCE(file.is_open());
 
@@ -95,7 +101,6 @@ void DumpCHWToFile(const T *img, int h, int w, int c, string file_name) {
     }
     file << endl;
   }
-  delete[] tmp;
 }
 
 /**
@@ -134,89 +139,44 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
 
 template <typename T, typename Backend>
 void DumpHWCImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
-  CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
-
-  // Convert the batch to double data. This allows
-  // us to support fp16 data dumping
-  Batch<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Copy(batch);
-  double_gpu.ResizeLike(tmp_gpu);
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(),
-      double_gpu.template data<double>());
   
-  int batch_size = double_gpu.ndatum();
+  int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = double_gpu.datum_shape(i);
+    vector<Index> shape = batch.datum_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int h = shape[0], w = shape[1], c = shape[2];
 
-    DumpHWCToFile(double_gpu.template datum<double>(i), h, w, c, w*c, std::to_string(i) + suffix);
+    DumpHWCToFile(batch.template datum<T>(i), h, w, c, std::to_string(i) + suffix);
   }
 }
   
 template <typename T, typename Backend>
 void DumpCHWImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
-  CUDA_CALL(cudaDeviceSynchronize());
   NDLL_ENFORCE(IsType<T>(batch.type()));
-
-  // Convert the batch to double data. This allows
-  // us to support fp16 data dumping
-  Batch<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Copy(batch);
-  double_gpu.ResizeLike(tmp_gpu);
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(),
-      double_gpu.template data<double>());
   
-  int batch_size = double_gpu.ndatum();
+  int batch_size = batch.ndatum();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = double_gpu.datum_shape(i);
+    vector<Index> shape = batch.datum_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int c = shape[0], h = shape[1], w = shape[2];
 
-    DumpCHWToFile(double_gpu.template datum<double>(i), h, w, c, std::to_string(i) + suffix);
+    DumpCHWToFile(batch.template datum<T>(i), h, w, c, std::to_string(i) + suffix);
   }   
 }
 
 template <typename T>
 void DumpHWCRawImageBatchToFile(T *ptr, int n, int h, int w, int c, const string suffix = "-batch") {
-  CUDA_CALL(cudaDeviceSynchronize());
-  
-  // Convert the batch to double data. This allows
-  // us to support fp16 data dumping
-  Tensor<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Resize({n, h, w, c});
-  tmp_gpu.template data<T>(); // make sure the buffer is allocated
-  double_gpu.Resize({n, h, w, c});
-
-  // Perform the copy & conversion
-  MemCopy(tmp_gpu.template data<T>(), ptr, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
-  
   for (int i = 0; i < n; ++i) {
-    DumpHWCToFile(double_gpu.template data<double>() + i *c*h*w,
-        h, w, c, w*c, std::to_string(i) + suffix);
+    DumpHWCToFile(ptr + i*c*h*w,
+        h, w, c, std::to_string(i) + suffix);
   }
 }
 
 template <typename T>
 void DumpCHWRawImageBatchToFile(T *ptr, int n, int h, int w, int c, const string suffix = "-batch") {
-  CUDA_CALL(cudaDeviceSynchronize());
-  
-  // Convert the batch to double data. This allows
-  // us to support fp16 data dumping
-  Tensor<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Resize({n, c, h, w});
-  tmp_gpu.template data<T>(); // make sure the buffer is allocated
-  double_gpu.Resize({n, c, h, w});
-
-  // Perform the copy & conversion
-  MemCopy(tmp_gpu.template data<T>(), ptr, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
-  
   for (int i = 0; i < n; ++i) {
-    DumpCHWToFile(double_gpu.template data<double>() + i *c*h*w,
-        h, w, c, std::to_string(i) + suffix);
+    DumpCHWToFile(ptr + i*c*h*w, h, w, c, std::to_string(i) + suffix);
   }
 }
 
