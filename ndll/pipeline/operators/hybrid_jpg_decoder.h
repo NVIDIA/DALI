@@ -212,6 +212,10 @@ public:
       img_steps_.resize(batch_size_);
       img_offsets_.resize(batch_size_);
     }
+
+    // TODO(tgale): See comment on pre-resizing in Pipeline::Build()
+    yuv_data_.Resize({1500000 * batch_size_});
+    if (color_) strided_imgs_.Resize({1500000 * batch_size_});
   }
   
 protected:
@@ -327,7 +331,7 @@ protected:
       yuv_size += yuv_dims_[i].height * yuv_dims_[i].width;
     }
     yuv_data_.Resize({(Index)yuv_size});
-
+    
     if (color_) {
       // Calculate the size of the strided image intermediate buffer
       // & resize. We waste a little memory here allocating tmp storage

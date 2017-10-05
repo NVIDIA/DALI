@@ -373,15 +373,15 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
   // objects withing caching allocators.
   for (auto &datum : input_datum_) {
     datum.set_type(read_output_type);
-    datum.Resize({250000}); // 250KB
+    datum.Resize({300000}); // 3000KB
   }
   for (auto &datum : parsed_datum_) {
     datum.set_type(parsed_output_type);
-    datum.Resize({250000}); // 250KB
+    datum.Resize({300000}); // 300KB
   }
 
-  mega_buffer_.Resize({100000});
-  mega_buffer_gpu_.Resize({100000});
+  mega_buffer_.Resize({300000}); // 300KB
+  mega_buffer_gpu_.Resize({300000}); // 300KB
   
   vector<Dims> tmp(1);
   tmp[0].push_back(1500000 * batch_size_); // 1.5MB / sample
