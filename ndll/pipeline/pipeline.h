@@ -21,6 +21,30 @@ namespace ndll {
  * @brief Organizes and executes the set of operators chosen by the user.
  * Provides optimizations like batched copies to GPU and pre-sizing of
  * buffers.
+ *
+ * The Pipeline produces a processed batch of data on the GPU. It is 
+ * composed of Operators (@ref ndll::Operator<Backend>), and breaks 
+ * its execution into 3 phases: 'prefetch', 'copy', and 'forward'. 
+ * Operators are added to a specific phase when the pipeline is built 
+ * up. Prefetch operators are executed per-image w/ multiple threads, 
+ * while Forward operators are executed on an entire batch at once on 
+ * the GPU. We currently don't support running all operations (cpu or gpu) 
+ * per-image in the prefetch stage, but it wouldn't be too difficult to 
+ * enable.
+ * 
+ * The pipeline manages all memory used in the pipeline. We currently 
+ * maintain buffers for all intermediate results, but this central 
+ * management means that we could do some tricks (e.g. just using two 
+ * buffers and ping-ponging back and forth) to reduce memory requirements
+ *
+ * The pipeline also provides a mechanism for combining all batched GPU 
+ * operation parameters into a single mega-buffer during the prefetch stage. 
+ * Operations in the Forward stage are queried for the amount of batched 
+ * paramter storage they need after performing shape inference. They are 
+ * then  given a chance to set up their batched paramters (both serially 
+ * and threaded, depending on the need of the operation) into their chunk 
+ * of the mega-buffer. During the copy stage, we copy the output of the 
+ * prefetch stage, as well as the mega-buffer to the GPU.
  */
 template <typename CPUBackend, typename GPUBackend>
 class Pipeline {
@@ -29,17 +53,17 @@ public:
    * @brief Creates a pipeline with `num_threads` worker threads and 
    * working in `main_stream`. 
    *
-   * The max  streams parameter limits the maximum amount of additional 
-   * streams that operators in pipeline can use. The pipeline inserts 
-   * cudaEvents into the main_stream as needed to ensure expected 
-   * synchronization behavior as if all work had been issued in the 
-   * main_stream. The non-blocking flag specifies whether additional 
-   * streams should be allocated as non-blocking streams.
+   * @param batch_size the size of the batch that should be produced.
+   * @param num_threads the number of threads to use in the prefetch stage.
+   * @param stream the stream to operate in.
+   * @param device_id id of the GPU to operate on.
+   * @param set_affinity indicates whether thread affinity should be
+   * configured in the thread pool. Defaults to 'true'.
    */
-  inline Pipeline(int batch_size, int num_threads, cudaStream_t main_stream,
+  inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
       int device_id, bool set_affinity = true) :
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-    main_stream_(main_stream), thread_pool_(num_threads, device_id, set_affinity),
+    stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
     data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
     parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
@@ -47,27 +71,19 @@ public:
     mega_buffer_.template data<uint8>();
     mega_buffer_gpu_.template data<uint8>();
 
-    // Note: For now we set the NPP stream here so that all of the ops that use NPP do
-    // not need to. We also set it on every call to 'RunForward' to ensure that
-    // the depndency between the Copy and the RunForward kernel is maintained even in
-    // the case that different threads call 'RunForward' on each iteration.
-    nppSetStream(main_stream_);
-    
-    // Note: We do not set device/thread affinity in the pipeline anywhere
-    // because frameworks like C2 could have different threads running
-    // through this code. We do however require that the device is set
-    // to match the input device id on construction before any of the
-    // pipeline method are called.
-    //
-    // In the thread pool that we control, we configure affinity to ensure
-    // good NUMA configuration and correct device settings
+    // TODO(tgale): We need to figure out the best way to ensure that the memory
+    // this object allocates is stored on the correct NUMA node that we can
+    // force on the frameworks. Frameworks like C2 are tricky because any thread
+    // could execute this pipe on any iteration, so we'll need a way to force
+    // these specfic allocations to go our way without messing with everything
+    // else.
   }
   
   ~Pipeline() = default;
 
   /**
    * @brief Adds an op to the prefetch stage of the pipeline. The input op is
-   * moved into the pipeline and left in a default state
+   * moved into the pipeline and left in a default state.
    */
   inline void AddPrefetchOp(const Operator<CPUBackend> &op) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -78,7 +94,7 @@ public:
 
   /**
    * @brief Adds an op to the forward stage of the pipeline. The input op is
-   * moved into the pipeline and left in a default state
+   * moved into the pipeline and left in a default state.
    */
   inline void AddForwardOp(const Operator<GPUBackend> &op) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -89,7 +105,11 @@ public:
 
   /**
    * @brief Inserts the decoder on the front of the prefetch stage of the pipeline.
-   * The op is moved into the pipeline and left in a default state
+   * The op is moved into the pipeline and left in a default state.
+   *
+   * Decoder are special ops that are allowed to have data dependent output shapes.
+   * For this reason, they must appear first in the pipeline and can only appear
+   * once.
    */
   inline void AddDecoder(const Operator<CPUBackend> &dec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -105,10 +125,10 @@ public:
    * @brief Inserts the decoder on the front of the forward stage of the pipeline.
    * The op is moved into the pipeline and left in a default state.
    *
-   * Decoders are special ops that can only appear once in the pipeline, and must
-   * appear first. Decoders can also have data dependent shape inference methods
-   * Adding the Decoder to forward stage implies that their are no prefetch ops. 
-   * If this is not the case, 'Build()' will throw an error.
+   * Decoder are special ops that are allowed to have data dependent output shapes.
+   * for this reason, they must appear first in the pipeline and can only appear
+   * once. Adding the Decoder to forward stage implies that their are no prefetch 
+   * ops. If this is not the case, 'Build()' will throw an error.
    */
   inline void AddDecoder(const Operator<GPUBackend> &dec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -124,7 +144,7 @@ public:
    * @brief Adds the input DataReader to the pipeline. The DataReader will
    * provide access to single data samples during execution, and allow us
    * to overlap the reading of data with the processing of data in the
-   * thread pool
+   * thread pool.
    */
   inline void AddDataReader(const DataReader<CPUBackend> &reader) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -135,8 +155,8 @@ public:
   /**
    * @brief Add the input Parser to the pipeline. The parser will be
    * called on the Datum produced by the DataReader. This allows support
-   * for custom data formats w/o altering the basic ops defined for the 
-   * pipeline
+   * for custom data formats without altering the basic ops defined for 
+   * the pipeline.
    */
   inline void AddParser(const Parser<CPUBackend> &parser) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -148,36 +168,69 @@ public:
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
    *
-   * @param output the batch to output the results of the pipeline into
+   * @param batch to output the results of the pipeline into.
    */
   void Build(shared_ptr<Batch<GPUBackend>> output);
 
   /**
-   * @brief Run the prefetch stage of the pipeline
+   * @brief Run the prefetch stage of the pipeline.
+   *
+   * The prefetch stage of the pipeline is broken into three phases.
+   * In the first phase, all samples are read from the DataReader
+   * and are launched into the thread pool to be parsed. In this thread
+   * loop, we pass over all Operators in the pipeline to perform shape
+   * inference.
+   *
+   * In the second phase, we take the shapes that we have calculated 
+   * and resize all of our intermediate results. We also pass over all
+   * ops in the that will be run in the forward stage of the pipeline
+   * and query for the number of bytes they need to store their batched
+   * paramters. We then allocate our mega buffer to store all ops
+   * batched parameters and distribute SubTensors to all the ops that
+   * requested batached paramter storage. Finally, we iterate over the
+   * forward stage ops one more time to give them a serial section to
+   * setup their batched parameters into the mega buffer.
+   *
+   * In the third phase, we launch into the thread pool to execute all
+   * the prefetch ops. After finishing execution of the prefetch ops,
+   * each thread also passes over the forward stage ops to give them
+   * a change to setup any per-image batched paramters.
    */
   void RunPrefetch();
 
   /**
    * @brief Copies the result of the prefetch stage into the input 
-   * buffer for the forward stage
+   * buffer for the forward stage. Also copied all batched parameters
+   * to the GPU for the forward stage of computation.
    */
   void RunCopy();
 
-  // Note: While RunPrefetch & RunCopy can be run in prefetch threads to
-  // overlap with the forward-backward pass, RunForward must be called
-  // Before RunPrefetch & RunCopy can be called again. Thus, we do not
-  // prefetch more than a single batch at once
+  // 
   
   /**
-   * @brief Run the forward stage of the pipeline into the output buffer
+   * @brief Run the forward stage of the pipeline into the output buffer.
+   *
+   * This stage is designed to be extremely light weight to minimize cost
+   * on the front of the forward pass. All parameter setup and allocations
+   * have been done previously, and we simply iterate over the forward
+   * stage ops and launch their kernels.
+   *
+   * Note: While RunPrefetch & RunCopy can be run in prefetch threads to
+   * overlap with the forward-backward pass, RunForward must be called
+   * Before RunCopy can be called again so that we do not corrupt the
+   * results of the previous execution pass before the forward stage
+   * is finished with them.
    */
   void RunForward();
 
   /**
-   * @brief Returns the main stream that this pipeline is working in
+   * @brief Returns the stream that this pipeline is working in
    */
-  cudaStream_t stream() const { return main_stream_; }
-  
+  cudaStream_t stream() const { return stream_; }
+
+  /**
+   * @brief Prints the name of all operators that are in the pipeline.
+   */
   inline void Print() const {
     // Print all the operators in the pipeline
     cout << "Printing Pipeline Operators: " << endl;
@@ -214,7 +267,7 @@ private:
   bool built_;
 
   int batch_size_;
-  cudaStream_t main_stream_;
+  cudaStream_t stream_;
   ThreadPool thread_pool_;
   
   template <typename T>
@@ -357,12 +410,12 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
   for (auto &op : prefetch_ops_) {
     op->set_num_threads(thread_pool_.size());
     op->set_batch_size(batch_size_);
-    op->set_stream(main_stream_);
+    op->set_stream(stream_);
   }
   for (auto &op : forward_ops_) {
     op->set_num_threads(thread_pool_.size());
     op->set_batch_size(batch_size_);
-    op->set_stream(main_stream_);
+    op->set_stream(stream_);
   }
 
   // TODO(tgale): The large number of memory allocations in the pipeline
@@ -497,7 +550,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
           src.raw_data(),
           src.nbytes(),
           cudaMemcpyHostToDevice,
-          main_stream_));
+          stream_));
 
   // Copy the mega-buffer to GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
@@ -505,7 +558,7 @@ void Pipeline<CPUBackend, GPUBackend>::RunCopy() {
           mega_buffer_.raw_data(),
           mega_buffer_.nbytes(),
           cudaMemcpyHostToDevice,
-          main_stream_));
+          stream_));
 }
 
 template <typename CPUBackend, typename GPUBackend>
@@ -514,11 +567,12 @@ void Pipeline<CPUBackend, GPUBackend>::RunForward() {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
 
-  // Note: We need to set the stream here each time so that frameworks
-  // like C2 that have different threads running through this method
-  // on any given iteration have the correct stream to maintain the
-  // dependency between the copy and these kernels.
-  nppSetStream(main_stream_);
+  // TODO(tgale): figure out a cleaner way to do this. We need
+  // to set the stream here each time so that frameworks like
+  // C2 that have different threads running through this method
+  // on any given iteration have the correct stream to maintain
+  // the dependency between the copy and these kernels.
+  nppSetStream(stream_);
   
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {

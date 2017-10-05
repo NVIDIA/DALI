@@ -1,3 +1,6 @@
 *~
 build
 *.pyc
+doxygen
+html
+latex

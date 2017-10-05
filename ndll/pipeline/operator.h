@@ -14,14 +14,13 @@
 
 namespace ndll {
 
-// Note: The original rationale behind having cpu & gpu ops be the same class was that
-// the cpu & gpu implementations share alot of the same code (InferOutputShape, for example),
-// but now this sharing of code is starting to stress the abstraction to the point that
-// it is a bit hacky. Can we refactor so that shared methods and backend specific methods
-// are separate?
-
 /**
- * @brief Baseclass for the basic unit of computation in the pipeline
+ * @brief Baseclass for the basic unit of computation in the pipeline.
+ *
+ * Operator defines the API used by the pipeline to execute operations,
+ * perform shape inference, and setup any needed paramters for batched
+ * execution. User-defined ops should derive from 'Decoder' or 'Transformer'
+ * depending on which category the op fits into.
  */
 template <typename Backend>
 class Operator {
@@ -33,7 +32,12 @@ public:
   virtual inline ~Operator() = default;
   
   /**
-   * @brief executes the op on a single datum on cpu 
+   * @brief Executes the op on a single datum on cpu.
+   *
+   * @param input The input Datum that is to be processed.
+   * @param output The output Datum to process the input into.
+   * @param data_idx The index of this Datum in the batch.
+   * @param thread_idx The id of the calling thread.
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
@@ -48,7 +52,10 @@ public:
   }
 
   /**
-   * @brief Executes the op on the whole batch of data on the gpu
+   * @brief Executes the op on the whole batch of data on the gpu.
+   *
+   * @param input The input Batch of data to process.
+   * @param output The Batch to store the processed input in.
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
@@ -65,24 +72,12 @@ public:
   /**
    * @brief Returns a vector where each element represents the size of
    * different parameters for 'RunBatchedGPU' that must be setup. By
-   * default the sizes are 0, and on space is allocate for the Ops
-   * batched parameters.
+   * default the sizes are 0, and no space is allocate for the op's
+   * batched parameters. 
    *
-   * Running operations on whole batches of data on GPU often requires
-   * that lots of meta-data be copied to the GPU prior to kernel launch.
-   * To do this efficiently, the pipeline manages a mega-buffer to store
-   * all batched params for all operators. The parameters can then be
-   * moved to device all at once.
-   *
-   * To take advantage of this feature, operators should override this
-   * method to specify the sizes it needs. This method will be called
-   * by the executor after the shape inference loop, so any data
-   * dependent params should be setup in InferOutputShape. In general,
-   * ops should prefer to do work in threaded methods (RunPerDatumCPU, 
-   * InferOutputShape) to minimize serial workload in the pipeline
-   *
-   * If this method is overriden, 'SetBatchedParamBuffers()' must be
-   * as well so the operator can be handed the allocate buffers.
+   * @ref ndll::Operator<Backend>#CalculateBatchedParamterSize is called 
+   * in this method. See @ref ndll::Operator<Backend>#CalculateBatchedParamterSize 
+   * for information regarding how to leverage this feature in a derived class.
    */
   template <typename T = Backend> inline
   typename std::enable_if<std::is_base_of<GPUBackend, T>::value, const vector<size_t>&>::type
@@ -91,6 +86,10 @@ public:
     return batched_param_sizes_;
   }
 
+  /**
+   * @brief Saves the input SubTensors for the op to stage its batched 
+   * parameters in.
+   */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
   SetBatchedParameterBuffers(const vector<CPUSubTensor> &buffers,
@@ -101,6 +100,11 @@ public:
     batched_param_gpu_buffers_ = gpu_buffers;
   }
 
+  /**
+   * @brief Forwards the input arguments to 
+   * @ref ndll::Operator<Backend>#SerialBatchedParamterSetup. See
+   * @ref ndll::Operator<Backend>#SerialBatchedParamterSetup for details.
+   */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
   BatchedParameterSetup(const Batch<Backend> &input, Batch<Backend> *output) {
@@ -109,7 +113,11 @@ public:
 
   /**
    * @brief Gives Operators a chance to perform batched parameter setup
-   * in the executors threads to minimize serial work
+   * in the executors threads to minimize serial work.
+   * 
+   * Calls @ref ndll::Operator<Backend>#ThreadedBatchedParamterSetup. See
+   * Calls @ref ndll::Operator<Backend>#ThreadedBatchedParamterSetup for
+   * details.
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
@@ -143,12 +151,20 @@ public:
   /// Setters for operator meta-data required to execute the op
   //
 
-  // User can override if they need to setup meta-data
+  /**
+   * @brief Setter for the number of threads that will execute the op.
+   * Can be overriden by derived classes to perform thread local
+   * resource setup.
+   */
   virtual inline void set_num_threads(int num_threads) {
     num_threads_ = num_threads;
   }
 
-  // User can override if they need to setup meta-data
+  /**
+   * @brief Setter for the size of the batch that will be processed.
+   * Can be overriden by derived classes to perform per-datum resource
+   * setup.
+   */
   virtual inline void set_batch_size(int batch_size) {
     batch_size_ = batch_size;
   }
@@ -181,7 +197,21 @@ protected:
   /**
    * @brief Performs and serial calculation neccessary for batched parameter
    * size calculation. Ops should do any work possible in the threaded methods
-   * to avoid doing unnecessary serial work
+   * (InferOutputShape) to avoid doing unnecessary serial work.
+   *
+   * Running operations on whole batches of data on GPU often requires
+   * that lots of meta-data be copied to the GPU prior to kernel launch.
+   * To do this efficiently, the pipeline manages a mega-buffer to store
+   * all batched params for all operators. The parameters can then be
+   * moved to device all at once.
+   *
+   * To take advantage of this feature, operators should override this
+   * method to specify the sizes it needs. This method will be called
+   * by the executor after the shape inference loop, so any data
+   * dependent params should be setup in InferOutputShape. In general,
+   * ops should prefer to do work in threaded methods (InferOutputShape, 
+   * BatchedParamterSetupPerDatum) to minimize serial workload in the 
+   * pipeline.
    */
   virtual void CalculateBatchedParameterSize() {
     // Default does nothing
@@ -189,20 +219,19 @@ protected:
   
   /**
    * @brief Performs any serial batched parameter setup that needs to be done 
-   * by the op. Ops should do any work possible in the threaded methods to 
-   * avoid doing unnecessary serial work
+   * by the op. Ops should do any work possible in the threaded methods 
+   * (BatchedParamterSetupPerDatum) to avoid doing unnecessary serial work.
    */
   virtual void SerialBatchedParameterSetup(const Batch<Backend> &input, Batch<Backend> *output) {
     // Default does nothing
   }
 
   /**
-   * Can be overriden by a derive op to perform any needed batched parameter
-   * setup in the executors threads to avoid doing unnecessary serial work
-   *
-   * The input batch is provided for ops that need to set ptr offsets. We
-   * cannot provide the output batch for all ops, as the last op in the 
-   * pipeline won't have its output batch set until 'RunForward' is called
+   * @brief Performs batched paramter setup that needs to be done by the op
+   * on a per-datum basis. This method is called in the second Pipeline thread
+   * loop and can be overriden by a derive op to perform any needed batched 
+   * parametersetup in the executors threads to avoid doing unnecessary serial 
+   * work
    */
   virtual void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
       Batch<Backend> *output, int data_idx, int thread_idx) {
@@ -219,8 +248,11 @@ protected:
   vector<GPUSubTensor> batched_param_gpu_buffers_;
 };
 
-// Decoders are special operations that can have data-dependent shape inference.
-// For this reason, they are always first in the pipeline.
+/**
+ * @brief Decoder are special ops that are allowed to have data dependent output 
+ * shapes. For this reason, they must appear first in the pipeline and can only 
+ * appear once. User-defined decoders should derive from this class.
+ */
 template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:
@@ -231,6 +263,10 @@ public:
 protected:
 };
 
+/**
+ * @brief Transformers are general ops whose output shape depends only on the
+ * input shape. User-defined transformations should derive from this class.
+ */
 template <typename Backend>
 class Transformer : public Operator<Backend> {
 public:
@@ -249,9 +285,10 @@ public:
     return InferOutputShapeFromShape(input.shape(), data_idx, thread_idx);
   }
 
-  // TODO(tgale): Can we make this not copy another vector? Will it
-  // even make two tmps or will the compiler just forward them on
-  // through the return statement?
+  /**
+   * @brief Returns the output shape that will be produced for the given
+   * input shape. User-defined ops must implement this method.
+   */
   virtual vector<Index> InferOutputShapeFromShape(
       const vector<Index> &input_shape, int data_idx, int thread_idx) = 0;
 

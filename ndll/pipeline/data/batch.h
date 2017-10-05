@@ -85,20 +85,23 @@ public:
   }
 
   /**
-   * @brief returns a typed pointer to the sample with the given index
+   * @brief Returns a typed pointer to the sample with the given index.
    */
   template <typename T>
   inline T* datum(int idx) {
     return this->template data<T>() + datum_offset(idx);
   }
 
+  /**
+   * @brief Returns a const typed pointer to the sample with the given index.
+   */
   template <typename T>
   inline const T* datum(int idx) const {
     return this->template data<T>() + datum_offset(idx);
   }
   
   /**
-   * @brief returns a raw pointer to the sample with the given index
+   * @brief Returns a raw pointer to the sample with the given index.
    */
   inline void* raw_datum(int idx) {
     return static_cast<void*>(
@@ -107,6 +110,9 @@ public:
         );
   }
 
+  /**
+   * @brief Returns a const raw pointer to the sample with the given index.
+   */
   inline const void* raw_datum(int idx) const {
     return static_cast<const void*>(
         static_cast<const uint8*>(this->raw_data()) +
@@ -115,14 +121,14 @@ public:
   }
   
   /**
-   * @brief Returns the number of samples in the batch
+   * @brief Returns the number of samples in the batch.
    */
   inline int ndatum() const {
     return batch_shape_.size();
   }
 
   /**
-   * @brief returns the offset of the sample with the given index
+   * @brief Returns the offset of the sample with the given index.
    */
   inline Index datum_offset(int idx) const {
 #ifndef NDEBUG
@@ -133,7 +139,7 @@ public:
   }
 
   /**
-   * @brief return the shape of the sample with the given index
+   * @brief Return the shape of the sample with the given index.
    */
   inline vector<Index> datum_shape(int idx) const {
 #ifndef NDEBUG
