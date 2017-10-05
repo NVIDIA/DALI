@@ -16,7 +16,7 @@
  * and data loading functions.
  *
  * @section pipe Pipeline
- * The Pipeline class () is heavily documented. See @ref ndll::Pipeline<CPUBackend, GPUBackend>
+ * The Pipeline class is heavily documented. See @ref ndll::Pipeline<CPUBackend, GPUBackend>
  * for core docs, and the following classes for documentation on other important classes used
  * in the Pipeline.
  *
