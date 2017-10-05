@@ -30,9 +30,10 @@ public:
   virtual void Read(Datum<Backend> *datum) = 0;
 
   /**
-   * @brief returns meta-data about the output data type
+   * @brief Resets the reader to the intial state, e.g. 
+   * the beginning of the database.
    */
-  virtual TypeMeta OutputType() = 0;
+  virtual void Reset() = 0;
   
   virtual DataReader* Clone() const = 0;
   
@@ -59,8 +60,11 @@ public:
    */
   void Read(Datum<Backend> *datum) override;
 
-  TypeMeta OutputType() override {
-    return data_store_->type();
+  /**
+   * Resets the cursor to 0
+   */
+  void Reset() override {
+    cursor_ = 0;
   }
   
   BatchDataReader<Backend>* Clone() const override {

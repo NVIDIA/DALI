@@ -52,7 +52,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   }
 
   // Add normalize permute op
-  NormalizePermuteOp<GPUBackend, float> norm_permute_op(
+  NormalizePermuteOp<GPUBackend, float16> norm_permute_op(
       {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
   pipe.AddForwardOp(norm_permute_op);
   
@@ -73,7 +73,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   }
   
   // DEBUG
-  // DumpCHWImageBatchToFile<float>(*output_batch);
+  // DumpCHWImageBatchToFile<float16>(*output_batch);
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 
@@ -159,10 +159,9 @@ static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
       b->Args({batch_size, num_thread});
     }
   }
-  // b->Args({32, 1});
 }
 
-BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(1)
+BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);

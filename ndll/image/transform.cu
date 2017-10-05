@@ -205,7 +205,6 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
       NDLL_CHECK_NPP(nppiResize_8u_C1R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
               in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
     }
-    CUDA_CALL(cudaDeviceSynchronize());
   }
   return NDLLSuccess;
 }

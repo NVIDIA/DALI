@@ -288,11 +288,18 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     OpPtr<CPUBackend> tmp(new CopyOp<CPUBackend>);
     prefetch_ops_.push_back(std::move(tmp));
   }
-  
-  // Get the input data type to the pipeline
-  TypeMeta input_type = data_reader_->OutputType();
-  NDLL_ENFORCE(input_type.id() != NO_TYPE);
 
+  // Read a single sample from the database and
+  // parse it to get the input type
+  data_reader_->Read(&input_datum_[0]);
+  data_parser_->Run(input_datum_[0], &parsed_datum_[0], 0, 0);
+  TypeMeta read_output_type = input_datum_[0].type();
+  TypeMeta parsed_output_type = parsed_datum_[0].type();
+  NDLL_ENFORCE(read_output_type.id() != NO_TYPE);
+  NDLL_ENFORCE(parsed_output_type.id() != NO_TYPE);
+  data_reader_->Reset();
+  TypeMeta input_type = parsed_output_type;
+  
   // Create buffers for intermediate pipeline results. We need 1
   // buffer for each cpu side op output, and 1 buffer for each
   // gpu side op input. The input to the pipeline and the output
@@ -357,7 +364,30 @@ void Pipeline<CPUBackend, GPUBackend>::Build(shared_ptr<Batch<GPUBackend>> outpu
     op->set_batch_size(batch_size_);
     op->set_stream(main_stream_);
   }
-    
+
+  // TODO(tgale): The large number of memory allocations in the pipeline
+  // interfere with training alot due to implicit synchronization w/
+  // pinned memory allocations. For now, we presize the buffers to reasonable
+  // sizes for their task. However, these sizes are basically fit to imagenet,
+  // and to a jpeg quality of about 85. We should move to wrapping our backend
+  // objects withing caching allocators.
+  for (auto &datum : input_datum_) {
+    datum.set_type(read_output_type);
+    datum.Resize({250000}); // 250KB
+  }
+  for (auto &datum : parsed_datum_) {
+    datum.set_type(parsed_output_type);
+    datum.Resize({250000}); // 250KB
+  }
+
+  mega_buffer_.Resize({100000});
+  mega_buffer_gpu_.Resize({100000});
+  
+  vector<Dims> tmp(1);
+  tmp[0].push_back(1500000 * batch_size_); // 1.5MB / sample
+  for (auto &buf : cpu_buffers_) buf->Resize(tmp);
+  for (auto &buf : gpu_buffers_) buf->Resize(tmp);
+  
   // Mark the pipeline as built so we know it is safe to run
   built_ = true;
 }
@@ -371,14 +401,14 @@ void Pipeline<CPUBackend, GPUBackend>::RunPrefetch() {
     for (Index i = 0; i < batch_size_; ++i) {
       // Get a Datum from the reader
       data_reader_->Read(&input_datum_[i]);
-
+      
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
                 // Run the Parsers
                 data_parser_->Run(input_datum_[data_idx],
                     &parsed_datum_[data_idx], data_idx, tid);
-                
+
                 // Get the output shape for the cpu-side results
                 intermediate_shapes_[0][data_idx] =
                   prefetch_ops_[0]->InferOutputShape(parsed_datum_[data_idx], data_idx, tid);
@@ -514,8 +544,7 @@ void Pipeline<CPUBackend, GPUBackend>::MegaBufferSetupAndDistribution() {
     }
   }
   offsets.push_back(total_bytes);
-    
-  // Allocate the tensors on host & device
+  
   mega_buffer_.Resize({(Index)total_bytes});
   mega_buffer_gpu_.Resize({(Index)total_bytes});
 

@@ -40,24 +40,24 @@ inline string BuildErrorString(string statement, string file, int line) {
   return error;
 }
 
-#define ASRT_1(code)                                              \
-  do {                                                            \
-    if (!(code)) {                                                \
-      string error = BuildErrorString(#code, __FILE__, __LINE__); \
-      NDLLSetLastError(error);                                    \
-      return NDLLError;                                           \
-    }                                                             \
+#define ASRT_1(code)                                                    \
+  do {                                                                  \
+    if (!(code)) {                                                      \
+      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      NDLLSetLastError(error);                                          \
+      return NDLLError;                                                 \
+    }                                                                   \
   } while (0)
 
-#define ASRT_2(code, str)                                         \
-  do {                                                            \
-    if (!(code)) {                                                \
-      string error = BuildErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                       \
-      error += ": " + usr_str;                                    \
-      NDLLSetLastError(error);                                    \
-      return NDLLError;                                           \
-    }                                                             \
+#define ASRT_2(code, str)                                               \
+  do {                                                                  \
+    if (!(code)) {                                                      \
+      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      string usr_str = str;                                             \
+      error += ": " + usr_str;                                          \
+      NDLLSetLastError(error);                                          \
+      return NDLLError;                                                 \
+    }                                                                   \
   } while (0)
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
@@ -128,22 +128,22 @@ inline string BuildErrorString(string statement, string file, int line) {
   } while (0)
     
 // Excpetion throwing checks for pipeline code
-#define ENFRC_1(code)                                             \
-    do {                                                          \
-    if (!(code)) {                                                \
-      string error = BuildErrorString(#code, __FILE__, __LINE__); \
-      throw std::runtime_error(error);                            \
-    }                                                             \
+#define ENFRC_1(code)                                                   \
+  do {                                                                  \
+    if (!(code)) {                                                      \
+      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      throw std::runtime_error(error);                                  \
+    }                                                                   \
   } while (0)
 
-#define ENFRC_2(code, str)                                        \
-    do {                                                          \
-      if (!(code)) {                                              \
-      string error = BuildErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                       \
-      error += ": " + usr_str;                                    \
-      throw std::runtime_error(error);                            \
-      }                                                           \
+#define ENFRC_2(code, str)                                              \
+  do {                                                                  \
+    if (!(code)) {                                                      \
+      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      string usr_str = str;                                             \
+      error += ": " + usr_str;                                          \
+      throw std::runtime_error(error);                                  \
+    }                                                                   \
   } while (0)
 
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
