@@ -92,7 +92,7 @@ public:
   }
 
   /**
-   * @brief convenience method that calls 'Resize(const vector<Index> &shape)'
+   * @brief Convenience method sizes the Datum to match the input Datum
    */
   inline void ResizeLike(const Datum<Backend> &other) {
     Resize(other.shape());
@@ -106,7 +106,12 @@ public:
     this->ResizeLike(other);
     MemCopy(this->raw_data(), other.raw_data(), other.nbytes());
   }
-  
+
+  /**
+   * @brief Wraps the sample with the given index in the batch.
+   * If the Datum owns its own underlying storage, the memory
+   * is deallocated.
+   */
   inline void WrapSample(Batch<Backend> *batch, int sample_idx) {
 #ifndef NDEBUG
     NDLL_ENFORCE(sample_idx >= 0, "Negative index not supported");

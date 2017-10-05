@@ -82,7 +82,4 @@
  * @subsection inline Inline Member Functions
  * Alot of methods are defined inline in the pipeline. These should be moved out to
  * make the code more readable.
- *
- * TODO(tgale):
- * - Buffer, Batch, Datum documentation
  */

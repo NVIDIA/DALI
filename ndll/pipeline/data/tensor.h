@@ -65,14 +65,23 @@ public:
     shape_ = shape;
   }
 
+  /**
+   * @brief Returns the shape of the Tensor
+   */
   inline vector<Index> shape() const {
     return shape_;
   }
 
+  /**
+   * @brief Returns the number of dimensions of the Tensor
+   */
   inline virtual int ndim() const {
     return shape_.size();
   }
 
+  /**
+   * @brief Returns the size of the dimension at the given index
+   */
   inline virtual Index dim(int idx) const {
 #ifndef NDEBUG
     NDLL_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
