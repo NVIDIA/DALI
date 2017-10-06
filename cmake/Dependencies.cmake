@@ -2,14 +2,21 @@
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
-  
-# TODO(tgale): Is there a way to automate this and not hack
-# in the path off the base CUDA install?
-list(APPEND NDLL_LIBS ${CUDA_TOOLKIT_ROOT_DIR}/targets/x86_64-linux/lib/stubs/libnvidia-ml.so)
 
 # For NPP
 find_cuda_helper_libs(nppig)
 list(APPEND NDLL_LIBS ${CUDA_nppig_LIBRARY})
+
+# For NVML
+find_library(CUDA_NVML_LIB nvidia-ml
+  PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/stubs targets/x86_64-linux/lib/stubs)
+if (CUDA_NVML_LIB)
+  message(STATUS "Found libnvidia-ml: ${CUDA_NVML_LIB}")
+  list(APPEND NDLL_LIBS ${CUDA_NVML_LIB})
+else()
+  message(FATAL_ERROR "Cannot find libnvidia-ml.so")
+endif()
 
 # NVTX for profiling
 if (USE_NVTX)
