@@ -3,13 +3,14 @@ find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND HYBRID_DECODE_LIBS ${CUDA_LIBRARIES})
 
-# For NPP: This is a hack to build against the npp static libs (until the
-# shared libs get fixed and actually have the functions we need in them)
+# For NPP
+find_cuda_helper_libs(nppicom)
+find_cuda_helper_libs(nppicc)
+find_cuda_helper_libs(nppc)
 list(APPEND HYBRID_DECODE_LIBS
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppicom_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppicc_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libnppc_static.a"
-  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a"
+  ${CUDA_nppicom_LIBRARY}
+  ${CUDA_nppicc_LIBRARY}
+  ${CUDA_nppc_LIBRARY}
   )
 
 # Compile w/ NVTX
