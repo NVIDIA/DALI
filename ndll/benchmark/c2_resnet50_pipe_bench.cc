@@ -108,12 +108,12 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddForwardOp(idct_op);
 
   // Add a batched resize op
-  ResizeOp<GPUBackend> resize_op(true, false, 256, 480, true, NDLL_INTERP_LINEAR);
+  ResizeOp<GPUBackend> resize_op(true, false, 256, 480, img_type, NDLL_INTERP_LINEAR);
   pipe.AddForwardOp(resize_op);
 
   // Add a bached crop+mirror+normalize+permute op
   CropMirrorNormalizePermuteOp<GPUBackend, float16> final_op(
-      true, 224, 224, 0.5f, true, {128, 128, 128}, {1, 1, 1});
+      true, 224, 224, 0.5f, img_type, {128, 128, 128}, {1, 1, 1});
   pipe.AddForwardOp(final_op);
   
   // Build and run the pipeline

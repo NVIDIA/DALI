@@ -18,7 +18,7 @@ public:
       int crop_h,
       int crop_w,
       float mirror_prob,
-      bool color,
+      NDLLImageType image_type,
       vector<float> mean,
       vector<float> std)
     : rand_gen_(time(nullptr)),
@@ -26,8 +26,9 @@ public:
       crop_h_(crop_h),
       crop_w_(crop_w),
       mirror_prob_(mirror_prob),
-      color_(color),
-      C_(color ? 3 : 1),
+      image_type_(image_type),
+      color_(IsColor(image_type)),
+      C_(color_ ? 3 : 1),
       mean_vec_(mean),
       std_vec_(std) {
     // Validate input parameters
@@ -89,7 +90,7 @@ public:
   
   inline CropMirrorNormalizePermuteOp* Clone() const override {
     return new CropMirrorNormalizePermuteOp(random_crop_, crop_h_,
-        crop_w_, mirror_prob_, color_, mean_vec_, std_vec_);
+        crop_w_, mirror_prob_, image_type_, mean_vec_, std_vec_);
   }
 
   inline string name() const override {
@@ -165,6 +166,7 @@ protected:
   float mirror_prob_;
 
   // Input/output channel meta-data
+  NDLLImageType image_type_;
   bool color_;
   int C_;
 

@@ -26,7 +26,7 @@ public:
 
   void SetUp() {
     NDLLTest::SetUp();
-    NDLLTest::DecodeJPEGS(true);
+    NDLLTest::DecodeJPEGS(NDLL_RGB);
   }
 
   template <typename T>

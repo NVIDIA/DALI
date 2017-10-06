@@ -16,14 +16,15 @@ public:
       bool warp_resize,
       int resize_a,
       int resize_b,
-      bool color,
+      NDLLImageType image_type,
       NDLLInterpType type = NDLL_INTERP_LINEAR)
     : rand_gen_(time(nullptr)),
       random_resize_(random_resize),
       warp_resize_(warp_resize),
       resize_a_(resize_a),
       resize_b_(resize_b),
-      color_(color),
+      image_type_(image_type),
+      color_(IsColor(image_type)),
       C_(color_ ? 3 : 1),
       type_(type) {
     // Validate input parameters
@@ -91,7 +92,7 @@ public:
   }
   
   inline ResizeOp* Clone() const override {
-    return new ResizeOp(random_resize_, warp_resize_, resize_a_, resize_b_, color_, type_);
+    return new ResizeOp(random_resize_, warp_resize_, resize_a_, resize_b_, image_type_, type_);
   }
 
   inline string name() const override {
@@ -129,6 +130,7 @@ protected:
   int resize_a_, resize_b_;
 
   // Input/output channels meta-data
+  NDLLImageType image_type_;
   bool color_;
   int C_;
 

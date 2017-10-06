@@ -53,7 +53,7 @@ public:
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
   
-  void DecodeJPEGS(bool color) {
+  void DecodeJPEGS(NDLLImageType type) {
     images_.resize(jpegs_.size());
     image_dims_.resize(jpegs_.size());
     for (size_t i = 0; i < jpegs_.size(); ++i) {
@@ -61,13 +61,13 @@ public:
       cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
       
       ASSERT_TRUE(CheckIsJPEG(jpegs_[i], jpeg_sizes_[i]));
-      int flag = color ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+      int flag = IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
       cv::imdecode(jpeg, flag, &img);
 
       int h = img.rows;
       int w = img.cols;
-      cv::Mat out_img(h, w, color ? CV_8UC3 : CV_8UC2);
-      if (color) {
+      cv::Mat out_img(h, w, IsColor(type) ? CV_8UC3 : CV_8UC2);
+      if (type == NDLL_RGB) {
         // Convert from BGR to RGB for verification
         cv::cvtColor(img, out_img, CV_BGR2RGB);
       } else {
@@ -76,7 +76,7 @@ public:
     
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
-      c_ = color ? 3 : 1;
+      c_ = IsColor(type) ? 3 : 1;
       images_[i] = new uint8[h*w*c_];
       std::memcpy(images_[i], out_img.ptr(), h*w*c_);
 

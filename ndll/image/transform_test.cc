@@ -21,58 +21,49 @@
 
 namespace ndll {
 
-// TODO(tgale): Move the methods used by common test fixtures
-// into parent class for all NDLL tests, then derive from that
-template <typename color>
+template <typename ImgType>
 class TransformTest : public NDLLTest {
 public:
   void SetUp() {
     NDLLTest::SetUp();
-    if (std::is_same<color, RGB>::value) {
-      color_ = true;
+    if (IsColor(img_type_)) {
       c_ = 3;
     } else {
-      color_ = false;
       c_ = 1;
     }
-    DecodeJPEGS();
+    DecodeJPEGS(img_type_);
   }
 
-  virtual void TearDown() {
-    for (auto ptr : images_) delete[] ptr;
-    NDLLTest::TearDown();
-  }
-  
-  void DecodeJPEGS() {
-    images_.resize(jpegs_.size());
-    image_dims_.resize(jpegs_.size());
-    for (size_t i = 0; i < jpegs_.size(); ++i) {
-      cv::Mat img;
-      cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
+  // void DecodeJPEGS() {
+  //   images_.resize(jpegs_.size());
+  //   image_dims_.resize(jpegs_.size());
+  //   for (size_t i = 0; i < jpegs_.size(); ++i) {
+  //     cv::Mat img;
+  //     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
       
-      ASSERT_TRUE(CheckIsJPEG(jpegs_[i], jpeg_sizes_[i]));
-      int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
-      cv::imdecode(jpeg, flag, &img);
+  //     ASSERT_TRUE(CheckIsJPEG(jpegs_[i], jpeg_sizes_[i]));
+  //     int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+  //     cv::imdecode(jpeg, flag, &img);
 
-      int h = img.rows;
-      int w = img.cols;
-      cv::Mat out_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
-      if (color_) {
-        // Convert from BGR to RGB for verification
-        cv::cvtColor(img, out_img, CV_BGR2RGB);
-      } else {
-        out_img = img;
-      }
+  //     int h = img.rows;
+  //     int w = img.cols;
+  //     cv::Mat out_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
+  //     if (color_) {
+  //       // Convert from BGR to RGB for verification
+  //       cv::cvtColor(img, out_img, CV_BGR2RGB);
+  //     } else {
+  //       out_img = img;
+  //     }
     
-      // Copy the decoded image out & save the dims
-      ASSERT_TRUE(out_img.isContinuous());
-      images_[i] = new uint8[h*w*c_];
-      std::memcpy(images_[i], out_img.ptr(), h*w*c_);
+  //     // Copy the decoded image out & save the dims
+  //     ASSERT_TRUE(out_img.isContinuous());
+  //     images_[i] = new uint8[h*w*c_];
+  //     std::memcpy(images_[i], out_img.ptr(), h*w*c_);
 
-      image_dims_[i].h = h;
-      image_dims_[i].w = w;
-    }
-  }
+  //     image_dims_[i].h = h;
+  //     image_dims_[i].w = w;
+  //   }
+  // }
 
   void OpenCVResizeCropMirror(uint8 *image, int h, int w, int c,
       int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
@@ -173,18 +164,12 @@ public:
   }
   
 protected:
-  bool color_;
+  NDLLImageType img_type_ = ImgType::type;
   int c_;
-
-  vector<uint8*> images_;
-  vector<DimPair> image_dims_;
-
-  uint8* image_batch_;
-  int n_, h_, w_;
 };
 
 // Run RGB & grayscale tests
-typedef ::testing::Types<RGB, Gray> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(TransformTest, Types);
 
 // For functions that are the output of a pipeline,
@@ -236,6 +221,9 @@ struct OutputTestTypes {
 typedef ::testing::Types<OutputTestTypes<RGB, float16>,
                          OutputTestTypes<RGB, float>,
                          OutputTestTypes<RGB, double>,
+                         OutputTestTypes<BGR, float16>,
+                         OutputTestTypes<BGR, float>,
+                         OutputTestTypes<BGR, double>,
                          OutputTestTypes<Gray, float16>,
                          OutputTestTypes<Gray, float>,
                          OutputTestTypes<Gray, double>> OutputTypes;
