@@ -57,6 +57,12 @@
  * to make sure these have been set prior to doing stuff. I need to come up with a
  * better way to get this global information to everyone.
  *
+ * @subsection include Including NDLL
+ * I haven't decided on the best way to include NDLL. Currently we just include the
+ * individual files we need, but this requires poking into the src tree which is
+ * gross. Thinking about creating two header files: "ndll_lib.h" for the library
+ * of primitives and "ndll_pipeline.h" for all pipeline stuff you need.
+ *
  * @subsection inline Inline Member Functions
  * Alot of methods are defined inline in the pipeline. These should be moved out to
  * make the code more readable.
