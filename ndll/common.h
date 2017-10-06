@@ -46,6 +46,23 @@ enum NDLLInterpType {
   NDLL_INTERP_CUBIC = 2
 };
 
+/**
+ * @brief Supported image formats
+ */
+enum NDLLImageType {
+  NDLL_RGB = 0,
+  NDLL_BGR = 1,
+  NDLL_GRAY = 2
+};
+
+inline bool IsColor(NDLLImageType type) {
+  if ((type == NDLL_RGB) || (type == NDLL_BGR)) {
+    return true;
+  }
+  return false;
+}
+
+
 // Source: based on Caffe macro of the same name. Impl uses 'delete'
 // instead of just making these functions private
 //

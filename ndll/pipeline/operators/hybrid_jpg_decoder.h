@@ -133,8 +133,10 @@ protected:
 template <typename Backend>
 class DCTQuantInvOp : public Transformer<Backend> {
 public:
-  inline DCTQuantInvOp(bool color, shared_ptr<HybridJPEGDecodeChannel> channel) :
-    color_(color), C_(color ? 3 : 1), channel_(channel) {
+  inline DCTQuantInvOp(NDLLImageType output_type,
+      shared_ptr<HybridJPEGDecodeChannel> channel)
+    : color_((output_type == NDLL_RGB) || (output_type == NDLL_BGR)),
+      C_(color_ ? 3 : 1), channel_(channel), output_type_(output_type) {
     NDLL_ENFORCE(channel != nullptr);
 
     // We need three buffers for our parameters
@@ -188,7 +190,7 @@ public:
   }
   
   inline DCTQuantInvOp* Clone() const override {
-    return new DCTQuantInvOp(color_, channel_);
+    return new DCTQuantInvOp(output_type_, channel_);
   }
 
   inline string name() const override {
@@ -238,8 +240,8 @@ protected:
 
     if (color_) {
       // Convert the strided and subsampled YUV images to unstrided,
-      // RGB images packed densely into the output batch
-      YUVToRGBHelper(output);
+      // RGB or BGR images packed densely into the output batch
+      YUVToColorHelper(output);
     } else {
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
@@ -256,7 +258,7 @@ protected:
     }
   }
 
-  inline void YUVToRGBHelper(Batch<Backend> *output) {
+  inline void YUVToColorHelper(Batch<Backend> *output) {
     uint8 *yuv_data_ptr = yuv_data_.template data<uint8>();
     for (int i = 0; i < batch_size_; ++i) {
       ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
@@ -277,10 +279,19 @@ protected:
         // we do the yuv->rgb+upsample into a tmp buffer and then do a small dev2dev
         // 2d memcpy so that the output is dense.
           
-        // Run the yuv->rgb + upsampling kernel
-        yCbCrToRgb((const uint8**)yuv_planes,
-            yuv_steps, strided_img, img_steps_[i],
-            img_rois_[i], sampling_ratio);
+        if (output_type_ == NDLL_RGB) {
+          // Run the yuv->rgb + upsampling kernel
+          yCbCrToRgb((const uint8**)yuv_planes,
+              yuv_steps, strided_img, img_steps_[i],
+              img_rois_[i], sampling_ratio);
+        } else if (output_type_ == NDLL_BGR) {
+          // Run the yuv->bgr + upsampling kernel
+          yCbCrToBgr((const uint8**)yuv_planes,
+              yuv_steps, strided_img, img_steps_[i],
+              img_rois_[i], sampling_ratio);
+        } else {
+          NDLL_FAIL("Unsupported output image type.");
+        }
 
         // Run a 2D memcpy to get rid of image stride
         const vector<Index> &out_dims = output->datum_shape(i);
@@ -383,7 +394,8 @@ protected:
   bool color_;
   int C_, num_component_;
   shared_ptr<HybridJPEGDecodeChannel> channel_;
-
+  NDLLImageType output_type_;
+  
   // image meta-data extracted from parsed jpegs
   vector<NppiSize> yuv_dims_;
   vector<int> dct_step_;

@@ -103,7 +103,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
-  DCTQuantInvOp<GPUBackend> idct_op(true, decode_channel);
+  bool color = true;
+  NDLLImageType img_type = NDLL_RGB;
+  DCTQuantInvOp<GPUBackend> idct_op(img_type, decode_channel);
   pipe.AddForwardOp(idct_op);
 
   // Add a batched resize op

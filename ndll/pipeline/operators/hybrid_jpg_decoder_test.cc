@@ -27,20 +27,26 @@ const vector<string> hybdec_images = {
 };
 } // namespace
 
-// Our test "types"
-struct RGB {};
-struct Gray {};
+struct RGB {
+  static const NDLLImageType type = NDLL_RGB;
+};
+struct BGR {
+  static const NDLLImageType type = NDLL_BGR;
+};
+struct Gray {
+  static const NDLLImageType type = NDLL_GRAY;
+};
 
-template <typename Color>
+template <typename ImgType>
 class HybridDecoderTest : public NDLLTest {
 public:
   void SetUp() {
-    if (std::is_same<Color, RGB>::value) {
-      color_ = true;
+    if (IsColor(img_type_)) {
       c_ = 3;
-    } else {
-      color_ = false;
+    } else if (img_type_ == NDLL_GRAY) {
       c_ = 1;
+    } else {
+      NDLL_FAIL("Unsupported image type.");
     }
 
     rand_gen_.seed(time(nullptr));
@@ -61,11 +67,11 @@ public:
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
     ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
-    int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+    int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
-    cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
-    if (color_) {
+    cv::Mat ver_img(h, w, IsColor(img_type_) ? CV_8UC3 : CV_8UC2);
+    if (img_type_ == NDLL_RGB) {
       // Convert from BGR to RGB for verification
       cv::cvtColor(ver, ver_img, CV_BGR2RGB);
     } else {
@@ -122,11 +128,11 @@ public:
   }
   
 protected:
-  bool color_;
+  const NDLLImageType img_type_ = ImgType::type;
   int c_;
 };
 
-typedef ::testing::Types<RGB, Gray> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(HybridDecoderTest, Types);
 
 TYPED_TEST(HybridDecoderTest, JPEGDecode) {
@@ -155,7 +161,7 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
-  DCTQuantInvOp<GPUBackend> idct_op(this->color_, decode_channel);
+  DCTQuantInvOp<GPUBackend> idct_op(this->img_type_, decode_channel);
   pipe.AddForwardOp(idct_op);
     
   // Build and run the pipeline
