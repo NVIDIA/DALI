@@ -33,10 +33,11 @@
  * @ref ndll::Datum<Backend>
  *
  * @subsection mem Memory Allocation:
- * @ref ndll::BackendBase @n
  * @ref ndll::CPUBackend @n
  * @ref ndll::GPUBackend @n
- * @ref ndll::PinnedCPUBackend
+ * @ref ndll::AllocatorBase @n
+ * @ref ndll::CPUAllocator @n
+ * @ref ndll::GPUAllocator
  *
  *
  * @subsection pipe_struct Pipeline Structures:
