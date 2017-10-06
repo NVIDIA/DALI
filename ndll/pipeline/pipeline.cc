@@ -291,12 +291,12 @@ void Pipeline::MegaBufferSetupAndDistribution() {
   // Hand out SubTensors for all the ops batched parameters
   int buffer_id = 0;
   for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    vector<CPUSubTensor> cpu_buffers(num_buff_for_op[i]);
-    vector<GPUSubTensor> gpu_buffers(num_buff_for_op[i]);
+    vector<SubTensor<CPUBackend>> cpu_buffers(num_buff_for_op[i]);
+    vector<SubTensor<GPUBackend>> gpu_buffers(num_buff_for_op[i]);
     for (int j = 0; j < num_buff_for_op[i]; ++j) {
-      CPUSubTensor sub_buffer(&mega_buffer_,
+      SubTensor<CPUBackend> sub_buffer(&mega_buffer_,
           offsets[buffer_id], offsets[buffer_id+1]);
-      GPUSubTensor sub_buffer_gpu(&mega_buffer_gpu_,
+      SubTensor<GPUBackend> sub_buffer_gpu(&mega_buffer_gpu_,
           offsets[buffer_id], offsets[buffer_id+1]);
       cpu_buffers[j] = sub_buffer;
       gpu_buffers[j] = sub_buffer_gpu;

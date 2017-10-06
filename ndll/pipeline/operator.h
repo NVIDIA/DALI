@@ -92,8 +92,8 @@ public:
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  SetBatchedParameterBuffers(const vector<CPUSubTensor> &buffers,
-      const vector<GPUSubTensor> &gpu_buffers) {
+  SetBatchedParameterBuffers(const vector<SubTensor<CPUBackend>> &buffers,
+      const vector<SubTensor<GPUBackend>> &gpu_buffers) {
     NDLL_ENFORCE(buffers.size() == gpu_buffers.size());
     NDLL_ENFORCE(buffers.size() == batched_param_sizes_.size());
     batched_param_buffers_ = buffers;
@@ -244,8 +244,8 @@ protected:
   bool has_stream_;
   
   vector<size_t> batched_param_sizes_;
-  vector<CPUSubTensor> batched_param_buffers_;
-  vector<GPUSubTensor> batched_param_gpu_buffers_;
+  vector<SubTensor<CPUBackend>> batched_param_buffers_;
+  vector<SubTensor<GPUBackend>> batched_param_gpu_buffers_;
 };
 
 /**
