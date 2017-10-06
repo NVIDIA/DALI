@@ -27,16 +27,6 @@ const vector<string> hybdec_images = {
 };
 } // namespace
 
-struct RGB {
-  static const NDLLImageType type = NDLL_RGB;
-};
-struct BGR {
-  static const NDLLImageType type = NDLL_BGR;
-};
-struct Gray {
-  static const NDLLImageType type = NDLL_GRAY;
-};
-
 template <typename ImgType>
 class HybridDecoderTest : public NDLLTest {
 public:

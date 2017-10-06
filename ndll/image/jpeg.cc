@@ -60,8 +60,8 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
   return NDLLSuccess;
 }
 
-NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
-    int h, int w, uint8 *image) {
+NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
+    NDLLImageType type, int h, int w, uint8 *image) {
 #ifndef NDEBUG
   NDLL_ASSERT(jpeg != nullptr);
   NDLL_ASSERT(size > 0);
@@ -70,8 +70,18 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
   NDLL_ASSERT(image != nullptr);
 #endif
   tjhandle handle = tjInitDecompress();
+  TJPF pixel_format;
+  if (type == NDLL_RGB) {
+    pixel_format = TJPF_RGB;
+  } else if (type == NDLL_BGR) {
+    pixel_format = TJPF_BGR;
+  } else if (type == NDLL_GRAY) {
+    pixel_format = TJPF_GRAY;
+  } else {
+    NDLL_RETURN_ERROR("Unsupported image type.");
+  }
   TJPG_CALL(tjDecompress2(handle, jpeg, size, image,
-          w, 0, h, color ? TJPF_RGB : TJPF_GRAY, 0));
+          w, 0, h, pixel_format, 0));
   return NDLLSuccess;
 }
 

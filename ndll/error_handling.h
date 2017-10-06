@@ -68,6 +68,16 @@ inline string BuildErrorString(string statement, string file, int line) {
     return NDLLError;            \
   }
 
+#define NDLL_RETURN_ERROR(str)                                      \
+  do {                                                              \
+    string file = __FILE__;                                         \
+    string line = std::to_string(__LINE__);                         \
+    string error =  "[" + file + ":" + line + "]: Error in NDLL: "; \
+    error += str;                                                   \
+    NDLLSetLastError(error);                                        \
+    return NDLLError;                                               \
+  } while (0)
+  
 // For checking npp return errors in ndll library functions
 #define NDLL_CHECK_NPP(code)                        \
   do {                                              \

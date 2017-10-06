@@ -21,10 +21,6 @@
 
 namespace ndll {
 
-// Our test "types"
-struct RGB {};
-struct Gray {};
-
 // TODO(tgale): Move the methods used by common test fixtures
 // into parent class for all NDLL tests, then derive from that
 template <typename color>

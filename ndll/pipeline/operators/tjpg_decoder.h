@@ -21,7 +21,8 @@ public:
    * @brief Constructs a turbo-jpeg decoder. Outputs RGB images if 
    * `color` == true, otherwise outputs grayscale images.
    */
-  inline TJPGDecoder(bool color) : color_(color), c_(color ? 3 : 1) {}
+  inline TJPGDecoder(NDLLImageType output_type)
+    : output_type_(output_type), c_(IsColor(output_type) ? 3 : 1) {}
   
   virtual inline ~TJPGDecoder() = default;
   
@@ -41,8 +42,7 @@ public:
   }
   
   inline TJPGDecoder* Clone() const override {
-    TJPGDecoder *new_decoder = new TJPGDecoder(color_);
-    return new_decoder;
+    return new TJPGDecoder(output_type_);
   }
 
   inline string name() const override {
@@ -55,11 +55,11 @@ protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int /* unused */, int /* unused */) override {
     
-    NDLL_CALL(DecodeJPEGHost(input.template data<uint8>(), input.size(), color_,
+    NDLL_CALL(DecodeJPEGHost(input.template data<uint8>(), input.size(), output_type_,
             output->shape()[0], output->shape()[1], output->template data<uint8>()));
   }
-  
-  bool color_;
+
+  NDLLImageType output_type_;
   int c_;
 
   using Operator<Backend>::num_threads_;

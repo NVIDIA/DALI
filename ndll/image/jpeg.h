@@ -19,13 +19,8 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
 /**
  * @brief Decodes `jpeg` into the the buffer pointed to by `image`
  */
-NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size, bool color,
-    int h, int w, uint8 *image);
-
-// Note: The only jpeg decoder that we can make support jpeg parser caching is
-// the hybrid one. To do this with CPU decode we'd need an idct, de-quant & yuv->rgb
-// method to complete the decoder. Do we want to provide this api if it will be a
-// bit of an anomaly?
+NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
+    NDLLImageType image_type, int h, int w, uint8 *image);
 
 } // namespace ndll
 

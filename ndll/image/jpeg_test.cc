@@ -31,24 +31,17 @@ const vector<string> tjpg_test_images = {
 };
 }
 
-// Our test "types"
-struct RGB {};
-struct Gray {};
-
 // Fixture for jpeg decode testing. Templated
 // to make googletest run our tests grayscale & rgb
-template <typename color>
+template <typename ImgType>
 class JpegDecodeTest : public NDLLTest {
 public:
   void SetUp() {
-    if (std::is_same<color, RGB>::value) {
-      color_ = true;
+    if (IsColor(img_type_)) {
       c_ = 3;
-    } else {
-      color_ = false;
+    } else if (img_type_ == NDLL_GRAY) {
       c_ = 1;
     }
-
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(tjpg_test_images, &jpegs_, &jpeg_sizes_);
   }
@@ -63,7 +56,7 @@ public:
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
     ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
-    int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+    int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
 #ifndef NDEBUG
@@ -71,8 +64,8 @@ public:
     DumpHWCToFile(ver.ptr(), h, w, c_, "ver_" + std::to_string(img_id));
 #endif 
     
-    cv::Mat ver_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
-    if (color_) {
+    cv::Mat ver_img(h, w, IsColor(img_type_) ? CV_8UC3 : CV_8UC2);
+    if (img_type_ == NDLL_RGB) {
       // Convert from BGR to RGB for verification
       cv::cvtColor(ver, ver_img, CV_BGR2RGB);
     } else {
@@ -124,12 +117,12 @@ public:
   }
 
 protected:
-  bool color_;
+  const NDLLImageType img_type_ = ImgType::type;
   int c_;
 };
 
 // Run RGB & grayscale tests
-typedef ::testing::Types<RGB, Gray> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(JpegDecodeTest, Types);
 
 TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
@@ -142,7 +135,7 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
     image.resize(h * w * this->c_);
     NDLL_CALL(DecodeJPEGHost(this->jpegs_[img],
             this->jpeg_sizes_[img],
-            this->color_, h, w,
+            this->img_type_, h, w,
             image.data()));
 #ifndef NDEBUG
     cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;

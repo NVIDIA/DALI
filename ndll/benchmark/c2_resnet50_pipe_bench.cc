@@ -19,7 +19,8 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   int num_thread = st.range(2);
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
- 
+  NDLLImageType img_type = NDLL_RGB;
+  
   // Create the pipeline
   Pipeline<PinnedCPUBackend, GPUBackend> pipe(
       batch_size,
@@ -36,8 +37,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   pipe.AddDataReader(reader);
   
   // Add a decoder and some transformers
-  bool color = true;
-  TJPGDecoder<PinnedCPUBackend> jpg_decoder(color);
+  TJPGDecoder<PinnedCPUBackend> jpg_decoder(img_type);
   pipe.AddDecoder(jpg_decoder);
 
   // Add a resize+crop+mirror op
@@ -103,7 +103,6 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
-  bool color = true;
   NDLLImageType img_type = NDLL_RGB;
   DCTQuantInvOp<GPUBackend> idct_op(img_type, decode_channel);
   pipe.AddForwardOp(idct_op);

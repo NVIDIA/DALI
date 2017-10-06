@@ -20,6 +20,17 @@ const string image_folder = "../ndll/test/test_images";
 
 struct DimPair { int h = 0, w = 0; };
 
+// Some useful test 'types'
+struct RGB {
+  static const NDLLImageType type = NDLL_RGB;
+};
+struct BGR {
+  static const NDLLImageType type = NDLL_BGR;
+};
+struct Gray {
+  static const NDLLImageType type = NDLL_GRAY;
+};
+
 // Main testing fixture to provide common functionality across tests
 class NDLLTest : public ::testing::Test {
 public:

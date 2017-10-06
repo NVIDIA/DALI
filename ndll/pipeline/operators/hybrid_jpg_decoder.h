@@ -135,8 +135,8 @@ class DCTQuantInvOp : public Transformer<Backend> {
 public:
   inline DCTQuantInvOp(NDLLImageType output_type,
       shared_ptr<HybridJPEGDecodeChannel> channel)
-    : color_((output_type == NDLL_RGB) || (output_type == NDLL_BGR)),
-      C_(color_ ? 3 : 1), channel_(channel), output_type_(output_type) {
+    : color_(IsColor(output_type)), C_(color_ ? 3 : 1),
+      channel_(channel), output_type_(output_type) {
     NDLL_ENFORCE(channel != nullptr);
 
     // We need three buffers for our parameters
