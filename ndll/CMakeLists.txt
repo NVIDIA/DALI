@@ -12,7 +12,6 @@ add_subdirectory(util)
 file(GLOB tmp *.cc)
 set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 
-# TODO(tgale): Build to a shared library instead
 set(ndll_lib "ndll")
 cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})
 target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)

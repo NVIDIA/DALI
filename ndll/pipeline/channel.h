@@ -14,9 +14,6 @@ namespace ndll {
  * to device should not be handled by ops or channels, they should be managed
  * through the pipelines buffer packing mechanism. The resultant pointer can be
  * stored in a channel if a later op needs access to the same device-side data
- *
- * TODO(docs): Throroughly document the guarantees our executor makes about
- * when different functions will be executed
  */
 struct Channel {
   // Channel is currently just a simple aggregate type. In the future

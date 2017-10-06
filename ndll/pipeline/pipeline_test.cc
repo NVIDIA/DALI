@@ -61,7 +61,6 @@ struct PipelineTestTypes {
   static const int nt = number_of_threads;
 };
 
-// TODO(tgale): Add more thread counts
 typedef ::testing::Types<PipelineTestTypes<CPUBackend, GPUBackend, 1>,
                          PipelineTestTypes<PinnedCPUBackend, GPUBackend, 1>,
                          PipelineTestTypes<CPUBackend, GPUBackend, 2>,
