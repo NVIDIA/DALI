@@ -22,7 +22,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   NDLLImageType img_type = NDLL_RGB;
   
   // Create the pipeline
-  Pipeline<CPUBackend, GPUBackend> pipe(
+  Pipeline pipe(
       batch_size,
       num_thread,
       main_stream,
@@ -84,7 +84,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
  
   // Create the pipeline
-  Pipeline<CPUBackend, GPUBackend> pipe(
+  Pipeline pipe(
       batch_size,
       num_thread,
       main_stream,

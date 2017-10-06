@@ -76,7 +76,7 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   DECLTYPES();
   int batch_size = this->RandInt(1, 256);
-  Pipeline<HostBackend, DeviceBackend> pipe(batch_size, num_thread, 0, 0);
+  Pipeline pipe(batch_size, num_thread, 0, 0);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);
@@ -114,7 +114,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   DECLTYPES();
   int batch_size = this->RandInt(1, 256);
-  Pipeline<HostBackend, DeviceBackend> pipe(batch_size, num_thread, 0, 0);
+  Pipeline pipe(batch_size, num_thread, 0, 0);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);

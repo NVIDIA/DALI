@@ -24,7 +24,7 @@ int main() {
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
  
   // Create the pipeline
-  Pipeline<CPUBackend, GPUBackend> pipe(
+  Pipeline pipe(
       batch_size,
       num_thread,
       main_stream,
