@@ -22,31 +22,31 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   NDLLImageType img_type = NDLL_RGB;
   
   // Create the pipeline
-  Pipeline<PinnedCPUBackend, GPUBackend> pipe(
+  Pipeline<CPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
       0);
 
-  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
   shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
-  BatchDataReader<PinnedCPUBackend> reader(batch);
+  BatchDataReader<CPUBackend> reader(batch);
   pipe.AddDataReader(reader);
   
   // Add a decoder and some transformers
-  TJPGDecoder<PinnedCPUBackend> jpg_decoder(img_type);
+  TJPGDecoder<CPUBackend> jpg_decoder(img_type);
   pipe.AddDecoder(jpg_decoder);
 
   // Add a resize+crop+mirror op
   if (fast_resize) {
-    FastResizeCropMirrorOp<PinnedCPUBackend> resize_crop_mirror_op(
+    FastResizeCropMirrorOp<CPUBackend> resize_crop_mirror_op(
         true, false, 256, 480, true, 224, 224, 0.5f);
     pipe.AddPrefetchOp(resize_crop_mirror_op);
   } else {
-    ResizeCropMirrorOp<PinnedCPUBackend> resize_crop_mirror_op(
+    ResizeCropMirrorOp<CPUBackend> resize_crop_mirror_op(
         true, false, 256, 480, true, 224, 224, 0.5f);
     pipe.AddPrefetchOp(resize_crop_mirror_op);
   }
@@ -84,23 +84,23 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
  
   // Create the pipeline
-  Pipeline<PinnedCPUBackend, GPUBackend> pipe(
+  Pipeline<CPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
       0);
   
-  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
   shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
-  BatchDataReader<PinnedCPUBackend> reader(batch);
+  BatchDataReader<CPUBackend> reader(batch);
   pipe.AddDataReader(reader);
   
   // Add a hybrid jpeg decoder
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
-  HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
+  HuffmanDecoder<CPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
   NDLLImageType img_type = NDLL_RGB;

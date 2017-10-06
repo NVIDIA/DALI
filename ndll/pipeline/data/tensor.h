@@ -54,9 +54,9 @@ public:
       if (true_size_ > 0) {
         // Only delete if we have something to delete. Note that
         // we are guaranteed to have a type w/ non-zero size here
-        backend_.Delete(data_, true_size_*type_.size());
+        Backend::Delete(data_, true_size_*type_.size());
       }
-      data_ = backend_.New(new_size*type_.size());
+      data_ = Backend::New(new_size*type_.size());
       true_size_ = new_size;
     }
 

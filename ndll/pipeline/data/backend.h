@@ -4,73 +4,31 @@
 #include <cuda_runtime_api.h>
 
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/allocator.h"
 
 namespace ndll {
 
+// Called by "NDLLInit" to set up polymorphic pointers
+// to user-defined memory allocators.
+void InitializeBackends(CPUAllocator *cpu_allocator,
+    GPUAllocator *gpu_allocator);
+  
 /**
- * @brief Base class for all backend types. Defines the 
- * interface that must be implemented by all backends
+ * @brief Provides access to GPU allocator and other GPU meta-data.
  */
-class BackendBase {
+class GPUBackend final {
 public:
-  /**
-   * @brief Allocates `bytes` bytes of memory and returns 
-   * a pointer to the newly allocated memory
-   */
-  virtual void* New(size_t bytes) = 0;
-
-  /**
-   * @brief Frees the memory pointed to by 'ptr'. Supports `bytes`
-   * argument for certain types of allocators.
-   */
-  virtual void Delete(void *ptr, size_t bytes) = 0;
+  static void* New(size_t bytes);
+  static void Delete(void *ptr, size_t bytes);
 };
 
 /**
- * @brief Default GPU backend. User defined GPU backends must
- * derive from this class and override 'New' and 'Delete' as
- * they desire.
+ * @brief Provides access to CPU allocator and other cpu meta-data
  */
-class GPUBackend : BackendBase {
+class CPUBackend final {
 public:
-  void* New(size_t bytes) override {
-    void *ptr = nullptr;
-    CUDA_CALL(cudaMalloc(&ptr, bytes));
-    return ptr;
-  }
-  void Delete(void *ptr, size_t bytes) override{
-    CUDA_CALL(cudaFree(ptr));
-  }
-};
-
-/**
- * @brief Default CPU backend. User defined CPU backends must
- * derive from this class and override 'New' and 'Delete' as
- * they desire.
- */
-class CPUBackend : BackendBase {
-public:
-  void* New(size_t bytes) override {
-    return ::operator new(bytes);
-  }
-  void Delete(void *ptr, size_t /* unused */) override {
-    ::operator delete(ptr);
-  }
-};
-
-/**
- * @brief Allocates page-locked host memory
- */
-class PinnedCPUBackend : CPUBackend {
-public:
-  void* New(size_t bytes) override {
-    void *ptr = nullptr;
-    CUDA_CALL(cudaMallocHost(&ptr, bytes));
-    return ptr;
-  }
-  void Delete(void *ptr, size_t bytes) override {
-    CUDA_CALL(cudaFreeHost(ptr));
-  }
+  static void* New(size_t bytes); 
+  static void Delete(void *ptr, size_t bytes);
 };
 
 // Utility to copy between backends

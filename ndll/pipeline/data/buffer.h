@@ -51,7 +51,7 @@ public:
    */
   virtual ~Buffer() {
     if (true_size_*type_.size() > 0) {
-      backend_.Delete(data_, true_size_*type_.size());
+      Backend::Delete(data_, true_size_*type_.size());
     }
   }
 
@@ -80,7 +80,7 @@ public:
       // Make sure we keep our nullptr if we don't
       // have anything to allocate
       if (true_size_ > 0) {
-        data_ = backend_.New(true_size_*type_.size());
+        data_ = Backend::New(true_size_*type_.size());
       }
     }
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
@@ -167,7 +167,7 @@ public:
     // If the buffer has a set size allocate the
     // memory for the size of the buffer
     if (true_size_ > 0) {
-      data_ = backend_.New(true_size_*type_.size());
+      data_ = Backend::New(true_size_*type_.size());
     }
   }
   

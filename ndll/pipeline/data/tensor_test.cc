@@ -42,7 +42,6 @@ protected:
 };
 
 typedef ::testing::Types<CPUBackend,
-                         PinnedCPUBackend,
                          GPUBackend> Backends;
 TYPED_TEST_CASE(TensorTest, Backends);
 

@@ -62,13 +62,9 @@ struct PipelineTestTypes {
 };
 
 typedef ::testing::Types<PipelineTestTypes<CPUBackend, GPUBackend, 1>,
-                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 1>,
                          PipelineTestTypes<CPUBackend, GPUBackend, 2>,
-                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 2>,
                          PipelineTestTypes<CPUBackend, GPUBackend, 3>,
-                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 3>,
-                         PipelineTestTypes<CPUBackend, GPUBackend, 4>,
-                         PipelineTestTypes<PinnedCPUBackend, GPUBackend, 4>
+                         PipelineTestTypes<CPUBackend, GPUBackend, 4>
                          > BackendTypes;
 TYPED_TEST_CASE(PipelineTest, BackendTypes);
 

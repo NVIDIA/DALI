@@ -21,14 +21,14 @@ int main() {
   int batch_size = 32;
   int num_thread = 1;
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
-  ndll::HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
+  ndll::HuffmanDecoder<CPUBackend> huffman_decoder(decode_channel);
 
   huffman_decoder.set_num_threads(num_thread);
   huffman_decoder.set_batch_size(batch_size);
 
-  Batch<PinnedCPUBackend> *batch = CreateJPEGBatch<PinnedCPUBackend>(
+  Batch<CPUBackend> *batch = CreateJPEGBatch<CPUBackend>(
       jpegs_, jpeg_sizes_, batch_size);
-  Batch<PinnedCPUBackend> output_batch;
+  Batch<CPUBackend> output_batch;
 
   // Get the dims for the output batch
   huffman_decoder.SetOutputType(&output_batch, batch->type());
@@ -36,7 +36,7 @@ int main() {
   int tid = 0;
   vector<Dims> output_shape(batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    Datum<PinnedCPUBackend> datum(batch, i);
+    Datum<CPUBackend> datum(batch, i);
     output_shape[i] = huffman_decoder.InferOutputShape(datum, i, tid);
   }
   output_batch.Resize(output_shape);
@@ -47,8 +47,8 @@ int main() {
   int iters = 100;
   for (int j = 0; j < iters; ++j) {
     for (int i = 0; i < batch_size; ++i) {
-      Datum<PinnedCPUBackend> datum(batch, i);
-      Datum<PinnedCPUBackend> out_datum(&output_batch, i);
+      Datum<CPUBackend> datum(batch, i);
+      Datum<CPUBackend> out_datum(&output_batch, i);
       huffman_decoder.Run(datum, &out_datum, i, tid);
     }
   }

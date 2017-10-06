@@ -132,23 +132,23 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
  
   // Create the pipeline
-  Pipeline<PinnedCPUBackend, GPUBackend> pipe(
+  Pipeline<CPUBackend, GPUBackend> pipe(
       batch_size,
       num_thread,
       main_stream,
       0);
 
-  shared_ptr<Batch<PinnedCPUBackend>> batch(CreateJPEGBatch<PinnedCPUBackend>(
+  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
   shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
 
   // Add the data reader
-  BatchDataReader<PinnedCPUBackend> reader(batch);
+  BatchDataReader<CPUBackend> reader(batch);
   pipe.AddDataReader(reader);
   
   // Add a hybrid jpeg decoder
   shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
-  HuffmanDecoder<PinnedCPUBackend> huffman_decoder(decode_channel);
+  HuffmanDecoder<CPUBackend> huffman_decoder(decode_channel);
   pipe.AddDecoder(huffman_decoder);
 
   DCTQuantInvOp<GPUBackend> idct_op(this->img_type_, decode_channel);
