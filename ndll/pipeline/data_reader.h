@@ -13,12 +13,7 @@ namespace ndll {
  * @brief Defines the API for a DataReader. DataReaders provide access to some
  * form of underlying data storage. The API is currently quite simplicitic, but
  * may evolve over time.
- *
- * Note: 'Read' will be called in the main thread, it does not need to be thread
- * safe.
  */
-template <typename Backend,
-          typename std::enable_if<std::is_base_of<CPUBackend, Backend>::value, int>::type = 0>
 class DataReader {
 public:
   DataReader(){}
@@ -27,7 +22,7 @@ public:
   /**
    * @brief fills the input Datum object with a single data sample
    */
-  virtual void Read(Datum<Backend> *datum) = 0;
+  virtual void Read(Datum<CPUBackend> *datum) = 0;
 
   /**
    * @brief Resets the reader to the intial state, e.g. 
@@ -46,10 +41,9 @@ protected:
  * externally. This may go away in the future, it currently exists to provide
  * compatibility with the way we have been doing things before-data-reader.
  */
-template <typename Backend>
-class BatchDataReader final : public DataReader<Backend> {
+class BatchDataReader final : public DataReader {
 public:
-  BatchDataReader(shared_ptr<Batch<Backend>> data_store)
+  BatchDataReader(shared_ptr<Batch<CPUBackend>> data_store)
     : data_store_(data_store), cursor_(0), batch_size_(data_store->ndatum()) {
     NDLL_ENFORCE(data_store_ != nullptr);
     NDLL_ENFORCE(batch_size_ > 0);
@@ -58,7 +52,10 @@ public:
   /**
    * @brief Wraps the input Datum object around a single data sample
    */
-  void Read(Datum<Backend> *datum) override;
+  void Read(Datum<CPUBackend> *datum) override {
+    datum->WrapSample(data_store_.get(), cursor_);
+    cursor_ = (cursor_ + 1) % batch_size_;
+  }
 
   /**
    * Resets the cursor to 0
@@ -67,7 +64,7 @@ public:
     cursor_ = 0;
   }
   
-  BatchDataReader<Backend>* Clone() const override {
+  BatchDataReader* Clone() const override {
     return new BatchDataReader(data_store_);
   }
   
@@ -76,18 +73,12 @@ private:
   // On construction, the BatchDataReader wraps a 'Batch' object.
   // Over the course of training, it then simply provides access
   // to this batch.
-  shared_ptr<Batch<Backend>> data_store_;
+  shared_ptr<Batch<CPUBackend>> data_store_;
 
   // The current element to return from the batch
   int cursor_;
   int batch_size_;
 };
-
-template <typename Backend>
-void BatchDataReader<Backend>::Read(Datum<Backend> *datum) {
-  datum->WrapSample(data_store_.get(), cursor_);
-  cursor_ = (cursor_ + 1) % batch_size_;
-}
 
 } // namespace ndll
 

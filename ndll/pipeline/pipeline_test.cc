@@ -87,7 +87,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   batch->Copy(tmp_batch);
 
   // Add a data reader
-  BatchDataReader<HostBackend> reader(batch);
+  BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
 
   // Add a single op to the prefetch stage
@@ -125,7 +125,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   batch->Copy(tmp_batch);
 
   // Add a data reader
-  BatchDataReader<HostBackend> reader(batch);
+  BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
 
   // Add a single op to the forward stage

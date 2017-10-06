@@ -146,7 +146,7 @@ public:
    * to overlap the reading of data with the processing of data in the
    * thread pool.
    */
-  inline void AddDataReader(const DataReader<CPUBackend> &reader) {
+  inline void AddDataReader(const DataReader &reader) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     data_reader_.reset(reader.Clone());
@@ -158,7 +158,7 @@ public:
    * for custom data formats without altering the basic ops defined for 
    * the pipeline.
    */
-  inline void AddParser(const Parser<CPUBackend> &parser) {
+  inline void AddParser(const Parser &parser) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     data_parser_.reset(parser.Clone());
@@ -291,11 +291,11 @@ private:
   shared_ptr<Batch<GPUBackend>> output_buffer_;
   
   // DataReader to query for datum during execution
-  unique_ptr<DataReader<CPUBackend>> data_reader_;
+  unique_ptr<DataReader> data_reader_;
   vector<Datum<CPUBackend>> input_datum_;
 
   // The parser to handle custom input data formats
-  unique_ptr<Parser<CPUBackend>> data_parser_;
+  unique_ptr<Parser> data_parser_;
   vector<Datum<CPUBackend>> parsed_datum_;
   
   // Vectors to keep track of the shape of each sample

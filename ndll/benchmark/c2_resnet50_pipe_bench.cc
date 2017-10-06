@@ -33,7 +33,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
-  BatchDataReader<CPUBackend> reader(batch);
+  BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
   
   // Add a decoder and some transformers
@@ -95,7 +95,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
-  BatchDataReader<CPUBackend> reader(batch);
+  BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
   
   // Add a hybrid jpeg decoder

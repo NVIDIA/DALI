@@ -16,16 +16,15 @@
  * and data loading functions.
  *
  * @section pipe Pipeline
- * The Pipeline class is heavily documented. See @ref ndll::Pipeline<CPUBackend, GPUBackend>
- * for core docs, and the following classes for documentation on other important classes used
- * in the Pipeline.
+ * The Pipeline class is heavily documented. See @ref ndll::Pipeline for core docs, and 
+ * the following classes for documentation on other important classes used in the Pipeline.
  *
  * @subsection ops Operators:
  * @ref ndll::Operator<Backend> @n
  * @ref ndll::Transformer<Backend> @n
  * @ref ndll::Decoder<Backend> @n
- * @ref ndll::DataReader<Backend, std::enable_if<std::is_base_of<CPUBackend, Backend>::value, int>::type> @n
- * @ref ndll::Parser<Backend, std::enable_if<std::is_base_of<CPUBackend, Backend>::value, int>::type>
+ * @ref ndll::DataReader @n
+ * @ref ndll::Parser @n
  *
  * @subsection data Data Storage:
  * @ref ndll::Buffer<Backend> @n
@@ -46,28 +45,6 @@
  * @section design Design Strain
  * This section discusses some design points that are currently a bit strained and need
  * refactoring.
- *
- * @subsection template Template Backends
- * The use of a template parameter to specify the type of allocator in the Pipeline, 
- * Operators, and data storage classes is turning out to be a bit difficult. We use
- * template meta-programming to enforce requirements on backend data types, which is
- * a little hacky, and in cases where the user needs to have both types of allocators
- * (e.g., when defining an operator that works on both CPU & GPU) they need to have
- * a double template type. Double template is tricky because we use the template to
- * decide where the op can be executed, meaning that the ordering of the template
- * parameters when the op is constructed now determines where it is to be run. This
- * is gross and difficult to read. In the case of the Operator base class, I didn't
- * want to give it a double template for this reason, so I had to create sort-of hacky
- * {CPU, GPU}SubTensor objects to enable the batched paramter mega-buffer packing.
- *
- * The benefit of the template is that GPU & CPU data are different types. This is
- * quite nice as some errors using data located in the wrong place are converted 
- * into compiler errors that are easy to fix. If we didn't have a polymophic class
- * hierarchy for the Backends (to enable user defined allocators, which we need)
- * this wouldn't be an issue. However, template types are not polymorphic, and we
- * need some way of letting everyone use the user-defined allocators w/o needing
- * extra template types. I need to think about this issue more and figure out what
- * our exact requirements are.
  *
  * @subsection param Batch Size & Thread Pool Size
  * All ops need the batch size and thread pool size to set up whatever datum-wise

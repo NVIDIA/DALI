@@ -20,7 +20,7 @@ void Pipeline::Build(shared_ptr<Batch<GPUBackend>> output) {
 
   // If we don't have a Parser set, add a default parser to the pipeline
   if (data_parser_ == nullptr) {
-    data_parser_.reset(new DefaultParser<CPUBackend>);
+    data_parser_.reset(new DefaultParser);
   }
 
   // Note: In the case where we have no operators in the prefetch stage,
