@@ -7,7 +7,7 @@ The code is heavily documented. Run `doxygen Doxyfile` to build the documentatio
 Note: NDLL has submodules (gtest & google benchmark). Use `--recursive` when cloning the repo.
 
 # Results
-See experimental NDLL+Caffe2 integration [here.](https://nvdl.githost.io/dgx/caffe2/tree/17.10-devel-ndll)
+See experimental NDLL+Caffe2 integration [here.](https://nvdl.githost.io/dgx/caffe2/tree/17.11-devel-ndll)
 
 Standalone Data Loader Performance:
 ![data-loader-perf](docs/results/c2-ndll-standalone.png)
