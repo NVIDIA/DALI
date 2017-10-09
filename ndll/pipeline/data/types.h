@@ -101,7 +101,7 @@ private:
 
 // Utility to check types
 template <typename T>
-constexpr bool IsType(TypeMeta type) {
+inline bool IsType(TypeMeta type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 

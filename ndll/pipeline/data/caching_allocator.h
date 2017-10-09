@@ -359,7 +359,7 @@ struct CachingDeviceAllocator : GPUAllocator {
    * @brief Forwards args to 'DeviceAllocate'.
    */
   void New(void **ptr, size_t bytes) override {
-    DeviceAllocate(ptr,  bytes);
+    CUDA_CALL(DeviceAllocate(ptr,  bytes));
   }
 
   /**
@@ -377,7 +377,7 @@ struct CachingDeviceAllocator : GPUAllocator {
    * @brief Forwrds args to 'DeviceFree'
    */
   void Delete(void *ptr, size_t /* unused */) override {
-    DeviceFree(ptr);
+    CUDA_CALL(DeviceFree(ptr));
   }
   
   /**
