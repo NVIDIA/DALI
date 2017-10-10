@@ -8,7 +8,6 @@ namespace ndll {
 
 void Pipeline::Build() {
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
-  NDLL_ENFORCE(output != nullptr, "Output batch must point to valid Batch object");
   
   // Make sure the decoder is the first op in the pipeline
   if (decode_location_ == DECODE_FORWARD) {
@@ -72,35 +71,32 @@ void Pipeline::Build() {
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
     gpu_buffers_[0]->set_type(input_type);
+    gpu_buffer_types_.push_back(input_type);
   }
 
   if (forward_ops_.size() > 0) {
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
-    forward_ops_[0]->SetOutputType(gpu_buffers_[1], input_type);
+    forward_ops_[0]->SetOutputType(gpu_buffers_[1].get(), input_type);
     input_type = gpu_buffers_[1]->type();
+    gpu_buffer_types_.push_back(input_type);
   }
   
-  // TODO(tgale): Update type system to allow for type reseting
-  // and to reuse any allocated memory if possible. Update
-  // Operator to store the output type when set by the derived
-  // op, and to set these types on the output buffer prior to
-  // passing it into the op to be operated on. Do we need to
-  // do this in operator? If the op accessed the buffer through
-  // its raw ptr, and then the next op does a type check we could
-  // get an error. Setting this would avoid this case, and make
-  // type errors only occur if the user actually set something
-  // wrong. Yes, add this behavior to Operator.
-
   // For the rest of the ops, just store pointers to the two
   // buffers we've already created. All forward ops are run
   // in the same stream, so we can guarantee that no op will
   // corrupt the input/output for any other op.
+  //
+  // Because we are operating on the same buffers over and over
+  // we can no longer just set their types once and resize them.
+  // Before executing the copy or forward ops, we will need to
+  // resize & set the type of the output buffer.
   for (size_t i = 2; i < forward_ops_.size()+1; ++i) {
     // Set up the buffers for ping-ponging
     gpu_buffers_.push_back(gpu_buffers_[i&1]);
     forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
     input_type = gpu_buffers_[i]->type();
+    gpu_buffer_types_.push_back(input_type);
   }
 
   // Vector of shapes for all of the intermediate operator results as
@@ -251,7 +247,14 @@ void Pipeline::RunPrefetch() {
 void Pipeline::RunCopy() {
   Batch<CPUBackend> &src = *cpu_buffers_[cpu_buffers_.size()-1];
   Batch<GPUBackend> *dst = gpu_buffers_[0].get();
-    
+
+  // Set the shape and output type of the gpu buffer. This is
+  // necessary because of our re-use of buffers for different
+  // ops. We don't want all ops to have to worry about this
+  // so we do it here and in the Forward method.
+  dst->Resize(intermediate_shapes_[cpu_buffers_.size()]);
+  dst->set_type(gpu_buffer_types_[0]);
+  
   // Copy the data to the GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
           dst->raw_data(),
@@ -278,11 +281,23 @@ void Pipeline::RunForward() {
   // to set the stream here each time so that frameworks like
   // C2 that have different threads running through this method
   // on any given iteration have the correct stream to maintain
-  // the dependency between the copy and these kernels.
+  // the dependency between the copy and these kernels. Each op
+  // should probably deal with this independently, allthough
+  // this could interfere with any use of npp external to this
+  // code.
   nppSetStream(stream_);
   
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {
+    // "Resize" and set the type of the output buffer for each op. We
+    // have already resized these buffers, so this should not trigger
+    // any memory allocation, only re-computation of some meta-data.
+    //
+    // This is neccessary because of our re-use of buffers for different
+    // ops. Because we don't want the ops to have to worry about this, we
+    // do it here prior to passing the Batches to the ops.
+    gpu_buffers_[i+1]->Resize(intermediate_shapes_[i+1+cpu_buffers_.size()]);
+    gpu_buffers_[i+1]->set_type(gpu_buffer_types_[i+1]);
     forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());
   }
 }

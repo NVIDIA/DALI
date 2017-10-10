@@ -30,7 +30,6 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
   BatchDataReader reader(batch);
@@ -57,7 +56,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   pipe.AddForwardOp(norm_permute_op);
   
   // Build and run the pipeline
-  pipe.Build(output_batch);
+  pipe.Build();
 
   // Run once to allocate the memory
   // pipe.Print();
@@ -73,7 +72,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   }
   
   // DEBUG
-  // DumpCHWImageBatchToFile<float16>(*output_batch);
+  // DumpCHWImageBatchToFile<float16>(pipe.output_batch());
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 
@@ -92,7 +91,6 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           this->jpegs_, this->jpeg_sizes_, batch_size));
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
   
   // Add the data reader
   BatchDataReader reader(batch);
@@ -117,7 +115,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddForwardOp(final_op);
   
   // Build and run the pipeline
-  pipe.Build(output_batch);
+  pipe.Build();
 
   // Run once to allocate the memory
   // pipe.Print();
@@ -135,7 +133,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   NDLLProfilerStop();
 
   // DEBUG
-  // DumpCHWImageBatchToFile<float16>(*output_batch);
+  // DumpCHWImageBatchToFile<float16>(pipe.output_batch());
   st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
 }
 

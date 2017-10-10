@@ -34,37 +34,6 @@ public:
     DecodeJPEGS(img_type_);
   }
 
-  // void DecodeJPEGS() {
-  //   images_.resize(jpegs_.size());
-  //   image_dims_.resize(jpegs_.size());
-  //   for (size_t i = 0; i < jpegs_.size(); ++i) {
-  //     cv::Mat img;
-  //     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
-      
-  //     ASSERT_TRUE(CheckIsJPEG(jpegs_[i], jpeg_sizes_[i]));
-  //     int flag = color_ ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
-  //     cv::imdecode(jpeg, flag, &img);
-
-  //     int h = img.rows;
-  //     int w = img.cols;
-  //     cv::Mat out_img(h, w, color_ ? CV_8UC3 : CV_8UC2);
-  //     if (color_) {
-  //       // Convert from BGR to RGB for verification
-  //       cv::cvtColor(img, out_img, CV_BGR2RGB);
-  //     } else {
-  //       out_img = img;
-  //     }
-    
-  //     // Copy the decoded image out & save the dims
-  //     ASSERT_TRUE(out_img.isContinuous());
-  //     images_[i] = new uint8[h*w*c_];
-  //     std::memcpy(images_[i], out_img.ptr(), h*w*c_);
-
-  //     image_dims_[i].h = h;
-  //     image_dims_[i].w = w;
-  //   }
-  // }
-
   void OpenCVResizeCropMirror(uint8 *image, int h, int w, int c,
       int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
       int crop_w, bool mirror, uint8 *out_image) {

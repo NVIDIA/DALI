@@ -9,8 +9,11 @@
 namespace ndll {
 
 /**
- * @brief Stores dense, multi-dimensional data. Provides utilities methods
- * for handling dimensions and shapes of the stored data.
+ * @brief Stores dense, multi-dimensional data. Provides utilities 
+ * methods for handling dimensions and shapes of the stored data.
+ *
+ * Batch objects conform to the type management system defined in 
+ * @ref Buffer.
  */
 template <typename Backend>
 class Tensor : public Buffer<Backend> {
@@ -44,20 +47,20 @@ public:
       // and shape of the buffer and do not allocate any memory.
       // Any previous resize dims are overwritten.
       size_ = new_size;
-      true_size_ = new_size;
       shape_ = shape;
       return;
     }
 
-    if (new_size > true_size_) {
+    size_t new_num_bytes = new_size*type_.size();
+    if (new_num_bytes > num_bytes_) {      
       // Re-allocate the buffer to meet the new size requirements
-      if (true_size_ > 0) {
-        // Only delete if we have something to delete. Note that
-        // we are guaranteed to have a type w/ non-zero size here
-        Backend::Delete(data_, true_size_*type_.size());
-      }
-      data_ = Backend::New(new_size*type_.size());
-      true_size_ = new_size;
+      data_.reset(Backend::New(new_num_bytes),
+          std::bind(
+              &Backend::Delete,
+              std::placeholders::_1,
+              new_num_bytes)
+          );
+      num_bytes_ = new_num_bytes;
     }
 
     // If we have enough storage already allocated, don't re-allocate
@@ -85,7 +88,7 @@ public:
   inline virtual Index dim(int idx) const {
 #ifndef NDEBUG
     NDLL_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
-    NDLL_ENFORCE((size_t)idx >= 0, "negative index not supported");
+    NDLL_ENFORCE(idx >= 0, "negative index not supported");
 #endif
     return shape_[idx];
   }
@@ -99,7 +102,7 @@ protected:
   using Buffer<Backend>::type_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
-  using Buffer<Backend>::true_size_;
+  using Buffer<Backend>::num_bytes_;
 };
 
 } // namespace ndll

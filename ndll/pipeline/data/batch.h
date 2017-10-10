@@ -11,6 +11,9 @@ typedef vector<Index> Dims;
  * @brief Stores a batch of 'N' samples. Supports batches of 
  * jagged samples, i.e. batches where all samples are not
  * the sample dimensions
+ *
+ * Batch objects conform to the type management system defined
+ * in @ref Buffer.
  */
 template <typename Backend>
 class Batch : public Buffer<Backend> {
@@ -27,7 +30,8 @@ public:
   }
 
   /**
-   * @brief Copies the input batch, resizing this batch if needed
+   * @brief Copies the input batch, resizing this batch and changing 
+   * the underlying data type if needed
    */
   template <typename InBackend>
   inline void Copy(const Batch<InBackend> &other) {
@@ -39,9 +43,6 @@ public:
   /**
    * @brief Resize function to create batches. The outer vector
    * size is taken to be the samples dimension, i.e. N = shape.size();
-   *
-   * Note: this method calculates some meta-data on the jagged tensor for
-   * later use. Calling it repeatedly will be of non-negligible cost.
    */
   inline void Resize(const vector<Dims> &shape) {
     NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single datum");
@@ -61,21 +62,20 @@ public:
       // and shape of the buffer and do not allocate any memory.
       // Any previous resize dims are overwritten.
       size_ = new_size;
-      true_size_ = new_size;
       batch_shape_ = shape;
       CalculateOffsets();
       return;
     }
-    
-    if (new_size > true_size_) {
-      // Re-allocate the buffer to meet the new size requirements
-      if (true_size_ > 0) {
-        // Only delete if we have something to delete. Note that
-        // we are guaranteed to have a type w/ non-zero size here
-        Backend::Delete(data_, true_size_*type_.size());
-      }
-      data_ = Backend::New(new_size*type_.size());
-      true_size_ = new_size;
+
+    size_t new_num_bytes = new_size * type_.size();
+    if (new_num_bytes > num_bytes_) {
+      data_.reset(Backend::New(new_num_bytes),
+          std::bind(
+              &Backend::Delete,
+              std::placeholders::_1,
+              new_num_bytes)
+          );
+      num_bytes_ = new_num_bytes;
     }
 
     // If we have enough storage already allocated, don't reallocate
@@ -84,6 +84,13 @@ public:
     CalculateOffsets();
   }
 
+  /**
+   * @brief 
+   */
+  inline void ShareData() {
+
+  }
+  
   /**
    * @brief Returns a typed pointer to the sample with the given index.
    */
@@ -132,7 +139,7 @@ public:
    */
   inline Index datum_offset(int idx) const {
 #ifndef NDEBUG
-    NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
 #endif
     return offsets_[idx];
@@ -143,7 +150,7 @@ public:
    */
   inline vector<Index> datum_shape(int idx) const {
 #ifndef NDEBUG
-    NDLL_ENFORCE((size_t)idx >= 0, "Negative index not supported");
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < batch_shape_.size(), "Index out of offset range");
 #endif
     return batch_shape_[idx];
@@ -178,7 +185,7 @@ protected:
   using Buffer<Backend>::type_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
-  using Buffer<Backend>::true_size_;
+  using Buffer<Backend>::num_bytes_;
 };
 
 } // namespace ndll

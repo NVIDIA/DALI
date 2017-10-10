@@ -246,7 +246,7 @@ protected:
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
         const vector<Index> &out_dims = output->datum_shape(i);
-        CUDA_CALL(cudaMemcpy2DAsync(output->raw_datum(i), // dst
+        CUDA_CALL(cudaMemcpy2DAsync(output->template datum<uint8>(i), // dst
                 out_dims[1], // dptich
                 yuv_data_.template data<uint8>() + yuv_offsets_[i], // src
                 yuv_dims_[i].width, // spitch
@@ -296,7 +296,7 @@ protected:
         // Run a 2D memcpy to get rid of image stride
         const vector<Index> &out_dims = output->datum_shape(i);
         CUDA_CALL(cudaMemcpy2DAsync(
-                output->raw_datum(i), // dst
+                output->template datum<uint8>(i), // dst
                 out_dims[1]*C_, // dpitch
                 strided_img, // src
                 img_rois_[i].width*C_, // spitch
@@ -310,7 +310,7 @@ protected:
         uint8 *y_plane = yuv_data_ptr + yuv_offsets_[i*3];
         int step = yuv_dims_[i*3].width;
         yToRgb(y_plane, step,
-            (uint8*)output->raw_datum(i),
+            output->template datum<uint8>(i),
             img_steps_[i], img_rois_[i],
             stream_);
       }
@@ -380,7 +380,7 @@ protected:
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
       param = &batched_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
-      param->src = static_cast<const int16*>(input.raw_datum(data_idx)) + dct_offset;
+      param->src = input.template datum<int16>(data_idx) + dct_offset;
       param->srcStep = dct_step_[comp_id];
       param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
       param->dstWidth = yuv_dims_[comp_id].width;

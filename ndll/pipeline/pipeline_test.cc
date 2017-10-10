@@ -74,7 +74,9 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
   int num_thread = TypeParam::nt
 
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
-  DECLTYPES();
+  typedef typename TypeParam::TCPUBackend HostBackend;
+  int num_thread = TypeParam::nt;
+  
   int batch_size = this->RandInt(1, 256);
   Pipeline pipe(batch_size, num_thread, 0, 0);
 
@@ -83,7 +85,6 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   
   // Create a batches of data to work with
   shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
-  shared_ptr<Batch<DeviceBackend>> output_batch(new Batch<GPUBackend>);
   batch->Copy(tmp_batch);
 
   // Add a data reader
@@ -95,7 +96,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   pipe.AddPrefetchOp(copy_op);
 
   // Build the pipeline
-  pipe.Build(output_batch);
+  pipe.Build();
   
   // Run the pipeline
   for (int i = 0; i < 5; ++i) {
@@ -105,7 +106,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 
     // Verify the results
     this->CompareData(
-        output_batch->template data<uint8>(),
+        pipe.output_batch().template data<uint8>(),
         batch->template data<uint8>(),
         batch->size());
   }
@@ -121,7 +122,6 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   
   // Create a batches of data to work with
   shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
-  shared_ptr<Batch<DeviceBackend>> output_batch(new Batch<GPUBackend>);
   batch->Copy(tmp_batch);
 
   // Add a data reader
@@ -133,7 +133,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   pipe.AddForwardOp(copy_op);
 
   // Build the pipeline
-  pipe.Build(output_batch);
+  pipe.Build();
   
   // Run the pipeline
   for (int i = 0; i < 5; ++i) {
@@ -143,7 +143,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
 
     // Verify the results
     this->CompareData(
-        output_batch->template data<uint8>(),
+        pipe.output_batch().template data<uint8>(),
         batch->template data<uint8>(),
         batch->size());
   }

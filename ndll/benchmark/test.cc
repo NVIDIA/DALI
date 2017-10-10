@@ -32,7 +32,6 @@ int main() {
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
           jpegs_, jpeg_sizes_, batch_size));
-  shared_ptr<Batch<GPUBackend>> output_batch(new Batch<GPUBackend>);
 
   // Add the data reader
   BatchDataReader reader(batch);
@@ -44,7 +43,7 @@ int main() {
   pipe.AddDecoder(huffman_decoder);
 
   // Build and run the pipeline
-  pipe.Build(output_batch);
+  pipe.Build();
 
   // Run once to allocate the memory
   pipe.RunPrefetch();

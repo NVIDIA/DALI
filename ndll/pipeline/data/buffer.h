@@ -26,17 +26,27 @@ inline string ShapeString(vector<Index> shape) {
   return tmp;
 }
 
+// NOTE: Data storage types in NDLL use delayed allocation, and have a
+// small custom type system that allows us to circumvent template
+// paramters. This is turn allows the Pipeline to manage all intermediate
+// memory, opening the door for optimizations and reducing the work that
+// must be done by the user when defining operations.
+  
 /**
  * @brief Base class to provide common functionality needed by Pipeline data
  * structures. Not meant for use, does not provide methods for allocating
  * any actual storage. The 'Backend' template parameter dictates where the
  * underlying storage is located (CPU or GPU).
  *
- * Data storage types in NDLL use delayed allocation, and have a small 
- * custom type system that allows us to circumvent template paramters.
- * This is turn allows the Pipeline to manage all intermediate memory,
- * opening the door for optimizations and reducing the work that must
- * be done by the user when defining operations.
+ * Buffers are untyped on construction, and don't receive a valid type until
+ * 'set_type' or 'data<T>()' is called on a non-const buffer. Upon receiving
+ * a valid type, the underlying storage for the buffer is allocated. The type
+ * of the underlying data can change over the lifetime of an object if 
+ * 'set_type' or 'data<T>()' is called again where the calling type does not
+ * match the underlying type on the buffer. In this case, the Buffer swaps its
+ * current type, but only re-allocates memory if it does not have enough bytes
+ * of allocated storage to store the number of elements in the buffer with the
+ * new data type size.
  */
 template <typename Backend>
 class Buffer {
@@ -46,14 +56,7 @@ public:
    */
   inline Buffer() : data_(nullptr), size_(0), num_bytes_(0) {}
 
-  /**
-   * @brief Cleans up underlying storage.
-   */
-  virtual ~Buffer() {
-    if (num_bytes_*type_.size() > 0) {
-      Backend::Delete(data_, num_bytes_*type_.size());
-    }
-  }
+  virtual ~Buffer() = default;
 
   /**
    * @brief Returns a typed pointer to the underlying storage. If the
@@ -74,7 +77,7 @@ public:
     TypeMeta calling_type;
     calling_type.SetType<T>();
     set_type(calling_type);
-    return static_cast<T*>(data_);
+    return static_cast<T*>(data_.get());
   }
 
   /**
@@ -89,7 +92,7 @@ public:
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
         "Calling type does not match buffer data type: " +
         TypeTable::GetTypeName<T>() + " v. " + type_.name());
-    return static_cast<T*>(data_);
+    return static_cast<T*>(data_.get());
   }
 
   /**
@@ -101,7 +104,7 @@ public:
     NDLL_ENFORCE(type_.id() != NO_TYPE,
         "Buffer has no type, 'data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
-    return static_cast<void*>(data_);
+    return static_cast<void*>(data_.get());
   }
 
   /**
@@ -113,7 +116,7 @@ public:
     NDLL_ENFORCE(type_.id() != NO_TYPE,
         "Buffer has no type, 'data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
-    return static_cast<void*>(data_);
+    return static_cast<void*>(data_.get());
   }
 
   /**
@@ -165,7 +168,12 @@ public:
       // have anything to allocate
       num_bytes_ = size_ * type_.size();
       if (num_bytes_ > 0) {
-        data_ = Backend::New(num_bytes_);
+        data_.reset(Backend::New(num_bytes_),
+            std::bind(
+                &Backend::Delete,
+                std::placeholders::_1,
+                num_bytes_)
+            );
       }
     } else {
       // If the calling type does not match the current buffer
@@ -174,8 +182,12 @@ public:
       size_t new_num_bytes = size_ * new_type.size();
       if (new_num_bytes > num_bytes_) {
         // Re-allocate the underlying storage
-        Backend::Delete(data_, num_bytes_);
-        data_ = Backend::New(new_num_bytes);
+        data_.reset(Backend::New(new_num_bytes),
+            std::bind(
+                &Backend::Delete,
+                std::placeholders::_1,
+                new_num_bytes)
+            );
         num_bytes_ = new_num_bytes;
       }
 
@@ -189,7 +201,7 @@ protected:
   Backend backend_;
   
   TypeMeta type_; // Data type of underlying storage
-  void *data_; // Pointer to underlying storage
+  shared_ptr<void> data_; // Pointer to underlying storage
   Index size_; // The number of elements in the buffer
   
   // To keep track of the true size

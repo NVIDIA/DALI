@@ -227,7 +227,7 @@ public:
    */
   Batch<GPUBackend>& output_batch(bool sync = true) const {
     if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
-    return *gpu_buffers_[gpu_buffers.size()];
+    return *gpu_buffers_.back();
   }
   
   /**
@@ -292,16 +292,20 @@ private:
   vector<OpPtr<CPUBackend>> prefetch_ops_;
   vector<OpPtr<GPUBackend>> forward_ops_;
 
-  // Batch objects to store intermediate results of the
-  // pipeline. Could probably do this with more efficient
-  // memory usage than just 1 buffer per intermediate...
+  // Batch objects to store intermediate results of
+  // the pipeline.
   template <typename T>
   using BatchPtr = shared_ptr<Batch<T>>;
   vector<BatchPtr<CPUBackend>> cpu_buffers_;
   vector<BatchPtr<GPUBackend>> gpu_buffers_;
 
-  // Batch to output the result of the pipeline to
-  shared_ptr<Batch<GPUBackend>> output_buffer_;
+  // We ping-pong between gpu buffers to reduce GPU
+  // memory usage. In order to do this, we have to
+  // handle the setting of meta-data for input/output
+  // batches prior to passing them into each op. This
+  // vector keeps track of the types for each output.
+  vector<TypeMeta> gpu_buffer_types_;
+
   
   // DataReader to query for datum during execution
   unique_ptr<DataReader> data_reader_;
@@ -316,7 +320,7 @@ private:
   // pass. We pre-allocate these so threads can directly
   // write to the appropriate locations.
   vector<vector<Dims>> intermediate_shapes_;
-
+  
   // Tensors to store all batched op parameters for ops in
   // the forward pass. Enables single copy of paramters
   // instead of copies per operator

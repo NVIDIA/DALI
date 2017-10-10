@@ -63,7 +63,7 @@ private:
 // Stores the unqiue ID for a type and its size in bytes
 class TypeMeta {
 public:
-  inline TypeMeta() : id_(NO_TYPE), type_size_(0) { }
+  inline TypeMeta() : id_(NO_TYPE), type_size_(0), name_("no_type") { }
 
   template <typename T>
   inline void SetType() {

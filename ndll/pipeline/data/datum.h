@@ -8,8 +8,18 @@
 namespace ndll {
 
 /**
- * @brief Datum can either allocate its own storage or 
- * wrap a single datum from a batch.
+ * @brief Datum can either allocate its own storage or  wrap 
+ * a single datum from a batch.
+ *
+ * In the case that a Datum object is wrapping memory that it
+ * does not own, methods that can trigger memory allocation
+ * will cause the Datum to detach from the wrapped memory and
+ * allocate its own underlying storage. These methods are @n
+ * 'set_type()' - Will allocate memory if the calling type does 
+ * not match the underlying type of the buffer @n
+ * 'data<T>()' - Calls 'set_type' internally @n
+ * 'Resize()' - Detaches from the wrapped memory and allocates
+ * memory for the input number of elements.
  */
 template <typename Backend>
 class Datum : public Buffer<Backend> {
@@ -19,16 +29,10 @@ public:
    */
   inline Datum() : owned_(true) {}
 
-  ~Datum() {
-    // If we don't own our data, clear it so the parent
-    // class does not clean it up
-    if (!owned_) {
-      data_ = nullptr;
-      shape_.clear();
-      true_size_ = 0;
-      size_ = 0;
-    }
-  }
+  // Note: If we don't own our data, `num_bytes_` will
+  // be zero and the base class will not delete the
+  // memory
+  ~Datum() = default;
   
   /**
    * @brief Creates a Datum object with the input shape
@@ -54,9 +58,9 @@ public:
   inline void Resize(const vector<Index> &shape) {
     if (!owned_) {
       // Reset to a default state
-      data_ = nullptr;
+      data_.reset();
       shape_.clear();
-      true_size_ = 0;
+      num_bytes_ = 0;
       size_ = 0;
 
       TypeMeta new_type;
@@ -70,20 +74,20 @@ public:
       // and shape of the buffer and do not allocate any memory.
       // Any previous resize dims are overwritten.
       size_ = new_size;
-      true_size_ = new_size;
       shape_ = shape;
       return;
     }
-
-    if (new_size > true_size_) {
+    
+    size_t new_num_bytes = new_size*type_.size();
+    if (new_num_bytes > num_bytes_) {
       // Re-allocate the buffer to meet the new size requirements
-      if (true_size_ > 0) {
-        // Only delete if we have something to delete. Note that
-        // we are guaranteed to have a type w/ non-zero size here
-        Backend::Delete(data_, true_size_*type_.size());
-      }
-      data_ = Backend::New(new_size*type_.size());
-      true_size_ = new_size;
+      data_.reset(Backend::New(new_num_bytes),
+          std::bind(
+              &Backend::Delete,
+              std::placeholders::_1,
+              new_num_bytes)
+          );
+      num_bytes_ = new_num_bytes;
     }
 
     // If we have enough storage already allocated, don't re-allocate
@@ -119,15 +123,11 @@ public:
 #endif
     NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
 
-    if (owned_ && true_size_*type_.size() > 0) {
-      // If we own our data and we have data allocated,
-      // clean up the underlying storage
-      Backend::Delete(data_, true_size_*type_.size());
-
+    if (owned_ && num_bytes_ > 0) {
       // Set back to default state
-      data_ = nullptr;
+      data_.reset();
       size_ = 0;
-      true_size_ = 0;
+      num_bytes_ = 0;
       shape_.clear();
       TypeMeta new_type;
       type_ = new_type;
@@ -138,12 +138,17 @@ public:
 
     // Get the shape of this sample
     shape_ = batch->datum_shape(sample_idx);
-    true_size_ = Product(shape_);
-    size_ = true_size_;
+    size_ = Product(shape_);
 
     // Calling raw_datum here will enforce that the type is valid
     type_ = batch->type();
-    data_ = batch->raw_datum(sample_idx);
+    data_.reset(batch->raw_datum(sample_idx),
+        [](void *p) { /* noop: do not delete ptr in the middle of an allocation */ });
+
+    // Note: In the case that the Datum does not own its underlying storage,
+    // we keep the value of num_bytes_ equal to zero, indicating that the
+    // datum has allocated no memory of its own.
+    num_bytes_ = 0;
   }
 
   /**
@@ -151,6 +156,14 @@ public:
    */
   inline vector<Index> shape() const {
     return shape_;
+  }
+
+  /**
+   * @brief Returns a bool indicating if the Datum object owns its 
+   * underlying storage.
+   */
+  inline bool owned() const {
+    return owned_;
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Datum);
@@ -166,7 +179,7 @@ protected:
   using Buffer<Backend>::type_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
-  using Buffer<Backend>::true_size_;
+  using Buffer<Backend>::num_bytes_;
 };
 
 } // namespace ndll
