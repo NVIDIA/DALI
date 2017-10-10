@@ -1,9 +1,6 @@
 #ifndef NDLL_PIPELINE_PIPELINE_H_
 #define NDLL_PIPELINE_PIPELINE_H_
 
-#include <functional>
-#include <memory>
-
 #include "ndll/common.h"
 #include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/backend.h"
@@ -167,10 +164,8 @@ public:
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
-   *
-   * @param batch to output the results of the pipeline into.
    */
-  void Build(shared_ptr<Batch<GPUBackend>> output);
+  void Build();
 
   /**
    * @brief Run the prefetch stage of the pipeline.
@@ -224,7 +219,29 @@ public:
   void RunForward();
 
   /**
-   * @brief Returns the stream that this pipeline is working in
+   * @brief Returns a reference to the batch storing the result of the 
+   * pipeline. 
+   *
+   * @param sync Indicates whether this function should synchronize on
+   * the pipeline stream before returning. Defaults to 'true'
+   */
+  Batch<GPUBackend>& output_batch(bool sync = true) const {
+    if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
+    return *gpu_buffers_[gpu_buffers.size()];
+  }
+  
+  /**
+   * @brief Returns the batch size that will be produced by the pipeline.
+   */
+  int batch_size() const { return batch_size_; }
+
+  /**
+   * @brief Returns the number of threads that are used by the pipeline.
+   */
+  int num_threads() const { return thread_pool_.size(); }
+  
+  /**
+   * @brief Returns the stream that the pipeline is working in.
    */
   cudaStream_t stream() const { return stream_; }
 
@@ -278,10 +295,6 @@ private:
   // Batch objects to store intermediate results of the
   // pipeline. Could probably do this with more efficient
   // memory usage than just 1 buffer per intermediate...
-  //
-  // Note: we use shared_ptrs here because our output buffer
-  // is a shared_ptr and we want to be able to simply insert
-  // it into this vector to make the copy & forward simpler
   template <typename T>
   using BatchPtr = shared_ptr<Batch<T>>;
   vector<BatchPtr<CPUBackend>> cpu_buffers_;

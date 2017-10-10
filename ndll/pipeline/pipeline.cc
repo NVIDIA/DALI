@@ -1,11 +1,14 @@
 #include "ndll/pipeline/pipeline.h"
 
+#include <algorithm>
+#include <functional>
+#include <memory>
+
 namespace ndll {
 
-void Pipeline::Build(shared_ptr<Batch<GPUBackend>> output) {
+void Pipeline::Build() {
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   NDLL_ENFORCE(output != nullptr, "Output batch must point to valid Batch object");
-  output_buffer_ = output;
   
   // Make sure the decoder is the first op in the pipeline
   if (decode_location_ == DECODE_FORWARD) {
@@ -61,30 +64,43 @@ void Pipeline::Build(shared_ptr<Batch<GPUBackend>> output) {
     input_type = cpu_buffers_[i]->type();
   }
 
-  if (forward_ops_.size() == 0) {
-    // Copy directly into the output buffer
-    gpu_buffers_.push_back(output_buffer_);
-    gpu_buffers_[0]->set_type(input_type);
-  } else {
-    // Create a buffer to copy into
+  // For the forward stage, we create a maximum of two buffers
+  // and ping-pong back and forth between them. We always need
+  // to create one to copy into regardless of how many ops are
+  // to be executed in the forward stage
+  {
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
     gpu_buffers_[0]->set_type(input_type);
-  }
-  // Create the rest of the input buffers
-  for (size_t i = 1; i < forward_ops_.size(); ++i) {
-    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-    gpu_buffers_.push_back(std::move(tmp_gpu));
-    forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
-    input_type = gpu_buffers_[i]->type();
   }
 
-  // If we do have forward ops, add the output buffer to the
-  // gpu_buffers and set its output type from the last op
   if (forward_ops_.size() > 0) {
-    gpu_buffers_.push_back(output_buffer_);
-    forward_ops_[forward_ops_.size()-1]->
-      SetOutputType(output_buffer_.get(), input_type);
+    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
+    gpu_buffers_.push_back(std::move(tmp_gpu));
+    forward_ops_[0]->SetOutputType(gpu_buffers_[1], input_type);
+    input_type = gpu_buffers_[1]->type();
+  }
+  
+  // TODO(tgale): Update type system to allow for type reseting
+  // and to reuse any allocated memory if possible. Update
+  // Operator to store the output type when set by the derived
+  // op, and to set these types on the output buffer prior to
+  // passing it into the op to be operated on. Do we need to
+  // do this in operator? If the op accessed the buffer through
+  // its raw ptr, and then the next op does a type check we could
+  // get an error. Setting this would avoid this case, and make
+  // type errors only occur if the user actually set something
+  // wrong. Yes, add this behavior to Operator.
+
+  // For the rest of the ops, just store pointers to the two
+  // buffers we've already created. All forward ops are run
+  // in the same stream, so we can guarantee that no op will
+  // corrupt the input/output for any other op.
+  for (size_t i = 2; i < forward_ops_.size()+1; ++i) {
+    // Set up the buffers for ping-ponging
+    gpu_buffers_.push_back(gpu_buffers_[i&1]);
+    forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
+    input_type = gpu_buffers_[i]->type();
   }
 
   // Vector of shapes for all of the intermediate operator results as
@@ -108,6 +124,10 @@ void Pipeline::Build(shared_ptr<Batch<GPUBackend>> output) {
     op->set_stream(stream_);
   }
 
+  // TODO(tgale): Move these resize amounts to be based on hints from the
+  // user. We could also have a setting where we run the pipeline and add
+  // a small threshold.
+  
   // TODO(tgale): The large number of memory allocations in the pipeline
   // interfere with training alot due to implicit synchronization w/
   // pinned memory allocations. For now, we presize the buffers to reasonable

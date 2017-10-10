@@ -44,56 +44,42 @@ public:
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr), size_(0), true_size_(0) {}
+  inline Buffer() : data_(nullptr), size_(0), num_bytes_(0) {}
 
   /**
    * @brief Cleans up underlying storage.
    */
   virtual ~Buffer() {
-    if (true_size_*type_.size() > 0) {
-      Backend::Delete(data_, true_size_*type_.size());
+    if (num_bytes_*type_.size() > 0) {
+      Backend::Delete(data_, num_bytes_*type_.size());
     }
   }
 
   /**
    * @brief Returns a typed pointer to the underlying storage. If the
    * buffer has not been allocated because it does not yet have a type,
-   * the calling type is taken to be the type of the data. The memory
-   * is allocated, and the type remains fixed for the lifetime of the
-   * object.
+   * the calling type is taken to be the type of the data and the memory
+   * is allocated.
    *
    * If the buffer already has a valid type, and the calling type does
-   * not match, a std::runtime_error is thrown.
+   * not match, the type of the buffer is reset and the underlying
+   * storage is re-allocated if the buffer does not currently own
+   * enough memory to store the current number of elements with the 
+   * new data type.
    */
   template <typename T>
   inline T* data() {
-    // If the buffer has no type, set the type to the the
-    // calling type and allocate the buffer
-    if (type_.id() == NO_TYPE) {
-      NDLL_ENFORCE(data_ == nullptr,
-          "data ptr is non-nullptr, something has gone wrong");
-
-      type_.SetType<T>();
-      NDLL_ENFORCE(type_.size() > 0,
-          "Set datatype must have non-zero element size");
-      
-      // Make sure we keep our nullptr if we don't
-      // have anything to allocate
-      if (true_size_ > 0) {
-        data_ = Backend::New(true_size_*type_.size());
-      }
-    }
-    NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
-        "Calling type does not match buffer data type: " +
-        TypeTable::GetTypeName<T>() + " v. " + type_.name());
-    
+    // Note: Call to 'set_type' will immediately return if the calling
+    // type matches the current type of the buffer.
+    TypeMeta calling_type;
+    calling_type.SetType<T>();
+    set_type(calling_type);
     return static_cast<T*>(data_);
   }
 
   /**
    * @brief Returns a const, typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
+   * The calling type must match the underlying type of the buffer.
    */
   template <typename T>
   inline const T* data() const {
@@ -113,8 +99,8 @@ public:
    */
   inline void* raw_data() {
     NDLL_ENFORCE(type_.id() != NO_TYPE,
-        "Buffer has no type, 'data<T>()' must be called "
-        "on non-const buffer to set valid type");
+        "Buffer has no type, 'data<T>()' or 'set_type' must "
+        "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_);
   }
 
@@ -125,8 +111,8 @@ public:
    */
   inline const void* raw_data() const {
     NDLL_ENFORCE(type_.id() != NO_TYPE,
-        "Buffer has no type, 'data<T>()' must be called "
-        "on non-const buffer to set valid type");
+        "Buffer has no type, 'data<T>()' or 'set_type' must "
+        "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_);
   }
 
@@ -139,6 +125,9 @@ public:
    * @brief Returns the size in bytes of the underlying data
    */
   inline size_t nbytes() const {
+    // Note: This returns the number of bytes occupied by the current
+    // number of elements stored in the buffer. This is not neccessarily
+    // the number of bytes of the underlying allocation (num_bytes_)
     return size_*type_.size();
   }
 
@@ -151,38 +140,61 @@ public:
   }
 
   /**
-   * @brief Sets the type of the buffer. Throws an error if the underlying
-   * storage already has a type. If the buffer has no type but has non-zero 
-   * size, we allocate the memory.
+   * @brief Sets the type of the buffer. If the buffer has not been 
+   * allocated because it does not yet have a type, the calling type 
+   * is taken to be the type of the data and the memory is allocated.
+   *
+   * If the buffer already has a valid type, and the calling type does
+   * not match, the type of the buffer is reset and the underlying
+   * storage is re-allocated if the buffer does not currently own
+   * enough memory to store the current number of elements with the 
+   * new data type.
    */
-  inline void set_type(TypeMeta type) {
-    if (type.id() == type_.id()) return;
-    NDLL_ENFORCE(type_.id() == NO_TYPE, "Buffer already has valid type");
-    NDLL_ENFORCE(type.size() > 0,
-        "Set datatype must have non-zero element size");
-    NDLL_ENFORCE(data_ == nullptr,
-        "Something has gone wrong. Untyped buffer cannot store data");
-    type_ = type;
+  inline void set_type(TypeMeta new_type) {
+    if (new_type.id() == type_.id()) return;
+    NDLL_ENFORCE(new_type.size() > 0,
+        "New datatype must have non-zero element size");
 
-    // If the buffer has a set size allocate the
-    // memory for the size of the buffer
-    if (true_size_ > 0) {
-      data_ = Backend::New(true_size_*type_.size());
+    if (type_.id() == NO_TYPE) {
+      // If the buffer has no type, set the type to the
+      // calling type and allocate the buffer
+      NDLL_ENFORCE("Data ptr is nullptr, something has gone wrong.");
+      type_ = new_type;
+
+      // Make sure we keep our nullptr if we don't
+      // have anything to allocate
+      num_bytes_ = size_ * type_.size();
+      if (num_bytes_ > 0) {
+        data_ = Backend::New(num_bytes_);
+      }
+    } else {
+      // If the calling type does not match the current buffer
+      // type, reset the type and re-allocate the memory if
+      // we do not have enough
+      size_t new_num_bytes = size_ * new_type.size();
+      if (new_num_bytes > num_bytes_) {
+        // Re-allocate the underlying storage
+        Backend::Delete(data_, num_bytes_);
+        data_ = Backend::New(new_num_bytes);
+        num_bytes_ = new_num_bytes;
+      }
+
+      // Save the new type
+      type_ = new_type;
     }
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 protected:
   Backend backend_;
-  TypeMeta type_;
-
-  // Pointer to underlying storage & meta-data
-  void *data_;
-  Index size_;
+  
+  TypeMeta type_; // Data type of underlying storage
+  void *data_; // Pointer to underlying storage
+  Index size_; // The number of elements in the buffer
   
   // To keep track of the true size
   // of the underlying allocation
-  Index true_size_;
+  size_t num_bytes_;
 };
 
 } // namespace ndll
