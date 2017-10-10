@@ -41,6 +41,7 @@ namespace ndll {
 /**
  * \brief A wrapper around ndll::GPUAllocator that turns any user-defined device
  * allocator into a caching allocator. Based on the CUB CachingDeviceAllocator.
+ * Incomplete. Does not currently use the input user-defined allocator.
  *
  * \par Overview
  * The allocator is thread-safe and stream-safe and is capable of managing cached

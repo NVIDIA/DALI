@@ -25,7 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ******************************************************************************/
-#include "ndll/pipeline/data/caching_allocator.h"
+#include "ndll/pipeline/data/caching_device_allocator.h"
 
 #include <gtest/gtest.h>
 

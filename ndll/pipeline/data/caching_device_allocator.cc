@@ -1,4 +1,4 @@
-#include "ndll/pipeline/data/caching_allocator.h"
+#include "ndll/pipeline/data/caching_device_allocator.h"
 
 namespace ndll {
 
@@ -125,6 +125,7 @@ cudaError_t CachingDeviceAllocator::DeviceAllocate(int device,
       if (NDLL_CUB_DEBUG(error = cudaSetDevice(device))) return error;
     }
 
+    
     // Attempt to allocate
     if (NDLL_CUB_DEBUG(error = cudaMalloc(&search_key.d_ptr, search_key.bytes))
         == cudaErrorMemoryAllocation)
