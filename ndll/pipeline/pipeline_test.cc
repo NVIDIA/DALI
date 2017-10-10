@@ -112,6 +112,41 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   }
 }
 
+TYPED_TEST(PipelineTest, TestNoOps) {
+  typedef typename TypeParam::TCPUBackend HostBackend;
+  int num_thread = TypeParam::nt;
+  
+  int batch_size = this->RandInt(1, 256);
+  Pipeline pipe(batch_size, num_thread, 0, 0);
+
+  Batch<CPUBackend> tmp_batch;
+  this->MakeImageBatch(batch_size, &tmp_batch);
+  
+  // Create a batches of data to work with
+  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
+  batch->Copy(tmp_batch);
+
+  // Add a data reader
+  BatchDataReader reader(batch);
+  pipe.AddDataReader(reader);
+
+  // Build the pipeline
+  pipe.Build();
+  
+  // Run the pipeline
+  for (int i = 0; i < 5; ++i) {
+    pipe.RunPrefetch();
+    pipe.RunCopy();
+    pipe.RunForward();
+
+    // Verify the results
+    this->CompareData(
+        pipe.output_batch().template data<uint8>(),
+        batch->template data<uint8>(),
+        batch->size());
+  }
+}
+
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   DECLTYPES();
   int batch_size = this->RandInt(1, 256);

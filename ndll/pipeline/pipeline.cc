@@ -15,8 +15,6 @@ void Pipeline::Build() {
         "The Decoder is set to occur in the forward "
         "pipeline stage but prefetch operators exist");
   }
-  NDLL_ENFORCE(prefetch_ops_.size() + forward_ops_.size() > 0,
-      "Pipeline must have at least one operator");
   NDLL_ENFORCE(data_reader_ != nullptr,
       "The Pipeline must have a data reader to be built");
 
