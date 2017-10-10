@@ -55,7 +55,7 @@ public:
       for (auto &val : vec) tmp *= val;
       new_size += tmp;
     }
-    NDLL_ENFORCE(new_size > 0, "Input dims must specify batch of non-zero size");
+    NDLL_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
     if (type_.id() == NO_TYPE) {
       // If the type has not been set yet, we just set the size
@@ -76,6 +76,9 @@ public:
               new_num_bytes)
           );
       num_bytes_ = new_num_bytes;
+
+      // If we were sharing data, we aren't anymore
+      shares_data_ = false;
     }
 
     // If we have enough storage already allocated, don't reallocate
@@ -87,8 +90,30 @@ public:
   /**
    * @brief 
    */
-  inline void ShareData() {
+  inline void ShareData(const Batch<Backend> &other) {
+    NDLL_ENFORCE(IsValidType(this->type_), "To share data another "
+        "batches data, a batch must have a valid data type.");
+    NDLL_ENFORCE(IsValidType(other.type_), "To share data, "
+        "the input batch must have a valid data type");
 
+    // Find the maximum elements of our type we can store
+    // in the shared allocated buffer
+    Index possible_elements = other.num_bytes_ / this->type_.size();
+    NDLL_ENFORCE(possible_elements > 0, "Shared data size smaller than "
+        "a single element of other batches type: " +
+        std::to_string(other.num_bytes_) + " v. " +
+        std::to_string(this->type_.size()));
+
+    // Set our size to the maximum number of possible elements of our
+    // type we can store in the shared buffer.
+    size_ = possible_elements;
+    batch_shape_ = {{(Index)size_}}; // default size
+    offsets_ = {(Index)0}; // offset for single datum
+    
+    // Save the underlying allocation pointer and size
+    data_ = other.data_;
+    num_bytes_ = other.num_bytes_;
+    shares_data_ = true;
   }
   
   /**
@@ -156,8 +181,13 @@ public:
     return batch_shape_[idx];
   }
 
+  /**
+   * @brief Returns a bool indicating if the batch shares its underlying storage.
+   */
+  inline bool shares_data() const { return shares_data_; }
+  
   // So we can access the members of other Batches
-  // w/ different template types
+  // with different template types
   template <typename InBackend>
   friend class Batch;
   
@@ -174,17 +204,18 @@ protected:
       offset += Product(batch_shape_[i]);
     }
   }
-  
+
   // We maintain a vector of 'Dims' to allow us to store
   // jagged tensors.  We also cache the offset of each sample
   vector<Dims> batch_shape_;
   vector<Index> offsets_;
-
+  
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;
   using Buffer<Backend>::type_;
   using Buffer<Backend>::data_;
   using Buffer<Backend>::size_;
+  using Buffer<Backend>::shares_data_;
   using Buffer<Backend>::num_bytes_;
 };
 

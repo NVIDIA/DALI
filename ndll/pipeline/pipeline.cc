@@ -47,9 +47,7 @@ void Pipeline::Build() {
   
   // Create buffers for intermediate pipeline results. We need 1
   // buffer for each cpu side op output, and 1 buffer for each
-  // gpu side op input. The input to the pipeline and the output
-  // to the pipeline are passed into the "RunPrefetch" and
-  // "RunForward" methods
+  // gpu side op input.
   //
   // For the Prefetch ops, we also need to set the output buffer
   // types so that the memory can be allocated prior to wrapping
@@ -67,36 +65,31 @@ void Pipeline::Build() {
   // and ping-pong back and forth between them. We always need
   // to create one to copy into regardless of how many ops are
   // to be executed in the forward stage
+  for (size_t i = 0; i < std::min(forward_ops_.size()+1, 2lu); ++i) {
+    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
+    gpu_storage_.push_back(std::move(tmp_gpu));
+
+    // We'll manage these buffers in bytes for simplicity
+    gpu_storage_.back()->template data<uint8>();
+  }
+
+  // For all of the ops we will create batches, but share the
+  // underlying data with one of the two 'gpu_storage' batches.
+  // All forward ops are run in the same stream, so we can
+  // guarantee that no op will corrupt the input/output for any
+  // other op.
   {
+    // We always need one buffer to copy into
     BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
     gpu_buffers_.push_back(std::move(tmp_gpu));
     gpu_buffers_[0]->set_type(input_type);
-    gpu_buffer_types_.push_back(input_type);
-  }
-
-  if (forward_ops_.size() > 0) {
-    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-    gpu_buffers_.push_back(std::move(tmp_gpu));
-    forward_ops_[0]->SetOutputType(gpu_buffers_[1].get(), input_type);
-    input_type = gpu_buffers_[1]->type();
-    gpu_buffer_types_.push_back(input_type);
   }
   
-  // For the rest of the ops, just store pointers to the two
-  // buffers we've already created. All forward ops are run
-  // in the same stream, so we can guarantee that no op will
-  // corrupt the input/output for any other op.
-  //
-  // Because we are operating on the same buffers over and over
-  // we can no longer just set their types once and resize them.
-  // Before executing the copy or forward ops, we will need to
-  // resize & set the type of the output buffer.
-  for (size_t i = 2; i < forward_ops_.size()+1; ++i) {
-    // Set up the buffers for ping-ponging
-    gpu_buffers_.push_back(gpu_buffers_[i&1]);
-    forward_ops_[i-1]->SetOutputType(gpu_buffers_[i].get(), input_type);
-    input_type = gpu_buffers_[i]->type();
-    gpu_buffer_types_.push_back(input_type);
+  for (size_t i = 0; i < forward_ops_.size(); ++i) {
+    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
+    gpu_buffers_.push_back(std::move(tmp_gpu));
+    forward_ops_[i]->SetOutputType(gpu_buffers_[i+1].get(), input_type);
+    input_type = gpu_buffers_[i+1]->type();
   }
 
   // Vector of shapes for all of the intermediate operator results as
@@ -130,22 +123,22 @@ void Pipeline::Build() {
   // sizes for their task. However, these sizes are basically fit to imagenet,
   // and to a jpeg quality of about 85. We should move to wrapping our backend
   // objects withing caching allocators.
-  for (auto &datum : input_datum_) {
-    datum.set_type(read_output_type);
-    datum.Resize({300000}); // 3000KB
-  }
-  for (auto &datum : parsed_datum_) {
-    datum.set_type(parsed_output_type);
-    datum.Resize({300000}); // 300KB
-  }
+  // for (auto &datum : input_datum_) {
+  //   datum.set_type(read_output_type);
+  //   datum.Resize({300000}); // 3000KB
+  // }
+  // for (auto &datum : parsed_datum_) {
+  //   datum.set_type(parsed_output_type);
+  //   datum.Resize({300000}); // 300KB
+  // }
 
-  mega_buffer_.Resize({300000}); // 300KB
-  mega_buffer_gpu_.Resize({300000}); // 300KB
+  // mega_buffer_.Resize({300000}); // 300KB
+  // mega_buffer_gpu_.Resize({300000}); // 300KB
   
-  vector<Dims> tmp(1);
-  tmp[0].push_back(1500000 * batch_size_); // 1.5MB / sample
-  for (auto &buf : cpu_buffers_) buf->Resize(tmp);
-  for (auto &buf : gpu_buffers_) buf->Resize(tmp);
+  // vector<Dims> tmp(1);
+  // tmp[0].push_back(1500000 * batch_size_); // 1.5MB / sample
+  // for (auto &buf : cpu_buffers_) buf->Resize(tmp);
+  // for (auto &buf : gpu_buffers_) buf->Resize(tmp);
   
   // Mark the pipeline as built so we know it is safe to run
   built_ = true;
@@ -198,16 +191,10 @@ void Pipeline::RunPrefetch() {
   
   {
     TimeRange _tr("resize-buffer-setup-prefetch");
-    // Resize the intermidate buffers
-    for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
-      cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
-    }
 
-    // Resize the gpu-size intermediate buffers & set the types
-    for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
-      gpu_buffers_[i]->Resize(
-          intermediate_shapes_[i + cpu_buffers_.size()]);
-    }
+    // Resize intermediate buffers and manage data sharing
+    // on device for the forward stage of computation
+    IntermediateBufferResizeAndSetup();
 
     // Setup the mega-buffer & distribute sub-buffers to
     // the ops in the forward pass
@@ -248,13 +235,6 @@ void Pipeline::RunCopy() {
   Batch<CPUBackend> &src = *cpu_buffers_[cpu_buffers_.size()-1];
   Batch<GPUBackend> *dst = gpu_buffers_[0].get();
 
-  // Set the shape and output type of the gpu buffer. This is
-  // necessary because of our re-use of buffers for different
-  // ops. We don't want all ops to have to worry about this
-  // so we do it here and in the Forward method.
-  dst->Resize(intermediate_shapes_[cpu_buffers_.size()]);
-  dst->set_type(gpu_buffer_types_[0]);
-  
   // Copy the data to the GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
           dst->raw_data(),
@@ -289,16 +269,55 @@ void Pipeline::RunForward() {
   
   // Run all the forward ops
   for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    // "Resize" and set the type of the output buffer for each op. We
-    // have already resized these buffers, so this should not trigger
-    // any memory allocation, only re-computation of some meta-data.
-    //
-    // This is neccessary because of our re-use of buffers for different
-    // ops. Because we don't want the ops to have to worry about this, we
-    // do it here prior to passing the Batches to the ops.
-    gpu_buffers_[i+1]->Resize(intermediate_shapes_[i+1+cpu_buffers_.size()]);
-    gpu_buffers_[i+1]->set_type(gpu_buffer_types_[i+1]);
     forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());
+  }
+}
+
+void Pipeline::IntermediateBufferResizeAndSetup() {
+  // Resize the host-side intermediate buffers
+  for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
+    cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
+  }
+
+
+  // Calculate the maximum number of bytes needed for each
+  // of the gpu storage buffers for the forward pass. Each
+  // buffer will be used for every other buffer in the
+  // forward pass, so we need to find how much memory will
+  // be needed for even numbered buffers and odd numbered
+  // buffers separately
+  vector<size_t> max_bytes(2, 0);
+  for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
+    Index required_size = 0;
+    for (auto &dims : intermediate_shapes_[i + cpu_buffers_.size()]) {
+      Index tmp = 1;
+      for (auto &val : dims) {
+        tmp *= val;
+      }
+      required_size += tmp;
+    }
+
+    size_t required_bytes = required_size * gpu_buffers_[i]->type().size();
+    max_bytes[i&1] = std::max(max_bytes[i&1], required_bytes);
+  }
+
+  // Resize the two storage buffers
+  for (size_t i = 0; i < std::min(forward_ops_.size()+1, 2lu); ++i) {
+    gpu_storage_[i]->Resize({{(Index)max_bytes[i]}});
+  }
+
+  // Share the gpu data with the other gpu buffers and
+  // resize them to their required size for this iteration
+  for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
+    gpu_buffers_[i]->ShareData(*gpu_storage_[i&1]);
+
+    // Note: We've already allocated the maximum amount of data
+    // that these buffers need, so this resize should not trigger
+    // any memory allocations
+    gpu_buffers_[i]->Resize(
+        intermediate_shapes_[i + cpu_buffers_.size()]);
+    NDLL_ENFORCE(gpu_buffers_[i]->shares_data(),
+        "GPU buffers should still be sharing data, something went wrong.");
   }
 }
 

@@ -29,9 +29,6 @@ public:
    */
   inline Datum() : owned_(true) {}
 
-  // Note: If we don't own our data, `num_bytes_` will
-  // be zero and the base class will not delete the
-  // memory
   ~Datum() = default;
   
   /**

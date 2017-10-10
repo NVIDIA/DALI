@@ -105,6 +105,11 @@ inline bool IsType(TypeMeta type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 
+// Utility to check for valid (no NO_TYPE) type
+inline bool IsValidType(TypeMeta type) {
+  return type.id() != NO_TYPE;
+}
+
 // Used to define a type for use in ndll. Inserts the type into the
 // TypeTable w/ a unique id and creates a method to get the name of
 // the type as a string. This does not work for non-fundamental types,

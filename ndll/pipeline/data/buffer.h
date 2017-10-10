@@ -54,7 +54,7 @@ public:
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr), size_(0), num_bytes_(0) {}
+  inline Buffer() : data_(nullptr), size_(0), shares_data_(false), num_bytes_(0) {}
 
   virtual ~Buffer() = default;
 
@@ -161,7 +161,8 @@ public:
     if (type_.id() == NO_TYPE) {
       // If the buffer has no type, set the type to the
       // calling type and allocate the buffer
-      NDLL_ENFORCE("Data ptr is nullptr, something has gone wrong.");
+      NDLL_ENFORCE(data_ == nullptr,
+          "Data ptr is nullptr, something has gone wrong.");
       type_ = new_type;
 
       // Make sure we keep our nullptr if we don't
@@ -189,6 +190,7 @@ public:
                 new_num_bytes)
             );
         num_bytes_ = new_num_bytes;
+        shares_data_ = false;
       }
 
       // Save the new type
@@ -203,6 +205,7 @@ protected:
   TypeMeta type_; // Data type of underlying storage
   shared_ptr<void> data_; // Pointer to underlying storage
   Index size_; // The number of elements in the buffer
+  bool shares_data_;
   
   // To keep track of the true size
   // of the underlying allocation

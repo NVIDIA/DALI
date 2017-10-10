@@ -270,7 +270,11 @@ private:
     }
     return base_ptr_offset;
   }
-  
+
+  // Helper function to resize intermediate buffers and
+  // handle data sharing for GPU buffers.
+  void IntermediateBufferResizeAndSetup();
+
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
@@ -299,13 +303,8 @@ private:
   vector<BatchPtr<CPUBackend>> cpu_buffers_;
   vector<BatchPtr<GPUBackend>> gpu_buffers_;
 
-  // We ping-pong between gpu buffers to reduce GPU
-  // memory usage. In order to do this, we have to
-  // handle the setting of meta-data for input/output
-  // batches prior to passing them into each op. This
-  // vector keeps track of the types for each output.
-  vector<TypeMeta> gpu_buffer_types_;
-
+  // The actually GPU allocations we maintain
+  vector<BatchPtr<GPUBackend>> gpu_storage_;
   
   // DataReader to query for datum during execution
   unique_ptr<DataReader> data_reader_;
