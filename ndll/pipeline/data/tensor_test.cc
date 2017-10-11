@@ -106,4 +106,66 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
   }
 }
 
+TYPED_TEST(TensorTest, TestTypeChange) {
+  Tensor<TypeParam> tensor;
+  
+  // Get shape
+  vector<Index> shape = this->GetRandShape();
+  tensor.Resize(shape);
+  
+  // Verify the settings
+  ASSERT_NE(tensor.template data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  for (size_t i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);      
+  }
+
+  // Save the pointer
+  void *ptr = tensor.raw_data();
+  size_t nbytes = tensor.nbytes();
+  
+  // Change the type of the buffer
+  tensor.template data<int>();
+
+  // Verify the settings
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  for (size_t i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);      
+  }
+
+  // No re-allocation should have occured
+  ASSERT_EQ(ptr, tensor.raw_data());
+  ASSERT_EQ(nbytes, tensor.nbytes());
+  
+  // Change the type to a smaller type
+  tensor.template data<uint8>();
+
+  // Verify the settings
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  for (size_t i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);      
+  }
+
+  // No re-allocation should have occured
+  ASSERT_EQ(ptr, tensor.raw_data());
+  ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor.nbytes());
+  
+  // Change the type to a larger type
+  tensor.template data<double>();
+
+  // Verify the settings
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  for (size_t i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);      
+  }
+
+  // The memory should have been re-allocated
+  ASSERT_NE(ptr, tensor.raw_data());
+  ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor.nbytes());
+}
+
 } // namespace ndll
