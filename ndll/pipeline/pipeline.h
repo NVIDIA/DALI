@@ -210,8 +210,6 @@ public:
    */
   void RunCopy();
 
-  // 
-  
   /**
    * @brief Run the forward stage of the pipeline into the output buffer.
    *
