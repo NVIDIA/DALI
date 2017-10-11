@@ -235,7 +235,7 @@ public:
    * @param sync Indicates whether this function should synchronize on
    * the pipeline stream before returning. Defaults to 'true'
    */
-  Batch<GPUBackend>& output_batch(bool sync = true) const {
+  const Batch<GPUBackend>& output_batch(bool sync = true) const {
     if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
     return *gpu_buffers_.back();
   }
