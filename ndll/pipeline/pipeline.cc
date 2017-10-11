@@ -35,7 +35,7 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
   // Read a single sample from the database and
   // parse it to get the input type
   data_reader_->Read(&input_datum_[0]);
-  data_parser_->Run(input_datum_[0], &parsed_datum_[0], 0, 0);
+  data_parser_->Parse(input_datum_[0], &parsed_datum_[0], 0, 0);
   TypeMeta read_output_type = input_datum_[0].type();
   TypeMeta parsed_output_type = parsed_datum_[0].type();
   NDLL_ENFORCE(read_output_type.id() != NO_TYPE);
@@ -68,7 +68,7 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
     gpu_storage_.push_back(std::move(tmp_gpu));
 
     // We'll manage these buffers in bytes for simplicity
-    gpu_storage_.back()->template data<uint8>();
+    gpu_storage_.back()->template mutable_data<uint8>();
   }
 
   // For all of the ops we will create batches, but share the
@@ -155,7 +155,7 @@ void Pipeline::RunPrefetch() {
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
                 // Run the Parsers
-                data_parser_->Run(input_datum_[data_idx],
+                data_parser_->Parse(input_datum_[data_idx],
                     &parsed_datum_[data_idx], data_idx, tid);
 
                 // Get the output shape for the cpu-side results
@@ -235,7 +235,7 @@ void Pipeline::RunCopy() {
 
   // Copy the data to the GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
-          dst->raw_data(),
+          dst->raw_mutable_data(),
           src.raw_data(),
           src.nbytes(),
           cudaMemcpyHostToDevice,
@@ -243,7 +243,7 @@ void Pipeline::RunCopy() {
 
   // Copy the mega-buffer to GPU in the main stream
   CUDA_CALL(cudaMemcpyAsync(
-          mega_buffer_gpu_.raw_data(),
+          mega_buffer_gpu_.raw_mutable_data(),
           mega_buffer_.raw_data(),
           mega_buffer_.nbytes(),
           cudaMemcpyHostToDevice,

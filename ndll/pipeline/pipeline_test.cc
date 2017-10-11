@@ -30,7 +30,7 @@ public:
   }
 
   template <typename T>
-  void CompareData(T* data, T* ground_truth, int n) {
+  void CompareData(const T* data, const T* ground_truth, int n) {
     vector<T> tmp_cpu(n);
     CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T)*n, cudaMemcpyDefault));
 

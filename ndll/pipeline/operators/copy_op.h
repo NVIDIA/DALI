@@ -33,13 +33,13 @@ protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int /* unused */, int /* unused */) override {
     NDLL_ENFORCE(input.shape() == output->shape());
-    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
+    std::memcpy(output->raw_mutable_data(), input.raw_data(), input.nbytes());
   }
   
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     CUDA_CALL(cudaMemcpyAsync(
-            output->raw_data(),
+            output->raw_mutable_data(),
             input.raw_data(),
             input.nbytes(),
             cudaMemcpyDeviceToDevice,

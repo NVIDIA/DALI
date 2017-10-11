@@ -85,7 +85,7 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<OUT>();
+    output->template mutable_data<OUT>();
   }
   
   inline CropMirrorNormalizePermuteOp* Clone() const override {
@@ -120,7 +120,7 @@ protected:
             batched_param_gpu_buffers_[2].template data<bool>(),
             mean_.template data<float>(),
             inv_std_.template data<float>(),
-            output->template data<OUT>(),
+            output->template mutable_data<OUT>(),
             stream_));
   }
   
@@ -136,24 +136,24 @@ protected:
   inline void SerialBatchedParameterSetup(const Batch<Backend> &input,
       Batch<Backend>* output) override {
     // Copy in_strides
-    std::memcpy(batched_param_buffers_[1].template data<int>(),
+    std::memcpy(batched_param_buffers_[1].template mutable_data<int>(),
         in_strides_.data(), in_strides_.size()*sizeof(int));
 
     // Calculate input ptrs & copy mirror flags
     for (int i = 0; i < batch_size_; ++i) {
-      batched_param_buffers_[2].template data<bool>()[i] = mirror_[i];
-      batched_param_buffers_[0].template data<const uint8*>()[i] =
+      batched_param_buffers_[2].template mutable_data<bool>()[i] = mirror_[i];
+      batched_param_buffers_[0].template mutable_data<const uint8*>()[i] =
         input.template datum<uint8>(i) + crop_offsets_[i];
     }
 
     // Validate parameters
     NDLL_CALL(ValidateBatchedCropMirrorNormalizePermute(
-            batched_param_buffers_[0].template data<const uint8*>(),
-            batched_param_buffers_[1].template data<int>(),
+            batched_param_buffers_[0].template mutable_data<const uint8*>(),
+            batched_param_buffers_[1].template mutable_data<int>(),
             batch_size_, crop_h_, crop_w_, C_,
-            batched_param_buffers_[2].template data<bool>(),
+            batched_param_buffers_[2].template mutable_data<bool>(),
             mean_vec_.data(), inv_std_vec_.data(),
-            output->template data<OUT>()));
+            output->template mutable_data<OUT>()));
   }
   
   std::mt19937 rand_gen_;

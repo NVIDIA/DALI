@@ -27,9 +27,9 @@ public:
   template <typename T>
   inline void Copy(const vector<T> &data) {
     // Resize buffer to match input & load data
-    this->template data<T>();
+    this->template mutable_data<T>();
     Resize({(Index)data.size()});
-    MemCopy(this->raw_data(), data.data(), this->nbytes());
+    MemCopy(this->raw_mutable_data(), data.data(), this->nbytes());
   }
   
   /**

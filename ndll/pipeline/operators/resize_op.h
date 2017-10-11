@@ -88,7 +88,7 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<uint8>();
+    output->template mutable_data<uint8>();
   }
   
   inline ResizeOp* Clone() const override {
@@ -119,7 +119,7 @@ protected:
       Batch<Backend> *output, int data_idx, int /* unused */) override {
     // Setup input & output ptrs for each image
     input_ptrs_[data_idx] = input.template datum<uint8>(data_idx);
-    output_ptrs_[data_idx] = output->template datum<uint8>(data_idx);
+    output_ptrs_[data_idx] = output->template mutable_datum<uint8>(data_idx);
   }
   
   std::mt19937 rand_gen_;

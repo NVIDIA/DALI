@@ -46,13 +46,13 @@ public:
     // Calling raw_data here will enforce that the Tensor
     // has valid type and is thus allocated
     data_ = static_cast<void*>(
-        static_cast<uint8*>(in->raw_data())
+        static_cast<uint8*>(in->raw_mutable_data())
         + start*in->type().size()
         );
   }
 
   template <typename T>
-  inline T* data() {
+  inline T* mutable_data() {
     return static_cast<T*>(data_);
   }
 

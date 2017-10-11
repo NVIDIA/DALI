@@ -96,11 +96,11 @@ public:
                   c_};
     }
     
-    batch->template data<uint8>();
+    batch->template mutable_data<uint8>();
     batch->Resize(shape);
     
     for (int i = 0; i < n; ++i) {
-      std::memcpy(batch->template datum<uint8>(i),
+      std::memcpy(batch->template mutable_datum<uint8>(i),
           images_[i % images_.size()],
           Product(batch->datum_shape(i)));
     }

@@ -125,7 +125,7 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<uint8>();
+    output->template mutable_data<uint8>();
   }
   
   inline ResizeCropMirrorOp* Clone() const override {
@@ -170,7 +170,7 @@ protected:
         meta.crop_y, meta.crop_x,
         crop_h_, crop_w_,
         meta.mirror,
-        output->template data<uint8>(),
+        output->template mutable_data<uint8>(),
         NDLL_INTERP_LINEAR,
         tl_workspace_[thread_idx].data());
   }
@@ -261,7 +261,7 @@ protected:
         meta.crop_y, meta.crop_x,
         crop_h_, crop_w_,
         meta.mirror,
-        output->template data<uint8>(),
+        output->template mutable_data<uint8>(),
         NDLL_INTERP_LINEAR,
         tl_workspace_[thread_idx].data());
   }

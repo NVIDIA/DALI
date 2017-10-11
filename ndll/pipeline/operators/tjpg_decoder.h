@@ -38,7 +38,7 @@ public:
 
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) override {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<uint8>();
+    output->template mutable_data<uint8>();
   }
   
   inline TJPGDecoder* Clone() const override {
@@ -56,7 +56,7 @@ protected:
       Datum<Backend> *output, int /* unused */, int /* unused */) override {
     
     NDLL_CALL(DecodeJPEGHost(input.template data<uint8>(), input.size(), output_type_,
-            output->shape()[0], output->shape()[1], output->template data<uint8>()));
+            output->shape()[0], output->shape()[1], output->template mutable_data<uint8>()));
   }
 
   NDLLImageType output_type_;

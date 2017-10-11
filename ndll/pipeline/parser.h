@@ -22,7 +22,7 @@ public:
    * Note: The parser is responsible for resizing its output Datum
    * prior to accessing its data
    */
-  virtual void Run(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
+  virtual void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
       int data_idx, int thread_idx) = 0;
 
   virtual Parser* Clone() const = 0;
@@ -42,7 +42,7 @@ public:
   DefaultParser() {}
   ~DefaultParser() {}
 
-  void Run(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
+  void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
       int /* unused */, int /* unused */) override {
     output->Copy(input);
   }

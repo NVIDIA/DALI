@@ -44,7 +44,7 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<OUT>();
+    output->template mutable_data<OUT>();
   }
   
   inline NormalizePermuteOp* Clone() const override {
@@ -58,8 +58,8 @@ protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     NDLL_CALL(BatchedNormalizePermute(input.template data<uint8>(), batch_size_, H_, W_, C_,
-            mean_.template data<float>(), inv_std_.template data<float>(),
-            output->template data<OUT>(), stream_));
+            mean_.template mutable_data<float>(), inv_std_.template mutable_data<float>(),
+            output->template mutable_data<OUT>(), stream_));
   }
   
   Tensor<Backend> mean_, inv_std_;

@@ -67,7 +67,7 @@ public:
 
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template data<int16>();
+    output->template mutable_data<int16>();
   }
   
   inline HuffmanDecoder* Clone() const override {
@@ -101,7 +101,7 @@ protected:
     // Gather the pointers to each image component's dct coefficients
     int offset = 0;
     for (int i = 0; i < jpeg.components; ++i) {
-      dct_coeff_ptrs[i] = output->template data<int16>() + offset;
+      dct_coeff_ptrs[i] = output->template mutable_data<int16>() + offset;
       offset += jpeg.dctSize[i] / sizeof(int16);
     }
 
@@ -141,8 +141,8 @@ public:
 
     // We need three buffers for our parameters
     batched_param_sizes_.resize(3);
-    yuv_data_.template data<uint8>();
-    strided_imgs_.template data<uint8>();
+    yuv_data_.template mutable_data<uint8>();
+    strided_imgs_.template mutable_data<uint8>();
   }
   
   virtual inline ~DCTQuantInvOp() = default;
@@ -186,7 +186,7 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<int16>(input_type));
-    output->template data<uint8>();
+    output->template mutable_data<uint8>();
   }
   
   inline DCTQuantInvOp* Clone() const override {
@@ -225,9 +225,9 @@ protected:
       Batch<Backend> *output) override {
     // Run the batched kernel
     batchedDctQuantInv(
-        batched_param_gpu_buffers_[1].template data<DctQuantInvImageParam>(),
-        batched_param_gpu_buffers_[0].template data<uint8>(),
-        batched_param_gpu_buffers_[2].template data<int>(),
+        batched_param_gpu_buffers_[1].template mutable_data<DctQuantInvImageParam>(),
+        batched_param_gpu_buffers_[0].template mutable_data<uint8>(),
+        batched_param_gpu_buffers_[2].template mutable_data<int>(),
         num_cuda_blocks_
         );
 
@@ -246,7 +246,8 @@ protected:
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
         const vector<Index> &out_dims = output->datum_shape(i);
-        CUDA_CALL(cudaMemcpy2DAsync(output->template datum<uint8>(i), // dst
+        CUDA_CALL(cudaMemcpy2DAsync(
+                output->template mutable_datum<uint8>(i), // dst
                 out_dims[1], // dptich
                 yuv_data_.template data<uint8>() + yuv_offsets_[i], // src
                 yuv_dims_[i].width, // spitch
@@ -259,7 +260,7 @@ protected:
   }
 
   inline void YUVToColorHelper(Batch<Backend> *output) {
-    uint8 *yuv_data_ptr = yuv_data_.template data<uint8>();
+    uint8 *yuv_data_ptr = yuv_data_.template mutable_data<uint8>();
     for (int i = 0; i < batch_size_; ++i) {
       ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
       if (jpeg.components == 3) {
@@ -269,7 +270,7 @@ protected:
         int yuv_steps[3] = {yuv_dims_[i*3].width,
                             yuv_dims_[i*3 + 1].width,
                             yuv_dims_[i*3 + 2].width};
-        uint8 *strided_img = strided_imgs_.template data<uint8>() + img_offsets_[i];
+        uint8 *strided_img = strided_imgs_.template mutable_data<uint8>() + img_offsets_[i];
         ComponentSampling sampling_ratio = jpeg.sRatio;
 
         // Note: NPP yuv->rgb + upsample methods are very rigid. With odd dimensioned
@@ -296,7 +297,7 @@ protected:
         // Run a 2D memcpy to get rid of image stride
         const vector<Index> &out_dims = output->datum_shape(i);
         CUDA_CALL(cudaMemcpy2DAsync(
-                output->template datum<uint8>(i), // dst
+                output->template mutable_datum<uint8>(i), // dst
                 out_dims[1]*C_, // dpitch
                 strided_img, // src
                 img_rois_[i].width*C_, // spitch
@@ -310,7 +311,7 @@ protected:
         uint8 *y_plane = yuv_data_ptr + yuv_offsets_[i*3];
         int step = yuv_dims_[i*3].width;
         yToRgb(y_plane, step,
-            output->template datum<uint8>(i),
+            output->template mutable_datum<uint8>(i),
             img_steps_[i], img_rois_[i],
             stream_);
       }
@@ -360,7 +361,7 @@ protected:
       Batch<Backend>* /* unused */) override {
     // Setup image indices for batched idct kernel launch
     getBatchedInvDctImageIndices(yuv_dims_.data(),
-        num_component_, batched_param_buffers_[2].template data<int>());
+        num_component_, batched_param_buffers_[2].template mutable_data<int>());
   }
 
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
@@ -369,7 +370,7 @@ protected:
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      std::memcpy(batched_param_buffers_[0].template data<uint8>() + (comp_id * 64),
+      std::memcpy(batched_param_buffers_[0].template mutable_data<uint8>() + (comp_id * 64),
           jpeg.quantTables[i].aTable.lowp, 64);
     }
 
@@ -379,10 +380,10 @@ protected:
     int dct_offset = 0;
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      param = &batched_param_buffers_[1].template data<DctQuantInvImageParam>()[comp_id];
+      param = &batched_param_buffers_[1].template mutable_data<DctQuantInvImageParam>()[comp_id];
       param->src = input.template datum<int16>(data_idx) + dct_offset;
       param->srcStep = dct_step_[comp_id];
-      param->dst = yuv_data_.template data<uint8>() + yuv_offsets_[comp_id];
+      param->dst = yuv_data_.template mutable_data<uint8>() + yuv_offsets_[comp_id];
       param->dstWidth = yuv_dims_[comp_id].width;
       param->gridInfo = grid_info_[comp_id];
 

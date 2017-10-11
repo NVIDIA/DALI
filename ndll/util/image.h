@@ -46,12 +46,12 @@ void DumpHWCToFile(const T *img, int h, int w, int c, string file_name) {
   CUDA_CALL(cudaDeviceSynchronize());
   Tensor<GPUBackend> tmp_gpu, double_gpu;
   tmp_gpu.Resize({h, w, c});
-  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  tmp_gpu.template mutable_data<T>(); // make sure the buffer is allocated
   double_gpu.Resize({h, w, c});
 
   // Copy the data and convert to double
-  MemCopy(tmp_gpu.template data<T>(), img, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+  MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
 
   vector<double> tmp(h*w*c, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
@@ -78,12 +78,12 @@ void DumpCHWToFile(const T *img, int h, int w, int c, string file_name) {
   CUDA_CALL(cudaDeviceSynchronize());
   Tensor<GPUBackend> tmp_gpu, double_gpu;
   tmp_gpu.Resize({c, h, w});
-  tmp_gpu.template data<T>(); // make sure the buffer is allocated
+  tmp_gpu.template mutable_data<T>(); // make sure the buffer is allocated
   double_gpu.Resize({c, h, w});
 
   // Copy the data and convert to double
-  MemCopy(tmp_gpu.template data<T>(), img, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template data<double>());
+  MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
+  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
 
   vector<double> tmp(c*h*w, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
@@ -127,9 +127,9 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
   batch->Resize(shape);
     
   // Copy in the data
-  batch->template data<uint8>();
+  batch->template mutable_data<uint8>();
   for (int i = 0; i < batch_size; ++i) {
-    CUDA_CALL(cudaMemcpy(batch->raw_datum(i),
+    CUDA_CALL(cudaMemcpy(batch->raw_mutable_datum(i),
             jpegs[i % jpegs.size()],
             jpeg_sizes[i % jpegs.size()],
             cudaMemcpyDefault));

@@ -37,7 +37,7 @@ public:
   inline void Copy(const Batch<InBackend> &other) {
     this->set_type(other.type());
     this->ResizeLike(other);
-    MemCopy(this->raw_data(), other.raw_data(), other.nbytes());
+    MemCopy(this->raw_mutable_data(), other.raw_data(), other.nbytes());
   }
   
   /**
@@ -128,8 +128,8 @@ public:
    * @brief Returns a typed pointer to the sample with the given index.
    */
   template <typename T>
-  inline T* datum(int idx) {
-    return this->template data<T>() + datum_offset(idx);
+  inline T* mutable_datum(int idx) {
+    return this->template mutable_data<T>() + datum_offset(idx);
   }
 
   /**
@@ -143,9 +143,9 @@ public:
   /**
    * @brief Returns a raw pointer to the sample with the given index.
    */
-  inline void* raw_datum(int idx) {
+  inline void* raw_mutable_datum(int idx) {
     return static_cast<void*>(
-        static_cast<uint8*>(this->raw_data()) +
+        static_cast<uint8*>(this->raw_mutable_data()) +
         (datum_offset(idx) * type_.size())
         );
   }

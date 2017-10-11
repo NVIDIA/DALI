@@ -17,7 +17,7 @@ namespace ndll {
  * allocate its own underlying storage. These methods are @n
  * 'set_type()' - Will allocate memory if the calling type does 
  * not match the underlying type of the buffer @n
- * 'data<T>()' - Calls 'set_type' internally @n
+ * 'mutable_data<T>()' - Calls 'set_type' internally @n
  * 'Resize()' - Detaches from the wrapped memory and allocates
  * memory for the input number of elements.
  */
@@ -105,7 +105,7 @@ public:
   inline void Copy(const Datum<Backend> &other) {
     this->set_type(other.type());
     this->ResizeLike(other);
-    MemCopy(this->raw_data(), other.raw_data(), other.nbytes());
+    MemCopy(this->raw_mutable_data(), other.raw_data(), other.nbytes());
   }
 
   /**
@@ -137,9 +137,9 @@ public:
     shape_ = batch->datum_shape(sample_idx);
     size_ = Product(shape_);
 
-    // Calling raw_datum here will enforce that the type is valid
+    // Calling raw_mutable_datum here will enforce that the type is valid
     type_ = batch->type();
-    data_.reset(batch->raw_datum(sample_idx),
+    data_.reset(batch->raw_mutable_datum(sample_idx),
         [](void *p) { /* noop: do not delete ptr in the middle of an allocation */ });
 
     // Note: In the case that the Datum does not own its underlying storage,

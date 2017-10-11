@@ -65,8 +65,8 @@ public:
     parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
-    mega_buffer_.template data<uint8>();
-    mega_buffer_gpu_.template data<uint8>();
+    mega_buffer_.template mutable_data<uint8>();
+    mega_buffer_gpu_.template mutable_data<uint8>();
 
     // TODO(tgale): We need to figure out the best way to ensure that the memory
     // this object allocates is stored on the correct NUMA node that we can

@@ -66,7 +66,7 @@ TYPED_TEST(BatchTest, TestResize) {
   batch.Resize(shape);
     
   // Check the internals
-  ASSERT_NE(batch.template data<float>(), nullptr);
+  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
   ASSERT_EQ(batch.ndatum(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
     ASSERT_EQ(batch.datum_shape(i), shape[i]);
@@ -97,8 +97,8 @@ TYPED_TEST(BatchTest, TestMultipleResize) {
   batch.Resize(shape);
     
   // The only thing that should matter is the resize
-  // after the call to 'data<T>()'
-  ASSERT_NE(batch.template data<float>(), nullptr);
+  // after the call to 'mutable_data<T>()'
+  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
   ASSERT_EQ(batch.ndatum(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
     ASSERT_EQ(batch.datum_shape(i), shape[i]);
@@ -123,7 +123,7 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   batch.Resize(shape);
     
   // Check the internals
-  ASSERT_NE(batch.template data<float>(), nullptr);
+  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
   ASSERT_EQ(batch.ndatum(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
     ASSERT_EQ(batch.datum_shape(i), shape[i]);
@@ -131,11 +131,11 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   }
 
   // Save the pointer
-  void *ptr = batch.raw_data();
+  const void *ptr = batch.raw_data();
   size_t nbytes = batch.nbytes();
   
   // Change the data type
-  batch.template data<int>();
+  batch.template mutable_data<int>();
 
   // Check the internals
   ASSERT_EQ(batch.ndatum(), batch_size);
@@ -149,7 +149,7 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   ASSERT_EQ(nbytes, batch.nbytes());
   
   // Change the data type to something smaller
-  batch.template data<uint8>();
+  batch.template mutable_data<uint8>();
   
   // Check the internals
   ASSERT_EQ(batch.ndatum(), batch_size);
@@ -165,7 +165,7 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), batch.nbytes());
 
   // Change the data type to something smaller
-  batch.template data<double>();
+  batch.template mutable_data<double>();
   
   // Check the internals
   ASSERT_EQ(batch.ndatum(), batch_size);
@@ -198,7 +198,7 @@ TYPED_TEST(BatchTest, TestShareData) {
   batch.Resize(shape);
     
   // Check the internals
-  ASSERT_NE(batch.template data<float>(), nullptr);
+  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
   ASSERT_EQ(batch.ndatum(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
     ASSERT_EQ(batch.datum_shape(i), shape[i]);
@@ -207,7 +207,7 @@ TYPED_TEST(BatchTest, TestShareData) {
 
   // Create a new batch w/ a smaller data type
   Batch<TypeParam> batch2;
-  batch2.template data<uint8>();
+  batch2.template mutable_data<uint8>();
 
   // Share the data
   batch2.ShareData(batch);
@@ -235,7 +235,7 @@ TYPED_TEST(BatchTest, TestShareData) {
 
   
   // Trigger allocation through buffer API, verify we no longer share
-  batch2.template data<double>();
+  batch2.template mutable_data<double>();
   ASSERT_FALSE(batch2.shares_data());
 
   // Check the internals

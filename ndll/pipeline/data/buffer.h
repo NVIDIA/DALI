@@ -71,7 +71,7 @@ public:
    * new data type.
    */
   template <typename T>
-  inline T* data() {
+  inline T* mutable_data() {
     // Note: Call to 'set_type' will immediately return if the calling
     // type matches the current type of the buffer.
     TypeMeta calling_type;
@@ -87,7 +87,7 @@ public:
   template <typename T>
   inline const T* data() const {
     NDLL_ENFORCE(type_.id() != NO_TYPE,
-        "Buffer has no type, 'data<T>()' must be called "
+        "Buffer has no type, 'mutable_data<T>()' must be called "
         "on non-const buffer to set valid type");
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
         "Calling type does not match buffer data type: " +
@@ -100,9 +100,9 @@ public:
    * A valid type must be set prior to calling this method by calling
    * the non-const version of the method, or calling 'set_type'.
    */
-  inline void* raw_data() {
+  inline void* raw_mutable_data() {
     NDLL_ENFORCE(type_.id() != NO_TYPE,
-        "Buffer has no type, 'data<T>()' or 'set_type' must "
+        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
@@ -114,7 +114,7 @@ public:
    */
   inline const void* raw_data() const {
     NDLL_ENFORCE(type_.id() != NO_TYPE,
-        "Buffer has no type, 'data<T>()' or 'set_type' must "
+        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }

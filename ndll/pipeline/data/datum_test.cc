@@ -51,7 +51,7 @@ TYPED_TEST(DatumTest, TestResize) {
   datum.Resize(shape);
 
   // Verify the settings
-  ASSERT_NE(datum.template data<float>(), nullptr);
+  ASSERT_NE(datum.template mutable_data<float>(), nullptr);
   ASSERT_EQ(datum.size(), Product(shape));
   ASSERT_TRUE(datum.owned());
   for (size_t i = 0; i < shape.size(); ++i) {
@@ -69,7 +69,7 @@ TYPED_TEST(DatumTest, TestMultipleResize) {
     datum.Resize(shape);
       
     // Verify the settings
-    ASSERT_NE(datum.template data<float>(), nullptr);
+    ASSERT_NE(datum.template mutable_data<float>(), nullptr);
     ASSERT_EQ(datum.size(), Product(shape));
     ASSERT_TRUE(datum.owned());
     for (size_t i = 0; i < shape.size(); ++i) {
@@ -84,7 +84,7 @@ TYPED_TEST(DatumTest, TestGetDatum) {
   vector<Dims> shape = this->GetRandBatchShape();
   int batch_size = shape.size();
   batch.Resize(shape);
-  batch.template data<float>();
+  batch.template mutable_data<float>();
 
   // Wrap a sample
   int datum_idx = this->RandInt(0, batch_size-1);
@@ -96,7 +96,7 @@ TYPED_TEST(DatumTest, TestGetDatum) {
   ASSERT_EQ(datum.shape(), batch.datum_shape(datum_idx));
   ASSERT_EQ(datum.nbytes(),
       Product(batch.datum_shape(datum_idx))*batch.type().size());
-  ASSERT_EQ(datum.template data<float>(), batch.template datum<float>(datum_idx));
+  ASSERT_EQ(datum.template mutable_data<float>(), batch.template datum<float>(datum_idx));
   ASSERT_EQ(datum.owned(), false);
 
   // Now resize the data
@@ -104,7 +104,7 @@ TYPED_TEST(DatumTest, TestGetDatum) {
   datum.Resize(new_shape);
 
   // Verify the settings
-  ASSERT_NE(datum.template data<float>(), nullptr);
+  ASSERT_NE(datum.template mutable_data<float>(), nullptr);
   ASSERT_EQ(datum.size(), Product(new_shape));
   ASSERT_TRUE(datum.owned());
   for (size_t i = 0; i < new_shape.size(); ++i) {
@@ -120,7 +120,7 @@ TYPED_TEST(DatumTest, TestTypeChange) {
   datum.Resize(shape);
 
   // Verify the settings
-  ASSERT_NE(datum.template data<float>(), nullptr);
+  ASSERT_NE(datum.template mutable_data<float>(), nullptr);
   ASSERT_EQ(datum.size(), Product(shape));
   ASSERT_TRUE(datum.owned());
   for (size_t i = 0; i < shape.size(); ++i) {
@@ -128,11 +128,11 @@ TYPED_TEST(DatumTest, TestTypeChange) {
   }
 
   // Save the pointer
-  void *ptr = datum.raw_data();
+  const void *ptr = datum.raw_data();
   size_t nbytes = datum.nbytes();
 
   // Change the data type
-  datum.template data<int>();
+  datum.template mutable_data<int>();
 
   // Verify the settings
   ASSERT_EQ(datum.size(), Product(shape));
@@ -146,7 +146,7 @@ TYPED_TEST(DatumTest, TestTypeChange) {
   ASSERT_EQ(nbytes, datum.nbytes());
 
   // Change the data type to something smaller
-  datum.template data<uint8>();
+  datum.template mutable_data<uint8>();
 
   // Verify the settings
   ASSERT_EQ(datum.size(), Product(shape));
@@ -160,7 +160,7 @@ TYPED_TEST(DatumTest, TestTypeChange) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), datum.nbytes());
 
   // Change the data type to something bigger
-  datum.template data<double>();
+  datum.template mutable_data<double>();
 
   // Verify the settings
   ASSERT_EQ(datum.size(), Product(shape));

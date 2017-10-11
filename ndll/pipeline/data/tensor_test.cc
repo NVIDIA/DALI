@@ -54,7 +54,7 @@ TYPED_TEST(TensorTest, TestResize) {
     tensor.Resize(shape);
 
     // Verify the settings
-    ASSERT_NE(tensor.template data<float>(), nullptr);
+    ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), Product(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
     for (size_t i = 0; i < shape.size(); ++i) {
@@ -77,7 +77,7 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
       tensor.Resize(shape);
       
       // Verify the settings
-      ASSERT_NE(tensor.template data<float>(), nullptr);
+      ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
       ASSERT_EQ(tensor.size(), Product(shape));
       ASSERT_EQ(tensor.ndim(), shape.size());
       for (size_t i = 0; i < shape.size(); ++i) {
@@ -98,7 +98,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
     tensor.Resize(shape);
        
     // Verify the settings
-    ASSERT_NE(tensor.template data<float>(), nullptr);
+    ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), Product(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
   } catch (std::runtime_error &e) {
@@ -114,7 +114,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   tensor.Resize(shape);
   
   // Verify the settings
-  ASSERT_NE(tensor.template data<float>(), nullptr);
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
@@ -122,11 +122,11 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   }
 
   // Save the pointer
-  void *ptr = tensor.raw_data();
+  const void *ptr = tensor.raw_data();
   size_t nbytes = tensor.nbytes();
   
   // Change the type of the buffer
-  tensor.template data<int>();
+  tensor.template mutable_data<int>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), Product(shape));
@@ -140,7 +140,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(nbytes, tensor.nbytes());
   
   // Change the type to a smaller type
-  tensor.template data<uint8>();
+  tensor.template mutable_data<uint8>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), Product(shape));
@@ -154,7 +154,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor.nbytes());
   
   // Change the type to a larger type
-  tensor.template data<double>();
+  tensor.template mutable_data<double>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), Product(shape));
