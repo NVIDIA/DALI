@@ -88,7 +88,15 @@ public:
   }
 
   /**
-   * @brief 
+   * @brief Wraps the data owned by the input Batch. Both batches must
+   * have valid types, and the input batch must have enough storage to
+   * store a single element of the calling objects type.
+   *
+   * When this function is called, the calling object shares the 
+   * underlying allocation of the input batch. Its size is reset
+   * to be the maximum number of elements of its type that can be
+   * stored in the input batches allocation. While this batch shares
+   * data with another batch, 'shares_data()' will return 'true'.
    */
   inline void ShareData(const Batch<Backend> &other) {
     NDLL_ENFORCE(IsValidType(this->type_), "To share data another "
