@@ -164,8 +164,18 @@ public:
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
+   *
+   * GPU memory and pinned memory allocations cause implicit synchronization of 
+   * the device, resulting in very slow startup times as ndll buffer sizes 
+   * stabilize. To avoid this slowdown, we optionally take in an estimated size
+   * of each image that will be processed in bytes. This hint is used to
+   * pre-size buffers, potentially avoiding slow startup if the hint is close
+   * to the true amount of memory that will be needed by the largest image to
+   * be processed.
+   *
+   * @param pixels_per_image_hint Estimated size of each image to be processed
    */
-  void Build();
+  void Build(size_t pixels_per_image_hint = 0);
 
   /**
    * @brief Run the prefetch stage of the pipeline.

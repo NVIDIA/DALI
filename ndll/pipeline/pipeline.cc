@@ -6,7 +6,7 @@
 
 namespace ndll {
 
-void Pipeline::Build() {
+void Pipeline::Build(size_t pixels_per_image_hint) {
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   
   // Make sure the decoder is the first op in the pipeline
@@ -111,34 +111,34 @@ void Pipeline::Build() {
     op->set_stream(stream_);
   }
 
-  // TODO(tgale): Move these resize amounts to be based on hints from the
-  // user. We could also have a setting where we run the pipeline and add
-  // a small threshold.
-  
-  // TODO(tgale): The large number of memory allocations in the pipeline
+  // NOTE: The large number of memory allocations in the pipeline
   // interfere with training alot due to implicit synchronization w/
-  // pinned memory allocations. For now, we presize the buffers to reasonable
-  // sizes for their task. However, these sizes are basically fit to imagenet,
-  // and to a jpeg quality of about 85. We should move to wrapping our backend
-  // objects withing caching allocators.
-  // for (auto &datum : input_datum_) {
-  //   datum.set_type(read_output_type);
-  //   datum.Resize({300000}); // 3000KB
-  // }
-  // for (auto &datum : parsed_datum_) {
-  //   datum.set_type(parsed_output_type);
-  //   datum.Resize({300000}); // 300KB
-  // }
+  // pinned memory allocations. We use the user-given hint to pre-size
+  // our buffers to avoid this slowdown while the buffer sizes stabilize.
+  // We could use caching allocator wrappers, but this could potentially
+  // interfere with the rest of the applications allocator and cause false
+  // out of memory errors.
+  
+  for (auto &datum : input_datum_) {
+    datum.set_type(read_output_type);
+    datum.Resize({(Index)pixels_per_image_hint});
+  }
+  for (auto &datum : parsed_datum_) {
+    datum.set_type(parsed_output_type);
+    datum.Resize({(Index)pixels_per_image_hint});
+  }
 
-  // mega_buffer_.Resize({300000}); // 300KB
-  // mega_buffer_gpu_.Resize({300000}); // 300KB
+  // NOTE: We don't presize the mega-buffer, as the size of this usually
+  // does not vary over time and has no relation to the size of the images.
+  // If we wanted to do this, we could run over the forward ops and get
+  // estimates of their memory requirements.
+
+  // Resize the intermediate host & gpu storage
+  vector<Dims> tmp(batch_size_, {(Index)pixels_per_image_hint});
+  for (auto &buf : cpu_buffers_) buf->Resize(tmp);
+  for (auto &buf : gpu_storage_) buf->Resize(tmp);
   
-  // vector<Dims> tmp(1);
-  // tmp[0].push_back(1500000 * batch_size_); // 1.5MB / sample
-  // for (auto &buf : cpu_buffers_) buf->Resize(tmp);
-  // for (auto &buf : gpu_buffers_) buf->Resize(tmp);
-  
-  // Mark the pipeline as built so we know it is safe to run
+  // mark the pipeline as built so we know it is safe to run
   built_ = true;
 }
 
