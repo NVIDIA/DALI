@@ -64,3 +64,9 @@ list(APPEND NDLL_LIBS ${OpenCV_LIBRARIES})
 # Hybrid Decode
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/hybrid_decode)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/hybrid_decode/include)
+
+# PyBind
+if (BUILD_PYTHON)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/pybind11)
+  # include_directories(${PROJECT_SOURCE_DIR}/third_party/pybind11/include)
+endif()

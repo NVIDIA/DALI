@@ -7,6 +7,7 @@ project(NDLL CXX)
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
 option(USE_NVTX "Build with NVTX profiling enabled" ON)
+option(BUILD_PYTHON "Build python bindings" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
@@ -47,4 +48,6 @@ cuda_include_directories(${PROJECT_SOURCE_DIR})
 # Project build
 add_subdirectory(ndll)
 
-
+# HACK: Add __init__.pys as needed
+file(WRITE ${CMAKE_BINARY_DIR}/ndll/__init__.py "")
+file(WRITE ${CMAKE_BINARY_DIR}/ndll/python/__init__.py "")

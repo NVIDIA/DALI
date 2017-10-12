@@ -44,3 +44,9 @@ if (BUILD_BENCHMARK)
 
   target_link_libraries(${benchmark_bin} ${NDLL_LIBS} ${ndll_lib} benchmark pthread)
 endif()
+
+# Build the python bindings
+if (BUILD_PYTHON)
+  # Get all python srcs
+  add_subdirectory(python)
+endif()
