@@ -1,5 +1,3 @@
-// Source: filename is based off idea behind Caffe file of the same
-// name. Contents have no relation unless otherwise specified.
 #ifndef NDLL_COMMON_H_
 #define NDLL_COMMON_H_
 
@@ -33,6 +31,8 @@ using std::vector;
 // Common types
 typedef uint8_t uint8;
 typedef int16_t int16;
+typedef int64_t int64;
+typedef uint64_t uint64;
 
 // Only supported on the GPU
 typedef __half float16;

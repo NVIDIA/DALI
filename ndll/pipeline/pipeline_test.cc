@@ -76,9 +76,11 @@ TYPED_TEST_CASE(PipelineTest, BackendTypes);
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   typedef typename TypeParam::TCPUBackend HostBackend;
   int num_thread = TypeParam::nt;
-  
   int batch_size = this->RandInt(1, 256);
-  Pipeline pipe(batch_size, num_thread, 0, 0);
+  cudaStream_t stream;
+  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+  
+  Pipeline pipe(batch_size, num_thread, (int64)stream, 0, true);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);
@@ -92,7 +94,11 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   pipe.AddDataReader(reader);
 
   // Add a single op to the prefetch stage
-  CopyOp<HostBackend> copy_op;
+  CopyOp<HostBackend> copy_op(
+      OpSpec("Copy")
+      .AddArg("num_threads", 1)
+      .AddArg("batch_size", batch_size)
+      .AddArg("cuda_stream", (int64)stream));
   pipe.AddPrefetchOp(copy_op);
 
   // Build the pipeline
@@ -117,7 +123,7 @@ TYPED_TEST(PipelineTest, TestNoOps) {
   int num_thread = TypeParam::nt;
   
   int batch_size = this->RandInt(1, 256);
-  Pipeline pipe(batch_size, num_thread, 0, 0);
+  Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);
@@ -150,7 +156,7 @@ TYPED_TEST(PipelineTest, TestNoOps) {
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   DECLTYPES();
   int batch_size = this->RandInt(1, 256);
-  Pipeline pipe(batch_size, num_thread, 0, 0);
+  Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);

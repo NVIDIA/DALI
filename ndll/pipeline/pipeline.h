@@ -57,12 +57,32 @@ public:
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'true'.
    */
-  inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
+  // inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
+  //     int device_id, bool set_affinity = true) :
+  //   decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
+  //   stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
+  //   data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
+  //   parsed_datum_(batch_size) {
+  //   NDLL_ENFORCE(batch_size_ > 0);
+  //   // Set the data type for our mega-buffers
+  //   mega_buffer_.template mutable_data<uint8>();
+  //   mega_buffer_gpu_.template mutable_data<uint8>();
+
+  //   // TODO(tgale): We need to figure out the best way to ensure that the memory
+  //   // this object allocates is stored on the correct NUMA node that we can
+  //   // force on the frameworks. Frameworks like C2 are tricky because any thread
+  //   // could execute this pipe on any iteration, so we'll need a way to force
+  //   // these specfic allocations to go our way without messing with everything
+  //   // else.
+  // }
+
+  inline Pipeline(int batch_size, int num_threads, int64 cuda_stream,
       int device_id, bool set_affinity = true) :
-    decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-    stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
-    data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
-    parsed_datum_(batch_size) {
+    decode_location_(DECODE_NONE), built_(false),
+    batch_size_(batch_size), stream_((cudaStream_t)cuda_stream),
+    thread_pool_(num_threads, device_id, set_affinity),
+    data_reader_(nullptr), input_datum_(batch_size),
+    data_parser_(nullptr), parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template mutable_data<uint8>();

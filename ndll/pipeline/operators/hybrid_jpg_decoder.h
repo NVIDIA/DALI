@@ -140,7 +140,7 @@ public:
     NDLL_ENFORCE(channel != nullptr);
 
     // We need three buffers for our parameters
-    batched_param_sizes_.resize(3);
+    param_sizes_.resize(3);
     yuv_data_.template mutable_data<uint8>();
     strided_imgs_.template mutable_data<uint8>();
   }
@@ -225,9 +225,9 @@ protected:
       Batch<Backend> *output) override {
     // Run the batched kernel
     batchedDctQuantInv(
-        batched_param_gpu_buffers_[1].template mutable_data<DctQuantInvImageParam>(),
-        batched_param_gpu_buffers_[0].template mutable_data<uint8>(),
-        batched_param_gpu_buffers_[2].template mutable_data<int>(),
+        gpu_param_buffers_[1].template mutable_data<DctQuantInvImageParam>(),
+        gpu_param_buffers_[0].template mutable_data<uint8>(),
+        gpu_param_buffers_[2].template mutable_data<int>(),
         num_cuda_blocks_
         );
 
@@ -331,9 +331,9 @@ protected:
         &num_cuda_blocks_, grid_info_.data());
 
     // Setup the sizes for all of our batched parameters
-    batched_param_sizes_[0] = 64*num_component_; // quant tables
-    batched_param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
-    batched_param_sizes_[2] = num_cuda_blocks_*sizeof(int); // img idxs
+    param_sizes_[0] = 64*num_component_; // quant tables
+    param_sizes_[1] = num_component_*sizeof(DctQuantInvImageParam); // dct params
+    param_sizes_[2] = num_cuda_blocks_*sizeof(int); // img idxs
     
     // Calculate the size of the YUV intermediate
     // data and resize the intermediate buffer
@@ -361,7 +361,7 @@ protected:
       Batch<Backend>* /* unused */) override {
     // Setup image indices for batched idct kernel launch
     getBatchedInvDctImageIndices(yuv_dims_.data(),
-        num_component_, batched_param_buffers_[2].template mutable_data<int>());
+        num_component_, param_buffers_[2].template mutable_data<int>());
   }
 
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
@@ -370,7 +370,7 @@ protected:
     ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      std::memcpy(batched_param_buffers_[0].template mutable_data<uint8>() + (comp_id * 64),
+      std::memcpy(param_buffers_[0].template mutable_data<uint8>() + (comp_id * 64),
           jpeg.quantTables[i].aTable.lowp, 64);
     }
 
@@ -380,7 +380,7 @@ protected:
     int dct_offset = 0;
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
-      param = &batched_param_buffers_[1].template mutable_data<DctQuantInvImageParam>()[comp_id];
+      param = &param_buffers_[1].template mutable_data<DctQuantInvImageParam>()[comp_id];
       param->src = input.template datum<int16>(data_idx) + dct_offset;
       param->srcStep = dct_step_[comp_id];
       param->dst = yuv_data_.template mutable_data<uint8>() + yuv_offsets_[comp_id];
@@ -416,9 +416,9 @@ protected:
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_;
-  using Operator<Backend>::batched_param_sizes_;
-  using Operator<Backend>::batched_param_buffers_;
-  using Operator<Backend>::batched_param_gpu_buffers_;
+  using Operator<Backend>::param_sizes_;
+  using Operator<Backend>::param_buffers_;
+  using Operator<Backend>::gpu_param_buffers_;
 };
 
 } // namespace ndll

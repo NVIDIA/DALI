@@ -27,7 +27,7 @@ int main() {
   Pipeline pipe(
       batch_size,
       num_thread,
-      main_stream,
+      (int64)main_stream,
       0);
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(

@@ -67,6 +67,7 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/hybrid_decode/include)
 
 # PyBind
 if (BUILD_PYTHON)
+  # Build w/ c++11
+  set(PYBIND11_CPP_STANDARD -std=c++11)
   add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/pybind11)
-  # include_directories(${PROJECT_SOURCE_DIR}/third_party/pybind11/include)
 endif()

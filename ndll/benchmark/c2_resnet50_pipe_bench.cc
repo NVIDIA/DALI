@@ -25,7 +25,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      main_stream,
+      (int64)main_stream,
       0);
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
@@ -68,7 +68,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
   }
   
   // DEBUG
@@ -86,7 +86,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   Pipeline pipe(
       batch_size,
       num_thread,
-      main_stream,
+      (int64)main_stream,
       0);
   
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
@@ -128,7 +128,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
   }
   NDLLProfilerStop();
 

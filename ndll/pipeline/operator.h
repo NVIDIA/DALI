@@ -1,6 +1,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 #define NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 
+#include <unordered_map>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -11,6 +12,8 @@
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/sub_tensor.h"
+#include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/op_spec.h"
 
 namespace ndll {
 
@@ -29,7 +32,20 @@ public:
     : num_threads_(-1),
       batch_size_(-1),
       has_stream_(false) {}
+
+  inline explicit Operator(const OpSpec &spec) :
+    num_threads_(spec.GetSingleArgument<int>("num_threads", -1)),
+    batch_size_(spec.GetSingleArgument<int>("batch_size", -1)),
+    stream_((cudaStream_t)spec.GetSingleArgument<int64>("cuda_stream", 0)),
+    has_stream_(true) {
+    NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
+    NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
+
+    // TODO(tgale): Can we add a warning here for running in the default stream?
+  }
+  
   virtual inline ~Operator() = default;
+
   
   /**
    * @brief Executes the op on a single datum on cpu.
@@ -83,7 +99,7 @@ public:
   typename std::enable_if<std::is_base_of<GPUBackend, T>::value, const vector<size_t>&>::type
   GetBatchedParameterSize() {
     CalculateBatchedParameterSize();
-    return batched_param_sizes_;
+    return param_sizes_;
   }
 
   /**
@@ -95,9 +111,9 @@ public:
   SetBatchedParameterBuffers(const vector<SubTensor<CPUBackend>> &buffers,
       const vector<SubTensor<GPUBackend>> &gpu_buffers) {
     NDLL_ENFORCE(buffers.size() == gpu_buffers.size());
-    NDLL_ENFORCE(buffers.size() == batched_param_sizes_.size());
-    batched_param_buffers_ = buffers;
-    batched_param_gpu_buffers_ = gpu_buffers;
+    NDLL_ENFORCE(buffers.size() == param_sizes_.size());
+    param_buffers_ = buffers;
+    gpu_param_buffers_ = gpu_buffers;
   }
 
   /**
@@ -243,9 +259,9 @@ protected:
   cudaStream_t stream_;
   bool has_stream_;
   
-  vector<size_t> batched_param_sizes_;
-  vector<SubTensor<CPUBackend>> batched_param_buffers_;
-  vector<SubTensor<GPUBackend>> batched_param_gpu_buffers_;
+  vector<size_t> param_sizes_;
+  vector<SubTensor<CPUBackend>> param_buffers_;
+  vector<SubTensor<GPUBackend>> gpu_param_buffers_;
 };
 
 /**
@@ -257,12 +273,25 @@ template <typename Backend>
 class Decoder : public Operator<Backend> {
 public:
   inline Decoder() {}
+  inline explicit Decoder(const OpSpec &spec) : Operator<Backend>(spec) {}
   virtual inline ~Decoder() = default;
   
   DISABLE_COPY_MOVE_ASSIGN(Decoder);
 protected:
 };
 
+// Create registries for Decoders, Transformers, DataReaders, and Parsers
+NDLL_DEFINE_OPTYPE_REGISTRY(CPUDecoder, Decoder<CPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(GPUDecoder, Decoder<CPUBackend>);
+
+// Must be called from .cc or .cu file
+#define NDLL_REGISTER_CPU_DECODER(OpName)           \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, CPUDecoder, \
+      Decoder<CPUBackend>, )
+#define NDLL_REGISTER_GPU_DECODER(OpName)           \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, GPUDecoder, \
+      Decoder<GPUBackend>, )
+  
 /**
  * @brief Transformers are general ops whose output shape depends only on the
  * input shape. User-defined transformations should derive from this class.
@@ -271,6 +300,7 @@ template <typename Backend>
 class Transformer : public Operator<Backend> {
 public:
   inline Transformer() {}
+  inline explicit Transformer(const OpSpec &spec) : Operator<Backend>(spec) {}
   virtual inline ~Transformer() = default;
 
   inline vector<Index> InferOutputShape(const Datum<Backend> &input,

@@ -11,6 +11,10 @@ template <typename Backend>
 class CopyOp : public Transformer<Backend> {
 public:
   inline CopyOp() {}
+
+  inline explicit CopyOp(const OpSpec &spec) :
+    Transformer<Backend>(spec) {}
+  
   virtual inline ~CopyOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(

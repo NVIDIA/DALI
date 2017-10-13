@@ -23,6 +23,8 @@ public:
    */
   inline TJPGDecoder(NDLLImageType output_type)
     : output_type_(output_type), c_(IsColor(output_type) ? 3 : 1) {}
+
+  inline TJPGDecoder(const OpSpec &spec) : Decoder<Backend>(spec) {}
   
   virtual inline ~TJPGDecoder() = default;
   

@@ -49,7 +49,7 @@ public:
 
     // We need three buffers for our batched parameters
     // in_ptrs, in_strides, and mirror parameters per image
-    batched_param_sizes_.resize(3);
+    param_sizes_.resize(3);
   }
 
   virtual inline ~CropMirrorNormalizePermuteOp() = default;
@@ -114,10 +114,10 @@ protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
     NDLL_CALL(BatchedCropMirrorNormalizePermute(
-            batched_param_gpu_buffers_[0].template data<const uint8*>(),
-            batched_param_gpu_buffers_[1].template data<int>(),
+            gpu_param_buffers_[0].template data<const uint8*>(),
+            gpu_param_buffers_[1].template data<int>(),
             batch_size_, crop_h_, crop_w_, C_,
-            batched_param_gpu_buffers_[2].template data<bool>(),
+            gpu_param_buffers_[2].template data<bool>(),
             mean_.template data<float>(),
             inv_std_.template data<float>(),
             output->template mutable_data<OUT>(),
@@ -125,9 +125,9 @@ protected:
   }
   
   inline void CalculateBatchedParameterSize() override {
-    batched_param_sizes_[0] = batch_size_ * sizeof(uint8*); // in_ptrs
-    batched_param_sizes_[1] = batch_size_ * sizeof(int); // in_strides
-    batched_param_sizes_[2] = batch_size_ * sizeof(bool); // mirror params
+    param_sizes_[0] = batch_size_ * sizeof(uint8*); // in_ptrs
+    param_sizes_[1] = batch_size_ * sizeof(int); // in_strides
+    param_sizes_[2] = batch_size_ * sizeof(bool); // mirror params
   }
 
   // Even though our parameter setup is embarrassingly parallel, we do it
@@ -136,22 +136,22 @@ protected:
   inline void SerialBatchedParameterSetup(const Batch<Backend> &input,
       Batch<Backend>* output) override {
     // Copy in_strides
-    std::memcpy(batched_param_buffers_[1].template mutable_data<int>(),
+    std::memcpy(param_buffers_[1].template mutable_data<int>(),
         in_strides_.data(), in_strides_.size()*sizeof(int));
 
     // Calculate input ptrs & copy mirror flags
     for (int i = 0; i < batch_size_; ++i) {
-      batched_param_buffers_[2].template mutable_data<bool>()[i] = mirror_[i];
-      batched_param_buffers_[0].template mutable_data<const uint8*>()[i] =
+      param_buffers_[2].template mutable_data<bool>()[i] = mirror_[i];
+      param_buffers_[0].template mutable_data<const uint8*>()[i] =
         input.template datum<uint8>(i) + crop_offsets_[i];
     }
 
     // Validate parameters
     NDLL_CALL(ValidateBatchedCropMirrorNormalizePermute(
-            batched_param_buffers_[0].template mutable_data<const uint8*>(),
-            batched_param_buffers_[1].template mutable_data<int>(),
+            param_buffers_[0].template mutable_data<const uint8*>(),
+            param_buffers_[1].template mutable_data<int>(),
             batch_size_, crop_h_, crop_w_, C_,
-            batched_param_buffers_[2].template mutable_data<bool>(),
+            param_buffers_[2].template mutable_data<bool>(),
             mean_vec_.data(), inv_std_vec_.data(),
             output->template mutable_data<OUT>()));
   }
@@ -182,9 +182,9 @@ protected:
   using Operator<Backend>::num_threads_;
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_;
-  using Operator<Backend>::batched_param_sizes_;
-  using Operator<Backend>::batched_param_buffers_;
-  using Operator<Backend>::batched_param_gpu_buffers_;
+  using Operator<Backend>::param_sizes_;
+  using Operator<Backend>::param_buffers_;
+  using Operator<Backend>::gpu_param_buffers_;
 };
 
 } // namespace ndll
