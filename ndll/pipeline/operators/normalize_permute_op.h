@@ -4,7 +4,7 @@
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/transformer.h"
 
 namespace ndll {
 

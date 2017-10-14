@@ -2,6 +2,6 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_DECODER(TJPGDecoder<CPUBackend>);
+NDLL_REGISTER_CPU_DECODER(TJPGDecoder, TJPGDecoder<CPUBackend>);
 
 } // namespace ndll

@@ -1,10 +1,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 #define NDLL_PIPELINE_OPERATORS_OPERATOR_H_
 
-#include <unordered_map>
-#include <memory>
 #include <type_traits>
-#include <utility>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -12,7 +9,6 @@
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/sub_tensor.h"
-#include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_spec.h"
 
 namespace ndll {
@@ -263,69 +259,7 @@ protected:
   vector<SubTensor<CPUBackend>> param_buffers_;
   vector<SubTensor<GPUBackend>> gpu_param_buffers_;
 };
-
-/**
- * @brief Decoder are special ops that are allowed to have data dependent output 
- * shapes. For this reason, they must appear first in the pipeline and can only 
- * appear once. User-defined decoders should derive from this class.
- */
-template <typename Backend>
-class Decoder : public Operator<Backend> {
-public:
-  inline Decoder() {}
-  inline explicit Decoder(const OpSpec &spec) : Operator<Backend>(spec) {}
-  virtual inline ~Decoder() = default;
   
-  DISABLE_COPY_MOVE_ASSIGN(Decoder);
-protected:
-};
-
-// Create registries for Decoders, Transformers, DataReaders, and Parsers
-NDLL_DEFINE_OPTYPE_REGISTRY(CPUDecoder, Decoder<CPUBackend>);
-NDLL_DEFINE_OPTYPE_REGISTRY(GPUDecoder, Decoder<CPUBackend>);
-
-// Must be called from .cc or .cu file
-#define NDLL_REGISTER_CPU_DECODER(OpName)           \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, CPUDecoder, \
-      Decoder<CPUBackend>, )
-#define NDLL_REGISTER_GPU_DECODER(OpName)           \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, GPUDecoder, \
-      Decoder<GPUBackend>, )
-  
-/**
- * @brief Transformers are general ops whose output shape depends only on the
- * input shape. User-defined transformations should derive from this class.
- */
-template <typename Backend>
-class Transformer : public Operator<Backend> {
-public:
-  inline Transformer() {}
-  inline explicit Transformer(const OpSpec &spec) : Operator<Backend>(spec) {}
-  virtual inline ~Transformer() = default;
-
-  inline vector<Index> InferOutputShape(const Datum<Backend> &input,
-      int data_idx, int thread_idx) override final {
-#ifndef NDEBUG
-    NDLL_ENFORCE(data_idx < this->batch_size_, "data_idx out of range");
-#endif
-    
-    // Transfomers cannot have data dependent output shapes, we override
-    // this method and allow the user to define a simpler method that
-    // only receives the input shape
-    return InferOutputShapeFromShape(input.shape(), data_idx, thread_idx);
-  }
-
-  /**
-   * @brief Returns the output shape that will be produced for the given
-   * input shape. User-defined ops must implement this method.
-   */
-  virtual vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int data_idx, int thread_idx) = 0;
-
-  DISABLE_COPY_MOVE_ASSIGN(Transformer);
-protected:
-};
-
 } // namespace ndll
 
 #endif // NDLL_PIPELINE_OPERATORS_OPERATOR_H_

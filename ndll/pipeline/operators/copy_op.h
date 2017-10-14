@@ -3,7 +3,7 @@
 
 #include <cstring>
 
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/transformer.h"
 
 namespace ndll {
 

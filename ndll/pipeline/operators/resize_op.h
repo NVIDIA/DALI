@@ -4,7 +4,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/image/transform.h"
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/transformer.h"
 
 namespace ndll {
 
