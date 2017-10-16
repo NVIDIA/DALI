@@ -18,14 +18,10 @@ namespace ndll {
 template <typename Backend>
 class TJPGDecoder : public Decoder<Backend> {
 public:
-  /**
-   * @brief Constructs a turbo-jpeg decoder. Outputs RGB images if 
-   * `color` == true, otherwise outputs grayscale images.
-   */
-  inline TJPGDecoder(NDLLImageType output_type)
-    : output_type_(output_type), c_(IsColor(output_type) ? 3 : 1) {}
-
-  inline TJPGDecoder(const OpSpec &spec) : Decoder<Backend>(spec) {}
+  inline TJPGDecoder(const OpSpec &spec) :
+    Decoder<Backend>(spec),
+    output_type_(spec.GetSingleArgument<NDLLImageType>("output_type", NDLL_RGB)),
+    c_(IsColor(output_type_) ? 3 : 1) {}
   
   virtual inline ~TJPGDecoder() = default;
   
@@ -44,10 +40,6 @@ public:
     output->template mutable_data<uint8>();
   }
   
-  inline TJPGDecoder* Clone() const override {
-    return new TJPGDecoder(output_type_);
-  }
-
   inline string name() const override {
     return "TJPGDecoder";
   }
@@ -64,14 +56,16 @@ protected:
 
   NDLLImageType output_type_;
   int c_;
-
-  using Operator<Backend>::num_threads_;
 };
 
-template <typename Backend, typename T>
+template <typename Backend>
 class DumpImageOp : public Transformer<Backend> {
 public:
-  inline DumpImageOp(const string suffix = "", bool hwc = true) : suffix_(suffix), hwc_(hwc) {}
+  inline DumpImageOp(const OpSpec &spec) :
+    Transformer<Backend>(spec),
+    suffix_(spec.GetSingleArgument<string>("suffix", "")),
+    hwc_(spec.GetSingleArgument<bool>("hwc_format", true)) {}    
+  
   virtual inline ~DumpImageOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(
@@ -80,14 +74,9 @@ public:
   }
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
-    NDLL_ENFORCE(IsType<T>(input_type));
-    output->template data<T>();
+    output->set_type(input_type);
   }
   
-  inline DumpImageOp* Clone() const override {
-    return new DumpImageOp(suffix_, hwc_);
-  }
-
   inline string name() const override {
     return "DumpImageOp";
   }
@@ -97,7 +86,23 @@ protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 3);
-    
+
+    if (input.type() == TypeMeta::Create<uint8>()) {
+      DumpDatumHelper<uint8>(input, data_idx);
+    } else if (input.type() == TypeMeta::Create<float16>()) {
+      DumpDatumHelper<float16>(input, data_idx);
+    } else if (input.type() == TypeMeta::Create<float>()) {
+      DumpDatumHelper<float>(input, data_idx);
+    } else {
+      NDLL_FAIL("Unsupported data type.");
+    }
+
+    // Copy from input to output
+    std::memcpy(output->raw_mutable_data(), input.raw_data(), input.nbytes());
+  }
+
+  template <typename T>
+  inline void DumpDatumHelper(const Datum<Backend> &input, int data_idx) {
     // Dump the data to file
     const T *img = input.template data<T>();
     int h = input.shape()[0];
@@ -108,21 +113,32 @@ protected:
     } else {
       DumpCHWToFile(img, h, w, c, std::to_string(data_idx) + suffix_);
     }
-
-    // Copy from input to output
-    std::memcpy(output->raw_data(), input.raw_data(), input.nbytes());
   }
-
+  
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
+    if (input.type() == TypeMeta::Create<uint8>()) {
+      DumpBatchHelper<uint8>(input);
+    } else if (input.type() == TypeMeta::Create<float16>()) {
+      DumpBatchHelper<float16>(input);
+    } else if (input.type() == TypeMeta::Create<float>()) {
+      DumpBatchHelper<float>(input);
+    } else {
+      NDLL_FAIL("Unsupported data type.");
+    }
+    
+    output->Copy(input);
+  }
+
+  template <typename T>
+  inline void DumpBatchHelper(const Batch<Backend> &input) {
     if (hwc_) {
       DumpHWCImageBatchToFile<T>(input, suffix_);
     } else {
       DumpCHWImageBatchToFile<T>(input, suffix_);
     }
-    output->Copy(input);
   }
-
+  
   const string suffix_;
   bool hwc_;
 };

@@ -9,24 +9,16 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/channel.h"
 #include "ndll/pipeline/decoder.h"
 #include "ndll/pipeline/transformer.h"
 #include "ndll/util/image.h"
 
 namespace ndll {
 
-/**
- * @brief Channel class to share data between the cpu & gpu
- * stages of the hybrid JPEG decoder.
- */ 
-struct HybridJPEGDecodeChannel : public Channel {
-  // Stores meta-data parsed from the input jpegs, including
-  // quantization tables, per-component dct coefficient sizes
-  // and strides, chrominance subsampling ratio, and output
-  // image dimensions
-  vector<ParsedJpeg> parsed_jpegs;
-};
+// Define the ParseJpeg struct as a ndll type so we can use it
+// in Tensor objects to share data between the huffman & idct
+// stages of the hybrid jpeg decode.
+DEFINE_TYPE(ParsedJpeg);
 
 /**
  * @brief Perform the host-side part of a hybrid cpu+gpu jpeg decode. This
@@ -35,10 +27,16 @@ struct HybridJPEGDecodeChannel : public Channel {
 template <typename Backend>
 class HuffmanDecoder : public Decoder<Backend> {
 public:
-  inline HuffmanDecoder(shared_ptr<HybridJPEGDecodeChannel> channel) :
-    channel_(channel) {
-    NDLL_ENFORCE(channel != nullptr);
+  inline HuffmanDecoder(const OpSpec &spec) :
+    Decoder<Backend>(spec), jpeg_meta_(spec.ExtraOutput(0)) {
+    // Resize per-image & per-thread data
+    tl_parser_state_.resize(num_threads_);
+    tl_huffman_state_.resize(num_threads_);
+    
+    jpeg_meta_->template mutable_data<ParsedJpeg>();
+    jpeg_meta_->Resize({batch_size_});
   }
+    
   virtual inline ~HuffmanDecoder() = default;
   
   inline vector<Index> InferOutputShape(
@@ -47,7 +45,7 @@ public:
         "HuffmanDecoder expects 1D encoded jpeg strings as input");
 
     // Parse the input jpeg and save the output data
-    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[data_idx];
     parseRawJpegHost(
         input.template data<uint8>(),
         input.size(),
@@ -57,7 +55,7 @@ public:
     // Note: The DCT coefficients for each image component can be different sizes
     // due to subsampling. 'Datum' objects do not support jagged data, so we pack
     // all the DCT coefficients into a single Datum and pass the needed meta-data
-    // to the gpu-side jpeg decode through a Channel object
+    // to the gpu-side jpeg decode through our extra output Tensor.
     int out_size = 0;
     for (int i = 0; i < jpeg.components; ++i) {
       // jpeg.dctSize[i] is in bytes, convert to elements
@@ -71,32 +69,17 @@ public:
     output->template mutable_data<int16>();
   }
   
-  inline HuffmanDecoder* Clone() const override {
-    return new HuffmanDecoder(channel_);
-  }
-
   inline string name() const override {
     return "HuffmanDecoder";
   }
 
-  inline void set_num_threads(int num_threads) override {
-    num_threads_ = num_threads;
-    tl_parser_state_.resize(num_threads);
-    tl_huffman_state_.resize(num_threads);
-  }
-
-  inline void set_batch_size(int batch_size) override {
-    batch_size_ = batch_size;
-    channel_->parsed_jpegs.resize(batch_size);
-  }
-  
   DISABLE_COPY_MOVE_ASSIGN(HuffmanDecoder);
 protected:
   inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int thread_idx) override {
     // Perform the huffman decode into the datum object
     HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
-    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[data_idx];
     vector<int16*> dct_coeff_ptrs(jpeg.components);
 
     // Gather the pointers to each image component's dct coefficients
@@ -109,8 +92,8 @@ protected:
     // Perform the Huffman decode into the output buffer
     huffmanDecodeHost(jpeg, &state, &dct_coeff_ptrs);
   }
-  
-  shared_ptr<HybridJPEGDecodeChannel> channel_;
+
+  shared_ptr<Tensor<CPUBackend>> jpeg_meta_;
   vector<JpegParserState> tl_parser_state_;
   vector<HuffmanDecoderState> tl_huffman_state_;
   
@@ -134,23 +117,47 @@ protected:
 template <typename Backend>
 class DCTQuantInvOp : public Transformer<Backend> {
 public:
-  inline DCTQuantInvOp(NDLLImageType output_type,
-      shared_ptr<HybridJPEGDecodeChannel> channel)
-    : color_(IsColor(output_type)), C_(color_ ? 3 : 1),
-      channel_(channel), output_type_(output_type) {
-    NDLL_ENFORCE(channel != nullptr);
+  inline DCTQuantInvOp(const OpSpec &spec) :
+    Transformer<Backend>(spec),
+    output_type_(spec.GetSingleArgument<NDLLImageType>("output_type", NDLL_RGB)),
+    color_(IsColor(output_type_)), C_(color_ ? 3 : 1),
+    jpeg_meta_(spec.ExtraInput(0)) {
+    // Make sure the jpeg meta tensor has already been setup
+    NDLL_ENFORCE(jpeg_meta_->shape() == vector<Index>{batch_size_}, "Invalid extra "
+        "input Tensor. HuffmanDecoder must be added to the pipeline before the "
+        "DCTQuantInvOp");
+    NDLL_ENFORCE(IsType<ParsedJpeg>(jpeg_meta_->type()), "Invalid extra input Tensor. "
+        "HuffmanDecoder must be added to the pipeline before the DCTQuantInvOp");
+      
+    // Resize per-thread & per-image data
+    num_component_ = batch_size_*C_;    
+    yuv_dims_.resize(num_component_);
+    dct_step_.resize(num_component_);
+    grid_info_.resize(num_component_);
+    yuv_offsets_.resize(num_component_);
+    
+    if (color_) {
+      img_rois_.resize(batch_size_);
+      img_steps_.resize(batch_size_);
+      img_offsets_.resize(batch_size_);
+    }
+
+    // Pre-size our buffers based on the user passed in hint
+    size_t pixels_per_image = spec.GetSingleArgument<size_t>("pixels_per_image_hint", 0);
+    yuv_data_.Resize({(Index)pixels_per_image * batch_size_});
+    if (color_) strided_imgs_.Resize({(Index)pixels_per_image * batch_size_});
 
     // We need three buffers for our parameters
     param_sizes_.resize(3);
     yuv_data_.template mutable_data<uint8>();
     strided_imgs_.template mutable_data<uint8>();
   }
-  
+    
   virtual inline ~DCTQuantInvOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(const vector<Index> &input_shape,
       int data_idx, int /* unused */) override {
-    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[data_idx];
     for (int i = 0; i < C_; ++i) {
       // Note: We only iterate over the number of output channels. In the case we
       // are outputting color images, we want to copy all the image meta-data
@@ -181,7 +188,7 @@ public:
     }
     
     // The output shape is determined by the encoded jpeg, whose meta-data
-    // we access through the Channel connected to the huffman decoder
+    // we access through the extra input tensor connected to the huffman decoder
     return vector<Index>{jpeg.imgDims.height, jpeg.imgDims.width, C_};
   }
   
@@ -190,35 +197,8 @@ public:
     output->template mutable_data<uint8>();
   }
   
-  inline DCTQuantInvOp* Clone() const override {
-    return new DCTQuantInvOp(output_type_, channel_);
-  }
-
   inline string name() const override {
     return "DCTQuantInvOp";
-  }
-  
-  inline void set_num_threads(int num_threads) override {
-    num_threads_ = num_threads;
-  }
-
-  inline void set_batch_size(int batch_size) override {
-    batch_size_ = batch_size;
-    num_component_ = batch_size_*C_;    
-    yuv_dims_.resize(num_component_);
-    dct_step_.resize(num_component_);
-    grid_info_.resize(num_component_);
-    yuv_offsets_.resize(num_component_);
-
-    if (color_) {
-      img_rois_.resize(batch_size_);
-      img_steps_.resize(batch_size_);
-      img_offsets_.resize(batch_size_);
-    }
-
-    // TODO(tgale): See comment on pre-resizing in Pipeline::Build()
-    yuv_data_.Resize({1500000 * batch_size_});
-    if (color_) strided_imgs_.Resize({1500000 * batch_size_});
   }
   
 protected:
@@ -263,7 +243,7 @@ protected:
   inline void YUVToColorHelper(Batch<Backend> *output) {
     uint8 *yuv_data_ptr = yuv_data_.template mutable_data<uint8>();
     for (int i = 0; i < batch_size_; ++i) {
-      ParsedJpeg &jpeg = channel_->parsed_jpegs[i];
+      ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[i];
       if (jpeg.components == 3) {
         uint8 *yuv_planes[3] = {yuv_data_ptr + yuv_offsets_[i*3],
                                 yuv_data_ptr + yuv_offsets_[i*3 + 1],
@@ -322,8 +302,8 @@ protected:
   inline void CalculateBatchedParameterSize() override {
     int num_image_planes = 0;
     for (int i = 0; i < batch_size_; ++i) {
-      // Note: Could do thread-wise reductions first
-      num_image_planes += channel_->parsed_jpegs[i].components;
+      num_image_planes +=
+        jpeg_meta_->template mutable_data<ParsedJpeg>()[i].components;
     }
 
     NDLL_ENFORCE(validateBatchedDctQuantInvParams(dct_step_.data(),
@@ -368,7 +348,7 @@ protected:
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
       Batch<Backend>* /* unused */, int data_idx, int thread_idx) override {
     // Copy quant tables into mega-buffer
-    ParsedJpeg &jpeg = channel_->parsed_jpegs[data_idx];
+    ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[data_idx];
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
       std::memcpy(param_buffers_[0].template mutable_data<uint8>() + (comp_id * 64),
@@ -392,12 +372,12 @@ protected:
       dct_offset += jpeg.dctSize[i] / sizeof(int16);
     }
   }
-  
+
+  NDLLImageType output_type_;
   bool color_;
   int C_, num_component_;
-  shared_ptr<HybridJPEGDecodeChannel> channel_;
-  NDLLImageType output_type_;
-  
+  shared_ptr<Tensor<CPUBackend>> jpeg_meta_;
+
   // image meta-data extracted from parsed jpegs
   vector<NppiSize> yuv_dims_;
   vector<int> dct_step_;

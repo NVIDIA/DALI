@@ -23,16 +23,16 @@ protected:
 };
 
 // Create registries for CPU & GPU Decoders
-NDLL_DEFINE_OPTYPE_REGISTRY(CPUDecoder, Operator<CPUBackend>);
-NDLL_DEFINE_OPTYPE_REGISTRY(GPUDecoder, Operator<CPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(CPUDecoder, Decoder<CPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(GPUDecoder, Decoder<GPUBackend>);
 
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_CPU_DECODER(OpName, OpType)           \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,             \
-      CPUDecoder, Operator<CPUBackend>)
+      CPUDecoder, Decoder<CPUBackend>)
 #define NDLL_REGISTER_GPU_DECODER(OpName, OpType)           \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,             \
-      GPUDecoder, Operator<GPUBackend>)
+      GPUDecoder, Decoder<GPUBackend>)
 
 } // namespace ndll
 

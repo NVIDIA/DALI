@@ -80,7 +80,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   cudaStream_t stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
   
-  Pipeline pipe(batch_size, num_thread, (int64)stream, 0, true);
+  Pipeline pipe(batch_size, num_thread, stream, 0, true);
 
   Batch<CPUBackend> tmp_batch;
   this->MakeImageBatch(batch_size, &tmp_batch);
@@ -93,13 +93,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
 
-  // Add a single op to the prefetch stage
-  CopyOp<HostBackend> copy_op(
-      OpSpec("Copy")
-      .AddArg("num_threads", 1)
-      .AddArg("batch_size", batch_size)
-      .AddArg("cuda_stream", (int64)stream));
-  pipe.AddPrefetchOp(copy_op);
+  pipe.AddTransform(OpSpec("CopyOp", "Prefetch"));
 
   // Build the pipeline
   pipe.Build();
@@ -154,7 +148,9 @@ TYPED_TEST(PipelineTest, TestNoOps) {
 }
 
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
-  DECLTYPES();
+  typedef typename TypeParam::TCPUBackend HostBackend;
+  int num_thread = TypeParam::nt;
+
   int batch_size = this->RandInt(1, 256);
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
@@ -170,8 +166,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   pipe.AddDataReader(reader);
 
   // Add a single op to the forward stage
-  CopyOp<DeviceBackend> copy_op;
-  pipe.AddForwardOp(copy_op);
+  pipe.AddTransform(OpSpec("CopyOp", "Forward"));
 
   // Build the pipeline
   pipe.Build();

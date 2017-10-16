@@ -1,15 +1,19 @@
 #ifndef NDLL_PIPELINE_PIPELINE_H_
 #define NDLL_PIPELINE_PIPELINE_H_
 
+#include <map>
+
 #include "ndll/common.h"
 #include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/datum.h"
 #include "ndll/pipeline/data/tensor.h"
+#include "ndll/pipeline/decoder.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/pipeline/parser.h"
+#include "ndll/pipeline/transformer.h"
 #include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/npp.h"
 
@@ -50,39 +54,29 @@ public:
    * @brief Creates a pipeline with `num_threads` worker threads and 
    * working in `main_stream`. 
    *
+   * GPU memory and pinned memory allocations cause implicit synchronization of 
+   * the device, resulting in very slow startup times as ndll buffer sizes 
+   * stabilize. To avoid this slowdown, we optionally take in an estimated size
+   * of each image that will be processed in bytes. This hint is used to
+   * pre-size buffers, potentially avoiding slow startup if the hint is close
+   * to the true amount of memory that will be needed by the largest image to
+   * be processed.
+   *
    * @param batch_size the size of the batch that should be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
    * @param stream the stream to operate in.
    * @param device_id id of the GPU to operate on.
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'true'.
+   * @param pixels_per_image_hint Estimated size of each image to be processed.
+   * Defaults to 0.
    */
-  // inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
-  //     int device_id, bool set_affinity = true) :
-  //   decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-  //   stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
-  //   data_reader_(nullptr), input_datum_(batch_size), data_parser_(nullptr),
-  //   parsed_datum_(batch_size) {
-  //   NDLL_ENFORCE(batch_size_ > 0);
-  //   // Set the data type for our mega-buffers
-  //   mega_buffer_.template mutable_data<uint8>();
-  //   mega_buffer_gpu_.template mutable_data<uint8>();
-
-  //   // TODO(tgale): We need to figure out the best way to ensure that the memory
-  //   // this object allocates is stored on the correct NUMA node that we can
-  //   // force on the frameworks. Frameworks like C2 are tricky because any thread
-  //   // could execute this pipe on any iteration, so we'll need a way to force
-  //   // these specfic allocations to go our way without messing with everything
-  //   // else.
-  // }
-
-  inline Pipeline(int batch_size, int num_threads, int64 cuda_stream,
-      int device_id, bool set_affinity = true) :
-    decode_location_(DECODE_NONE), built_(false),
-    batch_size_(batch_size), stream_((cudaStream_t)cuda_stream),
-    thread_pool_(num_threads, device_id, set_affinity),
-    data_reader_(nullptr), input_datum_(batch_size),
-    data_parser_(nullptr), parsed_datum_(batch_size) {
+  inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
+      int device_id, bool set_affinity = true, size_t pixels_per_image_hint = 0) :
+    decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
+    stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
+    pixels_per_image_hint_(pixels_per_image_hint), data_reader_(nullptr),
+    input_datum_(batch_size), data_parser_(nullptr), parsed_datum_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template mutable_data<uint8>();
@@ -95,68 +89,108 @@ public:
     // these specfic allocations to go our way without messing with everything
     // else.
   }
+
+  // inline Pipeline(int batch_size, int num_threads, int64 cuda_stream,
+  //     int device_id, bool set_affinity = true) :
+  //   decode_location_(DECODE_NONE), built_(false),
+  //   batch_size_(batch_size), stream_((cudaStream_t)cuda_stream),
+  //   thread_pool_(num_threads, device_id, set_affinity),
+  //   data_reader_(nullptr), input_datum_(batch_size),
+  //   data_parser_(nullptr), parsed_datum_(batch_size) {
+  //   NDLL_ENFORCE(batch_size_ > 0);
+  //   // Set the data type for our mega-buffers
+  //   mega_buffer_.template mutable_data<uint8>();
+  //   mega_buffer_gpu_.template mutable_data<uint8>();
+
+  //   // TODO(tgale): We need to figure out the best way to ensure that the memory
+  //   // this object allocates is stored on the correct NUMA node that we can
+  //   // force on the frameworks. Frameworks like C2 are tricky because any thread
+  //   // could execute this pipe on any iteration, so we'll need a way to force
+  //   // these specfic allocations to go our way without messing with everything
+  //   // else.
+  // }
   
   ~Pipeline() = default;
 
+  // TODO(tgale): Add handling of extra inputs and outputs for ops in all pipeline
+  // construction methods. Also add setting of batch size & num threads & stream
+  
   /**
-   * @brief Adds an op to the prefetch stage of the pipeline. The input op is
-   * moved into the pipeline and left in a default state.
-   */
-  inline void AddPrefetchOp(const Operator<CPUBackend> &op) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    OpPtr<CPUBackend> tmp(op.Clone());
-    prefetch_ops_.push_back(std::move(tmp));
-  }
-
-  /**
-   * @brief Adds an op to the forward stage of the pipeline. The input op is
-   * moved into the pipeline and left in a default state.
-   */
-  inline void AddForwardOp(const Operator<GPUBackend> &op) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    OpPtr<GPUBackend> tmp(op.Clone());
-    forward_ops_.push_back(std::move(tmp));
-  }
-
-  /**
-   * @brief Inserts the decoder on the front of the prefetch stage of the pipeline.
-   * The op is moved into the pipeline and left in a default state.
+   * @brief Adds a Decoder to the pipeline. The decoder is either inserted on 
+   * the front of the prefetch stage, or the front of the forward stage depending 
+   * on the 'stage' setting in the OpSpec.
    *
    * Decoder are special ops that are allowed to have data dependent output shapes.
    * For this reason, they must appear first in the pipeline and can only appear
    * once.
    */
-  inline void AddDecoder(const Operator<CPUBackend> &dec) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-            "\"Build()\" has been called are not allowed");
-    NDLL_ENFORCE(decode_location_ == DECODE_NONE,
-        "A Decoder already exists in the pipeline");
-    OpPtr<CPUBackend> tmp(dec.Clone());
-    prefetch_ops_.insert(prefetch_ops_.begin(), std::move(tmp));
-    decode_location_ = DECODE_PREFETCH;
-  }
-  
-  /**
-   * @brief Inserts the decoder on the front of the forward stage of the pipeline.
-   * The op is moved into the pipeline and left in a default state.
-   *
-   * Decoder are special ops that are allowed to have data dependent output shapes.
-   * for this reason, they must appear first in the pipeline and can only appear
-   * once. Adding the Decoder to forward stage implies that their are no prefetch 
-   * ops. If this is not the case, 'Build()' will throw an error.
-   */
-  inline void AddDecoder(const Operator<GPUBackend> &dec) {
+  inline void AddDecoder(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    NDLL_ENFORCE(decode_location_ == DECODE_NONE,
-        "A Decoder already exists in the pipeline");
-    OpPtr<GPUBackend> tmp(dec.Clone());
-    forward_ops_.insert(forward_ops_.begin(), std::move(tmp));
-    decode_location_ = DECODE_FORWARD;
+
+    // Add batch_size, num_threads, cuda stream, and image size hint
+    // as arguments for the Operator to optionally leverage
+    OpSpec spec_copy = spec;
+    spec_copy.AddArg("batch_size", batch_size_)
+      .AddArg("num_threads", num_threads())
+      .AddArg("cuda_stream", (int64)stream_)
+      .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
+
+    // Handle extra input/output Tensors
+    ExtraTensorSetup(&spec_copy);
+    
+    // Construct the decoder with the input spec
+    if (spec_copy.stage() == "Prefetch") {
+      OpPtr<CPUBackend> tmp(
+          CPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      prefetch_ops_.insert(prefetch_ops_.begin(), std::move(tmp));
+      decode_location_ = DECODE_PREFETCH;
+    } else if (spec_copy.stage() == "Forward") {
+      OpPtr<GPUBackend> tmp(
+          GPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      forward_ops_.insert(forward_ops_.begin(), std::move(tmp));
+      decode_location_ = DECODE_FORWARD;
+    } else {
+      NDLL_FAIL("Invalid stage argument \"" + spec_copy.stage() +
+          "\". Stage must be either \"Prefetch\" or \"Forward\"");
+    }
   }
 
+  /**
+   * @brief Adds a Transformer to the pipeline. The Transformer is either 
+   * inserted in the prefetch stage, or the forward stage depending on the 
+   * 'stage' setting in the OpSpec.
+   */
+  inline void AddTransform(const OpSpec &spec) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
+
+    // Add batch_size, num_threads, cuda stream, and image size hint
+    // as arguments for the Operator to optionally leverage
+    OpSpec spec_copy = spec;
+    spec_copy.AddArg("batch_size", batch_size_)
+      .AddArg("num_threads", num_threads())
+      .AddArg("cuda_stream", (int64)stream_)
+      .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
+
+    // Handle extra input/output Tensors
+    ExtraTensorSetup(&spec_copy);
+    
+    // Construct the decoder with the input spec
+    if (spec_copy.stage() == "Prefetch") {
+      OpPtr<CPUBackend> tmp(
+          CPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      prefetch_ops_.push_back(std::move(tmp));
+    } else if (spec_copy.stage() == "Forward") {
+      OpPtr<GPUBackend> tmp(
+          GPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      forward_ops_.push_back(std::move(tmp));
+    } else {
+      NDLL_FAIL("Invalid stage argument \"" + spec_copy.stage() +
+          "\". Stage must be either \"Prefetch\" or \"Forward\"");
+    }
+  }
+  
   /**
    * @brief Adds the input DataReader to the pipeline. The DataReader will
    * provide access to single data samples during execution, and allow us
@@ -184,18 +218,8 @@ public:
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
-   *
-   * GPU memory and pinned memory allocations cause implicit synchronization of 
-   * the device, resulting in very slow startup times as ndll buffer sizes 
-   * stabilize. To avoid this slowdown, we optionally take in an estimated size
-   * of each image that will be processed in bytes. This hint is used to
-   * pre-size buffers, potentially avoiding slow startup if the hint is close
-   * to the true amount of memory that will be needed by the largest image to
-   * be processed.
-   *
-   * @param pixels_per_image_hint Estimated size of each image to be processed
    */
-  void Build(size_t pixels_per_image_hint = 0);
+  void Build();
 
   /**
    * @brief Run the prefetch stage of the pipeline.
@@ -257,6 +281,28 @@ public:
     if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
     return *gpu_buffers_.back();
   }
+
+  /**
+   * @brief Returns the output CPU Tensor with the given name. Performs
+   * no synchonization prior to returning the Tensor.
+   */
+  const Tensor<CPUBackend>& output_tensor(const string &name) const {
+    auto it = extra_tensors_.find(name);
+    NDLL_ENFORCE(it != extra_tensors_.end(), "Tensor with name\""
+        + name + "\" does not exist.");
+    return *(it->second);
+  }
+
+  /**
+   * @brief Returns the output GPU Tensor with the given name. Performs
+   * no synchonization prior to returning the Tensor.
+   */
+  const Tensor<GPUBackend>& output_gpu_tensor(const string &name) const {
+    auto it = extra_gpu_tensors_.find(name);
+    NDLL_ENFORCE(it != extra_gpu_tensors_.end(), "Tensor with name\""
+        + name + "\" does not exist.");
+    return *(it->second);
+  }
   
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -306,6 +352,10 @@ private:
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
+
+  // Helper function to add extra input/output tensors to an
+  // OpSpec based on the requested input/outputs.
+  void ExtraTensorSetup(OpSpec *spec);
   
   enum DecodeLocation {
     DECODE_NONE,
@@ -318,6 +368,12 @@ private:
   int batch_size_;
   cudaStream_t stream_;
   ThreadPool thread_pool_;
+  size_t pixels_per_image_hint_;
+
+  template <typename T>
+  using TensorPtr = shared_ptr<Tensor<T>>;
+  std::map<string, TensorPtr<CPUBackend>> extra_tensors_;
+  std::map<string, TensorPtr<GPUBackend>> extra_gpu_tensors_;
   
   template <typename T>
   using OpPtr = unique_ptr<Operator<T>>;

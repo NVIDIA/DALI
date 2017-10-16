@@ -17,7 +17,8 @@ int add(int i, int j) {
 PYBIND11_MODULE(ndll_python, m) {
   m.doc() = "This is a test";
   m.def("add", &add, "A function which adds two numbers.");
-  
+
+  /*
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init<int, int, int, bool>(), "batch_size"_a,
         "num_threads"_a, "device_id"_a, "set_affinity"_a=true)
@@ -64,6 +65,7 @@ PYBIND11_MODULE(ndll_python, m) {
     .def("Read", &BatchDataReader::Read)
     .def("Reset", &BatchDataReader::Reset)
     .def("Clone", &BatchDataReader::Clone);
+  */
 }
 
 } // namespace python

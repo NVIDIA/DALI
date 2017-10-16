@@ -55,6 +55,11 @@ enum NDLLImageType {
   NDLL_GRAY = 2
 };
 
+/**
+ * @brief Supported data types
+ */
+
+
 inline bool IsColor(NDLLImageType type) {
   if ((type == NDLL_RGB) || (type == NDLL_BGR)) {
     return true;

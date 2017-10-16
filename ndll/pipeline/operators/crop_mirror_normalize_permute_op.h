@@ -3,6 +3,8 @@
 
 #include <cstring>
 
+#include <random>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/image/transform.h"
@@ -10,48 +12,46 @@
 
 namespace ndll {
 
-template <typename Backend, typename OUT>
+template <typename Backend>
 class CropMirrorNormalizePermuteOp : public Transformer<Backend> {
 public:
-  inline CropMirrorNormalizePermuteOp(
-      bool random_crop,
-      int crop_h,
-      int crop_w,
-      float mirror_prob,
-      NDLLImageType image_type,
-      vector<float> mean,
-      vector<float> std)
-    : rand_gen_(time(nullptr)),
-      random_crop_(random_crop),
-      crop_h_(crop_h),
-      crop_w_(crop_w),
-      mirror_prob_(mirror_prob),
-      image_type_(image_type),
-      color_(IsColor(image_type)),
-      C_(color_ ? 3 : 1),
-      mean_vec_(mean),
-      std_vec_(std) {
+  inline CropMirrorNormalizePermuteOp(const OpSpec &spec) :
+    Transformer<Backend>(spec), rand_gen_(time(nullptr)),
+    output_type_(spec.GetSingleArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
+    random_crop_(spec.GetSingleArgument<bool>("random_crop", false)),
+    crop_h_(spec.GetSingleArgument<int>("crop_h", -1)),
+    crop_w_(spec.GetSingleArgument<int>("crop_w", -1)),
+    mirror_prob_(spec.GetSingleArgument<float>("mirror_prob", 0.5f)),
+    image_type_(spec.GetSingleArgument<NDLLImageType>("image_type", NDLL_RGB)),
+    color_(IsColor(image_type_)),
+    C_(color_ ? 3 : 1),
+    mean_vec_(spec.GetRepeatedArgument<float>("mean")),
+    inv_std_vec_(spec.GetRepeatedArgument<float>("std")) {
     // Validate input parameters
-    NDLL_ENFORCE(crop_h > 0 && crop_w > 0);
-    NDLL_ENFORCE(mirror_prob <= 1.f && mirror_prob >= 0.f);
+    NDLL_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
+    NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
 
     // Validate & save mean & std params
-    NDLL_ENFORCE((int)mean.size() == C_);
-    NDLL_ENFORCE((int)std.size() == C_);
+    NDLL_ENFORCE((int)mean_vec_.size() == C_);
+    NDLL_ENFORCE((int)inv_std_vec_.size() == C_);
     
     // Inverse the std-deviation
-    inv_std_vec_.resize(C_);
     for (int i = 0; i < C_; ++i) {
-      inv_std_vec_[i] = 1.f / std[i];
+      inv_std_vec_[i] = 1.f / inv_std_vec_[i];
     }
-    mean_.Copy(mean);
+    mean_.Copy(mean_vec_);
     inv_std_.Copy(inv_std_vec_);
 
     // We need three buffers for our batched parameters
     // in_ptrs, in_strides, and mirror parameters per image
     param_sizes_.resize(3);
-  }
 
+    // Resize per-image data
+    crop_offsets_.resize(batch_size_);
+    in_strides_.resize(batch_size_);
+    mirror_.resize(batch_size_);
+  }
+    
   virtual inline ~CropMirrorNormalizePermuteOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(
@@ -85,34 +85,33 @@ public:
   
   inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
-    output->template mutable_data<OUT>();
+    if (output_type_ == NDLL_FLOAT) {
+      output->template mutable_data<float>();
+    } else if (output_type_ == NDLL_FLOAT16) {
+      output->template mutable_data<float16>();
+    } else {
+      NDLL_FAIL("Unsupported output type.");
+    }
   }
   
-  inline CropMirrorNormalizePermuteOp* Clone() const override {
-    return new CropMirrorNormalizePermuteOp(random_crop_, crop_h_,
-        crop_w_, mirror_prob_, image_type_, mean_vec_, std_vec_);
-  }
-
   inline string name() const override {
     return "CropMirrorNormalizePermuteOp";
   }
 
-  inline void set_num_threads(int num_threads) override {
-    num_threads_ = num_threads;
-  }
-
-  // User can override if they need to setup meta-data
-  inline void set_batch_size(int batch_size) override {
-    batch_size_ = batch_size;
-
-    crop_offsets_.resize(batch_size);
-    in_strides_.resize(batch_size);
-    mirror_.resize(batch_size);
-  }
-  
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
+    if (output_type_ == NDLL_FLOAT) {
+      RunHelper<float>(output);
+    } else if (output_type_ == NDLL_FLOAT16) {
+      RunHelper<float16>(output);
+    } else {
+      NDLL_FAIL("Unsupported output type.");
+    }
+  }
+
+  template <typename OUT>
+  inline void RunHelper(Batch<Backend> *output) {
     NDLL_CALL(BatchedCropMirrorNormalizePermute(
             gpu_param_buffers_[0].template data<const uint8*>(),
             gpu_param_buffers_[1].template data<int>(),
@@ -146,6 +145,17 @@ protected:
         input.template datum<uint8>(i) + crop_offsets_[i];
     }
 
+    if (output_type_ == NDLL_FLOAT) {
+      ValidateHelper<float>(output);
+    } else if (output_type_ == NDLL_FLOAT16) {
+      ValidateHelper<float16>(output);
+    } else {
+      NDLL_FAIL("Unsupported output type.");
+    }
+  }
+
+  template <typename OUT>
+  inline void ValidateHelper(Batch<Backend> *output) {
     // Validate parameters
     NDLL_CALL(ValidateBatchedCropMirrorNormalizePermute(
             param_buffers_[0].template mutable_data<const uint8*>(),
@@ -157,6 +167,9 @@ protected:
   }
   
   std::mt19937 rand_gen_;
+
+  // Output data type
+  NDLLDataType output_type_;
   
   // Crop meta-data
   bool random_crop_;
@@ -177,9 +190,8 @@ protected:
 
   // Tensor to store mean & stddiv 
   Tensor<Backend> mean_, inv_std_;
-  vector<float> mean_vec_, std_vec_, inv_std_vec_;
-  
-  using Operator<Backend>::num_threads_;
+  vector<float> mean_vec_, inv_std_vec_;
+
   using Operator<Backend>::batch_size_;
   using Operator<Backend>::stream_;
   using Operator<Backend>::param_sizes_;

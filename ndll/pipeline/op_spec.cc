@@ -1,5 +1,8 @@
 #include "ndll/pipeline/op_spec.h"
 
+#include "ndll/common.h"
+#include "ndll/pipeline/data/types.h"
+
 namespace ndll {
 
 #define INSTANTIATE_ADD_SINGLE_ARGUMENT(T, fieldname)                   \
@@ -19,6 +22,10 @@ INSTANTIATE_ADD_SINGLE_ARGUMENT(float, f);
 INSTANTIATE_ADD_SINGLE_ARGUMENT(int64, i);
 INSTANTIATE_ADD_SINGLE_ARGUMENT(int, i);
 INSTANTIATE_ADD_SINGLE_ARGUMENT(bool, i);
+INSTANTIATE_ADD_SINGLE_ARGUMENT(NDLLImageType, i);
+INSTANTIATE_ADD_SINGLE_ARGUMENT(NDLLInterpType, i);
+INSTANTIATE_ADD_SINGLE_ARGUMENT(NDLLDataType, i);
+INSTANTIATE_ADD_SINGLE_ARGUMENT(uint64, ui);
 INSTANTIATE_ADD_SINGLE_ARGUMENT(string, s);
 
 #define INSTANTIATE_ADD_REPEATED_ARGUMENT(T, fieldname)                 \
@@ -40,6 +47,10 @@ INSTANTIATE_ADD_REPEATED_ARGUMENT(float, rf);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(int64, ri);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(int, ri);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(bool, ri);
+INSTANTIATE_ADD_REPEATED_ARGUMENT(NDLLImageType, ri);
+INSTANTIATE_ADD_REPEATED_ARGUMENT(NDLLInterpType, ri);
+INSTANTIATE_ADD_REPEATED_ARGUMENT(NDLLDataType, ri);
+INSTANTIATE_ADD_REPEATED_ARGUMENT(uint64, rui);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(string, rs);
 
 OpSpec& OpSpec::AddExtraInput(const string &name) {
@@ -126,7 +137,7 @@ OpSpec::TensorPtr<GPUBackend> OpSpec::ExtraGPUOutput(int index) const {
   template <>                                                           \
   T OpSpec::ArgumentTypeHelper(const Argument &arg,                     \
       const T &default_value) const {                                   \
-    if (arg.has_##fieldname()) return arg.get_##fieldname();            \
+    if (arg.has_##fieldname()) return (T)arg.get_##fieldname();         \
     return default_value;                                               \
   }
 
@@ -135,6 +146,10 @@ INSTANTIATE_SINGLE_ARGUMENT_HELPER(float, f);
 INSTANTIATE_SINGLE_ARGUMENT_HELPER(int64, i);
 INSTANTIATE_SINGLE_ARGUMENT_HELPER(int, i);
 INSTANTIATE_SINGLE_ARGUMENT_HELPER(bool, i);
+INSTANTIATE_SINGLE_ARGUMENT_HELPER(NDLLImageType, i);
+INSTANTIATE_SINGLE_ARGUMENT_HELPER(NDLLInterpType, i);
+INSTANTIATE_SINGLE_ARGUMENT_HELPER(NDLLDataType, i);
+INSTANTIATE_SINGLE_ARGUMENT_HELPER(uint64, ui);
 INSTANTIATE_SINGLE_ARGUMENT_HELPER(string, s);
 
 // For repeated arguments, we do not return the default value unless the
@@ -157,6 +172,10 @@ INSTANTIATE_REPEATED_ARGUMENT_HELPER(float, rf);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(int64, ri);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(int, ri);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(bool, ri);
+INSTANTIATE_REPEATED_ARGUMENT_HELPER(NDLLImageType, ri);
+INSTANTIATE_REPEATED_ARGUMENT_HELPER(NDLLInterpType, ri);
+INSTANTIATE_REPEATED_ARGUMENT_HELPER(NDLLDataType, ri);
+INSTANTIATE_REPEATED_ARGUMENT_HELPER(uint64, rui);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(string, rs);
   
 } // namespace ndll

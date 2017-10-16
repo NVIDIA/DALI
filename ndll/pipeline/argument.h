@@ -15,8 +15,8 @@ namespace ndll {
 class Argument {
 public:
   Argument() :
-    f_(0), i_(0), has_name_(false),
-    has_f_(false), has_i_(false),
+    f_(0), i_(0), ui_(0), has_name_(false),
+    has_f_(false), has_i_(false), has_ui_(false),
     has_s_(false) {}
 
   // Setters & getters for name
@@ -53,6 +53,18 @@ public:
   inline void clear_i() {
     has_i_ = false;
     i_ = 0;
+  }
+
+  // Setters & getters for unsigned int
+  inline bool has_ui() const { return has_ui_; }
+  inline uint64 get_ui() const { return ui_; }
+  inline void set_ui(uint64 ui) {
+    has_ui_ = true;
+    ui_ = ui;
+  }
+  inline void clear_ui() {
+    has_ui_ = false;
+    ui_ = 0;
   }
   
   // Setters & getters for string
@@ -107,6 +119,27 @@ public:
     ri_.clear();
   }
 
+  // Setters & getters for repeated unsigned ints
+  inline int rui_size() const { return rui_.size(); }
+  inline const vector<uint64>& rui() const {
+    return rui_;
+  }
+  inline uint64 rui(int index) const {
+    NDLL_ENFORCE((index >= 0) && ((size_t)index < rui_.size()), "Index out of valid range.");
+    return rui_[index];
+  }
+  inline void set_rui(int index, uint64 ui) {
+    NDLL_ENFORCE((index >= 0) && ((size_t)index < rui_.size()), "Index out of valid range.");
+    rui_[index] = ui;
+  }
+  inline void add_rui(uint64 ui) {
+    rui_.push_back(ui);
+  }
+  inline void clear_rui() {
+    rui_.clear();
+  }
+  
+
   // Setters & getters for repeated strings
   inline int rs_size() const { return rs_.size(); }
   inline const vector<string>& rs() const {
@@ -132,12 +165,14 @@ private:
   
   double f_;
   int64 i_;
+  uint64 ui_;
   string s_;
   
   vector<double> rf_;
   vector<int64> ri_;
+  vector<uint64> rui_;
   vector<string> rs_;
-  bool has_name_, has_f_, has_i_, has_s_;
+  bool has_name_, has_f_, has_i_, has_ui_, has_s_;
 };
 
 } // namespace ndll

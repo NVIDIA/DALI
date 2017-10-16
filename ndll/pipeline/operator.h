@@ -24,16 +24,10 @@ namespace ndll {
 template <typename Backend>
 class Operator {
 public:
-  inline Operator()
-    : num_threads_(-1),
-      batch_size_(-1),
-      has_stream_(false) {}
-
   inline explicit Operator(const OpSpec &spec) :
     num_threads_(spec.GetSingleArgument<int>("num_threads", -1)),
     batch_size_(spec.GetSingleArgument<int>("batch_size", -1)),
-    stream_((cudaStream_t)spec.GetSingleArgument<int64>("cuda_stream", 0)),
-    has_stream_(true) {
+    stream_((cudaStream_t)spec.GetSingleArgument<int64>("cuda_stream", 0)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
 
@@ -42,7 +36,6 @@ public:
   
   virtual inline ~Operator() = default;
 
-  
   /**
    * @brief Executes the op on a single datum on cpu.
    *
@@ -75,8 +68,6 @@ public:
 #ifndef NDEBUG
     NDLL_ENFORCE(batch_size_ == input.ndatum(),
         "Batch size must be set before \"Run()\" is called");
-    NDLL_ENFORCE(has_stream_,
-        "Stream must be set before \"Run()\" is called");
 #endif
     RunBatchedGPU(input, output);
   }
@@ -150,42 +141,10 @@ public:
   virtual void SetOutputType(Batch<Backend> *output, TypeMeta input_type) = 0;
   
   /**
-   * @brief returns a newly allocated exact copy of the operator
-   */
-  virtual Operator* Clone() const = 0;
-
-  /**
    * @brief returns the name of the operator
    */
   virtual string name() const = 0;
 
-  //
-  /// Setters for operator meta-data required to execute the op
-  //
-
-  /**
-   * @brief Setter for the number of threads that will execute the op.
-   * Can be overriden by derived classes to perform thread local
-   * resource setup.
-   */
-  virtual inline void set_num_threads(int num_threads) {
-    num_threads_ = num_threads;
-  }
-
-  /**
-   * @brief Setter for the size of the batch that will be processed.
-   * Can be overriden by derived classes to perform per-datum resource
-   * setup.
-   */
-  virtual inline void set_batch_size(int batch_size) {
-    batch_size_ = batch_size;
-  }
-
-  inline void set_stream(cudaStream_t stream) {
-    has_stream_ = true;
-    stream_ = stream;
-  }
-  
   DISABLE_COPY_MOVE_ASSIGN(Operator);
 protected:
   /**
@@ -253,7 +212,6 @@ protected:
   int num_threads_;
   int batch_size_;
   cudaStream_t stream_;
-  bool has_stream_;
   
   vector<size_t> param_sizes_;
   vector<SubTensor<CPUBackend>> param_buffers_;

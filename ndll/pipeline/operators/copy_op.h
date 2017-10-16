@@ -10,8 +10,6 @@ namespace ndll {
 template <typename Backend>
 class CopyOp : public Transformer<Backend> {
 public:
-  inline CopyOp() {}
-
   inline explicit CopyOp(const OpSpec &spec) :
     Transformer<Backend>(spec) {}
   
@@ -26,10 +24,6 @@ public:
     output->set_type(input_type);
   }
   
-  inline CopyOp* Clone() const override {
-    return new CopyOp;
-  }
-
   inline string name() const override {
     return "CopyOp";
   }

@@ -20,7 +20,9 @@ public:
   inline vector<Index> InferOutputShape(const Datum<Backend> &input,
       int data_idx, int thread_idx) override final {
 #ifndef NDEBUG
-    NDLL_ENFORCE(data_idx < this->batch_size_, "data_idx out of range");
+    NDLL_ENFORCE(data_idx < this->batch_size_, "data_idx out of range: "
+        + std::to_string(data_idx) + " v. batch size of "
+        + std::to_string(thread_idx));
 #endif
     
     // Transfomers cannot have data dependent output shapes, we override
@@ -41,16 +43,16 @@ protected:
 };
 
 // Create registries for CPU & GPU Transformeres
-NDLL_DEFINE_OPTYPE_REGISTRY(CPUTransformer, Operator<CPUBackend>);
-NDLL_DEFINE_OPTYPE_REGISTRY(GPUTransformer, Operator<CPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(CPUTransformer, Transformer<CPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(GPUTransformer, Transformer<GPUBackend>);
 
 // Must be called from .cc or .cu file
-#define NDLL_REGISTER_CPU_TRANSFORM(OpName)           \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, CPUDecoder,   \
-      Operator<CPUBackend>)
-#define NDLL_REGISTER_GPU_TRANSFORM(OpName)           \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, GPUDecoder,   \
-      Operator<GPUBackend>)
+#define NDLL_REGISTER_CPU_TRANSFORM(OpName, OpType)   \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+      CPUTransformer, Transformer<CPUBackend>) 
+#define NDLL_REGISTER_GPU_TRANSFORM(OpName, OpType)   \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+      GPUTransformer, Transformer<GPUBackend>)
 
 } // namespace ndll
 

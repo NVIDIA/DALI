@@ -27,7 +27,7 @@ public:
   
   template <typename T>
   static string GetTypeName();
-  
+
 private:
   // TypeTable should only be referenced through its static members
   TypeTable();
@@ -65,6 +65,13 @@ class TypeMeta {
 public:
   inline TypeMeta() : id_(NO_TYPE), type_size_(0), name_("no_type") { }
 
+  template <typename T>
+  static inline TypeMeta Create() {
+    TypeMeta type;
+    type.SetType<T>();
+    return type;
+  }
+  
   template <typename T>
   inline void SetType() {
     id_ = TypeTable::GetTypeID<T>();
@@ -123,6 +130,28 @@ inline bool IsValidType(TypeMeta type) {
     static TypeID type_id = TypeTable::RegisterType<Type>();      \
     return type_id;                                               \
   }
+
+/**
+ * @brief Enum identifiers for the different data types that
+ * the pipeline can output. Only exists to simplify users 
+ * interaction with the type system, e.g. they don't have to
+ * call TypeTable::GetTypeID<type>() to give an operator its
+ * output data type
+ */
+enum NDLLDataType {
+  NDLL_NO_TYPE = -1,
+  NDLL_UINT8 = 0,
+  NDLL_FLOAT16 = 1,
+  NDLL_FLOAT = 2,
+};
+
+//
+/// Helper functions to map between TypeMeta and NDLLDataType
+//
+
+NDLLDataType NDLLTypeForMeta(TypeMeta type_meta);
+
+TypeMeta NDLLMetaForType(NDLLDataType type);
 
 } // namespace ndll
 

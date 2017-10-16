@@ -6,7 +6,7 @@
 
 namespace ndll {
 
-void Pipeline::Build(size_t pixels_per_image_hint) {
+void Pipeline::Build() {
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   
   // Make sure the decoder is the first op in the pipeline
@@ -28,7 +28,14 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
   // Batch so that it can be copied to the gpu and passed to the forward
   // stage operators. For now, we insert a CopyOp to handle this
   if (prefetch_ops_.size() == 0) {
-    OpPtr<CPUBackend> tmp(new CopyOp<CPUBackend>);
+    OpPtr<CPUBackend> tmp(
+        new CopyOp<CPUBackend>(
+            OpSpec("CopyOp")
+            .AddArg("batch_size", batch_size_)
+            .AddArg("num_threads", num_threads())
+            .AddArg("cuda_stream", (int64)stream_)
+            )
+        );
     prefetch_ops_.push_back(std::move(tmp));
   }
 
@@ -99,18 +106,6 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
     shape.resize(batch_size_);
   }
 
-  // Set important meta-data for all the operators in the pipeline
-  for (auto &op : prefetch_ops_) {
-    op->set_num_threads(thread_pool_.size());
-    op->set_batch_size(batch_size_);
-    op->set_stream(stream_);
-  }
-  for (auto &op : forward_ops_) {
-    op->set_num_threads(thread_pool_.size());
-    op->set_batch_size(batch_size_);
-    op->set_stream(stream_);
-  }
-
   // NOTE: The large number of memory allocations in the pipeline
   // interfere with training alot due to implicit synchronization w/
   // pinned memory allocations. We use the user-given hint to pre-size
@@ -121,11 +116,11 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
   
   for (auto &datum : input_datum_) {
     datum.set_type(read_output_type);
-    datum.Resize({(Index)pixels_per_image_hint});
+    datum.Resize({(Index)pixels_per_image_hint_});
   }
   for (auto &datum : parsed_datum_) {
     datum.set_type(parsed_output_type);
-    datum.Resize({(Index)pixels_per_image_hint});
+    datum.Resize({(Index)pixels_per_image_hint_});
   }
 
   // NOTE: We don't presize the mega-buffer, as the size of this usually
@@ -134,7 +129,7 @@ void Pipeline::Build(size_t pixels_per_image_hint) {
   // estimates of their memory requirements.
 
   // Resize the intermediate host & gpu storage
-  vector<Dims> tmp(batch_size_, {(Index)pixels_per_image_hint});
+  vector<Dims> tmp(batch_size_, {(Index)pixels_per_image_hint_});
   for (auto &buf : cpu_buffers_) buf->Resize(tmp);
   for (auto &buf : gpu_storage_) buf->Resize(tmp);
   
@@ -358,6 +353,53 @@ void Pipeline::MegaBufferSetupAndDistribution() {
       SetBatchedParameterBuffers(cpu_buffers, gpu_buffers);
     forward_ops_[i]->
       BatchedParameterSetup(*gpu_buffers_[i], gpu_buffers_[i+1].get());
+  }
+}
+
+void Pipeline::ExtraTensorSetup(OpSpec *spec) {
+  for (auto &tensor_name : spec->ExtraOutputNames()) {
+    // Tensors can only be the output of a single op.
+    // Verify a Tensor by this name does not exist
+    NDLL_ENFORCE(extra_tensors_.count(tensor_name) == 0,
+        "Tensor with name \"" + tensor_name +
+        "\" already exists as the output of "
+        "another Operator.");
+
+    // Create the tensor & add its ptr to the spec
+    TensorPtr<CPUBackend> new_tensor = std::make_shared<Tensor<CPUBackend>>();
+    extra_tensors_[tensor_name] = new_tensor;
+    spec->AddExtraOutputTensor(new_tensor);
+  }
+  for (auto &tensor_name : spec->ExtraInputNames()) {
+    // Extra input Tensors must have already been created
+    // as the output of another operator.
+    auto it = extra_tensors_.find(tensor_name);
+    NDLL_ENFORCE(it != extra_tensors_.end(), "Tensor with name\""
+        + tensor_name + "\" does not exist. Extra input Tensors "
+        "must be the output of a previously constructed Operator.");
+    spec->AddExtraInputTensor(it->second);
+  }
+  for (auto &tensor_name : spec->ExtraGPUOutputNames()) {
+    // Tensors can only be the output of a single op.
+    // Verify a Tensor by this name does not exist
+    NDLL_ENFORCE(extra_gpu_tensors_.count(tensor_name) == 0,
+        "Tensor with name \"" + tensor_name +
+        "\" already exists as the output of "
+        "another Operator.");
+
+    // Create the tensor & add its ptr to the spec
+    TensorPtr<GPUBackend> new_tensor = std::make_shared<Tensor<GPUBackend>>();
+    extra_gpu_tensors_[tensor_name] = new_tensor;
+    spec->AddExtraOutputTensor(new_tensor);
+  }
+  for (auto &tensor_name : spec->ExtraGPUInputNames()) {
+    // Extra input Tensors must have already been created
+    // as the output of another operator.
+    auto it = extra_gpu_tensors_.find(tensor_name);
+    NDLL_ENFORCE(it != extra_gpu_tensors_.end(), "Tensor with name\""
+        + tensor_name + "\" does not exist. Extra input Tensors "
+        "must be the output of a previously constructed Operator.");
+    spec->AddExtraInputTensor(it->second);
   }
 }
 

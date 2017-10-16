@@ -13,6 +13,7 @@
 
 namespace ndll {
 
+/*
 BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   bool fast_resize = st.range(0);
   int batch_size = st.range(1);
@@ -164,5 +165,5 @@ BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);
-
+*/
 } // namespace ndll
