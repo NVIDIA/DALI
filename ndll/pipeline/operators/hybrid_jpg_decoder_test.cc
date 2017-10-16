@@ -138,12 +138,11 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
       main_stream,
       0);
 
-  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
-          this->jpegs_, this->jpeg_sizes_, batch_size));
-
   // Add the data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_images", hybdec_images)
+      );
 
   // Add a hybrid jpeg decoder
   pipe.AddDecoder(OpSpec("HuffmanDecoder", "Prefetch")

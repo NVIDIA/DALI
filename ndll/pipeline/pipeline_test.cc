@@ -18,12 +18,9 @@
 
 namespace ndll {
 
-template <typename BackendPair>
+template <typename ThreadCount>
 class PipelineTest : public NDLLTest {
 public:
-  typedef typename BackendPair::TCPUBackend HostBackend;
-  typedef typename BackendPair::TGPUBackend DeviceBackend;
-
   void SetUp() {
     NDLLTest::SetUp();
     NDLLTest::DecodeJPEGS(NDLL_RGB);
@@ -54,27 +51,18 @@ public:
 protected:
 };
 
-template <typename CPUBackend, typename GPUBackend, int number_of_threads>
-struct PipelineTestTypes {
-  typedef CPUBackend TCPUBackend;
-  typedef GPUBackend TGPUBackend;
+template <int number_of_threads>
+struct ThreadCount {
   static const int nt = number_of_threads;
 };
 
-typedef ::testing::Types<PipelineTestTypes<CPUBackend, GPUBackend, 1>,
-                         PipelineTestTypes<CPUBackend, GPUBackend, 2>,
-                         PipelineTestTypes<CPUBackend, GPUBackend, 3>,
-                         PipelineTestTypes<CPUBackend, GPUBackend, 4>
-                         > BackendTypes;
-TYPED_TEST_CASE(PipelineTest, BackendTypes);
-
-#define DECLTYPES()                                       \
-  typedef typename TypeParam::TCPUBackend HostBackend;    \
-  typedef typename TypeParam::TGPUBackend DeviceBackend;  \
-  int num_thread = TypeParam::nt
+typedef ::testing::Types<ThreadCount<1>,
+                         ThreadCount<2>,
+                         ThreadCount<3>,
+                         ThreadCount<4>> NumThreads;
+TYPED_TEST_CASE(PipelineTest, NumThreads);
 
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
-  typedef typename TypeParam::TCPUBackend HostBackend;
   int num_thread = TypeParam::nt;
   int batch_size = this->RandInt(1, 256);
   cudaStream_t stream;
@@ -82,17 +70,16 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   
   Pipeline pipe(batch_size, num_thread, stream, 0, true);
 
-  Batch<CPUBackend> tmp_batch;
-  this->MakeImageBatch(batch_size, &tmp_batch);
+  Batch<CPUBackend> *batch =
+    CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
   
-  // Create a batches of data to work with
-  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
-  batch->Copy(tmp_batch);
-
   // Add a data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_folder", image_folder)
+      );
 
+  // Add a single prefetch op
   pipe.AddTransform(OpSpec("CopyOp", "Prefetch"));
 
   // Build the pipeline
@@ -113,23 +100,20 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 }
 
 TYPED_TEST(PipelineTest, TestNoOps) {
-  typedef typename TypeParam::TCPUBackend HostBackend;
   int num_thread = TypeParam::nt;
   
   int batch_size = this->RandInt(1, 256);
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
-  Batch<CPUBackend> tmp_batch;
-  this->MakeImageBatch(batch_size, &tmp_batch);
+  Batch<CPUBackend> *batch =
+    CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
   
-  // Create a batches of data to work with
-  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
-  batch->Copy(tmp_batch);
-
   // Add a data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
-
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_folder", image_folder)
+      );
+  
   // Build the pipeline
   pipe.Build();
   
@@ -148,23 +132,20 @@ TYPED_TEST(PipelineTest, TestNoOps) {
 }
 
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
-  typedef typename TypeParam::TCPUBackend HostBackend;
   int num_thread = TypeParam::nt;
 
   int batch_size = this->RandInt(1, 256);
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
-  Batch<CPUBackend> tmp_batch;
-  this->MakeImageBatch(batch_size, &tmp_batch);
+  Batch<CPUBackend> *batch =
+    CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
   
-  // Create a batches of data to work with
-  shared_ptr<Batch<HostBackend>> batch(new Batch<HostBackend>);
-  batch->Copy(tmp_batch);
-
   // Add a data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
-
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_folder", image_folder)
+      );
+  
   // Add a single op to the forward stage
   pipe.AddTransform(OpSpec("CopyOp", "Forward"));
 

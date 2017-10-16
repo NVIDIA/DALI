@@ -128,16 +128,8 @@ public:
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
 
-    // Add batch_size, num_threads, cuda stream, and image size hint
-    // as arguments for the Operator to optionally leverage
-    OpSpec spec_copy = spec;
-    spec_copy.AddArg("batch_size", batch_size_)
-      .AddArg("num_threads", num_threads())
-      .AddArg("cuda_stream", (int64)stream_)
-      .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
-
-    // Handle extra input/output Tensors
-    ExtraTensorSetup(&spec_copy);
+    // Add some pipeline meta-data and handle extra input/output tensors
+    OpSpec spec_copy = PrepareOpSpec(spec);
     
     // Construct the decoder with the input spec
     if (spec_copy.stage() == "Prefetch") {
@@ -165,16 +157,8 @@ public:
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
 
-    // Add batch_size, num_threads, cuda stream, and image size hint
-    // as arguments for the Operator to optionally leverage
-    OpSpec spec_copy = spec;
-    spec_copy.AddArg("batch_size", batch_size_)
-      .AddArg("num_threads", num_threads())
-      .AddArg("cuda_stream", (int64)stream_)
-      .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
-
-    // Handle extra input/output Tensors
-    ExtraTensorSetup(&spec_copy);
+    // Add some pipeline meta-data and handle extra input/output tensors
+    OpSpec spec_copy = PrepareOpSpec(spec);
     
     // Construct the decoder with the input spec
     if (spec_copy.stage() == "Prefetch") {
@@ -197,10 +181,20 @@ public:
    * to overlap the reading of data with the processing of data in the
    * thread pool.
    */
-  inline void AddDataReader(const DataReader &reader) {
+  inline void AddDataReader(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    data_reader_.reset(reader.Clone());
+    NDLL_ENFORCE(data_reader_ == nullptr, "Pipeline already "
+        "has a DataReader.");
+    NDLL_ENFORCE(spec.stage() == "Prefetch",
+        "DataReaders only operator in Prefetch stage.");
+    
+    // Add some pipeline meta-data and handle extra input/output tensors
+    OpSpec spec_copy = PrepareOpSpec(spec);
+
+    // Construct the DataReader with the input spec
+    data_reader_ = DataReaderRegistry::Registry().Create(
+        spec_copy.name(), spec_copy);
   }
 
   /**
@@ -353,6 +347,10 @@ private:
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
 
+  // Helper to add pipeline meta-data and handle extra
+  // input/output tensors.
+  OpSpec PrepareOpSpec(const OpSpec &spec);
+  
   // Helper function to add extra input/output tensors to an
   // OpSpec based on the requested input/outputs.
   void ExtraTensorSetup(OpSpec *spec);

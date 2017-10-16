@@ -125,7 +125,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
     shape[i] = {Index(jpeg_sizes[i % jpegs.size()])};
   }
   batch->Resize(shape);
-    
+  
   // Copy in the data
   batch->template mutable_data<uint8>();
   for (int i = 0; i < batch_size; ++i) {

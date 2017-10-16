@@ -6,6 +6,9 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/op_spec.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -16,7 +19,11 @@ namespace ndll {
  */
 class DataReader {
 public:
-  DataReader(){}
+  inline DataReader(const OpSpec &spec) :
+    batch_size_(spec.GetSingleArgument<int>("batch_size", -1)) {
+    NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
+  }
+  
   virtual ~DataReader() = default;
 
   /**
@@ -30,54 +37,67 @@ public:
    */
   virtual void Reset() = 0;
   
-  virtual DataReader* Clone() const = 0;
-  
   DISABLE_COPY_MOVE_ASSIGN(DataReader);
 protected:
+  int batch_size_;
 };
+
+// Create registries for DataReaders
+NDLL_DEFINE_OPTYPE_REGISTRY(DataReader, DataReader);
+
+#define NDLL_REGISTER_DATA_READER(OpName, OpType) \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \
+      DataReader, DataReader)
 
 /**
  * @brief Basic data reader that provides access to data loaded into a batch
  * externally. This may go away in the future, it currently exists to provide
- * compatibility with the way we have been doing things before-data-reader.
+ * compatibility with the way we have been testing things pre-data-reader.
  */
 class BatchDataReader final : public DataReader {
 public:
-  BatchDataReader(shared_ptr<Batch<CPUBackend>> data_store)
-    : data_store_(data_store), cursor_(0), batch_size_(data_store->ndatum()) {
-    NDLL_ENFORCE(data_store_ != nullptr);
-    NDLL_ENFORCE(batch_size_ > 0);
+  inline BatchDataReader(const OpSpec &spec) :
+    DataReader(spec), cursor_(0) {
+    // Load the images from the specified folder and create a
+    // Batch object that contains them.
+    string jpeg_folder = spec.GetSingleArgument<string>("jpeg_folder", "");
+    vector<uint8*> jpegs;
+    vector<int> jpeg_sizes;
+    if (jpeg_folder.empty()) {
+      // Load all the specified images and copy them into a Batch object
+      vector<string> jpeg_names = spec.GetRepeatedArgument<string>("jpeg_images");
+      NDLL_ENFORCE(jpeg_names.size() > 0, "No image files specified.");
+      LoadJPEGS(jpeg_names, &jpegs, &jpeg_sizes);
+    } else {
+      vector<string> jpeg_names;
+      LoadJPEGS(jpeg_folder, &jpeg_names, &jpegs, &jpeg_sizes);
+    }
+    data_store_.reset(CreateJPEGBatch<CPUBackend>(jpegs, jpeg_sizes, batch_size_));
   }
   
   /**
-   * @brief Wraps the input Datum object around a single data sample
+   * @brief Wraps the input Datum object around a single data sample.
    */
-  void Read(Datum<CPUBackend> *datum) override {
+  inline void Read(Datum<CPUBackend> *datum) override {
     datum->WrapSample(data_store_.get(), cursor_);
     cursor_ = (cursor_ + 1) % batch_size_;
   }
 
   /**
-   * Resets the cursor to 0
+   * @brief Resets the cursor to 0.
    */
   void Reset() override {
     cursor_ = 0;
   }
-  
-  BatchDataReader* Clone() const override {
-    return new BatchDataReader(data_store_);
-  }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(BatchDataReader);
 private:
-  // On construction, the BatchDataReader wraps a 'Batch' object.
-  // Over the course of training, it then simply provides access
-  // to this batch.
-  shared_ptr<Batch<CPUBackend>> data_store_;
+  // Over the course of training, the BatchDataReader
+  // simply provides access to the loaded batch of images
+  std::unique_ptr<Batch<CPUBackend>> data_store_;
 
   // The current element to return from the batch
   int cursor_;
-  int batch_size_;
 };
 
 } // namespace ndll

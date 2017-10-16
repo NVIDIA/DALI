@@ -356,6 +356,21 @@ void Pipeline::MegaBufferSetupAndDistribution() {
   }
 }
 
+OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
+  // Add batch_size, num_threads, cuda stream, and
+  // image size hint as arguments for the DataReader
+  // to optionally leverage
+  OpSpec spec_copy = spec;
+  spec_copy.AddArg("batch_size", batch_size_)
+    .AddArg("num_threads", num_threads())
+    .AddArg("cuda_stream", (int64)stream_)
+    .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
+    
+  // Handle extra input/output Tensors
+  ExtraTensorSetup(&spec_copy);
+  return spec_copy;
+}
+
 void Pipeline::ExtraTensorSetup(OpSpec *spec) {
   for (auto &tensor_name : spec->ExtraOutputNames()) {
     // Tensors can only be the output of a single op.

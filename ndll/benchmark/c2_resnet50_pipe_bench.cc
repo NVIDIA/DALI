@@ -28,12 +28,11 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
       main_stream,
       0);
 
-  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
-          this->jpegs_, this->jpeg_sizes_, batch_size));
-  
   // Add the data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_folder", image_folder)
+      );
 
   pipe.AddDecoder(
       OpSpec("TJPGDecoder", "Prefetch")
@@ -112,12 +111,11 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
       main_stream,
       0);
   
-  shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
-          this->jpegs_, this->jpeg_sizes_, batch_size));
-  
   // Add the data reader
-  BatchDataReader reader(batch);
-  pipe.AddDataReader(reader);
+  pipe.AddDataReader(
+      OpSpec("BatchDataReader")
+      .AddArg("jpeg_folder", image_folder)
+      );
   
   // Add a hybrid jpeg decoder
   pipe.AddDecoder(
