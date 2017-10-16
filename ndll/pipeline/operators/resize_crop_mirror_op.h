@@ -32,29 +32,26 @@ namespace ndll {
 template <typename Backend>
 class ResizeCropMirrorOp : public Transformer<Backend> {
 public:
-  inline ResizeCropMirrorOp(
-      bool random_resize,
-      bool warp_resize,
-      int resize_a,
-      int resize_b,
-      bool random_crop,
-      int crop_h,
-      int crop_w,
-      float mirror_prob)
-    : rand_gen_(time(nullptr)),
-      random_resize_(random_resize),
-      warp_resize_(warp_resize),
-      resize_a_(resize_a),
-      resize_b_(resize_b),
-      random_crop_(random_crop),
-      crop_h_(crop_h),
-      crop_w_(crop_w),
-      mirror_prob_(mirror_prob) {
+  inline ResizeCropMirrorOp(const OpSpec &spec) :
+    Transformer<Backend>(spec),
+    rand_gen_(time(nullptr)),
+    random_resize_(spec.GetSingleArgument<bool>("random_resize", false)),
+    warp_resize_(spec.GetSingleArgument<bool>("warp_resize", false)),
+    resize_a_(spec.GetSingleArgument<int>("resize_a", -1)),
+    resize_b_(spec.GetSingleArgument<int>("resize_b", -1)),
+    random_crop_(spec.GetSingleArgument<bool>("random_crop", false)),
+    crop_h_(spec.GetSingleArgument<int>("crop_h", -1)),
+    crop_w_(spec.GetSingleArgument<int>("crop_w", -1)),
+    mirror_prob_(spec.GetSingleArgument<float>("mirror_prob", 0.5f)) {
     // Validate input parameters
-    NDLL_ENFORCE(resize_a > 0 && resize_b > 0);
-    NDLL_ENFORCE(resize_a <= resize_b);
-    NDLL_ENFORCE(crop_h > 0 && crop_w > 0);
-    NDLL_ENFORCE(mirror_prob <= 1.f && mirror_prob >= 0.f);
+    NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
+    NDLL_ENFORCE(resize_a_ <= resize_b_);
+    NDLL_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
+    NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
+
+    // Resize per-image & per-thread data
+    tl_workspace_.resize(num_threads_);
+    transform_params_.resize(batch_size_);
   }
 
   virtual inline ~ResizeCropMirrorOp() = default;
@@ -128,26 +125,10 @@ public:
     output->template mutable_data<uint8>();
   }
   
-  inline ResizeCropMirrorOp* Clone() const override {
-    return new ResizeCropMirrorOp(random_resize_, warp_resize_,
-        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
-  }
-
   inline string name() const override {
     return "ResizeCropMirrorOp";
   }
 
-  inline void set_num_threads(int num_threads) override {
-    num_threads_ = num_threads;
-    tl_workspace_.resize(num_threads);
-  }
-
-  // User can override if they need to setup meta-data
-  inline void set_batch_size(int batch_size) override {
-    batch_size_ = batch_size;
-    transform_params_.resize(batch_size_);
-  }
-  
 protected:
    inline void RunPerDatumCPU(const Datum<Backend> &input,
       Datum<Backend> *output, int data_idx, int thread_idx) override {
@@ -208,31 +189,10 @@ protected:
 template <typename Backend>
 class FastResizeCropMirrorOp : public ResizeCropMirrorOp<Backend> {
 public:
-  inline FastResizeCropMirrorOp(
-      bool random_resize,
-      bool warp_resize,
-      int resize_a,
-      int resize_b,
-      bool random_crop,
-      int crop_h,
-      int crop_w,
-      float mirror_prob) :
-    ResizeCropMirrorOp<Backend>(
-        random_resize,
-        warp_resize,
-        resize_a,
-        resize_b,
-        random_crop,
-        crop_h,
-        crop_w,
-        mirror_prob) {}
+  inline FastResizeCropMirrorOp(const OpSpec &spec) :
+    ResizeCropMirrorOp<Backend>(spec) {}
 
   virtual inline ~FastResizeCropMirrorOp() = default;
-  
-  inline FastResizeCropMirrorOp* Clone() const override {
-    return new FastResizeCropMirrorOp(random_resize_, warp_resize_,
-        resize_a_, resize_b_, random_crop_, crop_h_, crop_w_, mirror_prob_);
-  }
 
   inline string name() const override {
     return "FastResizeCropMirrorOp";

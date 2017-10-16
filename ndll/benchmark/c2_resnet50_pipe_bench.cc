@@ -13,7 +13,6 @@
 
 namespace ndll {
 
-/*
 BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   bool fast_resize = st.range(0);
   int batch_size = st.range(1);
@@ -26,7 +25,7 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      (int64)main_stream,
+      main_stream,
       0);
 
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
@@ -35,26 +34,48 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   // Add the data reader
   BatchDataReader reader(batch);
   pipe.AddDataReader(reader);
-  
-  // Add a decoder and some transformers
-  TJPGDecoder<CPUBackend> jpg_decoder(img_type);
-  pipe.AddDecoder(jpg_decoder);
+
+  pipe.AddDecoder(
+      OpSpec("TJPGDecoder", "Prefetch")
+      .AddArg("output_type", img_type)
+      );
 
   // Add a resize+crop+mirror op
   if (fast_resize) {
-    FastResizeCropMirrorOp<CPUBackend> resize_crop_mirror_op(
-        true, false, 256, 480, true, 224, 224, 0.5f);
-    pipe.AddPrefetchOp(resize_crop_mirror_op);
+    pipe.AddTransform(
+        OpSpec("FastResizeCropMirrorOp", "Prefetch")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        );
   } else {
-    ResizeCropMirrorOp<CPUBackend> resize_crop_mirror_op(
-        true, false, 256, 480, true, 224, 224, 0.5f);
-    pipe.AddPrefetchOp(resize_crop_mirror_op);
+    pipe.AddTransform(
+        OpSpec("ResizeCropMirrorOp", "Prefetch")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        );
   }
 
-  // Add normalize permute op
-  NormalizePermuteOp<GPUBackend, float16> norm_permute_op(
-      {128, 128, 128}, {1, 1, 1}, 224, 224, 3);
-  pipe.AddForwardOp(norm_permute_op);
+  pipe.AddTransform(
+      OpSpec("NormalizePermuteOp", "Forward")
+      .AddArg("output_type", NDLL_FLOAT16)
+      .AddArg("mean", vector<float>{128, 128, 128})
+      .AddArg("std", vector<float>{1, 1, 1})
+      .AddArg("height", 224)
+      .AddArg("width", 224)
+      .AddArg("channels", 3)
+      );
   
   // Build and run the pipeline
   pipe.Build();
@@ -82,12 +103,13 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   int num_thread = st.range(1);
   cudaStream_t main_stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
- 
+  NDLLImageType img_type = NDLL_RGB;
+   
   // Create the pipeline
   Pipeline pipe(
       batch_size,
       num_thread,
-      (int64)main_stream,
+      main_stream,
       0);
   
   shared_ptr<Batch<CPUBackend>> batch(CreateJPEGBatch<CPUBackend>(
@@ -98,22 +120,40 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   pipe.AddDataReader(reader);
   
   // Add a hybrid jpeg decoder
-  shared_ptr<HybridJPEGDecodeChannel> decode_channel(new HybridJPEGDecodeChannel);
-  HuffmanDecoder<CPUBackend> huffman_decoder(decode_channel);
-  pipe.AddDecoder(huffman_decoder);
-
-  NDLLImageType img_type = NDLL_RGB;
-  DCTQuantInvOp<GPUBackend> idct_op(img_type, decode_channel);
-  pipe.AddForwardOp(idct_op);
-
+  pipe.AddDecoder(
+      OpSpec("HuffmanDecoder", "Prefetch")
+      .AddExtraOutput("jpeg_meta")
+      );
+  
+  pipe.AddTransform(
+      OpSpec("DCTQuantInvOp", "Forward")
+      .AddExtraInput("jpeg_meta")
+      .AddArg("output_type", img_type)
+      );
+  
   // Add a batched resize op
-  ResizeOp<GPUBackend> resize_op(true, false, 256, 480, img_type, NDLL_INTERP_LINEAR);
-  pipe.AddForwardOp(resize_op);
+  pipe.AddTransform(
+      OpSpec("ResizeOp", "Forward")
+      .AddArg("random_resize", true)
+      .AddArg("warp_resize", false)
+      .AddArg("resize_a", 256)
+      .AddArg("resize_b", 480)
+      .AddArg("image_type", img_type)
+      .AddArg("interp_type", NDLL_INTERP_LINEAR)
+      );
 
   // Add a bached crop+mirror+normalize+permute op
-  CropMirrorNormalizePermuteOp<GPUBackend, float16> final_op(
-      true, 224, 224, 0.5f, img_type, {128, 128, 128}, {1, 1, 1});
-  pipe.AddForwardOp(final_op);
+  pipe.AddTransform(
+      OpSpec("CropMirrorNormalizePermuteOp", "Forward")
+      .AddArg("output_type", NDLL_FLOAT16)
+      .AddArg("random_crop", true)
+      .AddArg("crop_h", 224)
+      .AddArg("crop_w", 224)
+      .AddArg("mirror_prob", 0.5f)
+      .AddArg("image_type", img_type)
+      .AddArg("mean", vector<float>{128, 128, 128})
+      .AddArg("std", vector<float>{1, 1, 1})
+      );
   
   // Build and run the pipeline
   pipe.Build();
@@ -165,5 +205,5 @@ BENCHMARK_REGISTER_F(NDLLBenchmark, C2HybridResNet50Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);
-*/
+
 } // namespace ndll

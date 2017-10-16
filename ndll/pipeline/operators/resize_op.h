@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_RESIZE_OP_H_
 #define NDLL_PIPELINE_OPERATORS_RESIZE_OP_H_
 
+#include <random>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/image/transform.h"
@@ -11,27 +13,27 @@ namespace ndll {
 template <typename Backend>
 class ResizeOp : public Transformer<Backend> {
 public:
-  inline ResizeOp(
-      bool random_resize,
-      bool warp_resize,
-      int resize_a,
-      int resize_b,
-      NDLLImageType image_type,
-      NDLLInterpType type = NDLL_INTERP_LINEAR)
-    : rand_gen_(time(nullptr)),
-      random_resize_(random_resize),
-      warp_resize_(warp_resize),
-      resize_a_(resize_a),
-      resize_b_(resize_b),
-      image_type_(image_type),
-      color_(IsColor(image_type)),
-      C_(color_ ? 3 : 1),
-      type_(type) {
+  inline ResizeOp(const OpSpec &spec) :
+    Transformer<Backend>(spec),
+    rand_gen_(time(nullptr)),
+    random_resize_(spec.GetSingleArgument<bool>("random_resize", false)),
+    warp_resize_(spec.GetSingleArgument<bool>("warp_resize", false)),
+    resize_a_(spec.GetSingleArgument<int>("resize_a", -1)),
+    resize_b_(spec.GetSingleArgument<int>("resize_b", -1)),
+    image_type_(spec.GetSingleArgument<NDLLImageType>("image_type", NDLL_RGB)),
+    color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
+    type_(spec.GetSingleArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
     // Validate input parameters
-    NDLL_ENFORCE(resize_a > 0 && resize_b > 0);
-    NDLL_ENFORCE(resize_a <= resize_b);
-  }
+    NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
+    NDLL_ENFORCE(resize_a_ <= resize_b_);
 
+    // Resize per-image data
+    input_ptrs_.resize(batch_size_);
+    output_ptrs_.resize(batch_size_);
+    input_sizes_.resize(batch_size_);
+    output_sizes_.resize(batch_size_);    
+  }
+    
   virtual inline ~ResizeOp() = default;
   
   inline vector<Index> InferOutputShapeFromShape(
@@ -91,23 +93,10 @@ public:
     output->template mutable_data<uint8>();
   }
   
-  inline ResizeOp* Clone() const override {
-    return new ResizeOp(random_resize_, warp_resize_, resize_a_, resize_b_, image_type_, type_);
-  }
-
   inline string name() const override {
     return "ResizeOp";
   }
 
-  inline void set_batch_size(int batch_size) override {
-    batch_size_ = batch_size;
-
-    input_ptrs_.resize(batch_size);
-    output_ptrs_.resize(batch_size);
-    input_sizes_.resize(batch_size);
-    output_sizes_.resize(batch_size);
-  }
-  
 protected:
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {

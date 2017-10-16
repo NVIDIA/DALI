@@ -2,7 +2,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_TRANSFORM(CropMirrorNormalizePermuteOp,
-    CropMirrorNormalizePermuteOp<CPUBackend>);
+NDLL_REGISTER_GPU_TRANSFORM(CropMirrorNormalizePermuteOp,
+    CropMirrorNormalizePermuteOp<GPUBackend>);
 
 } // namespace ndll
