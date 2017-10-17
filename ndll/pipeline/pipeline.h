@@ -187,7 +187,7 @@ public:
     NDLL_ENFORCE(data_reader_ == nullptr, "Pipeline already "
         "has a DataReader.");
     NDLL_ENFORCE(spec.stage() == "Prefetch",
-        "DataReaders only operator in Prefetch stage.");
+        "DataReaders only operate in Prefetch stage.");
     
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);
@@ -203,10 +203,20 @@ public:
    * for custom data formats without altering the basic ops defined for 
    * the pipeline.
    */
-  inline void AddParser(const Parser &parser) {
+  inline void AddParser(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    data_parser_.reset(parser.Clone());
+    NDLL_ENFORCE(data_parser_ == nullptr, "Pipeline already "
+        "has a Parser.");
+    NDLL_ENFORCE(spec.stage() == "Prefetch",
+        "Parsers only operate in Prefetch stage.");
+
+    // Add some pipeline meta-data and handle extra input/output tensors
+    OpSpec spec_copy = PrepareOpSpec(spec);
+
+    // Construct the Parser with the input spec
+    data_parser_ = ParserRegistry::Registry().Create(
+        spec_copy.name(), spec_copy);
   }
   
   /**

@@ -20,7 +20,13 @@ void Pipeline::Build() {
 
   // If we don't have a Parser set, add a default parser to the pipeline
   if (data_parser_ == nullptr) {
-    data_parser_.reset(new DefaultParser);
+    data_parser_.reset(
+        new DefaultParser(
+            OpSpec("DefaultParser")
+            .AddArg("batch_size", batch_size_)
+            .AddArg("num_threads", num_threads())
+            )
+        );
   }
 
   // Note: In the case where we have no operators in the prefetch stage,

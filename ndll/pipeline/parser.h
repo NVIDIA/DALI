@@ -3,7 +3,10 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/data/batch.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/op_spec.h"
 
 namespace ndll {
 
@@ -13,7 +16,13 @@ namespace ndll {
  */
 class Parser {
 public:
-  Parser() {}
+  inline Parser(const OpSpec &spec) :
+    num_threads_(spec.GetSingleArgument<int>("num_threads", -1)),
+    batch_size_(spec.GetSingleArgument<int>("batch_size", -1)) {
+    NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
+    NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
+  }
+  
   virtual ~Parser() = default;
 
   /**
@@ -25,11 +34,17 @@ public:
   virtual void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
       int data_idx, int thread_idx) = 0;
 
-  virtual Parser* Clone() const = 0;
-  
   DISABLE_COPY_MOVE_ASSIGN(Parser);
 protected:
+  int num_threads_, batch_size_;
 };
+
+// Create registries for DataReaders
+NDLL_DEFINE_OPTYPE_REGISTRY(Parser, Parser);
+
+#define NDLL_REGISTER_PARSER(OpName, OpType)      \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \
+      Parser, Parser)
 
 /**
  * @brief The default Parser used by the Pipeline if no user-defined Parser is
@@ -39,18 +54,14 @@ protected:
  */
 class DefaultParser final : public Parser {
 public:
-  DefaultParser() {}
-  ~DefaultParser() {}
+  inline DefaultParser(const OpSpec &spec) : Parser(spec) {}
+  ~DefaultParser() = default;
 
-  void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
+  inline void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
       int /* unused */, int /* unused */) override {
     output->Copy(input);
   }
 
-  DefaultParser* Clone() const override {
-    return new DefaultParser;
-  }
-  
   DISABLE_COPY_MOVE_ASSIGN(DefaultParser);
 protected:
 };
