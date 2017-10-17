@@ -43,7 +43,7 @@ protected:
 };
 
 // Create registries for DataReaders
-NDLL_DEFINE_OPTYPE_REGISTRY(DataReader, DataReader);
+NDLL_DECLARE_OPTYPE_REGISTRY(DataReader, DataReader);
 
 #define NDLL_REGISTER_DATA_READER(OpName, OpType) \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \

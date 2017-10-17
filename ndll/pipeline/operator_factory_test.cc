@@ -50,7 +50,8 @@ public:
 };
 
 // Create some dummy factories (lol)
-
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUDummy, DummyBase<CPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 NDLL_DEFINE_OPTYPE_REGISTRY(CPUDummy, DummyBase<CPUBackend>);
 NDLL_DEFINE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 

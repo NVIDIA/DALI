@@ -4,7 +4,7 @@
 
 namespace ndll {
 
-void NDLLInit(CPUAllocator *cpu_allocator, GPUAllocator *gpu_allocator) {
+void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator) {
   InitializeBackends(cpu_allocator, gpu_allocator);
 }
 

@@ -4,18 +4,21 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"
+#include "ndll/pipeline/op_spec.h"
 
 namespace ndll {
 
 class AllocatorManager {
 public:
-  static void SetAllocators(CPUAllocator *cpu_allocator, GPUAllocator *gpu_allocator) {
+  static void SetAllocators(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator) {
     // Lock so we can give a good error if the user calls this from multiple threads.
     std::lock_guard<std::mutex> lock(mutex_);
     NDLL_ENFORCE(cpu_allocator_ == nullptr, "NDLL CPU allocator already set");
     NDLL_ENFORCE(gpu_allocator_ == nullptr, "NDLL GPU allocator already set");
-    cpu_allocator_.reset(cpu_allocator);
-    gpu_allocator_.reset(gpu_allocator);
+    cpu_allocator_ = CPUAllocatorRegistry::Registry()
+      .Create(cpu_allocator.name(), cpu_allocator);
+    gpu_allocator_ = GPUAllocatorRegistry::Registry()
+      .Create(gpu_allocator.name(), gpu_allocator);
   }
   
   static CPUAllocator& GetCPUAllocator() {
@@ -44,7 +47,8 @@ unique_ptr<GPUAllocator> AllocatorManager::gpu_allocator_(nullptr);
 std::mutex AllocatorManager::mutex_;
 
 // Sets the allocator ptrs for all backends
-void InitializeBackends(CPUAllocator *cpu_allocator, GPUAllocator *gpu_allocator) {
+void InitializeBackends(const OpSpec &cpu_allocator,
+    const OpSpec &gpu_allocator) {
   AllocatorManager::SetAllocators(cpu_allocator, gpu_allocator);
 }
 

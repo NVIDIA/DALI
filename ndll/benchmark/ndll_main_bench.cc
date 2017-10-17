@@ -3,9 +3,10 @@
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"
 #include "ndll/pipeline/init.h"
+#include "ndll/pipeline/op_spec.h"
 
 int main(int argc, char **argv) {
-  ndll::NDLLInit(new ndll::PinnedCPUAllocator, new ndll::GPUAllocator);
+  ndll::NDLLInit(ndll::OpSpec("PinnedCPUAllocator"), ndll::OpSpec("GPUAllocator"));
   ::benchmark::Initialize(&argc, argv);
   ::benchmark::RunSpecifiedBenchmarks();
 }

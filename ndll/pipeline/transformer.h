@@ -43,8 +43,8 @@ protected:
 };
 
 // Create registries for CPU & GPU Transformeres
-NDLL_DEFINE_OPTYPE_REGISTRY(CPUTransformer, Transformer<CPUBackend>);
-NDLL_DEFINE_OPTYPE_REGISTRY(GPUTransformer, Transformer<GPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUTransformer, Transformer<CPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUTransformer, Transformer<GPUBackend>);
 
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_CPU_TRANSFORM(OpName, OpType)   \

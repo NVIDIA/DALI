@@ -30,7 +30,7 @@ public:
     stream_((cudaStream_t)spec.GetSingleArgument<int64>("cuda_stream", 0)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
-
+    
     // TODO(tgale): Can we add a warning here for running in the default stream?
   }
   

@@ -67,14 +67,17 @@ public:
 
 
 // Creators a registry object for a specific op type
-#define NDLL_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)           \
+#define NDLL_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)          \
   class RegistryName##Registry {                                    \
   public:                                                           \
-    static OperatorRegistry<OpType>& Registry() {                   \
-      static OperatorRegistry<OpType> registry;                     \
-      return registry;                                              \
-    }                                                               \
+  static OperatorRegistry<OpType>& Registry();                      \
   };
+
+#define NDLL_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)             \
+  OperatorRegistry<OpType>& RegistryName##Registry::Registry() {      \
+    static OperatorRegistry<OpType> registry;                         \
+    return registry;                                                  \
+  }
 
 #define CONCAT_1(var1, var2) var1##var2
 #define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
@@ -85,7 +88,7 @@ public:
 #define NDLL_DEFINE_OPTYPE_REGISTERER(OpName, DerivedType,              \
     RegistryName, OpType)                                               \
   namespace {                                                           \
-    static Registerer<OpType> ANONYMIZE_VARIABLE(anon)(#OpName,         \
+    static Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(#OpName, \
       &RegistryName##Registry::Registry(),                              \
       Registerer<OpType>::OperatorCreator<DerivedType>);                \
   }

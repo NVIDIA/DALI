@@ -2,6 +2,7 @@
 #define NDLL_PIPELINE_DATA_ALLOCATOR_H_
 
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/operator_factory.h"
 
 namespace ndll {
 
@@ -18,6 +19,9 @@ namespace ndll {
  */
 class AllocatorBase {
 public:
+  AllocatorBase(const OpSpec &spec) {}
+  virtual ~AllocatorBase() = default;
+  
   /**
    * @brief Allocates `bytes` bytes of memory and sets the 
    * input ptr to the newly allocator memory
@@ -31,11 +35,15 @@ public:
   virtual void Delete(void *ptr, size_t bytes) = 0;
 };
 
+
 /**
  * @brief Default GPU memory allocator.
  */
 class GPUAllocator : public AllocatorBase {
 public:
+  GPUAllocator(const OpSpec &spec) : AllocatorBase(spec) {}
+  virtual ~GPUAllocator() = default;
+  
   void New(void **ptr, size_t bytes) override {
     CUDA_CALL(cudaMalloc(ptr, bytes));
   }
@@ -45,11 +53,21 @@ public:
   }
 };
 
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUAllocator, GPUAllocator);
+
+#define NDLL_REGISTER_GPU_ALLOCATOR(OpName, OpType) \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
+      GPUAllocator, GPUAllocator)
+
+
 /**
  * @brief Default CPU memory allocator.
  */
 class CPUAllocator : public AllocatorBase {
 public:
+  CPUAllocator(const OpSpec &spec) : AllocatorBase(spec) {}
+  virtual ~CPUAllocator() = default;
+  
   void New(void **ptr, size_t bytes) override {
     *ptr = ::operator new(bytes);
   }
@@ -59,11 +77,20 @@ public:
   }
 };
 
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUAllocator, CPUAllocator);
+
+#define NDLL_REGISTER_CPU_ALLOCATOR(OpName, OpType) \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
+      CPUAllocator, CPUAllocator)
+
 /**
  * @brief Pinned memory CPU allocator
  */
 class PinnedCPUAllocator : public CPUAllocator {
 public:
+  PinnedCPUAllocator(const OpSpec &spec) : CPUAllocator(spec) {}
+  virtual ~PinnedCPUAllocator() = default;
+  
   void New(void **ptr, size_t bytes) override {
     CUDA_CALL(cudaMallocHost(ptr, bytes));
   }

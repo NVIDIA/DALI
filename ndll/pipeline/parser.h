@@ -40,7 +40,7 @@ protected:
 };
 
 // Create registries for DataReaders
-NDLL_DEFINE_OPTYPE_REGISTRY(Parser, Parser);
+NDLL_DECLARE_OPTYPE_REGISTRY(Parser, Parser);
 
 #define NDLL_REGISTER_PARSER(OpName, OpType)      \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \

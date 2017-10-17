@@ -9,9 +9,9 @@
 namespace ndll {
 
 // Called by "NDLLInit" to set up polymorphic pointers
-// to user-defined memory allocators.
-void InitializeBackends(CPUAllocator *cpu_allocator,
-    GPUAllocator *gpu_allocator);
+// to user-defined memory allocators
+void InitializeBackends(const OpSpec &cpu_allocator,
+    const OpSpec &gpu_allocator);
   
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.

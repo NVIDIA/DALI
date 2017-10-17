@@ -90,31 +90,8 @@ public:
     // else.
   }
 
-  // inline Pipeline(int batch_size, int num_threads, int64 cuda_stream,
-  //     int device_id, bool set_affinity = true) :
-  //   decode_location_(DECODE_NONE), built_(false),
-  //   batch_size_(batch_size), stream_((cudaStream_t)cuda_stream),
-  //   thread_pool_(num_threads, device_id, set_affinity),
-  //   data_reader_(nullptr), input_datum_(batch_size),
-  //   data_parser_(nullptr), parsed_datum_(batch_size) {
-  //   NDLL_ENFORCE(batch_size_ > 0);
-  //   // Set the data type for our mega-buffers
-  //   mega_buffer_.template mutable_data<uint8>();
-  //   mega_buffer_gpu_.template mutable_data<uint8>();
-
-  //   // TODO(tgale): We need to figure out the best way to ensure that the memory
-  //   // this object allocates is stored on the correct NUMA node that we can
-  //   // force on the frameworks. Frameworks like C2 are tricky because any thread
-  //   // could execute this pipe on any iteration, so we'll need a way to force
-  //   // these specfic allocations to go our way without messing with everything
-  //   // else.
-  // }
-  
   ~Pipeline() = default;
 
-  // TODO(tgale): Add handling of extra inputs and outputs for ops in all pipeline
-  // construction methods. Also add setting of batch size & num threads & stream
-  
   /**
    * @brief Adds a Decoder to the pipeline. The decoder is either inserted on 
    * the front of the prefetch stage, or the front of the forward stage depending 
@@ -130,7 +107,7 @@ public:
 
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);
-    
+        
     // Construct the decoder with the input spec
     if (spec_copy.stage() == "Prefetch") {
       OpPtr<CPUBackend> tmp(
