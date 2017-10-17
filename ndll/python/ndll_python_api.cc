@@ -12,7 +12,7 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(ndll_python, m) {
+PYBIND11_MODULE(pyndll, m) {
   m.doc() = "This is a test";
 
   // NDLL Init function
@@ -31,24 +31,6 @@ PYBIND11_MODULE(ndll_python, m) {
   m.attr("INTERP_NN") = 0;
   m.attr("INTERP_LINEAR") = 1;
   m.attr("INTERP_CUBIC") = 2;
-  // py::enum_<NDLLDataType>(m, "DataType")
-  //   .value("NO_TYPE", NDLLDataType::NDLL_NO_TYPE)
-  //   .value("UINT8", NDLLDataType::NDLL_UINT8)
-  //   .value("FLOAT16", NDLLDataType::NDLL_FLOAT16)
-  //   .value("FLOAT", NDLLDataType::NDLL_FLOAT)
-  //   .export_values();
-
-  // py::enum_<NDLLImageType>(m, "ImageType")
-  //   .value("RGB", NDLLImageType::NDLL_RGB)
-  //   .value("BGR", NDLLImageType::NDLL_BGR)
-  //   .value("GRAY", NDLLImageType::NDLL_GRAY)
-  //   .export_values();
-
-  // py::enum_<NDLLInterpType>(m, "InterpType")
-  //   .value("INTERP_NN", NDLLInterpType::NDLL_INTERP_NN)
-  //   .value("INTERP_LINEAR", NDLLInterpType::NDLL_INTERP_LINEAR)
-  //   .value("INTERP_CUBIC", NDLLInterpType::NDLL_INTERP_CUBIC)
-  //   .export_values();
     
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
