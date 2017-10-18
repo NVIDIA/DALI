@@ -262,7 +262,7 @@ public:
    * @param sync Indicates whether this function should synchronize on
    * the pipeline stream before returning. Defaults to 'true'
    */
-  const Batch<GPUBackend>& output_batch(bool sync = true) const {
+  inline const Batch<GPUBackend>& output_batch(bool sync = true) const {
     if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
     return *gpu_buffers_.back();
   }
@@ -271,7 +271,7 @@ public:
    * @brief Returns the output CPU Tensor with the given name. Performs
    * no synchonization prior to returning the Tensor.
    */
-  const Tensor<CPUBackend>& output_tensor(const string &name) const {
+  inline const Tensor<CPUBackend>& output_tensor(const string &name) const {
     auto it = extra_tensors_.find(name);
     NDLL_ENFORCE(it != extra_tensors_.end(), "Tensor with name\""
         + name + "\" does not exist.");
@@ -282,7 +282,7 @@ public:
    * @brief Returns the output GPU Tensor with the given name. Performs
    * no synchonization prior to returning the Tensor.
    */
-  const Tensor<GPUBackend>& output_gpu_tensor(const string &name) const {
+  inline const Tensor<GPUBackend>& output_gpu_tensor(const string &name) const {
     auto it = extra_gpu_tensors_.find(name);
     NDLL_ENFORCE(it != extra_gpu_tensors_.end(), "Tensor with name\""
         + name + "\" does not exist.");
@@ -292,18 +292,46 @@ public:
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
    */
-  int batch_size() const { return batch_size_; }
+  inline int batch_size() const { return batch_size_; }
 
   /**
    * @brief Returns the number of threads that are used by the pipeline.
    */
-  int num_threads() const { return thread_pool_.size(); }
+  inline int num_threads() const { return thread_pool_.size(); }
   
   /**
    * @brief Returns the stream that the pipeline is working in.
    */
-  cudaStream_t stream() const { return stream_; }
+  inline cudaStream_t stream() const { return stream_; }
 
+  /**
+   * @brief Returns a pointer to the Pipeline's DataReader
+   */
+  inline DataReader* data_reader() { return data_reader_.get(); }
+
+  /**
+   * @brief Returns a pointer to the Pipeline's Parser
+   */
+  inline Parser* data_parser() { return data_parser_.get(); }
+
+  /**
+   * @brief Returns a pointer to the prefetch operator with the specificed index
+   */
+  inline Operator<CPUBackend>* prefetch_op(int idx) {
+    NDLL_ENFORCE((idx >= 0) && ((size_t)idx < prefetch_ops_.size()),
+        "Invalid prefetch op index.");
+    return prefetch_ops_[idx].get();
+  }
+
+    /**
+   * @brief Returns a pointer to the forward operator with the specificed index
+   */
+  inline Operator<GPUBackend>* forward_op(int idx) {
+    NDLL_ENFORCE((idx >= 0) && ((size_t)idx < forward_ops_.size()),
+        "Invalid forward op index.");
+    return forward_ops_[idx].get();
+  }
+  
   /**
    * @brief Prints the name of all operators that are in the pipeline.
    */
