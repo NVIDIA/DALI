@@ -11,6 +11,8 @@ std::unordered_map<std::type_index, TypeID> TypeTable::type_map_;
 DEFINE_TYPE(uint8);
 DEFINE_TYPE(int16);
 DEFINE_TYPE(int);
+DEFINE_TYPE(long);
+DEFINE_TYPE(long long);
 DEFINE_TYPE(float16);
 DEFINE_TYPE(float);
 DEFINE_TYPE(double);

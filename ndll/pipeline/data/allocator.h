@@ -57,7 +57,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUAllocator, GPUAllocator);
 
 #define NDLL_REGISTER_GPU_ALLOCATOR(OpName, OpType) \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
-      GPUAllocator, GPUAllocator)
+      ndll::GPUAllocator, ndll::GPUAllocator)
 
 
 /**
@@ -81,7 +81,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(CPUAllocator, CPUAllocator);
 
 #define NDLL_REGISTER_CPU_ALLOCATOR(OpName, OpType) \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
-      CPUAllocator, CPUAllocator)
+      ndll::CPUAllocator, ndll::CPUAllocator)
 
 /**
  * @brief Pinned memory CPU allocator

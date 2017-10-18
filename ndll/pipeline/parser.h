@@ -44,7 +44,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(Parser, Parser);
 
 #define NDLL_REGISTER_PARSER(OpName, OpType)      \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \
-      Parser, Parser)
+      ndll::Parser, ndll::Parser)
 
 /**
  * @brief The default Parser used by the Pipeline if no user-defined Parser is

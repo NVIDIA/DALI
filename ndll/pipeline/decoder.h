@@ -29,10 +29,10 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUDecoder, Decoder<GPUBackend>);
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_CPU_DECODER(OpName, OpType)           \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,             \
-      CPUDecoder, Decoder<CPUBackend>)
+      ndll::CPUDecoder, ndll::Decoder<CPUBackend>)
 #define NDLL_REGISTER_GPU_DECODER(OpName, OpType)           \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,             \
-      GPUDecoder, Decoder<GPUBackend>)
+      ndll::GPUDecoder, ndll::Decoder<GPUBackend>)
 
 } // namespace ndll
 

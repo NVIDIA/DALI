@@ -47,7 +47,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(DataReader, DataReader);
 
 #define NDLL_REGISTER_DATA_READER(OpName, OpType) \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \
-      DataReader, DataReader)
+      ndll::DataReader, ndll::DataReader)
 
 /**
  * @brief Basic data reader that provides access to data loaded into a batch

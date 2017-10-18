@@ -70,13 +70,13 @@ public:
 #define NDLL_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)          \
   class RegistryName##Registry {                                    \
   public:                                                           \
-  static OperatorRegistry<OpType>& Registry();                      \
+  static ndll::OperatorRegistry<OpType>& Registry();                \
   };
 
-#define NDLL_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)             \
-  OperatorRegistry<OpType>& RegistryName##Registry::Registry() {      \
-    static OperatorRegistry<OpType> registry;                         \
-    return registry;                                                  \
+#define NDLL_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
+  ndll::OperatorRegistry<OpType>& RegistryName##Registry::Registry() {  \
+    static ndll::OperatorRegistry<OpType> registry;                     \
+    return registry;                                                    \
   }
 
 #define CONCAT_1(var1, var2) var1##var2
@@ -88,9 +88,9 @@ public:
 #define NDLL_DEFINE_OPTYPE_REGISTERER(OpName, DerivedType,              \
     RegistryName, OpType)                                               \
   namespace {                                                           \
-    static Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(#OpName, \
-      &RegistryName##Registry::Registry(),                              \
-      Registerer<OpType>::OperatorCreator<DerivedType>);                \
+    static ndll::Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(   \
+        #OpName, &RegistryName##Registry::Registry(),                   \
+        ndll::Registerer<OpType>::OperatorCreator<DerivedType>);        \
   }
 
 } // namespace ndll
