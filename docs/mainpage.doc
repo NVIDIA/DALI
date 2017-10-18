@@ -85,4 +85,9 @@
  * like 'ShareDataShard' to support the functionality that Datum objects provide.
  * We should also get rid of SubTensor and just use Tensor objects that wrap shards
  * of larger buffers. This could also likely be done with 'ShareDataShard'.
+ *
+ * @subsection c2 C2 Perf
+ * C2+NDLL actually produces higher framerates than just NDLL. This is likely because
+ * of different testing data, different data reader, or different parser, but I haven't
+ * looked into which one it is exactly.
  */
