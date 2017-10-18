@@ -45,9 +45,14 @@
  * @subsection pipe_struct Pipeline Structures:
  * @ref ndll::Channel
  *
- * @section design Design Strain
- * This section discusses some design points that are currently a bit strained and need
- * refactoring.
+ * @section todo TODO
+ * This section discusses some areas where NDLL needs work.
+ *
+ * @subsection test Image Similarity Metrics
+ * The BatchedResize methods currently fail in the test suite because they produce
+ * images that are slightly off from the opencv resize method in terms of MSE, but
+ * are identical when looking at them side by side. We should have better similarity
+ * metrics in our test suite to fix this issue.
  *
  * @subsection include Including NDLL
  * I haven't decided on the best way to include NDLL. Currently we just include the
@@ -63,4 +68,21 @@
  * The only part of NDLL that isn't document well is the Operators. We need to figure
  * out a way to write docs for these that can then also be exposed to the Python API
  * as well. The Python API in general could use some more documentation.
+ *
+ * @subsection docker Docker Container Warning
+ * In the C2+NDLL container, we get a warning "Unexpected end of /proc/mounts line..."
+ * when we start up a run that uses the NDLL code. The internet seems to indicate this
+ * could be produced by the hwloc library used by NVML. We should clean this up when
+ * we get the chance.
+ *
+ * @subsection build Support Build for Different SMs
+ * We currently don't have SM target options in the build for NDLL
+ *
+ * @subsection data NDLL Data Hierarchy
+ * The hierarchy of classes used to store data in ndll is a bit complex, and some
+ * resposibilities are redundant. We should refactor to remove the 'Datum' object
+ * and replace them with Tensors. We can extend the Tensor class with a method
+ * like 'ShareDataShard' to support the functionality that Datum objects provide.
+ * We should also get rid of SubTensor and just use Tensor objects that wrap shards
+ * of larger buffers. This could also likely be done with 'ShareDataShard'.
  */
