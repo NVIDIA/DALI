@@ -9,87 +9,168 @@
 namespace ndll {
 
 /**
- * @brief Defines all parameters needed to construct an Operator, including the op name,
- * any additional input and output tensors it may need, and any number of additional
- * arguments.
+ * @brief Defines all parameters needed to construct an Operator, 
+ * DataReader, Parser, or Allocator including the object name, 
+ * any additional input and output tensors it may need, and any 
+ * number of additional arguments.
  */
 class OpSpec {
 public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
-  
-  OpSpec(const string &name, const string &stage = "Prefetch")
-    : name_(name), stage_(stage) {}
+
+  /**
+   * @brief Constructs a specification for an op with the given name.
+   */
+  OpSpec(const string &name)
+    : name_(name) {}
 
   /**
    * @brief Getter for the name of the Operator.
    */
   inline const string& name() const { return name_; }
+
+  /**
+   * @brief Add an argument with the given name and value.
+   */
+  template <typename T>
+  OpSpec& AddArg(const string &name, const T &val);
+
+  // Forward to string implementation
+  template <unsigned N>
+  OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
+    return this->AddArg<string>(name, c_str);
+  }
   
   /**
-   * @brief Getter for the stage the Operator is to be run in.
+   * @brief Specifies the name of an extra (in addition to the 
+   * batch of data being processed) input Tensor that the op
+   * requires.
    */
-  inline const string &stage() const { return stage_; }
-  
-  // TODO(tgale): Make this a template and update instantiation macros
-  OpSpec& AddArg(const string &name, const double &d);
-  OpSpec& AddArg(const string &name, const float &f);
-  OpSpec& AddArg(const string &name, const int64 &i);
-  OpSpec& AddArg(const string &name, const int &i);
-  OpSpec& AddArg(const string &name, const bool &b);
-  OpSpec& AddArg(const string &name, const NDLLImageType &type);
-  OpSpec& AddArg(const string &name, const NDLLInterpType &type);
-  OpSpec& AddArg(const string &name, const NDLLDataType &type);
-  OpSpec& AddArg(const string &name, const uint64 &i);
-  OpSpec& AddArg(const string &name, const string &s);
-
-  OpSpec& AddArg(const string &name, const vector<double> &d);
-  OpSpec& AddArg(const string &name, const vector<float> &f);
-  OpSpec& AddArg(const string &name, const vector<int64> &i);
-  OpSpec& AddArg(const string &name, const vector<int> &i);
-  OpSpec& AddArg(const string &name, const vector<bool> &b);
-  OpSpec& AddArg(const string &name, const vector<NDLLImageType> &type);
-  OpSpec& AddArg(const string &name, const vector<NDLLInterpType> &type);
-  OpSpec& AddArg(const string &name, const vector<NDLLDataType> &type);
-  OpSpec& AddArg(const string &name, const vector<uint64> &i);
-  OpSpec& AddArg(const string &name, const vector<string> &s);
-
   OpSpec& AddExtraInput(const string &name);
+
+  /**
+   * @brief Specified the name of an extra (in addition to the 
+   * batch of data being processed) output Tensor that the op 
+   * will produce
+   */
   OpSpec& AddExtraOutput(const string &name);
+
+  /**
+   * @brief Specified the name of an extra (in addition to the 
+   * batch of data being processed) input GPU Tensor that the 
+   * op will produce
+   */
   OpSpec& AddExtraGPUInput(const string &name);
+
+  /**
+   * @brief Specified the name of an extra (in addition to the 
+   * batch of data being processed) output GPU Tensor that the 
+   * op will produce
+   */
   OpSpec& AddExtraGPUOutput(const string &name);
 
-  // For accessing single arguments
+  /**
+   * @brief Checks the Spec for an argument with the given name/type.
+   * Returns the default if an argument with the given name/type does
+   * not exist.
+   */
   template <typename T>
   T GetSingleArgument(const string &name, const T &default_value) const;
 
-  // For accessing repeated arguments
+  /**
+   * @brief Checks the Spec for a repeated argument of the given name/type.
+   * Returns the default if an argument with the given name does not exist.
+   */
   template <typename T>
   vector<T> GetRepeatedArgument(const string &name,
       const vector<T> &default_value = {}) const;
   
-  // For use by the Operators to get the extra Tensors
+  /**
+   * @brief Returns the extra input with the given index. Tensors are
+   * indexed in the order that they are added to the OpSpec. 
+   *
+   * This function is Used by the Operators to get their extra Tensor 
+   * inputs that have been set by the Pipeline.
+   */
   TensorPtr<CPUBackend> ExtraInput(int index) const;
+
+  /**
+   * @brief Returns the extra output with the given index. Tensors are
+   * indexed in the order that they are added to the OpSpec. 
+   *
+   * This function is Used by the Operators to get their extra Tensor 
+   * outputs that have been set by the Pipeline.
+   */
   TensorPtr<CPUBackend> ExtraOutput(int index) const;
+
+  /**
+   * @brief Returns the extra GPU input with the given index. Tensors 
+   * are indexed in the order that they are added to the OpSpec. 
+   *
+   * This function is Used by the Operators to get their extra Tensor 
+   * GPU inputs that have been set by the Pipeline.
+   */
   TensorPtr<GPUBackend> ExtraGPUInput(int index) const;
+
+  /**
+   * @brief Returns the extra GPU output with the given index. Tensors 
+   * are indexed in the order that they are added to the OpSpec. 
+   *
+   * This function is Used by the Operators to get their extra Tensor 
+   * GPU outputs that have been set by the Pipeline.
+   */
   TensorPtr<GPUBackend> ExtraGPUOutput(int index) const;
   
-  // For use of the Pipeline to set the actual Tensors
+  /**
+   * @brief Used internally by the Pipeline to set pointers to the
+   * constructed Tensor objects that are to be used by the op.
+   */
   void AddExtraInputTensor(TensorPtr<CPUBackend> tensor);
+
+  /**
+   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
+   */
   void AddExtraOutputTensor(TensorPtr<CPUBackend> tensor);
+
+  /**
+   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
+   */
   void AddExtraInputTensor(TensorPtr<GPUBackend> tensor);
+
+  /**
+   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
+   */
   void AddExtraOutputTensor(TensorPtr<GPUBackend> tensor);
 
-  // For use of the Pipeline to get the names of the Tensors
+  /**
+   * @brief Returns a vector of names of the extra input Tensors that
+   * have been added to the OpSpec.
+   */
   inline const vector<string>& ExtraInputNames() const {
     return extra_input_names_;
   }
+
+  /**
+   * @brief Returns a vector of names of the extra output Tensors that
+   * have been added to the OpSpec.
+   */
   inline const vector<string>& ExtraOutputNames() const {
     return extra_output_names_;
   }
+
+  /**
+   * @brief Returns a vector of names of the extra gpu input Tensors 
+   * that have been added to the OpSpec.
+   */
   inline const vector<string>& ExtraGPUInputNames() const {
     return gpu_extra_input_names_;
   }
+
+  /**
+   * @brief Returns a vector of names of the extra gpu output Tensors 
+   * that have been added to the OpSpec.
+   */
   inline const vector<string>& ExtraGPUOutputNames() const {
     return gpu_extra_output_names_;
   }
@@ -101,7 +182,6 @@ private:
   T ArgumentTypeHelper(const Argument &arg, const T &default_value) const;
     
   string name_;
-  string stage_;
   std::unordered_map<string, Argument> arguments_;
 
   // To store all added tensor names

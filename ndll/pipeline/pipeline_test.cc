@@ -80,7 +80,8 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
       );
 
   // Add a single prefetch op
-  pipe.AddTransform(OpSpec("CopyOp", "Prefetch"));
+  pipe.AddTransform(OpSpec("CopyOp")
+      .AddArg("stage", "Prefetch"));
 
   // Build the pipeline
   pipe.Build();
@@ -147,7 +148,9 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
       );
   
   // Add a single op to the forward stage
-  pipe.AddTransform(OpSpec("CopyOp", "Forward"));
+  pipe.AddTransform(OpSpec("CopyOp")
+      .AddArg("stage", "Forward")
+      );
 
   // Build the pipeline
   pipe.Build();

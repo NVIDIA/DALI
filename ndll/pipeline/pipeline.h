@@ -95,7 +95,8 @@ public:
   /**
    * @brief Adds a Decoder to the pipeline. The decoder is either inserted on 
    * the front of the prefetch stage, or the front of the forward stage depending 
-   * on the 'stage' setting in the OpSpec.
+   * on the 'stage' argument in the OpSpec. If not set, 'stage' is defaulted to
+   * "Prefetch"
    *
    * Decoder are special ops that are allowed to have data dependent output shapes.
    * For this reason, they must appear first in the pipeline and can only appear
@@ -107,20 +108,23 @@ public:
 
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);
-        
+
+    // Get the stage argument. Default stage to Prefetch
+    string stage = spec.GetSingleArgument<string>("stage", "Prefetch");
+    
     // Construct the decoder with the input spec
-    if (spec_copy.stage() == "Prefetch") {
+    if (stage == "Prefetch") {
       OpPtr<CPUBackend> tmp(
           CPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
       prefetch_ops_.insert(prefetch_ops_.begin(), std::move(tmp));
       decode_location_ = DECODE_PREFETCH;
-    } else if (spec_copy.stage() == "Forward") {
+    } else if (stage == "Forward") {
       OpPtr<GPUBackend> tmp(
           GPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
       forward_ops_.insert(forward_ops_.begin(), std::move(tmp));
       decode_location_ = DECODE_FORWARD;
     } else {
-      NDLL_FAIL("Invalid stage argument \"" + spec_copy.stage() +
+      NDLL_FAIL("Invalid stage argument \"" + stage +
           "\". Stage must be either \"Prefetch\" or \"Forward\"");
     }
   }
@@ -128,7 +132,8 @@ public:
   /**
    * @brief Adds a Transformer to the pipeline. The Transformer is either 
    * inserted in the prefetch stage, or the forward stage depending on the 
-   * 'stage' setting in the OpSpec.
+   * 'stage' setting in the OpSpec. If not set, 'stage' is defaulted to
+   * "Prefetch"
    */
   inline void AddTransform(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
@@ -136,18 +141,21 @@ public:
 
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);
+
+    // Get the stage argument. Default stage to Prefetch
+    string stage = spec.GetSingleArgument<string>("stage", "Prefetch");
     
     // Construct the decoder with the input spec
-    if (spec_copy.stage() == "Prefetch") {
+    if (stage == "Prefetch") {
       OpPtr<CPUBackend> tmp(
           CPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
       prefetch_ops_.push_back(std::move(tmp));
-    } else if (spec_copy.stage() == "Forward") {
+    } else if (stage == "Forward") {
       OpPtr<GPUBackend> tmp(
           GPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
       forward_ops_.push_back(std::move(tmp));
     } else {
-      NDLL_FAIL("Invalid stage argument \"" + spec_copy.stage() +
+      NDLL_FAIL("Invalid stage argument \"" + stage +
           "\". Stage must be either \"Prefetch\" or \"Forward\"");
     }
   }
@@ -163,8 +171,6 @@ public:
         "\"Build()\" has been called are not allowed");
     NDLL_ENFORCE(data_reader_ == nullptr, "Pipeline already "
         "has a DataReader.");
-    NDLL_ENFORCE(spec.stage() == "Prefetch",
-        "DataReaders only operate in Prefetch stage.");
     
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);
@@ -185,8 +191,6 @@ public:
         "\"Build()\" has been called are not allowed");
     NDLL_ENFORCE(data_parser_ == nullptr, "Pipeline already "
         "has a Parser.");
-    NDLL_ENFORCE(spec.stage() == "Prefetch",
-        "Parsers only operate in Prefetch stage.");
 
     // Add some pipeline meta-data and handle extra input/output tensors
     OpSpec spec_copy = PrepareOpSpec(spec);

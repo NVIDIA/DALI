@@ -371,7 +371,13 @@ OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
     .AddArg("num_threads", num_threads())
     .AddArg("cuda_stream", (int64)stream_)
     .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
-    
+
+  // If the 'stage' argument isn't set, set it here
+  if (spec_copy.GetSingleArgument<string>("stage", "").empty()) {
+    // Default stage is prefetch
+    spec_copy.AddArg("stage", "Prefetch");
+  }
+  
   // Handle extra input/output Tensors
   ExtraTensorSetup(&spec_copy);
   return spec_copy;

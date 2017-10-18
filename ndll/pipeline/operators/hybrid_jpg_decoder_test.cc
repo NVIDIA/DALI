@@ -145,11 +145,13 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
       );
 
   // Add a hybrid jpeg decoder
-  pipe.AddDecoder(OpSpec("HuffmanDecoder", "Prefetch")
+  pipe.AddDecoder(OpSpec("HuffmanDecoder")
+      .AddArg("stage", std::string("Prefetch"))
       .AddExtraOutput("jpeg_meta"));
   
   pipe.AddTransform(
-      OpSpec("DCTQuantInvOp", "Forward")
+      OpSpec("DCTQuantInvOp")
+      .AddArg("stage", "Forward")
       .AddExtraInput("jpeg_meta")
       .AddArg("output_type", this->img_type_));
     

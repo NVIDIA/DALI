@@ -13,7 +13,7 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 PYBIND11_MODULE(pyndll, m) {
-  m.doc() = "This is a test";
+  m.doc() = "Python bindings for the NDLL library.";
 
   // NDLL Init function
   m.def("Init", &NDLLInit);
@@ -41,7 +41,13 @@ PYBIND11_MODULE(pyndll, m) {
                   new Pipeline(batch_size, num_threads, (cudaStream_t)stream_id,
                       device_id, set_affinity, pixels_per_image_hint)
                   );
-            })
+            }),
+        "batch_size"_a,
+        "num_threads"_a,
+        "stream_id"_a,
+        "device_id"_a,
+        "set_affinity"_a = true,
+        "pixels_per_image_hint"_a = 0
         )
     .def("AddDataReader", &Pipeline::AddDataReader)
     .def("AddParser", &Pipeline::AddParser)
@@ -56,7 +62,7 @@ PYBIND11_MODULE(pyndll, m) {
     .def("stream_id", [](const Pipeline &pipe) { return (int64)pipe.stream(); });
 
   py::class_<OpSpec>(m, "OpSpec")
-    .def(py::init<std::string, std::string>())
+    .def(py::init<std::string>())
     .def("AddExtraInput", &OpSpec::AddExtraInput,
         py::return_value_policy::reference_internal)
     .def("AddExtraOutput", &OpSpec::AddExtraOutput,
@@ -110,48 +116,6 @@ PYBIND11_MODULE(pyndll, m) {
           }
           return *spec;
         }, py::return_value_policy::reference_internal);
-
-
-  /*
-  //
-  /// Data Storage
-  //
-
-  // Note: We do not expose "SetType" here
-  py::class_<TypeMeta>(m, "TypeMeta")
-    .def(py::init<>())
-    .def("id", &TypeMeta::id)
-    .def("size", &TypeMeta::size)
-    .def("name", &TypeMeta::name);
-
-  // Note: We do not expose templated mutable_data & data methods
-  py::class_<Buffer<CPUBackend>>(m, "BufferCPU")
-    .def("raw_mutable_data", &Buffer<CPUBackend>::raw_mutable_data,
-        py::return_value_policy::reference_internal)
-    .def("raw_data", &Buffer<CPUBackend>::raw_data,
-        py::return_value_policy::reference_internal)
-    .def("size", &Buffer<CPUBackend>::size)
-    .def("nbytes", &Buffer<CPUBackend>::nbytes)
-    .def("type", &Buffer<CPUBackend>::type)
-    .def("set_type", &Buffer<CPUBackend>::set_type);
-
-  py::class_<Tensor<CPUBackend>, Buffer<CPUBackend>>(m, "TensorCPU")
-    .def(py::init<>());
-    
-  //
-  /// Data Readers
-  //
-  
-  py::class_<DataReader>(m, "DataReader")
-    .def("Read", &DataReader::Read)
-    .def("Reset", &DataReader::Reset)
-    .def("Clone", &DataReader::Clone);
-    
-  py::class_<BatchDataReader, DataReader>(m, "BatchDataReader")
-    .def("Read", &BatchDataReader::Read)
-    .def("Reset", &BatchDataReader::Reset)
-    .def("Clone", &BatchDataReader::Clone);
-  */
 }
 
 } // namespace python

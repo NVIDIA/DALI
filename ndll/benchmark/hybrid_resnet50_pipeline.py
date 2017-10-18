@@ -2,12 +2,12 @@ import pyndll as ndll
 from timeit import default_timer as timer
 
 # Initialize the allocators for ndll to use
-ndll.Init(ndll.OpSpec("PinnedCPUAllocator", "Prefetch"),
-          ndll.OpSpec("GPUAllocator", "Prefetch"))
+ndll.Init(ndll.OpSpec("PinnedCPUAllocator"),
+          ndll.OpSpec("GPUAllocator"))
 
 iters = 100
 batch_size = 32
-num_threads = 1
+num_threads = 4
 cuda_stream = 0
 device_id = 0
 
@@ -25,22 +25,26 @@ output_type = ndll.FLOAT16
 
 # Add a basic data reader
 pipe.AddDataReader(
-    ndll.OpSpec("BatchDataReader", "Prefetch")
+    ndll.OpSpec("BatchDataReader")
+    .AddArg("stage", "Prefetch")
     .AddArg("jpeg_folder", image_folder))
 
 # Add a hybrid jpeg decoder
 pipe.AddDecoder(
-    ndll.OpSpec("HuffmanDecoder", "Prefetch")
+    ndll.OpSpec("HuffmanDecoder")
+    .AddArg("stage", "Prefetch")
     .AddExtraOutput("jpeg_meta"))
 
 pipe.AddTransform(
-    ndll.OpSpec("DCTQuantInvOp", "Forward")
+    ndll.OpSpec("DCTQuantInvOp")
+    .AddArg("stage", "Forward")
     .AddExtraInput("jpeg_meta")
     .AddArg("output_type", img_type))
 
 # Add a batched resize op
 pipe.AddTransform(
-    ndll.OpSpec("ResizeOp", "Forward")
+    ndll.OpSpec("ResizeOp")
+    .AddArg("stage", "Forward")
     .AddArg("random_resize", True)
     .AddArg("warp_resize", False)
     .AddArg("resize_a", 256)
@@ -50,7 +54,8 @@ pipe.AddTransform(
 
 # Add a bached crop+mirror+normalize+permute op
 pipe.AddTransform(
-    ndll.OpSpec("CropMirrorNormalizePermuteOp", "Forward")
+    ndll.OpSpec("CropMirrorNormalizePermuteOp")
+    .AddArg("stage", "Forward")
     .AddArg("output_type", output_type)
     .AddArg("random_crop", True)
     .AddArg("crop_h", 224)

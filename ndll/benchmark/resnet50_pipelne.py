@@ -2,12 +2,12 @@ import pyndll as ndll
 from timeit import default_timer as timer
 
 # Initialize the allocators for ndll to use
-ndll.Init(ndll.OpSpec("PinnedCPUAllocator", "Prefetch"),
-          ndll.OpSpec("GPUAllocator", "Prefetch"))
+ndll.Init(ndll.OpSpec("PinnedCPUAllocator"),
+          ndll.OpSpec("GPUAllocator"))
 
 iters = 100
 batch_size = 32
-num_threads = 1
+num_threads = 4
 cuda_stream = 0
 device_id = 0
 
@@ -26,17 +26,20 @@ fast_resize = True
 
 # Add a basic data reader
 pipe.AddDataReader(
-    ndll.OpSpec("BatchDataReader", "Prefetch")
+    ndll.OpSpec("BatchDataReader")
+    .AddArg("stage", "Prefetch")
     .AddArg("jpeg_folder", image_folder))
 
 pipe.AddDecoder(
-    ndll.OpSpec("TJPGDecoder", "Prefetch")
+    ndll.OpSpec("TJPGDecoder")
+    .AddArg("stage", "Prefetch")
     .AddArg("output_type", img_type))
 
 # Add a resize+crop+mirror op
 if fast_resize:
     pipe.AddTransform(
-        ndll.OpSpec("FastResizeCropMirrorOp", "Prefetch")
+        ndll.OpSpec("FastResizeCropMirrorOp")
+        .AddArg("stage", "Prefetch")
         .AddArg("random_resize", True)
         .AddArg("warp_resize", False)
         .AddArg("resize_a", 256)
@@ -47,7 +50,8 @@ if fast_resize:
         .AddArg("mirror_prob", 0.5))
 else:
     pipe.AddTransform(
-        ndll.OpSpec("ResizeCropMirrorOp", "Prefetch")
+        ndll.OpSpec("ResizeCropMirrorOp")
+        .AddArg("stage", "Prefetch")
         .AddArg("random_resize", True)
         .AddArg("warp_resize", False)
         .AddArg("resize_a", 256)
@@ -58,13 +62,14 @@ else:
         .AddArg("mirror_prob", 0.5))
 
 pipe.AddTransform(
-      ndll.OpSpec("NormalizePermuteOp", "Forward")
-      .AddArg("output_type", output_type)
-      .AddArg("mean", [128., 128., 128.])
-      .AddArg("std", [1., 1., 1.])
-      .AddArg("height", 224)
-      .AddArg("width", 224)
-      .AddArg("channels", 3))
+    ndll.OpSpec("NormalizePermuteOp")
+    .AddArg("stage", "Forward")
+    .AddArg("output_type", output_type)
+    .AddArg("mean", [128., 128., 128.])
+    .AddArg("std", [1., 1., 1.])
+    .AddArg("height", 224)
+    .AddArg("width", 224)
+    .AddArg("channels", 3))
 
 # Setup the pipeline for execution
 pipe.Build()

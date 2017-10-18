@@ -39,6 +39,8 @@
  * @ref ndll::CPUAllocator @n
  * @ref ndll::GPUAllocator
  *
+ * The Pipeline also has Python bindings that expose a very similar API to the C++
+ * Pipeline. See the examples in 'ndll/benchmark'.
  *
  * @subsection pipe_struct Pipeline Structures:
  * @ref ndll::Channel
@@ -46,16 +48,6 @@
  * @section design Design Strain
  * This section discusses some design points that are currently a bit strained and need
  * refactoring.
- *
- * @subsection param Batch Size & Thread Pool Size
- * All ops need the batch size and thread pool size to set up whatever datum-wise
- * or thread local data they need. I didn't want users to have to pass this in to
- * every op, so I just set it in the pipeline and have the pipeline set it in all
- * the ops in the 'Pipeline::Build' method. This isn't great because the Ops can't
- * do some setup in their constructor, and they have to override the methods
- * that set these paramters to intialize their data. It also means we have to check
- * to make sure these have been set prior to doing stuff. I need to come up with a
- * better way to get this global information to everyone.
  *
  * @subsection include Including NDLL
  * I haven't decided on the best way to include NDLL. Currently we just include the
@@ -66,4 +58,9 @@
  * @subsection inline Inline Member Functions
  * Alot of methods are defined inline in the pipeline. These should be moved out to
  * make the code more readable.
+ *
+ * @subsection docs Operator & Python Documentation
+ * The only part of NDLL that isn't document well is the Operators. We need to figure
+ * out a way to write docs for these that can then also be exposed to the Python API
+ * as well. The Python API in general could use some more documentation.
  */

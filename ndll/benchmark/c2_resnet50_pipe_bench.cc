@@ -35,14 +35,16 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
       );
 
   pipe.AddDecoder(
-      OpSpec("TJPGDecoder", "Prefetch")
+      OpSpec("TJPGDecoder")
+      .AddArg("stage", "Prefetch")
       .AddArg("output_type", img_type)
       );
 
   // Add a resize+crop+mirror op
   if (fast_resize) {
     pipe.AddTransform(
-        OpSpec("FastResizeCropMirrorOp", "Prefetch")
+        OpSpec("FastResizeCropMirrorOp")
+        .AddArg("stage", "Prefetch")
         .AddArg("random_resize", true)
         .AddArg("warp_resize", false)
         .AddArg("resize_a", 256)
@@ -54,7 +56,8 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
         );
   } else {
     pipe.AddTransform(
-        OpSpec("ResizeCropMirrorOp", "Prefetch")
+        OpSpec("ResizeCropMirrorOp")
+        .AddArg("stage", "Prefetch")
         .AddArg("random_resize", true)
         .AddArg("warp_resize", false)
         .AddArg("resize_a", 256)
@@ -67,7 +70,8 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
   }
 
   pipe.AddTransform(
-      OpSpec("NormalizePermuteOp", "Forward")
+      OpSpec("NormalizePermuteOp")
+      .AddArg("stage", "Forward")
       .AddArg("output_type", NDLL_FLOAT16)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
@@ -119,19 +123,22 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
   
   // Add a hybrid jpeg decoder
   pipe.AddDecoder(
-      OpSpec("HuffmanDecoder", "Prefetch")
+      OpSpec("HuffmanDecoder")
+      .AddArg("stage", "Prefetch")
       .AddExtraOutput("jpeg_meta")
       );
   
   pipe.AddTransform(
-      OpSpec("DCTQuantInvOp", "Forward")
+      OpSpec("DCTQuantInvOp")
+      .AddArg("stage", "Forward")
       .AddExtraInput("jpeg_meta")
       .AddArg("output_type", img_type)
       );
   
   // Add a batched resize op
   pipe.AddTransform(
-      OpSpec("ResizeOp", "Forward")
+      OpSpec("ResizeOp")
+      .AddArg("stage", "Forward")
       .AddArg("random_resize", true)
       .AddArg("warp_resize", false)
       .AddArg("resize_a", 256)
@@ -142,7 +149,8 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddTransform(
-      OpSpec("CropMirrorNormalizePermuteOp", "Forward")
+      OpSpec("CropMirrorNormalizePermuteOp")
+      .AddArg("stage", "Forward")
       .AddArg("output_type", NDLL_FLOAT16)
       .AddArg("random_crop", true)
       .AddArg("crop_h", 224)

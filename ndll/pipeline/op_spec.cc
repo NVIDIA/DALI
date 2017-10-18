@@ -6,6 +6,7 @@
 namespace ndll {
 
 #define INSTANTIATE_ADD_SINGLE_ARGUMENT(T, fieldname)                   \
+  template <>                                                           \
   OpSpec& OpSpec::AddArg(const string &name, const T &val) {            \
     Argument arg;                                                       \
     arg.set_name(name);                                                 \
@@ -29,6 +30,7 @@ INSTANTIATE_ADD_SINGLE_ARGUMENT(uint64, ui);
 INSTANTIATE_ADD_SINGLE_ARGUMENT(string, s);
 
 #define INSTANTIATE_ADD_REPEATED_ARGUMENT(T, fieldname)                 \
+  template <>                                                           \
   OpSpec& OpSpec::AddArg(const string &name, const vector<T> &v) {      \
     Argument arg;                                                       \
     arg.set_name(name);                                                 \
