@@ -120,7 +120,7 @@ public:
     return std::vector<Index>{crop_h_, crop_w_, meta.C};
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template mutable_data<uint8>();
   }

@@ -61,13 +61,13 @@ private:
 };
 
 // Stores the unqiue ID for a type and its size in bytes
-class TypeMeta {
+class TypeInfo {
 public:
-  inline TypeMeta() : id_(NO_TYPE), type_size_(0), name_("no_type") { }
+  inline TypeInfo() : id_(NO_TYPE), type_size_(0), name_("no_type") { }
 
   template <typename T>
-  static inline TypeMeta Create() {
-    TypeMeta type;
+  static inline TypeInfo Create() {
+    TypeInfo type;
     type.SetType<T>();
     return type;
   }
@@ -91,7 +91,7 @@ public:
     return name_;
   }
 
-  inline bool operator==(const TypeMeta &rhs) const {
+  inline bool operator==(const TypeInfo &rhs) const {
     if ((rhs.id_ == id_) &&
         (rhs.type_size_ == type_size_) &&
         (rhs.name_ == name_)) {
@@ -108,12 +108,12 @@ private:
 
 // Utility to check types
 template <typename T>
-inline bool IsType(TypeMeta type) {
+inline bool IsType(TypeInfo type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 
 // Utility to check for valid (no NO_TYPE) type
-inline bool IsValidType(TypeMeta type) {
+inline bool IsValidType(TypeInfo type) {
   return type.id() != NO_TYPE;
 }
 
@@ -146,12 +146,12 @@ enum NDLLDataType {
 };
 
 //
-/// Helper functions to map between TypeMeta and NDLLDataType
+/// Helper functions to map between TypeInfo and NDLLDataType
 //
 
-NDLLDataType NDLLTypeForMeta(TypeMeta type_meta);
+NDLLDataType NDLLTypeForMeta(TypeInfo type_meta);
 
-TypeMeta NDLLMetaForType(NDLLDataType type);
+TypeInfo NDLLMetaForType(NDLLDataType type);
 
 } // namespace ndll
 

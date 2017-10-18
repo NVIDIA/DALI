@@ -35,7 +35,7 @@ public:
     return {h, w, c_};
   }
 
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) override {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) override {
     NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template mutable_data<uint8>();
   }
@@ -73,7 +73,7 @@ public:
     return input_shape;
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     output->set_type(input_type);
   }
   
@@ -87,11 +87,11 @@ protected:
       Datum<Backend> *output, int data_idx, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 3);
 
-    if (input.type() == TypeMeta::Create<uint8>()) {
+    if (input.type() == TypeInfo::Create<uint8>()) {
       DumpDatumHelper<uint8>(input, data_idx);
-    } else if (input.type() == TypeMeta::Create<float16>()) {
+    } else if (input.type() == TypeInfo::Create<float16>()) {
       DumpDatumHelper<float16>(input, data_idx);
-    } else if (input.type() == TypeMeta::Create<float>()) {
+    } else if (input.type() == TypeInfo::Create<float>()) {
       DumpDatumHelper<float>(input, data_idx);
     } else {
       NDLL_FAIL("Unsupported data type.");
@@ -117,11 +117,11 @@ protected:
   
   inline void RunBatchedGPU(const Batch<Backend> &input,
       Batch<Backend> *output) override {
-    if (input.type() == TypeMeta::Create<uint8>()) {
+    if (input.type() == TypeInfo::Create<uint8>()) {
       DumpBatchHelper<uint8>(input);
-    } else if (input.type() == TypeMeta::Create<float16>()) {
+    } else if (input.type() == TypeInfo::Create<float16>()) {
       DumpBatchHelper<float16>(input);
-    } else if (input.type() == TypeMeta::Create<float>()) {
+    } else if (input.type() == TypeInfo::Create<float>()) {
       DumpBatchHelper<float>(input);
     } else {
       NDLL_FAIL("Unsupported data type.");

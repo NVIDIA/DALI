@@ -49,7 +49,7 @@ public:
     return {C_, input_shape[0], input_shape[1]};
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
     if (output_type_ == NDLL_FLOAT) {
       output->template mutable_data<float>();

@@ -17,7 +17,7 @@ DEFINE_TYPE(float16);
 DEFINE_TYPE(float);
 DEFINE_TYPE(double);
 
-NDLLDataType NDLLTypeForMeta(TypeMeta type_meta) {
+NDLLDataType NDLLTypeForMeta(TypeInfo type_meta) {
   static const std::map<TypeID, NDLLDataType> type_map = {
     {TypeTable::GetTypeID<uint8>(), NDLL_UINT8},
     {TypeTable::GetTypeID<float16>(), NDLL_FLOAT16},
@@ -28,8 +28,8 @@ NDLLDataType NDLLTypeForMeta(TypeMeta type_meta) {
   return (it == type_map.end()) ? NDLL_NO_TYPE : it->second;
 }
 
-TypeMeta NDLLMetaForType(NDLLDataType type) {
-  TypeMeta type_meta;
+TypeInfo NDLLMetaForType(NDLLDataType type) {
+  TypeInfo type_meta;
   switch (type) {
   case NDLL_UINT8:
     type_meta.SetType<uint8>();

@@ -49,12 +49,12 @@ void Pipeline::Build() {
   // parse it to get the input type
   data_reader_->Read(&input_datum_[0]);
   data_parser_->Parse(input_datum_[0], &parsed_datum_[0], 0, 0);
-  TypeMeta read_output_type = input_datum_[0].type();
-  TypeMeta parsed_output_type = parsed_datum_[0].type();
+  TypeInfo read_output_type = input_datum_[0].type();
+  TypeInfo parsed_output_type = parsed_datum_[0].type();
   NDLL_ENFORCE(read_output_type.id() != NO_TYPE);
   NDLL_ENFORCE(parsed_output_type.id() != NO_TYPE);
   data_reader_->Reset();
-  TypeMeta input_type = parsed_output_type;
+  TypeInfo input_type = parsed_output_type;
   
   // Create buffers for intermediate pipeline results. We need 1
   // buffer for each cpu side op output, and 1 buffer for each

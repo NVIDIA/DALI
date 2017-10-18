@@ -20,7 +20,7 @@ public:
     return input_shape;
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     output->set_type(input_type);
   }
   

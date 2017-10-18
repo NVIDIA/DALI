@@ -64,7 +64,7 @@ public:
     return {out_size};
   }
 
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     NDLL_ENFORCE(IsType<uint8>(input_type));
     output->template mutable_data<int16>();
   }
@@ -192,7 +192,7 @@ public:
     return vector<Index>{jpeg.imgDims.height, jpeg.imgDims.width, C_};
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeMeta input_type) {
+  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
     NDLL_ENFORCE(IsType<int16>(input_type));
     output->template mutable_data<uint8>();
   }

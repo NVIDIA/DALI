@@ -138,7 +138,7 @@ public:
   /**
    * @brief sets the type of the input batch based on the input type
    */
-  virtual void SetOutputType(Batch<Backend> *output, TypeMeta input_type) = 0;
+  virtual void SetOutputType(Batch<Backend> *output, TypeInfo input_type) = 0;
   
   /**
    * @brief returns the name of the operator

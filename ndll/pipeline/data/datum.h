@@ -60,7 +60,7 @@ public:
       num_bytes_ = 0;
       size_ = 0;
 
-      TypeMeta new_type;
+      TypeInfo new_type;
       type_ = new_type;
       owned_ = true;
     }
@@ -126,7 +126,7 @@ public:
       size_ = 0;
       num_bytes_ = 0;
       shape_.clear();
-      TypeMeta new_type;
+      TypeInfo new_type;
       type_ = new_type;
     }
     

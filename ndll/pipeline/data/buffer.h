@@ -74,7 +74,7 @@ public:
   inline T* mutable_data() {
     // Note: Call to 'set_type' will immediately return if the calling
     // type matches the current type of the buffer.
-    TypeMeta calling_type;
+    TypeInfo calling_type;
     calling_type.SetType<T>();
     set_type(calling_type);
     return static_cast<T*>(data_.get());
@@ -135,10 +135,10 @@ public:
   }
 
   /**
-   * @brief Returns the TypeMeta object that keeps track of the 
+   * @brief Returns the TypeInfo object that keeps track of the 
    * datatype of the underlying storage.
    */
-  inline TypeMeta type() const {
+  inline TypeInfo type() const {
     return type_;
   }
 
@@ -153,7 +153,7 @@ public:
    * enough memory to store the current number of elements with the 
    * new data type.
    */
-  inline void set_type(TypeMeta new_type) {
+  inline void set_type(TypeInfo new_type) {
     if (new_type.id() == type_.id()) return;
     NDLL_ENFORCE(new_type.size() > 0,
         "New datatype must have non-zero element size");
@@ -202,7 +202,7 @@ public:
 protected:
   Backend backend_;
   
-  TypeMeta type_; // Data type of underlying storage
+  TypeInfo type_; // Data type of underlying storage
   shared_ptr<void> data_; // Pointer to underlying storage
   Index size_; // The number of elements in the buffer
   bool shares_data_;
