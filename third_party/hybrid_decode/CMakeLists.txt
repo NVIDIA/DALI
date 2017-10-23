@@ -41,3 +41,7 @@ cuda_include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Project build
 add_subdirectory(src)
+
+# HACK: Install rule for headers
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR} DESTINATION include/third_party
+  FILES_MATCHING PATTERN "*.h" PATTERN "test*.h" EXCLUDE)

@@ -16,6 +16,11 @@ set(ndll_lib "ndll")
 cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})
 target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
 
+# Add install rules
+install(TARGETS ${ndll_lib} DESTINATION lib)
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR} DESTINATION
+  include FILES_MATCHING PATTERN "*.h" PATTERN "*_test.h" EXCLUDE)
+
 # Build test suite
 if (BUILD_TEST)
   # get all test srcs

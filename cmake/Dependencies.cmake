@@ -29,14 +29,14 @@ endif()
 if (BUILD_TEST)
   set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")
   set(BUILD_GMOCK OFF CACHE INTERNAL "Builds gmock submodule")
-  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/googletest)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/googletest/googletest/include)
 endif()
 
 # Google Benchmark
 if (BUILD_BENCHMARK)
   set(BENCHMARK_ENABLE_TESTING OFF CACHE INTERNAL "Build benchmark testsuite")
-  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/benchmark)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/benchmark EXCLUDE_FROM_ALL)
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/benchmark/include/benchmark)
 endif()
 
