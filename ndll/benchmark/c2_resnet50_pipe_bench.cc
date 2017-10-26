@@ -93,7 +93,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2ResNet50Pipeline)(benchmark::State& st) {
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
-    CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
+    if (st.iterations() == (st.max_iterations - 1)) {
+      CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
+    }
   }
   
   // DEBUG
@@ -175,7 +177,9 @@ BENCHMARK_DEFINE_F(NDLLBenchmark, C2HybridResNet50Pipeline)(benchmark::State& st
     pipe.RunPrefetch();
     pipe.RunCopy();
     pipe.RunForward();
-    CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
+    if (st.iterations() == (st.max_iterations - 1)) {
+      CUDA_CALL(cudaStreamSynchronize(pipe.stream()));
+    }
   }
   NDLLProfilerStop();
 

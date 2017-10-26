@@ -25,6 +25,7 @@ void Pipeline::Build() {
             OpSpec("DefaultParser")
             .AddArg("batch_size", batch_size_)
             .AddArg("num_threads", num_threads())
+            .AddArg("cuda_stream", (int64)stream_)
             )
         );
   }

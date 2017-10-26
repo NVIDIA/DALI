@@ -102,11 +102,7 @@ public:
   /**
    * @brief Copies the data from the input Datum
    */
-  inline void Copy(const Datum<Backend> &other) {
-    this->set_type(other.type());
-    this->ResizeLike(other);
-    MemCopy(this->raw_mutable_data(), other.raw_data(), other.nbytes());
-  }
+  void Copy(const Datum<Backend> &other, cudaStream_t stream = 0);
 
   /**
    * @brief Wraps the sample with the given index in the batch.

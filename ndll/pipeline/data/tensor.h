@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_DATA_TENSOR_H_
 #define NDLL_PIPELINE_DATA_TENSOR_H_
 
+#include <cstring>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
@@ -25,11 +27,8 @@ public:
    * Loads the tensor with data from the input vector
    */
   template <typename T>
-  inline void Copy(const vector<T> &data) {
-    // Resize buffer to match input & load data
-    this->template mutable_data<T>();
-    Resize({(Index)data.size()});
-    MemCopy(this->raw_mutable_data(), data.data(), this->nbytes());
+  void Copy(const vector<T> &data, cudaStream_t stream = 0) {
+    CopyHelper(this, data, stream);
   }
   
   /**
@@ -104,6 +103,22 @@ protected:
   using Buffer<Backend>::size_;
   using Buffer<Backend>::num_bytes_;
 };
+
+// Note: CopyHelper lets us specialize on the Tensor backend type without
+// specializing on the input vectors data type.
+template <typename T>
+void CopyHelper(Tensor<CPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
+  tensor->template mutable_data<T>();
+  tensor->Resize({(Index)data.size()});
+  std::memcpy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
+}
+
+template <typename T>
+void CopyHelper(Tensor<GPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
+  tensor->template mutable_data<T>();
+  tensor->Resize({(Index)data.size()});
+  MemCopy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
+}
 
 } // namespace ndll
 

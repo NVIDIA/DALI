@@ -42,9 +42,6 @@
  * The Pipeline also has Python bindings that expose a very similar API to the C++
  * Pipeline. See the examples in 'ndll/benchmark'.
  *
- * @subsection pipe_struct Pipeline Structures:
- * @ref ndll::Channel
- *
  * @section todo TODO
  * This section discusses some areas where NDLL needs work.
  *
