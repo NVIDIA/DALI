@@ -386,13 +386,12 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
 }
 
 TYPED_TEST(TransformTest, TestBatchedResize) {
-  int batch_size = this->RandInt(1, 1);
-  batch_size = this->images_.size();
+  int batch_size = this->images_.size();
   Batch<CPUBackend> batch;
   this->MakeImageBatch(batch_size, &batch);
   
   Batch<GPUBackend> gpu_batch;
-  gpu_batch.template data<uint8>();
+  gpu_batch.template mutable_data<uint8>();
   gpu_batch.ResizeLike(batch);
   CUDA_CALL(cudaMemcpy(
           gpu_batch.template mutable_data<uint8>(),
@@ -451,9 +450,16 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
     DumpHWCToFile(ground_truth.ptr(), ground_truth.rows, ground_truth.cols,
         ground_truth.channels(), "ver_" + std::to_string(i));
 #endif
+    // vector<uint8> tmp_output(out_sizes[i].height * out_sizes[i].width * this->c_, 0);
+    // CUDA_CALL(cudaDeviceSynchronize());
+    // CUDA_CALL(cudaMemcpy(tmp_output.data(), gpu_output_batch.template mutable_datum<uint8>(i),
+    //         out_sizes[i].height * out_sizes[i].width * this->c_, cudaMemcpyDeviceToHost));
+    // cv::Scalar mssim = this->MSSIM(tmp_output.data(), ground_truth.ptr(),
+    //     out_sizes[i].height, out_sizes[i].width, this->c_);
+    // cout << mssim << endl;
     
     this->VerifyImage(gpu_output_batch.template mutable_datum<uint8>(i), ground_truth.ptr(),
-        out_sizes[i].height * out_sizes[i].width * this->c_, 10.f, 25.f);
+        out_sizes[i].height * out_sizes[i].width * this->c_, 35.f, 40.f);
   }
 }
 

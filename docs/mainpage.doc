@@ -51,6 +51,9 @@
  * are identical when looking at them side by side. We should have better similarity
  * metrics in our test suite to fix this issue.
  *
+ * Update: Tried to use SSIM for these tests but the results were still crappy.
+ * It seems like the NPP resize method may actually have some deficiencies.
+ *
  * @subsection include Including NDLL
  * I haven't decided on the best way to include NDLL. Currently we just include the
  * individual files we need, but this requires poking into the src tree which is
