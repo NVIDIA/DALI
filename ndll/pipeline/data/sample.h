@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_DATA_DATUM_H_
-#define NDLL_PIPELINE_DATA_DATUM_H_
+#ifndef NDLL_PIPELINE_DATA_SAMPLE_H_
+#define NDLL_PIPELINE_DATA_SAMPLE_H_
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -8,12 +8,12 @@
 namespace ndll {
 
 /**
- * @brief Datum can either allocate its own storage or  wrap 
- * a single datum from a batch.
+ * @brief Sample can either allocate its own storage or  wrap 
+ * a single sample from a batch.
  *
- * In the case that a Datum object is wrapping memory that it
+ * In the case that a Sample object is wrapping memory that it
  * does not own, methods that can trigger memory allocation
- * will cause the Datum to detach from the wrapped memory and
+ * will cause the Sample to detach from the wrapped memory and
  * allocate its own underlying storage. These methods are @n
  * 'set_type()' - Will allocate memory if the calling type does 
  * not match the underlying type of the buffer @n
@@ -22,33 +22,33 @@ namespace ndll {
  * memory for the input number of elements.
  */
 template <typename Backend>
-class Datum : public Buffer<Backend> {
+class Sample : public Buffer<Backend> {
 public:
   /**
-   * @brief Creates a default Datum that holds no data
+   * @brief Creates a default Sample that holds no data
    */
-  inline Datum() : owned_(true) {}
+  inline Sample() : owned_(true) {}
 
-  ~Datum() = default;
+  ~Sample() = default;
   
   /**
-   * @brief Creates a Datum object with the input shape
+   * @brief Creates a Sample object with the input shape
    */
-  inline Datum(const vector<Index> &shape) {
+  inline Sample(const vector<Index> &shape) {
     Resize(shape);
   }
   
   /**
-   * @brief Construct a sub-buffer that wraps a single datum from 
+   * @brief Construct a sub-buffer that wraps a single sample from 
    * the input buffer. Outer dimension of the buffer is assumed 
    * to be the samples dimension i.e. 'N'
    */
-  inline Datum(Batch<Backend> *batch, int sample_idx) {
+  inline Sample(Batch<Backend> *batch, int sample_idx) {
     WrapSample(batch, sample_idx);
   }
 
   /**
-   * @brief Resizes the Datum. If the Datum is currently wrapping data
+   * @brief Resizes the Sample. If the Sample is currently wrapping data
    * that it does not own, it will detach from the wrapped data and
    * allocate its own data.
    */
@@ -93,26 +93,26 @@ public:
   }
 
   /**
-   * @brief Convenience method sizes the Datum to match the input Datum
+   * @brief Convenience method sizes the Sample to match the input Sample
    */
-  inline void ResizeLike(const Datum<Backend> &other) {
+  inline void ResizeLike(const Sample<Backend> &other) {
     Resize(other.shape());
   }
 
   /**
-   * @brief Copies the data from the input Datum
+   * @brief Copies the data from the input Sample
    */
-  void Copy(const Datum<Backend> &other, cudaStream_t stream = 0);
+  void Copy(const Sample<Backend> &other, cudaStream_t stream = 0);
 
   /**
    * @brief Wraps the sample with the given index in the batch.
-   * If the Datum owns its own underlying storage, the memory
+   * If the Sample owns its own underlying storage, the memory
    * is deallocated.
    */
   inline void WrapSample(Batch<Backend> *batch, int sample_idx) {
 #ifndef NDEBUG
     NDLL_ENFORCE(sample_idx >= 0, "Negative index not supported");
-    NDLL_ENFORCE(sample_idx < batch->ndatum(), "Sample index out of range");
+    NDLL_ENFORCE(sample_idx < batch->nsample(), "Sample index out of range");
 #endif
     NDLL_ENFORCE(batch != nullptr, "Input batch is nullptr");
 
@@ -126,45 +126,45 @@ public:
       type_ = new_type;
     }
     
-    // The datum does not own its memory
+    // The sample does not own its memory
     owned_ = false;
 
     // Get the shape of this sample
-    shape_ = batch->datum_shape(sample_idx);
+    shape_ = batch->sample_shape(sample_idx);
     size_ = Product(shape_);
 
-    // Calling raw_mutable_datum here will enforce that the type is valid
+    // Calling raw_mutable_sample here will enforce that the type is valid
     type_ = batch->type();
-    data_.reset(batch->raw_mutable_datum(sample_idx),
+    data_.reset(batch->raw_mutable_sample(sample_idx),
         [](void *p) { /* noop: do not delete ptr in the middle of an allocation */ });
 
-    // Note: In the case that the Datum does not own its underlying storage,
+    // Note: In the case that the Sample does not own its underlying storage,
     // we keep the value of num_bytes_ equal to zero, indicating that the
-    // datum has allocated no memory of its own.
+    // sample has allocated no memory of its own.
     num_bytes_ = 0;
   }
 
   /**
-   * @brief get the shape of the datum
+   * @brief get the shape of the sample
    */
   inline vector<Index> shape() const {
     return shape_;
   }
 
   /**
-   * @brief Returns a bool indicating if the Datum object owns its 
+   * @brief Returns a bool indicating if the Sample object owns its 
    * underlying storage.
    */
   inline bool owned() const {
     return owned_;
   }
   
-  DISABLE_COPY_MOVE_ASSIGN(Datum);
+  DISABLE_COPY_MOVE_ASSIGN(Sample);
 protected:
   // Stores the shape of the sample
   vector<Index> shape_;
 
-  // Indicates whether the Datum
+  // Indicates whether the Sample
   // owns it underlying storage
   bool owned_;
   
@@ -177,4 +177,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_DATUM_H_
+#endif // NDLL_PIPELINE_DATA_SAMPLE_H_

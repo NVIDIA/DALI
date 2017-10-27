@@ -170,9 +170,9 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   
   // Verify the results
   for (int i = 0; i < batch_size; ++i) {
-    this->VerifyDecode(pipe.output_batch().template datum<uint8>(i),
-        pipe.output_batch().datum_shape(i)[0],
-        pipe.output_batch().datum_shape(i)[1], i);
+    this->VerifyDecode(pipe.output_batch().template sample<uint8>(i),
+        pipe.output_batch().sample_shape(i)[0],
+        pipe.output_batch().sample_shape(i)[1], i);
   }
 }
 

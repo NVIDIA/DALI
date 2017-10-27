@@ -7,7 +7,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
-#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/data/sub_tensor.h"
 #include "ndll/pipeline/op_spec.h"
 
@@ -37,23 +37,23 @@ public:
   virtual inline ~Operator() = default;
 
   /**
-   * @brief Executes the op on a single datum on cpu.
+   * @brief Executes the op on a single sample on cpu.
    *
-   * @param input The input Datum that is to be processed.
-   * @param output The output Datum to process the input into.
-   * @param data_idx The index of this Datum in the batch.
+   * @param input The input Sample that is to be processed.
+   * @param output The output Sample to process the input into.
+   * @param data_idx The index of this Sample in the batch.
    * @param thread_idx The id of the calling thread.
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<CPUBackend, T >::value>::type
-  Run(const Datum<Backend> &input, Datum<Backend> *output, int data_idx, int thread_idx) {
+  Run(const Sample<Backend> &input, Sample<Backend> *output, int data_idx, int thread_idx) {
 #ifndef NDEBUG
     NDLL_ENFORCE(num_threads_ > 0,
         "Num threads must be set before \"Run()\" is called");
     NDLL_ENFORCE(batch_size_ > 0,
         "Batch size must be set before \"Run()\" is called");
 #endif
-    RunPerDatumCPU(input, output, data_idx, thread_idx);
+    RunPerSampleCPU(input, output, data_idx, thread_idx);
   }
 
   /**
@@ -66,7 +66,7 @@ public:
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
   Run(const Batch<Backend> &input, Batch<Backend> *output) {
 #ifndef NDEBUG
-    NDLL_ENFORCE(batch_size_ == input.ndatum(),
+    NDLL_ENFORCE(batch_size_ == input.nsample(),
         "Batch size must be set before \"Run()\" is called");
 #endif
     RunBatchedGPU(input, output);
@@ -124,7 +124,7 @@ public:
    */
   template <typename T = Backend>
   inline typename std::enable_if<std::is_base_of<GPUBackend, T>::value>::type
-  BatchedParameterSetupPerDatum(const Batch<Backend> &input, Batch<Backend> *output,
+  BatchedParameterSetupPerSample(const Batch<Backend> &input, Batch<Backend> *output,
       int data_idx, int thread_idx) {
     ThreadedBatchedParameterSetup(input, output, data_idx, thread_idx);
   }
@@ -132,7 +132,7 @@ public:
   /**
    * @brief returns the output op shape given the input shape and data
    */
-  virtual vector<Index> InferOutputShape(const Datum<Backend> &input,
+  virtual vector<Index> InferOutputShape(const Sample<Backend> &input,
       int data_idx, int thread_idx) = 0;
 
   /**
@@ -151,9 +151,9 @@ protected:
    * @brief Per image CPU computation of the operator to be 
    * implemented by derived ops.
    */
-  virtual inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) {
-    NDLL_FAIL("RunPerDatumCPU not implemented");
+  virtual inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int data_idx, int thread_idx) {
+    NDLL_FAIL("RunPerSampleCPU not implemented");
   }
 
   /**
@@ -181,7 +181,7 @@ protected:
    * by the executor after the shape inference loop, so any data
    * dependent params should be setup in InferOutputShape. In general,
    * ops should prefer to do work in threaded methods (InferOutputShape, 
-   * BatchedParamterSetupPerDatum) to minimize serial workload in the 
+   * BatchedParamterSetupPerSample) to minimize serial workload in the 
    * pipeline.
    */
   virtual void CalculateBatchedParameterSize() {
@@ -191,7 +191,7 @@ protected:
   /**
    * @brief Performs any serial batched parameter setup that needs to be done 
    * by the op. Ops should do any work possible in the threaded methods 
-   * (BatchedParamterSetupPerDatum) to avoid doing unnecessary serial work.
+   * (BatchedParamterSetupPerSample) to avoid doing unnecessary serial work.
    */
   virtual void SerialBatchedParameterSetup(const Batch<Backend> &input, Batch<Backend> *output) {
     // Default does nothing
@@ -199,7 +199,7 @@ protected:
 
   /**
    * @brief Performs batched paramter setup that needs to be done by the op
-   * on a per-datum basis. This method is called in the second Pipeline thread
+   * on a per-sample basis. This method is called in the second Pipeline thread
    * loop and can be overriden by a derive op to perform any needed batched 
    * parametersetup in the executors threads to avoid doing unnecessary serial 
    * work

@@ -107,8 +107,8 @@ protected:
   inline void ThreadedBatchedParameterSetup(const Batch<Backend> &input,
       Batch<Backend> *output, int data_idx, int /* unused */) override {
     // Setup input & output ptrs for each image
-    input_ptrs_[data_idx] = input.template datum<uint8>(data_idx);
-    output_ptrs_[data_idx] = output->template mutable_datum<uint8>(data_idx);
+    input_ptrs_[data_idx] = input.template sample<uint8>(data_idx);
+    output_ptrs_[data_idx] = output->template mutable_sample<uint8>(data_idx);
   }
   
   std::mt19937 rand_gen_;

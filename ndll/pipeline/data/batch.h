@@ -46,7 +46,7 @@ public:
    * size is taken to be the samples dimension, i.e. N = shape.size();
    */
   inline void Resize(const vector<Dims> &shape) {
-    NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single datum");
+    NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single sample");
     if (shape == batch_shape_) return;
 
     // Calculate the new size
@@ -117,7 +117,7 @@ public:
     // type we can store in the shared buffer.
     size_ = possible_elements;
     batch_shape_ = {{(Index)size_}}; // default size
-    offsets_ = {(Index)0}; // offset for single datum
+    offsets_ = {(Index)0}; // offset for single sample
     
     // Save the underlying allocation pointer and size
     data_ = other.data_;
@@ -129,49 +129,49 @@ public:
    * @brief Returns a typed pointer to the sample with the given index.
    */
   template <typename T>
-  inline T* mutable_datum(int idx) {
-    return this->template mutable_data<T>() + datum_offset(idx);
+  inline T* mutable_sample(int idx) {
+    return this->template mutable_data<T>() + sample_offset(idx);
   }
 
   /**
    * @brief Returns a const typed pointer to the sample with the given index.
    */
   template <typename T>
-  inline const T* datum(int idx) const {
-    return this->template data<T>() + datum_offset(idx);
+  inline const T* sample(int idx) const {
+    return this->template data<T>() + sample_offset(idx);
   }
   
   /**
    * @brief Returns a raw pointer to the sample with the given index.
    */
-  inline void* raw_mutable_datum(int idx) {
+  inline void* raw_mutable_sample(int idx) {
     return static_cast<void*>(
         static_cast<uint8*>(this->raw_mutable_data()) +
-        (datum_offset(idx) * type_.size())
+        (sample_offset(idx) * type_.size())
         );
   }
 
   /**
    * @brief Returns a const raw pointer to the sample with the given index.
    */
-  inline const void* raw_datum(int idx) const {
+  inline const void* raw_sample(int idx) const {
     return static_cast<const void*>(
         static_cast<const uint8*>(this->raw_data()) +
-        (datum_offset(idx) * type_.size())
+        (sample_offset(idx) * type_.size())
         );
   }
   
   /**
    * @brief Returns the number of samples in the batch.
    */
-  inline int ndatum() const {
+  inline int nsample() const {
     return batch_shape_.size();
   }
 
   /**
    * @brief Returns the offset of the sample with the given index.
    */
-  inline Index datum_offset(int idx) const {
+  inline Index sample_offset(int idx) const {
 #ifndef NDEBUG
     NDLL_ENFORCE(idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
@@ -182,7 +182,7 @@ public:
   /**
    * @brief Return the shape of the sample with the given index.
    */
-  inline vector<Index> datum_shape(int idx) const {
+  inline vector<Index> sample_shape(int idx) const {
 #ifndef NDEBUG
     NDLL_ENFORCE(idx >= 0, "Negative index not supported");
     NDLL_ENFORCE((size_t)idx < batch_shape_.size(), "Index out of offset range");
@@ -202,7 +202,7 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Batch);
 protected:
-  // Helper to calculate datum offsets
+  // Helper to calculate sample offsets
   void CalculateOffsets() {
     int batch_size = batch_shape_.size();
     offsets_.resize(batch_size);

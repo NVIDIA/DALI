@@ -100,9 +100,9 @@ public:
     batch->Resize(shape);
     
     for (int i = 0; i < n; ++i) {
-      std::memcpy(batch->template mutable_datum<uint8>(i),
+      std::memcpy(batch->template mutable_sample<uint8>(i),
           images_[i % images_.size()],
-          Product(batch->datum_shape(i)));
+          Product(batch->sample_shape(i)));
     }
   }
   

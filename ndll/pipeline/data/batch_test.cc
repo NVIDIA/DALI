@@ -4,7 +4,7 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
-#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/data/sample.h"
 
 namespace ndll {
 
@@ -67,10 +67,10 @@ TYPED_TEST(BatchTest, TestResize) {
     
   // Check the internals
   ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
 }
 
@@ -99,10 +99,10 @@ TYPED_TEST(BatchTest, TestMultipleResize) {
   // The only thing that should matter is the resize
   // after the call to 'mutable_data<T>()'
   ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
 }
 
@@ -124,10 +124,10 @@ TYPED_TEST(BatchTest, TestTypeChange) {
     
   // Check the internals
   ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
 
   // Save the pointer
@@ -138,10 +138,10 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   batch.template mutable_data<int>();
 
   // Check the internals
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
 
   // No memory allocation should have occured
@@ -152,10 +152,10 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   batch.template mutable_data<uint8>();
   
   // Check the internals
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
   
   // No memory allocation should have occured
@@ -168,10 +168,10 @@ TYPED_TEST(BatchTest, TestTypeChange) {
   batch.template mutable_data<double>();
   
   // Check the internals
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
   
   // Size doubled, memory allocation should have occured
@@ -199,10 +199,10 @@ TYPED_TEST(BatchTest, TestShareData) {
     
   // Check the internals
   ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(batch.ndatum(), batch_size);
+  ASSERT_EQ(batch.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch.sample_offset(i), offsets[i]);
   }
 
   // Create a new batch w/ a smaller data type
@@ -226,11 +226,11 @@ TYPED_TEST(BatchTest, TestShareData) {
   ASSERT_TRUE(batch2.shares_data());
   ASSERT_EQ(batch2.raw_data(), batch.raw_data());
   ASSERT_EQ(batch2.nbytes(), batch.nbytes() / sizeof(float) * sizeof(uint8));
-  ASSERT_EQ(batch2.ndatum(), batch_size);
+  ASSERT_EQ(batch2.nsample(), batch_size);
   ASSERT_EQ(batch2.size(), batch.size());
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch2.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch2.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch2.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch2.sample_offset(i), offsets[i]);
   }
 
   
@@ -241,10 +241,10 @@ TYPED_TEST(BatchTest, TestShareData) {
   // Check the internals
   ASSERT_EQ(batch2.size(), batch.size());
   ASSERT_EQ(batch2.nbytes(), batch.nbytes() / sizeof(float) * sizeof(double));
-  ASSERT_EQ(batch2.ndatum(), batch_size);
+  ASSERT_EQ(batch2.nsample(), batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    ASSERT_EQ(batch2.datum_shape(i), shape[i]);
-    ASSERT_EQ(batch2.datum_offset(i), offsets[i]);
+    ASSERT_EQ(batch2.sample_shape(i), shape[i]);
+    ASSERT_EQ(batch2.sample_offset(i), offsets[i]);
   }
 }
 

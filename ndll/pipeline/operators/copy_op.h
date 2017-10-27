@@ -28,8 +28,8 @@ public:
     return "CopyOp";
   }
 protected:
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int /* unused */, int /* unused */) override {
+  inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int /* unused */, int /* unused */) override {
     NDLL_ENFORCE(input.shape() == output->shape());
     std::memcpy(output->raw_mutable_data(), input.raw_data(), input.nbytes());
   }

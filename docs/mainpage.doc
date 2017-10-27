@@ -30,7 +30,7 @@
  * @ref ndll::Buffer<Backend> @n
  * @ref ndll::Batch<Backend> @n
  * @ref ndll::Tensor<Backend> @n
- * @ref ndll::Datum<Backend>
+ * @ref ndll::Sample<Backend>
  *
  * @subsection mem Memory Allocation:
  * @ref ndll::CPUBackend @n
@@ -77,9 +77,9 @@
  *
  * @subsection data NDLL Data Hierarchy
  * The hierarchy of classes used to store data in ndll is a bit complex, and some
- * resposibilities are redundant. We should refactor to remove the 'Datum' object
+ * resposibilities are redundant. We should refactor to remove the 'Sample' object
  * and replace them with Tensors. We can extend the Tensor class with a method
- * like 'ShareDataShard' to support the functionality that Datum objects provide.
+ * like 'ShareDataShard' to support the functionality that Sample objects provide.
  * We should also get rid of SubTensor and just use Tensor objects that wrap shards
  * of larger buffers. This could also likely be done with 'ShareDataShard'.
  *

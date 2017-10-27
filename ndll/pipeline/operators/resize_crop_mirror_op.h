@@ -130,8 +130,8 @@ public:
   }
 
 protected:
-   inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) override {
+   inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int data_idx, int thread_idx) override {
     TransformMeta &meta = transform_params_[data_idx];
 #ifndef NDEBUG
     NDLL_ENFORCE(input.shape().size() == 3);
@@ -199,8 +199,8 @@ public:
   }
   
 protected:
-    inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) override {
+    inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int data_idx, int thread_idx) override {
     typename ResizeCropMirrorOp<Backend>::TransformMeta &meta =
       transform_params_[data_idx];
 #ifndef NDEBUG

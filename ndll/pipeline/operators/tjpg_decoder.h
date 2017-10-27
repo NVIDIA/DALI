@@ -26,7 +26,7 @@ public:
   virtual inline ~TJPGDecoder() = default;
   
   inline vector<Index> InferOutputShape(
-      const Datum<Backend> &input, int /* unused */, int /* unused */) override {
+      const Sample<Backend> &input, int /* unused */, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 1,
         "TJPGDecoder expects 1D encoded jpeg strings as input");
 
@@ -47,8 +47,8 @@ public:
   DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
 protected:
 
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int /* unused */, int /* unused */) override {
+  inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int /* unused */, int /* unused */) override {
     
     NDLL_CALL(DecodeJPEGHost(input.template data<uint8>(), input.size(), output_type_,
             output->shape()[0], output->shape()[1], output->template mutable_data<uint8>()));
@@ -83,16 +83,16 @@ public:
   
 protected:
   // This op forwards the data and writes it to files
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int /* unused */) override {
+  inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int data_idx, int /* unused */) override {
     NDLL_ENFORCE(input.shape().size() == 3);
 
     if (input.type() == TypeInfo::Create<uint8>()) {
-      DumpDatumHelper<uint8>(input, data_idx);
+      DumpSampleHelper<uint8>(input, data_idx);
     } else if (input.type() == TypeInfo::Create<float16>()) {
-      DumpDatumHelper<float16>(input, data_idx);
+      DumpSampleHelper<float16>(input, data_idx);
     } else if (input.type() == TypeInfo::Create<float>()) {
-      DumpDatumHelper<float>(input, data_idx);
+      DumpSampleHelper<float>(input, data_idx);
     } else {
       NDLL_FAIL("Unsupported data type.");
     }
@@ -102,7 +102,7 @@ protected:
   }
 
   template <typename T>
-  inline void DumpDatumHelper(const Datum<Backend> &input, int data_idx) {
+  inline void DumpSampleHelper(const Sample<Backend> &input, int data_idx) {
     // Dump the data to file
     const T *img = input.template data<T>();
     int h = input.shape()[0];

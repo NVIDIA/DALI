@@ -48,10 +48,10 @@ void Pipeline::Build() {
 
   // Read a single sample from the database and
   // parse it to get the input type
-  data_reader_->Read(&input_datum_[0]);
-  data_parser_->Parse(input_datum_[0], &parsed_datum_[0], 0, 0);
-  TypeInfo read_output_type = input_datum_[0].type();
-  TypeInfo parsed_output_type = parsed_datum_[0].type();
+  data_reader_->Read(&input_sample_[0]);
+  data_parser_->Parse(input_sample_[0], &parsed_sample_[0], 0, 0);
+  TypeInfo read_output_type = input_sample_[0].type();
+  TypeInfo parsed_output_type = parsed_sample_[0].type();
   NDLL_ENFORCE(read_output_type.id() != NO_TYPE);
   NDLL_ENFORCE(parsed_output_type.id() != NO_TYPE);
   data_reader_->Reset();
@@ -63,7 +63,7 @@ void Pipeline::Build() {
   //
   // For the Prefetch ops, we also need to set the output buffer
   // types so that the memory can be allocated prior to wrapping
-  // individual samples in 'Datum' objects. The forward ops get
+  // individual samples in 'Sample' objects. The forward ops get
   // the whole batch at once, but we call these methods here as
   // well to avoid as much work as possible during training
   for (size_t i = 0; i < prefetch_ops_.size(); ++i) {
@@ -121,13 +121,13 @@ void Pipeline::Build() {
   // interfere with the rest of the applications allocator and cause false
   // out of memory errors.
   
-  for (auto &datum : input_datum_) {
-    datum.set_type(read_output_type);
-    datum.Resize({(Index)pixels_per_image_hint_});
+  for (auto &sample : input_sample_) {
+    sample.set_type(read_output_type);
+    sample.Resize({(Index)pixels_per_image_hint_});
   }
-  for (auto &datum : parsed_datum_) {
-    datum.set_type(parsed_output_type);
-    datum.Resize({(Index)pixels_per_image_hint_});
+  for (auto &sample : parsed_sample_) {
+    sample.set_type(parsed_output_type);
+    sample.Resize({(Index)pixels_per_image_hint_});
   }
 
   // NOTE: We don't presize the mega-buffer, as the size of this usually
@@ -150,25 +150,25 @@ void Pipeline::RunPrefetch() {
   {
     TimeRange _tr("size-inference-loop");
     for (Index i = 0; i < batch_size_; ++i) {
-      // Get a Datum from the reader
-      data_reader_->Read(&input_datum_[i]);
+      // Get a Sample from the reader
+      data_reader_->Read(&input_sample_[i]);
       
       // Run type inference for this image on the whole pipeline
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
                 // Run the Parsers
-                data_parser_->Parse(input_datum_[data_idx],
-                    &parsed_datum_[data_idx], data_idx, tid);
+                data_parser_->Parse(input_sample_[data_idx],
+                    &parsed_sample_[data_idx], data_idx, tid);
 
                 // Get the output shape for the cpu-side results
                 intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(parsed_datum_[data_idx], data_idx, tid);
+                  prefetch_ops_[0]->InferOutputShape(parsed_sample_[data_idx], data_idx, tid);
                 
-                Datum<CPUBackend> datum(intermediate_shapes_[0][data_idx]);
+                Sample<CPUBackend> sample(intermediate_shapes_[0][data_idx]);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
                   intermediate_shapes_[j][data_idx] =
-                    prefetch_ops_[j]->InferOutputShape(datum, data_idx, tid);
-                  datum.Resize(intermediate_shapes_[j][data_idx]);
+                    prefetch_ops_[j]->InferOutputShape(sample, data_idx, tid);
+                  sample.Resize(intermediate_shapes_[j][data_idx]);
                 }
                 
                 // Save the shape of the gpu-side copy buffer
@@ -178,11 +178,11 @@ void Pipeline::RunPrefetch() {
 
                 // Get the output shape for the gpu-side results
                 ++offset;
-                Datum<GPUBackend> datum_gpu(datum.shape());
+                Sample<GPUBackend> sample_gpu(sample.shape());
                 for (size_t j = 0; j < forward_ops_.size(); ++j) {
                   intermediate_shapes_[j + offset][data_idx] =
-                    forward_ops_[j]->InferOutputShape(datum_gpu, data_idx, tid);
-                  datum_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
+                    forward_ops_[j]->InferOutputShape(sample_gpu, data_idx, tid);
+                  sample_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
                 }
               }, i, std::placeholders::_1));
     }
@@ -207,22 +207,22 @@ void Pipeline::RunPrefetch() {
     for (Index i = 0; i < batch_size_; ++i) {
       thread_pool_.DoWorkWithID(std::bind(
               [this] (int data_idx, int tid) {
-                // We're going to ping-pong back and forth between these Datums
+                // We're going to ping-pong back and forth between these Samples
                 // So we can cut the number of calls to "WrapSample()" in half.
-                vector<Datum<CPUBackend>> datums(2);
-                datums[1].WrapSample(cpu_buffers_[0].get(), data_idx);
+                vector<Sample<CPUBackend>> samples(2);
+                samples[1].WrapSample(cpu_buffers_[0].get(), data_idx);
                 
-                prefetch_ops_[0]->Run(parsed_datum_[data_idx], &datums[1], data_idx, tid);
+                prefetch_ops_[0]->Run(parsed_sample_[data_idx], &samples[1], data_idx, tid);
                 for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                  // Get the other datum to output this ops result into
-                  datums[!(j&1)].WrapSample(cpu_buffers_[j].get(), data_idx);
-                  prefetch_ops_[j]->Run(datums[j&1], &datums[!(j&1)], data_idx, tid);
+                  // Get the other sample to output this ops result into
+                  samples[!(j&1)].WrapSample(cpu_buffers_[j].get(), data_idx);
+                  prefetch_ops_[j]->Run(samples[j&1], &samples[!(j&1)], data_idx, tid);
                 }
 
                 // Give the forward ops a chance to set up
                 // parameters for their kernel launches
                 for (size_t j = 0; j < forward_ops_.size(); ++j) {
-                  forward_ops_[j]->BatchedParameterSetupPerDatum(
+                  forward_ops_[j]->BatchedParameterSetupPerSample(
                       *gpu_buffers_[j], gpu_buffers_[j+1].get(), data_idx, tid);
                 }
               }, i, std::placeholders::_1));

@@ -40,7 +40,7 @@ public:
   virtual inline ~HuffmanDecoder() = default;
   
   inline vector<Index> InferOutputShape(
-      const Datum<Backend> &input, int data_idx, int thread_idx) override {
+      const Sample<Backend> &input, int data_idx, int thread_idx) override {
     NDLL_ENFORCE(input.shape().size() == 1,
         "HuffmanDecoder expects 1D encoded jpeg strings as input");
 
@@ -53,8 +53,8 @@ public:
         &jpeg);
 
     // Note: The DCT coefficients for each image component can be different sizes
-    // due to subsampling. 'Datum' objects do not support jagged data, so we pack
-    // all the DCT coefficients into a single Datum and pass the needed meta-data
+    // due to subsampling. 'Sample' objects do not support jagged data, so we pack
+    // all the DCT coefficients into a single Sample and pass the needed meta-data
     // to the gpu-side jpeg decode through our extra output Tensor.
     int out_size = 0;
     for (int i = 0; i < jpeg.components; ++i) {
@@ -75,9 +75,9 @@ public:
 
   DISABLE_COPY_MOVE_ASSIGN(HuffmanDecoder);
 protected:
-  inline void RunPerDatumCPU(const Datum<Backend> &input,
-      Datum<Backend> *output, int data_idx, int thread_idx) override {
-    // Perform the huffman decode into the datum object
+  inline void RunPerSampleCPU(const Sample<Backend> &input,
+      Sample<Backend> *output, int data_idx, int thread_idx) override {
+    // Perform the huffman decode into the sample object
     HuffmanDecoderState &state = tl_huffman_state_[thread_idx];
     ParsedJpeg &jpeg = jpeg_meta_->template mutable_data<ParsedJpeg>()[data_idx];
     vector<int16*> dct_coeff_ptrs(jpeg.components);
@@ -226,9 +226,9 @@ protected:
     } else {
       for (int i = 0; i < batch_size_; ++i) {
         // Note: Need to do a 2D memcpy to handle padding in the width dimension
-        const vector<Index> &out_dims = output->datum_shape(i);
+        const vector<Index> &out_dims = output->sample_shape(i);
         CUDA_CALL(cudaMemcpy2DAsync(
-                output->template mutable_datum<uint8>(i), // dst
+                output->template mutable_sample<uint8>(i), // dst
                 out_dims[1], // dptich
                 yuv_data_.template data<uint8>() + yuv_offsets_[i], // src
                 yuv_dims_[i].width, // spitch
@@ -276,9 +276,9 @@ protected:
         }
 
         // Run a 2D memcpy to get rid of image stride
-        const vector<Index> &out_dims = output->datum_shape(i);
+        const vector<Index> &out_dims = output->sample_shape(i);
         CUDA_CALL(cudaMemcpy2DAsync(
-                output->template mutable_datum<uint8>(i), // dst
+                output->template mutable_sample<uint8>(i), // dst
                 out_dims[1]*C_, // dpitch
                 strided_img, // src
                 img_rois_[i].width*C_, // spitch
@@ -292,7 +292,7 @@ protected:
         uint8 *y_plane = yuv_data_ptr + yuv_offsets_[i*3];
         int step = yuv_dims_[i*3].width;
         yToRgb(y_plane, step,
-            output->template mutable_datum<uint8>(i),
+            output->template mutable_sample<uint8>(i),
             img_steps_[i], img_rois_[i],
             stream_);
       }
@@ -362,7 +362,7 @@ protected:
     for (int i = 0; i < C_; ++i) {
       int comp_id = data_idx*C_ + i;
       param = &param_buffers_[1].template mutable_data<DctQuantInvImageParam>()[comp_id];
-      param->src = input.template datum<int16>(data_idx) + dct_offset;
+      param->src = input.template sample<int16>(data_idx) + dct_offset;
       param->srcStep = dct_step_[comp_id];
       param->dst = yuv_data_.template mutable_data<uint8>() + yuv_offsets_[comp_id];
       param->dstWidth = yuv_dims_[comp_id].width;

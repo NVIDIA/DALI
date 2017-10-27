@@ -5,7 +5,7 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
-#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/util/image.h"
@@ -27,9 +27,9 @@ public:
   virtual ~DataReader() = default;
 
   /**
-   * @brief fills the input Datum object with a single data sample
+   * @brief fills the input Sample object with a single data sample
    */
-  virtual void Read(Datum<CPUBackend> *datum) = 0;
+  virtual void Read(Sample<CPUBackend> *sample) = 0;
 
   /**
    * @brief Resets the reader to the intial state, e.g. 
@@ -76,10 +76,10 @@ public:
   }
   
   /**
-   * @brief Wraps the input Datum object around a single data sample.
+   * @brief Wraps the input Sample object around a single data sample.
    */
-  inline void Read(Datum<CPUBackend> *datum) override {
-    datum->WrapSample(data_store_.get(), cursor_);
+  inline void Read(Sample<CPUBackend> *sample) override {
+    sample->WrapSample(data_store_.get(), cursor_);
     cursor_ = (cursor_ + 1) % batch_size_;
   }
 

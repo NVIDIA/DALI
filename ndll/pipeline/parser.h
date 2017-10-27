@@ -4,7 +4,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_spec.h"
 
@@ -26,12 +26,12 @@ public:
   virtual ~Parser() = default;
 
   /**
-   * @brief Parses the data from the input Datum into the output
+   * @brief Parses the data from the input Sample into the output
    *
-   * Note: The parser is responsible for resizing its output Datum
+   * Note: The parser is responsible for resizing its output Sample
    * prior to accessing its data
    */
-  virtual void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
+  virtual void Parse(const Sample<CPUBackend> &input, Sample<CPUBackend> *output,
       int data_idx, int thread_idx) = 0;
 
   DISABLE_COPY_MOVE_ASSIGN(Parser);
@@ -57,7 +57,7 @@ public:
   inline DefaultParser(const OpSpec &spec) : Parser(spec) {}
   ~DefaultParser() = default;
 
-  inline void Parse(const Datum<CPUBackend> &input, Datum<CPUBackend> *output,
+  inline void Parse(const Sample<CPUBackend> &input, Sample<CPUBackend> *output,
       int /* unused */, int /* unused */) override {
     output->Copy(input);
   }

@@ -17,7 +17,7 @@ public:
   inline explicit Transformer(const OpSpec &spec) : Operator<Backend>(spec) {}
   virtual inline ~Transformer() = default;
 
-  inline vector<Index> InferOutputShape(const Datum<Backend> &input,
+  inline vector<Index> InferOutputShape(const Sample<Backend> &input,
       int data_idx, int thread_idx) override final {
 #ifndef NDEBUG
     NDLL_ENFORCE(data_idx < this->batch_size_, "data_idx out of range: "

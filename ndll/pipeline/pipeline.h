@@ -7,7 +7,7 @@
 #include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
-#include "ndll/pipeline/data/datum.h"
+#include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/decoder.h"
 #include "ndll/pipeline/operator.h"
@@ -76,7 +76,7 @@ public:
     decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
     stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
     pixels_per_image_hint_(pixels_per_image_hint), data_reader_(nullptr),
-    input_datum_(batch_size), data_parser_(nullptr), parsed_datum_(batch_size) {
+    input_sample_(batch_size), data_parser_(nullptr), parsed_sample_(batch_size) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template mutable_data<uint8>();
@@ -182,7 +182,7 @@ public:
 
   /**
    * @brief Add the input Parser to the pipeline. The parser will be
-   * called on the Datum produced by the DataReader. This allows support
+   * called on the Sample produced by the DataReader. This allows support
    * for custom data formats without altering the basic ops defined for 
    * the pipeline.
    */
@@ -407,13 +407,13 @@ private:
   // The actually GPU allocations we maintain
   vector<BatchPtr<GPUBackend>> gpu_storage_;
   
-  // DataReader to query for datum during execution
+  // DataReader to query for sample during execution
   unique_ptr<DataReader> data_reader_;
-  vector<Datum<CPUBackend>> input_datum_;
+  vector<Sample<CPUBackend>> input_sample_;
 
   // The parser to handle custom input data formats
   unique_ptr<Parser> data_parser_;
-  vector<Datum<CPUBackend>> parsed_datum_;
+  vector<Sample<CPUBackend>> parsed_sample_;
   
   // Vectors to keep track of the shape of each sample
   // at each stage as collected during the shape inference

@@ -129,7 +129,7 @@ auto CreateJPEGBatch(const vector<uint8*> &jpegs, const vector<int> &jpeg_sizes,
   // Copy in the data
   batch->template mutable_data<uint8>();
   for (int i = 0; i < batch_size; ++i) {
-    CUDA_CALL(cudaMemcpy(batch->raw_mutable_datum(i),
+    CUDA_CALL(cudaMemcpy(batch->raw_mutable_sample(i),
             jpegs[i % jpegs.size()],
             jpeg_sizes[i % jpegs.size()],
             cudaMemcpyDefault));
@@ -141,13 +141,13 @@ template <typename T, typename Backend>
 void DumpHWCImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
   NDLL_ENFORCE(IsType<T>(batch.type()));
   
-  int batch_size = batch.ndatum();
+  int batch_size = batch.nsample();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = batch.datum_shape(i);
+    vector<Index> shape = batch.sample_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int h = shape[0], w = shape[1], c = shape[2];
 
-    DumpHWCToFile(batch.template datum<T>(i), h, w, c, std::to_string(i) + suffix);
+    DumpHWCToFile(batch.template sample<T>(i), h, w, c, std::to_string(i) + suffix);
   }
 }
   
@@ -155,13 +155,13 @@ template <typename T, typename Backend>
 void DumpCHWImageBatchToFile(const Batch<Backend> &batch, const string suffix = "-batch") {
   NDLL_ENFORCE(IsType<T>(batch.type()));
   
-  int batch_size = batch.ndatum();
+  int batch_size = batch.nsample();
   for (int i = 0; i < batch_size; ++i) {
-    vector<Index> shape = batch.datum_shape(i);
+    vector<Index> shape = batch.sample_shape(i);
     NDLL_ENFORCE(shape.size() == 3);
     int c = shape[0], h = shape[1], w = shape[2];
 
-    DumpCHWToFile(batch.template datum<T>(i), h, w, c, std::to_string(i) + suffix);
+    DumpCHWToFile(batch.template sample<T>(i), h, w, c, std::to_string(i) + suffix);
   }   
 }
 

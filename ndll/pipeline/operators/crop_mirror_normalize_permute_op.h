@@ -142,7 +142,7 @@ protected:
     for (int i = 0; i < batch_size_; ++i) {
       param_buffers_[2].template mutable_data<bool>()[i] = mirror_[i];
       param_buffers_[0].template mutable_data<const uint8*>()[i] =
-        input.template datum<uint8>(i) + crop_offsets_[i];
+        input.template sample<uint8>(i) + crop_offsets_[i];
     }
 
     if (output_type_ == NDLL_FLOAT) {
