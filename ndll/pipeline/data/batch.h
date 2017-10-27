@@ -1,6 +1,9 @@
 #ifndef NDLL_PIPELINE_DATA_BATCH_H_
 #define NDLL_PIPELINE_DATA_BATCH_H_
 
+#include <cstring>
+
+#include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
 
 namespace ndll {
@@ -33,11 +36,9 @@ public:
    * @brief Copies the input batch, resizing this batch and changing 
    * the underlying data type if needed
    */
-  template <typename InBackend>
-  inline void Copy(const Batch<InBackend> &other) {
-    this->set_type(other.type());
-    this->ResizeLike(other);
-    MemCopy(this->raw_mutable_data(), other.raw_data(), other.nbytes());
+  template <typename SrcBackend>
+  inline void Copy(const Batch<SrcBackend> &other) {
+    BatchCopyHelper(other, this);
   }
   
   /**
@@ -226,6 +227,13 @@ protected:
   using Buffer<Backend>::shares_data_;
   using Buffer<Backend>::num_bytes_;
 };
+
+template <typename SrcBackend, typename DstBackend>
+void BatchCopyHelper(const Batch<SrcBackend> &src, Batch<DstBackend> *dst) {
+  dst->set_type(src.type());
+  dst->ResizeLike(src);
+  MemCopy(dst->raw_mutable_data(), src.raw_data(), src.nbytes());
+}
 
 } // namespace ndll
 

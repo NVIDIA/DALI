@@ -459,7 +459,7 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
     // cout << mssim << endl;
     
     this->VerifyImage(gpu_output_batch.template mutable_datum<uint8>(i), ground_truth.ptr(),
-        out_sizes[i].height * out_sizes[i].width * this->c_, 35.f, 40.f);
+        out_sizes[i].height * out_sizes[i].width * this->c_, 40.f, 40.f);
   }
 }
 

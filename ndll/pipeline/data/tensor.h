@@ -28,7 +28,7 @@ public:
    */
   template <typename T>
   void Copy(const vector<T> &data, cudaStream_t stream = 0) {
-    CopyHelper(this, data, stream);
+    TensorCopyHelper(this, data, stream);
   }
   
   /**
@@ -107,14 +107,14 @@ protected:
 // Note: CopyHelper lets us specialize on the Tensor backend type without
 // specializing on the input vectors data type.
 template <typename T>
-void CopyHelper(Tensor<CPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
+void TensorCopyHelper(Tensor<CPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
   tensor->template mutable_data<T>();
   tensor->Resize({(Index)data.size()});
   std::memcpy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
 }
 
 template <typename T>
-void CopyHelper(Tensor<GPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
+void TensorCopyHelper(Tensor<GPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
   tensor->template mutable_data<T>();
   tensor->Resize({(Index)data.size()});
   MemCopy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
