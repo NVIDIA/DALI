@@ -72,9 +72,6 @@
  * could be produced by the hwloc library used by NVML. We should clean this up when
  * we get the chance.
  *
- * @subsection build Support Build for Different SMs
- * We currently don't have SM target options in the build for NDLL
- *
  * @subsection data NDLL Data Hierarchy
  * The hierarchy of classes used to store data in ndll is a bit complex, and some
  * resposibilities are redundant. We should refactor to remove the 'Datum' object
@@ -83,8 +80,10 @@
  * We should also get rid of SubTensor and just use Tensor objects that wrap shards
  * of larger buffers. This could also likely be done with 'ShareDataShard'.
  *
- * @subsection c2 C2 Perf
- * C2+NDLL actually produces higher framerates than just NDLL. This is likely because
- * of different testing data, different data reader, or different parser, but I haven't
- * looked into which one it is exactly.
+ * @subsection hybrid_decode Hybrid Decode Lib
+ * The hybrid decoder code is currently separate from the rest of NDLL 
+ * (in third_party/hybrid_decode), and the current version is a bit messy and has some
+ * hacks in it that need to be fixed including the memory allocation in HostBuffer, and
+ * support for kepler generation of architectures. However, we should be able to replace 
+ * it with libnvjpeg prior to release of NDLL, so this is a low priority to fix.
  */
