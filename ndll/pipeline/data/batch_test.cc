@@ -41,6 +41,21 @@ public:
     }
     return shape;
   }
+
+  vector<Dims> GetSmallRandShape() {
+    int batch_size = this->RandInt(1, 32);
+    vector<Dims> shape(batch_size);
+    for (int i = 0; i < batch_size; ++i) {
+      int dims = this->RandInt(0, 3);
+      vector<Index> sample_shape(dims, 0);
+      for (int j = 0; j < dims; ++j) {
+        sample_shape[j] = this->RandInt(1, 64);
+      }
+      shape[i] = sample_shape;
+    }
+    return shape;
+  }
+  
 protected:
   std::mt19937 rand_gen_;
 };
@@ -48,6 +63,66 @@ protected:
 typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
 TYPED_TEST_CASE(BatchTest, Backends);
+
+class DummyType {
+public:
+  DummyType(int size = 2) : ptr_(nullptr), size_(size) {
+    ptr_ = new float[size];
+  }
+
+  ~DummyType() {
+    delete[] ptr_;
+  }
+
+  float *ptr_;
+  int size_;
+};
+
+class DummyType2 {
+public:
+  DummyType2(int size = 1) : ptr_(nullptr), size_(size), id_(5) {
+    ptr_ = new float[size];
+  }
+
+  ~DummyType2() {
+    delete[] ptr_;
+  }
+
+  float *ptr_;
+  int size_;
+  int id_;
+};
+
+NDLL_REGISTER_TYPE(DummyType);
+NDLL_REGISTER_TYPE(DummyType2);
+
+TYPED_TEST(BatchTest, TestDataTypeConstructor) {
+  if (std::is_same<TypeParam, GPUBackend>::value) return;
+  Batch<TypeParam> batch;
+
+  // Setup shape & resize the buffer
+  vector<Dims> shape = this->GetSmallRandShape();
+  batch.Resize(shape);
+
+  batch.template mutable_data<DummyType>();
+  
+  for (int i = 0; i < batch.size(); ++i) {
+    // verify that the internal data has been constructed
+    DummyType &obj = batch.template mutable_data<DummyType>()[i];
+    ASSERT_EQ(obj.size_, 2);
+    ASSERT_NE(obj.ptr_, nullptr);
+  }
+
+  // Switch the type to DummyType2
+  batch.template mutable_data<DummyType2>();
+  for (int i = 0; i < batch.size(); ++i) {
+    // verify that the internal data has been constructed
+    DummyType2 &obj = batch.template mutable_data<DummyType2>()[i];
+    ASSERT_EQ(obj.size_, 1);
+    ASSERT_EQ(obj.id_, 5);
+    ASSERT_NE(obj.ptr_, nullptr);
+  }
+}
 
 TYPED_TEST(BatchTest, TestResize) {
   Batch<TypeParam> batch;
