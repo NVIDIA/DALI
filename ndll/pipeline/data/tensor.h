@@ -41,7 +41,7 @@ public:
    */
   inline virtual void Resize(const vector<Index> &shape) {
     Index new_size = Product(shape);
-    if (type_.id() == NO_TYPE) {
+    if (!IsValidType(type_)) {
       // If the type has not been set yet, we just set the size
       // and shape of the buffer and do not allocate any memory.
       // Any previous resize dims are overwritten.

@@ -14,7 +14,9 @@
 namespace ndll {
 
 typedef int64_t TypeID;
-constexpr TypeID NO_TYPE = -1;
+
+// Dummy type to represent the invalid default state of ndll types.
+struct NoType {};
 
 /**
  * @brief Keeps track of mappings between types and unique identifiers.
@@ -32,7 +34,7 @@ private:
   // TypeTable should only be referenced through its static members
   TypeTable();
 
-  // Used by DEFINE_TYPE macros to register a type in the type table
+  // Used by NDLL_REGISTER_TYPE macros to register a type in the type table
   template <typename T>
   static TypeID RegisterType() {
     // Lock the mutex to ensure correct setup even if this
@@ -47,7 +49,7 @@ private:
     // because it is only called from the explicit specialization of
     // GetIDForType().
     NDLL_ENFORCE(id_it == type_map_.end(),
-        "Re-registration of type, check for duplicate DEFINE_TYPE calls");
+        "Re-registration of type, check for duplicate NDLL_REGISTER_TYPE calls");
 
     int new_id = id_;
     type_map_[typeid(T)] = new_id;
@@ -63,7 +65,9 @@ private:
 // Stores the unqiue ID for a type and its size in bytes
 class TypeInfo {
 public:
-  inline TypeInfo() : id_(NO_TYPE), type_size_(0), name_("no_type") { }
+  inline TypeInfo() {
+    SetType<NoType>();
+  }
 
   template <typename T>
   static inline TypeInfo Create() {
@@ -106,15 +110,19 @@ private:
   string name_;
 };
 
-// Utility to check types
+/**
+ * @brief Utility to check types
+ */
 template <typename T>
 inline bool IsType(TypeInfo type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 
-// Utility to check for valid (no NO_TYPE) type
+/**
+ * @brief Utility to check for valid type
+ */
 inline bool IsValidType(TypeInfo type) {
-  return type.id() != NO_TYPE;
+  return !IsType<NoType>(type);
 }
 
 // Used to define a type for use in ndll. Inserts the type into the
@@ -122,7 +130,7 @@ inline bool IsValidType(TypeInfo type) {
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define DEFINE_TYPE(Type)                                         \
+#define NDLL_REGISTER_TYPE(Type)                                  \
   template <> string TypeTable::GetTypeName<Type>() {             \
     return #Type;                                                 \
   }                                                               \
@@ -144,14 +152,6 @@ enum NDLLDataType {
   NDLL_FLOAT16 = 1,
   NDLL_FLOAT = 2,
 };
-
-//
-/// Helper functions to map between TypeInfo and NDLLDataType
-//
-
-NDLLDataType NDLLTypeForMeta(TypeInfo type_meta);
-
-TypeInfo NDLLMetaForType(NDLLDataType type);
 
 } // namespace ndll
 

@@ -18,7 +18,7 @@ namespace ndll {
 // Define the ParseJpeg struct as a ndll type so we can use it
 // in Tensor objects to share data between the huffman & idct
 // stages of the hybrid jpeg decode.
-DEFINE_TYPE(ParsedJpeg);
+NDLL_REGISTER_TYPE(ParsedJpeg);
 
 /**
  * @brief Perform the host-side part of a hybrid cpu+gpu jpeg decode. This

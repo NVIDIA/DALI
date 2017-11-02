@@ -52,8 +52,8 @@ void Pipeline::Build() {
   data_parser_->Parse(input_sample_[0], &parsed_sample_[0], 0, 0);
   TypeInfo read_output_type = input_sample_[0].type();
   TypeInfo parsed_output_type = parsed_sample_[0].type();
-  NDLL_ENFORCE(read_output_type.id() != NO_TYPE);
-  NDLL_ENFORCE(parsed_output_type.id() != NO_TYPE);
+  NDLL_ENFORCE(IsValidType(read_output_type));
+  NDLL_ENFORCE(IsValidType(parsed_output_type));
   data_reader_->Reset();
   TypeInfo input_type = parsed_output_type;
   

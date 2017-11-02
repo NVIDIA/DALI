@@ -58,7 +58,7 @@ public:
     }
     NDLL_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
-    if (type_.id() == NO_TYPE) {
+    if (!IsValidType(type_)) {
       // If the type has not been set yet, we just set the size
       // and shape of the buffer and do not allocate any memory.
       // Any previous resize dims are overwritten.

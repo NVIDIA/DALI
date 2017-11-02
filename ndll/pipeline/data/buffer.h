@@ -86,7 +86,7 @@ public:
    */
   template <typename T>
   inline const T* data() const {
-    NDLL_ENFORCE(type_.id() != NO_TYPE,
+    NDLL_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' must be called "
         "on non-const buffer to set valid type");
     NDLL_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
@@ -101,7 +101,7 @@ public:
    * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
-    NDLL_ENFORCE(type_.id() != NO_TYPE,
+    NDLL_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
@@ -113,7 +113,7 @@ public:
    * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
-    NDLL_ENFORCE(type_.id() != NO_TYPE,
+    NDLL_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
@@ -158,7 +158,7 @@ public:
     NDLL_ENFORCE(new_type.size() > 0,
         "New datatype must have non-zero element size");
 
-    if (type_.id() == NO_TYPE) {
+    if (!IsValidType(type_)) {
       // If the buffer has no type, set the type to the
       // calling type and allocate the buffer
       NDLL_ENFORCE(data_ == nullptr,
