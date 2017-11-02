@@ -28,6 +28,7 @@ public:
 
   template <typename T>
   void CompareData(const T* data, const T* ground_truth, int n) {
+    CUDA_CALL(cudaDeviceSynchronize());
     vector<T> tmp_cpu(n);
     CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T)*n, cudaMemcpyDefault));
 
@@ -64,7 +65,7 @@ TYPED_TEST_CASE(PipelineTest, NumThreads);
 
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   int num_thread = TypeParam::nt;
-  int batch_size = this->RandInt(1, 256);
+  int batch_size = this->jpegs_.size();
   cudaStream_t stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
   
@@ -92,6 +93,8 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
     pipe.RunCopy();
     pipe.RunForward();
 
+    CUDA_CALL(cudaStreamSynchronize(stream));
+        
     // Verify the results
     this->CompareData(
         pipe.output_batch().template data<uint8>(),
@@ -103,11 +106,12 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 TYPED_TEST(PipelineTest, TestNoOps) {
   int num_thread = TypeParam::nt;
   
-  int batch_size = this->RandInt(1, 256);
+  int batch_size = this->jpegs_.size();
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
   Batch<CPUBackend> *batch =
     CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
+    
   
   // Add a data reader
   pipe.AddDataReader(
@@ -124,6 +128,8 @@ TYPED_TEST(PipelineTest, TestNoOps) {
     pipe.RunCopy();
     pipe.RunForward();
 
+    CUDA_CALL(cudaStreamSynchronize(0));
+    
     // Verify the results
     this->CompareData(
         pipe.output_batch().template data<uint8>(),
@@ -135,7 +141,7 @@ TYPED_TEST(PipelineTest, TestNoOps) {
 TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   int num_thread = TypeParam::nt;
 
-  int batch_size = this->RandInt(1, 256);
+  int batch_size = this->jpegs_.size();
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
   Batch<CPUBackend> *batch =
@@ -162,6 +168,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
     pipe.RunForward();
 
     // Verify the results
+    CUDA_CALL(cudaStreamSynchronize(0));
     this->CompareData(
         pipe.output_batch().template data<uint8>(),
         batch->template data<uint8>(),

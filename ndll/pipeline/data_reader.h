@@ -72,7 +72,7 @@ public:
       vector<string> jpeg_names;
       LoadJPEGS(jpeg_folder, &jpeg_names, &jpegs, &jpeg_sizes);
     }
-    data_store_.reset(CreateJPEGBatch<CPUBackend>(jpegs, jpeg_sizes, batch_size_));
+    data_store_.reset(CreateJPEGBatch<CPUBackend>(jpegs, jpeg_sizes, jpegs.size()));
   }
   
   /**
@@ -80,7 +80,7 @@ public:
    */
   inline void Read(Sample<CPUBackend> *sample) override {
     sample->WrapSample(data_store_.get(), cursor_);
-    cursor_ = (cursor_ + 1) % batch_size_;
+    cursor_ = (cursor_ + 1) % data_store_->nsample();
   }
 
   /**
