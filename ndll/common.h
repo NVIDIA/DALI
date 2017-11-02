@@ -34,6 +34,9 @@ typedef int16_t int16;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
+// Basic data type for our indices and dimension sizes
+typedef int64_t Index;
+
 // Only supported on the GPU
 typedef __half float16;
 

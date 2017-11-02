@@ -28,7 +28,10 @@ public:
    */
   template <typename T>
   void Copy(const vector<T> &data, cudaStream_t stream = 0) {
-    TensorCopyHelper(this, data, stream);
+    this->template mutable_data<T>();
+    this->Resize({(Index)data.size()});
+    type_.Copy<Backend, CPUBackend>(this->raw_mutable_data(),
+        data.data(), this->size());
   }
   
   /**
@@ -53,13 +56,14 @@ public:
     size_t new_num_bytes = new_size*type_.size();
     if (new_num_bytes > num_bytes_) {      
       // Re-allocate the buffer to meet the new size requirements
-      data_.reset(Backend::New(new_num_bytes),
-          std::bind(
-              &Backend::Delete,
-              std::placeholders::_1,
-              new_num_bytes)
-          );
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, new_size));
       num_bytes_ = new_num_bytes;
+
+      // Call the constructor for the underlying data storage
+      type_.template Construct<Backend>(data_.get(), new_size);
     }
 
     // If we have enough storage already allocated, don't re-allocate
@@ -103,22 +107,6 @@ protected:
   using Buffer<Backend>::size_;
   using Buffer<Backend>::num_bytes_;
 };
-
-// Note: CopyHelper lets us specialize on the Tensor backend type without
-// specializing on the input vectors data type.
-template <typename T>
-void TensorCopyHelper(Tensor<CPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
-  tensor->template mutable_data<T>();
-  tensor->Resize({(Index)data.size()});
-  std::memcpy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
-}
-
-template <typename T>
-void TensorCopyHelper(Tensor<GPUBackend> *tensor, const vector<T> &data, cudaStream_t stream) {
-  tensor->template mutable_data<T>();
-  tensor->Resize({(Index)data.size()});
-  MemCopy(tensor->raw_mutable_data(), data.data(), tensor->nbytes(), stream);
-}
 
 } // namespace ndll
 

@@ -11,9 +11,6 @@
 
 namespace ndll {
 
-// Basic data type for our indices and dimension sizes
-typedef int64_t Index;
-
 // Helper function to get product of dims
 inline Index Product(const vector<Index> &shape) {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<Index>());
@@ -169,12 +166,11 @@ public:
       // have anything to allocate
       num_bytes_ = size_ * type_.size();
       if (num_bytes_ > 0) {
-        data_.reset(Backend::New(num_bytes_),
-            std::bind(
-                &Backend::Delete,
-                std::placeholders::_1,
-                num_bytes_)
-            );
+        data_.reset(Backend::New(num_bytes_), std::bind(
+                &Buffer<Backend>::DeleterHelper,
+                this, std::placeholders::_1,
+                type_, size_));
+        type_.template Construct<Backend>(data_.get(), size_);
       }
     } else {
       // If the calling type does not match the current buffer
@@ -183,23 +179,29 @@ public:
       size_t new_num_bytes = size_ * new_type.size();
       if (new_num_bytes > num_bytes_) {
         // Re-allocate the underlying storage
-        data_.reset(Backend::New(new_num_bytes),
-            std::bind(
-                &Backend::Delete,
-                std::placeholders::_1,
-                new_num_bytes)
-            );
+        data_.reset(Backend::New(new_num_bytes), std::bind(
+                &Buffer<Backend>::DeleterHelper,
+                this, std::placeholders::_1,
+                type_, size_));
         num_bytes_ = new_num_bytes;
         shares_data_ = false;
       }
 
       // Save the new type
       type_ = new_type;
+      type_.template Construct<Backend>(data_.get(), size_);
     }
+  }
+
+  // Helper function for cleaning up data storage
+  void DeleterHelper(void *ptr, TypeInfo type, Index size) {
+    type.template Destruct<Backend>(ptr, size);
+    Backend::Delete(ptr, size*type.size());
   }
   
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 protected:
+  
   Backend backend_;
   
   TypeInfo type_; // Data type of underlying storage

@@ -2,7 +2,9 @@
 #define NDLL_PIPELINE_DATA_TYPES_H_
 
 #include <cstdint>
+#include <cstring>
 
+#include <functional>
 #include <mutex>
 #include <typeindex>
 #include <typeinfo>
@@ -81,8 +83,26 @@ public:
     id_ = TypeTable::GetTypeID<T>();
     type_size_ = sizeof(T);
     name_ = TypeTable::GetTypeName<T>();
+
+    // Get constructor/destructor/copier for this type
+    constructor_ = std::bind(&TypeInfo::ConstructorFunc<T>,
+        this, std::placeholders::_1, std::placeholders::_2);
+    destructor_ = std::bind(&TypeInfo::DestructorFunc<T>,
+        this, std::placeholders::_1, std::placeholders::_2);
+    copier_ = std::bind(&TypeInfo::CopyFunc<T>,
+        this, std::placeholders::_1, std::placeholders::_2,
+        std::placeholders::_3);
   }
 
+  template <typename Backend>
+  void Construct(void *ptr, Index n);
+  
+  template <typename Backend>
+  void Destruct(void *ptr, Index n);
+
+  template <typename DstBackend, typename SrcBackend>
+  void Copy(void *dst, const void *src, Index n);
+  
   inline TypeID id() const {
     return id_;
   }
@@ -103,8 +123,51 @@ public:
     }
     return false;
   }
-  
+
 private:
+  template <typename T>
+  inline void ConstructorFunc(void *ptr, Index n) {
+    T *typed_ptr = static_cast<T*>(ptr);
+    for (Index i = 0; i < n; ++i) {
+      new (typed_ptr + i) T;
+    }
+  }
+  
+  template <typename T>
+  inline void DestructorFunc(void *ptr, Index n) {
+    T *typed_ptr = static_cast<T*>(ptr);
+    for (Index i = 0; i < n; ++i) {
+      typed_ptr[i].~T();
+    }
+  }
+
+  template <typename T>
+  inline typename std::enable_if<std::is_trivially_copyable<T>::value>::type
+  CopyFunc(void *dst, const void *src, Index n) {
+    // T is trivially copyable, we can copy using raw memcopy
+    std::memcpy(dst, src, n*sizeof(T));
+  }
+
+  template <typename T>
+  inline typename std::enable_if<!std::is_trivially_copyable<T>::value>::type
+  CopyFunc(void *dst, const void *src, Index n) {
+    T *typed_dst = static_cast<T*>(dst);
+    const T* typed_src = static_cast<const T*>(src);
+    for (Index i = 0; i < n; ++i) {
+      // T is not trivially copyable, iterate and
+      // call the copy-assignment operator
+      typed_dst[i] = typed_src[i];
+    }
+  }
+  
+  typedef std::function<void (void*, Index)> Constructor;
+  typedef std::function<void (void*, Index)> Destructor;
+  typedef std::function<void (void *, const void*, Index)> Copier;
+
+  Constructor constructor_;
+  Destructor destructor_;
+  Copier copier_;
+  
   TypeID id_;
   size_t type_size_;
   string name_;

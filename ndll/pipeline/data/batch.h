@@ -38,7 +38,10 @@ public:
    */
   template <typename SrcBackend>
   inline void Copy(const Batch<SrcBackend> &other) {
-    BatchCopyHelper(other, this);
+    this->set_type(other.type());
+    ResizeLike(other);
+    type_.Copy<Backend, SrcBackend>(this->raw_mutable_data(),
+        other.raw_data(), this->size());
   }
   
   /**
@@ -70,14 +73,15 @@ public:
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
-      data_.reset(Backend::New(new_num_bytes),
-          std::bind(
-              &Backend::Delete,
-              std::placeholders::_1,
-              new_num_bytes)
-          );
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, new_size));
       num_bytes_ = new_num_bytes;
 
+      // Call the constructor for the underlying datatype
+      type_.template Construct<Backend>(data_.get(), new_size);
+      
       // If we were sharing data, we aren't anymore
       shares_data_ = false;
     }

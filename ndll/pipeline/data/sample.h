@@ -78,13 +78,14 @@ public:
     size_t new_num_bytes = new_size*type_.size();
     if (new_num_bytes > num_bytes_) {
       // Re-allocate the buffer to meet the new size requirements
-      data_.reset(Backend::New(new_num_bytes),
-          std::bind(
-              &Backend::Delete,
-              std::placeholders::_1,
-              new_num_bytes)
-          );
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, new_size));
       num_bytes_ = new_num_bytes;
+
+      // Call the constructor for the underlying data type
+      type_.template Construct<Backend>(data_.get(), new_size);
     }
 
     // If we have enough storage already allocated, don't re-allocate
@@ -102,7 +103,11 @@ public:
   /**
    * @brief Copies the data from the input Sample
    */
-  void Copy(const Sample<Backend> &other, cudaStream_t stream = 0);
+  void Copy(const Sample<Backend> &other, cudaStream_t stream = 0) {
+    this->set_type(other.type());
+    this->ResizeLike(other);
+    type_.template Copy<Backend, Backend>(this->raw_mutable_data(), other.raw_data(), this->size());
+  }
 
   /**
    * @brief Wraps the sample with the given index in the batch.

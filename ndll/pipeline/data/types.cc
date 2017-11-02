@@ -1,11 +1,55 @@
 #include "ndll/pipeline/data/types.h"
 
-#include <map>
+#include "ndll/pipeline/data/backend.h"
 
 namespace ndll {
 std::mutex TypeTable::mutex_;
 int TypeTable::id_ = 0;
 std::unordered_map<std::type_index, TypeID> TypeTable::type_map_;
+
+template <>
+void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
+  // Call our constructor function
+  constructor_(ptr, n);
+}
+
+template <>
+void TypeInfo::Construct<GPUBackend>(void *ptr, Index n) {
+  // NoOp. GPU types must not require constructor
+}
+
+template <>
+void TypeInfo::Destruct<CPUBackend>(void *ptr, Index n) {
+  // Call our destructor function
+  destructor_(ptr, n);
+}
+
+template <>
+void TypeInfo::Destruct<GPUBackend>(void *ptr, Index n) {
+  // NoOp. GPU types must not require destructor
+}
+
+template <>
+void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst, const void *src, Index n) {
+  // Call our copy function
+  copier_(dst, src, n);
+}
+
+// For any GPU related copy, we do a plain memcpy
+template <>
+void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst, const void *src, Index n) {
+  MemCopy(dst, src, n*size());
+}
+
+template <>
+void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst, const void *src, Index n) {
+  MemCopy(dst, src, n*size());
+}
+
+template <>
+void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst, const void *src, Index n) {
+  MemCopy(dst, src, n*size());
+}
 
 // Instantiate some basic types
 NDLL_REGISTER_TYPE(NoType);
