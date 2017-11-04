@@ -101,7 +101,7 @@ public:
   void Destruct(void *ptr, Index n);
 
   template <typename DstBackend, typename SrcBackend>
-  void Copy(void *dst, const void *src, Index n);
+  void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
   
   inline TypeID id() const {
     return id_;

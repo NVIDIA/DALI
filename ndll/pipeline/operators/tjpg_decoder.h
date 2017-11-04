@@ -127,7 +127,7 @@ protected:
       NDLL_FAIL("Unsupported data type.");
     }
     
-    output->Copy(input);
+    output->Copy(input, Transformer<Backend>::stream_);
   }
 
   template <typename T>

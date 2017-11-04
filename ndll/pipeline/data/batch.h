@@ -37,11 +37,11 @@ public:
    * the underlying data type if needed
    */
   template <typename SrcBackend>
-  inline void Copy(const Batch<SrcBackend> &other) {
+  inline void Copy(const Batch<SrcBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
     ResizeLike(other);
     type_.Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size());
+        other.raw_data(), this->size(), stream);
   }
   
   /**

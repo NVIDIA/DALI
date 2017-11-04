@@ -39,8 +39,8 @@ public:
     for (int i = 0; i < C_; ++i) {
       inv_std_vec_[i] = 1.f / inv_std_vec_[i];
     }
-    mean_.Copy(mean_vec_);
-    inv_std_.Copy(inv_std_vec_);
+    mean_.Copy(mean_vec_, stream_);
+    inv_std_.Copy(inv_std_vec_, stream_);
 
     // We need three buffers for our batched parameters
     // in_ptrs, in_strides, and mirror parameters per image

@@ -103,10 +103,11 @@ public:
   /**
    * @brief Copies the data from the input Sample
    */
-  void Copy(const Sample<Backend> &other, cudaStream_t stream = 0) {
+  void Copy(const Sample<Backend> &other, cudaStream_t stream ) {
     this->set_type(other.type());
     this->ResizeLike(other);
-    type_.template Copy<Backend, Backend>(this->raw_mutable_data(), other.raw_data(), this->size());
+    type_.template Copy<Backend, Backend>(this->raw_mutable_data(),
+        other.raw_data(), this->size(), stream);
   }
 
   /**

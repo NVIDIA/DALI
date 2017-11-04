@@ -30,25 +30,29 @@ void TypeInfo::Destruct<GPUBackend>(void *ptr, Index n) {
 }
 
 template <>
-void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst, const void *src, Index n) {
+void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t /* unused */) {
   // Call our copy function
   copier_(dst, src, n);
 }
 
 // For any GPU related copy, we do a plain memcpy
 template <>
-void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst, const void *src, Index n) {
-  MemCopy(dst, src, n*size());
+void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream) {
+  MemCopy(dst, src, n*size(), stream);
 }
 
 template <>
-void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst, const void *src, Index n) {
-  MemCopy(dst, src, n*size());
+void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream) {
+  MemCopy(dst, src, n*size(), stream);
 }
 
 template <>
-void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst, const void *src, Index n) {
-  MemCopy(dst, src, n*size());
+void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream) {
+  MemCopy(dst, src, n*size(), stream);
 }
 
 // Instantiate some basic types

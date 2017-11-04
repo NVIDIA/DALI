@@ -59,7 +59,7 @@ public:
 
   inline void Parse(const Sample<CPUBackend> &input, Sample<CPUBackend> *output,
       int /* unused */, int /* unused */) override {
-    output->Copy(input);
+    output->Copy(input, 0);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(DefaultParser);

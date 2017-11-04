@@ -32,8 +32,8 @@ public:
     }
 
     // Copy to device
-    mean_.Copy(mean);
-    inv_std_.Copy(std);
+    mean_.Copy(mean, stream_);
+    inv_std_.Copy(std, stream_);
   }
     
   virtual inline ~NormalizePermuteOp() = default;
