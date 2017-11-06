@@ -303,7 +303,7 @@ void Pipeline::IntermediateBufferResizeAndSetup() {
 
   // Resize the two storage buffers
   for (size_t i = 0; i < std::min(forward_ops_.size()+1, 2lu); ++i) {
-    gpu_storage_[i]->Resize({{(Index)max_bytes[i]}});
+    gpu_storage_[i]->Resize(vector<Dims>{{(Index)max_bytes[i]}});
   }
 
   // Share the gpu data with the other gpu buffers and

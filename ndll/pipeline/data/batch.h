@@ -29,7 +29,7 @@ public:
    */
   template <typename InBackend>
   inline void ResizeLike(const Batch<InBackend> &other) {
-    Resize(other.batch_shape_);
+    Resize(other.shape_);
   }
 
   /**
@@ -43,55 +43,73 @@ public:
     type_.Copy<Backend, SrcBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
+
+  /**
+   * @brief Resizes the tensor to match the input dense dimensions.
+   */
+  inline void Resize(const vector<Index> &new_shape) {
+    // Create the equivalent jagged shape and resize. If the calculation
+    // of the offsets & resizing becomes too expensive in the pipeline,
+    // we can re-write this method to not use the jagged resize method
+    // and just set the offset based on the dense shape.
+
+
+    // Note: Scalar values are represented as 0 dimensional Tensors.
+    Index new_size = Product(new_shape);
+    ResizeHelper(new_size);
+
+    // Save the new Tensor shape
+    shape_ = new_shape;
+
+    // Note: Scalar values are represented as 0 dimensional Tensors.
+    // If the input has 0 dims, we set the number of samples to be
+    // one and set its offset to be 0
+    Index batch_size = new_shape.size() > 0 ? new_shape[0] : 1;
+    offsets_.resize(batch_size);
+    
+    // Calculate the offset of each sample in the buffer
+    Index sample_size = new_size / batch_size;
+    Index offset = 0;
+    for (int i = 0; i < batch_size; ++i) {
+      offsets_[i] = offset;
+      offset += sample_size;
+    }
+  }
   
   /**
    * @brief Resize function to create batches. The outer vector
-   * size is taken to be the samples dimension, i.e. N = shape.size();
+   * size is taken to be the samples dimension, i.e. N = new_shape.size();
    */
-  inline void Resize(const vector<Dims> &shape) {
-    NDLL_ENFORCE(shape.size() > 0, "Batches must have at least a single sample");
-    if (shape == batch_shape_) return;
+  inline void Resize(const vector<Dims> &new_shape) {
+    NDLL_ENFORCE(new_shape.size() > 0, "Batches must have at least a single sample.");
+    if (new_shape == shape_) return;
 
     // Calculate the new size
     Index new_size = 0;
-    for (auto &vec : shape) {
+    for (auto &vec : new_shape) {
       Index tmp = 1;
       for (auto &val : vec) tmp *= val;
       new_size += tmp;
     }
     NDLL_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
+    
+    // Resize the underlying allocation
+    ResizeHelper(new_size);
 
-    if (!IsValidType(type_)) {
-      // If the type has not been set yet, we just set the size
-      // and shape of the buffer and do not allocate any memory.
-      // Any previous resize dims are overwritten.
-      size_ = new_size;
-      batch_shape_ = shape;
-      CalculateOffsets();
-      return;
-    }
+    // Set the tensor size
+    shape_ = new_shape;
 
-    size_t new_num_bytes = new_size * type_.size();
-    if (new_num_bytes > num_bytes_) {
-      data_.reset(Backend::New(new_num_bytes), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, new_size));
-      num_bytes_ = new_num_bytes;
-
-      // Call the constructor for the underlying datatype
-      type_.template Construct<Backend>(data_.get(), new_size);
-      
-      // If we were sharing data, we aren't anymore
-      shares_data_ = false;
-    }
-
-    // If we have enough storage already allocated, don't reallocate
-    size_ = new_size;
-    batch_shape_ = shape;
-    CalculateOffsets();
+    // Calculate the offset of each sample in the buffer
+    int batch_size = shape_.size();
+    offsets_.resize(batch_size);
+    
+    Index offset = 0;
+    for (int i = 0; i < batch_size; ++i) {
+      offsets_[i] = offset;
+      offset += Product(shape_[i]);
+    }    
   }
-
+  
   /**
    * @brief Wraps the data owned by the input Batch. Both batches must
    * have valid types, and the input batch must have enough storage to
@@ -120,7 +138,7 @@ public:
     // Set our size to the maximum number of possible elements of our
     // type we can store in the shared buffer.
     size_ = possible_elements;
-    batch_shape_ = {{(Index)size_}}; // default size
+    shape_ = {{(Index)size_}}; // default size
     offsets_ = {(Index)0}; // offset for single sample
     
     // Save the underlying allocation pointer and size
@@ -169,7 +187,7 @@ public:
    * @brief Returns the number of samples in the batch.
    */
   inline int nsample() const {
-    return batch_shape_.size();
+    return shape_.size();
   }
 
   /**
@@ -189,9 +207,9 @@ public:
   inline vector<Index> sample_shape(int idx) const {
 #ifndef NDEBUG
     NDLL_ENFORCE(idx >= 0, "Negative index not supported");
-    NDLL_ENFORCE((size_t)idx < batch_shape_.size(), "Index out of offset range");
+    NDLL_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range");
 #endif
-    return batch_shape_[idx];
+    return shape_[idx];
   }
 
   /**
@@ -206,21 +224,44 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Batch);
 protected:
-  // Helper to calculate sample offsets
-  void CalculateOffsets() {
-    int batch_size = batch_shape_.size();
-    offsets_.resize(batch_size);
-    
-    Index offset = 0;
-    for (int i = 0; i < batch_size; ++i) {
-      offsets_[i] = offset;
-      offset += Product(batch_shape_[i]);
-    }
-  }
 
+  // Helper to resize the underlying allocation. Does not touch
+  // the Tensors shape or offsets.
+  inline void ResizeHelper(Index new_size) {
+    NDLL_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
+    
+    if (!IsValidType(type_)) {
+      // If the type has not been set yet, we just set the size of the
+      // buffer and do not allocate any memory. Any previous size is
+      // overwritten.
+      NDLL_ENFORCE(data_ == nullptr, "Buffer has no type, data_ should be nullptr.");
+      NDLL_ENFORCE(num_bytes_ == 0, "Buffer has no type, num_bytes_ should be 0.");
+      
+      size_ = new_size;
+      return;
+    }
+
+    size_t new_num_bytes = new_size * type_.size();
+    if (new_num_bytes > num_bytes_) {
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, new_size));
+      num_bytes_ = new_num_bytes;
+      
+      // Call the constructor for the underlying datatype
+      type_.template Construct<Backend>(data_.get(), new_size);
+      
+      // If we were sharing data, we aren't anymore
+      shares_data_ = false;
+    }
+
+    size_ = new_size;
+  }
+  
   // We maintain a vector of 'Dims' to allow us to store
   // jagged tensors.  We also cache the offset of each sample
-  vector<Dims> batch_shape_;
+  vector<Dims> shape_;
   vector<Index> offsets_;
   
   // So we don't have to put 'this->' everywhere
@@ -231,13 +272,6 @@ protected:
   using Buffer<Backend>::shares_data_;
   using Buffer<Backend>::num_bytes_;
 };
-
-template <typename SrcBackend, typename DstBackend>
-void BatchCopyHelper(const Batch<SrcBackend> &src, Batch<DstBackend> *dst) {
-  dst->set_type(src.type());
-  dst->ResizeLike(src);
-  MemCopy(dst->raw_mutable_data(), src.raw_data(), src.nbytes());
-}
 
 } // namespace ndll
 
