@@ -21,7 +21,7 @@ typedef vector<Index> Dims;
 template <typename Backend>
 class Batch : public Buffer<Backend> {
 public:
-  Batch() {}
+  Batch() : is_jagged_(false) {}
   ~Batch() = default;
 
   /**
@@ -58,22 +58,26 @@ public:
     Index new_size = Product(new_shape);
     ResizeHelper(new_size);
 
-    // Save the new Tensor shape
-    shape_ = new_shape;
-
     // Note: Scalar values are represented as 0 dimensional Tensors.
     // If the input has 0 dims, we set the number of samples to be
     // one and set its offset to be 0
     Index batch_size = new_shape.size() > 0 ? new_shape[0] : 1;
-    offsets_.resize(batch_size);
+    vector<Index> sample_shape(new_shape.begin()+1, new_shape.end());
+    vector<Dims> expanded_new_shape(batch_size);
+    for (Index i = 0; i < batch_size; ++i) {
+      expanded_new_shape[i] = sample_shape;
+    }
+    shape_ = expanded_new_shape;
     
     // Calculate the offset of each sample in the buffer
+    offsets_.resize(batch_size);
     Index sample_size = new_size / batch_size;
     Index offset = 0;
     for (int i = 0; i < batch_size; ++i) {
       offsets_[i] = offset;
       offset += sample_size;
     }
+    is_jagged_ = false;
   }
   
   /**
@@ -84,12 +88,19 @@ public:
     NDLL_ENFORCE(new_shape.size() > 0, "Batches must have at least a single sample.");
     if (new_shape == shape_) return;
 
-    // Calculate the new size
-    Index new_size = 0;
-    for (auto &vec : new_shape) {
-      Index tmp = 1;
-      for (auto &val : vec) tmp *= val;
-      new_size += tmp;
+    // Calculate the new size, offsets for each sample, and check whether
+    // the input shape specifies a dense Tensor.
+    Index batch_size = new_shape.size(), new_size = 0;
+    Dims first_shape = new_shape[0];
+    bool is_dense = true;
+    offsets_.resize(batch_size);
+    for (int i = 0; i < batch_size; ++i) {
+      Index sample_size = Product(new_shape[i]);
+      is_dense = is_dense && (first_shape == new_shape[i]);
+
+      // Save the offset of the current sample & accumulate the size
+      offsets_[i] = new_size;
+      new_size += sample_size;
     }
     NDLL_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
     
@@ -98,16 +109,7 @@ public:
 
     // Set the tensor size
     shape_ = new_shape;
-
-    // Calculate the offset of each sample in the buffer
-    int batch_size = shape_.size();
-    offsets_.resize(batch_size);
-    
-    Index offset = 0;
-    for (int i = 0; i < batch_size; ++i) {
-      offsets_[i] = offset;
-      offset += Product(shape_[i]);
-    }    
+    is_jagged_ = !is_dense;
   }
   
   /**
@@ -263,6 +265,7 @@ protected:
   // jagged tensors.  We also cache the offset of each sample
   vector<Dims> shape_;
   vector<Index> offsets_;
+  bool is_jagged_;
   
   // So we don't have to put 'this->' everywhere
   using Buffer<Backend>::backend_;
