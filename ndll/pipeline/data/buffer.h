@@ -13,6 +13,7 @@ namespace ndll {
 
 // Helper function to get product of dims
 inline Index Product(const vector<Index> &shape) {
+  if (shape.size() == 0) return 0;
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<Index>());
 }
 
