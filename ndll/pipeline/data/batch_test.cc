@@ -55,15 +55,6 @@ public:
     }
     return shape;
   }
-
-  vector<Index> GetRandDenseShape() {
-    int dims = this->RandInt(1, 5);
-    vector<Index> shape(dims);
-    for (int i = 0; i < dims; ++i) {
-      shape[i] = this->RandInt(1, 32);
-    }
-    return shape;
-  }
   
 protected:
   std::mt19937 rand_gen_;
@@ -104,87 +95,6 @@ public:
 
 NDLL_REGISTER_TYPE(DummyType);
 NDLL_REGISTER_TYPE(DummyType2);
-
-TYPED_TEST(BatchTest, TestDenseResize) {
-  Batch<TypeParam> batch;
-
-  // Setup shape & resize the buffer
-  vector<Index> shape = this->GetRandDenseShape();
-  batch.Resize(shape);
-
-  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_FALSE(batch.is_jagged());
-  for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(batch.dense_shape()[i], shape[i]);
-  }
-
-  Index sample_size = Product(shape) / shape[0];
-  for (Index i = 0; i < shape[0]; ++i) {
-    ASSERT_EQ(batch.sample_offset(i), sample_size*i);
-  }
-}
-
-TYPED_TEST(BatchTest, TestDenseJaggedResize) {
-  Batch<TypeParam> batch;
-  for (int i = 0; i < 20; ++i) {
-    if (i&1) {
-      // Setup shape & resize the buffer
-      vector<Index> shape = this->GetRandDenseShape();
-      batch.Resize(shape);
-      
-      ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-      ASSERT_FALSE(batch.is_jagged());
-      for (size_t i = 0; i < shape.size(); ++i) {
-        ASSERT_EQ(batch.dense_shape()[i], shape[i]);
-      }
-      
-      Index sample_size = Product(shape) / shape[0];
-      for (Index i = 0; i < shape[0]; ++i) {
-        ASSERT_EQ(batch.sample_offset(i), sample_size*i);
-      }
-    } else {
-      // Setup shape and offsets
-      vector<Dims> shape = this->GetRandShape();
-      int batch_size = shape.size();
-      vector<Index> offsets;
-      Index offset = 0;
-      for (auto &tmp : shape) {
-        offsets.push_back(offset);
-        offset += Product(tmp);
-      }
-
-      // Resize the buffer
-      batch.Resize(shape);
-    
-      // Check the internals
-      ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-      ASSERT_EQ(batch.nsample(), batch_size);
-      for (int i = 0; i < batch_size; ++i) {
-        ASSERT_EQ(batch.sample_shape(i), shape[i]);
-        ASSERT_EQ(batch.sample_offset(i), offsets[i]);
-      }      
-    }
-  }
-}
-
-TYPED_TEST(BatchTest, TestResizeDenseWithJaggedAPI) {
-  
-}
-
-TYPED_TEST(BatchTest, TestResizeScalarJaggedAPI) {
-
-}
-
-TYPED_TEST(BatchTest, TestResizeScalarDenseAPI) {
-  Batch<TypeParam> batch;
-
-  // Try the dense syntax
-  batch.Resize(vector<Index>{});
-  ASSERT_NE(batch.template mutable_data<float>(), nullptr);
-  ASSERT_FALSE(batch.is_jagged());
-  ASSERT_EQ(batch.size(), 1);
-  ASSERT_EQ(batch.dense_ndim(), 0);
-}
 
 TYPED_TEST(BatchTest, TestDataTypeConstructor) {
   if (std::is_same<TypeParam, GPUBackend>::value) return;

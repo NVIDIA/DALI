@@ -61,12 +61,9 @@ public:
     // Note: Scalar values are represented as 0 dimensional Tensors.
     // If the input has 0 dims, we set the number of samples to be
     // one and set its offset to be 0
-    Index batch_size = new_shape.size() > 0 ? new_shape[0] : 0;
-    vector<Index> sample_shape;
+    Index batch_size = new_shape.size() > 0 ? new_shape[0] : 1;
+    vector<Index> sample_shape(new_shape.begin()+1, new_shape.end());
     vector<Dims> expanded_new_shape(batch_size);
-    for (size_t i = 1; i < new_shape.size(); ++i) {
-      sample_shape.push_back(new_shape[i]);
-    }
     for (Index i = 0; i < batch_size; ++i) {
       expanded_new_shape[i] = sample_shape;
     }
@@ -74,10 +71,11 @@ public:
     
     // Calculate the offset of each sample in the buffer
     offsets_.resize(batch_size);
+    Index sample_size = new_size / batch_size;
     Index offset = 0;
     for (int i = 0; i < batch_size; ++i) {
       offsets_[i] = offset;
-      offset += new_size / batch_size;
+      offset += sample_size;
     }
     is_jagged_ = false;
   }
@@ -87,27 +85,22 @@ public:
    * size is taken to be the samples dimension, i.e. N = new_shape.size();
    */
   inline void Resize(const vector<Dims> &new_shape) {
+    NDLL_ENFORCE(new_shape.size() > 0, "Batches must have at least a single sample.");
     if (new_shape == shape_) return;
-    
+
     // Calculate the new size, offsets for each sample, and check whether
     // the input shape specifies a dense Tensor.
     Index batch_size = new_shape.size(), new_size = 0;
+    Dims first_shape = new_shape[0];
     bool is_dense = true;
     offsets_.resize(batch_size);
-    if (batch_size == 0) {
-      // Special case to handle scalars consistently between dense
-      // & jagged tensors. For scalars we do not store any offsets,
-      // as the offsets represent indexing across the 1st dimension
-      new_size = 1;
-    } else {
-      for (int i = 0; i < batch_size; ++i) {
-        Index sample_size = Product(new_shape[i]);
-        is_dense = is_dense && (new_shape[0] == new_shape[i]);
-        
-        // Save the offset of the current sample & accumulate the size
-        offsets_[i] = new_size;
-        new_size += sample_size;
-      }
+    for (int i = 0; i < batch_size; ++i) {
+      Index sample_size = Product(new_shape[i]);
+      is_dense = is_dense && (first_shape == new_shape[i]);
+
+      // Save the offset of the current sample & accumulate the size
+      offsets_[i] = new_size;
+      new_size += sample_size;
     }
     NDLL_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
     
@@ -222,39 +215,9 @@ public:
   }
 
   /**
-   * @brief Return the shape of the underlying dense data. If the Tensor is
-   * not dense, throws an error.
-   */
-  inline vector<Index> dense_shape() const {
-    NDLL_ENFORCE(!is_jagged(), "Tensor stores jagged data");
-    if (shape_.size() == 0) return vector<Index>{};
-    vector<Index> dense_shape(shape_[0].size()+1);
-    dense_shape[0] = shape_.size();
-    for (size_t i = 0; i < shape_[0].size(); ++i) {
-      dense_shape[i+1] = shape_[0][i];
-    }
-    return dense_shape;
-  }
-
-  /**
-   * @brief Return the number of dimensions of the underlying dense data. If 
-   * the Tensor is not dense, throws an error.
-   */
-  inline int dense_ndim() const {
-    NDLL_ENFORCE(!is_jagged(), "Tensor stores jagged data");
-    if(shape_.size() == 0) return 0;
-    return shape_[0].size()+1;
-  }
-  
-  /**
    * @brief Returns a bool indicating if the batch shares its underlying storage.
    */
   inline bool shares_data() const { return shares_data_; }
-
-  /**
-   * @brief Returns a bool indicating if the tensor stores jagged data
-   */
-  inline bool is_jagged() const { return is_jagged_; }
   
   // So we can access the members of other Batches
   // with different template types
