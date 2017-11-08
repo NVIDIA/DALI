@@ -314,17 +314,18 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Create a new tensor_list w/ a smaller data type
   TensorList<TypeParam> tensor_list2;
-  tensor_list2.template mutable_data<uint8>();
 
   // Share the data
   tensor_list2.ShareData(tensor_list);
-
+  tensor_list2.Resize(vector<Dims>{{tensor_list.size()}});
+  tensor_list2.template mutable_data<uint8>();
+  
   // Make sure the pointers match
   ASSERT_EQ(tensor_list.raw_data(), tensor_list2.raw_data());
   ASSERT_TRUE(tensor_list2.shares_data());
   
   // Verify the default dims of the tensor_list 2
-  ASSERT_EQ(tensor_list2.size(), tensor_list.size() / sizeof(uint8) * sizeof(float));
+  ASSERT_EQ(tensor_list2.size(), tensor_list.size());
 
   // Resize the tensor_list2 to match the shape of tensor_list
   tensor_list2.Resize(shape);
@@ -339,7 +340,6 @@ TYPED_TEST(TensorListTest, TestShareData) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
-
   
   // Trigger allocation through buffer API, verify we no longer share
   tensor_list2.template mutable_data<double>();

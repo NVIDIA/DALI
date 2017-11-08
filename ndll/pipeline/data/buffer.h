@@ -152,27 +152,30 @@ public:
    * new data type.
    */
   inline void set_type(TypeInfo new_type) {
-    if (new_type.id() == type_.id()) return;
-    NDLL_ENFORCE(new_type.size() > 0,
-        "New datatype must have non-zero element size");
-
+    NDLL_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
+    if (new_type == type_) return;
+    
     if (!IsValidType(type_)) {
       // If the buffer has no type, set the type to the
       // calling type and allocate the buffer
-      NDLL_ENFORCE(data_ == nullptr,
-          "Data ptr is nullptr, something has gone wrong.");
+      NDLL_ENFORCE((data_ == nullptr) || shares_data_,
+          "Buffer has no type and does not share data, "
+          "data_ should be nullptr.");
+      NDLL_ENFORCE((num_bytes_ == 0) || shares_data_,
+          "Buffer has no type and does not share data, "
+          "num_bytes_ should be 0.");
       type_ = new_type;
 
-      // Make sure we keep our nullptr if we don't
-      // have anything to allocate
-      num_bytes_ = size_ * type_.size();
-      if (num_bytes_ > 0) {
-        data_.reset(Backend::New(num_bytes_), std::bind(
+      size_t new_num_bytes = size_ * type_.size();
+      if (new_num_bytes > num_bytes_) {
+        data_.reset(Backend::New(new_num_bytes), std::bind(
                 &Buffer<Backend>::DeleterHelper,
                 this, std::placeholders::_1,
                 type_, size_));
-        type_.template Construct<Backend>(data_.get(), size_);
+        num_bytes_ = new_num_bytes;
+        shares_data_ = false;
       }
+      type_.template Construct<Backend>(data_.get(), size_);
     } else {
       // If the calling type does not match the current buffer
       // type, reset the type and re-allocate the memory if
@@ -194,6 +197,11 @@ public:
     }
   }
 
+  /**
+   * @brief Returns a bool indicating if the list shares its underlying storage.
+   */
+  inline bool shares_data() const { return shares_data_; }
+  
   // Helper function for cleaning up data storage. This unfortunately
   // has to be public so that we can bind it into the deleter of our
   // shared pointers
@@ -212,8 +220,12 @@ protected:
       // If the type has not been set yet, we just set the size of the
       // buffer and do not allocate any memory. Any previous size is
       // overwritten.
-      NDLL_ENFORCE(data_ == nullptr, "Buffer has no type, data_ should be nullptr.");
-      NDLL_ENFORCE(num_bytes_ == 0, "Buffer has no type, num_bytes_ should be 0.");
+      NDLL_ENFORCE((data_ == nullptr) || shares_data_,
+          "Buffer has no type and does not share data, "
+          "data_ should be nullptr.");
+      NDLL_ENFORCE((num_bytes_ == 0) || shares_data_,
+          "Buffer has no type and does not share data, "
+          "num_bytes_ should be 0.");
       
       size_ = new_size;
       return;

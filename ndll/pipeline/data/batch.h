@@ -194,11 +194,6 @@ public:
     return batch_shape_[idx];
   }
 
-  /**
-   * @brief Returns a bool indicating if the batch shares its underlying storage.
-   */
-  inline bool shares_data() const { return shares_data_; }
-  
   // So we can access the members of other Batches
   // with different template types
   template <typename InBackend>

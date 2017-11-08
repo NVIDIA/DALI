@@ -80,8 +80,10 @@ public:
   
   template <typename T>
   inline void SetType() {
+    // Note: We enforce the fact that NoType is invalid by
+    // explicitly setting its type size as 0
+    type_size_ = std::is_same<T, NoType>::value ? 0 : sizeof(T);
     id_ = TypeTable::GetTypeID<T>();
-    type_size_ = sizeof(T);
     name_ = TypeTable::GetTypeName<T>();
 
     // Get constructor/destructor/copier for this type

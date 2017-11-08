@@ -71,40 +71,32 @@ public:
   }
 
   /**
-   * @brief Wraps the data owned by the input TensorList. Both lists must
-   * have valid types, and the input list must have enough storage to
-   * store a single element of the calling objects type.
+   * @brief Wraps the data owned by the input TensorList. The input
+   * TensorList must have a valid type. If the input TensorList
+   * stores no data, this tensor is reset to a default state
    *
    * When this function is called, the calling object shares the 
-   * underlying allocation of the input TensorList. Its size is reset
-   * to be the maximum number of elements of its type that can be
-   * stored in the input lists allocation. While this list shares
+   * underlying allocation of the input TensorList. Its size, type
+   * and shape are reset to the default state. While this list shares
    * data with another list, 'shares_data()' will return 'true'.
    */
   inline void ShareData(const TensorList<Backend> &other) {
-    NDLL_ENFORCE(IsValidType(this->type_), "To share data another "
-        "TensorLists data, a TensorList must have a valid data type.");
     NDLL_ENFORCE(IsValidType(other.type_), "To share data, "
         "the input TensorList must have a valid data type");
 
-    // Find the maximum elements of our type we can store
-    // in the shared allocated buffer
-    Index possible_elements = other.num_bytes_ / this->type_.size();
-    NDLL_ENFORCE(possible_elements > 0, "Shared data size smaller than "
-        "a single element of other TensorLists type: " +
-        std::to_string(other.num_bytes_) + " v. " +
-        std::to_string(this->type_.size()));
-
-    // Set our size to the maximum number of possible elements of our
-    // type we can store in the shared buffer.
-    size_ = possible_elements;
-    shape_ = {{(Index)size_}}; // default size
-    offsets_ = {(Index)0}; // offset for single tensor
-    
-    // Save the underlying allocation pointer and size
-    data_ = other.data_;
+    // Set the number of bytes in our new allocation (that we share)
     num_bytes_ = other.num_bytes_;
-    shares_data_ = true;
+    data_ = other.data_;
+
+    // Reset the buffer to a default state (other than having an allocation)
+    type_ = TypeInfo::Create<NoType>();
+    shape_.clear();
+    offsets_.clear();
+    size_ = 0;
+
+    // If the other tensor has a non-zero size allocation, mark that
+    // we are now sharing an allocation with another buffer
+    if (num_bytes_ > 0) shares_data_ = true;
   }
   
   /**
@@ -172,11 +164,6 @@ public:
     return shape_[idx];
   }
 
-  /**
-   * @brief Returns a bool indicating if the list shares its underlying storage.
-   */
-  inline bool shares_data() const { return shares_data_; }
-  
   // So we can access the members of other TensorListes
   // with different template types
   template <typename InBackend>

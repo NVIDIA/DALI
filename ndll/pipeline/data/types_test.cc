@@ -48,7 +48,7 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
 
   // Verify we start with no type
   ASSERT_EQ(type.name(), "NoType");
-  ASSERT_EQ(type.size(), 1);
+  ASSERT_EQ(type.size(), 0);
   
   type.SetType<T>();
 
