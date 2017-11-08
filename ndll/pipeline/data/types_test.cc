@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "ndll/test/ndll_main_test.h"
+#include "ndll/test/ndll_test.h"
 
 namespace ndll {
 

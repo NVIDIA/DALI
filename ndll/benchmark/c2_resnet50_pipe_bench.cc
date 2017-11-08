@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 
-#include "ndll/benchmark/ndll_main_bench.h"
+#include "ndll/benchmark/ndll_bench.h"
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/crop_mirror_normalize_permute_op.h"
 #include "ndll/pipeline/operators/hybrid_jpg_decoder.h"

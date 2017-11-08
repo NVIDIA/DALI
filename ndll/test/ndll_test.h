@@ -1,5 +1,5 @@
-#ifndef NDLL_TEST_NDLL_MAIN_TEST_H_
-#define NDLL_TEST_NDLL_MAIN_TEST_H_
+#ifndef NDLL_TEST_NDLL_TEST_H_
+#define NDLL_TEST_NDLL_TEST_H_
 
 #include <cstring>
 
@@ -192,4 +192,4 @@ protected:
 }; 
 } // namespace ndll
 
-#endif // NDLL_TEST_NDLL_MAIN_TEST_H_
+#endif // NDLL_TEST_NDLL_TEST_H_

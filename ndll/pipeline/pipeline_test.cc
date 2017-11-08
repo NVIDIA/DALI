@@ -13,7 +13,7 @@
 #include "ndll/pipeline/operators/copy_op.h"
 #include "ndll/pipeline/operators/normalize_permute_op.h"
 #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
-#include "ndll/test/ndll_main_test.h"
+#include "ndll/test/ndll_test.h"
 #include "ndll/util/image.h"
 
 namespace ndll {

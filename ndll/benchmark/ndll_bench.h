@@ -1,5 +1,5 @@
-#ifndef NDLL_BENCHMARK_NDLL_MAIN_BENCH_H_
-#define NDLL_BENCHMARK_NDLL_MAIN_BENCH_H_
+#ifndef NDLL_BENCHMARK_NDLL_BENCH_H_
+#define NDLL_BENCHMARK_NDLL_BENCH_H_
 
 #include <random>
 
@@ -44,4 +44,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_BENCHMARK_NDLL_MAIN_BENCH_H_
+#endif // NDLL_BENCHMARK_NDLL_BENCH_H_

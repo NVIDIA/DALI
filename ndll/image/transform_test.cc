@@ -15,7 +15,7 @@
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/batch.h"
-#include "ndll/test/ndll_main_test.h"
+#include "ndll/test/ndll_test.h"
 #include "ndll/util/type_conversion.h"
 #include "ndll/util/image.h"
 

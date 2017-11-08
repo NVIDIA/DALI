@@ -7,7 +7,7 @@
 #include "ndll/error_handling.h"
 #include "ndll/image/jpeg.h"
 #include "ndll/pipeline/pipeline.h"
-#include "ndll/test/ndll_main_test.h"
+#include "ndll/test/ndll_test.h"
 
 namespace ndll {
 
