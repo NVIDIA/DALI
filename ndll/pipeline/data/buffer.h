@@ -194,7 +194,9 @@ public:
     }
   }
 
-  // Helper function for cleaning up data storage
+  // Helper function for cleaning up data storage. This unfortunately
+  // has to be public so that we can bind it into the deleter of our
+  // shared pointers
   void DeleterHelper(void *ptr, TypeInfo type, Index size) {
     type.template Destruct<Backend>(ptr, size);
     Backend::Delete(ptr, size*type.size());
@@ -202,6 +204,38 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 protected:
+  // Helper to resize the underlying allocation
+  inline void ResizeHelper(Index new_size) {
+    NDLL_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
+    
+    if (!IsValidType(type_)) {
+      // If the type has not been set yet, we just set the size of the
+      // buffer and do not allocate any memory. Any previous size is
+      // overwritten.
+      NDLL_ENFORCE(data_ == nullptr, "Buffer has no type, data_ should be nullptr.");
+      NDLL_ENFORCE(num_bytes_ == 0, "Buffer has no type, num_bytes_ should be 0.");
+      
+      size_ = new_size;
+      return;
+    }
+
+    size_t new_num_bytes = new_size * type_.size();
+    if (new_num_bytes > num_bytes_) {
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, new_size));
+      num_bytes_ = new_num_bytes;
+      
+      // Call the constructor for the underlying datatype
+      type_.template Construct<Backend>(data_.get(), new_size);
+      
+      // If we were sharing data, we aren't anymore
+      shares_data_ = false;
+    }
+
+    size_ = new_size;
+  }
   
   Backend backend_;
   
@@ -214,6 +248,17 @@ protected:
   // of the underlying allocation
   size_t num_bytes_;
 };
+
+// Macro so we don't have to list these in all
+// classes that derive from Buffer
+#define USE_BUFFER_MEMBERS()                    \
+  using Buffer<Backend>::ResizeHelper;          \
+  using Buffer<Backend>::backend_;              \
+  using Buffer<Backend>::type_;                 \
+  using Buffer<Backend>::data_;                 \
+  using Buffer<Backend>::size_;                 \
+  using Buffer<Backend>::shares_data_;          \
+  using Buffer<Backend>::num_bytes_
 
 } // namespace ndll
 

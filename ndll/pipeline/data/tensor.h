@@ -39,35 +39,10 @@ public:
    * The underlying storage is only reallocated in the case that
    * the current buffer is not large enough for the requested 
    * number of elements.
-   *
-   * Passing in a shape of '{}' indicates a scalar value
    */
   inline virtual void Resize(const vector<Index> &shape) {
     Index new_size = Product(shape);
-    if (!IsValidType(type_)) {
-      // If the type has not been set yet, we just set the size
-      // and shape of the buffer and do not allocate any memory.
-      // Any previous resize dims are overwritten.
-      size_ = new_size;
-      shape_ = shape;
-      return;
-    }
-
-    size_t new_num_bytes = new_size*type_.size();
-    if (new_num_bytes > num_bytes_) {      
-      // Re-allocate the buffer to meet the new size requirements
-      data_.reset(Backend::New(new_num_bytes), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, new_size));
-      num_bytes_ = new_num_bytes;
-
-      // Call the constructor for the underlying data storage
-      type_.template Construct<Backend>(data_.get(), new_size);
-    }
-
-    // If we have enough storage already allocated, don't re-allocate
-    size_ = new_size;
+    ResizeHelper(new_size);
     shape_ = shape;
   }
 
@@ -100,12 +75,7 @@ public:
 protected:
   vector<Index> shape_;
 
-  // So we don't have to put 'this->' everywhere
-  using Buffer<Backend>::backend_;
-  using Buffer<Backend>::type_;
-  using Buffer<Backend>::data_;
-  using Buffer<Backend>::size_;
-  using Buffer<Backend>::num_bytes_;
+  USE_BUFFER_MEMBERS();
 };
 
 } // namespace ndll

@@ -184,56 +184,13 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(TensorList);
 protected:
-  // Helper to resize the underlying allocation. Does not touch
-  // the Tensors shape or offsets.
-  inline void ResizeHelper(Index new_size) {
-    NDLL_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
-    
-    if (!IsValidType(type_)) {
-      // If the type has not been set yet, we just set the size of the
-      // buffer and do not allocate any memory. Any previous size is
-      // overwritten.
-      NDLL_ENFORCE(data_ == nullptr, "Buffer has no type, data_ should be nullptr.");
-      NDLL_ENFORCE(num_bytes_ == 0, "Buffer has no type, num_bytes_ should be 0.");
-      
-      size_ = new_size;
-      return;
-    }
-
-    size_t new_num_bytes = new_size * type_.size();
-    if (new_num_bytes > num_bytes_) {
-      data_.reset(Backend::New(new_num_bytes), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, new_size));
-      num_bytes_ = new_num_bytes;
-      
-      // Call the constructor for the underlying datatype
-      type_.template Construct<Backend>(data_.get(), new_size);
-      
-      // If we were sharing data, we aren't anymore
-      shares_data_ = false;
-    }
-
-    size_ = new_size;
-  }
-
-  
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access
   vector<Dims> shape_;
   vector<Index> offsets_;
 
-  // TODO(tgale): Move these into a macro so we don't have these in
-  // every class that derives from Buffer. We can also do this for
-  // the Operator class hierarchy.
-  using Buffer<Backend>::backend_;
-  using Buffer<Backend>::type_;
-  using Buffer<Backend>::data_;
-  using Buffer<Backend>::size_;
-  using Buffer<Backend>::shares_data_;
-  using Buffer<Backend>::num_bytes_;
+  USE_BUFFER_MEMBERS();
 };
 
 } // namespace ndll

@@ -28,11 +28,10 @@ public:
   }
 
   vector<Index> GetRandShape() {
-    int dims = this->RandInt(0, 5);
+    int dims = this->RandInt(1, 5);
     vector<Index> shape(dims, 0);
     for (auto &val : shape) {
-      // Dims cannot be of size 0
-      val = this->RandInt(1, 50);
+      val = this->RandInt(1, 32);
     }
     return shape;
   }
@@ -46,13 +45,30 @@ typedef ::testing::Types<CPUBackend,
 TYPED_TEST_CASE(TensorTest, Backends);
 
 TYPED_TEST(TensorTest, TestResize) {
-  try {
-    Tensor<TypeParam> tensor;
+  Tensor<TypeParam> tensor;
 
+  // Get shape
+  vector<Index> shape = this->GetRandShape();
+  tensor.Resize(shape);
+
+  // Verify the settings
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  for (size_t i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);      
+  }
+}
+
+TYPED_TEST(TensorTest, TestMultipleResize) {
+  Tensor<TypeParam> tensor;
+
+  int num = this->RandInt(2, 20);
+  for (int i = 0; i < num; ++i) {
     // Get shape
     vector<Index> shape = this->GetRandShape();
     tensor.Resize(shape);
-
+      
     // Verify the settings
     ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), Product(shape));
@@ -60,50 +76,33 @@ TYPED_TEST(TensorTest, TestResize) {
     for (size_t i = 0; i < shape.size(); ++i) {
       ASSERT_EQ(tensor.dim(i), shape[i]);      
     }
-    
-  } catch (std::runtime_error &e) {
-    FAIL() << e.what();
-  }
-}
-
-TYPED_TEST(TensorTest, TestMultipleResize) {
-  try {
-    Tensor<TypeParam> tensor;
-
-    int num = this->RandInt(2, 20);
-    for (int i = 0; i < num; ++i) {
-      // Get shape
-      vector<Index> shape = this->GetRandShape();
-      tensor.Resize(shape);
-      
-      // Verify the settings
-      ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-      ASSERT_EQ(tensor.size(), Product(shape));
-      ASSERT_EQ(tensor.ndim(), shape.size());
-      for (size_t i = 0; i < shape.size(); ++i) {
-        ASSERT_EQ(tensor.dim(i), shape[i]);      
-      }
-    }
-  } catch (std::runtime_error &e) {
-    FAIL() << e.what();
   }
 }
 
 TYPED_TEST(TensorTest, TestResizeScalar) {
-  try {
-    Tensor<TypeParam> tensor;
+  Tensor<TypeParam> tensor;
 
-    // Get shape
-    vector<Index> shape = {};
-    tensor.Resize(shape);
+  // Get shape
+  vector<Index> shape = {1};
+  tensor.Resize(shape);
        
-    // Verify the settings
-    ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-    ASSERT_EQ(tensor.size(), Product(shape));
-    ASSERT_EQ(tensor.ndim(), shape.size());
-  } catch (std::runtime_error &e) {
-    FAIL() << e.what();
-  }
+  // Verify the settings
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+}
+
+TYPED_TEST(TensorTest, TestResizeZeroSize) {
+  Tensor<TypeParam> tensor;
+
+  // Get shape
+  vector<Index> shape = {};
+  tensor.Resize(shape);
+       
+  // Verify the settings
+  ASSERT_EQ(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), Product(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
 }
 
 TYPED_TEST(TensorTest, TestTypeChange) {
