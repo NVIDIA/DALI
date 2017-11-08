@@ -10,6 +10,7 @@
 #include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/data/sub_tensor.h"
 #include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/workspace.h"
 
 namespace ndll {
 
