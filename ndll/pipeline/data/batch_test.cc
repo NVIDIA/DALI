@@ -5,34 +5,18 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/sample.h"
+#include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
 
 template <typename Backend>
-class BatchTest : public ::testing::Test {
+class BatchTest : public NDLLTest {
 public:
-  void SetUp() {
-    rand_gen_.seed(time(nullptr));
-  }
-
-  void TearDown() {
-
-  }
-
-  int RandInt(int a, int b) {
-    return std::uniform_int_distribution<>(a, b)(rand_gen_);
-  }
-
-  template <typename T>
-  auto RandReal(int a, int b) -> T {
-    return std::uniform_real_distribution<>(a, b)(rand_gen_);
-  }
-
   vector<Dims> GetRandShape() {
     int batch_size = this->RandInt(1, 128);
     vector<Dims> shape(batch_size);
     for (int i = 0; i < batch_size; ++i) {
-      int dims = this->RandInt(0, 3);
+      int dims = this->RandInt(1, 3);
       vector<Index> sample_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
         sample_shape[j] = this->RandInt(1, 512);
@@ -46,7 +30,7 @@ public:
     int batch_size = this->RandInt(1, 32);
     vector<Dims> shape(batch_size);
     for (int i = 0; i < batch_size; ++i) {
-      int dims = this->RandInt(0, 3);
+      int dims = this->RandInt(1, 3);
       vector<Index> sample_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
         sample_shape[j] = this->RandInt(1, 64);
@@ -57,7 +41,6 @@ public:
   }
   
 protected:
-  std::mt19937 rand_gen_;
 };
 
 typedef ::testing::Types<CPUBackend,

@@ -4,29 +4,13 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
+#include "ndll/test/ndll_main_test.h"
 
 namespace ndll {
 
 template <typename Backend>
-class TensorTest : public ::testing::Test {
+class TensorTest : public NDLLTest {
 public:
-  void SetUp() {
-    rand_gen_.seed(time(nullptr));
-  }
-
-  void TearDown() {
-
-  }
-
-  int RandInt(int a, int b) {
-    return std::uniform_int_distribution<>(a, b)(rand_gen_);
-  }
-
-  template <typename T>
-  auto RandReal(int a, int b) -> T {
-    return std::uniform_real_distribution<>(a, b)(rand_gen_);
-  }
-
   vector<Index> GetRandShape() {
     int dims = this->RandInt(1, 5);
     vector<Index> shape(dims, 0);
@@ -37,7 +21,6 @@ public:
   }
   
 protected:
-  std::mt19937 rand_gen_;
 };
 
 typedef ::testing::Types<CPUBackend,
