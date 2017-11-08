@@ -80,13 +80,14 @@ public:
    * and shape are reset to the default state. While this list shares
    * data with another list, 'shares_data()' will return 'true'.
    */
-  inline void ShareData(const TensorList<Backend> &other) {
-    NDLL_ENFORCE(IsValidType(other.type_), "To share data, "
+  inline void ShareData(TensorList<Backend> *other) {
+    NDLL_ENFORCE(other != nullptr, "Input TensorList is nullptr");
+    NDLL_ENFORCE(IsValidType(other->type_), "To share data, "
         "the input TensorList must have a valid data type");
 
     // Set the number of bytes in our new allocation (that we share)
-    num_bytes_ = other.num_bytes_;
-    data_ = other.data_;
+    num_bytes_ = other->num_bytes_;
+    data_ = other->data_;
 
     // Reset the buffer to a default state (other than having an allocation)
     type_ = TypeInfo::Create<NoType>();

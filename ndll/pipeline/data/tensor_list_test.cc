@@ -90,7 +90,8 @@ NDLL_REGISTER_TYPE(TestType2);
 // bytes -> size -> type : shares data, gets size (no type), gets type
 // (may or may not allocate)
 //
-// The following tests verify the correct behavior for all of these cases
+// The following tests attempt to verify the correct behavior for all of
+// these cases
 
 TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   TensorList<TypeParam> tl;
@@ -173,7 +174,7 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeNoAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(sharer);
+  tl.ShareData(&sharer);
 
   // Verify the internals
   ASSERT_EQ(tl.size(), 0);
@@ -227,7 +228,7 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(sharer);
+  tl.ShareData(&sharer);
 
   // Verify the internals
   ASSERT_EQ(tl.size(), 0);
@@ -281,7 +282,7 @@ TYPED_TEST(TensorListTest, TestGetBytesTypeSizeNoAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(sharer);
+  tl.ShareData(&sharer);
 
   // Verify the internals
   ASSERT_EQ(tl.size(), 0);
@@ -334,7 +335,7 @@ TYPED_TEST(TensorListTest, TestGetBytesTypeSizeAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(sharer);
+  tl.ShareData(&sharer);
 
   // Verify the internals
   ASSERT_EQ(tl.size(), 0);
@@ -614,7 +615,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   TensorList<TypeParam> tensor_list2;
 
   // Share the data
-  tensor_list2.ShareData(tensor_list);
+  tensor_list2.ShareData(&tensor_list);
   tensor_list2.Resize(vector<Dims>{{tensor_list.size()}});
   tensor_list2.template mutable_data<uint8>();
   
