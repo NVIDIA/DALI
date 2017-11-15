@@ -15,37 +15,36 @@ public:
   
   virtual inline ~CopyOp() = default;
   
-  inline vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int /* unused */, int /* unused */) override {
-    return input_shape;
+  inline vector<Dims> InferOutputShapesFromShapes(const SampleMeta &meta) override {
+    return meta.InputShapes();
   }
   
-  inline void SetOutputType(Batch<Backend> *output, TypeInfo input_type) {
-    output->set_type(input_type);
+  inline vector<TypeInfo> InferOutputTypes(const BatchMeta &meta) override {
+    return meta.InputTypes();
   }
   
   inline string name() const override {
     return "CopyOp";
   }
+  
 protected:
-  inline void RunPerSampleCPU(const Sample<Backend> &input,
-      Sample<Backend> *output, int /* unused */, int /* unused */) override {
-    NDLL_ENFORCE(input.shape() == output->shape());
-    std::memcpy(output->raw_mutable_data(), input.raw_data(), input.nbytes());
+  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
+    auto input = ws->Input<GPUBackend>(0);
+    auto output = ws->Output<GPUBackend>(0);
+    std::memcpy(output->raw_mutable_data(),
+        input.raw_data(), input.nbytes());
   }
   
-  inline void RunBatchedGPU(const Batch<Backend> &input,
-      Batch<Backend> *output) override {
+  inline void RunBatchedGPU(BatchWorkspace *ws) override {
+    auto input = ws->Input<GPUBackend>(0);
+    auto output = ws->Output<GPUBackend>(0);
     CUDA_CALL(cudaMemcpyAsync(
             output->raw_mutable_data(),
             input.raw_data(),
             input.nbytes(),
             cudaMemcpyDeviceToDevice,
-            stream_));
+            ws->stream()));
   }
-  
-  using Operator<Backend>::num_threads_;
-  using Operator<Backend>::stream_;
 };
 
 } // namespace ndll

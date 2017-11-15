@@ -165,6 +165,13 @@ public:
     return shape_[idx];
   }
 
+  /**
+   * @brief Returns the shape of the entire TensorList.
+   */
+  inline vector<Dims> shape() const {
+    return shape_;
+  }
+  
   // So we can access the members of other TensorListes
   // with different template types
   template <typename InBackend>

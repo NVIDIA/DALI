@@ -17,29 +17,25 @@ public:
   inline explicit Transformer(const OpSpec &spec) : Operator<Backend>(spec) {}
   virtual inline ~Transformer() = default;
 
-  inline vector<Index> InferOutputShape(const Sample<Backend> &input,
-      int data_idx, int thread_idx) override final {
+  inline vector<Dims> InferOutputShapes(const SampleWorkspace &ws) override final {
 #ifndef NDEBUG
-    NDLL_ENFORCE(data_idx < this->batch_size_, "data_idx out of range: "
-        + std::to_string(data_idx) + " v. batch size of "
-        + std::to_string(thread_idx));
+    NDLL_ENFORCE(ws->thread_idx() > 0, "Invalid negative thread idx for cpu work.");
+    NDLL_ENFORCE(ws->thread_idx() < num_threads_, "Thread index out of range.");
+    NDLL_ENFORCE(ws->data_idx() > 0, "Invalid negative data index for cpu work.");
+    NDLL_ENFORCE(ws->data_idx() < batch_size_, "Data index out of range.");
 #endif
-    
-    // Transfomers cannot have data dependent output shapes, we override
-    // this method and allow the user to define a simpler method that
-    // only receives the input shape
-    return InferOutputShapeFromShape(input.shape(), data_idx, thread_idx);
+    return InferOutputShapesFromShapes(ws.meta());
   }
-
+  
+  DISABLE_COPY_MOVE_ASSIGN(Transformer);
+protected:
   /**
    * @brief Returns the output shape that will be produced for the given
    * input shape. User-defined ops must implement this method.
    */
-  virtual vector<Index> InferOutputShapeFromShape(
-      const vector<Index> &input_shape, int data_idx, int thread_idx) = 0;
+  virtual vector<Dims> InferOutputShapesFromShapes(const SampleMeta &meta) = 0;
 
-  DISABLE_COPY_MOVE_ASSIGN(Transformer);
-protected:
+  USE_OPERATOR_MEMBERS();
 };
 
 // Create registries for CPU & GPU Transformeres

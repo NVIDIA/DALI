@@ -7,6 +7,7 @@
 namespace ndll {
 
 void Pipeline::Build() {
+  /*
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   
   // Make sure the decoder is the first op in the pipeline
@@ -142,9 +143,11 @@ void Pipeline::Build() {
   
   // mark the pipeline as built so we know it is safe to run
   built_ = true;
+  */
 }
 
 void Pipeline::RunPrefetch() {
+  /*
   NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
   
   {
@@ -229,9 +232,11 @@ void Pipeline::RunPrefetch() {
     }
     thread_pool_.WaitForWork();
   }
+  */
 }
 
 void Pipeline::RunCopy() {
+  /*
   Batch<CPUBackend> &src = *cpu_buffers_[cpu_buffers_.size()-1];
   Batch<GPUBackend> *dst = gpu_buffers_[0].get();
 
@@ -250,9 +255,11 @@ void Pipeline::RunCopy() {
           mega_buffer_.nbytes(),
           cudaMemcpyHostToDevice,
           stream_));
+  */
 }
 
 void Pipeline::RunForward() {
+  /*
   TimeRange _tr("RunForward");
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called before the pipeline is executed");
@@ -319,9 +326,11 @@ void Pipeline::IntermediateBufferResizeAndSetup() {
     NDLL_ENFORCE(gpu_buffers_[i]->shares_data(),
         "GPU buffers should still be sharing data, something went wrong.");
   }
+  */
 }
 
 void Pipeline::MegaBufferSetupAndDistribution() {
+  /*
   // Query all the forward ops for mega-buffer sizes
   size_t total_bytes = 0;
   vector<size_t> offsets;
@@ -361,9 +370,11 @@ void Pipeline::MegaBufferSetupAndDistribution() {
     forward_ops_[i]->
       BatchedParameterSetup(*gpu_buffers_[i], gpu_buffers_[i+1].get());
   }
+  */
 }
 
 OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
+  /*
   // Add batch_size, num_threads, cuda stream, and
   // image size hint as arguments for the DataReader
   // to optionally leverage
@@ -382,9 +393,11 @@ OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
   // Handle extra input/output Tensors
   ExtraTensorSetup(&spec_copy);
   return spec_copy;
+  */
 }
 
 void Pipeline::ExtraTensorSetup(OpSpec *spec) {
+  /*
   for (auto &tensor_name : spec->ExtraOutputNames()) {
     // Tensors can only be the output of a single op.
     // Verify a Tensor by this name does not exist
@@ -429,6 +442,7 @@ void Pipeline::ExtraTensorSetup(OpSpec *spec) {
         "must be the output of a previously constructed Operator.");
     spec->AddExtraInputTensor(it->second);
   }
+  */
 }
 
 } // namespace ndll
