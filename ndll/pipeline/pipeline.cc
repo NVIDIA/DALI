@@ -146,7 +146,7 @@ void Pipeline::Build() {
   */
 }
 
-void Pipeline::RunPrefetch() {
+void Pipeline::RunCPU() {
   /*
   NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
   
@@ -258,7 +258,7 @@ void Pipeline::RunCopy() {
   */
 }
 
-void Pipeline::RunForward() {
+void Pipeline::RunGPU() {
   /*
   TimeRange _tr("RunForward");
   NDLL_ENFORCE(built_,
@@ -374,29 +374,21 @@ void Pipeline::MegaBufferSetupAndDistribution() {
 }
 
 OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
-  /*
   // Add batch_size, num_threads, cuda stream, and
-  // image size hint as arguments for the DataReader
-  // to optionally leverage
+  // image size hint as arguments for the Op to
+  // optionally leverage
   OpSpec spec_copy = spec;
   spec_copy.AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads())
     .AddArg("cuda_stream", (int64)stream_)
     .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
 
-  // If the 'stage' argument isn't set, set it here
-  if (spec_copy.GetSingleArgument<string>("stage", "").empty()) {
-    // Default stage is prefetch
-    spec_copy.AddArg("stage", "Prefetch");
-  }
-  
-  // Handle extra input/output Tensors
-  ExtraTensorSetup(&spec_copy);
+  // Handle graph construction
+  TensorSetup(&spec_copy);
   return spec_copy;
-  */
 }
 
-void Pipeline::ExtraTensorSetup(OpSpec *spec) {
+void Pipeline::TensorSetup(OpSpec *spec) {
   /*
   for (auto &tensor_name : spec->ExtraOutputNames()) {
     // Tensors can only be the output of a single op.

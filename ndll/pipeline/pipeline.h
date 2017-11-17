@@ -6,16 +6,10 @@
 #include "ndll/common.h"
 #include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/data/batch.h"
-#include "ndll/pipeline/data/sample.h"
 #include "ndll/pipeline/data/tensor.h"
-#include "ndll/pipeline/decoder.h"
+#include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/operators/copy_op.h"
-#include "ndll/pipeline/parser.h"
-#include "ndll/pipeline/transformer.h"
 #include "ndll/pipeline/util/thread_pool.h"
-#include "ndll/util/npp.h"
 
 namespace ndll {
 
@@ -73,10 +67,9 @@ public:
    */
   inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
       int device_id, bool set_affinity = true, size_t pixels_per_image_hint = 0) :
-    decode_location_(DECODE_NONE), built_(false), batch_size_(batch_size),
-    stream_(stream), thread_pool_(num_threads, device_id, set_affinity),
-    pixels_per_image_hint_(pixels_per_image_hint), data_reader_(nullptr),
-    input_sample_(batch_size), data_parser_(nullptr), parsed_sample_(batch_size) {
+    built_(false), batch_size_(batch_size), stream_(stream),
+    thread_pool_(num_threads, device_id, set_affinity),
+    pixels_per_image_hint_(pixels_per_image_hint) {
     NDLL_ENFORCE(batch_size_ > 0);
     // Set the data type for our mega-buffers
     mega_buffer_.template mutable_data<uint8>();
@@ -93,113 +86,49 @@ public:
   ~Pipeline() = default;
 
   /**
-   * @brief Adds a Decoder to the pipeline. The decoder is either inserted on 
-   * the front of the prefetch stage, or the front of the forward stage depending 
-   * on the 'stage' argument in the OpSpec. If not set, 'stage' is defaulted to
-   * "Prefetch"
-   *
-   * Decoder are special ops that are allowed to have data dependent output shapes.
-   * For this reason, they must appear first in the pipeline and can only appear
-   * once.
+   * @brief Adds an Operator with the input specification to the pipeline. The
+   * 'device' argument in the OpSpec determines whether the CPU or GPU version
+   * of the named operator will be added to the pipeline
    */
-  inline void AddDecoder(const OpSpec &spec) {
+  inline void AddOperator(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
 
-    // Add some pipeline meta-data and handle extra input/output tensors
+    // Add some pipeline meta-data
     OpSpec spec_copy = PrepareOpSpec(spec);
-
-    // Get the stage argument. Default stage to Prefetch
-    string stage = spec.GetSingleArgument<string>("stage", "Prefetch");
-    
-    // Construct the decoder with the input spec
-    if (stage == "Prefetch") {
+    string device = spec.GetSingleArgument<string>("device", "cpu");
+    if (device == "cpu") {
       OpPtr<CPUBackend> tmp(
-          CPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      prefetch_ops_.insert(prefetch_ops_.begin(), std::move(tmp));
-      decode_location_ = DECODE_PREFETCH;
-    } else if (stage == "Forward") {
+          CPUOperatorRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      cpu_ops_.push_back(std::move(tmp));
+    } else if (device == "gpu") {
       OpPtr<GPUBackend> tmp(
-          GPUDecoderRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      forward_ops_.insert(forward_ops_.begin(), std::move(tmp));
-      decode_location_ = DECODE_FORWARD;
+          GPUOperatorRegistry::Registry().Create(spec_copy.name(), spec_copy));
+      gpu_ops_.push_back(std::move(tmp));
     } else {
-      NDLL_FAIL("Invalid stage argument \"" + stage +
-          "\". Stage must be either \"Prefetch\" or \"Forward\"");
-    }
-  }
-
-  /**
-   * @brief Adds a Transformer to the pipeline. The Transformer is either 
-   * inserted in the prefetch stage, or the forward stage depending on the 
-   * 'stage' setting in the OpSpec. If not set, 'stage' is defaulted to
-   * "Prefetch"
-   */
-  inline void AddTransform(const OpSpec &spec) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-
-    // Add some pipeline meta-data and handle extra input/output tensors
-    OpSpec spec_copy = PrepareOpSpec(spec);
-
-    // Get the stage argument. Default stage to Prefetch
-    string stage = spec.GetSingleArgument<string>("stage", "Prefetch");
-    
-    // Construct the decoder with the input spec
-    if (stage == "Prefetch") {
-      OpPtr<CPUBackend> tmp(
-          CPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      prefetch_ops_.push_back(std::move(tmp));
-    } else if (stage == "Forward") {
-      OpPtr<GPUBackend> tmp(
-          GPUTransformerRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      forward_ops_.push_back(std::move(tmp));
-    } else {
-      NDLL_FAIL("Invalid stage argument \"" + stage +
-          "\". Stage must be either \"Prefetch\" or \"Forward\"");
+      NDLL_FAIL("Invalid device argument \"" + device +
+          "\". Valid options are \"cpu\" or \"gpu\"");
     }
   }
   
   /**
-   * @brief Adds the input DataReader to the pipeline. The DataReader will
-   * provide access to single data samples during execution, and allow us
-   * to overlap the reading of data with the processing of data in the
-   * thread pool.
+   * @brief Adds a DataReader with the input specification to the pipeline.
+   * DataReaders are executed in a separete thread to produce batches of 
+   * data for the pipeline to process.
    */
   inline void AddDataReader(const OpSpec &spec) {
     NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
-    NDLL_ENFORCE(data_reader_ == nullptr, "Pipeline already "
-        "has a DataReader.");
     
-    // Add some pipeline meta-data and handle extra input/output tensors
+    // Add some pipeline meta-data
     OpSpec spec_copy = PrepareOpSpec(spec);
 
     // Construct the DataReader with the input spec
-    data_reader_ = DataReaderRegistry::Registry().Create(
-        spec_copy.name(), spec_copy);
+    ReaderPtr tmp(DataReaderRegistry::Registry().Create(
+        spec_copy.name(), spec_copy));
+    readers_.push_back(std::move(tmp));
   }
 
-  /**
-   * @brief Add the input Parser to the pipeline. The parser will be
-   * called on the Sample produced by the DataReader. This allows support
-   * for custom data formats without altering the basic ops defined for 
-   * the pipeline.
-   */
-  inline void AddParser(const OpSpec &spec) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    NDLL_ENFORCE(data_parser_ == nullptr, "Pipeline already "
-        "has a Parser.");
-
-    // Add some pipeline meta-data and handle extra input/output tensors
-    OpSpec spec_copy = PrepareOpSpec(spec);
-
-    // Construct the Parser with the input spec
-    data_parser_ = ParserRegistry::Registry().Create(
-        spec_copy.name(), spec_copy);
-  }
-  
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
@@ -207,87 +136,39 @@ public:
   void Build();
 
   /**
-   * @brief Run the prefetch stage of the pipeline.
-   *
-   * The prefetch stage of the pipeline is broken into three phases.
-   * In the first phase, all samples are read from the DataReader
-   * and are launched into the thread pool to be parsed. In this thread
-   * loop, we pass over all Operators in the pipeline to perform shape
-   * inference.
-   *
-   * In the second phase, we take the shapes that we have calculated 
-   * and resize all of our intermediate results. We also pass over all
-   * ops in the that will be run in the forward stage of the pipeline
-   * and query for the number of bytes they need to store their batched
-   * paramters. We then allocate our mega buffer to store all ops
-   * batched parameters and distribute SubTensors to all the ops that
-   * requested batached paramter storage. Finally, we iterate over the
-   * forward stage ops one more time to give them a serial section to
-   * setup their batched parameters into the mega buffer.
-   *
-   * In the third phase, we launch into the thread pool to execute all
-   * the prefetch ops. After finishing execution of the prefetch ops,
-   * each thread also passes over the forward stage ops to give them
-   * a change to setup any per-image batched paramters.
+   * @brief Run the cpu portion of the pipeline.
    */
-  void RunPrefetch();
+  void RunCPU();
 
   /**
    * @brief Copies the result of the prefetch stage into the input 
-   * buffer for the forward stage. Also copied all batched parameters
-   * to the GPU for the forward stage of computation.
+   * buffer for the forward stage. Also copied all kernel parameters
+   * to the GPU for the GPU stage of computation.
    */
   void RunCopy();
 
   /**
-   * @brief Run the forward stage of the pipeline into the output buffer.
+   * @brief Run the gpu portion of the pipeline.
    *
    * This stage is designed to be extremely light weight to minimize cost
    * on the front of the forward pass. All parameter setup and allocations
    * have been done previously, and we simply iterate over the forward
    * stage ops and launch their kernels.
    *
-   * Note: While RunPrefetch & RunCopy can be run in prefetch threads to
-   * overlap with the forward-backward pass, RunForward must be called
-   * Before RunCopy can be called again so that we do not corrupt the
-   * results of the previous execution pass before the forward stage
-   * is finished with them.
+   * TODO(tgale): While RunPrefetch & RunCopy can be run in prefetch threads 
+   * to overlap with the forward-backward pass, RunForward must be called
+   * Before RunCopy can be called again so that we do not corrupt the results
+   * of the previous execution pass before the forward stage is finished with 
+   * them. We should extend this so that we can produce N batches at a time
+   * and run fully asynchronously w.r.t. the framework.
    */
-  void RunForward();
+  void RunGPU();
 
   /**
-   * @brief Returns a reference to the batch storing the result of the 
-   * pipeline. 
-   *
-   * @param sync Indicates whether this function should synchronize on
-   * the pipeline stream before returning. Defaults to 'true'
+   * @brief Returns the output TensorList w/ the specified name.
    */
-  inline const Batch<GPUBackend>& output_batch(bool sync = true) const {
-    if (sync) CUDA_CALL(cudaStreamSynchronize(stream()));
-    return *gpu_buffers_.back();
-  }
-
-  /**
-   * @brief Returns the output CPU Tensor with the given name. Performs
-   * no synchonization prior to returning the Tensor.
-   */
-  inline const Tensor<CPUBackend>& output_tensor(const string &name) const {
-    auto it = extra_tensors_.find(name);
-    NDLL_ENFORCE(it != extra_tensors_.end(), "Tensor with name\""
-        + name + "\" does not exist.");
-    return *(it->second);
-  }
-
-  /**
-   * @brief Returns the output GPU Tensor with the given name. Performs
-   * no synchonization prior to returning the Tensor.
-   */
-  inline const Tensor<GPUBackend>& output_gpu_tensor(const string &name) const {
-    auto it = extra_gpu_tensors_.find(name);
-    NDLL_ENFORCE(it != extra_gpu_tensors_.end(), "Tensor with name\""
-        + name + "\" does not exist.");
-    return *(it->second);
-  }
+  template <typename Backend>
+  const TensorList<Backend>& output(const string &name) const;
   
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -305,48 +186,15 @@ public:
   inline cudaStream_t stream() const { return stream_; }
 
   /**
-   * @brief Returns a pointer to the Pipeline's DataReader
+   * @brief Returns a pointer to DataReader w/ the specified name.
    */
-  inline DataReader* data_reader() { return data_reader_.get(); }
+  DataReader* reader(const string &name);
 
   /**
-   * @brief Returns a pointer to the Pipeline's Parser
+   * @brief Returns a pointer to the Operator w/ the specified name.
    */
-  inline Parser* data_parser() { return data_parser_.get(); }
-
-  /**
-   * @brief Returns a pointer to the prefetch operator with the specificed index
-   */
-  inline Operator<CPUBackend>* prefetch_op(int idx) {
-    NDLL_ENFORCE((idx >= 0) && ((size_t)idx < prefetch_ops_.size()),
-        "Invalid prefetch op index.");
-    return prefetch_ops_[idx].get();
-  }
-
-    /**
-   * @brief Returns a pointer to the forward operator with the specificed index
-   */
-  inline Operator<GPUBackend>* forward_op(int idx) {
-    NDLL_ENFORCE((idx >= 0) && ((size_t)idx < forward_ops_.size()),
-        "Invalid forward op index.");
-    return forward_ops_[idx].get();
-  }
-  
-  /**
-   * @brief Prints the name of all operators that are in the pipeline.
-   */
-  inline void Print() const {
-    // Print all the operators in the pipeline
-    cout << "Printing Pipeline Operators: " << endl;
-    cout << "[Prefetch Ops]: " << endl;
-    for (auto &op : prefetch_ops_) {
-      cout << op->name() << endl;
-    }
-    cout << "[Forward Ops]: " << endl;
-    for (auto &op : forward_ops_) {
-      cout << op->name() << endl;
-    }
-  }
+  template <typename Backend>
+  Operator<Backend>* op(const string &name);
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
@@ -358,30 +206,17 @@ private:
     return base_ptr_offset;
   }
 
-  // Helper function to resize intermediate buffers and
-  // handle data sharing for GPU buffers.
-  void IntermediateBufferResizeAndSetup();
-
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
 
-  // Helper to add pipeline meta-data and handle extra
-  // input/output tensors.
+  // Helper to add pipeline meta-data 
   OpSpec PrepareOpSpec(const OpSpec &spec);
-  
-  // Helper function to add extra input/output tensors to an
-  // OpSpec based on the requested input/outputs.
-  void ExtraTensorSetup(OpSpec *spec);
-  
-  enum DecodeLocation {
-    DECODE_NONE,
-    DECODE_PREFETCH,
-    DECODE_FORWARD
-  };
-  DecodeLocation decode_location_;
-  bool built_;
 
+  // Helper to setup the graph
+  void TensorSetup(OpSpec *spec);
+  
+  bool built_;
   int batch_size_;
   cudaStream_t stream_;
   ThreadPool thread_pool_;
@@ -394,33 +229,13 @@ private:
   
   template <typename T>
   using OpPtr = unique_ptr<Operator<T>>;
-  vector<OpPtr<CPUBackend>> prefetch_ops_;
-  vector<OpPtr<GPUBackend>> forward_ops_;
-
-  // Batch objects to store intermediate results of
-  // the pipeline.
-  template <typename T>
-  using BatchPtr = shared_ptr<Batch<T>>;
-  vector<BatchPtr<CPUBackend>> cpu_buffers_;
-  vector<BatchPtr<GPUBackend>> gpu_buffers_;
-
-  // The actually GPU allocations we maintain
-  vector<BatchPtr<GPUBackend>> gpu_storage_;
+  vector<OpPtr<CPUBackend>> cpu_ops_;
+  vector<OpPtr<GPUBackend>> gpu_ops_;
   
   // DataReader to query for sample during execution
-  unique_ptr<DataReader> data_reader_;
-  vector<Sample<CPUBackend>> input_sample_;
+  using ReaderPtr = unique_ptr<DataReader>;
+  vector<ReaderPtr> readers_;
 
-  // The parser to handle custom input data formats
-  unique_ptr<Parser> data_parser_;
-  vector<Sample<CPUBackend>> parsed_sample_;
-  
-  // Vectors to keep track of the shape of each sample
-  // at each stage as collected during the shape inference
-  // pass. We pre-allocate these so threads can directly
-  // write to the appropriate locations.
-  vector<vector<Dims>> intermediate_shapes_;
-  
   // Tensors to store all batched op parameters for ops in
   // the forward pass. Enables single copy of paramters
   // instead of copies per operator
