@@ -31,6 +31,11 @@ public:
     type_.Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
   }
+
+  template <typename InBackend>
+  void ResizeLike(const Tensor<InBackend> &other) {
+    Resize(other.shape());
+  }
   
   /**
    * @brief Resizes the buffer to fit `Product(shape)` elements.

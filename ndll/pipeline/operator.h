@@ -1,13 +1,12 @@
-#ifndef NDLL_PIPELINE_OPERATORS_OPERATOR_H_
-#define NDLL_PIPELINE_OPERATORS_OPERATOR_H_
-
-#include <type_traits>
+#ifndef NDLL_PIPELINE_OPERATOR_H_
+#define NDLL_PIPELINE_OPERATOR_H_
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/batch_workspace.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/sample_workspace.h"
 
 namespace ndll {
@@ -16,19 +15,18 @@ namespace ndll {
  * @brief Baseclass for the basic unit of computation in the pipeline.
  *
  * Operator defines the API used by the pipeline to execute operations,
- * perform shape/type inference, and setup any needed paramters for batched
- * execution. User-defined ops should derive from 'Decoder' or 'Transformer'
- * depending on which category the op fits into.
+ * perform shape/type inference, and setup any needed paramters for kernel
+ * execution.
  *
  * Executing ops on an entire batch often requires the setup of meta-data on
  * GPU. To do this efficiently, the Operator provides methods that the
  * the Pipeline can query to figure out what paramters the op needs on GPU,
  * and then adds the required buffers to the ops Workspace. The op can
- * then implement ParamterSetup{PerSample, Batched}GPU to setup their
- * parameters on the CPU. These parameters are efficiently transfered
- * by the Pipeline to the GPU prior to execution of the op. The GPU versions
- * of the same data setup on the CPU by the op is also available in the
- * Workspace passed in for kernel execution.
+ * then implement KernelSetup{PerSample, Batched} to setup their parameters 
+ * on the CPU. These parameters are efficiently transfered by the Pipeline 
+ * to the GPU prior to execution of the op. The GPU versions of the same data 
+ * setup on the CPU by the op is also available in the Workspace passed in 
+ * for kernel execution.
  */
 template <typename Backend>
 class Operator {
@@ -41,6 +39,26 @@ public:
   }
   
   virtual inline ~Operator() = default;
+
+  /**
+   * @brief Returns the maximum number of inputs supported by this op.
+   */
+  virtual int MaxNumInput() const = 0;
+
+  /**
+   * @brief Returns the minimum number of inputs required by this op.
+   */
+  virtual int MinNumInput() const = 0;
+
+  /**
+   * @brief Returns the maximum number of outputs supported by this op.
+   */
+  virtual int MaxNumOutput() const = 0;
+
+  /**
+   * @brief Returns the minimum number of outputs required by this op.
+   */
+  virtual int MinNumOutput() const = 0;
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
@@ -59,72 +77,56 @@ public:
    * @brief Executes the operator on a batch of samples on the GPU.
    */
   void Run(BatchWorkspace *ws) {
-#ifndef NDEBUG
-    NDLL_ENFORCE(ws->thread_idx() == -1, "GPU op should not be run in thread pool.");
-    NDLL_ENFORCE(ws->data_idx() == -1, "GPU op should own whole batch.");
-#endif
     RunBatchedGPU(ws);
   }
-  
-  /**
-   * @brief Returns a vector of Tensor shapes, each one refering to the
-   * the shape of the Output tensor at position `meta->data_idx()`
-   * in the output TensorLists
-   */
-  virtual vector<Dims> InferOutputShapes(const SampleWorkspace &ws) = 0;
 
   /**
-   * @brief Returns a vector of type meta data, one for each output
-   * TensorList.
+   * @brief Returns a vector of Tensor sizes in bytes, each one refering 
+   * to a different parameter tensor required by the Op for batched gpu 
+   * execution. By default the vecotr is of size 0, and no space is 
+   * allocate for the op's kernel parameters. 
    */
-  virtual vector<TypeInfo> InferOutputTypes(const BatchMeta &meta) = 0;
-
-
-  /**
-   * @brief Returns the number of extra kernel parameter tensors required by
-   * the operator. Defaults to 0.
-   */
-  virtual int NumParameterTensor() const { return 0; }
-  
-  /**
-   * @brief Returns a vector of Tensor shapes, each one refering to the 
-   * shape of a different parameter tensor required by the Op for batched
-   * gpu execution. By default the sizes are 0, and no space is allocate 
-   * for the op's batched parameters. The length of the returned vector
-   * must match the value returned by Operator<Backend>#NumParameterTensor.
-   */
-  virtual vector<Dims> InferParameterShapes(const BatchMeta &meta) {
-    return vector<Dims>{};
+  virtual vector<size_t> InferParameterSizes(const BatchMeta &meta) {
+    return vector<size_t>{};
   }
-
-  /**
-   * @brief Returns a vector of type meta data for each of the required
-   * gpu paramters buffers. The length of the returned vector must match 
-   * the value returned by Operator<Backend>#NumParameterTensor.
-   */
-  virtual vector<TypeInfo> InferParameterTypes(const BatchMeta &meta) {
-    return vector<TypeInfo>{};
-  }
-
+  
   /**
    * @brief Can be implemented by derived ops to setup any needed paramters for
-   * the kernel. Paramters are setup on host, and then transfered to the device
-   * by the pipeline.
+   * the kernel. Ops should do as much work as possible in this and the
+   * Operator<Backend>#KernelSetupPerSample to reduce the amount of work that
+   * will be exposed on the front of the forward training pass.
    *
    * Prefer to implement paramter setup per-image (by implementing 
-   * Operator<Backend>#ParameterSetupPerSample). This is called in the thread 
+   * Operator<Backend>#KernelSetupPerSample). This is called in the thread 
    * pool and thus reduces the amount of serial work done by the pipeline.
+   *
+   * Note: This function is provided access to its input and output data
+   * buffers so that the Op can do any resizing of its output it needs
+   * and so that it can setup any kernel paramters that are pointers
+   * to input/output data. However, THE INPUT DATA IS NOT VALID. Any
+   * data-dependent work and the actual kernel launch should be done in
+   * the Run() function. See ZeroCopyBackend for info on how data
+   * dependent parameters can be setup in the Run function on host.
    */
-  virtual void ParameterSetupBatched(BatchWorkspace *ws) {
+  virtual void KernelSetupBatched(BatchWorkspace *ws) {
     // No-op by default
   }
   
   /**
    * @brief Can be implemented by derived ops to setup any needed per-sample 
-   * paramters for the kernel. Paramters are setup on host, and then transfered 
-   * to the device by the pipeline.
+   * paramters for the kernel. Ops should do as much work as possible in this and the
+   * Operator<Backend>#KernelSetupPerSample to reduce the amount of work that
+   * will be exposed on the front of the forward training pass.
+   *
+   * Note: This function is provided access to its input and output data
+   * buffers so that the Op can do any resizing of its output it needs
+   * and so that it can setup any kernel paramters that are pointers
+   * to input/output data. However, THE INPUT DATA IS NOT VALID. Any
+   * data-dependent work and the actual kernel launch should be done in
+   * the Run() function. See ZeroCopyBackend for info on how data
+   * dependent parameters can be setup in the Run function on host.   
    */
-  virtual void ParameterSetupPerSample(SampleWorkspace *ws) {
+  virtual void KernelSetupPerSample(SampleWorkspace *ws) {
     // No-op by default
   }
   
@@ -159,6 +161,18 @@ protected:
   using Operator<Backend>::num_threads_;        \
   using Operator<Backend>::batch_size_
 
+// Create registries for CPU & GPU Operators
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator<CPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
+
+// Must be called from .cc or .cu file
+#define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)    \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+      ndll::CPUOperator, ndll::Operator<CPUBackend>)
+#define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)    \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+      ndll::GPUOperator, ndll::Operator<GPUBackend>)
+
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_OPERATOR_H_
+#endif // NDLL_PIPELINE_OPERATOR_H_

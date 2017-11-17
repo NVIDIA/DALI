@@ -1,43 +1,48 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 #define NDLL_PIPELINE_OPERATORS_COPY_OP_H_
 
+#include <cuda_runtime_api.h>
+
 #include <cstring>
 
-#include "ndll/pipeline/transformer.h"
+#include "ndll/pipeline/operator.h"
 
 namespace ndll {
 
 template <typename Backend>
-class CopyOp : public Transformer<Backend> {
+class CopyOp : public Operator<Backend> {
 public:
   inline explicit CopyOp(const OpSpec &spec) :
-    Transformer<Backend>(spec) {}
+    Operator<Backend>(spec) {}
   
   virtual inline ~CopyOp() = default;
-  
-  inline vector<Dims> InferOutputShapesFromShapes(const SampleMeta &meta) override {
-    return meta.InputShapes();
-  }
-  
-  inline vector<TypeInfo> InferOutputTypes(const BatchMeta &meta) override {
-    return meta.InputTypes();
-  }
+
+  // The CopyOp copies a single input directly to the output
+  inline int MaxNumInput() const override { return 1; }
+  inline int MinNumInput() const override { return 1; }
+  inline int MaxNumOutput() const override { return 1; }
+  inline int MinNumOutput() const override { return 1; }
   
   inline string name() const override {
     return "CopyOp";
   }
-  
+
+  DISABLE_COPY_MOVE_ASSIGN(CopyOp);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+    auto &input = ws->Input<CPUBackend>(0);
+    auto output = ws->Output<CPUBackend>(0);
+    output->set_type(input.type());
+    output->ResizeLike(input);
     std::memcpy(output->raw_mutable_data(),
         input.raw_data(), input.nbytes());
   }
   
   inline void RunBatchedGPU(BatchWorkspace *ws) override {
-    auto input = ws->Input<GPUBackend>(0);
+    auto &input = ws->Input<GPUBackend>(0);
     auto output = ws->Output<GPUBackend>(0);
+    output->set_type(input.type());
+    output->ResizeLike(input);
     CUDA_CALL(cudaMemcpyAsync(
             output->raw_mutable_data(),
             input.raw_data(),

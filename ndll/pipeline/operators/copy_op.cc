@@ -2,7 +2,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_TRANSFORM(CopyOp, CopyOp<CPUBackend>);
-NDLL_REGISTER_GPU_TRANSFORM(CopyOp, CopyOp<GPUBackend>);
+NDLL_REGISTER_CPU_OPERATOR(CopyOp, CopyOp<CPUBackend>);
+NDLL_REGISTER_GPU_OPERATOR(CopyOp, CopyOp<GPUBackend>);
 
 } // namespace ndll
