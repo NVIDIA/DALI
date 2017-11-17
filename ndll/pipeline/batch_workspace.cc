@@ -43,7 +43,7 @@ bool BatchWorkspace::OutputIsType<GPUBackend>(int idx) {
 }
 
 template <>
-const TensorList<CPUBackend>& BatchWorkspace::Input(int idx) {
+const TensorList<CPUBackend>& BatchWorkspace::Input(int idx) const {
   NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
   NDLL_ENFORCE((size_t)idx < input_index_map_.size(),
       "Index out of range." + std::to_string(idx) +
@@ -57,7 +57,7 @@ const TensorList<CPUBackend>& BatchWorkspace::Input(int idx) {
 }
 
 template <>
-const TensorList<GPUBackend>& BatchWorkspace::Input(int idx) {
+const TensorList<GPUBackend>& BatchWorkspace::Input(int idx) const {
   NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
   NDLL_ENFORCE((size_t)idx < input_index_map_.size(),
       "Index out of range." + std::to_string(idx) +

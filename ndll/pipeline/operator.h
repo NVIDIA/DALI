@@ -86,7 +86,7 @@ public:
    * execution. By default the vecotr is of size 0, and no space is 
    * allocate for the op's kernel parameters. 
    */
-  virtual vector<size_t> InferParameterSizes(const BatchMeta &meta) {
+  virtual vector<size_t> InferParameterSizes(const BatchWorkspace &meta) {
     return vector<size_t>{};
   }
   

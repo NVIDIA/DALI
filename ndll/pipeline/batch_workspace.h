@@ -5,7 +5,6 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/batch_meta.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
 
@@ -51,7 +50,7 @@ public:
    * method throws an error.
    */
   template <typename Backend>
-  const TensorList<Backend>& Input(int idx);
+  const TensorList<Backend>& Input(int idx) const;
 
   /**
    * @brief Returns the output TensorList at index `idx`. If the output 
@@ -79,22 +78,6 @@ public:
    */
   inline cudaStream_t stream() const { return stream_; }
 
-  /**
-   * @brief Updates the internal meta-data object to reflect the current
-   * contents of the Workspace.
-   */
-  void UpdateMeta() {
-    meta_.SetMeta(this);
-  }
-
-  /**
-   * @brief Returns an BatchMeta object containing all meta-data for this
-   * workspace.
-   */
-  const BatchMeta& meta() const {
-    return meta_;
-  }
-  
 private:
   template <typename T>
   using TensorListPtr = shared_ptr<TensorList<T>>;
@@ -113,8 +96,6 @@ private:
   using TensorPtr = shared_ptr<Tensor<T>>;
   vector<TensorPtr<CPUBackend>> cpu_parameters_;
   vector<TensorPtr<GPUBackend>> gpu_parameters_;
-
-  BatchMeta meta_;
 };
 
 } // namespace ndll
