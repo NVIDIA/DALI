@@ -29,11 +29,6 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Transformer);
 protected:
-  /**
-   * @brief Returns the output shape that will be produced for the given
-   * input shape. User-defined ops must implement this method.
-   */
-  virtual vector<Dims> InferOutputShapesFromShapes(const SampleMeta &meta) = 0;
 
   USE_OPERATOR_MEMBERS();
 };

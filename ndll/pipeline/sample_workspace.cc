@@ -43,7 +43,7 @@ bool SampleWorkspace::OutputIsType<GPUBackend>(int idx) {
 }
 
 template <>
-const Tensor<CPUBackend>& SampleWorkspace::Input(int idx) {
+const Tensor<CPUBackend>& SampleWorkspace::Input(int idx) const {
   NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
   NDLL_ENFORCE((size_t)idx < input_index_map_.size(),
       "Index out of range." + std::to_string(idx) +
@@ -57,7 +57,7 @@ const Tensor<CPUBackend>& SampleWorkspace::Input(int idx) {
 }
 
 template <>
-const Tensor<GPUBackend>& SampleWorkspace::Input(int idx) {
+const Tensor<GPUBackend>& SampleWorkspace::Input(int idx) const {
   NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
   NDLL_ENFORCE((size_t)idx < input_index_map_.size(),
       "Index out of range." + std::to_string(idx) +

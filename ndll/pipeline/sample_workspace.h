@@ -8,7 +8,6 @@
 #include "ndll/pipeline/batch_workspace.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
-#include "ndll/pipeline/sample_meta.h"
 
 namespace ndll {
 
@@ -59,7 +58,7 @@ public:
    * TensorList at index = `idx`.
    */
   template <typename Backend>
-  const Tensor<Backend>& Input(int idx);
+  const Tensor<Backend>& Input(int idx) const;
 
   /**
    * @brief Returns Tensor with index = data_idx() from the output
@@ -81,22 +80,6 @@ public:
   template <typename Backend>
   Tensor<Backend>* ParamTensor(int idx);
 
-  /**
-   * @brief Updates the internal meta-data object to reflect the current
-   * contents of the workspace.
-   */
-  void UpdateMeta() {
-    meta_.SetMeta(this);
-  }
-  
-  /**
-   * @brief Returns a SampleMeta object that contains all meta-data for
-   * the SampleWorkspace (tensor shapes, types, data_idx, thread_idx, etc.)
-   */
-  const SampleMeta& meta() const {
-    return meta_;
-  }
-    
   /**
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.
@@ -130,8 +113,6 @@ private:
   
   vector<TensorPtr<CPUBackend>> cpu_parameters_;
   vector<TensorPtr<GPUBackend>> gpu_parameters_;
-
-  SampleMeta meta_;
 };
 
 } // namespace ndll
