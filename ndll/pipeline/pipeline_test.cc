@@ -9,10 +9,10 @@
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/operators/tjpg_decoder.h"
+// #include "ndll/pipeline/operators/tjpg_decoder.h"
 #include "ndll/pipeline/operators/copy_op.h"
-#include "ndll/pipeline/operators/normalize_permute_op.h"
-#include "ndll/pipeline/operators/resize_crop_mirror_op.h"
+// #include "ndll/pipeline/operators/normalize_permute_op.h"
+// #include "ndll/pipeline/operators/resize_crop_mirror_op.h"
 #include "ndll/test/ndll_test.h"
 #include "ndll/util/image.h"
 

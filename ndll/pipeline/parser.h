@@ -17,8 +17,8 @@ namespace ndll {
 class Parser {
 public:
   inline Parser(const OpSpec &spec) :
-    num_threads_(spec.GetSingleArgument<int>("num_threads", -1)),
-    batch_size_(spec.GetSingleArgument<int>("batch_size", -1)) {
+    num_threads_(spec.GetArgument<int>("num_threads", -1)),
+    batch_size_(spec.GetArgument<int>("batch_size", -1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }

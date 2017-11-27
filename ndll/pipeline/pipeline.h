@@ -4,7 +4,6 @@
 #include <map>
 
 #include "ndll/common.h"
-#include "ndll/pipeline/data_reader.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
@@ -96,7 +95,7 @@ public:
 
     // Add some pipeline meta-data
     OpSpec spec_copy = PrepareOpSpec(spec);
-    string device = spec.GetSingleArgument<string>("device", "cpu");
+    string device = spec.GetArgument<string>("device", "cpu");
     if (device == "cpu") {
       OpPtr<CPUBackend> tmp(
           CPUOperatorRegistry::Registry().Create(spec_copy.name(), spec_copy));
@@ -111,24 +110,6 @@ public:
     }
   }
   
-  /**
-   * @brief Adds a DataReader with the input specification to the pipeline.
-   * DataReaders are executed in a separete thread to produce batches of 
-   * data for the pipeline to process.
-   */
-  inline void AddDataReader(const OpSpec &spec) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    
-    // Add some pipeline meta-data
-    OpSpec spec_copy = PrepareOpSpec(spec);
-
-    // Construct the DataReader with the input spec
-    ReaderPtr tmp(DataReaderRegistry::Registry().Create(
-        spec_copy.name(), spec_copy));
-    readers_.push_back(std::move(tmp));
-  }
-
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution.
@@ -154,13 +135,6 @@ public:
    * on the front of the forward pass. All parameter setup and allocations
    * have been done previously, and we simply iterate over the forward
    * stage ops and launch their kernels.
-   *
-   * TODO(tgale): While RunPrefetch & RunCopy can be run in prefetch threads 
-   * to overlap with the forward-backward pass, RunForward must be called
-   * Before RunCopy can be called again so that we do not corrupt the results
-   * of the previous execution pass before the forward stage is finished with 
-   * them. We should extend this so that we can produce N batches at a time
-   * and run fully asynchronously w.r.t. the framework.
    */
   void RunGPU();
 
@@ -186,11 +160,6 @@ public:
   inline cudaStream_t stream() const { return stream_; }
 
   /**
-   * @brief Returns a pointer to DataReader w/ the specified name.
-   */
-  DataReader* reader(const string &name);
-
-  /**
    * @brief Returns a pointer to the Operator w/ the specified name.
    */
   template <typename Backend>
@@ -212,9 +181,6 @@ private:
 
   // Helper to add pipeline meta-data 
   OpSpec PrepareOpSpec(const OpSpec &spec);
-
-  // Helper to setup the graph
-  void TensorSetup(OpSpec *spec);
   
   bool built_;
   int batch_size_;
@@ -232,10 +198,6 @@ private:
   vector<OpPtr<CPUBackend>> cpu_ops_;
   vector<OpPtr<GPUBackend>> gpu_ops_;
   
-  // DataReader to query for sample during execution
-  using ReaderPtr = unique_ptr<DataReader>;
-  vector<ReaderPtr> readers_;
-
   // Tensors to store all batched op parameters for ops in
   // the forward pass. Enables single copy of paramters
   // instead of copies per operator

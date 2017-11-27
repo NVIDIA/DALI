@@ -20,7 +20,7 @@ namespace ndll {
 class DataReader {
 public:
   inline DataReader(const OpSpec &spec) :
-    batch_size_(spec.GetSingleArgument<int>("batch_size", -1)) {
+    batch_size_(spec.GetArgument<int>("batch_size", -1)) {
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
   
@@ -60,7 +60,7 @@ public:
     DataReader(spec), cursor_(0) {
     // Load the images from the specified folder and create a
     // Batch object that contains them.
-    string jpeg_folder = spec.GetSingleArgument<string>("jpeg_folder", "");
+    string jpeg_folder = spec.GetArgument<string>("jpeg_folder", "");
     vector<uint8*> jpegs;
     vector<int> jpeg_sizes;
     if (jpeg_folder.empty()) {

@@ -1,6 +1,5 @@
 #include "ndll/pipeline/op_spec.h"
 
-#include "ndll/common.h"
 #include "ndll/pipeline/data/types.h"
 
 namespace ndll {
@@ -55,84 +54,21 @@ INSTANTIATE_ADD_REPEATED_ARGUMENT(NDLLDataType, ri);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(uint64, rui);
 INSTANTIATE_ADD_REPEATED_ARGUMENT(string, rs);
 
-OpSpec& OpSpec::AddExtraInput(const string &name) {
-  for (const auto &s : extra_input_names_) {
-    NDLL_ENFORCE(s != name,
-        "AddExtraInput failed. Input with name\"" + name + "\" already exists.");
-  }
-  extra_input_names_.push_back(name);
+
+OpSpec& OpSpec::AddInput(const string &name, const string &device) {
+  NDLL_ENFORCE(device == "gpu" || device == "cpu", "Invalid device "
+      "specifier \"" + device + "\" for input \"" + name + "\". "
+      "Valid options are \"cpu\" or \"gpu\"");
+  inputs_.push_back(std::make_pair(name, device));
   return *this;
 }
 
-OpSpec& OpSpec::AddExtraOutput(const string &name) {
-  for (const auto &s : extra_output_names_) {
-    NDLL_ENFORCE(s != name,
-        "AddExtraOutput failed. Output with name\"" + name + "\" already exists.");
-  }
-  extra_output_names_.push_back(name);
+OpSpec& OpSpec::AddOutput(const string &name, const string &device) {
+  NDLL_ENFORCE(device == "gpu" || device == "cpu", "Invalid device "
+      "specifier \"" + device + "\" for output \"" + name + "\". "
+      "Valid options are \"cpu\" or \"gpu\"");
+  outputs_.push_back(std::make_pair(name, device));
   return *this;
-}
-
-OpSpec& OpSpec::AddExtraGPUInput(const string &name) {
-  for (const auto &s : gpu_extra_input_names_) {
-    NDLL_ENFORCE(s != name,
-        "AddExtraGPUInput failed. Input with name\"" + name + "\" already exists.");
-  }
-  gpu_extra_input_names_.push_back(name);
-  return *this;
-}
-
-OpSpec& OpSpec::AddExtraGPUOutput(const string &name) {
-  for (const auto &s : gpu_extra_output_names_) {
-    NDLL_ENFORCE(s != name,
-        "AddExtraGPUOutput failed. Output with name\"" + name + "\" already exists.");
-  }
-  gpu_extra_output_names_.push_back(name);
-  return *this;
-}
-
-void OpSpec::AddExtraInputTensor(TensorPtr<CPUBackend> tensor) {
-  extra_inputs_.push_back(tensor);
-}
-
-void OpSpec::AddExtraOutputTensor(TensorPtr<CPUBackend> tensor) {
-  extra_outputs_.push_back(tensor);
-}
-
-void OpSpec::AddExtraInputTensor(TensorPtr<GPUBackend> tensor) {
-  gpu_extra_inputs_.push_back(tensor);
-}
-
-void OpSpec::AddExtraOutputTensor(TensorPtr<GPUBackend> tensor) {
-  gpu_extra_outputs_.push_back(tensor);
-}
-
-OpSpec::TensorPtr<CPUBackend> OpSpec::ExtraInput(int index) const {
-  NDLL_ENFORCE((index >= 0) && ((size_t)index < extra_inputs_.size()),
-      "Input out of range. Did you add the operator with the "
-      "correct number of extra input tenors?");
-  return extra_inputs_[index];
-}
-
-OpSpec::TensorPtr<CPUBackend> OpSpec::ExtraOutput(int index) const {
-  NDLL_ENFORCE((index >= 0) && ((size_t)index < extra_outputs_.size()),
-      "Output out of range. Did you add the operator with the "
-      "correct number of extra output tenors?");
-  return extra_outputs_[index];
-}
-
-OpSpec::TensorPtr<GPUBackend> OpSpec::ExtraGPUInput(int index) const {
-  NDLL_ENFORCE((index >= 0) && ((size_t)index < gpu_extra_inputs_.size()),
-      "Input out of range. Did you add the operator with the "
-      "correct number of extra input tenors?");
-  return gpu_extra_inputs_[index];
-}
-
-OpSpec::TensorPtr<GPUBackend> OpSpec::ExtraGPUOutput(int index) const {
-  NDLL_ENFORCE((index >= 0) && ((size_t)index < gpu_extra_outputs_.size()),
-      "Output out of range. Did you add the operator with the "
-      "correct number of extra output tenors?");
-  return gpu_extra_outputs_[index];
 }
 
 #define INSTANTIATE_SINGLE_ARGUMENT_HELPER(T, fieldname)                \

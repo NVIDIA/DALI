@@ -1,6 +1,8 @@
 #ifndef NDLL_PIPELINE_OP_SPEC_H_
 #define NDLL_PIPELINE_OP_SPEC_H_
 
+#include <utility>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/argument.h"
@@ -19,10 +21,12 @@ public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
 
+  inline OpSpec() {}
+  
   /**
    * @brief Constructs a specification for an op with the given name.
    */
-  OpSpec(const string &name)
+  inline OpSpec(const string &name)
     : name_(name) {}
 
   /**
@@ -41,42 +45,72 @@ public:
   OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
     return this->AddArg<string>(name, c_str);
   }
+
+  /**
+   * @brief Specifies the name and device (cpu or gpu) of an
+   * input to the op. Intermediate data all have unique names,
+   * so a tensor with name "cropped" will refer to the same
+   * tensor regardless of whether device is "cpu" or "gpu".
+   * The ordering of inputs is also strict. The order in
+   * which inputs are added to the OpSpec is the order in
+   * which the Operator will receive them.
+   */
+  OpSpec& AddInput(const string &name, const string &device);
+
+  /**
+   * @brief Specifies the name and device (cpu or gpu) of an
+   * output to the op. Intermediate data all have unique names,
+   * so a tensor with name "cropped" will refer to the same
+   * tensor regardless of whether device is "cpu" or "gpu".
+   * The ordering of outputs is also strict. The order in
+   * which outputs are added to the OpSpec is the order in
+   * which the Operator will receive them.
+   */
+  OpSpec& AddOutput(const string &name, const string &device);
+
+  inline int NumInput() const { return inputs_.size(); }
+
+  inline int NumOutput() const { return outputs_.size(); }
+
+  inline string Input(int idx) const {
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
+    NDLL_ENFORCE(idx < NumInput(), "Input index \"" + std::to_string(idx) +
+        "\" out of range. Op \"" + name_ + "\" has " +
+        std::to_string(NumInput()) + " inputs.");
+    return inputs_[idx].first;
+  }
+
+  inline string InputDevice(int idx) const {
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
+    NDLL_ENFORCE(idx < NumInput(), "Input index \"" + std::to_string(idx) +
+        "\" out of range. Op \"" + name_ + "\" has " +
+        std::to_string(NumInput()) + " inputs.");
+    return inputs_[idx].second;
+  }
+
+  inline string Output(int idx) const {
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
+    NDLL_ENFORCE(idx < NumOutput(), "Output index \"" + std::to_string(idx) +
+        "\" out of range. Op \"" + name_ + "\" has " +
+        std::to_string(NumOutput()) + " outputs.");
+    return outputs_[idx].first;
+  }
+
+  inline string OutputDevice(int idx) const {
+    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
+    NDLL_ENFORCE(idx < NumOutput(), "Output index \"" + std::to_string(idx) +
+        "\" out of range. Op \"" + name_ + "\" has " +
+        std::to_string(NumOutput()) + " outputs.");
+    return outputs_[idx].second;
+  }
   
-  /**
-   * @brief Specifies the name of an extra (in addition to the 
-   * batch of data being processed) input Tensor that the op
-   * requires.
-   */
-  OpSpec& AddExtraInput(const string &name);
-
-  /**
-   * @brief Specified the name of an extra (in addition to the 
-   * batch of data being processed) output Tensor that the op 
-   * will produce
-   */
-  OpSpec& AddExtraOutput(const string &name);
-
-  /**
-   * @brief Specified the name of an extra (in addition to the 
-   * batch of data being processed) input GPU Tensor that the 
-   * op will produce
-   */
-  OpSpec& AddExtraGPUInput(const string &name);
-
-  /**
-   * @brief Specified the name of an extra (in addition to the 
-   * batch of data being processed) output GPU Tensor that the 
-   * op will produce
-   */
-  OpSpec& AddExtraGPUOutput(const string &name);
-
   /**
    * @brief Checks the Spec for an argument with the given name/type.
    * Returns the default if an argument with the given name/type does
    * not exist.
    */
   template <typename T>
-  T GetSingleArgument(const string &name, const T &default_value) const;
+  T GetArgument(const string &name, const T &default_value) const;
 
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
@@ -86,118 +120,21 @@ public:
   vector<T> GetRepeatedArgument(const string &name,
       const vector<T> &default_value = {}) const;
   
-  /**
-   * @brief Returns the extra input with the given index. Tensors are
-   * indexed in the order that they are added to the OpSpec. 
-   *
-   * This function is Used by the Operators to get their extra Tensor 
-   * inputs that have been set by the Pipeline.
-   */
-  TensorPtr<CPUBackend> ExtraInput(int index) const;
-
-  /**
-   * @brief Returns the extra output with the given index. Tensors are
-   * indexed in the order that they are added to the OpSpec. 
-   *
-   * This function is Used by the Operators to get their extra Tensor 
-   * outputs that have been set by the Pipeline.
-   */
-  TensorPtr<CPUBackend> ExtraOutput(int index) const;
-
-  /**
-   * @brief Returns the extra GPU input with the given index. Tensors 
-   * are indexed in the order that they are added to the OpSpec. 
-   *
-   * This function is Used by the Operators to get their extra Tensor 
-   * GPU inputs that have been set by the Pipeline.
-   */
-  TensorPtr<GPUBackend> ExtraGPUInput(int index) const;
-
-  /**
-   * @brief Returns the extra GPU output with the given index. Tensors 
-   * are indexed in the order that they are added to the OpSpec. 
-   *
-   * This function is Used by the Operators to get their extra Tensor 
-   * GPU outputs that have been set by the Pipeline.
-   */
-  TensorPtr<GPUBackend> ExtraGPUOutput(int index) const;
-  
-  /**
-   * @brief Used internally by the Pipeline to set pointers to the
-   * constructed Tensor objects that are to be used by the op.
-   */
-  void AddExtraInputTensor(TensorPtr<CPUBackend> tensor);
-
-  /**
-   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
-   */
-  void AddExtraOutputTensor(TensorPtr<CPUBackend> tensor);
-
-  /**
-   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
-   */
-  void AddExtraInputTensor(TensorPtr<GPUBackend> tensor);
-
-  /**
-   * @copydoc AddExtraInputTensor(TensorPtr<CPUBackend> tensor)
-   */
-  void AddExtraOutputTensor(TensorPtr<GPUBackend> tensor);
-
-  /**
-   * @brief Returns a vector of names of the extra input Tensors that
-   * have been added to the OpSpec.
-   */
-  inline const vector<string>& ExtraInputNames() const {
-    return extra_input_names_;
-  }
-
-  /**
-   * @brief Returns a vector of names of the extra output Tensors that
-   * have been added to the OpSpec.
-   */
-  inline const vector<string>& ExtraOutputNames() const {
-    return extra_output_names_;
-  }
-
-  /**
-   * @brief Returns a vector of names of the extra gpu input Tensors 
-   * that have been added to the OpSpec.
-   */
-  inline const vector<string>& ExtraGPUInputNames() const {
-    return gpu_extra_input_names_;
-  }
-
-  /**
-   * @brief Returns a vector of names of the extra gpu output Tensors 
-   * that have been added to the OpSpec.
-   */
-  inline const vector<string>& ExtraGPUOutputNames() const {
-    return gpu_extra_output_names_;
-  }
-  
 private:
   // Helper function to handle argument types. Checks the correct type
   // field in the input argument. If it is not set, return the default
   template <typename T>
   T ArgumentTypeHelper(const Argument &arg, const T &default_value) const;
-    
+  
   string name_;
   std::unordered_map<string, Argument> arguments_;
 
-  // To store all added tensor names
-  vector<string> extra_input_names_;
-  vector<string> extra_output_names_;
-  vector<string> gpu_extra_input_names_;
-  vector<string> gpu_extra_output_names_;
-  
-  vector<TensorPtr<CPUBackend>> extra_inputs_;
-  vector<TensorPtr<CPUBackend>> extra_outputs_;
-  vector<TensorPtr<GPUBackend>> gpu_extra_inputs_;
-  vector<TensorPtr<GPUBackend>> gpu_extra_outputs_;
+  using StrPair = std::pair<string, string>;
+  vector<StrPair> inputs_, outputs_;
 };
 
 template <typename T>
-T OpSpec::GetSingleArgument(const string &name, const T &default_value) const {
+T OpSpec::GetArgument(const string &name, const T &default_value) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
   

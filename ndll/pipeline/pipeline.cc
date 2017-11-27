@@ -382,59 +382,7 @@ OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
     .AddArg("num_threads", num_threads())
     .AddArg("cuda_stream", (int64)stream_)
     .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
-
-  // Handle graph construction
-  TensorSetup(&spec_copy);
   return spec_copy;
-}
-
-void Pipeline::TensorSetup(OpSpec *spec) {
-  /*
-  for (auto &tensor_name : spec->ExtraOutputNames()) {
-    // Tensors can only be the output of a single op.
-    // Verify a Tensor by this name does not exist
-    NDLL_ENFORCE(extra_tensors_.count(tensor_name) == 0,
-        "Tensor with name \"" + tensor_name +
-        "\" already exists as the output of "
-        "another Operator.");
-
-    // Create the tensor & add its ptr to the spec
-    TensorPtr<CPUBackend> new_tensor = std::make_shared<Tensor<CPUBackend>>();
-    extra_tensors_[tensor_name] = new_tensor;
-    spec->AddExtraOutputTensor(new_tensor);
-  }
-  for (auto &tensor_name : spec->ExtraInputNames()) {
-    // Extra input Tensors must have already been created
-    // as the output of another operator.
-    auto it = extra_tensors_.find(tensor_name);
-    NDLL_ENFORCE(it != extra_tensors_.end(), "Tensor with name\""
-        + tensor_name + "\" does not exist. Extra input Tensors "
-        "must be the output of a previously constructed Operator.");
-    spec->AddExtraInputTensor(it->second);
-  }
-  for (auto &tensor_name : spec->ExtraGPUOutputNames()) {
-    // Tensors can only be the output of a single op.
-    // Verify a Tensor by this name does not exist
-    NDLL_ENFORCE(extra_gpu_tensors_.count(tensor_name) == 0,
-        "Tensor with name \"" + tensor_name +
-        "\" already exists as the output of "
-        "another Operator.");
-
-    // Create the tensor & add its ptr to the spec
-    TensorPtr<GPUBackend> new_tensor = std::make_shared<Tensor<GPUBackend>>();
-    extra_gpu_tensors_[tensor_name] = new_tensor;
-    spec->AddExtraOutputTensor(new_tensor);
-  }
-  for (auto &tensor_name : spec->ExtraGPUInputNames()) {
-    // Extra input Tensors must have already been created
-    // as the output of another operator.
-    auto it = extra_gpu_tensors_.find(tensor_name);
-    NDLL_ENFORCE(it != extra_gpu_tensors_.end(), "Tensor with name\""
-        + tensor_name + "\" does not exist. Extra input Tensors "
-        "must be the output of a previously constructed Operator.");
-    spec->AddExtraInputTensor(it->second);
-  }
-  */
 }
 
 } // namespace ndll
