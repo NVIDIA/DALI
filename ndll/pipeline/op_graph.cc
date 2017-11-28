@@ -127,9 +127,7 @@ int OpGraph::NumOpWithBackend<GPUBackend>() const {
 
 template <>
 OpPtr<CPUBackend>& OpGraph::op(NodeID id) {
-  NDLL_ENFORCE(id >= 0, "Negative index not supported.");
-  NDLL_ENFORCE((size_t)id < nodes_.size(), "Index " + std::to_string(id) +
-      " out of range for graph with size " + std::to_string(nodes_.size()));
+  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
   NDLL_ENFORCE(id < num_cpu_, "Op with given index does "
       "not have calling 'Backend' type.");
   return dynamic_cast<CPUOpNode*>(nodes_[id].get())->op;
@@ -137,18 +135,14 @@ OpPtr<CPUBackend>& OpGraph::op(NodeID id) {
 
 template <>
 OpPtr<GPUBackend>& OpGraph::op(NodeID id) {
-  NDLL_ENFORCE(id >= 0, "Negative index not supported.");
-  NDLL_ENFORCE((size_t)id < nodes_.size(), "Index " + std::to_string(id) +
-      " out of range for graph with size " + std::to_string(nodes_.size()));
+  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
   NDLL_ENFORCE(id >= num_cpu_, "Op with given index does "
       "not have calling 'Backend' type.");
   return dynamic_cast<GPUOpNode*>(nodes_[id].get())->op;
 }
 
 OpNode& OpGraph::node(NodeID id) {
-  NDLL_ENFORCE(id >= 0, "Negative index not supported.");
-  NDLL_ENFORCE((size_t)id < nodes_.size(), "Index " + std::to_string(id) +
-      " out of range for graph with size " + std::to_string(nodes_.size()));
+  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
   return *nodes_[id];
 }
 
