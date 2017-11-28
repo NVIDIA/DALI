@@ -41,6 +41,12 @@ public:
   virtual inline ~Operator() = default;
 
   /**
+   * @brief Returns true if the Operator supports in-place execution.
+   * Default is false.
+   */
+  virtual inline bool SupportsInPlace() const { return false; }
+  
+  /**
    * @brief Returns the maximum number of inputs supported by this op.
    */
   virtual int MaxNumInput() const = 0;

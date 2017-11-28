@@ -8,6 +8,7 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/op_graph.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
 namespace ndll {
@@ -84,6 +85,19 @@ public:
 
   ~Pipeline() = default;
 
+  /**
+   * @brief Creates a placeholder for an external input with the given name
+   */
+  inline void AddExternalInput(const string &name) {
+    // Create a spec for an ExternalInput op and add it to our graph
+    OpSpec spec =
+      OpSpec("ExternalSource")
+      .AddArg("device", "cpu")
+      .AddArg("inplace", true)
+      .AddOutput(name, "cpu");
+    graph_.AddOp(PrepareOpSpec(spec));
+  }
+  
   /**
    * @brief Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
@@ -203,6 +217,8 @@ private:
   // instead of copies per operator
   Tensor<CPUBackend> mega_buffer_;
   Tensor<GPUBackend> mega_buffer_gpu_;
+
+  OpGraph graph_;
 };
 
 } // namespace ndll

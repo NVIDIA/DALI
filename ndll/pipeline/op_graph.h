@@ -36,24 +36,47 @@ public:
   inline OpGraph() : num_cpu_(0) {}
   ~OpGraph() = default;
 
-  void AddOp(const OpSpec &spec) {
+  /**
+   * @brief Adds an op with the input specification to the graph.
+   */
+  inline void AddOp(const OpSpec &spec) {
     auto node = CreateNode(spec);
     nodes_.push_back(node);
   }
 
-  inline NodeID GetTensorSource(const string &name) {
+  /**
+   * @brief Returns the id of the op that produces the tensor with
+   * the given name.
+   */
+  inline NodeID TensorSourceID(const string &name) {
     auto it = tensor_srcs_.find(name);
     NDLL_ENFORCE(it != tensor_srcs_.end(), "Tensor with name \"" +
         name + "\" has no know source.");
     return it->second;
   }
 
-  inline int NumCPUOp() const { return num_cpu_; }
-
-  inline int NumGPUOp() const { return nodes_.size() - num_cpu_; }
-
+  /**
+   * @brief Returns the total number of ops in the graph.
+   */
+  inline int NumOp() const { return nodes_.size(); }
+  
+  /**
+   * @brief Returns the number of ops in the graph with the given 
+   * backend.
+   */
   template <typename Backend>
-  OpPtr<Backend>& op(int idx);
+  int NumOpWithBackend() const;
+
+  /**
+   * @brief Returns the operator with the given index in the graph.
+   */
+  template <typename Backend>
+  OpPtr<Backend>& op(NodeID id);
+
+  /**
+   * @brief Returns the graph node with the given index in the graph.
+   */
+  OpNode& node(NodeID id);
   
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 private:
