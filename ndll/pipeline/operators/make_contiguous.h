@@ -1,17 +1,17 @@
-#ifndef NDLL_PIPELINE_OPERATORS_COPY_TO_DEVICE_H_
-#define NDLL_PIPELINE_OPERATORS_COPY_TO_DEVICE_H_
+#ifndef NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
+#define NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
 
 #include "ndll/pipeline/internal_op.h"
 
 namespace ndll {
 namespace internal {
 
-class CopyToDevice : public InternalOp {
+class MakeContiguous : public InternalOp {
 public:
-  inline explicit CopyToDevice(const OpSpec &spec) :
+  inline explicit MakeContiguous(const OpSpec &spec) :
     InternalOp(spec) {}
 
-  virtual inline ~CopyToDevice() = default;
+  virtual inline ~MakeContiguous() = default;
 
   inline int MaxNumInput() const override { return 1; }
   inline int MinNumInput() const override { return 1; }
@@ -19,7 +19,7 @@ public:
   inline int MinNumOutput() const override { return 1; }
 
   inline string name() const override {
-    return "CopyToDevice";
+    return "MakeContiguous";
   }
 
   inline void Setup(MixedWorkspace *ws) override {
@@ -32,16 +32,18 @@ public:
           "input batch. Cannot copy to contiguous device buffer.");
     }
     
-    auto output = ws->Output<GPUBackend>(0);
+    auto output = ws->Output<CPUBackend>(0);
     output->Resize(output_shape);
     output->set_type(type);
   }
     
-  DISABLE_COPY_MOVE_ASSIGN(CopyToDevice);
+  DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+    auto output = ws->Output<CPUBackend>(0);
+
+    // Note: Stream doesn't matter here
     output->Copy(input, ws->stream());
   }
 
@@ -51,4 +53,4 @@ protected:
 } // namespace internal
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_COPY_TO_DEVICE_H_
+#endif // NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
