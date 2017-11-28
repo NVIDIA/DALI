@@ -19,7 +19,7 @@ find_path(JPEG_TURBO_INCLUDE_DIR turbojpeg.h
     PATHS ${JPEG_TURBO_ROOT_DIR}
     PATH_SUFFIXES include)
 
-find_library(JPEG_TURBO_LIBRARY turbojpeg
+find_library(JPEG_TURBO_LIBRARY libturbojpeg.so turbojpeg
     PATHS ${JPEG_TURBO_ROOT_DIR}
     PATH_SUFFIXES lib lib64)
 

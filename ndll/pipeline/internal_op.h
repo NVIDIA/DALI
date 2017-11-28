@@ -18,10 +18,14 @@ public:
    * @brief Implemented by derived operators to perform any
    * batch-wise setup e.g. resizing the output TensorList.
    */
-  void Setup(MixedWorkspace *ws) = 0;
+  virtual void Setup(MixedWorkspace *ws) = 0;
   
 protected:
 };
+
+#define USE_INTERNAL_OP_MEMBERS()               \
+  using Operator<CPUBackend>::num_threads_;     \
+  using Operator<CPUBackend>::batch_size_
 
 NDLL_DECLARE_OPTYPE_REGISTRY(InternalOp, InternalOp);
 

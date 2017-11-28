@@ -89,8 +89,15 @@ public:
   /**
    * @brief Returns a vector of Tensor sizes in bytes, each one refering 
    * to a different parameter tensor required by the Op for batched gpu 
-   * execution. By default the vecotr is of size 0, and no space is 
-   * allocate for the op's kernel parameters. 
+   * execution. By default the vector is of size 0, and no space is 
+   * allocate for the op's kernel parameters.
+   * 
+   * TODO(tgale): Will ops have access to valid data here? Do we need
+   * to give them access to the underlying pointers if not? Given
+   * how the simplified executor works, can we even provides any data
+   * here other than the batch size that the op already knows? We have
+   * the zero-copy backend for data dependent stuff, can we just point
+   * people to that if they have an op that needs fancier parameter setup
    */
   virtual vector<size_t> InferParameterSizes(const BatchWorkspace &meta) {
     return vector<size_t>{};

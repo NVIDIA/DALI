@@ -158,6 +158,20 @@ inline string BuildErrorString(string statement, string file, int line) {
 
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
 
+// Enforces that the value of 'var' is in the range [lower, upper)
+#define NDLL_ENFORCE_IN_RANGE(var, lower, upper)                        \
+  do {                                                                  \
+    if (((var) < (lower)) || ((var) >= (upper))) {                      \
+      string error = "Index " + std::to_string(var) + " out of range [" + \
+        std::to_string(lower) + ", " + std::to_string(upper) + ").";    \
+      NDLL_FAIL(error);                                                 \
+    }                                                                   \
+  } while (0)
+
+// Enforces that the input var is in the range [0, upper)
+#define NDLL_ENFORCE_VALID_INDEX(var, upper) \
+  NDLL_ENFORCE_IN_RANGE(var, int(0), upper)
+
 #define NDLL_FAIL(str)                                    \
   do {                                                    \
     string file = __FILE__;                               \

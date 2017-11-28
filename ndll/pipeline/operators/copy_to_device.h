@@ -6,7 +6,7 @@
 namespace ndll {
 namespace internal {
 
-class CopyToDevice : public InternalOp> {
+class CopyToDevice : public InternalOp {
 public:
   inline explicit CopyToDevice(const OpSpec &spec) :
     InternalOp(spec) {}
@@ -23,15 +23,18 @@ public:
   }
 
   inline void Setup(MixedWorkspace *ws) override {
-    vector<Dims> output_shape.resize(batch_size_);
+    vector<Dims> output_shape(batch_size_);
+    TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
     for (int i = 0; i < batch_size_; ++i) {
-      auto input = ws->Input<CPUBackend>(0, i);
+      auto &input = ws->Input<CPUBackend>(0, i);
       output_shape[i] = input.shape();
+      NDLL_ENFORCE(type == input.type(), "Inconsistent types in "
+          "input batch. Cannot copy to contiguous device buffer.");
     }
     
     auto output = ws->Output<GPUBackend>(0);
-    output.Resize(output_shape);
-    output.set_type(input.type());
+    output->Resize(output_shape);
+    output->set_type(ws->Input<CPUBackend>(0, 0).type());
   }
     
   DISABLE_COPY_MOVE_ASSIGN(CopyToDevice);
@@ -43,7 +46,7 @@ protected:
     output->Copy(input, ws->stream());
   }
 
-  USE_OPERATOR_MEMBERS();
+  USE_INTERNAL_OP_MEMBERS();
 };
 
 } // namespace internal
