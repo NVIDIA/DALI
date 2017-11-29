@@ -87,15 +87,15 @@ public:
    */
   inline void AddExternalInput(const string &name) {
     // Verify that this name is unique and record it
-    auto it = result_names_.find(name);
-    NDLL_ENFORCE(it == result_names_.end(), "External input name '" +
+    auto it = edge_names_.find(name);
+    NDLL_ENFORCE(it == edge_names_.end(), "External input name '" +
         name + "' conflicts with existing intermediate result name");
-    ResultMeta meta;
+    EdgeMeta meta;
     meta.has_cpu = true;
     meta.has_gpu = false;
     meta.has_contiguous = false;
-    NDLL_ENFORCE(result_names_.insert({name, meta}).second,
-        "ExternalInput name insertion failure. Something is amiss...");
+    NDLL_ENFORCE(edge_names_.insert({name, meta}).second,
+        "ExternalInput name insertion failure.");
     
     // Create a spec for an ExternalInput op and add it to our graph
     OpSpec spec =
@@ -171,7 +171,7 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
-  using ResultMeta = struct {
+  using EdgeMeta = struct {
     bool has_cpu, has_gpu, has_contiguous;
   };
   
@@ -183,11 +183,27 @@ private:
     return base_ptr_offset;
   }
   
-  void SetupCPUInput(std::map<string, ResultMeta>::iterator it,
+  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       int input_idx, OpSpec *spec);
 
-  void SetupGPUInput(std::map<string, ResultMeta>::iterator it);
-  
+  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
+
+  inline EdgeMeta NewEdge(string device) {
+    EdgeMeta edge;
+    edge.has_cpu = false;
+    edge.has_gpu = false;
+    edge.has_contiguous = false;
+    if (device == "cpu") {
+      edge.has_cpu = true;
+    } else if (device == "gpu") {
+      edge.has_gpu = true;
+    } else {
+      NDLL_FAIL("Invalid device argument \"" + device + "\". "
+          "Valid options are \"cpu\" or \"gpu\"");
+    }
+    return edge;
+  }
+      
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
@@ -203,7 +219,7 @@ private:
 
   OpGraph graph_;
 
-  std::map<string, ResultMeta> result_names_;
+  std::map<string, EdgeMeta> edge_names_;
 };
 
 } // namespace ndll

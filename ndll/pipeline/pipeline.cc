@@ -20,9 +20,9 @@ void Pipeline::AddOperator(OpSpec spec) {
   for (int i = 0; i < spec.NumInput(); ++i) {
     string input_name = spec.InputName(i);
     string input_device = spec.InputDevice(i);
-    auto it = result_names_.find(input_name);
+    auto it = edge_names_.find(input_name);
 
-    NDLL_ENFORCE(it != result_names_.end(), "Input '" + input_name +
+    NDLL_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
         "' to op '" + spec.name() + "' is not known to the pipeline.");
 
     // Table of possible scenarios:
@@ -53,6 +53,33 @@ void Pipeline::AddOperator(OpSpec spec) {
   }
 
   // Verify and record the outputs of the op
+  for (int i = 0; i < spec.NumOutput(); ++i) {
+    string output_name = spec.OutputName(i);
+    string output_device = spec.OutputDevice(i);
+    string error_str = "(op: '" + spec.name() + "', input: '" +
+      output_name + "')";
+    
+    auto it = edge_names_.find(output_name);
+    NDLL_ENFORCE(it == edge_names_.end(), "Output name '" +
+        output_name + "' conflicts with existing intermediate "
+        "result name. " + error_str);
+
+    // Validate output data conforms to graph constraints
+    if (device == "cpu") {
+      NDLL_ENFORCE(output_device == "cpu", "cpu ops can only produce "
+          "cpu outputs." + error_str);
+    } else {
+      NDLL_ENFORCE(output_device == "gpu", "gpu ops can only produce "
+          "gpu outputs." + error_str);
+    }
+    
+    EdgeMeta meta = NewEdge(device);
+    NDLL_ENFORCE(edge_names_.insert({output_name, meta}).second,
+        "Output name insertion failure.");
+  }
+
+  // Add the operator to the graph
+  graph_.AddOp(spec);
 }
 
 void Pipeline::Build() {
@@ -378,7 +405,7 @@ void Pipeline::IntermediateBufferResizeAndSetup() {
   */
 }
 
-void Pipeline::SetupCPUInput(std::map<string, ResultMeta>::iterator it,
+void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
     int input_idx, OpSpec *spec) {
   if (!it->second.has_contiguous) {
     OpSpec make_contiguous_spec =
@@ -398,7 +425,7 @@ void Pipeline::SetupCPUInput(std::map<string, ResultMeta>::iterator it,
   input_strs->first = "contiguous_" + input_strs->first;
 }
 
-void Pipeline::SetupGPUInput(std::map<string, ResultMeta>::iterator it) {
+void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
   OpSpec copy_to_dev_spec =
     OpSpec("CopyToDevice")

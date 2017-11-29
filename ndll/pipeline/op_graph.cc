@@ -52,8 +52,8 @@ shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
     // Enforce graph constraints
     NDLL_ENFORCE((size_t)num_cpu_ == nodes_.size(), "All CPU operators "
         "must occur before any GPU operators.");
-    NDLL_ENFORCE(AllInputsCPU(spec));
-    NDLL_ENFORCE(AllOutputsCPU(spec));
+    NDLL_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
+    NDLL_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
 
     // Create the operator
     OpPtr<CPUBackend> tmp(
@@ -68,7 +68,7 @@ shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
     ++num_cpu_;
   } else if (device == "gpu") {
     // Enforce graph constraints
-    NDLL_ENFORCE(AllOutputsGPU(spec));
+    NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
     
     // Create the operator
     OpPtr<GPUBackend> tmp(
