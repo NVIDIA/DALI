@@ -46,10 +46,17 @@ public:
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     // Wrap the output tensor around our data
-    auto output = ws->Output<CPUBackend>(0);
+    auto output = ws->Output<Backend>(0);
     output->ShareData(&data_, ws->data_idx());
     output->set_type(data_.type());
     output->Resize(data_.tensor_shape(ws->data_idx()));
+  }
+
+  inline void RunBatchedGPU(BatchWorkspace *ws) override {
+    auto output = ws->Output<Backend>(0);
+    output->ShareData(&data_);
+    output->set_type(data_.type());
+    output->ResizeLike(data_);
   }
   
   string output_name_;

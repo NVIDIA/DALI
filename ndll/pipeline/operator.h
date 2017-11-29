@@ -69,7 +69,7 @@ public:
   /**
    * @brief Executes the operator on a single sample on the CPU.
    */
-  void Run(SampleWorkspace *ws) {
+  inline void Run(SampleWorkspace *ws) {
 #ifndef NDEBUG
     NDLL_ENFORCE(ws->thread_idx() > 0, "Invalid negative thread idx for cpu work.");
     NDLL_ENFORCE(ws->thread_idx() < num_threads_, "Thread index out of range.");
@@ -82,7 +82,7 @@ public:
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  void Run(BatchWorkspace *ws) {
+  inline void Run(BatchWorkspace *ws) {
     RunBatchedGPU(ws);
   }
 

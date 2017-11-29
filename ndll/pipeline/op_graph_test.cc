@@ -38,8 +38,9 @@ TEST_F(OpGraphTest, TestCPUOnly) {
           ));
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOpWithBackend<CPUBackend>(), 2);
-  ASSERT_EQ(graph.NumOpWithBackend<GPUBackend>(), 0);
+  ASSERT_EQ(graph.NumCPUOp(), 2);
+  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
   auto node = graph.node(0);
@@ -57,27 +58,238 @@ TEST_F(OpGraphTest, TestCPUOnly) {
 }
 
 TEST_F(OpGraphTest, TestGPUOnly) {
- 
+  OpGraph graph;
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "gpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_data", "gpu")
+          ));
+    
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyOp")
+          .AddArg("device", "gpu")
+          .AddInput("external_data", "gpu")
+          .AddOutput("copy_data", "gpu")
+          ));
+
+  // Validate the graph
+  ASSERT_EQ(graph.NumCPUOp(), 0);
+  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumGPUOp(), 2);
+
+  // Validate the source op
+  auto node = graph.node(0);
+  ASSERT_EQ(node.id, 0);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children[0], 1);
+
+  // Validate copy op
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents[0], 0);
 }
 
-TEST_F(OpGraphTest, TestPipeline) {
+TEST_F(OpGraphTest, TestCPUToGPU) {
+  OpGraph graph;
 
+  // Add copy op insertion
+  // Add contiguous-ify op
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_data", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyToDevice")
+          .AddArg("device", "internal")
+          .AddInput("external_data", "cpu")
+          .AddOutput("external_data", "gpu")
+          ));
+  
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyOp")
+          .AddArg("device", "gpu")
+          .AddInput("external_data", "gpu")
+          .AddOutput("copy_data", "gpu")
+          ));
+
+  // Validate the graph
+  ASSERT_EQ(graph.NumCPUOp(), 1);
+  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumGPUOp(), 1);
+
+  // Validate the source op
+  auto node = graph.node(0);
+  ASSERT_EQ(node.id, 0);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children[0], 1);
+
+  // Validate copy-to-dev op
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents[0], 0);
+  ASSERT_EQ(node.children[0], 2);
+
+  // Validate copy op
+  node = graph.node(2);
+  ASSERT_EQ(node.id, 2);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents[0], 1);
 }
 
-TEST_F(OpGraphTest, TestSplit) {
+TEST_F(OpGraphTest, TestGPUThenGPUTopological) {
+  OpGraph graph;
 
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "gpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_dev_data", "gpu")
+          ));
+  
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyOp")
+          .AddArg("device", "gpu")
+          .AddInput("external_dev_data", "gpu")
+          .AddOutput("copy_data", "gpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_host_data", "cpu")
+          ));
+    
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyOp")
+          .AddArg("device", "cpu")
+          .AddInput("external_host_data", "cpu")
+          .AddOutput("copy_data", "cpu")
+          ));
+
+    // Validate the graph
+  ASSERT_EQ(graph.NumCPUOp(), 2);
+  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumGPUOp(), 2);
+
+  // Validate the gpu source op
+  auto node = graph.node(0);
+  ASSERT_EQ(node.id, 0);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children[0], 1);
+
+  // Validate gpu copy op
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents[0], 0);
+
+  // Validate cpu source op
+  node = graph.node(2);
+  ASSERT_EQ(node.id, 2);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children[0], 3);
+
+  // Validate cpu copy op
+  node = graph.node(3);
+  ASSERT_EQ(node.id, 3);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents[0], 2);
 }
 
-TEST_F(OpGraphTest, TestDiamond) {
+TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
+  OpGraph graph;
 
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "gpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_data", "gpu")
+          ));
+  
+  ASSERT_THROW(
+      graph.AddOp(this->PrepareSpec(
+              OpSpec("CopyOp")
+              .AddArg("device", "cpu")
+              .AddInput("external_data", "gpu")
+              .AddOutput("copy_data", "cpu")
+              )),
+      std::runtime_error
+      );
 }
 
-TEST_F(OpGraphTest, TestTopologicalCheck) {
+TEST_F(OpGraphTest, TestFailureCPUToGPUOp) {
+  OpGraph graph;
 
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "gpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_data", "gpu")
+          ));
+  
+  ASSERT_THROW(
+      graph.AddOp(this->PrepareSpec(
+              OpSpec("CopyOp")
+              .AddArg("device", "cpu")
+              .AddInput("external_data", "cpu")
+              .AddOutput("copy_data", "cpu")
+              )),
+      std::runtime_error
+      );
 }
 
-TEST_F(OpGraphTest, TestCPUToGPUAndBack) {
+TEST_F(OpGraphTest, TestFailureNonTopological) {
+  OpGraph graph;
 
+  ASSERT_THROW(
+      graph.AddOp(this->PrepareSpec(
+              OpSpec("CopyOp")
+              .AddArg("device", "cpu")
+              .AddInput("external_data", "cpu")
+              .AddOutput("copy_data", "cpu")
+              )),
+      std::runtime_error
+      );
+
+  // Note: Test should never get here. Just here
+  // to make it clear what this verifies.
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddArg("inplace", true)
+          .AddOutput("external_data", "cpu")
+          ));
+}
+
+TEST_F(OpGraphTest, TestFailureCircularOp) {
+  OpGraph graph;
+
+  ASSERT_THROW(
+      graph.AddOp(this->PrepareSpec(
+              OpSpec("CopyOp")
+              .AddArg("device", "cpu")
+              .AddInput("data", "cpu")
+              .AddOutput("data", "cpu")
+              )),
+      std::runtime_error
+      );
 }
 
  

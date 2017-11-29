@@ -62,6 +62,7 @@ typedef ::testing::Types<ThreadCount<1>,
                          ThreadCount<3>,
                          ThreadCount<4>> NumThreads;
 TYPED_TEST_CASE(PipelineTest, NumThreads);
+
 /*
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   int num_thread = TypeParam::nt;

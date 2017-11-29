@@ -45,13 +45,11 @@ void CheckOpConstraints(const OpSpec &spec, const OpPtr<Backend> &op) {
 
 } // namespace
 
-shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
+void OpGraph::AddOp(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device", "cpu");
-  shared_ptr<OpNode> node;
+  OpNode *new_node;
   if (device == "cpu") {
     // Enforce graph constraints
-    NDLL_ENFORCE((size_t)num_cpu_ == nodes_.size(), "All CPU operators "
-        "must occur before any GPU operators.");
     NDLL_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
     NDLL_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
 
@@ -62,10 +60,12 @@ shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
     // Validate the number of inputs and execution settings
     CheckOpConstraints(spec, tmp);
       
-    CPUOpNode *ptr = new CPUOpNode;
-    ptr->op = std::move(tmp);
-    node.reset(ptr);
-    ++num_cpu_;
+    cpu_nodes_.resize(cpu_nodes_.size()+1);
+    CPUOpNode &cpu_node = cpu_nodes_.back();
+    cpu_node.op = std::move(tmp);
+    id_to_node_map_.push_back({0, cpu_nodes_.size()-1});
+
+    new_node = &cpu_node;
   } else if (device == "gpu") {
     // Enforce graph constraints
     NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
@@ -76,18 +76,35 @@ shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
 
     // Validate the number of inputs and execution settings
     CheckOpConstraints(spec, tmp);
+
+    gpu_nodes_.resize(gpu_nodes_.size()+1);
+    GPUOpNode &gpu_node = gpu_nodes_.back();
+    gpu_node.op = std::move(tmp);
+    id_to_node_map_.push_back({1, gpu_nodes_.size()-1});
+
+    new_node = &gpu_node;
+  } else if (device == "internal") {
+    // Enforce graph constraints
+    NDLL_ENFORCE(AllInputsCPU(spec), "Internal ops cannot receive GPU input data.");
     
-    GPUOpNode *ptr = new GPUOpNode;
-    ptr->op = std::move(tmp);
-    node.reset(ptr);
+    // Create the operator
+    unique_ptr<internal::InternalOp> tmp(
+        internal::InternalOpRegistry::Registry().Create(spec.name(), spec));
+
+    internal_nodes_.resize(internal_nodes_.size()+1);
+    InternalOpNode &internal_node = internal_nodes_.back();
+    internal_node.op = std::move(tmp);
+    id_to_node_map_.push_back({2, internal_nodes_.size()-1});
+
+    new_node = &internal_node;
   } else {
     NDLL_FAIL("Invalid device argument \"" + device +
-        "\". Valid options are \"cpu\" or \"gpu\"");
+        "\". Valid options are \"cpu\", \"gpu\" or \"internal\"");
   }
 
   // Add node meta-data and add to the list of nodes
-  node->id = nodes_.size();
-  node->spec = spec;
+  new_node->id = NumOp()-1;
+  new_node->spec = spec;
 
   // Setup references between nodes. We require that the
   // ops are added to the graph in a topological ordering.
@@ -96,54 +113,41 @@ shared_ptr<OpNode> OpGraph::CreateNode(const OpSpec &spec) {
   for (int i = 0; i < spec.NumInput(); ++i) {
     // Add parent node id
     auto parent_id = TensorSourceID(spec.Input(i));
-    node->parents.push_back(parent_id);
+    new_node->parents.push_back(parent_id);
 
     // Add new node as child
-    auto &parent_node = nodes_[parent_id];
-    parent_node->children.push_back(node->id);
+    auto &parent_node = this->node(parent_id);
+    parent_node.children.push_back(new_node->id);
   }
 
   // Mark this op as the source of its output tensors
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string name = spec.Output(i);
-    auto ret = tensor_srcs_.insert({name, node->id});
+    auto ret = tensor_srcs_.insert({name, new_node->id});
     NDLL_ENFORCE(ret.second, "Operator '" + spec.name() +
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
-        nodes_[TensorSourceID(name)]->spec.name());
+        this->node(TensorSourceID(name)).spec.name());
   }
-  return node;
-}
-
-template <>
-int OpGraph::NumOpWithBackend<CPUBackend>() const {
-  return num_cpu_;
-}
-
-template <>
-int OpGraph::NumOpWithBackend<GPUBackend>() const {
-  return nodes_.size() - num_cpu_;
-}
-
-template <>
-OpPtr<CPUBackend>& OpGraph::op(NodeID id) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
-  NDLL_ENFORCE(id < num_cpu_, "Op with given index does "
-      "not have calling 'Backend' type.");
-  return dynamic_cast<CPUOpNode*>(nodes_[id].get())->op;
-}
-
-template <>
-OpPtr<GPUBackend>& OpGraph::op(NodeID id) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
-  NDLL_ENFORCE(id >= num_cpu_, "Op with given index does "
-      "not have calling 'Backend' type.");
-  return dynamic_cast<GPUOpNode*>(nodes_[id].get())->op;
 }
 
 OpNode& OpGraph::node(NodeID id) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)id, nodes_.size());
-  return *nodes_[id];
+  NDLL_ENFORCE_VALID_INDEX((size_t)id, id_to_node_map_.size());
+  auto idx_pair = id_to_node_map_[id];
+
+  switch (idx_pair.first) {
+  case 0:
+    return cpu_nodes_[idx_pair.second];
+    break;
+  case 1:
+    return gpu_nodes_[idx_pair.second];
+    break;
+  case 2:
+    return internal_nodes_[idx_pair.second];
+    break;    
+  default:
+    NDLL_FAIL("Internal error. Invalid node type index.");
+  }
 }
 
 } // namespace ndll
