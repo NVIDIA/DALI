@@ -71,9 +71,6 @@ public:
     thread_pool_(num_threads, device_id, set_affinity),
     pixels_per_image_hint_(pixels_per_image_hint) {
     NDLL_ENFORCE(batch_size_ > 0);
-    // Set the data type for our mega-buffers
-    mega_buffer_.template mutable_data<uint8>();
-    mega_buffer_gpu_.template mutable_data<uint8>();
 
     // TODO(tgale): We need to figure out the best way to ensure that the memory
     // this object allocates is stored on the correct NUMA node that we can
@@ -89,13 +86,25 @@ public:
    * @brief Creates a placeholder for an external input with the given name
    */
   inline void AddExternalInput(const string &name) {
+    // Verify that this name is unique and record it
+    auto it = result_names_.find(name);
+    NDLL_ENFORCE(it == result_names_.end(), "External input name '" +
+        name + "' conflicts with existing intermediate result name");
+    ResultMeta meta;
+    meta.has_cpu = true;
+    meta.has_gpu = false;
+    meta.has_contiguous = false;
+    NDLL_ENFORCE(result_names_.insert({name, meta}).second,
+        "ExternalInput name insertion failure. Something is amiss...");
+    
     // Create a spec for an ExternalInput op and add it to our graph
     OpSpec spec =
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddArg("inplace", true)
       .AddOutput(name, "cpu");
-    graph_.AddOp(PrepareOpSpec(spec));
+    PrepareOpSpec(&spec);
+    graph_.AddOp(spec);
   }
   
   /**
@@ -103,26 +112,7 @@ public:
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
    */
-  inline void AddOperator(const OpSpec &spec) {
-    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-
-    // Add some pipeline meta-data
-    OpSpec spec_copy = PrepareOpSpec(spec);
-    string device = spec.GetArgument<string>("device", "cpu");
-    if (device == "cpu") {
-      OpPtr<CPUBackend> tmp(
-          CPUOperatorRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      cpu_ops_.push_back(std::move(tmp));
-    } else if (device == "gpu") {
-      OpPtr<GPUBackend> tmp(
-          GPUOperatorRegistry::Registry().Create(spec_copy.name(), spec_copy));
-      gpu_ops_.push_back(std::move(tmp));
-    } else {
-      NDLL_FAIL("Invalid device argument \"" + device +
-          "\". Valid options are \"cpu\" or \"gpu\"");
-    }
-  }
+  void AddOperator(OpSpec spec);
   
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
@@ -181,6 +171,10 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:
+  using ResultMeta = struct {
+    bool has_cpu, has_gpu, has_contiguous;
+  };
+  
   // Return the nearest multiple of 8 that is >= base_ptr_offset
   inline size_t round_up_to_8(size_t base_ptr_offset) {
     if (base_ptr_offset & 7) {
@@ -188,13 +182,18 @@ private:
     }
     return base_ptr_offset;
   }
+  
+  void SetupCPUInput(std::map<string, ResultMeta>::iterator it,
+      int input_idx, OpSpec *spec);
 
+  void SetupGPUInput(std::map<string, ResultMeta>::iterator it);
+  
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
 
   // Helper to add pipeline meta-data 
-  OpSpec PrepareOpSpec(const OpSpec &spec);
+  void PrepareOpSpec(OpSpec *spec);
   
   bool built_;
   int batch_size_;
@@ -202,23 +201,9 @@ private:
   ThreadPool thread_pool_;
   size_t pixels_per_image_hint_;
 
-  template <typename T>
-  using TensorPtr = shared_ptr<Tensor<T>>;
-  std::map<string, TensorPtr<CPUBackend>> extra_tensors_;
-  std::map<string, TensorPtr<GPUBackend>> extra_gpu_tensors_;
-  
-  template <typename T>
-  using OpPtr = unique_ptr<Operator<T>>;
-  vector<OpPtr<CPUBackend>> cpu_ops_;
-  vector<OpPtr<GPUBackend>> gpu_ops_;
-  
-  // Tensors to store all batched op parameters for ops in
-  // the forward pass. Enables single copy of paramters
-  // instead of copies per operator
-  Tensor<CPUBackend> mega_buffer_;
-  Tensor<GPUBackend> mega_buffer_gpu_;
-
   OpGraph graph_;
+
+  std::map<string, ResultMeta> result_names_;
 };
 
 } // namespace ndll

@@ -6,6 +6,55 @@
 
 namespace ndll {
 
+void Pipeline::AddOperator(OpSpec spec) {
+  NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+      "\"Build()\" has been called are not allowed");
+
+  // Validate op device
+  string device = spec.GetArgument<string>("device", "cpu");
+  NDLL_ENFORCE(device == "cpu" || device == "gpu", "Invalid "
+      "device argument \"" + device + "\". Valid options are "
+      "\"cpu\" or \"gpu\"");
+
+  // Verify the inputs to the op
+  for (int i = 0; i < spec.NumInput(); ++i) {
+    string input_name = spec.InputName(i);
+    string input_device = spec.InputDevice(i);
+    auto it = result_names_.find(input_name);
+
+    NDLL_ENFORCE(it != result_names_.end(), "Input '" + input_name +
+        "' to op '" + spec.name() + "' is not known to the pipeline.");
+
+    // Table of possible scenarios:
+    // Op location / requested input type / data location
+    // cpu / cpu / cpu -> everything is fine
+    // cpu / cpu / gpu -> error, data does not exist on cpu
+    // cpu / gpu / cpu -> error, cpu op not allowed to have gpu inputs
+    // cpu / gpu / gpu -> both of above errors
+    // gpu / cpu / cpu -> need to use contiguous version
+    // gpu / cpu / gpu -> error, data not in specified location
+    // gpu / gpu / cpu -> need to insert copy to device
+    // gpu / gpu / gpu -> everything is fine
+    string error_str = "(op: '" + spec.name() + "', input: '" +
+      input_name + "')";
+      
+    if (device == "cpu") {
+      NDLL_ENFORCE(input_device == "cpu", "cpu ops can only take cpu "
+          "inputs. " + error_str);
+      NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
+          "only on gpu. " + error_str);
+    } else if (input_device == "cpu") {
+      NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
+          "only on gpu. " + error_str);
+      SetupCPUInput(it, i, &spec);
+    } else {
+      SetupGPUInput(it);
+    }
+  }
+
+  // Verify and record the outputs of the op
+}
+
 void Pipeline::Build() {
   /*
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
@@ -329,6 +378,37 @@ void Pipeline::IntermediateBufferResizeAndSetup() {
   */
 }
 
+void Pipeline::SetupCPUInput(std::map<string, ResultMeta>::iterator it,
+    int input_idx, OpSpec *spec) {
+  if (!it->second.has_contiguous) {
+    OpSpec make_contiguous_spec =
+      OpSpec("MakeContiguous")
+      .AddArg("device", "internal")
+      .AddInput(it->first, "cpu")
+      .AddOutput("contiguous_" + it->first, "cpu");
+    PrepareOpSpec(&make_contiguous_spec);
+    graph_.AddOp(make_contiguous_spec);
+  }
+
+  // Update the OpSpec to use the contiguous input
+  auto input_strs = spec->mutable_input(input_idx);
+  NDLL_ENFORCE(input_strs->first == it->first, "Input at index " +
+      std::to_string(input_idx) + " does not match input iterator "
+      "name (" + input_strs->first + " v. " + it->first + ").");
+  input_strs->first = "contiguous_" + input_strs->first;
+}
+
+void Pipeline::SetupGPUInput(std::map<string, ResultMeta>::iterator it) {
+  if (it->second.has_gpu) return;
+  OpSpec copy_to_dev_spec =
+    OpSpec("CopyToDevice")
+    .AddArg("device", "internal")
+    .AddInput(it->first, "cpu")
+    .AddOutput(it->first, "gpu");
+  PrepareOpSpec(&copy_to_dev_spec);
+  graph_.AddOp(copy_to_dev_spec);
+}
+
 void Pipeline::MegaBufferSetupAndDistribution() {
   /*
   // Query all the forward ops for mega-buffer sizes
@@ -373,16 +453,14 @@ void Pipeline::MegaBufferSetupAndDistribution() {
   */
 }
 
-OpSpec Pipeline::PrepareOpSpec(const OpSpec &spec) {
+void Pipeline::PrepareOpSpec(OpSpec *spec) {
   // Add batch_size, num_threads, cuda stream, and
   // image size hint as arguments for the Op to
   // optionally leverage
-  OpSpec spec_copy = spec;
-  spec_copy.AddArg("batch_size", batch_size_)
+  spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads())
     .AddArg("cuda_stream", (int64)stream_)
     .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
-  return spec_copy;
 }
 
 } // namespace ndll

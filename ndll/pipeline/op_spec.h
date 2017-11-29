@@ -20,7 +20,8 @@ class OpSpec {
 public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
-
+  using StrPair = std::pair<string, string>;
+  
   inline OpSpec() {}
   
   /**
@@ -73,34 +74,32 @@ public:
   inline int NumOutput() const { return outputs_.size(); }
 
   inline string Input(int idx) const {
-    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-    NDLL_ENFORCE(idx < NumInput(), "Input index \"" + std::to_string(idx) +
-        "\" out of range. Op \"" + name_ + "\" has " +
-        std::to_string(NumInput()) + " inputs.");
-    return inputs_[idx].first;
+    NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
+    return inputs_[idx].first + "_" + inputs_[idx].second;
   }
 
+  inline string InputName(int idx) const {
+    NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
+    return inputs_[idx].first;
+  }
+  
   inline string InputDevice(int idx) const {
-    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-    NDLL_ENFORCE(idx < NumInput(), "Input index \"" + std::to_string(idx) +
-        "\" out of range. Op \"" + name_ + "\" has " +
-        std::to_string(NumInput()) + " inputs.");
+    NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].second;
   }
 
   inline string Output(int idx) const {
-    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-    NDLL_ENFORCE(idx < NumOutput(), "Output index \"" + std::to_string(idx) +
-        "\" out of range. Op \"" + name_ + "\" has " +
-        std::to_string(NumOutput()) + " outputs.");
-    return outputs_[idx].first;
+    NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
+    return outputs_[idx].first + "_" + outputs_[idx].second;
   }
 
+  inline string OutputName(int idx) const {
+    NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
+    return outputs_[idx].first;
+  }
+  
   inline string OutputDevice(int idx) const {
-    NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-    NDLL_ENFORCE(idx < NumOutput(), "Output index \"" + std::to_string(idx) +
-        "\" out of range. Op \"" + name_ + "\" has " +
-        std::to_string(NumOutput()) + " outputs.");
+    NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].second;
   }
   
@@ -119,6 +118,16 @@ public:
   template <typename T>
   vector<T> GetRepeatedArgument(const string &name,
       const vector<T> &default_value = {}) const;
+
+  inline StrPair* mutable_input(int idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
+    return &inputs_[idx];
+  }
+
+  inline StrPair* mutable_output(int idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
+    return &outputs_[idx];
+  }
   
 private:
   // Helper function to handle argument types. Checks the correct type
@@ -129,7 +138,7 @@ private:
   string name_;
   std::unordered_map<string, Argument> arguments_;
 
-  using StrPair = std::pair<string, string>;
+
   vector<StrPair> inputs_, outputs_;
 };
 
