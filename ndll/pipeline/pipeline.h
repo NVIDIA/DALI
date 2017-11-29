@@ -146,7 +146,7 @@ public:
    * @brief Returns the output TensorList w/ the specified name.
    */
   template <typename Backend>
-  const TensorList<Backend>& output(const string &name) const;
+  const vector<const TensorList<Backend>&> output() const;
   
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -163,11 +163,9 @@ public:
    */
   inline cudaStream_t stream() const { return stream_; }
 
-  /**
-   * @brief Returns a pointer to the Operator w/ the specified name.
-   */
-  template <typename Backend>
-  Operator<Backend>* op(const string &name);
+  // For testing
+  template <typename T>
+  friend class PipelineTest;
   
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 private:

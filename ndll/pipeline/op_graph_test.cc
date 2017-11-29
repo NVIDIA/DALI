@@ -179,7 +179,7 @@ TEST_F(OpGraphTest, TestGPUThenGPUTopological) {
           .AddOutput("copy_data", "cpu")
           ));
 
-    // Validate the graph
+  // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
   ASSERT_EQ(graph.NumInternalOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 2);
@@ -268,14 +268,13 @@ TEST_F(OpGraphTest, TestFailureNonTopological) {
       std::runtime_error
       );
 
-  // Note: Test should never get here. Just here
-  // to make it clear what this verifies.
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddArg("inplace", true)
-          .AddOutput("external_data", "cpu")
-          ));
+  // Note: Just to make it clear what this verifies...
+  // graph.AddOp(this->PrepareSpec(
+  //         OpSpec("ExternalSource")
+  //         .AddArg("device", "cpu")
+  //         .AddArg("inplace", true)
+  //         .AddOutput("external_data", "cpu")
+  //         ));
 }
 
 TEST_F(OpGraphTest, TestFailureCircularOp) {

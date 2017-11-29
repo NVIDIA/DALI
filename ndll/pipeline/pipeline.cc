@@ -6,6 +6,9 @@
 
 namespace ndll {
 
+// TODO(tgale): The constraint that GPU ops cannot produce CPU
+// outputs is arbitrary. We could easily enable cpu/gpu outputs
+// for gpu ops, do we want to do this?
 void Pipeline::AddOperator(OpSpec spec) {
   NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
@@ -56,7 +59,7 @@ void Pipeline::AddOperator(OpSpec spec) {
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
     string output_device = spec.OutputDevice(i);
-    string error_str = "(op: '" + spec.name() + "', input: '" +
+    string error_str = "(op: '" + spec.name() + "', output: '" +
       output_name + "')";
     
     auto it = edge_names_.find(output_name);
@@ -79,6 +82,7 @@ void Pipeline::AddOperator(OpSpec spec) {
   }
 
   // Add the operator to the graph
+  PrepareOpSpec(&spec);
   graph_.AddOp(spec);
 }
 
