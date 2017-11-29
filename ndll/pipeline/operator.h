@@ -3,7 +3,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/batch_workspace.h"
+#include "ndll/pipeline/device_workspace.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_spec.h"
@@ -82,7 +82,7 @@ public:
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  inline void Run(BatchWorkspace *ws) {
+  inline void Run(DeviceWorkspace *ws) {
     RunBatchedGPU(ws);
   }
 
@@ -99,7 +99,7 @@ public:
    * the zero-copy backend for data dependent stuff, can we just point
    * people to that if they have an op that needs fancier parameter setup
    */
-  virtual vector<size_t> InferParameterSizes(const BatchWorkspace &meta) {
+  virtual vector<size_t> InferParameterSizes(const DeviceWorkspace &meta) {
     return vector<size_t>{};
   }
   
@@ -121,7 +121,7 @@ public:
    * the Run() function. See ZeroCopyBackend for info on how data
    * dependent parameters can be setup in the Run function on host.
    */
-  virtual void KernelSetupBatched(BatchWorkspace *ws) {
+  virtual void KernelSetupBatched(DeviceWorkspace *ws) {
     // No-op by default
   }
   
@@ -162,7 +162,7 @@ protected:
    * @brief Batched GPU computation of the operator to be 
    * implemented by derived ops.
    */
-  virtual inline void RunBatchedGPU(BatchWorkspace *ws) {
+  virtual inline void RunBatchedGPU(DeviceWorkspace *ws) {
     NDLL_FAIL("RunBatchedGPU not implemented");
   }
 

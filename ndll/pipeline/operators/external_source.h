@@ -52,7 +52,7 @@ protected:
     output->Resize(data_.tensor_shape(ws->data_idx()));
   }
 
-  inline void RunBatchedGPU(BatchWorkspace *ws) override {
+  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     auto output = ws->Output<Backend>(0);
     output->ShareData(&data_);
     output->set_type(data_.type());

@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_BATCH_WORKSPACE_H_
-#define NDLL_PIPELINE_BATCH_WORKSPACE_H_
+#ifndef NDLL_PIPELINE_DEVICE_WORKSPACE_H_
+#define NDLL_PIPELINE_DEVICE_WORKSPACE_H_
 
 #include <cuda_runtime_api.h>
 
@@ -11,14 +11,14 @@
 namespace ndll {
 
 /**
- * @brief BatchWorkspace stores all data that an operator operates on, including
- * its input and output TensorLists, parameter tensors and meta-data about 
- * execution.
+ * @brief DeviceWorkspace stores all data that a gpu operator operates on, 
+ * including its input and output TensorLists, parameter tensors and 
+ * meta-data about execution.
  */
-class BatchWorkspace {
+class DeviceWorkspace {
 public:
-  BatchWorkspace() : stream_(0) {}
-  ~BatchWorkspace() = default;
+  DeviceWorkspace() : stream_(0) {}
+  ~DeviceWorkspace() = default;
 
   /**
    * @brief Returns the number of inputs.
@@ -100,4 +100,4 @@ private:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_BATCH_WORKSPACE_H_
+#endif // NDLL_PIPELINE_DEVICE_WORKSPACE_H_

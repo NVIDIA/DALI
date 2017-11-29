@@ -38,7 +38,7 @@ protected:
         input.raw_data(), input.nbytes());
   }
   
-  inline void RunBatchedGPU(BatchWorkspace *ws) override {
+  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     auto &input = ws->Input<GPUBackend>(0);
     auto output = ws->Output<GPUBackend>(0);
     output->set_type(input.type());
