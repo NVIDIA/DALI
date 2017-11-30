@@ -3,27 +3,90 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/device_workspace.h"
+#include "ndll/pipeline/host_workspace.h"
+#include "ndll/pipeline/mixed_workspace.h"
 #include "ndll/pipeline/op_graph.h"
+#include "ndll/pipeline/util/thread_pool.h"
 
 namespace ndll {
 
 class Executor {
 public:
-  inline explicit Executor(OpGraph *graph);
-  inline Executor();
+  inline Executor(int batch_size, int device_id, size_t pixels_per_image_hint) :
+    batch_size_(batch_size), device_id_(device_id), 
+    pixels_per_image_hint_(pixels_per_image_hint) {
+    NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
+    NDLL_ENFORCE(device_id > 0, "Device id must be greater than 0.");
+  }
+  
   virtual ~Executor() = default;
 
-  void Build(OpGraph *graph);
+  virtual void Build(OpGraph *graph) = 0;
 
-  void RunCPU();
+  virtual void RunCPU() = 0;
 
-  void RunInternal();
+  virtual void RunInternal() = 0;
 
-  void RunGPU();
+  virtual void RunGPU() = 0;
   
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 protected:
+  inline void ClearMembers() {
+    cpu_op_data_.clear();
+    internal_op_data_.clear();
+    gpu_op_data_.clear();
+  }
+
+  void SetupDataForGraph(OpGraph *graph);
   
+  vector<HostWorkspace> cpu_op_data_;
+  vector<internal::MixedWorkspace> internal_op_data_;
+  vector<DeviceWorkspace> gpu_op_data_;
+  
+  int batch_size_, device_id_;
+  size_t pixels_per_image_hint_;
+};
+
+#define USE_EXECUTOR_MEMBERS()                             \
+  using Executor::cpu_op_data_;                            \
+  using Executor::internal_op_data_;                       \
+  using Executor::gpu_op_data_;                            \
+  using Executor::batch_size_;                             \
+  using Executor::device_id_;                              \
+  using Executor::pixels_per_image_hint_
+  
+  
+class ThreadedExecutor : Executor {
+public:
+  inline ThreadedExecutor(int batch_size, int device_id, size_t pixels_per_image_hint,
+      int num_threads, bool set_affinity) :
+    Executor(batch_size, device_id, pixels_per_image_hint), 
+    thread_pool_(num_threads, device_id, set_affinity) {}
+  
+  inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
+      size_t pixels_per_image_hint, int num_threads, bool set_affinity) :
+    Executor(batch_size, device_id, pixels_per_image_hint),
+    thread_pool_(num_threads, device_id, set_affinity) {
+    NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
+    Build(graph);
+  }
+  
+  virtual ~ThreadedExecutor() = default;
+
+  void Build(OpGraph *graph) override;
+
+  void RunCPU() override;
+
+  void RunInternal() override;
+
+  void RunGPU() override;
+
+  DISABLE_COPY_MOVE_ASSIGN(ThreadedExecutor);
+protected:
+  ThreadPool thread_pool_;
+
+  USE_EXECUTOR_MEMBERS();
 };
 
 } // namespace ndll

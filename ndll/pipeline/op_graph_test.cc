@@ -48,13 +48,16 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children[0], 1);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+  
   // Validate copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 0);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(0), 0));
 }
 
 TEST_F(OpGraphTest, TestGPUOnly) {
@@ -85,20 +88,21 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children[0], 1);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+  
   // Validate copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 0);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(0), 0));
 }
 
 TEST_F(OpGraphTest, TestCPUToGPU) {
   OpGraph graph;
 
-  // Add copy op insertion
-  // Add contiguous-ify op
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
@@ -131,7 +135,8 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children[0], 1);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+  
   // Validate copy-to-dev op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
@@ -139,16 +144,20 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 0);
   ASSERT_EQ(node.children[0], 2);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(0), 0));
+  
   // Validate copy op
   node = graph.node(2);
   ASSERT_EQ(node.id, 2);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(1), 0));
 }
 
-TEST_F(OpGraphTest, TestGPUThenGPUTopological) {
+TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   OpGraph graph;
 
   graph.AddOp(this->PrepareSpec(
@@ -190,27 +199,33 @@ TEST_F(OpGraphTest, TestGPUThenGPUTopological) {
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children[0], 1);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+  
   // Validate gpu copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 0);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(0), 0));
+  
   // Validate cpu source op
   node = graph.node(2);
   ASSERT_EQ(node.id, 2);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children[0], 3);
-
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+  
   // Validate cpu copy op
   node = graph.node(3);
   ASSERT_EQ(node.id, 3);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents[0], 2);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(2), 0));
 }
 
 TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {

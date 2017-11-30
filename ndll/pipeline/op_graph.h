@@ -22,6 +22,7 @@ struct OpNode {
   NodeID id;
   OpSpec spec;
   vector<NodeID> parents, children;
+  vector<std::pair<NodeID, int>> input_src_and_idx;
 };
 
 struct CPUOpNode : public OpNode {
@@ -79,25 +80,82 @@ public:
    */
   inline int NumInternalOp() const { return internal_nodes_.size(); }
 
+  /**
+   * @brief Returns a unique_ptr to the `idx`-th cpu op that was
+   * added to the graph.
+   */
   inline OpPtr<CPUBackend>& cpu_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx].op;
   }
 
+  /**
+   * @brief Returns the node object for the `idx`-th cpu op that
+   * was added to the graph.
+   */
+  inline CPUOpNode& cpu_node(int idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
+    return cpu_nodes_[idx];
+  }
+  
+  /**
+   * @brief Returns a unique_ptr to the `idx`-th gpu op that
+   * was added to the graph.
+   */
   inline OpPtr<GPUBackend>& gpu_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return gpu_nodes_[idx].op;
   }
 
+  /**
+   * @brief Returns the node object for the `idx`-th gpu op that
+   * was added to the graph.
+   */
+  inline GPUOpNode& gpu_node(int idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
+    return gpu_nodes_[idx];
+  }
+  
+  /**
+   * @brief Returns a unique_ptr to the `idx`-th internal op
+   * that was added to the graph.
+   */
   inline unique_ptr<internal::InternalOp>& internal_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
     return internal_nodes_[idx].op;
   }
 
   /**
+   * @brief Returns the node object for the `idx`-th internal op that
+   * was added to the graph.
+   */
+  inline InternalOpNode& internal_node(int idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
+    return internal_nodes_[idx];
+  }
+  
+  /**
    * @brief Returns the graph node with the given index in the graph.
    */
   OpNode& node(NodeID id);
+
+  /**
+   * @brief Returns the type (cpu, gpu, internal) of the node
+   * at the given index.
+   */
+  inline NDLLOpType NodeType(NodeID id) const {
+    NDLL_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
+    return id_to_node_map_[id].first;
+  }
+
+  /**
+   * @brief Returns the index of the node with the specified id
+   * among nodes of its type.
+   */
+  inline int NodeIdx(NodeID id) const {
+    NDLL_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
+    return id_to_node_map_[id].second;
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 private:
@@ -105,11 +163,10 @@ private:
   vector<GPUOpNode> gpu_nodes_;
   vector<InternalOpNode> internal_nodes_;
 
-  // Stores a mapping from NodeIDs to a pair of integers. The
-  // first int in the pair is 0, 1, or 2 for cpu, gpu, internal,
-  // and the second is the index of the op within the specified
-  // vector.
-  vector<std::pair<int, int>> id_to_node_map_;
+  // Stores a mapping from NodeIDs to a pair where the first
+  // element indicates what type of node it is,  and the second
+  // is the index of the op within the specified vector.
+  vector<std::pair<NDLLOpType, int>> id_to_node_map_;
   
   std::map<string, NodeID> tensor_srcs_;
 };

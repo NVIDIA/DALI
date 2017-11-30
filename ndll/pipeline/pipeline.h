@@ -9,7 +9,6 @@
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/op_graph.h"
-#include "ndll/pipeline/util/thread_pool.h"
 
 namespace ndll {
 
@@ -67,8 +66,8 @@ public:
    */
   inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
       int device_id, bool set_affinity = true, size_t pixels_per_image_hint = 0) :
-    built_(false), batch_size_(batch_size), stream_(stream),
-    thread_pool_(num_threads, device_id, set_affinity),
+    built_(false), batch_size_(batch_size), num_threads_(num_threads),
+    stream_(stream), device_id_(device_id), set_affinity_(set_affinity),
     pixels_per_image_hint_(pixels_per_image_hint) {
     NDLL_ENFORCE(batch_size_ > 0);
 
@@ -154,11 +153,6 @@ public:
   inline int batch_size() const { return batch_size_; }
 
   /**
-   * @brief Returns the number of threads that are used by the pipeline.
-   */
-  inline int num_threads() const { return thread_pool_.size(); }
-  
-  /**
    * @brief Returns the stream that the pipeline is working in.
    */
   inline cudaStream_t stream() const { return stream_; }
@@ -210,9 +204,10 @@ private:
   void PrepareOpSpec(OpSpec *spec);
   
   bool built_;
-  int batch_size_;
+  int batch_size_, num_threads_;
   cudaStream_t stream_;
-  ThreadPool thread_pool_;
+  int device_id_;
+  bool set_affinity_;
   size_t pixels_per_image_hint_;
 
   OpGraph graph_;

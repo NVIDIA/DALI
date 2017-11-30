@@ -18,7 +18,7 @@ public:
   inline HostWorkspace() {}
   inline ~HostWorkspace() = default;
 
-    /**
+  /**
    * @brief Returns the number of inputs.
    */
   inline int NumInput() { return input_index_map_.size(); }
@@ -29,35 +29,60 @@ public:
   inline int NumOutput() { return output_index_map_.size(); }
 
   /**
-   * Returns true if the input TensorList at the given index 
+   * Returns true if the input Tensors at the given index 
    * has the calling Backend type.
    */
   template <typename Backend>
   bool InputIsType(int idx);
 
   /**
-   * Returns true if the output TensorList at the given index 
+   * Returns true if the output Tensors at the given index 
    * has the calling Backend type.
    */
   template <typename Backend>
   bool OutputIsType(int idx);
   
   /**
-   * @brief Returns the input TensorList at index `idx`. If the input 
-   * at the given index does not match the calling Backend type, this 
-   * method throws an error.
+   * @brief Returns the Tensor at index `data_idx` in the input 
+   * Tensors at index `idx`. 
+   *
+   * @throws runtime_error if the calling type does not match the
+   * type of the tensor at the given index
    */
   template <typename Backend>
   const Tensor<Backend>& Input(int idx, int data_idx) const;
 
   /**
-   * @brief Returns the output Tensor at index `idx`. If the output 
-   * at the given index does not match the calling Backend type, this 
-   * method throws an error.
+   * @brief Adds the input vector of Tensors as an input
+   */
+  template <typename Backend>
+  void AddInput(vector<shared_ptr<Tensor<Backend>>> input);
+  
+  /**
+   * @brief Returns the Tensor at index `data_idx` in the output 
+   * Tensors at index `idx`. 
+   *
+   * @throws runtime_error if the calling type does not match the
+   * type of the tensor at the given index
    */
   template <typename Backend>
   Tensor<Backend>* Output(int idx, int data_idx);
 
+  /**
+   * @brief Returns all output Tensors at index `idx`. 
+   *
+   * @throws runtime_error if the calling type does not match the
+   * type of the tensor at the given index
+   */
+  template <typename Backend>
+  vector<shared_ptr<Tensor<Backend>>> Outputs(int idx);
+
+  /**
+   * @brief Adds the input vector of Tensors as an output
+   */
+  template <typename Backend>
+  void AddOutput(vector<shared_ptr<Tensor<Backend>>> output);
+  
 private:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;

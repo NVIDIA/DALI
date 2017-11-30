@@ -11,6 +11,12 @@
 
 namespace ndll {
 
+enum NDLLOpType {
+  NDLL_GPU = 0,
+  NDLL_CPU = 1,
+  NDLL_INTERNAL = 2
+};
+
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline.
  *

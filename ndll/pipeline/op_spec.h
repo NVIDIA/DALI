@@ -1,6 +1,7 @@
 #ifndef NDLL_PIPELINE_OP_SPEC_H_
 #define NDLL_PIPELINE_OP_SPEC_H_
 
+#include <map>
 #include <utility>
 
 #include "ndll/common.h"
@@ -88,6 +89,13 @@ public:
     return inputs_[idx].second;
   }
 
+  inline int InputIdxForName(const string &name, const string &device) {
+    auto it = input_name_idx_.find(std::make_pair(name, device));
+    NDLL_ENFORCE(it != input_name_idx_.end(), "Input with name '" +
+        name + "' and device '" + device + "' does not exist.");
+    return it->second;
+  }
+  
   inline string Output(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].first + "_" + outputs_[idx].second;
@@ -101,6 +109,13 @@ public:
   inline string OutputDevice(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].second;
+  }
+
+  inline int OutputIdxForName(const string &name, const string &device) {
+    auto it = output_name_idx_.find(std::make_pair(name, device));
+    NDLL_ENFORCE(it != output_name_idx_.end(), "Output with name '" +
+        name + "' and device '" + device + "' does not exist.");
+    return it->second;
   }
   
   /**
@@ -138,7 +153,7 @@ private:
   string name_;
   std::unordered_map<string, Argument> arguments_;
 
-
+  std::map<StrPair, int> input_name_idx_, output_name_idx_;
   vector<StrPair> inputs_, outputs_;
 };
 

@@ -63,7 +63,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
     cpu_nodes_.resize(cpu_nodes_.size()+1);
     CPUOpNode &cpu_node = cpu_nodes_.back();
     cpu_node.op = std::move(tmp);
-    id_to_node_map_.push_back({0, cpu_nodes_.size()-1});
+    id_to_node_map_.push_back({NDLL_CPU, cpu_nodes_.size()-1});
 
     new_node = &cpu_node;
   } else if (device == "gpu") {
@@ -80,7 +80,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
     gpu_nodes_.resize(gpu_nodes_.size()+1);
     GPUOpNode &gpu_node = gpu_nodes_.back();
     gpu_node.op = std::move(tmp);
-    id_to_node_map_.push_back({1, gpu_nodes_.size()-1});
+    id_to_node_map_.push_back({NDLL_GPU, gpu_nodes_.size()-1});
 
     new_node = &gpu_node;
   } else if (device == "internal") {
@@ -94,7 +94,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
     internal_nodes_.resize(internal_nodes_.size()+1);
     InternalOpNode &internal_node = internal_nodes_.back();
     internal_node.op = std::move(tmp);
-    id_to_node_map_.push_back({2, internal_nodes_.size()-1});
+    id_to_node_map_.push_back({NDLL_INTERNAL, internal_nodes_.size()-1});
 
     new_node = &internal_node;
   } else {
@@ -118,6 +118,13 @@ void OpGraph::AddOp(const OpSpec &spec) {
     // Add new node as child
     auto &parent_node = this->node(parent_id);
     parent_node.children.push_back(new_node->id);
+
+    // Save the id of the parent node and the index of
+    // this nodes input in the set of the parents outputs
+    string input_name = spec.InputName(i);
+    string input_device = spec.InputDevice(i);
+    int input_idx = parent_node.spec.OutputIdxForName(input_name, input_device);
+    new_node->input_src_and_idx.push_back(std::make_pair(parent_node.id, input_idx));
   }
 
   // Mark this op as the source of its output tensors
@@ -136,13 +143,13 @@ OpNode& OpGraph::node(NodeID id) {
   auto idx_pair = id_to_node_map_[id];
 
   switch (idx_pair.first) {
-  case 0:
+  case NDLL_CPU:
     return cpu_nodes_[idx_pair.second];
     break;
-  case 1:
+  case NDLL_GPU:
     return gpu_nodes_[idx_pair.second];
     break;
-  case 2:
+  case NDLL_INTERNAL:
     return internal_nodes_[idx_pair.second];
     break;    
   default:

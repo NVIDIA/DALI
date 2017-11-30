@@ -8,6 +8,7 @@
 #include "ndll/pipeline/device_workspace.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
+#include "ndll/pipeline/host_workspace.h"
 #include "ndll/pipeline/mixed_workspace.h"
 
 namespace ndll {
@@ -34,6 +35,16 @@ public:
    * that will process this data.
    */
   SampleWorkspace(internal::MixedWorkspace *ws, int data_idx, int thread_idx) :
+    data_idx_(data_idx), thread_idx_(thread_idx) {
+    NDLL_FAIL("Not implemented.");
+  }
+
+  /**
+   * @brief Construct a Sample workspace from the data at index
+   * data_idx in the input Workspace. Save the id of the thread
+   * that will process this data.
+   */
+  SampleWorkspace(HostWorkspace *ws, int data_idx, int thread_idx) :
     data_idx_(data_idx), thread_idx_(thread_idx) {
     NDLL_FAIL("Not implemented.");
   }

@@ -489,7 +489,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec) {
   // image size hint as arguments for the Op to
   // optionally leverage
   spec->AddArg("batch_size", batch_size_)
-    .AddArg("num_threads", num_threads())
+    .AddArg("num_threads", num_threads_)
     .AddArg("cuda_stream", (int64)stream_)
     .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
 }

@@ -53,6 +53,24 @@ const Tensor<GPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
 }
 
 template <>
+void HostWorkspace::AddInput(vector<shared_ptr<Tensor<CPUBackend>>> input) {
+  // Save the vector of tensors
+  cpu_inputs_.push_back(input);
+  
+  // Update the input index map
+  input_index_map_.push_back(std::make_pair(false, cpu_inputs_.size()-1));
+}
+
+template <>
+void HostWorkspace::AddInput(vector<shared_ptr<Tensor<GPUBackend>>> input) {
+  // Save the vector of tensors
+  gpu_inputs_.push_back(input);
+  
+  // Update the input index map
+  input_index_map_.push_back(std::make_pair(false, gpu_inputs_.size()-1));
+}
+
+template <>
 Tensor<CPUBackend>* HostWorkspace::Output(int idx, int data_idx) {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
@@ -76,6 +94,42 @@ Tensor<GPUBackend>* HostWorkspace::Output(int idx, int data_idx) {
       gpu_outputs_[tensor_meta.second].size());
   
   return gpu_outputs_[tensor_meta.second][data_idx].get();
+}
+
+template <>
+vector<shared_ptr<Tensor<CPUBackend>>> HostWorkspace::Outputs(int idx) {
+  NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+  auto tensor_meta = output_index_map_[idx];
+  NDLL_ENFORCE(tensor_meta.first, "Output TensorList with given "
+      "index does not have the calling backend type (CPUBackend)");
+  return cpu_outputs_[tensor_meta.second];
+}
+
+template <>
+vector<shared_ptr<Tensor<GPUBackend>>> HostWorkspace::Outputs(int idx) {
+  NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+  auto tensor_meta = output_index_map_[idx];
+  NDLL_ENFORCE(!tensor_meta.first, "Output TensorList with given "
+      "index does not have the calling backend type (GPUBackend)");
+  return gpu_outputs_[tensor_meta.second];
+}
+
+template <>
+void HostWorkspace::AddOutput(vector<shared_ptr<Tensor<CPUBackend>>> output) {
+  // Save the vector of tensors
+  cpu_outputs_.push_back(output);
+  
+  // Update the output index map
+  output_index_map_.push_back(std::make_pair(false, cpu_outputs_.size()-1));
+}
+
+template <>
+void HostWorkspace::AddOutput(vector<shared_ptr<Tensor<GPUBackend>>> output) {
+  // Save the vector of tensors
+  gpu_outputs_.push_back(output);
+  
+  // Update the output index map
+  output_index_map_.push_back(std::make_pair(false, gpu_outputs_.size()-1));
 }
 
 } // namespace ndll
