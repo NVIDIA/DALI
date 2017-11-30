@@ -129,4 +129,12 @@ Tensor<GPUBackend>* DeviceWorkspace::ParamTensor(int idx) {
   return gpu_parameters_[idx].get();
 }
 
+void DeviceWorkspace::AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
+    shared_ptr<Tensor<GPUBackend>> gpu_tensor) {
+  NDLL_ENFORCE(cpu_tensor != nullptr, "Input cpu parameter tensor is nullptr.");
+  NDLL_ENFORCE(gpu_tensor != nullptr, "Input gpu parameter tensor is nullptr.");
+  cpu_parameters_.push_back(cpu_tensor);
+  gpu_parameters_.push_back(gpu_tensor);
+}
+
 } // namespace ndll

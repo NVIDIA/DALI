@@ -18,10 +18,6 @@ public:
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
 
-  inline string name() const override {
-    return "MakeContiguous";
-  }
-
   inline void Setup(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();

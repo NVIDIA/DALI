@@ -98,6 +98,12 @@ public:
   Tensor<Backend>* ParamTensor(int idx);
 
   /**
+   * @brief Adds the input parameter tensors to the workspace.
+   */
+  void AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
+      shared_ptr<Tensor<GPUBackend>> gpu_tensor);
+  
+  /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
   inline cudaStream_t stream() const { return stream_; }

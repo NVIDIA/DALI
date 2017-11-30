@@ -119,6 +119,8 @@ void Executor::SetupDataForGraph(OpGraph *graph) {
       ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
     }
   }
+
+  SetupMegaBufferForGraph(graph);
 }
 
 void Executor::PresizeData() {
@@ -165,6 +167,49 @@ void Executor::PresizeData() {
       tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
     }
   }
+}
+
+void Executor::SetupMegaBufferForGraph(OpGraph *graph) {
+  mega_buffer_.mutable_data<uint8>();
+  mega_buffer_gpu_.mutable_data<uint8>();
+
+  size_t total_bytes = 0;
+  vector<size_t> offsets;
+  vector<int> num_buffer_for_op(graph->NumGPUOp(), 0);
+  for (int i = 0; i < graph->NumGPUOp(); ++i) {
+    const vector<size_t> &sizes = graph->gpu_op(i)->KernelParameterSizes();
+    num_buffer_for_op[i] = sizes.size();
+    for (auto &num_bytes : sizes) {
+      // Align the start of each buffer to 8-bytes
+      size_t aligned_num_bytes = round_up_to_8(num_bytes);
+      offsets.push_back(total_bytes);
+      total_bytes += aligned_num_bytes;
+    }
+  }
+  offsets.push_back(total_bytes);
+  
+  mega_buffer_.Resize({(Index)total_bytes});
+  mega_buffer_gpu_.Resize({(Index)total_bytes});
+  uint8 *mega_buffer_ptr = mega_buffer_.template mutable_data<uint8>();
+  uint8 *mega_buffer_gpu_ptr = mega_buffer_gpu_.template mutable_data<uint8>();
+
+  // Hand out buffers for all the ops kernel parameters
+  int buffer_id = 0;
+  for (int i = 0; i < graph->NumGPUOp(); ++i) {
+    DeviceWorkspace &ws = gpu_op_data_[i];
+    for (int j = 0; j < num_buffer_for_op[i]; ++j) {
+      auto cpu_tensor = std::make_shared<Tensor<CPUBackend>>();
+      auto gpu_tensor = std::make_shared<Tensor<GPUBackend>>();
+
+      size_t offset = offsets[buffer_id];
+      size_t buffer_size = offsets[buffer_id+1] - offsets[buffer_id];
+      cpu_tensor->ShareData(mega_buffer_ptr + offset, buffer_size);      
+      gpu_tensor->ShareData(mega_buffer_gpu_ptr + offset, buffer_size);
+      
+      ws.AddParamTensor(cpu_tensor, gpu_tensor);
+      ++buffer_id;
+    }
+  }    
 }
 
 void ThreadedExecutor::RunCPU() {

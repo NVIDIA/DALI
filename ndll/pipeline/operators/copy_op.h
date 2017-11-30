@@ -23,10 +23,6 @@ public:
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
   
-  inline string name() const override {
-    return "CopyOp";
-  }
-
   DISABLE_COPY_MOVE_ASSIGN(CopyOp);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {

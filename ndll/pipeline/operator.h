@@ -38,7 +38,7 @@ template <typename Backend>
 class Operator {
 public:
   inline explicit Operator(const OpSpec &spec) :
-    num_threads_(spec.GetArgument<int>("num_threads", -1)),
+    spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
     batch_size_(spec.GetArgument<int>("batch_size", -1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
@@ -97,15 +97,8 @@ public:
    * to a different parameter tensor required by the Op for batched gpu 
    * execution. By default the vector is of size 0, and no space is 
    * allocate for the op's kernel parameters.
-   * 
-   * TODO(tgale): Will ops have access to valid data here? Do we need
-   * to give them access to the underlying pointers if not? Given
-   * how the simplified executor works, can we even provides any data
-   * here other than the batch size that the op already knows? We have
-   * the zero-copy backend for data dependent stuff, can we just point
-   * people to that if they have an op that needs fancier parameter setup
    */
-  virtual vector<size_t> InferParameterSizes(const DeviceWorkspace &meta) {
+  virtual vector<size_t> KernelParameterSizes() {
     return vector<size_t>{};
   }
   
@@ -150,9 +143,13 @@ public:
   }
   
   /**
-   * @brief returns the name of the operator
+   * @brief returns the name of the operator. By default returns
+   * the name of the op as specified by the OpSpec it was constructed
+   * from.
    */
-  virtual string name() const = 0;
+  virtual string name() const {
+    return spec_.name();
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(Operator);
 protected:
@@ -172,11 +169,13 @@ protected:
     NDLL_FAIL("RunBatchedGPU not implemented");
   }
 
+  OpSpec spec_;
   int num_threads_;
   int batch_size_;
 };
 
 #define USE_OPERATOR_MEMBERS()                  \
+  using Operator<Backend>::spec_;               \
   using Operator<Backend>::num_threads_;        \
   using Operator<Backend>::batch_size_
 

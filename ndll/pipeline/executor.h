@@ -38,6 +38,14 @@ protected:
     gpu_op_data_.clear();
   }
 
+  // Return the nearest multiple of 8 that is >= base_ptr_offset
+  inline size_t round_up_to_8(size_t base_ptr_offset) {
+    if (base_ptr_offset & 7) {
+      base_ptr_offset = (base_ptr_offset & ~7) + 8;
+    }
+    return base_ptr_offset;
+  }
+  
   void SetupDataForGraph(OpGraph *graph);
 
   void PresizeData();
@@ -49,6 +57,9 @@ protected:
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
+
+  Tensor<CPUBackend> mega_buffer_;
+  Tensor<GPUBackend> mega_buffer_gpu_;
   
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
