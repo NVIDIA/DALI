@@ -3,26 +3,35 @@
 namespace ndll {
 namespace internal {
 
+int MixedWorkspace::NumInputAtIdx(int idx) const {
+  NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
+  auto tensor_meta = input_index_map_[idx];
+  if (tensor_meta.first) {
+    return cpu_inputs_[tensor_meta.second].size();
+  }
+  return gpu_inputs_[tensor_meta.second].size();
+}
+
 template <>
-bool MixedWorkspace::InputIsType<CPUBackend>(int idx) {
+bool MixedWorkspace::InputIsType<CPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
   return input_index_map_[idx].first;
 }
 
 template <>
-bool MixedWorkspace::InputIsType<GPUBackend>(int idx) {
+bool MixedWorkspace::InputIsType<GPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
   return !input_index_map_[idx].first;
 }
 
 template <>
-bool MixedWorkspace::OutputIsType<CPUBackend>(int idx) {
+bool MixedWorkspace::OutputIsType<CPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   return output_index_map_[idx].first;
 }
 
 template <>
-bool MixedWorkspace::OutputIsType<GPUBackend>(int idx) {
+bool MixedWorkspace::OutputIsType<GPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   return !output_index_map_[idx].first;
 }

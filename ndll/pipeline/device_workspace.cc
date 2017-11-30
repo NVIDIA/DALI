@@ -3,25 +3,25 @@
 namespace ndll {
 
 template <>
-bool DeviceWorkspace::InputIsType<CPUBackend>(int idx) {
+bool DeviceWorkspace::InputIsType<CPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
   return input_index_map_[idx].first;
 }
 
 template <>
-bool DeviceWorkspace::InputIsType<GPUBackend>(int idx) {
+bool DeviceWorkspace::InputIsType<GPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
   return !input_index_map_[idx].first;
 }
 
 template <>
-bool DeviceWorkspace::OutputIsType<CPUBackend>(int idx) {
+bool DeviceWorkspace::OutputIsType<CPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   return output_index_map_[idx].first;
 }
 
 template <>
-bool DeviceWorkspace::OutputIsType<GPUBackend>(int idx) {
+bool DeviceWorkspace::OutputIsType<GPUBackend>(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   return !output_index_map_[idx].first;
 }

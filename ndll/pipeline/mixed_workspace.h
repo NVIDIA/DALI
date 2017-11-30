@@ -23,26 +23,32 @@ public:
   /**
    * @brief Returns the number of inputs.
    */
-  inline int NumInput() { return input_index_map_.size(); }
+  inline int NumInput() const { return input_index_map_.size(); }
+
+  /**
+   * @brief Returns the number of Tensors in the input set of
+   * tensors at the given index.
+   */
+  int NumInputAtIdx(int idx) const;
   
   /**
    * @brief Returns the number of outputs.
    */
-  inline int NumOutput() { return output_index_map_.size(); }
+  inline int NumOutput() const { return output_index_map_.size(); }
 
   /**
    * Returns true if the set of input Tensor at the given 
    * index has the calling Backend type.
    */
   template <typename Backend>
-  bool InputIsType(int idx);
+  bool InputIsType(int idx) const;
 
   /**
    * Returns true if the output TensorList at the given index 
    * has the calling Backend type.
    */
   template <typename Backend>
-  bool OutputIsType(int idx);
+  bool OutputIsType(int idx) const;
   
   /**
    * @brief Returns the input Tensor at index `data_idx` in the input

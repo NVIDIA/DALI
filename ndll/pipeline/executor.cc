@@ -121,6 +121,52 @@ void Executor::SetupDataForGraph(OpGraph *graph) {
   }
 }
 
+void Executor::PresizeData() {
+  // Note: At some point our graph has source nodes that
+  // only have outputs (data readers or external inputs).
+  // Thus, the set of all outputs buffers in our workspaces
+  // represents all the unique buffers in our graph.
+  for (auto &ws : cpu_op_data_) {
+    for (int i = 0; i < ws.NumOutput(); ++i) {
+      NDLL_ENFORCE(ws.NumOutputAtIdx(i) == batch_size_, "Executor "
+          "encountered cpu op workspace where the number of tensors "
+          "is not equal to the batch size.");
+      NDLL_ENFORCE(ws.OutputIsType<CPUBackend>(i), "Executor "
+          "encountered cpu op with non-cpu output.");
+      for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
+        Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
+        // We set the type of the tensor to uint8 temporarily
+        tensor->mutable_data<uint8>();
+        tensor->Resize({(Index)bytes_per_sample_hint_});
+      }
+    }
+  }
+
+  for (auto &ws : internal_op_data_) {
+    for (int i = 0; i < ws.NumOutput(); ++i) {
+      if (ws.OutputIsType<CPUBackend>(i)) {
+        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
+        tl->mutable_data<uint8>();
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      } else {
+        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
+        tl->mutable_data<uint8>();
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      }
+    }
+  }
+  
+  for (auto &ws : gpu_op_data_) {
+    for (int i = 0; i < ws.NumOutput(); ++i) {
+      NDLL_ENFORCE(ws.OutputIsType<GPUBackend>(i), "Executor "
+          "encountered gpu op with non-gpu output.");
+      TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
+      tl->mutable_data<uint8>();
+      tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+    }
+  }
+}
+
 void ThreadedExecutor::RunCPU() {
 
 }

@@ -13,9 +13,9 @@ namespace ndll {
 
 class Executor {
 public:
-  inline Executor(int batch_size, int device_id, size_t pixels_per_image_hint) :
+  inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint) :
     batch_size_(batch_size), device_id_(device_id), 
-    pixels_per_image_hint_(pixels_per_image_hint) {
+    bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id > 0, "Device id must be greater than 0.");
   }
@@ -51,7 +51,7 @@ protected:
   vector<DeviceWorkspace> gpu_op_data_;
   
   int batch_size_, device_id_;
-  size_t pixels_per_image_hint_;
+  size_t bytes_per_sample_hint_;
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \
@@ -60,19 +60,19 @@ protected:
   using Executor::gpu_op_data_;                            \
   using Executor::batch_size_;                             \
   using Executor::device_id_;                              \
-  using Executor::pixels_per_image_hint_
+  using Executor::bytes_per_sample_hint_
   
   
 class ThreadedExecutor : Executor {
 public:
-  inline ThreadedExecutor(int batch_size, int device_id, size_t pixels_per_image_hint,
+  inline ThreadedExecutor(int batch_size, int device_id, size_t bytes_per_sample_hint,
       int num_threads, bool set_affinity) :
-    Executor(batch_size, device_id, pixels_per_image_hint), 
+    Executor(batch_size, device_id, bytes_per_sample_hint), 
     thread_pool_(num_threads, device_id, set_affinity) {}
   
   inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
-      size_t pixels_per_image_hint, int num_threads, bool set_affinity) :
-    Executor(batch_size, device_id, pixels_per_image_hint),
+      size_t bytes_per_sample_hint, int num_threads, bool set_affinity) :
+    Executor(batch_size, device_id, bytes_per_sample_hint),
     thread_pool_(num_threads, device_id, set_affinity) {
     NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
     Build(graph);
