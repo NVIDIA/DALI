@@ -58,7 +58,7 @@ void HostWorkspace::AddInput(vector<shared_ptr<Tensor<CPUBackend>>> input) {
   cpu_inputs_.push_back(input);
   
   // Update the input index map
-  input_index_map_.push_back(std::make_pair(false, cpu_inputs_.size()-1));
+  input_index_map_.push_back(std::make_pair(true, cpu_inputs_.size()-1));
 }
 
 template <>
@@ -97,7 +97,7 @@ Tensor<GPUBackend>* HostWorkspace::Output(int idx, int data_idx) {
 }
 
 template <>
-vector<shared_ptr<Tensor<CPUBackend>>> HostWorkspace::Outputs(int idx) {
+vector<shared_ptr<Tensor<CPUBackend>>> HostWorkspace::SharedOutput(int idx) {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
   NDLL_ENFORCE(tensor_meta.first, "Output TensorList with given "
@@ -106,7 +106,7 @@ vector<shared_ptr<Tensor<CPUBackend>>> HostWorkspace::Outputs(int idx) {
 }
 
 template <>
-vector<shared_ptr<Tensor<GPUBackend>>> HostWorkspace::Outputs(int idx) {
+vector<shared_ptr<Tensor<GPUBackend>>> HostWorkspace::SharedOutput(int idx) {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
   NDLL_ENFORCE(!tensor_meta.first, "Output TensorList with given "
@@ -120,7 +120,7 @@ void HostWorkspace::AddOutput(vector<shared_ptr<Tensor<CPUBackend>>> output) {
   cpu_outputs_.push_back(output);
   
   // Update the output index map
-  output_index_map_.push_back(std::make_pair(false, cpu_outputs_.size()-1));
+  output_index_map_.push_back(std::make_pair(true, cpu_outputs_.size()-1));
 }
 
 template <>

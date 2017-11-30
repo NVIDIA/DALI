@@ -26,7 +26,7 @@ void Executor::SetupDataForGraph(OpGraph *graph) {
       int input_src_idx = node.input_src_and_idx[j].second;
 
       HostWorkspace &src_ws = cpu_op_data_[parent_idx];
-      const auto input = src_ws.Outputs<CPUBackend>(input_src_idx);
+      const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
       ws.AddInput(input);
     }
 
@@ -41,18 +41,84 @@ void Executor::SetupDataForGraph(OpGraph *graph) {
   }
 
   // Setup internal op input and output buffers
-  
+  for (int i = 0; i < graph->NumInternalOp(); ++i) {
+    InternalOpNode &node = graph->internal_node(i);
+    internal::MixedWorkspace &ws = internal_op_data_[i];
+
+    for (int j = 0; j < node.spec.NumInput(); ++j) {
+      // Go get each set of input Tensors and add
+      // them to this internal ops workspace.
+      NodeID parent_node_id = node.input_src_and_idx[j].first;
+      NDLLOpType parent_op_type = graph->NodeType(parent_node_id);
+      NDLL_ENFORCE(parent_op_type == NDLL_CPU,
+          "Executor encoutered internal op with non-cpu input.");
+      int parent_idx = graph->NodeIdx(parent_node_id);
+      int input_src_idx = node.input_src_and_idx[j].second;
+
+      HostWorkspace &src_ws = cpu_op_data_[parent_idx];
+      const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+      ws.AddInput(input);
+    }
+
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      if (node.spec.OutputDevice(j) == "cpu") {
+        // Allocate TensorLists for this ops outputs
+        ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+      } else if (node.spec.OutputDevice(j) == "gpu") {
+        ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+      } else {
+        NDLL_FAIL("Executor encoutered internal op with non-gpu/cpu output.");
+      }
+    }
+  }
 
   // Setup gpu op input and output buffers
-  
+  for (int i = 0; i < graph->NumGPUOp(); ++i) {
+    GPUOpNode &node = graph->gpu_node(i);
+    DeviceWorkspace &ws = gpu_op_data_[i];
 
-  // Pre-size all outputs with the specified hint
-  
-  
-  // Setup & allocation of mega-buffer
-  // (if we move to fixed size mega-buffer)
+    for (int j = 0; j < node.spec.NumInput(); ++j) {
+      // Go get each set of input Tensors and add
+      // them to this internal ops workspace.
+      NodeID parent_node_id = node.input_src_and_idx[j].first;
+      NDLLOpType parent_op_type = graph->NodeType(parent_node_id);
+      int parent_idx = graph->NodeIdx(parent_node_id);
+      int input_src_idx = node.input_src_and_idx[j].second;
 
-  // Stream assignment in another function
+      if (parent_op_type == NDLL_INTERNAL) {
+        internal::MixedWorkspace &src_ws = internal_op_data_[parent_idx];
+        if (node.spec.InputDevice(j) == "cpu") {
+          const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+          ws.AddInput(input);          
+        } else if (node.spec.InputDevice(j) == "gpu") {
+          const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
+          ws.AddInput(input);
+        } else {
+          NDLL_FAIL("Executor encoutered gpu op with non-cpu/gpu input.");
+        }
+      } else if (parent_op_type == NDLL_GPU) {
+        DeviceWorkspace &src_ws = gpu_op_data_[parent_idx];
+        if (node.spec.InputDevice(j) == "cpu") {
+          // Note: This path should currently never occur, as we
+          // do not allow gpu ops to produce cpu data outputs.
+          const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+          ws.AddInput(input);          
+        } else if (node.spec.InputDevice(j) == "gpu") {
+          const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
+          ws.AddInput(input);
+        } else {
+          NDLL_FAIL("Executor encoutered gpu op with non-cpu/gpu input.");
+        }
+      } else {
+        NDLL_FAIL("Executor encoutered gpu op with non-internal/gpu input.");
+      }
+    }
+
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      // Allocate TensorLists for this ops output
+      ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+    }
+  }
 }
 
 void ThreadedExecutor::RunCPU() {

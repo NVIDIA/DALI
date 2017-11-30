@@ -45,21 +45,45 @@ public:
   bool OutputIsType(int idx);
   
   /**
-   * @brief Returns the input TensorList at index `idx`. If the input 
-   * at the given index does not match the calling Backend type, this 
-   * method throws an error.
+   * @brief Returns the input TensorList at index `idx`.
+   *
+   * @throws runtime_error If calling type does not match the type of 
+   * the output at the given index.
    */
   template <typename Backend>
   const TensorList<Backend>& Input(int idx) const;
 
   /**
-   * @brief Returns the output TensorList at index `idx`. If the output 
-   * at the given index does not match the calling Backend type, this 
-   * method throws an error.
+   * @brief Adds the input TensorList as an input.
+   */
+  template <typename Backend>
+  void AddInput(shared_ptr<TensorList<Backend>> input);
+  
+  /**
+   * @brief Returns the output TensorList at index `idx`.
+   *
+   * @throws runtime_error If calling type does not match the type of 
+   * the output at the given index.
    */
   template <typename Backend>
   TensorList<Backend>* Output(int idx);
 
+  /**
+   * @brief Returns the internal shared_ptr to the TensorList at index
+   * `idx`.
+   *
+   * @throws runtime_error If calling type does not match the type of 
+   * the output at the given index.
+   */
+  template <typename Backend>
+  shared_ptr<TensorList<Backend>> SharedOutput(int idx);
+  
+  /**
+   * @brief Adds the input TensorList as an output.
+   */
+  template <typename Backend>
+  void AddOutput(shared_ptr<TensorList<Backend>> output);
+  
   /**
    * @brief Returns the number of parameter tensors
    */

@@ -75,7 +75,7 @@ public:
    * type of the tensor at the given index
    */
   template <typename Backend>
-  vector<shared_ptr<Tensor<Backend>>> Outputs(int idx);
+  vector<shared_ptr<Tensor<Backend>>> SharedOutput(int idx);
 
   /**
    * @brief Adds the input vector of Tensors as an output

@@ -39,6 +39,12 @@ protected:
   }
 
   void SetupDataForGraph(OpGraph *graph);
+
+  void PresizeData();
+
+  void SetupMegaBufferForGraph(OpGraph *graph);
+
+  void SetupStreamsForGraph(OpGraph *graph);
   
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
