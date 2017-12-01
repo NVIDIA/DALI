@@ -11,6 +11,21 @@
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
+// TODO(tgale):
+// Document stream/event innefficiencies
+// Document internal api improvements we could make
+// - *OpNode could has accessors for important data in spec
+// May be able to unify TLQ and whatever slayton used in DataReader
+
+// TODO(tgale):
+// 1. Internal op stream/event assignment [x]
+// 2. Output queueing and events setup (make sure to release unused events/streams)
+// 3. Run* methods
+// 4. Test all methods
+// 5. Extract base class
+// 6. In-place op support
+// 7. Memonger support
+
 namespace ndll {
 
 class Executor {
@@ -27,8 +42,7 @@ public:
   
   virtual ~Executor() = default;
 
-  virtual void Build(OpGraph *graph,
-      vector<string> output_names);
+  virtual void Build(OpGraph *graph, vector<string> output_names);
 
   virtual void RunCPU() = 0;
 
@@ -65,23 +79,27 @@ protected:
       vector<DeviceWorkspace> *gpu_data);
 
   void SetupStreamsForGraph(OpGraph *graph,
-      vector<cudaEvent_t> *gpu_op_events,
-      vector<vector<cudaEvent_t>> *gpu_op_parent_events,
+      vector<internal::MixedWorkspace> *internal_data,
       vector<DeviceWorkspace> *gpu_data,
       StreamPool *stream_pool, EventPool *event_pool);
+
+  void SetupOutputQueuesForGraph();
   
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
 
+  // Need to also keep track of what workspaces we
+  // need to update when we are tweaking what buffers
+  // the executor runs into
+  vector<string> output_names_;
+  // vector<TensorListQueue> output_queues_;
+  
   Tensor<CPUBackend> mega_buffer_;
   Tensor<GPUBackend> mega_buffer_gpu_;
   
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-
-  vector<cudaEvent_t> gpu_op_events_;
-  vector<vector<cudaEvent_t>> gpu_op_parent_events_;
 
   StreamPool stream_pool_;
   EventPool event_pool_;

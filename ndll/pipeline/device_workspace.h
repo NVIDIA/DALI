@@ -58,6 +58,13 @@ public:
    */
   template <typename Backend>
   void AddInput(shared_ptr<TensorList<Backend>> input);
+
+  /**
+   * @brief Sets the input at the specified index to the input
+   * TensorList
+   */
+  template <typename Backend>
+  void SetInput(int idx, shared_ptr<TensorList<Backend>> input);
   
   /**
    * @brief Returns the output TensorList at index `idx`.
@@ -83,6 +90,13 @@ public:
    */
   template <typename Backend>
   void AddOutput(shared_ptr<TensorList<Backend>> output);
+
+  /**
+   * @brief Sets the output at the specified index to the input
+   * TensorList
+   */
+  template <typename Backend>
+  void SetOutput(int idx, shared_ptr<TensorList<Backend>> output);
   
   /**
    * @brief Returns the number of parameter tensors
@@ -106,12 +120,55 @@ public:
   /**
    * @brief Sets the stream for this workspace.
    */
-  inline void set_stream(cudaStream_t stream) { stream_ = stream; }
+  inline void set_stream(cudaStream_t stream) {
+    has_stream_ = true;
+    stream_ = stream;
+  }
+
+  /**
+   * @brief Returns true if 'set_stream' has been called.
+   */
+  inline bool has_stream() const { return has_stream_; }
   
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
-  inline cudaStream_t stream() const { return stream_; }
+  inline cudaStream_t stream() const {
+    NDLL_ENFORCE(has_stream_, "Workspace does not have a stream.");
+    return stream_;
+  }
+
+  /**
+   * @brief Sets the event for this workspace.
+   */
+  inline void set_event(cudaEvent_t event) {
+    has_event_ = true;
+    event_ = event;
+  }
+
+  /**
+   * @brief Returns true if 'set_event' has been called.
+   */
+  inline bool has_event() const { return has_event_; }
+  
+  /**
+   * @brief Returns the cuda event that signals this works completion.
+   */
+  inline cudaEvent_t event() const {
+    NDLL_ENFORCE(has_event_, "Workspace does not have an event.");
+    return event_;
+  }
+
+  /**
+   * @brief Adds a parent event that will signal this 
+   * work is allowed to execute.
+   */
+  inline void AddParentEvent(cudaEvent_t event) { parent_events_.push_back(event); }
+
+  /**
+   * @brief Returns the set of parent events this workspace stores.
+   */
+  inline vector<cudaEvent_t> ParentEvents() const { return parent_events_; }
 
 private:
   template <typename T>
@@ -119,13 +176,22 @@ private:
   vector<TensorListPtr<CPUBackend>> cpu_inputs_, cpu_outputs_;
   vector<TensorListPtr<GPUBackend>> gpu_inputs_, gpu_outputs_;
 
+  // Maps from a TensorLists position in its typed
+  // vector to its absolute position in the
+  // workspaces outputs/inputs
+  vector<int> cpu_inputs_index_, gpu_inputs_index_;
+  vector<int> cpu_outputs_index_, gpu_outputs_index_;
+  
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)
   // to actual tensor objects. The first element indicates if the
   // Tensor is stored on cpu, and the second element is the index of
   // that tensor in the {cpu, gpu}_inputs_ vector.
   vector<std::pair<bool, int>> input_index_map_, output_index_map_;
 
+  bool has_stream_ = false, has_event_ = false;
   cudaStream_t stream_;
+  cudaEvent_t event_;
+  vector<cudaEvent_t> parent_events_;
   
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;

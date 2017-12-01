@@ -8,8 +8,7 @@
 
 namespace ndll {
 
-void Executor::Build(OpGraph *graph,
-    vector<string> output_names) {
+void Executor::Build(OpGraph *graph, vector<string> output_names) {
   NDLL_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
@@ -29,8 +28,8 @@ void Executor::Build(OpGraph *graph,
       &gpu_op_data_, bytes_per_sample_hint_);
   
   // Assign streams to all internal & gpu ops
-  SetupStreamsForGraph(graph, &gpu_op_events_,
-      &gpu_op_parent_events_, &gpu_op_data_,
+  SetupStreamsForGraph(graph,
+      &internal_op_data_, &gpu_op_data_,
       &stream_pool_, &event_pool_);
 
   // Setup queues and events for the outputs of each stage
@@ -40,15 +39,15 @@ void Executor::Build(OpGraph *graph,
 
 void Executor::PruneUnusedGraphNodes(OpGraph *graph,
     vector<string> output_names) {
-  NDLL_ENFORCE(output_names.size() > 0,
-      "No outputs requested, nothing to execute.");
-  
   // We want to remove any nodes whose outputs are
   // never used by another node or as an output
-  bool graph_altered = true;
-  while (graph_altered) {
-    graph_altered = false;
-    
+  NDLL_ENFORCE(output_names.size() > 0,
+      "No outputs requested, nothing to execute.");
+
+  while (true) {
+    // We do not edit the graph while we are iterating
+    // as node ids will be updated when an op is removed
+    vector<NodeID> to_remove;
     for (int i = 0; i < graph->NumOp(); ++i) {
       OpNode &node = graph->node(i);
       
@@ -73,9 +72,15 @@ void Executor::PruneUnusedGraphNodes(OpGraph *graph,
       // If this node produces an output, don't prune it
       if (found_match) continue;
       
-      // Prune the node from the graph
-      graph->RemoveOp(node.id);
-      graph_altered = true;
+      // Mark the node for pruning
+      to_remove.push_back(node.id);
+    }
+
+    // No nodes were removed, pruning complete
+    if (to_remove.size() == 0) break;
+
+    for (auto &id : to_remove) {
+      graph->RemoveOp(id);
     }
   }
 }
@@ -302,10 +307,21 @@ void Executor::SetupMegaBufferForGraph(OpGraph *graph,
 }
 
 void Executor::SetupStreamsForGraph(OpGraph *graph,
-    vector<cudaEvent_t> *gpu_op_events,
-    vector<vector<cudaEvent_t>> *gpu_op_parent_events,
+    vector<internal::MixedWorkspace> *internal_data,
     vector<DeviceWorkspace> *gpu_data,
     StreamPool *stream_pool, EventPool *event_pool) {
+
+  for (int i = 0; i < graph->NumInternalOp(); ++i) {
+    // For internal ops, we assign unique streams to each
+    // op. This ensures (assuming the stream pool does not
+    // have a limit) that we won't have false dependencies
+    // between internal ops and the previous iterations
+    // gpu ops.
+    internal::MixedWorkspace &ws = (*internal_data)[i];
+    ws.set_stream(stream_pool_.GetStream());
+    ws.set_event(event_pool_.GetEvent());
+  }
+  
   // Note: Basic stream assignment algorithm -
   // Each node can reuse its parents stream as
   // long as no other node in the same front
@@ -315,8 +331,6 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
   // that are not in the same stream will make
   // their stream block on the parent event prior
   // to executing anything in their stream.
-  gpu_op_events->clear();
-  gpu_op_parent_events->clear();
 
   // We will traverse the graph breadth-first,
   // initialize queue with the ids of our gpu
@@ -335,14 +349,21 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
       }
     }
 
+    // If this op has more than a single child node,
+    // we will need an event to synchronize the child
+    // that does not get the parents stream
+    //
+    // TODO(tgale): We could do this more efficiently by
+    // applying the same algorithm we use to assign streams
+    if (node.children.size() > 1) {
+      DeviceWorkspace &ws = (*gpu_data)[graph->NodeIdx(i)];
+      ws.set_event(event_pool_.GetEvent());
+    }
+    
     if (is_root) {
       node_queue.push(node.id);
       NDLL_ENFORCE(processed_nodes.insert(node.id).second);
     }
-
-    // Create an event that will signal the
-    // completion of this ops computation
-    gpu_op_events->push_back(event_pool->GetEvent());
   }
 
   std::unordered_map<NodeID, cudaStream_t> node_streams;
@@ -353,33 +374,58 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
     node_queue.pop();
 
     bool found_stream = false;
-    for (const auto &parent_id : current_node.parents) {
-      // We only care about gpu parent ops
-      if (graph->NodeType(parent_id) == NDLL_INTERNAL) continue;
-      
-      // If a parent stream is still available, take it
-      auto it = node_streams.find(parent_id);
-      if (it != node_streams.end()) {
-        // Add the stream to this ops workspace
-        cudaStream_t stream = it->second;
-        ws.set_stream(stream);
-
-        // Remove this stream from the parents entry
-        // and add it to the entry for this op
-        node_streams.erase(it);
-        NDLL_ENFORCE(node_streams.insert({current_node.id, stream}).second);
-
-        found_stream = true;
-        break;
-      }
-
-      // If we don't use this parent's stream, we'll need to block
-      // on its event to ensure the dependency is respected.
+    auto it = current_node.parents.begin();
+    for (; it != current_node.parents.end(); ++it) {
+      NodeID parent_id = *it;
       int parent_op_idx = graph->NodeIdx(parent_id);
-      cudaEvent_t parent_event = (*gpu_op_events)[parent_op_idx];
-      (*gpu_op_parent_events)[current_op_idx].push_back(parent_event);
+      if (graph->NodeType(parent_id) == NDLL_INTERNAL) {
+        // We will not re-use internal op streams, but
+        // we will need to block on this ops event to
+        // make sure that we respect the dependency
+        internal::MixedWorkspace parent_ws = (*internal_data)[parent_op_idx];
+        ws.AddParentEvent(parent_ws.event());
+      } else if (graph->NodeType(parent_id) == NDLL_GPU) {
+        // If a parent stream is still available, take it
+        auto it = node_streams.find(parent_id);
+        if (it != node_streams.end()) {
+          // Add the stream to this ops workspace
+          cudaStream_t stream = it->second;
+          ws.set_stream(stream);
+          
+          // Remove this stream from the parents entry
+          // and add it to the entry for this op
+          node_streams.erase(it);
+          NDLL_ENFORCE(node_streams.insert({current_node.id, stream}).second);
+          
+          found_stream = true;
+          break;
+        }
+        
+        // If we don't use this parent's stream, we'll need to block
+        // on its event to ensure the dependency is respected.
+        DeviceWorkspace parent_ws = (*gpu_data)[parent_op_idx];
+        ws.AddParentEvent(parent_ws.event());
+      } else {
+        NDLL_FAIL("Executor encountered gpu op with non-gpu/internal parent.");
+      }
     }
 
+    // Make sure we finish adding all parents events
+    // if we exited the prevous loop early
+    for (; it != current_node.parents.end(); ++it) {
+      NodeID parent_id = *it;
+      int parent_op_idx = graph->NodeIdx(parent_id);
+      if (graph->NodeType(parent_id) == NDLL_INTERNAL) {
+        internal::MixedWorkspace parent_ws = (*internal_data)[parent_op_idx];
+        ws.AddParentEvent(parent_ws.event());
+      } else if (graph->NodeType(parent_id) == NDLL_GPU) {
+        DeviceWorkspace parent_ws = (*gpu_data)[parent_op_idx];
+        ws.AddParentEvent(parent_ws.event());
+      } else {
+        NDLL_FAIL("Executor encountered gpu op with non-gpu/internal parent.");
+      }
+    }
+    
     if (!found_stream) {
       // Couldn't reuse any parent streams, request
       // a new stream from the stream pool
@@ -392,12 +438,29 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
     // Now add this ops un-processed children to the queue
     for (const auto &child_id : current_node.children) {
       auto it = processed_nodes.find(child_id);
-      if (it != processed_nodes.end()) {
+      if (it == processed_nodes.end()) {
         node_queue.push(child_id);
         NDLL_ENFORCE(processed_nodes.insert(child_id).second);
       }
     }
   }
+}
+
+void Executor::SetupOutputQueuesForGraph() {
+
+  // 1. Allocate queues for each output
+  // 2. Figure out where the outputs are used in the graph
+  // and keep this data so that we can quickly update the
+  // workspaces when we execute
+
+  // Workspaces are not easily editable, especially their
+  // inputs, which we only provide const access to so that
+  // ops cannot edit their input data. We can make a function
+  // that lets you update a pointer, this is the same as
+  // passing in a pointer to const data for the ops
+
+  // All outputs must be contiguous, i.e. they are the
+  // outputs of internal or gpu nodes
 }
 
 } // namespace ndll
