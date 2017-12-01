@@ -113,11 +113,15 @@ void OpGraph::AddOp(const OpSpec &spec) {
   for (int i = 0; i < spec.NumInput(); ++i) {
     // Add parent node id
     auto parent_id = TensorSourceID(spec.Input(i));
-    new_node->parents.push_back(parent_id);
+
+    // Note: We don't care if the parent has already
+    // been added to this nodes set of parents, so
+    // we don't check the return value.
+    new_node->parents.insert(parent_id);
 
     // Add new node as child
     auto &parent_node = this->node(parent_id);
-    parent_node.children.push_back(new_node->id);
+    parent_node.children.insert(new_node->id);
 
     // Save the id of the parent node and the index of
     // this nodes input in the set of the parents outputs
@@ -135,6 +139,79 @@ void OpGraph::AddOp(const OpSpec &spec) {
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
         this->node(TensorSourceID(name)).spec.name());
+  }
+}
+
+void OpGraph::RemoveOp(NodeID id) {
+  OpNode &target = this->node(id);
+
+  // If the node has any children, we cannot remove it
+  NDLL_ENFORCE(target.children.empty(), "Node '" + target.spec.name() +
+      "' has " + std::to_string(target.children.size()) +
+      ". Cannot remove");
+
+  // Remove this nodes tensors from the graph
+  for (int i = 0; i < target.spec.NumOutput(); ++i) {
+    tensor_srcs_.erase(target.spec.Output(i));
+  }
+
+  // For all nodes with ids greater than the one we're removing,
+  // we need to decrement their ids and update the list of tensor
+  // sources with the new ids
+  for (int i = id+1; i < this->NumOp(); ++i) {
+    OpNode &node = this->node(i);
+    --node.id;
+
+    // Update all of its outputs with the new id
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      auto it = tensor_srcs_.find(node.spec.Output(j));
+      NDLL_ENFORCE(it != tensor_srcs_.end(),
+          "Could not find tensor source entry.");
+
+      it->second = node.id;
+    }
+  }
+  
+  // Remove this nodes entry from the id map. This will
+  // effectively decrement all node ids after this node
+  // to fill the gap.
+  //
+  // TODO(tgale): Node remove is relatively expensive
+  // because we use a vector. Consider switching to
+  // a map if this becomes an issue.
+  auto type_and_idx = id_to_node_map_[id];
+  NDLLOpType type = type_and_idx.first;
+  int idx = type_and_idx.second;
+  id_to_node_map_.erase(id_to_node_map_.begin() + id);
+  
+  // Remove the typed node object for the target node.
+  // We will then need to update the id map entry for
+  // all nodes of this type that follow the deleted node
+  switch (type) {
+  case NDLL_CPU:
+    cpu_nodes_.erase(cpu_nodes_.begin() + idx);
+
+    for (size_t i = idx; i < cpu_nodes_.size(); ++i) {
+      CPUOpNode &cpu_node = this->cpu_node(i);
+      id_to_node_map_[cpu_node.id].second = i;
+    }
+    break;
+  case NDLL_GPU:
+    gpu_nodes_.erase(gpu_nodes_.begin() + idx);
+
+    for (size_t i = idx; i < gpu_nodes_.size(); ++i) {
+      GPUOpNode &gpu_node = this->gpu_node(i);
+      id_to_node_map_[gpu_node.id].second = i;
+    }
+    break;
+  case NDLL_INTERNAL:
+    internal_nodes_.erase(internal_nodes_.begin() + idx);
+
+    for (size_t i = idx; i < internal_nodes_.size(); ++i) {
+      InternalOpNode &internal_node = this->internal_node(i);
+      id_to_node_map_[internal_node.id].second = i;
+    }
+    break;
   }
 }
 

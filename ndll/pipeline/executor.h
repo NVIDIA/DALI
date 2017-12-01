@@ -27,7 +27,8 @@ public:
   
   virtual ~Executor() = default;
 
-  virtual void Build(OpGraph *graph) = 0;
+  virtual void Build(OpGraph *graph,
+      vector<string> output_names);
 
   virtual void RunCPU() = 0;
 
@@ -44,14 +45,30 @@ protected:
     }
     return base_ptr_offset;
   }
+
+  void PruneUnusedGraphNodes(OpGraph *graph,
+      vector<string> output_names);
   
-  void SetupDataForGraph(OpGraph *graph);
+  void SetupDataForGraph(OpGraph *graph,
+      vector<HostWorkspace> *cpu_data,
+      vector<internal::MixedWorkspace> *internal_data,
+      vector<DeviceWorkspace> *gpu_data);
 
-  void PresizeData();
+  void PresizeData(vector<HostWorkspace> *cpu_data,
+      vector<internal::MixedWorkspace> *internal_data,
+      vector<DeviceWorkspace> *gpu_data,
+      size_t bytes_per_sample_hint);
 
-  void SetupMegaBufferForGraph(OpGraph *graph);
+  void SetupMegaBufferForGraph(OpGraph *graph,
+      Tensor<CPUBackend> *mega_buffer,
+      Tensor<GPUBackend> *mega_buffer_gpu,
+      vector<DeviceWorkspace> *gpu_data);
 
-  void SetupStreamsForGraph(OpGraph *graph);
+  void SetupStreamsForGraph(OpGraph *graph,
+      vector<cudaEvent_t> *gpu_op_events,
+      vector<vector<cudaEvent_t>> *gpu_op_parent_events,
+      vector<DeviceWorkspace> *gpu_data,
+      StreamPool *stream_pool, EventPool *event_pool);
   
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
@@ -79,37 +96,37 @@ protected:
   using Executor::bytes_per_sample_hint_
   
   
-class ThreadedExecutor : Executor {
-public:
-  inline ThreadedExecutor(int batch_size, int device_id, size_t bytes_per_sample_hint,
-      int num_threads, bool set_affinity) :
-    Executor(batch_size, device_id, bytes_per_sample_hint), 
-    thread_pool_(num_threads, device_id, set_affinity) {}
+// class ThreadedExecutor : Executor {
+// public:
+//   inline ThreadedExecutor(int batch_size, int device_id, size_t bytes_per_sample_hint,
+//       int num_threads, bool set_affinity) :
+//     Executor(batch_size, device_id, bytes_per_sample_hint), 
+//     thread_pool_(num_threads, device_id, set_affinity) {}
   
-  inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
-      size_t bytes_per_sample_hint, int num_threads, bool set_affinity) :
-    Executor(batch_size, device_id, bytes_per_sample_hint),
-    thread_pool_(num_threads, device_id, set_affinity) {
-    NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
-    Build(graph);
-  }
+//   inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
+//       size_t bytes_per_sample_hint, int num_threads, bool set_affinity) :
+//     Executor(batch_size, device_id, bytes_per_sample_hint),
+//     thread_pool_(num_threads, device_id, set_affinity) {
+//     NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
+//     Build(graph);
+//   }
   
-  virtual ~ThreadedExecutor() = default;
+//   virtual ~ThreadedExecutor() = default;
 
-  void Build(OpGraph *graph) override;
+//   void Build(OpGraph *graph) override;
 
-  void RunCPU() override;
+//   void RunCPU() override;
 
-  void RunInternal() override;
+//   void RunInternal() override;
 
-  void RunGPU() override;
+//   void RunGPU() override;
 
-  DISABLE_COPY_MOVE_ASSIGN(ThreadedExecutor);
-protected:
-  ThreadPool thread_pool_;
+//   DISABLE_COPY_MOVE_ASSIGN(ThreadedExecutor);
+// protected:
+//   ThreadPool thread_pool_;
 
-  USE_EXECUTOR_MEMBERS();
-};
+//   USE_EXECUTOR_MEMBERS();
+// };
 
 } // namespace ndll
 

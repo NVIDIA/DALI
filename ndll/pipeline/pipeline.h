@@ -115,9 +115,10 @@ public:
   
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
-   * for intermediate results, and marks as ready for execution.
+   * for intermediate results, and marks as ready for execution. The input
+   * vector specifies the name and device of the desired outputs of the pipeline.
    */
-  void Build();
+  void Build(vector<std::pair<string, string>> output_names);
 
   /**
    * @brief Run the cpu portion of the pipeline.

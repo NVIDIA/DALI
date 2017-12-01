@@ -2,6 +2,7 @@
 #define NDLL_PIPELINE_OP_GRAPH_H_
 
 #include <map>
+#include <unordered_set>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -21,7 +22,7 @@ struct OpNode {
 
   NodeID id;
   OpSpec spec;
-  vector<NodeID> parents, children;
+  std::unordered_set<NodeID> parents, children;
   vector<std::pair<NodeID, int>> input_src_and_idx;
 };
 
@@ -48,6 +49,13 @@ public:
   void AddOp(const OpSpec &spec);
 
   /**
+   * @brief Removes the node with the specified NodeID from 
+   * the graph. Fails if the removal would produce an invalid
+   * graph.
+   */
+  void RemoveOp(NodeID id);
+  
+  /**
    * @brief Returns the id of the op that produces the tensor with
    * the given name.
    */
@@ -57,7 +65,7 @@ public:
         name + "\" has no know source.");
     return it->second;
   }
-
+  
   /**
    * @brief Returns the total number of ops in the graph.
    */

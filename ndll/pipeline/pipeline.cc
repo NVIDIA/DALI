@@ -86,7 +86,7 @@ void Pipeline::AddOperator(OpSpec spec) {
   graph_.AddOp(spec);
 }
 
-void Pipeline::Build() {
+void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   /*
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
   
@@ -438,50 +438,6 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddOutput(it->first, "gpu");
   PrepareOpSpec(&copy_to_dev_spec);
   graph_.AddOp(copy_to_dev_spec);
-}
-
-void Pipeline::MegaBufferSetupAndDistribution() {
-  /*
-  // Query all the forward ops for mega-buffer sizes
-  size_t total_bytes = 0;
-  vector<size_t> offsets;
-  vector<int> num_buff_for_op(forward_ops_.size(), 0);
-  for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    const vector<size_t>& sizes =
-      forward_ops_[i]->GetBatchedParameterSize();
-    num_buff_for_op[i] = sizes.size();
-    for (auto &num_bytes : sizes) {
-      // Align the start of each buffer to 8-bytes
-      size_t aligned_num_bytes = round_up_to_8(num_bytes);
-      offsets.push_back(total_bytes);
-      total_bytes += aligned_num_bytes;
-    }
-  }
-  offsets.push_back(total_bytes);
-  
-  mega_buffer_.Resize({(Index)total_bytes});
-  mega_buffer_gpu_.Resize({(Index)total_bytes});
-
-  // Hand out SubTensors for all the ops batched parameters
-  int buffer_id = 0;
-  for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    vector<SubTensor<CPUBackend>> cpu_buffers(num_buff_for_op[i]);
-    vector<SubTensor<GPUBackend>> gpu_buffers(num_buff_for_op[i]);
-    for (int j = 0; j < num_buff_for_op[i]; ++j) {
-      SubTensor<CPUBackend> sub_buffer(&mega_buffer_,
-          offsets[buffer_id], offsets[buffer_id+1]);
-      SubTensor<GPUBackend> sub_buffer_gpu(&mega_buffer_gpu_,
-          offsets[buffer_id], offsets[buffer_id+1]);
-      cpu_buffers[j] = sub_buffer;
-      gpu_buffers[j] = sub_buffer_gpu;
-      ++buffer_id;
-    }
-    forward_ops_[i]->
-      SetBatchedParameterBuffers(cpu_buffers, gpu_buffers);
-    forward_ops_[i]->
-      BatchedParameterSetup(*gpu_buffers_[i], gpu_buffers_[i+1].get());
-  }
-  */
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
