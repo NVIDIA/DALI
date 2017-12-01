@@ -1,9 +1,15 @@
 #include "ndll/pipeline/executor.h"
 
+#include <unordered_map>
+#include <unordered_set>
+
 namespace ndll {
 
 void Executor::SetupDataForGraph(OpGraph *graph) {
-  ClearMembers();
+  // Clear any old data setup
+  cpu_op_data_.clear();
+  internal_op_data_.clear();
+  gpu_op_data_.clear();
 
   // Create workspaces for each operator
   cpu_op_data_.resize(graph->NumCPUOp());
@@ -209,19 +215,102 @@ void Executor::SetupMegaBufferForGraph(OpGraph *graph) {
       ws.AddParamTensor(cpu_tensor, gpu_tensor);
       ++buffer_id;
     }
-  }    
+  }
 }
 
-void ThreadedExecutor::RunCPU() {
+void Executor::SetupStreamsForGraph(OpGraph *graph) {
+  // Note: Basic stream assignment algorithm -
+  // Each node can reuse its parents stream as
+  // long as no other node in the same front
+  // has already claimed it. Each op is associated
+  // with an event, which is inserted into its
+  // stream after it is executed. Its child ops
+  // that are not in the same stream will make
+  // their stream block on the parent event prior
+  // to executing anything in their stream.
+  gpu_op_events_.clear();
+  gpu_op_parent_events_.clear();
 
-}
+  // We will traverse the graph breadth-first,
+  // initialize queue with the ids of our gpu
+  // root nodes.
+  std::unordered_set<NodeID> processed_nodes;
+  std::queue<NodeID> node_queue;
+  for (int i = 0; i < graph->NumGPUOp(); ++i) {
+    // An op is a root if it has no gpu inputs
+    GPUOpNode &node = graph->gpu_node(i);
+    
+    bool is_root = true;
+    for (auto &parent_id : node.parents) {
+      if (graph->NodeType(parent_id) == NDLL_GPU) {
+        is_root = false;
+        break;
+      }
+    }
 
-void ThreadedExecutor::RunInternal() {
+    if (is_root) {
+      node_queue.push(node.id);
+      NDLL_ENFORCE(processed_nodes.insert(node.id).second);
+    }
 
-}
+    // Create an event that will signal the
+    // completion of this ops computation
+    gpu_op_events_.push_back(event_pool_.GetEvent());
+  }
 
-void ThreadedExecutor::RunGPU() {
+  std::unordered_map<NodeID, cudaStream_t> node_streams_;
+  while (!node_queue.empty()) {
+    const OpNode &current_node = graph->node(node_queue.front());
+    int current_op_idx = graph->NodeIdx(current_node.id);
+    DeviceWorkspace &ws = gpu_op_data_[current_op_idx];
+    node_queue.pop();
 
+    bool found_stream = false;
+    for (const auto &parent_id : current_node.parents) {
+      // We only care about gpu parent ops
+      if (graph->NodeType(parent_id) == NDLL_INTERNAL) continue;
+      
+      // If a parent stream is still available, take it
+      auto it = node_streams_.find(parent_id);
+      if (it != node_streams_.end()) {
+        // Add the stream to this ops workspace
+        cudaStream_t stream = it->second;
+        ws.set_stream(stream);
+
+        // Remove this stream from the parents entry
+        // and add it to the entry for this op
+        node_streams_.erase(it);
+        NDLL_ENFORCE(node_streams_.insert({current_node.id, stream}).second);
+
+        found_stream = true;
+        break;
+      }
+
+      // If we don't use this parent's stream, we'll need to block
+      // on its event to ensure the dependency is respected.
+      int parent_op_idx = graph->NodeIdx(parent_id);
+      cudaEvent_t parent_event = gpu_op_events_[parent_op_idx];
+      gpu_op_parent_events_[current_op_idx].push_back(parent_event);
+    }
+
+    if (!found_stream) {
+      // Couldn't reuse any parent streams, request
+      // a new stream from the stream pool
+      cudaStream_t stream = stream_pool_.GetStream();
+      ws.set_stream(stream);
+      NDLL_ENFORCE(node_streams_.insert({current_node.id, stream}).second,
+          "Internal error, GPU op stream insertion failed.");
+    }
+
+    // Now add this ops un-processed children to the queue
+    for (const auto &child_id : current_node.children) {
+      auto it = processed_nodes.find(child_id);
+      if (it != processed_nodes.end()) {
+        node_queue.push(child_id);
+        NDLL_ENFORCE(processed_nodes.insert(child_id).second);
+      }
+    }
+  }
 }
 
 } // namespace ndll

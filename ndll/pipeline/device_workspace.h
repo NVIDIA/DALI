@@ -102,6 +102,11 @@ public:
    */
   void AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
       shared_ptr<Tensor<GPUBackend>> gpu_tensor);
+
+  /**
+   * @brief Sets the stream for this workspace.
+   */
+  inline void set_stream(cudaStream_t stream) { stream_ = stream; }
   
   /**
    * @brief Returns the cuda stream that this work is to be done in.

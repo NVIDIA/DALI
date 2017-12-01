@@ -7,15 +7,20 @@
 #include "ndll/pipeline/host_workspace.h"
 #include "ndll/pipeline/mixed_workspace.h"
 #include "ndll/pipeline/op_graph.h"
+#include "ndll/pipeline/util/event_pool.h"
+#include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
 namespace ndll {
 
 class Executor {
 public:
-  inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint) :
-    batch_size_(batch_size), device_id_(device_id), 
-    bytes_per_sample_hint_(bytes_per_sample_hint) {
+  inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint,
+      int max_num_stream = -1) :
+    batch_size_(batch_size), device_id_(device_id),
+    bytes_per_sample_hint_(bytes_per_sample_hint),
+    stream_pool_(max_num_stream, true),
+    event_pool_(max_num_stream) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id > 0, "Device id must be greater than 0.");
   }
@@ -32,12 +37,6 @@ public:
   
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 protected:
-  inline void ClearMembers() {
-    cpu_op_data_.clear();
-    internal_op_data_.clear();
-    gpu_op_data_.clear();
-  }
-
   // Return the nearest multiple of 8 that is >= base_ptr_offset
   inline size_t round_up_to_8(size_t base_ptr_offset) {
     if (base_ptr_offset & 7) {
@@ -63,6 +62,12 @@ protected:
   
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
+
+  vector<cudaEvent_t> gpu_op_events_;
+  vector<vector<cudaEvent_t>> gpu_op_parent_events_;
+
+  StreamPool stream_pool_;
+  EventPool event_pool_;
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \
