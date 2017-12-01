@@ -142,6 +142,16 @@ void OpGraph::AddOp(const OpSpec &spec) {
   }
 }
 
+// Op Removal Process:
+// 1. Validate we can remove it (it has no children)
+// 2. Remove its tensors
+// 3. Remove it as a child of all ops
+// 4. Decrement all child ids > id
+// 5. Decrement all parent ids > id
+// 5. Decrement all op ids > id
+// 6. remove id map entry for target
+// 7. remove object for target
+// 8. update id map for ops after target in its typed vector
 void OpGraph::RemoveOp(NodeID id) {
   OpNode &target = this->node(id);
 
@@ -155,21 +165,63 @@ void OpGraph::RemoveOp(NodeID id) {
     tensor_srcs_.erase(target.spec.Output(i));
   }
 
-  // For all nodes with ids greater than the one we're removing,
-  // we need to decrement their ids and update the list of tensor
-  // sources with the new ids
-  for (int i = id+1; i < this->NumOp(); ++i) {
+  for (int i = 0; i < this->NumOp(); ++i) {
     OpNode &node = this->node(i);
-    --node.id;
+    if (i > id) {
+      // Decrement this nodes id to account for
+      // the removal of the node with id `id`.
+      --node.id;
 
-    // Update all of its outputs with the new id
-    for (int j = 0; j < node.spec.NumOutput(); ++j) {
-      auto it = tensor_srcs_.find(node.spec.Output(j));
-      NDLL_ENFORCE(it != tensor_srcs_.end(),
-          "Could not find tensor source entry.");
-
-      it->second = node.id;
+      // Update all of its outputs with the new id
+      for (int j = 0; j < node.spec.NumOutput(); ++j) {
+        auto it = tensor_srcs_.find(node.spec.Output(j));
+        NDLL_ENFORCE(it != tensor_srcs_.end(),
+            "Could not find tensor source entry.");
+        
+        it->second = node.id;
+      }
     }
+
+    // Scan its parents and children. If the target is
+    // a child, remove it as it no longer exists. If
+    // a node with an id > the target id is a parent
+    // or child, we will decrement its id to account
+    // for the removal.
+    vector<NodeID> to_add;
+    auto it = node.parents.begin();
+    while (it != node.parents.end()) {
+      // This should never occur, we have previously checked
+      // that the target has no children in the graph
+      NDLL_ENFORCE(*it != id, "Found node with target as parent.");
+      if (*it > id) {
+        to_add.push_back((*it) - 1);
+        it = node.parents.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto &parent : to_add) {
+      NDLL_ENFORCE(node.parents.insert(parent).second,
+          "Insertion of updated parent id failed.");
+    }
+    to_add.clear();
+    
+    // Remove the target node id if it is a child
+    node.children.erase(id);
+    it = node.children.begin();
+    while (it != node.children.end()) {
+      if (*it > id) {
+        to_add.push_back((*it) - 1);
+        it = node.children.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto &child : to_add) {
+      NDLL_ENFORCE(node.children.insert(child).second,
+          "Insertion of updated child id failed.");
+    }
+
   }
   
   // Remove this nodes entry from the id map. This will

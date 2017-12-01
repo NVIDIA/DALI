@@ -228,6 +228,95 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(node.input_src_and_idx[0], std::make_pair(NodeID(2), 0));
 }
 
+TEST_F(OpGraphTest, TestOpRemoval) {
+  OpGraph graph;
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "cpu")
+          .AddOutput("data_1", "cpu")
+          .AddOutput("data_2", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "cpu")
+          .AddInput("data_2", "cpu")
+          .AddInput("data_1", "cpu")
+          .AddOutput("dummy_out", "cpu")
+          ));
+  
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "cpu")
+          .AddInput("data_1", "cpu")
+          .AddOutput("dummy_out_two", "cpu")
+          ));
+
+
+  // Validate the graph
+  ASSERT_EQ(graph.NumCPUOp(), 3);
+  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumGPUOp(), 0);
+
+  // Validate the dummy source op
+  auto node = graph.node(0);
+  ASSERT_EQ(node.id, 0);
+  ASSERT_EQ(node.children.size(), 2);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children.count(1), 1);
+  ASSERT_EQ(node.children.count(2), 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+
+  // Validate dummy op 1
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents.count(0), 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 2);
+  ASSERT_EQ(node.input_src_and_idx[0].first, 0);
+  ASSERT_EQ(node.input_src_and_idx[0].second, 1);
+  ASSERT_EQ(node.input_src_and_idx[1].first, 0);
+  ASSERT_EQ(node.input_src_and_idx[1].second, 0);
+
+  // Validate dummy op 2
+  node = graph.node(2);
+  ASSERT_EQ(node.id, 2);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents.count(0), 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0].first, 0);
+  ASSERT_EQ(node.input_src_and_idx[0].second, 0);
+
+  // Remove op 1
+  graph.RemoveOp(1);
+
+  // Validate the updated graph
+  ASSERT_EQ(graph.NumCPUOp(), 2);
+  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumGPUOp(), 0);
+  
+  // Validate the gpu source op
+  node = graph.node(0);
+  ASSERT_EQ(node.id, 0);
+  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.parents.size(), 0);
+  ASSERT_EQ(node.children.count(1), 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 0);
+
+  // Validate copy op 1
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents.count(0), 1);
+  ASSERT_EQ(node.input_src_and_idx.size(), 1);
+  ASSERT_EQ(node.input_src_and_idx[0].first, 0);
+  ASSERT_EQ(node.input_src_and_idx[0].second, 0);
+}
+
 TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
   OpGraph graph;
 
