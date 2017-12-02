@@ -28,6 +28,35 @@
 
 namespace ndll {
 
+// A helper class to maange a set of TensorLists and cudaEvents
+template <typename Backend>
+class TensorListPool {
+public:
+  inline TensorListPool(int size, EventPool *event_pool) {
+    NDLL_ENFORCE(event_pool != nullptr);
+    for (int i = 0; i < size; ++i) {
+      tls_.push_back(std::make_shared<TensorList<Backend>>());
+      tl_events_.push_back(event_pool->GetEvent());
+    }
+  }
+
+  inline ~TensorListPool() = default;
+
+  inline shared_ptr<TensorList<Backend>> GetTL(int idx) {
+    return tls_[idx];
+  }
+
+  inline cudaEvent_t GetEvent(int idx) {
+    return tl_events_[idx];
+  }
+
+  inline int size() const { return tls_.size(); }
+  
+private:
+  vector<shared_ptr<TensorList<Backend>>> tls_;
+  vector<cudaEvent_t> tl_events_;
+};
+
 class Executor {
 public:
   inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint,
@@ -83,17 +112,33 @@ protected:
       vector<DeviceWorkspace> *gpu_data,
       StreamPool *stream_pool, EventPool *event_pool);
 
-  void SetupOutputQueuesForGraph();
+  void SetupOutputQueuesForGraph(
+      const vector<string> &output_names, int queue_depth,
+      EventPool *event_pool, OpGraph *graph, 
+      std::map<string, int> *type_idx_map,
+      vector<TensorListPool<CPUBackend>> *cpu_outputs,
+      vector<TensorListPool<GPUBackend>> *gpu_outputs);
+
+  void SetOutputBuffersForIter(
+      const vector<string> &output_names,
+      const std::map<string, int> &type_idx_map,
+      int queue_depth, int *queue_idx, OpGraph *graph,
+      vector<internal::MixedWorkspace> *internal_data,
+      vector<DeviceWorkspace> *gpu_data,
+      vector<TensorListPool<CPUBackend>> *cpu_outputs,
+      vector<TensorListPool<GPUBackend>> *gpu_outputs);
+
   
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
 
-  // Need to also keep track of what workspaces we
-  // need to update when we are tweaking what buffers
-  // the executor runs into
   vector<string> output_names_;
-  // vector<TensorListQueue> output_queues_;
+  std::map<string, int> type_idx_map_;
+  std::map<string, std::pair<NodeID, int>>
+  vector<TensorListPool<CPUBackend>> cpu_outputs_;
+  vector<TensorListPool<GPUBackend>> gpu_outputs_;
+  int queue_depth_, queue_idx_ = 0;
   
   Tensor<CPUBackend> mega_buffer_;
   Tensor<GPUBackend> mega_buffer_gpu_;

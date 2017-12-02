@@ -134,7 +134,13 @@ void OpGraph::AddOp(const OpSpec &spec) {
   // Mark this op as the source of its output tensors
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string name = spec.Output(i);
-    auto ret = tensor_srcs_.insert({name, new_node->id});
+
+    TensorMeta meta;
+    meta.source = new_node->id;
+    meta.idx_in_source = i;
+    meta.is_cpu = spec.OutputDevice(i) == "cpu" ? true : false;
+    
+    auto ret = tensor_srcs_.insert({name, meta});
     NDLL_ENFORCE(ret.second, "Operator '" + spec.name() +
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
@@ -178,7 +184,7 @@ void OpGraph::RemoveOp(NodeID id) {
         NDLL_ENFORCE(it != tensor_srcs_.end(),
             "Could not find tensor source entry.");
         
-        it->second = node.id;
+        it->second.source = node.id;
       }
     }
 
@@ -284,6 +290,16 @@ OpNode& OpGraph::node(NodeID id) {
   default:
     NDLL_FAIL("Internal error. Invalid node type index.");
   }
+}
+
+template <>
+bool OpGraph::TensorIsType<CPUBackend>(const string &name) {
+  return TensorInfo(name).is_cpu;
+}
+
+template <>
+bool OpGraph::TensorIsType<GPUBackend>(const string &name) {
+  return !TensorInfo(name).is_cpu;
 }
 
 } // namespace ndll

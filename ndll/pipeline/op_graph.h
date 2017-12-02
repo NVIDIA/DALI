@@ -38,6 +38,12 @@ struct InternalOpNode : public OpNode {
   unique_ptr<internal::InternalOp> op;
 };
 
+struct TensorMeta {
+  NodeID source;
+  int idx_in_source;
+  bool is_cpu;
+};
+    
 class OpGraph {
 public:
   inline OpGraph() {}
@@ -54,17 +60,6 @@ public:
    * graph.
    */
   void RemoveOp(NodeID id);
-  
-  /**
-   * @brief Returns the id of the op that produces the tensor with
-   * the given name.
-   */
-  inline NodeID TensorSourceID(const string &name) {
-    auto it = tensor_srcs_.find(name);
-    NDLL_ENFORCE(it != tensor_srcs_.end(), "Tensor with name \"" +
-        name + "\" has no know source.");
-    return it->second;
-  }
   
   /**
    * @brief Returns the total number of ops in the graph.
@@ -164,6 +159,40 @@ public:
     NDLL_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
     return id_to_node_map_[id].second;
   }
+
+  /**
+   * @brief Returns the TensorMeta objects for the tensor 
+   * with the given name.
+   */
+  inline TensorMeta TensorInfo(const string &name) const {
+    auto it = tensor_srcs_.find(name);
+    NDLL_ENFORCE(it != tensor_srcs_.end(), "Tensor with name \"" +
+        name + "\" has no know source.");
+    return it->second;
+  }
+  
+  /**
+   * @brief Returns the id of the op that produces the tensor with
+   * the given name.
+   */
+  inline NodeID TensorSourceID(const string &name) {
+    return TensorInfo(name).source;
+  }
+
+  /**
+   * @brief Returns the output idx of the input tensor in 
+   * its source.
+   */
+  inline int TensorIdxInSource(const string &name) {
+    return TensorInfo(name).idx_in_source;
+  }
+
+  /**
+   * @brief Returns true if the tensor with the given name
+   * has a backend type that matches the calling type.
+   */
+  template <typename Backend>
+  bool TensorIsType(const string &name);
   
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 private:
@@ -175,8 +204,8 @@ private:
   // element indicates what type of node it is,  and the second
   // is the index of the op within the specified vector.
   vector<std::pair<NDLLOpType, int>> id_to_node_map_;
-  
-  std::map<string, NodeID> tensor_srcs_;
+
+  std::map<string, TensorMeta> tensor_srcs_;
 };
 
 } // namespace ndll

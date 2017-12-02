@@ -446,21 +446,75 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
   }
 }
 
-void Executor::SetupOutputQueuesForGraph() {
+void Executor::SetupOutputQueuesForGraph(
+    const vector<string> &output_names, int queue_depth,
+    EventPool *event_pool, OpGraph *graph, 
+    std::map<string, int> *type_idx_map,
+    vector<TensorListPool<CPUBackend>> *cpu_outputs,
+    vector<TensorListPool<GPUBackend>> *gpu_outputs) {
+  // Allocate output TensorList pools for each output
+  for (auto &name : output_names) {
+    auto tensor_meta = graph->TensorInfo(name);
+    if (tensor_meta.is_cpu) {
+      cpu_outputs->push_back(TensorListPool<CPUBackend>(queue_depth, event_pool));
+      NDLL_ENFORCE(type_idx_map->insert({name, cpu_outputs->size()-1}).second,
+          "Output tensor meta insertion failed. Duplicate output name '" +
+          name + "' exists.");
+    } else {
+      gpu_outputs->push_back(TensorListPool<GPUBackend>(queue_depth, event_pool));
+      NDLL_ENFORCE(type_idx_map->insert({name, gpu_outputs->size()-1}).second,
+          "Output tensor meta insertion failed. Duplicate output name '" +
+          name + "' exists.");
+    }
+  }
+}
 
-  // 1. Allocate queues for each output
-  // 2. Figure out where the outputs are used in the graph
-  // and keep this data so that we can quickly update the
-  // workspaces when we execute
+void Executor::SetOutputBuffersForIter(
+    const vector<string> &output_names,
+    const std::map<string, int> &type_idx_map,
+    int queue_depth, int *queue_idx, OpGraph *graph,
+    vector<internal::MixedWorkspace> *internal_data,
+    vector<DeviceWorkspace> *gpu_data,
+    vector<TensorListPool<CPUBackend>> *cpu_outputs,
+    vector<TensorListPool<GPUBackend>> *gpu_outputs) {
+  // For each output, we need to hookup the next buffer
+  // to the desired output workspaces, and also the
+  // input workspaces of later ops that use them
+  for (auto &name : output_names) {
+    // Get the index of this output in whichever
+    // tl type vector its stored in
+    auto it = type_idx_map.find(name);
+    NDLL_ENFORCE(it != type_idx_map.end(), "Could not "
+        "find entry for tensor '" + name + "'.");
+    int idx_in_typed_vec = it->second;
 
-  // Workspaces are not easily editable, especially their
-  // inputs, which we only provide const access to so that
-  // ops cannot edit their input data. We can make a function
-  // that lets you update a pointer, this is the same as
-  // passing in a pointer to const data for the ops
+    auto tensor_meta = graph->TensorInfo(name);
+    NDLLOpType node_type = graph->NodeType(tensor_meta.source);
+    if (node_type == NDLL_INTERNAL) {
+      int op_idx = graph->NodeIdx(tensor_meta.source);
+      internal::MixedWorkspace &ws = (*internal_data)[op_idx];
+      if (tensor_meta.is_cpu) {
+        auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+        ws.SetOutput(tensor_meta.idx_in_source, output);
+      } else {
+        auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+        ws.SetOutput(tensor_meta.idx_in_source, output);
+      }
+    } else if (node_type == NDLL_GPU) {
+      NDLL_ENFORCE(!tensor_meta.is_cpu, "Executor "
+          "encountered gpu op w/ cpu output");
+      int op_idx = graph->NodeIdx(tensor_meta.source);
+      DeviceWorkspace &ws = (*gpu_data)[op_idx];
 
-  // All outputs must be contiguous, i.e. they are the
-  // outputs of internal or gpu nodes
+      auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+      ws.SetOutput(tensor_meta.idx_in_source, output);
+    } else {
+      NDLL_FAIL("Output tensor with invalid type detected");
+    }
+
+    // TODO(tgale): Update all nodes that take this tensor as input
+  }
+  
 }
 
 } // namespace ndll
