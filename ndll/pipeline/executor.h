@@ -135,7 +135,6 @@ protected:
 
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;
-  std::map<string, std::pair<NodeID, int>>
   vector<TensorListPool<CPUBackend>> cpu_outputs_;
   vector<TensorListPool<GPUBackend>> gpu_outputs_;
   int queue_depth_, queue_idx_ = 0;

@@ -23,7 +23,6 @@ struct OpNode {
   NodeID id;
   OpSpec spec;
   std::unordered_set<NodeID> parents, children;
-  vector<std::pair<NodeID, int>> input_src_and_idx;
 };
 
 struct CPUOpNode : public OpNode {
@@ -38,12 +37,14 @@ struct InternalOpNode : public OpNode {
   unique_ptr<internal::InternalOp> op;
 };
 
+// Stores meta-data about a tensor and how it
+// is used by a producer/consumer node.
 struct TensorMeta {
-  NodeID source;
-  int idx_in_source;
+  NodeID node;
+  int index;
   bool is_cpu;
 };
-    
+
 class OpGraph {
 public:
   inline OpGraph() {}
@@ -162,11 +163,11 @@ public:
 
   /**
    * @brief Returns the TensorMeta objects for the tensor 
-   * with the given name.
+   * with the given name and its producer node.
    */
-  inline TensorMeta TensorInfo(const string &name) const {
-    auto it = tensor_srcs_.find(name);
-    NDLL_ENFORCE(it != tensor_srcs_.end(), "Tensor with name \"" +
+  inline TensorMeta TensorSourceMeta(const string &name) const {
+    auto it = tensor_producers_.find(name);
+    NDLL_ENFORCE(it != tensor_producers_.end(), "Tensor with name \"" +
         name + "\" has no know source.");
     return it->second;
   }
@@ -176,7 +177,7 @@ public:
    * the given name.
    */
   inline NodeID TensorSourceID(const string &name) {
-    return TensorInfo(name).source;
+    return TensorSourceMeta(name).node;
   }
 
   /**
@@ -184,15 +185,29 @@ public:
    * its source.
    */
   inline int TensorIdxInSource(const string &name) {
-    return TensorInfo(name).idx_in_source;
+    return TensorSourceMeta(name).index;
   }
-
+  
   /**
    * @brief Returns true if the tensor with the given name
    * has a backend type that matches the calling type.
    */
   template <typename Backend>
   bool TensorIsType(const string &name);
+
+  /**
+   * @brief Returns a vector of meta-data about the nodes that
+   * consume the tensor with the input name.
+   */
+  inline vector<TensorMeta> TensorConsumerMeta(const string &name) const {
+    auto it = tensor_consumers_.find(name);
+    if (it == tensor_consumers_.end()) {
+      // If we have no entries for this tensors consumers,
+      // we just return an empty vector
+      return vector<TensorMeta>{};
+    }
+    return it->second;
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 private:
@@ -205,7 +220,8 @@ private:
   // is the index of the op within the specified vector.
   vector<std::pair<NDLLOpType, int>> id_to_node_map_;
 
-  std::map<string, TensorMeta> tensor_srcs_;
+  std::map<string, TensorMeta> tensor_producers_;
+  std::map<string, vector<TensorMeta>> tensor_consumers_;
 };
 
 } // namespace ndll

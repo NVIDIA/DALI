@@ -123,24 +123,27 @@ void OpGraph::AddOp(const OpSpec &spec) {
     auto &parent_node = this->node(parent_id);
     parent_node.children.insert(new_node->id);
 
-    // Save the id of the parent node and the index of
-    // this nodes input in the set of the parents outputs
-    string input_name = spec.InputName(i);
-    string input_device = spec.InputDevice(i);
-    int input_idx = parent_node.spec.OutputIdxForName(input_name, input_device);
-    new_node->input_src_and_idx.push_back(std::make_pair(parent_node.id, input_idx));
+    // Update the consumer info for this tensor
+    TensorMeta meta;
+    meta.node = new_node->id;
+    meta.index = i;
+    meta.is_cpu = spec.InputDevice(i) == "cpu" ? true : false;
+
+    vector<TensorMeta> &consumer_info = tensor_consumers_[spec.Input(i)];
+    consumer_info.push_back(meta);
   }
 
   // Mark this op as the source of its output tensors
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string name = spec.Output(i);
 
+    // Set the producer info for this tensor
     TensorMeta meta;
-    meta.source = new_node->id;
-    meta.idx_in_source = i;
+    meta.node = new_node->id;
+    meta.index = i;
     meta.is_cpu = spec.OutputDevice(i) == "cpu" ? true : false;
     
-    auto ret = tensor_srcs_.insert({name, meta});
+    auto ret = tensor_producers_.insert({name, meta});
     NDLL_ENFORCE(ret.second, "Operator '" + spec.name() +
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
@@ -168,23 +171,58 @@ void OpGraph::RemoveOp(NodeID id) {
 
   // Remove this nodes tensors from the graph
   for (int i = 0; i < target.spec.NumOutput(); ++i) {
-    tensor_srcs_.erase(target.spec.Output(i));
+    tensor_producers_.erase(target.spec.Output(i));
+  }
+
+  // Remove references to this node as a consumer
+  for (int i = 0; i < target.spec.NumInput(); ++i) {
+    auto it = tensor_consumers_.find(target.spec.Input(i));
+    NDLL_ENFORCE(it != tensor_consumers_.end(), "Could not find "
+        "consumer entries for tensor, but target node is a consumer.");
+    vector<TensorMeta> &consumer_info = it->second;
+    bool erased = false;
+    for (size_t j = 0; j < consumer_info.size(); ++j) {
+      if (consumer_info[j].node == id) {
+        consumer_info.erase(consumer_info.begin() + j);
+        erased = true;
+        break;
+      }
+    }
+    NDLL_ENFORCE(erased, "Could not find entry for target node as tensor consumer.");
   }
 
   for (int i = 0; i < this->NumOp(); ++i) {
     OpNode &node = this->node(i);
-    if (i > id) {
+    if (node.id > id) {
       // Decrement this nodes id to account for
       // the removal of the node with id `id`.
       --node.id;
 
       // Update all of its outputs with the new id
       for (int j = 0; j < node.spec.NumOutput(); ++j) {
-        auto it = tensor_srcs_.find(node.spec.Output(j));
-        NDLL_ENFORCE(it != tensor_srcs_.end(),
+        auto it = tensor_producers_.find(node.spec.Output(j));
+        NDLL_ENFORCE(it != tensor_producers_.end(),
             "Could not find tensor source entry.");
         
-        it->second.source = node.id;
+        it->second.node = node.id;
+      }
+      
+      // Update all of its consumer records with new id
+      for (int j = 0; j < node.spec.NumInput(); ++j) {
+        auto it = tensor_consumers_.find(node.spec.Input(j));
+        NDLL_ENFORCE(it != tensor_consumers_.end(), "Could not find "
+            "consumer entries for tensor, but current node is a consumer.");
+        vector<TensorMeta> &consumer_info = it->second;
+        bool found = false;
+        for (size_t k = 0; k < consumer_info.size(); ++k) {
+          if (consumer_info[k].node == node.id+1) {
+            consumer_info[k].node = node.id;
+            found = true;
+            break;
+          }
+        }
+        NDLL_ENFORCE(found, "Could not find entry for current "
+            "node as tensor consumer.");
       }
     }
 
@@ -294,12 +332,12 @@ OpNode& OpGraph::node(NodeID id) {
 
 template <>
 bool OpGraph::TensorIsType<CPUBackend>(const string &name) {
-  return TensorInfo(name).is_cpu;
+  return TensorSourceMeta(name).is_cpu;
 }
 
 template <>
 bool OpGraph::TensorIsType<GPUBackend>(const string &name) {
-  return !TensorInfo(name).is_cpu;
+  return !TensorSourceMeta(name).is_cpu;
 }
 
 } // namespace ndll

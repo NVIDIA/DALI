@@ -172,12 +172,12 @@ inline string BuildErrorString(string statement, string file, int line) {
 #define NDLL_ENFORCE_VALID_INDEX(var, upper) \
   NDLL_ENFORCE_IN_RANGE(var, int(0), upper)
 
-#define NDLL_FAIL(str)                                    \
-  do {                                                    \
-    string file = __FILE__;                               \
-    string line = std::to_string(__LINE__);               \
-    string error = "[" + file + ":" + line + " " + str;   \
-    throw std::runtime_error(str);                        \
+#define NDLL_FAIL(str)                                            \
+  do {                                                            \
+    string file = __FILE__;                                       \
+    string line = std::to_string(__LINE__);                       \
+    string error_str = "[" + file + ":" + line + "] " + str;      \
+    throw std::runtime_error(error_str);                          \
   } while (0)
   
 } // namespace ndll

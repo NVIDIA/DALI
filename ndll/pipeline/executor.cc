@@ -107,12 +107,12 @@ void Executor::SetupDataForGraph(OpGraph *graph,
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this cpu ops workspace.
-      NodeID parent_node_id = node.input_src_and_idx[j].first;
+      NodeID parent_node_id = graph->TensorSourceID(node.spec.Input(j));
       NDLLOpType parent_op_type = graph->NodeType(parent_node_id);
       NDLL_ENFORCE(parent_op_type == NDLL_CPU,
           "Executor encountered cpu op with non-cpu input.");
       int parent_idx = graph->NodeIdx(parent_node_id);
-      int input_src_idx = node.input_src_and_idx[j].second;
+      int input_src_idx = graph->TensorIdxInSource(node.spec.Input(j));
 
       HostWorkspace &src_ws = (*cpu_data)[parent_idx];
       const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
@@ -137,12 +137,12 @@ void Executor::SetupDataForGraph(OpGraph *graph,
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this internal ops workspace.
-      NodeID parent_node_id = node.input_src_and_idx[j].first;
+      NodeID parent_node_id = graph->TensorSourceID(node.spec.Input(j));
       NDLLOpType parent_op_type = graph->NodeType(parent_node_id);
       NDLL_ENFORCE(parent_op_type == NDLL_CPU,
           "Executor encoutered internal op with non-cpu input.");
       int parent_idx = graph->NodeIdx(parent_node_id);
-      int input_src_idx = node.input_src_and_idx[j].second;
+      int input_src_idx = graph->TensorIdxInSource(node.spec.Input(j));
 
       HostWorkspace &src_ws = (*cpu_data)[parent_idx];
       const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
@@ -169,10 +169,10 @@ void Executor::SetupDataForGraph(OpGraph *graph,
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this internal ops workspace.
-      NodeID parent_node_id = node.input_src_and_idx[j].first;
+      NodeID parent_node_id = graph->TensorSourceID(node.spec.Input(j));
       NDLLOpType parent_op_type = graph->NodeType(parent_node_id);
       int parent_idx = graph->NodeIdx(parent_node_id);
-      int input_src_idx = node.input_src_and_idx[j].second;
+      int input_src_idx = graph->TensorIdxInSource(node.spec.Input(j));
 
       if (parent_op_type == NDLL_INTERNAL) {
         internal::MixedWorkspace &src_ws = (*internal_data)[parent_idx];
@@ -454,7 +454,7 @@ void Executor::SetupOutputQueuesForGraph(
     vector<TensorListPool<GPUBackend>> *gpu_outputs) {
   // Allocate output TensorList pools for each output
   for (auto &name : output_names) {
-    auto tensor_meta = graph->TensorInfo(name);
+    auto tensor_meta = graph->TensorSourceMeta(name);
     if (tensor_meta.is_cpu) {
       cpu_outputs->push_back(TensorListPool<CPUBackend>(queue_depth, event_pool));
       NDLL_ENFORCE(type_idx_map->insert({name, cpu_outputs->size()-1}).second,
@@ -488,26 +488,26 @@ void Executor::SetOutputBuffersForIter(
         "find entry for tensor '" + name + "'.");
     int idx_in_typed_vec = it->second;
 
-    auto tensor_meta = graph->TensorInfo(name);
-    NDLLOpType node_type = graph->NodeType(tensor_meta.source);
+    auto tensor_meta = graph->TensorSourceMeta(name);
+    NDLLOpType node_type = graph->NodeType(tensor_meta.node);
     if (node_type == NDLL_INTERNAL) {
-      int op_idx = graph->NodeIdx(tensor_meta.source);
+      int op_idx = graph->NodeIdx(tensor_meta.node);
       internal::MixedWorkspace &ws = (*internal_data)[op_idx];
       if (tensor_meta.is_cpu) {
         auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
-        ws.SetOutput(tensor_meta.idx_in_source, output);
+        ws.SetOutput(tensor_meta.index, output);
       } else {
         auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
-        ws.SetOutput(tensor_meta.idx_in_source, output);
+        ws.SetOutput(tensor_meta.index, output);
       }
     } else if (node_type == NDLL_GPU) {
       NDLL_ENFORCE(!tensor_meta.is_cpu, "Executor "
           "encountered gpu op w/ cpu output");
-      int op_idx = graph->NodeIdx(tensor_meta.source);
+      int op_idx = graph->NodeIdx(tensor_meta.node);
       DeviceWorkspace &ws = (*gpu_data)[op_idx];
 
       auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
-      ws.SetOutput(tensor_meta.idx_in_source, output);
+      ws.SetOutput(tensor_meta.index, output);
     } else {
       NDLL_FAIL("Output tensor with invalid type detected");
     }
