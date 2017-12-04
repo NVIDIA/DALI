@@ -60,24 +60,27 @@ private:
 class Executor {
 public:
   inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint,
-      int max_num_stream = -1) :
+      int queue_depth, int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
-    stream_pool_(max_num_stream, true),
+    queue_depth_(queue_depth), stream_pool_(max_num_stream, true),
     event_pool_(max_num_stream) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
-    NDLL_ENFORCE(device_id > 0, "Device id must be greater than 0.");
+    NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
+    NDLL_ENFORCE(queue_depth_ > 0, "Queue depth must be greater than 0.");
   }
   
   virtual ~Executor() = default;
 
   virtual void Build(OpGraph *graph, vector<string> output_names);
 
-  virtual void RunCPU() = 0;
+  virtual void RunCPU() {}
 
-  virtual void RunInternal() = 0;
+  virtual void RunInternal() {}
 
-  virtual void RunGPU() = 0;
+  virtual void RunGPU() {}
+
+  friend class ExecutorTest;
   
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 protected:
@@ -122,22 +125,16 @@ protected:
   void SetOutputBuffersForIter(
       const vector<string> &output_names,
       const std::map<string, int> &type_idx_map,
-      int queue_depth, int *queue_idx, OpGraph *graph,
+      int queue_idx, OpGraph *graph,
       vector<internal::MixedWorkspace> *internal_data,
       vector<DeviceWorkspace> *gpu_data,
       vector<TensorListPool<CPUBackend>> *cpu_outputs,
       vector<TensorListPool<GPUBackend>> *gpu_outputs);
-
+  
   
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
-
-  vector<string> output_names_;
-  std::map<string, int> type_idx_map_;
-  vector<TensorListPool<CPUBackend>> cpu_outputs_;
-  vector<TensorListPool<GPUBackend>> gpu_outputs_;
-  int queue_depth_, queue_idx_ = 0;
   
   Tensor<CPUBackend> mega_buffer_;
   Tensor<GPUBackend> mega_buffer_gpu_;
@@ -145,6 +142,13 @@ protected:
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
 
+
+  vector<string> output_names_;
+  std::map<string, int> type_idx_map_;
+  vector<TensorListPool<CPUBackend>> cpu_outputs_;
+  vector<TensorListPool<GPUBackend>> gpu_outputs_;
+  int queue_depth_, queue_idx_ = 0;
+  
   StreamPool stream_pool_;
   EventPool event_pool_;
 };

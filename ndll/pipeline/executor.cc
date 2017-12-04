@@ -10,6 +10,8 @@ namespace ndll {
 
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   NDLL_ENFORCE(graph != nullptr, "Input graph is nullptr.");
+  output_names_ = output_names;
+  
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
   PruneUnusedGraphNodes(graph, output_names);
@@ -33,8 +35,13 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
       &stream_pool_, &event_pool_);
 
   // Setup queues and events for the outputs of each stage
-  // SetupOutputQueuesForGraph(graph, output_names, &output_);
+  SetupOutputQueuesForGraph(output_names, queue_depth_,
+      &event_pool_, graph, &type_idx_map_, &cpu_outputs_,
+      &gpu_outputs_);
 
+   SetOutputBuffersForIter(output_names, type_idx_map_,
+       queue_idx_, graph, &internal_op_data_, &gpu_op_data_,
+       &cpu_outputs_, &gpu_outputs_);
 }
 
 void Executor::PruneUnusedGraphNodes(OpGraph *graph,
@@ -78,11 +85,22 @@ void Executor::PruneUnusedGraphNodes(OpGraph *graph,
 
     // No nodes were removed, pruning complete
     if (to_remove.size() == 0) break;
-
-    for (auto &id : to_remove) {
-      graph->RemoveOp(id);
+    
+    for (size_t i = 0; i < to_remove.size(); ++i) {
+      // Note: After deleting a node, the graph updates
+      // all other nodes in the graph to keep the node
+      // ids consisten with the number of nodes in the
+      // graph. 'to_remove' will store the removal
+      // targets largest to smallest, so we just subtract
+      // the number of previously deleted nodes from
+      // the current node id.
+      graph->RemoveOp(to_remove[i] - i);
     }
   }
+
+  // If we've pruned the entire graph, something has gone wrong
+  NDLL_ENFORCE(graph->NumOp() > 0, "No output names match "
+      "data produced by the pipeline.");
 }
 
 void Executor::SetupDataForGraph(OpGraph *graph,
@@ -472,7 +490,7 @@ void Executor::SetupOutputQueuesForGraph(
 void Executor::SetOutputBuffersForIter(
     const vector<string> &output_names,
     const std::map<string, int> &type_idx_map,
-    int queue_depth, int *queue_idx, OpGraph *graph,
+    int queue_idx, OpGraph *graph,
     vector<internal::MixedWorkspace> *internal_data,
     vector<DeviceWorkspace> *gpu_data,
     vector<TensorListPool<CPUBackend>> *cpu_outputs,
@@ -494,10 +512,10 @@ void Executor::SetOutputBuffersForIter(
       int op_idx = graph->NodeIdx(tensor_meta.node);
       internal::MixedWorkspace &ws = (*internal_data)[op_idx];
       if (tensor_meta.is_cpu) {
-        auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+        auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
         ws.SetOutput(tensor_meta.index, output);
       } else {
-        auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+        auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
         ws.SetOutput(tensor_meta.index, output);
       }
     } else if (node_type == NDLL_GPU) {
@@ -506,13 +524,28 @@ void Executor::SetOutputBuffersForIter(
       int op_idx = graph->NodeIdx(tensor_meta.node);
       DeviceWorkspace &ws = (*gpu_data)[op_idx];
 
-      auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(*queue_idx);
+      auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
       ws.SetOutput(tensor_meta.index, output);
     } else {
       NDLL_FAIL("Output tensor with invalid type detected");
     }
 
-    // TODO(tgale): Update all nodes that take this tensor as input
+    // Update all nodes workspaces that take this tensor as input
+    vector<TensorMeta> consumer_meta = graph->TensorConsumerMeta(name);
+    for (const auto &meta : consumer_meta) {
+      // Ops that take in contiguous data are gpu ops
+      NDLL_ENFORCE(graph->NodeType(meta.node) == NDLL_GPU,
+          "Executor encountered contiguous input to non-gpu node.");
+
+      DeviceWorkspace &ws = (*gpu_data)[graph->NodeIdx(meta.node)];
+      if (meta.is_cpu) {
+        auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
+        ws.SetOutput(meta.index, output);
+      } else {
+        auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
+        ws.SetOutput(meta.index, output);
+      }
+    }
   }
   
 }
