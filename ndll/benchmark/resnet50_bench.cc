@@ -104,7 +104,7 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_REGISTER_F(RN50Bench, C2Pipeline)->Iterations(2)
+BENCHMARK_REGISTER_F(RN50Bench, C2Pipeline)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);

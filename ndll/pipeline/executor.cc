@@ -138,7 +138,7 @@ void Executor::RunGPU() {
   lock.unlock();
     
   // Increment the queue index for next time.
-  ++queue_idx_; 
+  queue_idx_ = (queue_idx_ + 1) % queue_depth_;
 }
 
 void Executor::Outputs(DeviceWorkspace *ws) {
