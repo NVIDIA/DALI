@@ -59,11 +59,6 @@ public:
     int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
-#ifndef NDEBUG
-    // Dump the opencv image
-    DumpHWCToFile(ver.ptr(), h, w, c_, "ver_" + std::to_string(img_id));
-#endif 
-    
     cv::Mat ver_img(h, w, IsColor(img_type_) ? CV_8UC3 : CV_8UC2);
     if (img_type_ == NDLL_RGB) {
       // Convert from BGR to RGB for verification
@@ -79,11 +74,6 @@ public:
       diff[i] = abs(int(ver_img.ptr()[i] - img[i]));
     }
 
-#ifndef NDEBUG
-    // Dump the absolute differences
-    DumpHWCToFile(diff.data(), h, w, c_, "diff_" + std::to_string(img_id));
-#endif 
-    
     // calculate the MSE
     float mean, std;
     MeanStdDev(diff, &mean, &std);
@@ -140,7 +130,6 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
 #ifndef NDEBUG
     cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;
     cout << "dims: " << w << "x" << h << endl;
-    DumpHWCToFile(image.data(), h, w, this->c_, std::to_string(img));
 #endif 
     this->VerifyDecode(image.data(), h, w, img);
   }

@@ -238,10 +238,6 @@ TYPED_TEST(TransformTest, TestResizeCrop) {
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
-    DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, std::to_string(i));
-    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, "ver_" + std::to_string(i));
 #endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
@@ -282,10 +278,6 @@ TYPED_TEST(TransformTest, TestResizeCropMirror) {
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
-    DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, std::to_string(i));
-    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, "ver_" + std::to_string(i));
 #endif 
     this->VerifyImage(out_img.data(), ver_img.data(), out_img.size());
   }
@@ -324,10 +316,6 @@ TYPED_TEST(TransformTest, TestFastResizeCrop) {
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
-    DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, std::to_string(i));
-    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, "ver_" + std::to_string(i));
 #endif
     // TODO(tgale): We need a better way to evaluate similarity for the
     // FastResizeCropMirror method. The resulting image is very close,
@@ -372,10 +360,6 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
     cout << "rsz: " << rsz_h << "x" << rsz_w << endl;
     cout << "crop: " << crop_h << "x" << crop_w << endl;
     cout << "mirror: " << mirror << endl;
-    DumpHWCToFile(out_img.data(), crop_h, crop_w,
-        this->c_, std::to_string(i));
-    DumpHWCToFile(ver_img.data(), crop_h, crop_w,
-            this->c_, "ver_" + std::to_string(i));
 #endif
     // TODO(tgale): We need a better way to evaluate similarity for the
     // FastResizeCropMirror method. The resulting image is very close,
@@ -431,10 +415,6 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
           out_ptrs.data(),
           out_sizes.data(),
           type));
-
-#ifndef NDEBUG
-  DumpHWCImageBatchToFile<uint8>(gpu_output_batch);
-#endif
   
   // verify the resize
   for (int i = 0; i < batch_size; ++i) {
@@ -445,18 +425,6 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
     cv::resize(img, ground_truth,
         cv::Size(out_sizes[i].width, out_sizes[i].height),
         0, 0, cv::INTER_LINEAR);
-
-#ifndef NDEBUG
-    DumpHWCToFile(ground_truth.ptr(), ground_truth.rows, ground_truth.cols,
-        ground_truth.channels(), "ver_" + std::to_string(i));
-#endif
-    // vector<uint8> tmp_output(out_sizes[i].height * out_sizes[i].width * this->c_, 0);
-    // CUDA_CALL(cudaDeviceSynchronize());
-    // CUDA_CALL(cudaMemcpy(tmp_output.data(), gpu_output_batch.template mutable_sample<uint8>(i),
-    //         out_sizes[i].height * out_sizes[i].width * this->c_, cudaMemcpyDeviceToHost));
-    // cv::Scalar mssim = this->MSSIM(tmp_output.data(), ground_truth.ptr(),
-    //     out_sizes[i].height, out_sizes[i].width, this->c_);
-    // cout << mssim << endl;
     
     this->VerifyImage(gpu_output_batch.template mutable_sample<uint8>(i), ground_truth.ptr(),
         out_sizes[i].height * out_sizes[i].width * this->c_, 40.f, 40.f);
