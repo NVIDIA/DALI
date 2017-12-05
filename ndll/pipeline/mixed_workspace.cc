@@ -1,5 +1,7 @@
 #include "ndll/pipeline/mixed_workspace.h"
 
+#include "ndll/pipeline/sample_workspace.h"
+
 namespace ndll {
 namespace internal {
 

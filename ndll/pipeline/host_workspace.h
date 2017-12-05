@@ -8,6 +8,8 @@
 
 namespace ndll {
 
+class SampleWorkspace;
+
 /**
  * @brief HostWorkspace stores all data that a cpu op operates on.
  * HostWorkspace differs from BatchWorkspace in that the input data
@@ -18,6 +20,12 @@ public:
   inline HostWorkspace() {}
   inline ~HostWorkspace() = default;
 
+  /**
+   * @brief Returns a sample workspace for the given sample
+   * index and thread index
+   */
+  void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
+  
   /**
    * @brief Returns the number of inputs.
    */
@@ -106,7 +114,6 @@ private:
   // Tensor is stored on cpu, and the second element is the index of
   // that tensor in the {cpu, gpu}_inputs_ vector.
   vector<std::pair<bool, int>> input_index_map_, output_index_map_;
-
 };
 
 } // namespace ndll

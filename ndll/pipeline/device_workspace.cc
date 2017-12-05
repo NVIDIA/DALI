@@ -1,5 +1,7 @@
 #include "ndll/pipeline/device_workspace.h"
 
+#include "ndll/pipeline/sample_workspace.h"
+
 namespace ndll {
 
 template <>

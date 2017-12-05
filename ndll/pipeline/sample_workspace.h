@@ -19,38 +19,30 @@ namespace ndll {
  */
 class SampleWorkspace {
 public:
-  /**
-   * @brief Construct a Sample workspace from the data at index
-   * data_idx in the input Workspace. Save the id of the thread
-   * that will process this data.
-   */
-  SampleWorkspace(DeviceWorkspace *ws, int data_idx, int thread_idx) :
-    data_idx_(data_idx), thread_idx_(thread_idx) {
-    NDLL_FAIL("Not implemented.");
-  }
+  SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
-  /**
-   * @brief Construct a Sample workspace from the data at index
-   * data_idx in the input Workspace. Save the id of the thread
-   * that will process this data.
-   */
-  SampleWorkspace(internal::MixedWorkspace *ws, int data_idx, int thread_idx) :
-    data_idx_(data_idx), thread_idx_(thread_idx) {
-    NDLL_FAIL("Not implemented.");
-  }
-
-  /**
-   * @brief Construct a Sample workspace from the data at index
-   * data_idx in the input Workspace. Save the id of the thread
-   * that will process this data.
-   */
-  SampleWorkspace(HostWorkspace *ws, int data_idx, int thread_idx) :
-    data_idx_(data_idx), thread_idx_(thread_idx) {
-    NDLL_FAIL("Not implemented.");
-  }
-  
   ~SampleWorkspace() = default;
 
+  /**
+   * @brief Clears the contents of the workspaces, reseting it
+   * to a default state.
+   */
+  inline void Clear() {
+    data_idx_ = -1;
+    thread_idx_ = -1;
+    has_stream_ = false;
+    stream_ = 0;
+    
+    cpu_inputs_.clear();
+    gpu_inputs_.clear();
+    cpu_outputs_.clear();
+    gpu_outputs_.clear();
+    input_index_map_.clear();
+    output_index_map_.clear();
+    cpu_parameters_.clear();
+    gpu_parameters_.clear();
+  }
+  
   /**
    * @brief Returns the number of input CPU tensors
    */
@@ -83,12 +75,24 @@ public:
   const Tensor<Backend>& Input(int idx) const;
 
   /**
+   * @brief Adds the input Tensor as an input.
+   */
+  template <typename Backend>
+  void AddInput(shared_ptr<Tensor<Backend>> input);
+  
+  /**
    * @brief Returns Tensor with index = data_idx() from the output
    * TensorList at index = `idx`.
    */
   template <typename Backend>
   Tensor<Backend>* Output(int idx);
 
+  /**
+   * @brief Adds the input Tensor as an output.
+   */
+  template <typename Backend>
+  void AddOutput(shared_ptr<Tensor<Backend>> output);
+  
   /**
    * @brief Returns the number of parameter tensors
    */
@@ -103,20 +107,58 @@ public:
   Tensor<Backend>* ParamTensor(int idx);
 
   /**
+   * @brief Adds a set of parameter tensors to the workspace
+   */
+  void AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
+      shared_ptr<Tensor<GPUBackend>> gpu_tensor);
+  
+  /**
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.
    */
   inline int data_idx() const { return data_idx_; }
 
   /**
+   * @brief Sets the data index for the workspace.
+   */
+  inline void set_data_idx(int data_idx) {
+    NDLL_ENFORCE(data_idx >= 0, "Negative data index not supported.");
+    data_idx_ = data_idx;
+  }
+  
+  /**
    * @brief Returns the index of the thread that will process this data.
    */
   inline int thread_idx() const { return thread_idx_; }
+
+  /**
+   * @brief Sets the thread index for the workspace.
+   */
+  inline void set_thread_idx(int thread_idx) {
+    NDLL_ENFORCE(thread_idx >= 0, "Negative thread index not supported.");
+    thread_idx_ = thread_idx;
+  }
+  
+  /**
+   * @brief Returns true if the workspace contains a valid stream.
+   */
+  inline bool has_stream() const { return has_stream_; }
   
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
-  inline cudaStream_t stream() const { return stream_; }
+  inline cudaStream_t stream() const {
+    NDLL_ENFORCE(has_stream_, "Workspace does not have a valid stream.");
+    return stream_;
+  }
+
+  /**
+   * @brief Sets the stream for this workspace.
+   */
+  inline void set_stream(cudaStream_t stream) {
+    has_stream_ = true;
+    stream_= stream;
+  }
   
 private:
   template <typename T>
@@ -132,6 +174,7 @@ private:
   
   int data_idx_, thread_idx_;
   cudaStream_t stream_;
+  bool has_stream_;
   
   vector<TensorPtr<CPUBackend>> cpu_parameters_;
   vector<TensorPtr<GPUBackend>> gpu_parameters_;

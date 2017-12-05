@@ -1,6 +1,29 @@
 #include "ndll/pipeline/host_workspace.h"
 
+#include "ndll/pipeline/sample_workspace.h"
+
 namespace ndll {
+
+void HostWorkspace::GetSample(SampleWorkspace *ws,
+    int data_idx, int thread_idx) {
+  NDLL_ENFORCE(ws != nullptr, "Input workspace is nullptr.");
+  ws->set_data_idx(data_idx);
+  ws->set_thread_idx(thread_idx);
+  for (const auto &input_meta : input_index_map_) {
+    if (input_meta.first) {
+      ws->AddInput(cpu_inputs_[input_meta.second][data_idx]);
+    } else {
+      ws->AddInput(gpu_inputs_[input_meta.second][data_idx]);
+    }
+  }
+  for (const auto &output_meta : output_index_map_) {
+    if (output_meta.first) {
+      ws->AddOutput(cpu_outputs_[output_meta.second][data_idx]);
+    } else {
+      ws->AddOutput(gpu_outputs_[output_meta.second][data_idx]);
+    }
+  }
+}
 
 int HostWorkspace::NumInputAtIdx(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());

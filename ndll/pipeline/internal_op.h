@@ -15,10 +15,10 @@ public:
   virtual inline ~InternalOp() = default;
 
   /**
-   * @brief Implemented by derived operators to perform any
-   * batch-wise setup e.g. resizing the output TensorList.
+   * @brief Implemented by derived operators to perform
+   * their computation.
    */
-  virtual void Setup(MixedWorkspace *ws) = 0;
+  virtual void Run(MixedWorkspace *ws) = 0;
   
 protected:
 };

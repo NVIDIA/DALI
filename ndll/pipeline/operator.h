@@ -138,7 +138,7 @@ public:
    * the Run() function. See ZeroCopyBackend for info on how data
    * dependent parameters can be setup in the Run function on host.   
    */
-  virtual void KernelSetupPerSample(SampleWorkspace *ws) {
+  virtual void KernelSetupPerSample(DeviceWorkspace *ws) {
     // No-op by default
   }
   

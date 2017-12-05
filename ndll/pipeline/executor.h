@@ -59,12 +59,12 @@ private:
 
 class Executor {
 public:
-  inline Executor(int batch_size, int device_id, size_t bytes_per_sample_hint,
-      int queue_depth, int max_num_stream = -1) :
+  inline Executor(int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
+      bool set_affinity = false, int queue_depth = 2, int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
     queue_depth_(queue_depth), stream_pool_(max_num_stream, true),
-    event_pool_(max_num_stream) {
+    event_pool_(max_num_stream), thread_pool_(num_thread, device_id, set_affinity) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
     NDLL_ENFORCE(queue_depth_ > 0, "Queue depth must be greater than 0.");
@@ -74,11 +74,11 @@ public:
 
   virtual void Build(OpGraph *graph, vector<string> output_names);
 
-  virtual void RunCPU() {}
+  virtual void RunCPU();
 
-  virtual void RunInternal() {}
+  virtual void RunInternal();
 
-  virtual void RunGPU() {}
+  virtual void RunGPU();
 
   friend class ExecutorTest;
   
@@ -131,10 +131,15 @@ protected:
       vector<TensorListPool<CPUBackend>> *cpu_outputs,
       vector<TensorListPool<GPUBackend>> *gpu_outputs);
   
-  
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
+
+  // Used to keep track of the additional event insertions
+  // we need to perform so that the user can block on the
+  // results produced from a specific iteration
+  using SyncPair = std::pair<cudaStream_t, cudaEvent_t>;
+  vector<SyncPair> internal_output_events_, gpu_output_events_;
   
   Tensor<CPUBackend> mega_buffer_;
   Tensor<GPUBackend> mega_buffer_gpu_;
@@ -142,15 +147,26 @@ protected:
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
 
-
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;
   vector<TensorListPool<CPUBackend>> cpu_outputs_;
   vector<TensorListPool<GPUBackend>> gpu_outputs_;
   int queue_depth_, queue_idx_ = 0;
+
+  // The ready queue stores the indices of batches
+  // who are ready for the user. We use the mutex
+  // to ensure thread-safety while updating it,
+  // and the condition_variable to signal between
+  // the processing thread and the waiting host
+  // thread that data is complete.
+  std::queue<int> ready_queue_;  
+  std::mutex ready_mutex_;
+  std::condition_variable ready_cond_;
   
+  OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
   EventPool event_pool_;
+  ThreadPool thread_pool_;
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \

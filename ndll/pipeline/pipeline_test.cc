@@ -292,7 +292,7 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
   ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
-  ASSERT_EQ(graph.internal_op(0)->name(), "MakeContiguous");
+  ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
   
   // Validate the source op
   auto node = graph.node(0);
@@ -336,7 +336,7 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
   ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
-  ASSERT_EQ(graph.internal_op(0)->name(), "CopyToDevice");
+  ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
     
   // Validate the source op
   auto node = graph.node(0);

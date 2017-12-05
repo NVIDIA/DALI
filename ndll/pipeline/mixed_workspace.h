@@ -8,6 +8,9 @@
 #include "ndll/pipeline/data/tensor_list.h"
 
 namespace ndll {
+
+class SampleWorkspace;
+
 namespace internal {
 
 /**

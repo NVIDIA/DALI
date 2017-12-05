@@ -10,6 +10,8 @@
 
 namespace ndll {
 
+class SampleWorkspace;
+
 /**
  * @brief DeviceWorkspace stores all data that a gpu operator operates on, 
  * including its input and output TensorLists, parameter tensors and 

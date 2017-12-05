@@ -6,9 +6,14 @@ namespace ndll {
 
 class ExecutorTest : public NDLLTest {
 public:
+  void SetUp() override {
+    NDLLTest::SetUp();
+    batch_size_ = jpeg_names_.size();
+  }
+  
   inline OpSpec PrepareSpec(OpSpec spec) {
-    spec.AddArg("batch_size", 1)
-      .AddArg("num_threads", 1)
+    spec.AddArg("batch_size", batch_size_)
+      .AddArg("num_threads", num_threads_)
       .AddArg("cuda_stream", 0)
       .AddArg("pixels_per_image_hint", 0);
     return spec;
@@ -18,12 +23,25 @@ public:
       vector<string> output_names) {
     exe->PruneUnusedGraphNodes(graph, output_names);
   }
+
+  vector<HostWorkspace> CPUData(Executor *exe) {
+    return exe->cpu_op_data_;
+  }
+
+  vector<internal::MixedWorkspace> InternalData(Executor *exe) {
+    return exe->internal_op_data_;
+  }
+
+  vector<DeviceWorkspace> GPUData(Executor *exe) {
+    return exe->gpu_op_data_;
+  }
   
 protected:
+  int batch_size_, num_threads_ = 1;
 };
 
 TEST_F(ExecutorTest, TestPruneBasicGraph) {
-  Executor exe(1, 0, 0, 1);
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
   
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -80,7 +98,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
 }
 
 TEST_F(ExecutorTest, TestPruneMultiple) {
-  Executor exe(1, 0, 0, 1);
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
   
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -128,7 +146,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 }
 
 TEST_F(ExecutorTest, TestPruneRecursive) {
-  Executor exe(1, 0, 0, 1);
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
   
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -174,7 +192,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 }
 
 TEST_F(ExecutorTest, TestPruneWholeGraph) {
-  Executor exe(1, 0, 0, 1);
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
   
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -203,8 +221,8 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
       std::runtime_error);
 }
 
-TEST_F(ExecutorTest, TestBasicGraph) {
-  Executor exe(1, 0, 0, 1);
+TEST_F(ExecutorTest, TestSetupData) {
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -216,7 +234,7 @@ TEST_F(ExecutorTest, TestBasicGraph) {
           ));
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("CopyToDevice")
+          OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("external_data", "cpu")
           .AddOutput("external_data", "gpu")
@@ -229,8 +247,62 @@ TEST_F(ExecutorTest, TestBasicGraph) {
           .AddOutput("copy_data", "gpu")
           ));
 
-  vector<string> outputs = {"copy_data"};
+  
+}
+
+TEST_F(ExecutorTest, TestDataSetup) {
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddOutput("data1", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("data1", "cpu")
+          .AddOutput("data2", "gpu")
+          ));
+  
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "gpu")
+          .AddInput("data2", "gpu")
+          .AddOutput("data3", "gpu")
+          ));
+
+  vector<string> outputs = {"data3_gpu"};
   exe.Build(&graph, outputs);
+
+  // Verify the data has been setup correctly
+  auto host_workspaces = this->CPUData(&exe);
+  ASSERT_EQ(host_workspaces.size(), 1);
+  HostWorkspace &hws = host_workspaces[0];
+  ASSERT_EQ(hws.NumInput(), 0);
+  ASSERT_EQ(hws.NumOutput(), 1);
+  ASSERT_EQ(hws.NumOutputAtIdx(0), batch_size_);
+  ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
+
+  auto internal_workspaces = this->InternalData(&exe);
+  ASSERT_EQ(internal_workspaces.size(), 1);
+  internal::MixedWorkspace &mws = internal_workspaces[0];
+  ASSERT_EQ(mws.NumInput(), 1);
+  ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
+  ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
+  ASSERT_EQ(mws.NumOutput(), 1);
+  ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
+
+  auto device_workspaces = this->GPUData(&exe);
+  ASSERT_EQ(device_workspaces.size(), 1);
+  DeviceWorkspace &dws = device_workspaces[0];
+  ASSERT_EQ(dws.NumInput(), 1);
+  ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
+  ASSERT_EQ(dws.NumOutput(), 1);
+  ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
 }
 
 } // namespace ndll

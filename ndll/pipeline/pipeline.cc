@@ -432,7 +432,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
   OpSpec copy_to_dev_spec =
-    OpSpec("CopyToDevice")
+    OpSpec("MakeContiguous")
     .AddArg("device", "internal")
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");

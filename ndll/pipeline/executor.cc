@@ -10,7 +10,9 @@ namespace ndll {
 
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   NDLL_ENFORCE(graph != nullptr, "Input graph is nullptr.");
+  NDLL_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
   output_names_ = output_names;
+  graph_ = graph;
   
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
@@ -38,10 +40,103 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   SetupOutputQueuesForGraph(output_names, queue_depth_,
       &event_pool_, graph, &type_idx_map_, &cpu_outputs_,
       &gpu_outputs_);
+}
 
-   SetOutputBuffersForIter(output_names, type_idx_map_,
-       queue_idx_, graph, &internal_op_data_, &gpu_op_data_,
-       &cpu_outputs_, &gpu_outputs_);
+void Executor::RunCPU() {
+  // Setup the output buffers for this iteration
+  SetOutputBuffersForIter(output_names_, type_idx_map_,
+      queue_idx_, graph_, &internal_op_data_, &gpu_op_data_,
+      &cpu_outputs_, &gpu_outputs_);
+
+  // TODO(tgale): Is this the desired behavior?
+  // 
+  // We are about to issue work into a set of
+  // buffers whose data has not been requested
+  // by the user yet. Block until the user
+  // queries for the data
+  std::unique_lock<std::mutex> lock(ready_mutex_);
+  while (!ready_queue_.empty() && ready_queue_.front() == queue_idx_) {
+    ready_cond_.wait(lock);
+  }
+  lock.unlock();
+    
+  // Run the cpu-ops in the thread pool
+  for (int i = 0; i < batch_size_; ++i) {
+    thread_pool_.DoWorkWithID(std::bind(
+            [this] (int data_idx, int tid) {
+              SampleWorkspace ws;
+              for (int j = 0; j < graph_->NumCPUOp(); ++j) {
+                Operator<CPUBackend> &op = graph_->cpu_op(j);
+                cpu_op_data_[j].GetSample(&ws, data_idx, tid);
+                op.Run(&ws);
+              }
+
+              // Run the gpu op kernel setup per-thread
+              for (int j = 0; j < graph_->NumGPUOp(); ++j) {
+                Operator<GPUBackend> &op = graph_->gpu_op(j);
+                op.KernelSetupPerSample(&gpu_op_data_[j]);
+              }
+            }, i, std::placeholders::_1));
+  }
+  thread_pool_.WaitForWork();
+
+  // Run the rest of gpu kernel setup
+  for (int i = 0; i < graph_->NumGPUOp(); ++i) {
+    Operator<GPUBackend> &op = graph_->gpu_op(i);
+    op.KernelSetupBatched(&gpu_op_data_[i]);
+  }
+}
+
+// TODO(tgale): Handle event insertion for internal
+// and gpu operators. Setup events for output
+// management and figure out mechanism through
+// which user should query for outptus (especially
+// old outputs.
+void Executor::RunInternal() {
+  for (int i = 0; i < graph_->NumInternalOp(); ++i) {
+    internal::InternalOp &op = graph_->internal_op(i);
+    internal::MixedWorkspace &ws = internal_op_data_[i];
+    op.Run(&ws);
+    if (ws.has_stream() && ws.has_event()) {
+      CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+    }
+  }
+
+  for (auto &sync_meta : internal_output_events_) {
+    // Record the events that signal the completion
+    // of the output data
+    CUDA_CALL(cudaEventRecord(sync_meta.second, sync_meta.first));
+  }
+}
+
+void Executor::RunGPU() {
+  for (int i = 0; i < graph_->NumGPUOp(); ++i) {
+    Operator<GPUBackend> &op = graph_->gpu_op(i);
+    DeviceWorkspace &ws = gpu_op_data_[i];
+    auto parent_events = ws.ParentEvents();
+    for (auto &event : parent_events) {
+      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
+    }
+    op.Run(&ws);
+    if (ws.has_event()) {
+      CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+    }
+  }
+
+  for (auto &sync_meta : gpu_output_events_) {
+    // Record the events that signal the completion
+    // of the output data
+    CUDA_CALL(cudaEventRecord(sync_meta.second, sync_meta.first));
+  }
+
+  // Update the ready queue to signal that all the work
+  // in the `queue_idx_` set of output buffers has been issued
+  std::unique_lock<std::mutex> lock(ready_mutex_);
+  ready_queue_.push(queue_idx_);
+  lock.unlock();
+    
+  // Increment the queue index for next time.
+  ++queue_idx_; 
 }
 
 void Executor::PruneUnusedGraphNodes(OpGraph *graph,
@@ -289,7 +384,7 @@ void Executor::SetupMegaBufferForGraph(OpGraph *graph,
   vector<size_t> offsets;
   vector<int> num_buffer_for_op(graph->NumGPUOp(), 0);
   for (int i = 0; i < graph->NumGPUOp(); ++i) {
-    const vector<size_t> &sizes = graph->gpu_op(i)->KernelParameterSizes();
+    const vector<size_t> &sizes = graph->gpu_op(i).KernelParameterSizes();
     num_buffer_for_op[i] = sizes.size();
     for (auto &num_bytes : sizes) {
       // Align the start of each buffer to 8-bytes
@@ -498,6 +593,8 @@ void Executor::SetOutputBuffersForIter(
   // For each output, we need to hookup the next buffer
   // to the desired output workspaces, and also the
   // input workspaces of later ops that use them
+  internal_output_events_.clear();
+  gpu_output_events_.clear();
   for (auto &name : output_names) {
     // Get the index of this output in whichever
     // tl type vector its stored in
@@ -512,11 +609,25 @@ void Executor::SetOutputBuffersForIter(
       int op_idx = graph->NodeIdx(tensor_meta.node);
       internal::MixedWorkspace &ws = (*internal_data)[op_idx];
       if (tensor_meta.is_cpu) {
-        auto output = (*cpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
-        ws.SetOutput(tensor_meta.index, output);
+        auto &output = (*cpu_outputs)[idx_in_typed_vec];
+        ws.SetOutput(tensor_meta.index, output.GetTL(queue_idx));
+        
+        if (ws.has_stream()) {
+          // Mark this outputs event to be recorded
+          cudaEvent_t event = output.GetEvent(queue_idx);
+          internal_output_events_.push_back(
+              std::make_pair(ws.stream(), event));
+        }
       } else {
-        auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
-        ws.SetOutput(tensor_meta.index, output);
+        auto &output = (*gpu_outputs)[idx_in_typed_vec];
+        ws.SetOutput(tensor_meta.index, output.GetTL(queue_idx));
+
+        if (ws.has_stream()) {
+          // Mark this outputs event to be recorded
+          cudaEvent_t event = output.GetEvent(queue_idx);
+          internal_output_events_.push_back(
+              std::make_pair(ws.stream(), event));
+        }
       }
     } else if (node_type == NDLL_GPU) {
       NDLL_ENFORCE(!tensor_meta.is_cpu, "Executor "
@@ -524,8 +635,13 @@ void Executor::SetOutputBuffersForIter(
       int op_idx = graph->NodeIdx(tensor_meta.node);
       DeviceWorkspace &ws = (*gpu_data)[op_idx];
 
-      auto output = (*gpu_outputs)[idx_in_typed_vec].GetTL(queue_idx);
-      ws.SetOutput(tensor_meta.index, output);
+      auto &output = (*gpu_outputs)[idx_in_typed_vec];
+      ws.SetOutput(tensor_meta.index, output.GetTL(queue_idx));
+
+      // Mark this outputs event to be recorded
+      cudaEvent_t event = output.GetEvent(queue_idx);
+      internal_output_events_.push_back(
+          std::make_pair(ws.stream(), event));
     } else {
       NDLL_FAIL("Output tensor with invalid type detected");
     }

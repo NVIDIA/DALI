@@ -18,7 +18,7 @@ public:
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
 
-  inline void Setup(MixedWorkspace *ws) override {
+  inline void Run(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
     for (int i = 0; i < batch_size_; ++i) {
@@ -27,22 +27,37 @@ public:
       NDLL_ENFORCE(type == input.type(), "Inconsistent types in "
           "input batch. Cannot copy to contiguous device buffer.");
     }
-    
-    auto output = ws->Output<CPUBackend>(0);
-    output->Resize(output_shape);
-    output->set_type(type);
+
+    if (ws->OutputIsType<CPUBackend>(0)) {
+      auto output = ws->Output<CPUBackend>(0);
+      output->Resize(output_shape);
+      output->set_type(type);
+
+      for (int i = 0; i < batch_size_; ++i) {
+        auto &input = ws->Input<CPUBackend>(0, i);
+        std::memcpy(output->raw_mutable_tensor(i),
+            input.raw_data(), input.nbytes());
+      }
+    } else {
+      auto output = ws->Output<GPUBackend>(0);
+      output->Resize(output_shape);
+      output->set_type(type);
+      
+      for (int i = 0; i < batch_size_; ++i) {
+        auto &input = ws->Input<CPUBackend>(0, i);
+        CUDA_CALL(cudaMemcpyAsync(
+                output->raw_mutable_tensor(i),
+                input.raw_data(),
+                input.nbytes(),
+                cudaMemcpyHostToDevice,
+                ws->stream()
+                ));
+      }
+    }
   }
-    
+  
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
 protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
-
-    // Note: Stream doesn't matter here
-    output->Copy(input, ws->stream());
-  }
-
   USE_INTERNAL_OP_MEMBERS();
 };
 

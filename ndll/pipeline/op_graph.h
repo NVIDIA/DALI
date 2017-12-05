@@ -85,12 +85,12 @@ public:
   inline int NumInternalOp() const { return internal_nodes_.size(); }
 
   /**
-   * @brief Returns a unique_ptr to the `idx`-th cpu op that was
+   * @brief Returns a reference to the `idx`-th cpu op that was
    * added to the graph.
    */
-  inline OpPtr<CPUBackend>& cpu_op(int idx) {
+  inline Operator<CPUBackend>& cpu_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
-    return cpu_nodes_[idx].op;
+    return *cpu_nodes_[idx].op;
   }
 
   /**
@@ -103,12 +103,12 @@ public:
   }
   
   /**
-   * @brief Returns a unique_ptr to the `idx`-th gpu op that
+   * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline OpPtr<GPUBackend>& gpu_op(int idx) {
+  inline Operator<GPUBackend>& gpu_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
-    return gpu_nodes_[idx].op;
+    return *gpu_nodes_[idx].op;
   }
 
   /**
@@ -121,12 +121,12 @@ public:
   }
   
   /**
-   * @brief Returns a unique_ptr to the `idx`-th internal op
+   * @brief Returns a reference to the `idx`-th internal op
    * that was added to the graph.
    */
-  inline unique_ptr<internal::InternalOp>& internal_op(int idx) {
+  inline internal::InternalOp& internal_op(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
-    return internal_nodes_[idx].op;
+    return *internal_nodes_[idx].op;
   }
 
   /**
