@@ -36,47 +36,53 @@ BENCHMARK_DEFINE_F(RN50Bench, C2Pipeline)(benchmark::State& st) {
       );
 
   // Add a resize+crop+mirror op
-  // if (fast_resize) {
-  //   pipe.AddTransform(
-  //       OpSpec("FastResizeCropMirrorOp")
-  //       .AddArg("stage", "Prefetch")
-  //       .AddArg("random_resize", true)
-  //       .AddArg("warp_resize", false)
-  //       .AddArg("resize_a", 256)
-  //       .AddArg("resize_b", 480)
-  //       .AddArg("random_crop", true)
-  //       .AddArg("crop_h", 224)
-  //       .AddArg("crop_w", 224)
-  //       .AddArg("mirror_prob", 0.5f)
-  //       );
-  // } else {
-  //   pipe.AddTransform(
-  //       OpSpec("ResizeCropMirrorOp")
-  //       .AddArg("stage", "Prefetch")
-  //       .AddArg("random_resize", true)
-  //       .AddArg("warp_resize", false)
-  //       .AddArg("resize_a", 256)
-  //       .AddArg("resize_b", 480)
-  //       .AddArg("random_crop", true)
-  //       .AddArg("crop_h", 224)
-  //       .AddArg("crop_w", 224)
-  //       .AddArg("mirror_prob", 0.5f)
-  //       );
-  // }
+  if (fast_resize) {
+    pipe.AddOperator(
+        OpSpec("FastResizeCropMirror")
+        .AddArg("device", "cpu")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        .AddInput("images", "cpu")
+        .AddOutput("resized", "cpu")
+        );
+  } else {
+    pipe.AddOperator(
+        OpSpec("ResizeCropMirror")
+        .AddArg("device", "cpu")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        .AddInput("images", "cpu")
+        .AddOutput("resized", "cpu")
+        );
+  }
 
-  // pipe.AddTransform(
-  //     OpSpec("NormalizePermuteOp")
-  //     .AddArg("stage", "Forward")
-  //     .AddArg("output_type", NDLL_FLOAT16)
-  //     .AddArg("mean", vector<float>{128, 128, 128})
-  //     .AddArg("std", vector<float>{1, 1, 1})
-  //     .AddArg("height", 224)
-  //     .AddArg("width", 224)
-  //     .AddArg("channels", 3)
-  //     );
+  pipe.AddOperator(
+      OpSpec("NormalizePermute")
+      .AddArg("device", "gpu")
+      .AddArg("output_type", NDLL_FLOAT16)
+      .AddArg("mean", vector<float>{128, 128, 128})
+      .AddArg("std", vector<float>{1, 1, 1})
+      .AddArg("height", 224)
+      .AddArg("width", 224)
+      .AddArg("channels", 3)
+      .AddInput("resized", "gpu")
+      .AddOutput("final_batch", "gpu")
+      );
   
   // Build and run the pipeline
-  vector<std::pair<string, string>> outputs = {{"images", "cpu"}};
+  vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
 
   // Run once to allocate the memory
