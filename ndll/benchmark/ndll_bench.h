@@ -35,6 +35,23 @@ public:
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
+  inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
+    NDLL_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
+    vector<Dims> shape(n);
+    for (int i = 0; i < n; ++i) {
+      shape[i] = {jpeg_sizes_[i % jpegs_.size()]};
+    }
+    
+    tl->template mutable_data<uint8>();
+    tl->Resize(shape);
+    
+    for (int i = 0; i < n; ++i) {
+      std::memcpy(tl->template mutable_tensor<uint8>(i),
+          jpegs_[i % jpegs_.size()],
+          jpeg_sizes_[i % jpegs_.size()]);
+    }
+  }
+  
 protected:
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;

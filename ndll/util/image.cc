@@ -62,4 +62,29 @@ void LoadFromFile(string file_name, uint8 **image, int *h, int *w, int *c) {
   }
 }
 
+void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name) {
+  NDLL_ENFORCE(img != nullptr);
+  NDLL_ENFORCE(h >= 0);
+  NDLL_ENFORCE(w >= 0);
+  NDLL_ENFORCE(c >= 0);
+  CUDA_CALL(cudaDeviceSynchronize());
+  vector<uint8> tmp(h*w*c, 0);
+  MemCopy(tmp.data(), img, h*w*c);
+  std::ofstream file(file_name + ".ppm");
+  NDLL_ENFORCE(file.is_open());
+
+  file << "P3" << endl;
+  file << w << " " << h << endl;
+  file << "255" << endl;
+
+  for (int i = 0; i < h; ++i) {
+    for (int j = 0; j < w; ++j) {
+      for (int k = 0; k < c; ++k) {
+        file << int(tmp[i*w*c + j*c + k]) << " ";
+      }
+    }
+    file << endl;
+  }
+}
+
 } // namespace ndll

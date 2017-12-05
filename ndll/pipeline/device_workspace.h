@@ -23,6 +23,30 @@ public:
   ~DeviceWorkspace() = default;
 
   /**
+   * @brief Clears the contents of the workspaces, reseting it
+   * to a default state.
+   */
+  inline void Clear() {
+    has_stream_ = false;
+    has_event_ = false;
+    stream_ = 0;
+    parent_events_.clear();
+    
+    cpu_inputs_.clear();
+    gpu_inputs_.clear();
+    cpu_outputs_.clear();
+    gpu_outputs_.clear();
+    input_index_map_.clear();
+    output_index_map_.clear();
+    cpu_parameters_.clear();
+    gpu_parameters_.clear();
+    cpu_inputs_index_.clear();
+    gpu_inputs_index_.clear();
+    cpu_outputs_index_.clear();
+    gpu_outputs_index_.clear();
+  }
+  
+  /**
    * @brief Returns the number of inputs.
    */
   inline int NumInput() const { return input_index_map_.size(); }

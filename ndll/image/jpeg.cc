@@ -68,6 +68,7 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   NDLL_ASSERT(h > 0);
   NDLL_ASSERT(w > 0);
   NDLL_ASSERT(image != nullptr);
+  NDLL_ASSERT(CheckIsJPEG(jpeg, size));
 #endif
   tjhandle handle = tjInitDecompress();
   TJPF pixel_format;

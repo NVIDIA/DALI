@@ -15,20 +15,10 @@
 // Document stream/event innefficiencies
 // Document internal api improvements we could make
 // - *OpNode could has accessors for important data in spec
-// May be able to unify TLQ and whatever slayton used in DataReader
-
-// TODO(tgale):
-// 1. Internal op stream/event assignment [x]
-// 2. Output queueing and events setup (make sure to release unused events/streams)
-// 3. Run* methods
-// 4. Test all methods
-// 5. Extract base class
-// 6. In-place op support
-// 7. Memonger support
 
 namespace ndll {
 
-// A helper class to maange a set of TensorLists and cudaEvents
+// A helper class to manage a set of TensorLists and cudaEvents
 template <typename Backend>
 class TensorListPool {
 public:
@@ -59,8 +49,9 @@ private:
 
 class Executor {
 public:
-  inline Executor(int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int queue_depth = 2, int max_num_stream = -1) :
+  inline Executor(int batch_size, int num_thread, int device_id,
+      size_t bytes_per_sample_hint, bool set_affinity = false,
+      int queue_depth = 2, int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
     queue_depth_(queue_depth), stream_pool_(max_num_stream, true),
@@ -80,6 +71,8 @@ public:
 
   virtual void RunGPU();
 
+  virtual void Outputs(DeviceWorkspace *ws);
+  
   friend class ExecutorTest;
   
   DISABLE_COPY_MOVE_ASSIGN(Executor);

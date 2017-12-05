@@ -87,326 +87,68 @@ void Pipeline::AddOperator(OpSpec spec) {
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
-  /*
-  NDLL_ENFORCE(!built_, "\"Build()\" can only be called once");
-  
-  // Make sure the decoder is the first op in the pipeline
-  if (decode_location_ == DECODE_FORWARD) {
-    NDLL_ENFORCE(prefetch_ops_.size() == 0,
-        "The Decoder is set to occur in the forward "
-        "pipeline stage but prefetch operators exist");
-  }
-  NDLL_ENFORCE(data_reader_ != nullptr,
-      "The Pipeline must have a data reader to be built");
+  NDLL_ENFORCE(!built_, "\"Build()\" can only be called once.");
+  NDLL_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
-  // If we don't have a Parser set, add a default parser to the pipeline
-  if (data_parser_ == nullptr) {
-    data_parser_.reset(
-        new DefaultParser(
-            OpSpec("DefaultParser")
-            .AddArg("batch_size", batch_size_)
-            .AddArg("num_threads", num_threads())
-            .AddArg("cuda_stream", (int64)stream_)
-            )
-        );
-  }
+  // Validate the output tensors names
+  vector<string> outputs;
+  for (const auto &name_pair : output_names) {
+    string name = name_pair.first;
+    string device = name_pair.second;
+    auto it = edge_names_.find(name);
+    NDLL_ENFORCE(it != edge_names_.end(), "Requested output name '" +
+        name + "' is not known to the pipeline.");
 
-  // Note: In the case where we have no operators in the prefetch stage,
-  // we need a way to get the output of the data reader + parser into a
-  // Batch so that it can be copied to the gpu and passed to the forward
-  // stage operators. For now, we insert a CopyOp to handle this
-  if (prefetch_ops_.size() == 0) {
-    OpPtr<CPUBackend> tmp(
-        new CopyOp<CPUBackend>(
-            OpSpec("CopyOp")
-            .AddArg("batch_size", batch_size_)
-            .AddArg("num_threads", num_threads())
-            .AddArg("cuda_stream", (int64)stream_)
-            )
-        );
-    prefetch_ops_.push_back(std::move(tmp));
-  }
+    if (device == "cpu") {
+      NDLL_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
+          name + "' only exists on gpu.");
 
-  // Read a single sample from the database and
-  // parse it to get the input type
-  data_reader_->Read(&input_sample_[0]);
-  data_parser_->Parse(input_sample_[0], &parsed_sample_[0], 0, 0);
-  TypeInfo read_output_type = input_sample_[0].type();
-  TypeInfo parsed_output_type = parsed_sample_[0].type();
-  NDLL_ENFORCE(IsValidType(read_output_type));
-  NDLL_ENFORCE(IsValidType(parsed_output_type));
-  data_reader_->Reset();
-  TypeInfo input_type = parsed_output_type;
-  
-  // Create buffers for intermediate pipeline results. We need 1
-  // buffer for each cpu side op output, and 1 buffer for each
-  // gpu side op input.
-  //
-  // For the Prefetch ops, we also need to set the output buffer
-  // types so that the memory can be allocated prior to wrapping
-  // individual samples in 'Sample' objects. The forward ops get
-  // the whole batch at once, but we call these methods here as
-  // well to avoid as much work as possible during training
-  for (size_t i = 0; i < prefetch_ops_.size(); ++i) {
-    BatchPtr<CPUBackend> tmp_cpu(new Batch<CPUBackend>);
-    cpu_buffers_.push_back(std::move(tmp_cpu));
-    prefetch_ops_[i]->SetOutputType(cpu_buffers_[i].get(), input_type);
-    input_type = cpu_buffers_[i]->type();
+      if (!it->second.has_contiguous) {
+        // Add a make contiguous op to produce this output
+        OpSpec spec =
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput(name, "cpu")
+          .AddOutput("contiguous_" + name, "cpu");
+        PrepareOpSpec(&spec);
+        graph_.AddOp(spec);
+      }
+      outputs.push_back("contiguous_" + name + "_" + device);
+    } else if (device == "gpu") {
+      if (!it->second.has_gpu) {
+        NDLL_ENFORCE(it->second.has_cpu, "Output '" + name +
+            "' exists on neither cpu or gpu, internal error");
+        // Add a copy to device to create the gpu output
+        OpSpec spec = OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput(name, "cpu")
+          .AddOutput(name, "gpu");
+        PrepareOpSpec(&spec);
+        graph_.AddOp(spec);
+      }
+      outputs.push_back(name + "_" + device);
+    } else {
+      NDLL_FAIL("Invalid device argument \"" + device +
+          "\". Valid options are \"cpu\" or \"gpu\"");
+    }
   }
 
-  // For the forward stage, we create a maximum of two buffers
-  // and ping-pong back and forth between them. We always need
-  // to create one to copy into regardless of how many ops are
-  // to be executed in the forward stage
-  for (size_t i = 0; i < std::min(forward_ops_.size()+1, 2lu); ++i) {
-    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-    gpu_storage_.push_back(std::move(tmp_gpu));
-
-    // We'll manage these buffers in bytes for simplicity
-    gpu_storage_.back()->template mutable_data<uint8>();
-  }
-
-  // For all of the ops we will create batches, but share the
-  // underlying data with one of the two 'gpu_storage' batches.
-  // All forward ops are run in the same stream, so we can
-  // guarantee that no op will corrupt the input/output for any
-  // other op.
-  {
-    // We always need one buffer to copy into
-    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-    gpu_buffers_.push_back(std::move(tmp_gpu));
-    gpu_buffers_[0]->set_type(input_type);
-  }
-  
-  for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    BatchPtr<GPUBackend> tmp_gpu(new Batch<GPUBackend>);
-    gpu_buffers_.push_back(std::move(tmp_gpu));
-    forward_ops_[i]->SetOutputType(gpu_buffers_[i+1].get(), input_type);
-    input_type = gpu_buffers_[i+1]->type();
-  }
-
-  // Vector of shapes for all of the intermediate operator results as
-  // well as the output gpu buffer
-  intermediate_shapes_.resize(cpu_buffers_.size() + gpu_buffers_.size());
-
-  // Size all the intermediate shapes for threads to write into
-  for (auto &shape : intermediate_shapes_) {
-    shape.resize(batch_size_);
-  }
-
-  // NOTE: The large number of memory allocations in the pipeline
-  // interfere with training alot due to implicit synchronization w/
-  // pinned memory allocations. We use the user-given hint to pre-size
-  // our buffers to avoid this slowdown while the buffer sizes stabilize.
-  // We could use caching allocator wrappers, but this could potentially
-  // interfere with the rest of the applications allocator and cause false
-  // out of memory errors.
-  
-  for (auto &sample : input_sample_) {
-    sample.set_type(read_output_type);
-    sample.Resize({(Index)pixels_per_image_hint_});
-  }
-  for (auto &sample : parsed_sample_) {
-    sample.set_type(parsed_output_type);
-    sample.Resize({(Index)pixels_per_image_hint_});
-  }
-
-  // NOTE: We don't presize the mega-buffer, as the size of this usually
-  // does not vary over time and has no relation to the size of the images.
-  // If we wanted to do this, we could run over the forward ops and get
-  // estimates of their memory requirements.
-
-  // Resize the intermediate host & gpu storage
-  vector<Dims> tmp(batch_size_, {(Index)pixels_per_image_hint_});
-  for (auto &buf : cpu_buffers_) buf->Resize(tmp);
-  for (auto &buf : gpu_storage_) buf->Resize(tmp);
-  
-  // mark the pipeline as built so we know it is safe to run
+  // Load the final graph into the executor
+  executor_.Build(&graph_, outputs);
   built_ = true;
-  */
 }
 
 void Pipeline::RunCPU() {
-  /*
-  NDLL_ENFORCE(built_, "\"Build()\" must be called before the pipeline is executed");
-  
-  {
-    TimeRange _tr("size-inference-loop");
-    for (Index i = 0; i < batch_size_; ++i) {
-      // Get a Sample from the reader
-      data_reader_->Read(&input_sample_[i]);
-      
-      // Run type inference for this image on the whole pipeline
-      thread_pool_.DoWorkWithID(std::bind(
-              [this] (int data_idx, int tid) {
-                // Run the Parsers
-                data_parser_->Parse(input_sample_[data_idx],
-                    &parsed_sample_[data_idx], data_idx, tid);
-
-                // Get the output shape for the cpu-side results
-                intermediate_shapes_[0][data_idx] =
-                  prefetch_ops_[0]->InferOutputShape(parsed_sample_[data_idx], data_idx, tid);
-                
-                Sample<CPUBackend> sample(intermediate_shapes_[0][data_idx]);
-                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                  intermediate_shapes_[j][data_idx] =
-                    prefetch_ops_[j]->InferOutputShape(sample, data_idx, tid);
-                  sample.Resize(intermediate_shapes_[j][data_idx]);
-                }
-                
-                // Save the shape of the gpu-side copy buffer
-                int offset = prefetch_ops_.size();
-                intermediate_shapes_[offset][data_idx] =
-                  intermediate_shapes_[offset - 1][data_idx];
-
-                // Get the output shape for the gpu-side results
-                ++offset;
-                Sample<GPUBackend> sample_gpu(sample.shape());
-                for (size_t j = 0; j < forward_ops_.size(); ++j) {
-                  intermediate_shapes_[j + offset][data_idx] =
-                    forward_ops_[j]->InferOutputShape(sample_gpu, data_idx, tid);
-                  sample_gpu.Resize(intermediate_shapes_[j + offset][data_idx]);
-                }
-              }, i, std::placeholders::_1));
-    }
-    thread_pool_.WaitForWork();
-  }
-  
-  {
-    TimeRange _tr("resize-buffer-setup-prefetch");
-
-    // Resize intermediate buffers and manage data sharing
-    // on device for the forward stage of computation
-    IntermediateBufferResizeAndSetup();
-
-    // Setup the mega-buffer & distribute sub-buffers to
-    // the ops in the forward pass
-    MegaBufferSetupAndDistribution();
-  }
-  
-  // Execute all the prefetch ops
-  {
-    TimeRange _tr("prefetch-work-loop");
-    for (Index i = 0; i < batch_size_; ++i) {
-      thread_pool_.DoWorkWithID(std::bind(
-              [this] (int data_idx, int tid) {
-                // We're going to ping-pong back and forth between these Samples
-                // So we can cut the number of calls to "WrapSample()" in half.
-                vector<Sample<CPUBackend>> samples(2);
-                samples[1].WrapSample(cpu_buffers_[0].get(), data_idx);
-                
-                prefetch_ops_[0]->Run(parsed_sample_[data_idx], &samples[1], data_idx, tid);
-                for (size_t j = 1; j < prefetch_ops_.size(); ++j) {
-                  // Get the other sample to output this ops result into
-                  samples[!(j&1)].WrapSample(cpu_buffers_[j].get(), data_idx);
-                  prefetch_ops_[j]->Run(samples[j&1], &samples[!(j&1)], data_idx, tid);
-                }
-
-                // Give the forward ops a chance to set up
-                // parameters for their kernel launches
-                for (size_t j = 0; j < forward_ops_.size(); ++j) {
-                  forward_ops_[j]->BatchedParameterSetupPerSample(
-                      *gpu_buffers_[j], gpu_buffers_[j+1].get(), data_idx, tid);
-                }
-              }, i, std::placeholders::_1));
-    }
-    thread_pool_.WaitForWork();
-  }
-  */
-}
-
-void Pipeline::RunCopy() {
-  /*
-  Batch<CPUBackend> &src = *cpu_buffers_[cpu_buffers_.size()-1];
-  Batch<GPUBackend> *dst = gpu_buffers_[0].get();
-
-  // Copy the data to the GPU in the main stream
-  CUDA_CALL(cudaMemcpyAsync(
-          dst->raw_mutable_data(),
-          src.raw_data(),
-          src.nbytes(),
-          cudaMemcpyHostToDevice,
-          stream_));
-
-  // Copy the mega-buffer to GPU in the main stream
-  CUDA_CALL(cudaMemcpyAsync(
-          mega_buffer_gpu_.raw_mutable_data(),
-          mega_buffer_.raw_data(),
-          mega_buffer_.nbytes(),
-          cudaMemcpyHostToDevice,
-          stream_));
-  */
+  executor_.RunCPU();
+  executor_.RunInternal();
 }
 
 void Pipeline::RunGPU() {
-  /*
-  TimeRange _tr("RunForward");
-  NDLL_ENFORCE(built_,
-      "\"Build()\" must be called before the pipeline is executed");
-
-  // TODO(tgale): figure out a cleaner way to do this. We need
-  // to set the stream here each time so that frameworks like
-  // C2 that have different threads running through this method
-  // on any given iteration have the correct stream to maintain
-  // the dependency between the copy and these kernels. Each op
-  // should probably deal with this independently, allthough
-  // this could interfere with any use of npp external to this
-  // code.
-  nppSetStream(stream_);
-  
-  // Run all the forward ops
-  for (size_t i = 0; i < forward_ops_.size(); ++i) {
-    forward_ops_[i]->Run(*gpu_buffers_[i], gpu_buffers_[i+1].get());
-  }
+  executor_.RunGPU();
 }
 
-void Pipeline::IntermediateBufferResizeAndSetup() {
-  // Resize the host-side intermediate buffers
-  for (size_t i = 0; i < cpu_buffers_.size(); ++i) {
-    cpu_buffers_[i]->Resize(intermediate_shapes_[i]);
-  }
-
-
-  // Calculate the maximum number of bytes needed for each
-  // of the gpu storage buffers for the forward pass. Each
-  // buffer will be used for every other buffer in the
-  // forward pass, so we need to find how much memory will
-  // be needed for even numbered buffers and odd numbered
-  // buffers separately
-  vector<size_t> max_bytes(2, 0);
-  for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
-    Index required_size = 0;
-    for (auto &dims : intermediate_shapes_[i + cpu_buffers_.size()]) {
-      Index tmp = 1;
-      for (auto &val : dims) {
-        tmp *= val;
-      }
-      required_size += tmp;
-    }
-
-    size_t required_bytes = required_size * gpu_buffers_[i]->type().size();
-    max_bytes[i&1] = std::max(max_bytes[i&1], required_bytes);
-  }
-
-  // Resize the two storage buffers
-  for (size_t i = 0; i < std::min(forward_ops_.size()+1, 2lu); ++i) {
-    gpu_storage_[i]->Resize({{(Index)max_bytes[i]}});
-  }
-
-  // Share the gpu data with the other gpu buffers and
-  // resize them to their required size for this iteration
-  for (size_t i = 0; i < gpu_buffers_.size(); ++i) {
-    gpu_buffers_[i]->ShareData(*gpu_storage_[i&1]);
-
-    // Note: We've already allocated the maximum amount of data
-    // that these buffers need, so this resize should not trigger
-    // any memory allocations
-    gpu_buffers_[i]->Resize(
-        intermediate_shapes_[i + cpu_buffers_.size()]);
-    NDLL_ENFORCE(gpu_buffers_[i]->shares_data(),
-        "GPU buffers should still be sharing data, something went wrong.");
-  }
-  */
+void Pipeline::Outputs(DeviceWorkspace *ws) {
+  executor_.Outputs(ws);
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
@@ -441,13 +183,9 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
-  // Add batch_size, num_threads, cuda stream, and
-  // image size hint as arguments for the Op to
-  // optionally leverage
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
-    .AddArg("cuda_stream", (int64)stream_)
-    .AddArg("pixels_per_image_hint", pixels_per_image_hint_);
+    .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_);
 }
 
 } // namespace ndll

@@ -73,7 +73,7 @@ typedef ::testing::Types<ThreadCount<1>,
 TYPED_TEST_CASE(PipelineTest, NumThreads);
 
 TEST_F(PipelineTestOnce, TestInputNotKnown) {
-  Pipeline pipe(1, 1, 0, 0, true);
+  Pipeline pipe(1, 1, 0);
 
   ASSERT_THROW(
       pipe.AddOperator(
@@ -87,7 +87,7 @@ TEST_F(PipelineTestOnce, TestInputNotKnown) {
 }
 
 TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
-  Pipeline pipe(1, 1, 0, 0, true);
+  Pipeline pipe(1, 1, 0);
 
   // Inputs must be know to the pipeline, i.e. ops
   // must be added in a topological ordering.
@@ -181,7 +181,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
 }
 
 TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
-  Pipeline pipe(1, 1, 0, 0, true);
+  Pipeline pipe(1, 1, 0);
 
   // Inputs must be know to the pipeline, i.e. ops
   // must be added in a topological ordering.
@@ -274,7 +274,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
 // is kind of a waste to insert a MakeContiguous op afterwards.
 // Is there any way we can do this without the extra copy?
 TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
-  Pipeline pipe(1, 1, 0, 0, true);
+  Pipeline pipe(1, 1, 0);
 
   pipe.AddExternalInput("data");
 
@@ -318,7 +318,7 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
 }
 
 TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
-  Pipeline pipe(1, 1, 0, 0, true);
+  Pipeline pipe(1, 1, 0);
 
   pipe.AddExternalInput("data");
 
@@ -364,10 +364,8 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
 TYPED_TEST(PipelineTest, TestExternalSource) {
   int num_thread = TypeParam::nt;
   int batch_size = this->jpegs_.size();
-  cudaStream_t stream;
-  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
   
-  Pipeline pipe(batch_size, num_thread, stream, 0, true);
+  Pipeline pipe(batch_size, num_thread, 0);
 
   pipe.AddExternalInput("data");
 

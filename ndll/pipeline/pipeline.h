@@ -7,10 +7,15 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/executor.h"
+#include "ndll/pipeline/operators/external_source.h"
 #include "ndll/pipeline/op_graph.h"
 
 namespace ndll {
+
+// TODO(tgale): Update dox for the pipeline and
+// for all other classes that we have changed
+// the semantics of.
 
 /**
  * @brief Organizes and executes the set of operators chosen by the user.
@@ -44,8 +49,7 @@ namespace ndll {
 class Pipeline {
 public:
   /**
-   * @brief Creates a pipeline with `num_threads` worker threads and 
-   * working in `main_stream`. 
+   * @brief Creates a pipeline with `num_threads` worker threads.
    *
    * GPU memory and pinned memory allocations cause implicit synchronization of 
    * the device, resulting in very slow startup times as ndll buffer sizes 
@@ -61,14 +65,16 @@ public:
    * @param device_id id of the GPU to operate on.
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'true'.
-   * @param pixels_per_image_hint Estimated size of each image to be processed.
+   * @param bytes_per_sample_hint Estimated size of each sample to be processed.
    * Defaults to 0.
    */
-  inline Pipeline(int batch_size, int num_threads, cudaStream_t stream,
-      int device_id, bool set_affinity = true, size_t pixels_per_image_hint = 0) :
+  inline Pipeline(int batch_size, int num_threads, int device_id,
+      int queue_depth = 2, size_t bytes_per_sample_hint = 0,
+      bool set_affinity = false, int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    stream_(stream), device_id_(device_id), set_affinity_(set_affinity),
-    pixels_per_image_hint_(pixels_per_image_hint) {
+    bytes_per_sample_hint_(bytes_per_sample_hint),
+    executor_(batch_size, num_threads, device_id, bytes_per_sample_hint,
+        set_affinity, queue_depth, max_num_stream) {
     NDLL_ENFORCE(batch_size_ > 0);
 
     // TODO(tgale): We need to figure out the best way to ensure that the memory
@@ -105,6 +111,25 @@ public:
     PrepareOpSpec(&spec);
     graph_.AddOp(spec);
   }
+
+  /**
+   * @brief Sets the external input with the input name to the 
+   * input data.
+   */
+  inline void SetExternalInput(const string &name,
+      const TensorList<CPUBackend> &tl) {
+    NodeID node_id = graph_.TensorSourceID(name + "_cpu");
+    NDLL_ENFORCE(graph_.NodeType(node_id) == NDLL_CPU,
+        "Internal error setting external input data.");
+
+    int op_idx = graph_.NodeIdx(node_id);
+    auto *op_ptr = &graph_.cpu_op(op_idx);
+    ExternalSource<CPUBackend> *source =
+      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
+    NDLL_ENFORCE(source != nullptr, "Input name '" +
+        name + "' is not marked as an external input.");
+    source->SetDataSource(tl);
+  }
   
   /**
    * @brief Adds an Operator with the input specification to the pipeline. The
@@ -126,13 +151,6 @@ public:
   void RunCPU();
 
   /**
-   * @brief Copies the result of the prefetch stage into the input 
-   * buffer for the forward stage. Also copied all kernel parameters
-   * to the GPU for the GPU stage of computation.
-   */
-  void RunCopy();
-
-  /**
    * @brief Run the gpu portion of the pipeline.
    *
    * This stage is designed to be extremely light weight to minimize cost
@@ -143,21 +161,26 @@ public:
   void RunGPU();
 
   /**
-   * @brief Returns the output TensorList w/ the specified name.
+   * @brief Fills the input device workspace with the output of the pipeline.
+   * This method blocks until the next batch is complete. RunCPU and RunGPU
+   * must be called prior to calling this or this method will result in
+   * deadlock.
+   *
+   * TODO(tgale): This seems bad to have a method that can deadline so
+   * easily. Is there a different behavior that we would like?
    */
-  template <typename Backend>
-  const vector<const TensorList<Backend>&> output() const;
-  
+  void Outputs(DeviceWorkspace *ws);
+    
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
    */
   inline int batch_size() const { return batch_size_; }
 
   /**
-   * @brief Returns the stream that the pipeline is working in.
+   * @brief Returns the number of threads used by the pipeline.
    */
-  inline cudaStream_t stream() const { return stream_; }
-
+  inline int num_threads() const { return num_threads_; }
+  
   // For testing
   template <typename T>
   friend class PipelineTest;
@@ -206,13 +229,11 @@ private:
   
   bool built_;
   int batch_size_, num_threads_;
-  cudaStream_t stream_;
-  int device_id_;
-  bool set_affinity_;
-  size_t pixels_per_image_hint_;
+  size_t bytes_per_sample_hint_;
 
   OpGraph graph_;
-
+  Executor executor_;
+  
   std::map<string, EdgeMeta> edge_names_;
 };
 

@@ -7,6 +7,7 @@ namespace ndll {
 void HostWorkspace::GetSample(SampleWorkspace *ws,
     int data_idx, int thread_idx) {
   NDLL_ENFORCE(ws != nullptr, "Input workspace is nullptr.");
+  ws->Clear();
   ws->set_data_idx(data_idx);
   ws->set_thread_idx(thread_idx);
   for (const auto &input_meta : input_index_map_) {

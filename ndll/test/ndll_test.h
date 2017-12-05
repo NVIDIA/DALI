@@ -35,26 +35,26 @@ struct Gray {
 // Main testing fixture to provide common functionality across tests
 class NDLLTest : public ::testing::Test {
 public:
-  virtual void SetUp() {
+  virtual inline void SetUp() {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_, &jpeg_sizes_);
   }
 
-  virtual void TearDown() {
+  virtual inline void TearDown() {
     for (auto &ptr : jpegs_) delete[] ptr;
     for (auto &ptr : images_) delete[] ptr;
   }
   
-  int RandInt(int a, int b) {
+  inline int RandInt(int a, int b) {
     return std::uniform_int_distribution<>(a, b)(rand_gen_);
   }
 
   template <typename T>
-  auto RandReal(int a, int b) -> T {
+  inline auto RandReal(int a, int b) -> T {
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
   
-  void DecodeJPEGS(NDLLImageType type) {
+  inline void DecodeJPEGS(NDLLImageType type) {
     images_.resize(jpegs_.size());
     image_dims_.resize(jpegs_.size());
     for (size_t i = 0; i < jpegs_.size(); ++i) {
@@ -86,6 +86,42 @@ public:
     }
   }
 
+  inline void MakeJPEGBatch(int n, TensorList<CPUBackend> *tl) {
+    NDLL_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
+    vector<Dims> shape(n);
+    for (int i = 0; i < n; ++i) {
+      shape[i] = {jpeg_sizes_[i % jpegs_.size()]};
+    }
+    
+    tl->template mutable_data<uint8>();
+    tl->Resize(shape);
+    
+    for (int i = 0; i < n; ++i) {
+      std::memcpy(tl->template mutable_tensor<uint8>(i),
+          jpegs_[i % jpegs_.size()],
+          jpeg_sizes_[i % jpegs_.size()]);
+    }
+  }
+  
+  inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl) {
+    NDLL_ENFORCE(images_.size() > 0, "Images must be decoded to create batches");
+    vector<Dims> shape(n);
+    for (int i = 0; i < n; ++i) {
+      shape[i] = {image_dims_[i % images_.size()].h,
+                  image_dims_[i % images_.size()].w,
+                  c_};
+    }
+    
+    tl->template mutable_data<uint8>();
+    tl->Resize(shape);
+    
+    for (int i = 0; i < n; ++i) {
+      std::memcpy(tl->template mutable_tensor<uint8>(i),
+          images_[i % images_.size()],
+          Product(tl->tensor_shape(i)));
+    }
+  }
+  
   // Builds a batch of HWC images
   void MakeImageBatch(int n, Batch<CPUBackend> *batch) {
     NDLL_ENFORCE(images_.size() > 0, "Images must be decoded to create batches");

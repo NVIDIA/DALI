@@ -11,7 +11,6 @@ remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/hybrid
 remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/normalize_permute_op.cc")
 remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/resize_crop_mirror_op.cc")
 remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/resize_op.cc")
-remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/tjpg_decoder.cc")
 
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
 

@@ -1,14 +1,35 @@
 #include "ndll/pipeline/executor.h"
 
+#include "ndll/pipeline/operators/external_source.h"
 #include "ndll/test/ndll_test.h"
 
 namespace ndll {
 
+namespace {
+// Our turbo jpeg decoder cannot handle CMYK images
+// or 410 images
+const vector<string> tjpg_test_images = {
+  image_folder + "/420.jpg",
+  image_folder + "/422.jpg",
+  image_folder + "/440.jpg",
+  image_folder + "/444.jpg",
+  image_folder + "/gray.jpg",
+  image_folder + "/411.jpg",
+  image_folder + "/411-non-multiple-4-width.jpg",
+  image_folder + "/420-odd-height.jpg",
+  image_folder + "/420-odd-width.jpg",
+  image_folder + "/420-odd-both.jpg",
+  image_folder + "/422-odd-width.jpg"
+};
+}
+
 class ExecutorTest : public NDLLTest {
 public:
   void SetUp() override {
-    NDLLTest::SetUp();
-    batch_size_ = jpeg_names_.size();
+    rand_gen_.seed(time(nullptr));
+    LoadJPEGS(tjpg_test_images, &jpegs_, &jpeg_sizes_);
+    batch_size_ = jpegs_.size();
+    DecodeJPEGS(NDLL_RGB);
   }
   
   inline OpSpec PrepareSpec(OpSpec spec) {
@@ -303,6 +324,54 @@ TEST_F(ExecutorTest, TestDataSetup) {
   ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
   ASSERT_EQ(dws.NumOutput(), 1);
   ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
+}
+
+TEST_F(ExecutorTest, TestRunBasicGraph) {
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddOutput("data", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("TJPGDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("images", "cpu")
+          .AddOutput("final_images", "cpu")
+          ));
+
+  vector<string> outputs = {"final_images_cpu"};
+  exe.Build(&graph, outputs);
+
+  // Set the data for the external source
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  ASSERT_NE(src_op, nullptr);
+  TensorList<CPUBackend> tl;
+  this->MakeJPEGBatch(this->batch_size_, &tl);
+  src_op->SetDataSource(tl);
+  
+  exe.RunCPU();
+  exe.RunInternal();
+  exe.RunGPU();
+
+  DeviceWorkspace ws;
+  exe.Outputs(&ws);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
+  TensorList<CPUBackend> *output = ws.Output<CPUBackend>(0);
+  WriteHWCBatch(*output, "image");
 }
 
 } // namespace ndll

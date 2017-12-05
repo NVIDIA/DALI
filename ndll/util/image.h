@@ -35,6 +35,26 @@ void LoadJPEGS(const vector<string> &jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
 
 /**
+ * @brief Writes the input image as a ppm file
+ */
+void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name);
+
+/**
+ * @brief Writes all
+ */
+template <typename Backend>
+void WriteHWCBatch(const TensorList<Backend> &tl, string suffix) {
+  for (int i = 0; i < tl.ntensor(); ++i) {
+    NDLL_ENFORCE(tl.tensor_shape(i).size() == 3);
+    int h = tl.tensor_shape(i)[0];
+    int w = tl.tensor_shape(i)[1];
+    int c = tl.tensor_shape(i)[2];
+    WriteHWCImage(tl.template tensor<uint8>(i),
+        h, w, c, std::to_string(i) + "-" + suffix);
+  }
+}
+
+/**
  * Writes an HWC image to the specified file. Add the file extension '.txt'
  */
 template <typename T>

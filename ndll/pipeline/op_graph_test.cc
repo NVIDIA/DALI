@@ -129,7 +129,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
           ));
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("CopyToDevice")
+          OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("external_data", "cpu")
           .AddOutput("external_data", "gpu")

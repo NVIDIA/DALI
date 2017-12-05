@@ -50,7 +50,7 @@ void Executor::RunCPU() {
 
   // TODO(tgale): Is this the desired behavior?
   // 
-  // We are about to issue work into a set of
+  // If we are about to issue work into a set of
   // buffers whose data has not been requested
   // by the user yet. Block until the user
   // queries for the data
@@ -59,7 +59,7 @@ void Executor::RunCPU() {
     ready_cond_.wait(lock);
   }
   lock.unlock();
-    
+  
   // Run the cpu-ops in the thread pool
   for (int i = 0; i < batch_size_; ++i) {
     thread_pool_.DoWorkWithID(std::bind(
@@ -130,13 +130,51 @@ void Executor::RunGPU() {
   }
 
   // Update the ready queue to signal that all the work
-  // in the `queue_idx_` set of output buffers has been issued
+  // in the `queue_idx_` set of output buffers has been
+  // issued. Notify any waiting threads.
   std::unique_lock<std::mutex> lock(ready_mutex_);
   ready_queue_.push(queue_idx_);
+  ready_cond_.notify_one();
   lock.unlock();
     
   // Increment the queue index for next time.
   ++queue_idx_; 
+}
+
+void Executor::Outputs(DeviceWorkspace *ws) {
+  NDLL_ENFORCE(ws != nullptr, "Workspace is nullptr");
+
+  // Block until the work for a batch has been issued.
+  // Once we get the index of our results, we notify
+  // on the ready_cond in case the worker thread is
+  // waiting to not overwrite these results
+  std::unique_lock<std::mutex> lock(ready_mutex_);
+  while (ready_queue_.empty()) {
+    ready_cond_.wait(lock);
+  }
+  int output_idx = ready_queue_.front();
+  ready_queue_.pop();
+  ready_cond_.notify_one();
+  lock.unlock();
+
+  // Gather the results TensorLists and block on their
+  // events to make sure that the computation has completed
+  ws->Clear();
+  for (const auto &name : output_names_) {
+    auto it = type_idx_map_.find(name);
+    NDLL_ENFORCE(it != type_idx_map_.end(), "Executor could not "
+        "find output with name '" + name + "'.");
+
+    if (graph_->TensorIsType<CPUBackend>(name)) {
+      auto &tl_pool = cpu_outputs_[it->second];
+      ws->AddOutput(tl_pool.GetTL(output_idx));
+      CUDA_CALL(cudaEventSynchronize(tl_pool.GetEvent(output_idx)));
+    } else {
+      auto &tl_pool = gpu_outputs_[it->second];
+      ws->AddOutput(tl_pool.GetTL(output_idx));
+      CUDA_CALL(cudaEventSynchronize(tl_pool.GetEvent(output_idx)));
+    }
+  }
 }
 
 void Executor::PruneUnusedGraphNodes(OpGraph *graph,

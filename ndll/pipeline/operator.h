@@ -77,10 +77,8 @@ public:
    */
   inline void Run(SampleWorkspace *ws) {
 #ifndef NDEBUG
-    NDLL_ENFORCE(ws->thread_idx() > 0, "Invalid negative thread idx for cpu work.");
-    NDLL_ENFORCE(ws->thread_idx() < num_threads_, "Thread index out of range.");
-    NDLL_ENFORCE(ws->data_idx() > 0, "Invalid negative data index for cpu work.");
-    NDLL_ENFORCE(ws->data_idx() < batch_size_, "Data index out of range.");
+    NDLL_ENFORCE_VALID_INDEX(ws->thread_idx(), num_threads_);
+    NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), batch_size_);
 #endif
     RunPerSampleCPU(ws);
   }
