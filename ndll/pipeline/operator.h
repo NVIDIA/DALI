@@ -23,16 +23,6 @@ enum NDLLOpType {
  * Operator defines the API used by the pipeline to execute operations,
  * perform shape/type inference, and setup any needed paramters for kernel
  * execution.
- *
- * Executing ops on an entire batch often requires the setup of meta-data on
- * GPU. To do this efficiently, the Operator provides methods that the
- * the Pipeline can query to figure out what paramters the op needs on GPU,
- * and then adds the required buffers to the ops Workspace. The op can
- * then implement KernelSetup{PerSample, Batched} to setup their parameters 
- * on the CPU. These parameters are efficiently transfered by the Pipeline 
- * to the GPU prior to execution of the op. The GPU versions of the same data 
- * setup on the CPU by the op is also available in the Workspace passed in 
- * for kernel execution.
  */
 template <typename Backend>
 class Operator {
@@ -90,50 +80,6 @@ public:
     RunBatchedGPU(ws);
   }
 
-  /**
-   * @brief Returns a vector of Tensor sizes in bytes, each one refering 
-   * to a different parameter tensor required by the Op for batched gpu 
-   * execution. By default the vector is of size 0, and no space is 
-   * allocate for the op's kernel parameters.
-   */
-  virtual vector<size_t> KernelParameterSizes() {
-    return vector<size_t>{};
-  }
-  
-  /**
-   * @brief Can be implemented by derived ops to setup any needed paramters for
-   * the kernel. Ops should do as much work as possible in this and the
-   * Operator<Backend>#KernelSetupPerSample to reduce the amount of work that
-   * will be exposed on the front of the forward training pass.
-   *
-   * Prefer to implement paramter setup per-image (by implementing 
-   * Operator<Backend>#KernelSetupPerSample). This is called in the thread 
-   * pool and thus reduces the amount of serial work done by the pipeline.
-   *
-   * Note: This function is provided access to its input and output data
-   * buffers so that the Op can do any resizing of its output it needs.
-   * However, THE INPUT DATA IS NOT VALID. Any data-dependent work and the 
-   * actual kernel launch should be done in the Run() function.
-   */
-  virtual void KernelSetupBatched(DeviceWorkspace *ws) {
-    // No-op by default
-  }
-  
-  /**
-   * @brief Can be implemented by derived ops to setup any needed per-sample 
-   * paramters for the kernel. Ops should do as much work as possible in this 
-   * and the Operator<Backend>#KernelSetupPerSample to reduce the amount of 
-   * work that will be exposed on the front of the forward training pass.
-   *
-   * Note: This function is provided access to its input and output data
-   * buffers so that the Op can do any resizing of its output it needs.
-   * However, THE INPUT DATA IS NOT VALID. Any data-dependent work and the 
-   * actual kernel launch should be done in the Run() function.
-   */
-  virtual void KernelSetupPerSample(DeviceWorkspace *ws) {
-    // No-op by default
-  }
-  
   /**
    * @brief returns the name of the operator. By default returns
    * the name of the op as specified by the OpSpec it was constructed

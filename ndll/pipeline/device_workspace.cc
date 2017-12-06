@@ -246,24 +246,4 @@ void DeviceWorkspace::SetOutput(int idx,
   output_index_map_[idx] = std::make_pair(false, gpu_outputs_.size()-1);
 }
 
-template <>
-Tensor<CPUBackend>* DeviceWorkspace::ParamTensor(int idx) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)idx, cpu_parameters_.size());
-  return cpu_parameters_[idx].get();
-}
-
-template <>
-Tensor<GPUBackend>* DeviceWorkspace::ParamTensor(int idx) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)idx, gpu_parameters_.size());
-  return gpu_parameters_[idx].get();
-}
-
-void DeviceWorkspace::AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
-    shared_ptr<Tensor<GPUBackend>> gpu_tensor) {
-  NDLL_ENFORCE(cpu_tensor != nullptr, "Input cpu parameter tensor is nullptr.");
-  NDLL_ENFORCE(gpu_tensor != nullptr, "Input gpu parameter tensor is nullptr.");
-  cpu_parameters_.push_back(cpu_tensor);
-  gpu_parameters_.push_back(gpu_tensor);
-}
-
 } // namespace ndll

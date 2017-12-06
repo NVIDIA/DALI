@@ -98,11 +98,6 @@ protected:
       vector<DeviceWorkspace> *gpu_data,
       size_t bytes_per_sample_hint);
 
-  void SetupMegaBufferForGraph(OpGraph *graph,
-      Tensor<CPUBackend> *mega_buffer,
-      Tensor<GPUBackend> *mega_buffer_gpu,
-      vector<DeviceWorkspace> *gpu_data);
-
   void SetupStreamsForGraph(OpGraph *graph,
       vector<internal::MixedWorkspace> *internal_data,
       vector<DeviceWorkspace> *gpu_data,
@@ -133,9 +128,6 @@ protected:
   // results produced from a specific iteration
   using SyncPair = std::pair<cudaStream_t, cudaEvent_t>;
   vector<SyncPair> internal_output_events_, gpu_output_events_;
-  
-  Tensor<CPUBackend> mega_buffer_;
-  Tensor<GPUBackend> mega_buffer_gpu_;
   
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;

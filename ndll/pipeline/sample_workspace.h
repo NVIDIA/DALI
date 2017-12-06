@@ -39,8 +39,6 @@ public:
     gpu_outputs_.clear();
     input_index_map_.clear();
     output_index_map_.clear();
-    cpu_parameters_.clear();
-    gpu_parameters_.clear();
   }
   
   /**
@@ -92,25 +90,6 @@ public:
    */
   template <typename Backend>
   void AddOutput(shared_ptr<Tensor<Backend>> output);
-  
-  /**
-   * @brief Returns the number of parameter tensors
-   */
-  inline int NumParamTensor() const { return cpu_parameters_.size(); }
-  
-  /**
-   * @brief Returns the parameter tensor at the given index. The template
-   * parameter 'Backend' controls whether the CPU or GPU parameter 
-   * tensor is returned.
-   */
-  template <typename Backend>
-  Tensor<Backend>* ParamTensor(int idx);
-
-  /**
-   * @brief Adds a set of parameter tensors to the workspace
-   */
-  void AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
-      shared_ptr<Tensor<GPUBackend>> gpu_tensor);
   
   /**
    * @brief Returns the index of the sample that this workspace stores
@@ -175,9 +154,6 @@ private:
   int data_idx_, thread_idx_;
   cudaStream_t stream_;
   bool has_stream_;
-  
-  vector<TensorPtr<CPUBackend>> cpu_parameters_;
-  vector<TensorPtr<GPUBackend>> gpu_parameters_;
 };
 
 } // namespace ndll

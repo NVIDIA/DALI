@@ -118,34 +118,4 @@ void SampleWorkspace::AddOutput(shared_ptr<Tensor<GPUBackend>> output) {
       std::make_pair(false, gpu_outputs_.size()-1));
 }
 
-template <>
-Tensor<CPUBackend>* SampleWorkspace::ParamTensor(int idx) {
-  NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-  NDLL_ENFORCE((size_t)idx < cpu_parameters_.size(),
-      "Index out of range." + std::to_string(idx) +
-      " not in range [0, " + std::to_string(cpu_parameters_.size())
-      + ")");
-  
-  return cpu_parameters_[idx].get();
-}
-
-template <>
-Tensor<GPUBackend>* SampleWorkspace::ParamTensor(int idx) {
-  NDLL_ENFORCE(idx >= 0, "Negative index not supported.");
-  NDLL_ENFORCE((size_t)idx < cpu_parameters_.size(),
-      "Index out of range." + std::to_string(idx) +
-      " not in range [0, " + std::to_string(cpu_parameters_.size())
-      + ")");
-  
-  return gpu_parameters_[idx].get();
-}
-
-void SampleWorkspace::AddParamTensor(shared_ptr<Tensor<CPUBackend>> cpu_tensor,
-    shared_ptr<Tensor<GPUBackend>> gpu_tensor) {
-  NDLL_ENFORCE(cpu_tensor != nullptr, "Input cpu parameter tensor is nullptr.");
-  NDLL_ENFORCE(gpu_tensor != nullptr, "Input gpu parameter tensor is nullptr.");
-  cpu_parameters_.push_back(cpu_tensor);
-  gpu_parameters_.push_back(gpu_tensor);
-}
-
 } // namespace ndll
