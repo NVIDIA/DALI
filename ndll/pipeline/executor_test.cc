@@ -358,7 +358,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
-  this->MakeJPEGBatch(this->batch_size_, &tl);
+  this->MakeJPEGBatch(&tl, this->batch_size_);
   src_op->SetDataSource(tl);
   
   exe.RunCPU();
@@ -371,7 +371,6 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
   TensorList<CPUBackend> *output = ws.Output<CPUBackend>(0);
-  WriteHWCBatch(*output, "image");
 }
 
 } // namespace ndll

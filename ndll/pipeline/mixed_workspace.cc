@@ -104,7 +104,7 @@ template <>
 shared_ptr<TensorList<CPUBackend>> MixedWorkspace::SharedOutput(int idx) {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
-  NDLL_ENFORCE(!tensor_meta.first, "Output TensorList with given "
+  NDLL_ENFORCE(tensor_meta.first, "Output TensorList with given "
       "index does not have the calling backend type (CPUBackend)");
   return cpu_outputs_[tensor_meta.second];
 }

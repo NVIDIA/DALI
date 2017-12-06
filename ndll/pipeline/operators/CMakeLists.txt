@@ -6,8 +6,6 @@ remove(NDLL_SRCS "${NDLL_SRCS}" ${tmp})
 
 # DEBUG: Don't worry about all the ops until the refactor is reasonably stable
 remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/crop_mirror_normalize_permute_op.cc")
-remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/hybrid_jpg_decoder.cc")
-remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/normalize_permute_op.cc")
 remove(NDLL_SRCS "${NDLL_SRCS}" "/home/tgale/ndll/ndll/pipeline/operators/resize_op.cc")
 
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)

@@ -111,12 +111,9 @@ public:
    * pool and thus reduces the amount of serial work done by the pipeline.
    *
    * Note: This function is provided access to its input and output data
-   * buffers so that the Op can do any resizing of its output it needs
-   * and so that it can setup any kernel paramters that are pointers
-   * to input/output data. However, THE INPUT DATA IS NOT VALID. Any
-   * data-dependent work and the actual kernel launch should be done in
-   * the Run() function. See ZeroCopyBackend for info on how data
-   * dependent parameters can be setup in the Run function on host.
+   * buffers so that the Op can do any resizing of its output it needs.
+   * However, THE INPUT DATA IS NOT VALID. Any data-dependent work and the 
+   * actual kernel launch should be done in the Run() function.
    */
   virtual void KernelSetupBatched(DeviceWorkspace *ws) {
     // No-op by default
@@ -124,17 +121,14 @@ public:
   
   /**
    * @brief Can be implemented by derived ops to setup any needed per-sample 
-   * paramters for the kernel. Ops should do as much work as possible in this and the
-   * Operator<Backend>#KernelSetupPerSample to reduce the amount of work that
-   * will be exposed on the front of the forward training pass.
+   * paramters for the kernel. Ops should do as much work as possible in this 
+   * and the Operator<Backend>#KernelSetupPerSample to reduce the amount of 
+   * work that will be exposed on the front of the forward training pass.
    *
    * Note: This function is provided access to its input and output data
-   * buffers so that the Op can do any resizing of its output it needs
-   * and so that it can setup any kernel paramters that are pointers
-   * to input/output data. However, THE INPUT DATA IS NOT VALID. Any
-   * data-dependent work and the actual kernel launch should be done in
-   * the Run() function. See ZeroCopyBackend for info on how data
-   * dependent parameters can be setup in the Run function on host.   
+   * buffers so that the Op can do any resizing of its output it needs.
+   * However, THE INPUT DATA IS NOT VALID. Any data-dependent work and the 
+   * actual kernel launch should be done in the Run() function.
    */
   virtual void KernelSetupPerSample(DeviceWorkspace *ws) {
     // No-op by default

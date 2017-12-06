@@ -1,4 +1,4 @@
-#include "ndll/pipeline/operators/hybrid_jpg_decoder.h"
+#include "ndll/pipeline/operators/hybrid_decode.h"
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
@@ -67,11 +67,9 @@ public:
     } else {
       ver_img = ver;
     }
-    
-#ifndef NDEBUG
-    // Dump the opencv image
-    DumpHWCToFile(ver.ptr(), h, w, c_, "ver_" + std::to_string(img_id));
-#endif
+
+    // DEBUG
+    // WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
     
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
@@ -80,11 +78,6 @@ public:
       diff[i] = abs(int(ver_img.ptr()[i] - host_img[i]));
     }
 
-#ifndef NDEBUG
-    // Dump the absolute differences
-    DumpHWCToFile(diff.data(), h, w, c_, "diff_" + std::to_string(img_id));
-#endif 
-    
     // calculate the MSE
     float mean, std;
     MeanStdDev(diff, &mean, &std);
@@ -128,51 +121,55 @@ TYPED_TEST_CASE(HybridDecoderTest, Types);
 TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   int batch_size = this->jpegs_.size();
   int num_thread = 1;
-  cudaStream_t main_stream;
-  CUDA_CALL(cudaStreamCreateWithFlags(&main_stream, cudaStreamNonBlocking));
- 
+
   // Create the pipeline
   Pipeline pipe(
       batch_size,
       num_thread,
-      main_stream,
       0);
 
-  // Add the data reader
-  pipe.AddDataReader(
-      OpSpec("BatchDataReader")
-      .AddArg("jpeg_images", hybdec_images)
-      );
-
-  // Add a hybrid jpeg decoder
-  pipe.AddDecoder(OpSpec("HuffmanDecoder")
-      .AddArg("stage", std::string("Prefetch"))
-      .AddExtraOutput("jpeg_meta"));
+  TensorList<CPUBackend> data;
+  this->MakeJPEGBatch(&data, batch_size);
+  pipe.AddExternalInput("raw_jpegs");
+  pipe.SetExternalInput("raw_jpegs", data);
   
-  pipe.AddTransform(
-      OpSpec("DCTQuantInvOp")
-      .AddArg("stage", "Forward")
-      .AddExtraInput("jpeg_meta")
-      .AddArg("output_type", this->img_type_));
+  // Add a hybrid jpeg decoder
+  pipe.AddOperator(
+      OpSpec("HuffmanDecoder")
+      .AddArg("device", "cpu")
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("dct_data", "cpu")
+      .AddOutput("jpeg_meta", "cpu")
+      );
+  
+  pipe.AddOperator(
+      OpSpec("DCTQuantInv")
+      .AddArg("device", "gpu")
+      .AddArg("output_type", this->img_type_)
+      .AddInput("dct_data", "gpu")
+      .AddInput("jpeg_meta", "cpu")
+      .AddOutput("images", "gpu")
+      );
     
   // Build and run the pipeline
-  pipe.Build();
+  vector<std::pair<string, string>> outputs = {{"images", "gpu"}};
+  pipe.Build(outputs);
 
   // Decode the images
-  pipe.RunPrefetch();
-  pipe.RunCopy();
-  pipe.RunForward();
-  CUDA_CALL(cudaDeviceSynchronize());
+  pipe.RunCPU();
+  pipe.RunGPU();
 
-#ifndef NDEBUG
-  DumpHWCImageBatchToFile<uint8>(pipe.output_batch());
-#endif
+  DeviceWorkspace results;
+  pipe.Outputs(&results);
   
   // Verify the results
+  auto output = results.Output<GPUBackend>(0);
+  // WriteHWCBatch(*output, "image");
   for (int i = 0; i < batch_size; ++i) {
-    this->VerifyDecode(pipe.output_batch().template sample<uint8>(i),
-        pipe.output_batch().sample_shape(i)[0],
-        pipe.output_batch().sample_shape(i)[1], i);
+    this->VerifyDecode(
+        output->template tensor<uint8>(i),
+        output->tensor_shape(i)[0],
+        output->tensor_shape(i)[1], i);
   }
 }
 

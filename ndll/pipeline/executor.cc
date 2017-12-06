@@ -70,21 +70,9 @@ void Executor::RunCPU() {
                 cpu_op_data_[j].GetSample(&ws, data_idx, tid);
                 op.Run(&ws);
               }
-
-              // Run the gpu op kernel setup per-thread
-              for (int j = 0; j < graph_->NumGPUOp(); ++j) {
-                Operator<GPUBackend> &op = graph_->gpu_op(j);
-                op.KernelSetupPerSample(&gpu_op_data_[j]);
-              }
             }, i, std::placeholders::_1));
   }
   thread_pool_.WaitForWork();
-
-  // Run the rest of gpu kernel setup
-  for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-    Operator<GPUBackend> &op = graph_->gpu_op(i);
-    op.KernelSetupBatched(&gpu_op_data_[i]);
-  }
 }
 
 // TODO(tgale): Handle event insertion for internal
@@ -136,7 +124,7 @@ void Executor::RunGPU() {
   ready_queue_.push(queue_idx_);
   ready_cond_.notify_one();
   lock.unlock();
-    
+  
   // Increment the queue index for next time.
   queue_idx_ = (queue_idx_ + 1) % queue_depth_;
 }
@@ -316,7 +304,7 @@ void Executor::SetupDataForGraph(OpGraph *graph,
   for (int i = 0; i < graph->NumGPUOp(); ++i) {
     GPUOpNode &node = graph->gpu_node(i);
     DeviceWorkspace &ws = (*gpu_data)[i];
-
+    
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this internal ops workspace.
@@ -678,7 +666,7 @@ void Executor::SetOutputBuffersForIter(
 
       // Mark this outputs event to be recorded
       cudaEvent_t event = output.GetEvent(queue_idx);
-      internal_output_events_.push_back(
+      gpu_output_events_.push_back(
           std::make_pair(ws.stream(), event));
     } else {
       NDLL_FAIL("Output tensor with invalid type detected");

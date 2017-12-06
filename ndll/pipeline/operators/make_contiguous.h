@@ -35,6 +35,7 @@ public:
 
       for (int i = 0; i < batch_size_; ++i) {
         auto &input = ws->Input<CPUBackend>(0, i);
+        
         std::memcpy(output->raw_mutable_tensor(i),
             input.raw_data(), input.nbytes());
       }

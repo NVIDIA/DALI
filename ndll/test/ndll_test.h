@@ -86,7 +86,7 @@ public:
     }
   }
 
-  inline void MakeJPEGBatch(int n, TensorList<CPUBackend> *tl) {
+  inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
     NDLL_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {

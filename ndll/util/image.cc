@@ -79,8 +79,9 @@ void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name) {
 
   for (int i = 0; i < h; ++i) {
     for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < c; ++k) {
-        file << int(tmp[i*w*c + j*c + k]) << " ";
+      for (int k = 0; k < 3; ++k) {
+        int c_id = k % c;
+        file << int(tmp[i*w*c + j*c + c_id]) << " ";
       }
     }
     file << endl;

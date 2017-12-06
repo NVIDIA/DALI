@@ -2,6 +2,7 @@
 
 #include "ndll/benchmark/ndll_bench.h"
 #include "ndll/pipeline/pipeline.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
