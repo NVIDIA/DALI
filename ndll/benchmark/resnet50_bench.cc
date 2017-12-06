@@ -6,12 +6,12 @@
 
 namespace ndll {
 
-class RN50Bench : public NDLLBenchmark {
+class RN50 : public NDLLBenchmark {
 public:
 protected:
 };
 
-BENCHMARK_DEFINE_F(RN50Bench, C2Pipeline)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   bool fast_resize = st.range(0);
   int batch_size = st.range(1);
   int num_thread = st.range(2);
@@ -111,12 +111,12 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_REGISTER_F(RN50Bench, C2Pipeline)->Iterations(100)
+BENCHMARK_REGISTER_F(RN50, C2Pipe)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(RN50Bench, HybridPipeline)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   NDLLImageType img_type = NDLL_RGB;
@@ -191,23 +191,36 @@ BENCHMARK_DEFINE_F(RN50Bench, HybridPipeline)(benchmark::State& st) {
   pipe.Outputs(&ws);
 
   while(st.KeepRunning()) {
+    if (st.iterations() == 1) {
+      // We will start he processing for the next batch
+      // immediately after issueing work to the gpu to
+      // pipeline the cpu/copy/gpu work
+      pipe.RunCPU();
+      pipe.RunGPU();
+    }
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
+
+    if (st.iterations() == st.max_iterations) {
+      // Block for the last batch to finish
+      pipe.Outputs(&ws);
+    }
   }
 
-  st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
+  st.counters["FPS"] = benchmark::Counter(batch_size*(st.iterations()+1),
+      benchmark::Counter::kIsRate);
 }
 
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
-  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+  for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
     for (int num_thread = 1; num_thread <= 4; ++num_thread) {
       b->Args({batch_size, num_thread});
     }
   }
 }
 
-BENCHMARK_REGISTER_F(RN50Bench, HybridPipeline)->Iterations(100)
+BENCHMARK_REGISTER_F(RN50, HybridPipe)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);
