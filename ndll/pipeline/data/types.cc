@@ -65,5 +65,6 @@ NDLL_REGISTER_TYPE(long long);
 NDLL_REGISTER_TYPE(float16);
 NDLL_REGISTER_TYPE(float);
 NDLL_REGISTER_TYPE(double);
+NDLL_REGISTER_TYPE(bool);
 
 } // namespace ndll

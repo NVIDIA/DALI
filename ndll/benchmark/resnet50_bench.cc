@@ -116,4 +116,100 @@ BENCHMARK_REGISTER_F(RN50Bench, C2Pipeline)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
+BENCHMARK_DEFINE_F(RN50Bench, HybridPipeline)(benchmark::State& st) {
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  NDLLImageType img_type = NDLL_RGB;
+   
+  // Create the pipeline
+  Pipeline pipe(
+      batch_size,
+      num_thread,
+      0);
+  
+  TensorList<CPUBackend> data;
+  this->MakeJPEGBatch(&data, batch_size);
+  pipe.AddExternalInput("raw_jpegs");
+  pipe.SetExternalInput("raw_jpegs", data);
+  
+  // Add a hybrid jpeg decoder
+  pipe.AddOperator(
+      OpSpec("HuffmanDecoder")
+      .AddArg("device", "cpu")
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("dct_data", "cpu")
+      .AddOutput("jpeg_meta", "cpu")
+      );
+
+  pipe.AddOperator(
+      OpSpec("DCTQuantInv")
+      .AddArg("device", "gpu")
+      .AddArg("output_type", img_type)
+      .AddInput("dct_data", "gpu")
+      .AddInput("jpeg_meta", "cpu")
+      .AddOutput("images", "gpu")
+      );
+  
+  // Add a batched resize op
+  pipe.AddOperator(
+      OpSpec("Resize")
+      .AddArg("device", "gpu")
+      .AddArg("random_resize", true)
+      .AddArg("warp_resize", false)
+      .AddArg("resize_a", 256)
+      .AddArg("resize_b", 480)
+      .AddArg("image_type", img_type)
+      .AddArg("interp_type", NDLL_INTERP_LINEAR)
+      .AddInput("images", "gpu")
+      .AddOutput("resized", "gpu")
+      );
+
+  // Add a bached crop+mirror+normalize+permute op
+  pipe.AddOperator(
+      OpSpec("CropMirrorNormalizePermute")
+      .AddArg("device", "gpu")
+      .AddArg("output_type", NDLL_FLOAT16)
+      .AddArg("random_crop", true)
+      .AddArg("crop_h", 224)
+      .AddArg("crop_w", 224)
+      .AddArg("mirror_prob", 0.5f)
+      .AddArg("image_type", img_type)
+      .AddArg("mean", vector<float>{128, 128, 128})
+      .AddArg("std", vector<float>{1, 1, 1})
+      .AddInput("resized", "gpu")
+      .AddOutput("final", "gpu")
+      );
+  
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"final", "gpu"}};
+  pipe.Build(outputs);
+
+  // Run once to allocate the memory
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  while(st.KeepRunning()) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  }
+
+  st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
+}
+
+static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
+  for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+      b->Args({batch_size, num_thread});
+    }
+  }
+}
+
+BENCHMARK_REGISTER_F(RN50Bench, HybridPipeline)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(HybridPipeArgs);
+
 } // namespace ndll

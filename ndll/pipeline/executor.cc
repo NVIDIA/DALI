@@ -517,6 +517,7 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
     for (; it != current_node.parents.end(); ++it) {
       NodeID parent_id = *it;
       int parent_op_idx = graph->NodeIdx(parent_id);
+
       if (graph->NodeType(parent_id) == NDLL_INTERNAL) {
         // We will not re-use internal op streams, but
         // we will need to block on this ops event to
@@ -539,7 +540,7 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
           found_stream = true;
           break;
         }
-        
+
         // If we don't use this parent's stream, we'll need to block
         // on its event to ensure the dependency is respected.
         DeviceWorkspace parent_ws = (*gpu_data)[parent_op_idx];
@@ -549,11 +550,19 @@ void Executor::SetupStreamsForGraph(OpGraph *graph,
       }
     }
 
+    // Note: We want to finish iterating over the parents,
+    // but we do not want to repeat a node. If the earlier
+    // loop terminated because it reached the end, do not
+    // increment the iterator to the next parent or it will
+    // be out of the valid range
+    if (it != current_node.parents.end()) ++it;
+    
     // Make sure we finish adding all parents events
     // if we exited the prevous loop early
     for (; it != current_node.parents.end(); ++it) {
       NodeID parent_id = *it;
       int parent_op_idx = graph->NodeIdx(parent_id);
+      
       if (graph->NodeType(parent_id) == NDLL_INTERNAL) {
         internal::MixedWorkspace parent_ws = (*internal_data)[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());

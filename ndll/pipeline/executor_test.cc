@@ -370,7 +370,6 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
-  TensorList<CPUBackend> *output = ws.Output<CPUBackend>(0);
 }
 
 } // namespace ndll

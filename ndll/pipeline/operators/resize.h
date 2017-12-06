@@ -58,7 +58,7 @@ protected:
   }
 
   inline void DataDependentSetup(DeviceWorkspace *ws) {
-    auto &input = ws->Input<CPUBackend>(0);
+    auto &input = ws->Input<GPUBackend>(0);
     auto output = ws->Output<GPUBackend>(0);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expected input data stored in uint8.");
