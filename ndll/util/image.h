@@ -8,7 +8,6 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/data/batch.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/types.h"
 #include "ndll/util/type_conversion.h"

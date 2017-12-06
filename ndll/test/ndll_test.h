@@ -122,26 +122,6 @@ public:
     }
   }
   
-  // Builds a batch of HWC images
-  void MakeImageBatch(int n, Batch<CPUBackend> *batch) {
-    NDLL_ENFORCE(images_.size() > 0, "Images must be decoded to create batches");
-    vector<Dims> shape(n);
-    for (int i = 0; i < n; ++i) {
-      shape[i] = {image_dims_[i % images_.size()].h,
-                  image_dims_[i % images_.size()].w,
-                  c_};
-    }
-    
-    batch->template mutable_data<uint8>();
-    batch->Resize(shape);
-    
-    for (int i = 0; i < n; ++i) {
-      std::memcpy(batch->template mutable_sample<uint8>(i),
-          images_[i % images_.size()],
-          Product(batch->sample_shape(i)));
-    }
-  }
-  
   template <typename T>
   void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
     // Avoid division by zero

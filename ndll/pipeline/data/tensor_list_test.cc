@@ -4,7 +4,6 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
-#include "ndll/pipeline/data/sample.h"
 #include "ndll/test/ndll_test.h"
 
 namespace ndll {

@@ -14,7 +14,6 @@
 #include "ndll/image/jpeg.h"
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/data/batch.h"
 #include "ndll/test/ndll_test.h"
 #include "ndll/util/type_conversion.h"
 #include "ndll/util/image.h"
@@ -114,27 +113,11 @@ public:
     }
   }
 
-  // Produces jagged batch
-  void MakeImageBatch(int n, Batch<CPUBackend> *batch) {
-    vector<Dims> shape(n);
-    for (int i = 0; i < n; ++i) {
-      shape[i] = {image_dims_[i % images_.size()].h,
-                  image_dims_[i % images_.size()].w,
-                  c_};
-    }
-    batch->template mutable_data<uint8>();
-    batch->Resize(shape);
-
-    for (int i = 0; i < n; ++i) {
-      std::memcpy(batch->template mutable_sample<uint8>(i),
-          images_[i % images_.size()],
-          Product(batch->sample_shape(i)));
-    }
-  }
-  
 protected:
   NDLLImageType img_type_ = ImgType::type;
   int c_;
+
+  using NDLLTest::MakeImageBatch;
 };
 
 // Run RGB & grayscale tests
@@ -371,10 +354,10 @@ TYPED_TEST(TransformTest, TestFastResizeMirror) {
 
 TYPED_TEST(TransformTest, TestBatchedResize) {
   int batch_size = this->images_.size();
-  Batch<CPUBackend> batch;
+  TensorList<CPUBackend> batch;
   this->MakeImageBatch(batch_size, &batch);
   
-  Batch<GPUBackend> gpu_batch;
+  TensorList<GPUBackend> gpu_batch;
   gpu_batch.template mutable_data<uint8>();
   gpu_batch.ResizeLike(batch);
   CUDA_CALL(cudaMemcpy(
@@ -390,9 +373,9 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
   NDLLInterpType type = NDLL_INTERP_LINEAR;
   vector<Dims> output_shape(batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    in_ptrs[i] = gpu_batch.template mutable_sample<uint8>(i);
-    in_sizes[i].height = gpu_batch.sample_shape(i)[0];
-    in_sizes[i].width = gpu_batch.sample_shape(i)[1];
+    in_ptrs[i] = gpu_batch.template mutable_tensor<uint8>(i);
+    in_sizes[i].height = gpu_batch.tensor_shape(i)[0];
+    in_sizes[i].width = gpu_batch.tensor_shape(i)[1];
     
     out_sizes[i].height = this->RandInt(32, 480);
     out_sizes[i].width = this->RandInt(32, 480);
@@ -400,11 +383,11 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
     output_shape[i] = shape;
   }
 
-  Batch<GPUBackend> gpu_output_batch;
+  TensorList<GPUBackend> gpu_output_batch;
   gpu_output_batch.template mutable_data<uint8>();
   gpu_output_batch.Resize(output_shape);
   for (int i = 0; i < batch_size; ++i) {
-    out_ptrs[i] = gpu_output_batch.template mutable_sample<uint8>(i);
+    out_ptrs[i] = gpu_output_batch.template mutable_tensor<uint8>(i);
   }
 
   NDLL_CALL(BatchedResize(
@@ -419,14 +402,14 @@ TYPED_TEST(TransformTest, TestBatchedResize) {
   // verify the resize
   for (int i = 0; i < batch_size; ++i) {
     cv::Mat img = cv::Mat(in_sizes[i].height, in_sizes[i].width,
-        this->c_ == 3 ? CV_8UC3 : CV_8UC1, batch.template mutable_sample<uint8>(i));
+        this->c_ == 3 ? CV_8UC3 : CV_8UC1, batch.template mutable_tensor<uint8>(i));
 
     cv::Mat ground_truth;
     cv::resize(img, ground_truth,
         cv::Size(out_sizes[i].width, out_sizes[i].height),
         0, 0, cv::INTER_LINEAR);
     
-    this->VerifyImage(gpu_output_batch.template mutable_sample<uint8>(i), ground_truth.ptr(),
+    this->VerifyImage(gpu_output_batch.template mutable_tensor<uint8>(i), ground_truth.ptr(),
         out_sizes[i].height * out_sizes[i].width * this->c_, 40.f, 40.f);
   }
 }
@@ -526,10 +509,10 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   int crop_h = this->RandInt(1, min_h);
   int crop_w = this->RandInt(1, min_w);
   
-  Batch<CPUBackend> batch;
+  TensorList<CPUBackend> batch;
   this->MakeImageBatch(batch_size, &batch);
   
-  Batch<GPUBackend> gpu_batch;
+  TensorList<GPUBackend> gpu_batch;
   gpu_batch.template mutable_data<uint8>();
   gpu_batch.ResizeLike(batch);
   CUDA_CALL(cudaMemcpy(
@@ -555,7 +538,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
     int crop_x = this->RandInt(0, this->image_dims_[i].w - crop_w);
 
     int crop_offset = crop_y * this->image_dims_[i].w * this->c_ + crop_x * this->c_;
-    in_ptrs[i] = gpu_batch.template mutable_sample<uint8>(i) + crop_offset;
+    in_ptrs[i] = gpu_batch.template mutable_tensor<uint8>(i) + crop_offset;
     strides[i] = this->image_dims_[i].w*this->c_;
 
     // Save the crop offsets
@@ -630,12 +613,12 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
   for (int i = 0; i < batch_size; ++i) {
     vector<uint8> crop_mirror_image(crop_h*crop_w*this->c_);
     this->OpenCVResizeCropMirror(
-        batch.template mutable_sample<uint8>(i),
-        batch.sample_shape(i)[0],
-        batch.sample_shape(i)[1],
+        batch.template mutable_tensor<uint8>(i),
+        batch.tensor_shape(i)[0],
+        batch.tensor_shape(i)[1],
         this->c_,
-        batch.sample_shape(i)[0],
-        batch.sample_shape(i)[1],
+        batch.tensor_shape(i)[0],
+        batch.tensor_shape(i)[1],
         crop_ys[i], crop_xs[i],
         crop_h, crop_w, mirror[i],
         crop_mirror_image.data());
