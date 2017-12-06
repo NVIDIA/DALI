@@ -76,19 +76,12 @@ inline bool IsColor(NDLLImageType type) {
   name(name&&) = delete;                        \
   name& operator=(name&&) = delete
 
-// HACK: This global exists so that we have a way to enable/disable
-// nvtx like we can with the cuda profiler. Could move this to a
-// static variable in the TimeRange class
-extern bool PROFILE;
-
 // Starts profiling NDLL
 inline void NDLLProfilerStart() {
   cudaProfilerStart();
-  PROFILE = true;
 }
 
 inline void NDLLProfilerStop() {
-  PROFILE = false;
   cudaProfilerStop();
 }
 
@@ -96,16 +89,12 @@ inline void NDLLProfilerStop() {
 struct TimeRange {
 TimeRange(const char *name) {
 #ifdef NDLL_USE_NVTX
-  if (PROFILE) {
-    nvtxRangePushA(name);
-  }
+  nvtxRangePushA(name);
 #endif
 }
 ~TimeRange() {
 #ifdef NDLL_USE_NVTX
-  if (PROFILE) {
-    nvtxRangePop();
-  }
+  nvtxRangePop();
 #endif
 }
 };
