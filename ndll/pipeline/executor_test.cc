@@ -1,5 +1,7 @@
 #include "ndll/pipeline/executor.h"
 
+#include <opencv2/opencv.hpp>
+
 #include "ndll/pipeline/operators/external_source.h"
 #include "ndll/test/ndll_test.h"
 
@@ -31,12 +33,12 @@ public:
     batch_size_ = jpegs_.size();
     DecodeJPEGS(NDLL_RGB);
   }
+
+  inline void set_batch_size(int size) { batch_size_ = size; }
   
   inline OpSpec PrepareSpec(OpSpec spec) {
     spec.AddArg("batch_size", batch_size_)
-      .AddArg("num_threads", num_threads_)
-      .AddArg("cuda_stream", 0)
-      .AddArg("pixels_per_image_hint", 0);
+      .AddArg("num_threads", num_threads_);
     return spec;
   }
 
@@ -56,9 +58,59 @@ public:
   vector<DeviceWorkspace> GPUData(Executor *exe) {
     return exe->gpu_op_data_;
   }
+
+  void VerifyDecode(const uint8 *img, int h, int w, int img_id) {
+    // Load the image to host
+    uint8 *host_img = new uint8[h*w*c_];
+    CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
+      
+    // Compare w/ opencv result
+    cv::Mat ver;
+    cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
+
+    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
+    int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+    cv::imdecode(jpeg, flag, &ver);
+
+    cv::Mat ver_img(h, w, IsColor(img_type_) ? CV_8UC3 : CV_8UC2);
+    if (img_type_ == NDLL_RGB) {
+      // Convert from BGR to RGB for verification
+      cv::cvtColor(ver, ver_img, CV_BGR2RGB);
+    } else {
+      ver_img = ver;
+    }
+
+    // DEBUG
+    // WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
+    
+    ASSERT_EQ(h, ver_img.rows);
+    ASSERT_EQ(w, ver_img.cols);
+    vector<int> diff(h*w*c_, 0);
+    for (int i = 0; i < h*w*c_; ++i) {
+      diff[i] = abs(int(ver_img.ptr()[i] - host_img[i]));
+    }
+
+    // calculate the MSE
+    double mean, std;
+    this->MeanStdDev(diff, &mean, &std);
+
+#ifndef NDEBUG
+    cout << "num: " << diff.size() << endl;
+    cout << "mean: " << mean << endl;
+    cout << "std: " << std << endl;
+#endif 
+
+    // Note: We allow a slight deviation from the ground truth.
+    // This value was picked fairly arbitrarily to let the test
+    // pass for libjpeg turbo
+    ASSERT_LT(mean, 2.f);
+    ASSERT_LT(std, 3.f);
+  }
   
 protected:
   int batch_size_, num_threads_ = 1;
+  int c_ = 3;
+  NDLLImageType img_type_ = NDLL_RGB;
 };
 
 TEST_F(ExecutorTest, TestPruneBasicGraph) {
@@ -370,6 +422,114 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
+}
+
+TEST_F(ExecutorTest, TestPhasedExecution) {
+  int batch_size = this->batch_size_ / 2;
+  this->set_batch_size(batch_size);
+  
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddOutput("data", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("TJPGDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("images", "cpu")
+          .AddOutput("images", "gpu")
+          ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("CopyOp")
+          .AddArg("device", "gpu")
+          .AddInput("images", "gpu")
+          .AddOutput("final_images", "gpu")
+          ));
+
+  vector<string> outputs = {"final_images_gpu"};
+  exe.Build(&graph, outputs);
+
+  // Set the data for the external source
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  ASSERT_NE(src_op, nullptr);
+  TensorList<CPUBackend> tl;
+  this->MakeJPEGBatch(&tl, this->batch_size_*2);
+
+  // Split the batch into two
+  TensorList<CPUBackend> tl2;
+  TensorList<CPUBackend> tl1;
+  vector<Dims> shape1(batch_size), shape2(batch_size);
+  for (int i = 0; i < batch_size; ++i) {
+    shape1[i] = tl.tensor_shape(i);
+    shape2[i] = tl.tensor_shape(i+batch_size);
+  }
+  tl1.Resize(shape1);
+  tl2.Resize(shape2);
+  for (int i = 0; i < batch_size; ++i) {
+    std::memcpy(
+        tl1.template mutable_tensor<uint8>(i),
+        tl.template tensor<uint8>(i),
+        Product(tl.tensor_shape(i))
+        );
+    std::memcpy(
+        tl2.template mutable_tensor<uint8>(i),
+        tl.template tensor<uint8>(i+batch_size),
+        Product(tl.tensor_shape(i+batch_size))
+        );
+  }
+
+  // Run twice without getting the results
+  src_op->SetDataSource(tl1);
+  exe.RunCPU();
+  exe.RunInternal();
+  exe.RunGPU();
+
+  src_op->SetDataSource(tl2);
+  exe.RunCPU();
+  exe.RunInternal();
+  exe.RunGPU();
+
+  // Verify that both sets of results are correct
+  DeviceWorkspace ws;
+  exe.Outputs(&ws);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+  TensorList<GPUBackend> *res1 = ws.Output<GPUBackend>(0);
+  for (int i = 0; i < batch_size; ++i) {
+    this->VerifyDecode(
+        res1->template tensor<uint8>(i),
+        res1->tensor_shape(i)[0],
+        res1->tensor_shape(i)[1], i
+        );
+  }
+
+  exe.Outputs(&ws);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+  TensorList<GPUBackend> *res2 = ws.Output<GPUBackend>(0);
+  for (int i = 0; i < batch_size; ++i) {
+    this->VerifyDecode(
+        res2->template tensor<uint8>(i),
+        res2->tensor_shape(i)[0],
+        res2->tensor_shape(i)[1],
+        i+batch_size
+        );
+  }
 }
 
 } // namespace ndll

@@ -86,24 +86,37 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
 
-  // Run once to allocate the memory
+    // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
   while(st.KeepRunning()) {
+    if (st.iterations() == 1) {
+      // We will start he processing for the next batch
+      // immediately after issueing work to the gpu to
+      // pipeline the cpu/copy/gpu work
+      pipe.RunCPU();
+      pipe.RunGPU();
+    }
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
+
+    if (st.iterations() == st.max_iterations) {
+      // Block for the last batch to finish
+      pipe.Outputs(&ws);
+    }
   }
-  
-  st.counters["FPS"] = benchmark::Counter(batch_size*st.iterations(), benchmark::Counter::kIsRate);
+
+  st.counters["FPS"] = benchmark::Counter(batch_size*(st.iterations()+1),
+      benchmark::Counter::kIsRate);
 }
 
 static void PipeArgs(benchmark::internal::Benchmark *b) {
   for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
-    for (int batch_size = 32; batch_size <= 32; batch_size += 32) {
+    for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
       for (int num_thread = 1; num_thread <= 4; ++num_thread) {
         b->Args({fast_resize, batch_size, num_thread});
       }
