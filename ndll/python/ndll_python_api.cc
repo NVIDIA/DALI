@@ -1,8 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "ndll/pipeline/data_reader.h"
-#include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/init.h"
 
@@ -12,8 +10,8 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(pyndll, m) {
-  m.doc() = "Python bindings for the NDLL library.";
+PYBIND11_MODULE(ndll_cxx, m) {
+  m.doc() = "Python bindings for the C++ portions of NDLL";
 
   // NDLL Init function
   m.def("Init", &NDLLInit);
@@ -35,41 +33,35 @@ PYBIND11_MODULE(pyndll, m) {
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
-            [](int batch_size, int num_threads, int64 stream_id, int device_id,
-                bool set_affinity = true, size_t pixels_per_image_hint = 0) {
+            [](int batch_size, int num_threads, int device_id, int queue_depth = 2,
+                size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+                int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
-                  new Pipeline(batch_size, num_threads, (cudaStream_t)stream_id,
-                      device_id, set_affinity, pixels_per_image_hint)
+                  new Pipeline(batch_size, num_threads, device_id, queue_depth,
+                      bytes_per_sample_hint, set_affinity, max_num_stream)
                   );
             }),
         "batch_size"_a,
         "num_threads"_a,
-        "stream_id"_a,
         "device_id"_a,
-        "set_affinity"_a = true,
-        "pixels_per_image_hint"_a = 0
+        "queue_depth"_a = 2,
+        "bytes_per_sample_hint"_a = 0,
+        "set_affinity"_a = false,
+        "max_num_stream"_a = -1
         )
-    .def("AddDataReader", &Pipeline::AddDataReader)
-    .def("AddParser", &Pipeline::AddParser)
-    .def("AddDecoder", &Pipeline::AddDecoder)
-    .def("AddTransform", &Pipeline::AddTransform)
+    .def("AddOperator", &Pipeline::AddOperator)
     .def("Build", &Pipeline::Build)
-    .def("RunPrefetch", &Pipeline::RunPrefetch)
-    .def("RunCopy", &Pipeline::RunCopy)
-    .def("RunForward", &Pipeline::RunForward)
+    .def("RunCPU", &Pipeline::RunCPU)
+    .def("RunGPU", &Pipeline::RunGPU)
     .def("batch_size", &Pipeline::batch_size)
-    .def("num_threads", &Pipeline::num_threads)
-    .def("stream_id", [](const Pipeline &pipe) { return (int64)pipe.stream(); });
+    .def("num_threads", &Pipeline::num_threads);
+
 
   py::class_<OpSpec>(m, "OpSpec")
-    .def(py::init<std::string>())
-    .def("AddExtraInput", &OpSpec::AddExtraInput,
+    .def(py::init<std::string>(), "name"_a)
+    .def("AddInput", &OpSpec::AddInput,
         py::return_value_policy::reference_internal)
-    .def("AddExtraOutput", &OpSpec::AddExtraOutput,
-        py::return_value_policy::reference_internal)
-    .def("AddExtraGPUInput", &OpSpec::AddExtraGPUInput,
-        py::return_value_policy::reference_internal)
-    .def("AddExtraGPUOutput", &OpSpec::AddExtraGPUOutput,
+    .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
