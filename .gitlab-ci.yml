@@ -141,7 +141,7 @@ ndll-stage:
 .test_template: &TEST_TEMPLATE
     environment: "${CI_JOB_NAME}"
     variables:
-      TEST_WORK_DIR: "/opt/${CI_PROJECT_NAME}/qa/${CI_JOB_NAME}/"
+      TEST_WORK_DIR: "/opt/ndll/qa/${CI_JOB_NAME}/"
       TEST_SCRIPT: "./test.sh"
     script:
     - export TEST_WORK_DIR="${TEST_WORK_DIR%%--*}"
