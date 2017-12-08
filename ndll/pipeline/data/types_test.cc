@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/types.h"
 
 #include <gtest/gtest.h>
@@ -10,9 +11,9 @@ namespace ndll {
 
 template <typename Type>
 class TypesTest : public NDLLTest {
-public:
+ public:
   // Returns the name of the current type
-  std::string TypeName(); 
+  std::string TypeName();
 };
 
 #define TYPENAME_FUNC(type)                     \
@@ -49,11 +50,11 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
   // Verify we start with no type
   ASSERT_EQ(type.name(), "NoType");
   ASSERT_EQ(type.size(), 0);
-  
+
   type.SetType<T>();
 
   ASSERT_EQ(type.size(), sizeof(T));
   ASSERT_EQ(type.name(), this->TypeName());
 }
 
-} // namespace ndll
+}  // namespace ndll

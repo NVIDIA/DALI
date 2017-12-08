@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_UTIL_EVENT_POOL_H_
 #define NDLL_PIPELINE_UTIL_EVENT_POOL_H_
 
 #include <cuda_runtime_api.h>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -12,12 +14,12 @@ namespace ndll {
  * @brief Manages the lifetimes and allocations of cuda events. 
  */
 class EventPool {
-public:
+ public:
   /**
    * @brief Creates a pool with the given max size. If the input 
    * size is < 0, the pool has no size limit.
    */
-  inline EventPool(int max_size) : max_size_(max_size) {
+  explicit inline EventPool(int max_size) : max_size_(max_size) {
     NDLL_ENFORCE(max_size != 0, "Event pool must have non-zero size.");
   }
 
@@ -43,12 +45,12 @@ public:
     idx_ = (idx_+1) % events_.size();
     return event;
   }
-  
-private:
+
+ private:
   vector<cudaEvent_t> events_;
   int max_size_, idx_ = 0;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_UTIL_EVENT_POOL_H_
+#endif  // NDLL_PIPELINE_UTIL_EVENT_POOL_H_

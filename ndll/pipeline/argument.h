@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_ARGUMENT_H_
 #define NDLL_PIPELINE_ARGUMENT_H_
 

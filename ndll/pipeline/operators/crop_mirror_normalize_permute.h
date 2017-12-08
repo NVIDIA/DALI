@@ -1,8 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
 #define NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
 
 #include <cstring>
-
+#include <vector>
 #include <random>
 
 #include "ndll/common.h"
@@ -16,8 +17,8 @@ NDLL_REGISTER_TYPE(const uint8*);
 
 template <typename Backend>
 class CropMirrorNormalizePermute : public Operator<Backend> {
-public:
-  inline CropMirrorNormalizePermute(const OpSpec &spec) :
+ public:
+  explicit inline CropMirrorNormalizePermute(const OpSpec &spec) :
     Operator<Backend>(spec), rand_gen_(time(nullptr)),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
@@ -36,7 +37,7 @@ public:
     // Validate & save mean & std params
     NDLL_ENFORCE((int)mean_vec_.size() == C_);
     NDLL_ENFORCE((int)inv_std_vec_.size() == C_);
-    
+
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {
       inv_std_vec_[i] = 1.f / inv_std_vec_[i];
@@ -54,15 +55,15 @@ public:
     input_strides_.Resize({batch_size_});
     mirror_.Resize({batch_size_});
   }
-    
+
   virtual inline ~CropMirrorNormalizePermute() = default;
 
   inline int MaxNumInput() const override { return 1; }
   inline int MinNumInput() const override { return 1; }
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
-  
-protected:
+
+ protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     DataDependentSetup(ws);
     if (output_type_ == NDLL_FLOAT) {
@@ -137,7 +138,7 @@ protected:
       NDLL_FAIL("Unsupported output type.");
     }
   }
-  
+
   template <typename OUT>
   inline void RunHelper(DeviceWorkspace *ws) {
     auto output = ws->Output<GPUBackend>(0);
@@ -163,12 +164,12 @@ protected:
             mean_vec_.data(), inv_std_vec_.data(),
             output->template mutable_data<OUT>()));
   }
-  
+
   std::mt19937 rand_gen_;
 
   // Output data type
   NDLLDataType output_type_;
-  
+
   // Crop meta-data
   bool random_crop_;
   int crop_h_, crop_w_;
@@ -185,13 +186,13 @@ protected:
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_, mirror_gpu_;
   vector<int> crop_offsets_;
 
-  // Tensor to store mean & stddiv 
+  // Tensor to store mean & stddiv
   Tensor<Backend> mean_, inv_std_;
   vector<float> mean_vec_, inv_std_vec_;
 
   USE_OPERATOR_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_

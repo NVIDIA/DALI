@@ -1,7 +1,11 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_PIPELINE_H_
 #define NDLL_PIPELINE_PIPELINE_H_
 
 #include <map>
+#include <utility>
+#include <vector>
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/backend.h"
@@ -22,37 +26,37 @@ namespace ndll {
  * Provides optimizations like batched copies to GPU and pre-sizing of
  * buffers.
  *
- * The Pipeline produces a processed batch of data on the GPU. It is 
- * composed of Operators (@ref ndll::Operator<Backend>), and breaks 
- * its execution into 3 phases: 'prefetch', 'copy', and 'forward'. 
- * Operators are added to a specific phase when the pipeline is built 
- * up. Prefetch operators are executed per-image w/ multiple threads, 
- * while Forward operators are executed on an entire batch at once on 
- * the GPU. We currently don't support running all operations (cpu or gpu) 
- * per-image in the prefetch stage, but it wouldn't be too difficult to 
+ * The Pipeline produces a processed batch of data on the GPU. It is
+ * composed of Operators (@ref ndll::Operator<Backend>), and breaks
+ * its execution into 3 phases: 'prefetch', 'copy', and 'forward'
+ * Operators are added to a specific phase when the pipeline is built
+ * up. Prefetch operators are executed per-image w/ multiple threads,
+ * while Forward operators are executed on an entire batch at once on
+ * the GPU. We currently don't support running all operations (cpu or gpu)
+ * per-image in the prefetch stage, but it wouldn't be too difficult to
  * enable.
- * 
- * The pipeline manages all memory used in the pipeline. We currently 
- * maintain buffers for all intermediate results, but this central 
- * management means that we could do some tricks (e.g. just using two 
+ *
+ * The pipeline manages all memory used in the pipeline. We currently
+ * maintain buffers for all intermediate results, but this central
+ * management means that we could do some tricks (e.g. just using two
  * buffers and ping-ponging back and forth) to reduce memory requirements
  *
- * The pipeline also provides a mechanism for combining all batched GPU 
- * operation parameters into a single mega-buffer during the prefetch stage. 
- * Operations in the Forward stage are queried for the amount of batched 
- * paramter storage they need after performing shape inference. They are 
- * then  given a chance to set up their batched paramters (both serially 
- * and threaded, depending on the need of the operation) into their chunk 
- * of the mega-buffer. During the copy stage, we copy the output of the 
+ * The pipeline also provides a mechanism for combining all batched GPU
+ * operation parameters into a single mega-buffer during the prefetch stage.
+ * Operations in the Forward stage are queried for the amount of batched
+ * paramter storage they need after performing shape inference. They are
+ * then  given a chance to set up their batched paramters (both serially
+ * and threaded, depending on the need of the operation) into their chunk
+ * of the mega-buffer. During the copy stage, we copy the output of the
  * prefetch stage, as well as the mega-buffer to the GPU.
  */
 class Pipeline {
-public:
+ public:
   /**
    * @brief Creates a pipeline with `num_threads` worker threads.
    *
-   * GPU memory and pinned memory allocations cause implicit synchronization of 
-   * the device, resulting in very slow startup times as ndll buffer sizes 
+   * GPU memory and pinned memory allocations cause implicit synchronization of
+   * the device, resulting in very slow startup times as ndll buffer sizes
    * stabilize. To avoid this slowdown, we optionally take in an estimated size
    * of each image that will be processed in bytes. This hint is used to
    * pre-size buffers, potentially avoiding slow startup if the hint is close
@@ -101,7 +105,7 @@ public:
     meta.has_contiguous = false;
     NDLL_ENFORCE(edge_names_.insert({name, meta}).second,
         "ExternalInput name insertion failure.");
-    
+
     // Create a spec for an ExternalInput op and add it to our graph
     OpSpec spec =
       OpSpec("ExternalSource")
@@ -113,7 +117,7 @@ public:
   }
 
   /**
-   * @brief Sets the external input with the input name to the 
+   * @brief Sets the external input with the input name to the
    * input data.
    */
   inline void SetExternalInput(const string &name,
@@ -130,14 +134,14 @@ public:
         name + "' is not marked as an external input.");
     source->SetDataSource(tl);
   }
-  
+
   /**
    * @brief Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
    */
   void AddOperator(OpSpec spec);
-  
+
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution. The input
@@ -170,7 +174,7 @@ public:
    * easily. Is there a different behavior that we would like?
    */
   void Outputs(DeviceWorkspace *ws);
-    
+
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
    */
@@ -180,17 +184,18 @@ public:
    * @brief Returns the number of threads used by the pipeline.
    */
   inline int num_threads() const { return num_threads_; }
-  
+
   // For testing
   template <typename T>
   friend class PipelineTest;
-  
+
   DISABLE_COPY_MOVE_ASSIGN(Pipeline);
-private:
+
+ private:
   using EdgeMeta = struct {
     bool has_cpu, has_gpu, has_contiguous;
   };
-  
+
   // Return the nearest multiple of 8 that is >= base_ptr_offset
   inline size_t round_up_to_8(size_t base_ptr_offset) {
     if (base_ptr_offset & 7) {
@@ -198,7 +203,7 @@ private:
     }
     return base_ptr_offset;
   }
-  
+
   void SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       int input_idx, OpSpec *spec);
 
@@ -219,24 +224,24 @@ private:
     }
     return edge;
   }
-      
+
   // Helper function to setup mega-buffer and distribute
   // sub-buffers to the ops in the forward pass
   void MegaBufferSetupAndDistribution();
 
-  // Helper to add pipeline meta-data 
+  // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);
-  
+
   bool built_;
   int batch_size_, num_threads_;
   size_t bytes_per_sample_hint_;
 
   OpGraph graph_;
   Executor executor_;
-  
+
   std::map<string, EdgeMeta> edge_names_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_PIPELINE_H_
+#endif  // NDLL_PIPELINE_PIPELINE_H_

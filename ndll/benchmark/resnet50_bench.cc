@@ -133,18 +133,18 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   NDLLImageType img_type = NDLL_RGB;
-   
+
   // Create the pipeline
   Pipeline pipe(
       batch_size,
       num_thread,
       0);
-  
+
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
   pipe.SetExternalInput("raw_jpegs", data);
-  
+
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
       OpSpec("HuffmanDecoder")

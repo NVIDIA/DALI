@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_RESIZE_H_
 #define NDLL_PIPELINE_OPERATORS_RESIZE_H_
 
 #include <random>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -12,8 +14,8 @@ namespace ndll {
 
 template <typename Backend>
 class Resize : public Operator<Backend> {
-public:
-  inline Resize(const OpSpec &spec) :
+ public:
+  explicit inline Resize(const OpSpec &spec) :
     Operator<Backend>(spec),
     rand_gen_(time(nullptr)),
     random_resize_(spec.GetArgument<bool>("random_resize", false)),
@@ -31,17 +33,17 @@ public:
     input_ptrs_.resize(batch_size_);
     output_ptrs_.resize(batch_size_);
     input_sizes_.resize(batch_size_);
-    output_sizes_.resize(batch_size_);    
+    output_sizes_.resize(batch_size_);
   }
-    
+
   virtual inline ~Resize() = default;
 
   inline int MaxNumInput() const override { return 1; }
   inline int MinNumInput() const override { return 1; }
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
-  
-protected:
+
+ protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     DataDependentSetup(ws);
 
@@ -52,8 +54,7 @@ protected:
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, input_sizes_.data(),
         output_ptrs_.data(), output_sizes_.data(),
-        type_
-        );
+        type_);
     nppSetStream(old_stream);
   }
 
@@ -72,12 +73,12 @@ protected:
       NDLL_ENFORCE(input_shape[2] == C_,
           "Input channel dimension does not match "
           "the output channel argument.");
-      
+
       // Select resize dimensions for the output
       NDLLSize &in_size = input_sizes_[i];
       in_size.height = input_shape[0];
       in_size.width = input_shape[1];
-      
+
       NDLLSize &out_size = output_sizes_[i];
       if (random_resize_ && warp_resize_) {
         // random resize + warp. Select a new size for both dims of
@@ -105,7 +106,7 @@ protected:
         // and w = resize_b_
         out_size.height = resize_a_;
         out_size.width = resize_b_;
-      } else { 
+      } else {
         // no random + no warp. In this mode resize_b_ is ignored and
         // the input image is resizes such that the smallest side is
         // >= resize_a_
@@ -137,9 +138,9 @@ protected:
       output_ptrs_[i] = output->template mutable_tensor<uint8>(i);
     }
   }
-  
+
   std::mt19937 rand_gen_;
-  
+
   // Resize meta-data
   bool random_resize_;
   bool warp_resize_;
@@ -152,15 +153,15 @@ protected:
 
   // Interpolation type
   NDLLInterpType type_;
-  
+
   vector<const uint8*> input_ptrs_;
   vector<uint8*> output_ptrs_;
-  
+
   vector<NDLLSize> input_sizes_, output_sizes_;
 
   USE_OPERATOR_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_RESIZE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_RESIZE_H_

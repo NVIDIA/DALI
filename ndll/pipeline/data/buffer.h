@@ -1,9 +1,12 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_DATA_BUFFER_H_
 #define NDLL_PIPELINE_DATA_BUFFER_H_
 
 #include <limits>
 #include <numeric>
 #include <functional>
+#include <vector>
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -29,7 +32,7 @@ inline string ShapeString(vector<Index> shape) {
 // paramters. This is turn allows the Pipeline to manage all intermediate
 // memory, opening the door for optimizations and reducing the work that
 // must be done by the user when defining operations.
-  
+
 /**
  * @brief Base class to provide common functionality needed by Pipeline data
  * structures. Not meant for use, does not provide methods for allocating
@@ -39,7 +42,7 @@ inline string ShapeString(vector<Index> shape) {
  * Buffers are untyped on construction, and don't receive a valid type until
  * 'set_type' or 'data<T>()' is called on a non-const buffer. Upon receiving
  * a valid type, the underlying storage for the buffer is allocated. The type
- * of the underlying data can change over the lifetime of an object if 
+ * of the underlying data can change over the lifetime of an object if
  * 'set_type' or 'data<T>()' is called again where the calling type does not
  * match the underlying type on the buffer. In this case, the Buffer swaps its
  * current type, but only re-allocates memory if it does not have enough bytes
@@ -48,7 +51,7 @@ inline string ShapeString(vector<Index> shape) {
  */
 template <typename Backend>
 class Buffer {
-public:
+ public:
   /**
    * @brief Initializes a buffer of size 0.
    */
@@ -65,7 +68,7 @@ public:
    * If the buffer already has a valid type, and the calling type does
    * not match, the type of the buffer is reset and the underlying
    * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the 
+   * enough memory to store the current number of elements with the
    * new data type.
    */
   template <typename T>
@@ -133,7 +136,7 @@ public:
   }
 
   /**
-   * @brief Returns the TypeInfo object that keeps track of the 
+   * @brief Returns the TypeInfo object that keeps track of the
    * datatype of the underlying storage.
    */
   inline TypeInfo type() const {
@@ -141,20 +144,20 @@ public:
   }
 
   /**
-   * @brief Sets the type of the buffer. If the buffer has not been 
-   * allocated because it does not yet have a type, the calling type 
+   * @brief Sets the type of the buffer. If the buffer has not been
+   * allocated because it does not yet have a type, the calling type
    * is taken to be the type of the data and the memory is allocated.
    *
    * If the buffer already has a valid type, and the calling type does
    * not match, the type of the buffer is reset and the underlying
    * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the 
+   * enough memory to store the current number of elements with the
    * new data type.
    */
   inline void set_type(TypeInfo new_type) {
     NDLL_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
     if (new_type == type_) return;
-    
+
     if (!IsValidType(type_)) {
       // If the buffer has no type, set the type to the
       // calling type and allocate the buffer
@@ -201,7 +204,7 @@ public:
    * @brief Returns a bool indicating if the list shares its underlying storage.
    */
   inline bool shares_data() const { return shares_data_; }
-  
+
   // Helper function for cleaning up data storage. This unfortunately
   // has to be public so that we can bind it into the deleter of our
   // shared pointers
@@ -209,13 +212,14 @@ public:
     type.template Destruct<Backend>(ptr, size);
     Backend::Delete(ptr, size*type.size());
   }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
-protected:
+
+ protected:
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     NDLL_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
-    
+
     if (!IsValidType(type_)) {
       // If the type has not been set yet, we just set the size of the
       // buffer and do not allocate any memory. Any previous size is
@@ -226,7 +230,7 @@ protected:
       NDLL_ENFORCE((num_bytes_ == 0) || shares_data_,
           "Buffer has no type and does not share data, "
           "num_bytes_ should be 0.");
-      
+
       size_ = new_size;
       return;
     }
@@ -238,24 +242,24 @@ protected:
               this, std::placeholders::_1,
               type_, new_size));
       num_bytes_ = new_num_bytes;
-      
+
       // Call the constructor for the underlying datatype
       type_.template Construct<Backend>(data_.get(), new_size);
-      
+
       // If we were sharing data, we aren't anymore
       shares_data_ = false;
     }
 
     size_ = new_size;
   }
-  
+
   Backend backend_;
-  
-  TypeInfo type_; // Data type of underlying storage
-  shared_ptr<void> data_; // Pointer to underlying storage
-  Index size_; // The number of elements in the buffer
+
+  TypeInfo type_;  // Data type of underlying storage
+  shared_ptr<void> data_;  // Pointer to underlying storage
+  Index size_;  // The number of elements in the buffer
   bool shares_data_;
-  
+
   // To keep track of the true size
   // of the underlying allocation
   size_t num_bytes_;
@@ -272,6 +276,6 @@ protected:
   using Buffer<Backend>::shares_data_;          \
   using Buffer<Backend>::num_bytes_
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_BUFFER_H_
+#endif  // NDLL_PIPELINE_DATA_BUFFER_H_

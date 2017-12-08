@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/types.h"
 
 #include "ndll/pipeline/data/backend.h"
@@ -67,4 +68,4 @@ NDLL_REGISTER_TYPE(float);
 NDLL_REGISTER_TYPE(double);
 NDLL_REGISTER_TYPE(bool);
 
-} // namespace ndll
+}  // namespace ndll

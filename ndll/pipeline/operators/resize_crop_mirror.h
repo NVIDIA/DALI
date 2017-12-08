@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_H_
 #define NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_H_
 
 #include <random>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -29,8 +31,8 @@ namespace ndll {
  */
 template <typename Backend>
 class ResizeCropMirror : public Operator<Backend> {
-public:
-  inline ResizeCropMirror(const OpSpec &spec) :
+ public:
+  explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator<Backend>(spec),
     rand_gen_(time(nullptr)),
     random_resize_(spec.GetArgument<bool>("random_resize", false)),
@@ -57,15 +59,15 @@ public:
   inline int MinNumInput() const override { return 1; }
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
-  
-protected:
+
+ protected:
   using TransformMeta = struct {
     int H, W, C;
     int rsz_h, rsz_w;
     int crop_x, crop_y;
     bool mirror;
   };
-  
+
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);
@@ -74,8 +76,8 @@ protected:
         "Expects input data in uint8.");
     NDLL_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
         "ResizeCropMirror supports hwc rgb & grayscale inputs.");
-    
-    TransformMeta meta = GetTransformMeta(input.shape(), ws->data_idx());
+
+    TransformMeta meta = GetTransformMeta(input.shape());
 
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
@@ -92,13 +94,12 @@ protected:
         tl_workspace_[ws->thread_idx()].data());
   }
 
-  inline TransformMeta GetTransformMeta(const vector<Index> &input_shape,
-      int data_idx) {
+  inline TransformMeta GetTransformMeta(const vector<Index> &input_shape) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
     meta.C = input_shape[2];
-    
+
     if (random_resize_ && warp_resize_) {
       // random resize + warp. Select a new size for both dims of
       // the image uniformly from the range [resize_a_, resize_b_]
@@ -119,7 +120,7 @@ protected:
       // and w = resize_b_
       meta.rsz_h = resize_a_;
       meta.rsz_w = resize_b_;
-    } else { 
+    } else {
       // no random + no warp. In this mode resize_b_ is ignored and
       // the input image is resizes such that the smallest side is
       // >= resize_a_
@@ -149,14 +150,14 @@ protected:
     meta.mirror = std::bernoulli_distribution(mirror_prob_)(rand_gen_);
     return meta;
   }
-  
+
   std::mt19937 rand_gen_;
-  
+
   // Resize meta-data
   bool random_resize_;
   bool warp_resize_;
   int resize_a_, resize_b_;
-  
+
   // Crop meta-data
   bool random_crop_;
   int crop_h_, crop_w_;
@@ -170,16 +171,16 @@ protected:
 
 /**
  * Performs resize+crop+mirror using fast, backprojection ResizeCropMirror function
- */ 
+ */
 template <typename Backend>
 class FastResizeCropMirror : public ResizeCropMirror<Backend> {
-public:
-  inline FastResizeCropMirror(const OpSpec &spec) :
+ public:
+  explicit inline FastResizeCropMirror(const OpSpec &spec) :
     ResizeCropMirror<Backend>(spec) {}
 
   virtual inline ~FastResizeCropMirror() = default;
 
-protected:
+ protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);
@@ -188,9 +189,9 @@ protected:
         "Expects input data in uint8.");
     NDLL_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
         "FastResizeCropMirror supports hwc rgb & grayscale inputs.");
-    
+
     typename ResizeCropMirror<CPUBackend>::TransformMeta meta =
-      this->GetTransformMeta(input.shape(), ws->data_idx());
+      this->GetTransformMeta(input.shape());
 
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
@@ -212,6 +213,6 @@ protected:
   using ResizeCropMirror<Backend>::crop_w_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_H_
+#endif  // NDLL_PIPELINE_OPERATORS_RESIZE_CROP_MIRROR_H_

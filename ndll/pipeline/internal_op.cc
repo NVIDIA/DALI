@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/internal_op.h"
 
 namespace ndll {

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATOR_FACTORY_H_
 #define NDLL_PIPELINE_OPERATOR_FACTORY_H_
 
@@ -19,7 +20,7 @@ public:
   typedef std::unordered_map<std::string, Creator> CreatorRegistry;
 
   OperatorRegistry() {}
-  
+
   void Register(const std::string &name, Creator creator) {
     std::lock_guard<std::mutex> lock(mutex_);
     NDLL_ENFORCE(registry_.count(name) == 0,
@@ -43,7 +44,7 @@ public:
     }
     return names;
   }
-  
+
 private:
   CreatorRegistry registry_;
   std::mutex mutex_;

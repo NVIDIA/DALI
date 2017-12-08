@@ -1,5 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
 #define NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
+
+#include <string>
 
 #include "ndll/pipeline/operator.h"
 
@@ -12,16 +15,16 @@ namespace ndll {
  */
 template <typename Backend>
 class ExternalSource : public Operator<Backend> {
-public:
+ public:
   inline explicit ExternalSource(const OpSpec &spec) :
     Operator<Backend>(spec) {
     output_name_ = spec.Output(0);
   }
-  
+
   virtual inline ~ExternalSource() = default;
 
   inline bool SupportsInPlace() const override { return true; }
-  
+
   inline int MaxNumInput() const override { return 0; }
   inline int MinNumInput() const override { return 0; }
   inline int MaxNumOutput() const override { return 1; }
@@ -30,7 +33,7 @@ public:
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";
   }
-  
+
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
@@ -41,9 +44,10 @@ public:
     // pass anything as it is ignored.
     data_.Copy(tl, 0);
   }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
-protected:
+
+ protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     // Wrap the output tensor around our data
     auto output = ws->Output<Backend>(0);
@@ -58,11 +62,11 @@ protected:
     output->set_type(data_.type());
     output->ResizeLike(data_);
   }
-  
+
   string output_name_;
   TensorList<Backend> data_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_

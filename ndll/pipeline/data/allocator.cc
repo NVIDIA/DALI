@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/allocator.h"
 
 namespace ndll {
@@ -11,4 +12,4 @@ NDLL_REGISTER_GPU_ALLOCATOR(GPUAllocator, GPUAllocator);
 NDLL_REGISTER_CPU_ALLOCATOR(CPUAllocator, CPUAllocator);
 NDLL_REGISTER_CPU_ALLOCATOR(PinnedCPUAllocator, PinnedCPUAllocator);
 
-} // namespace ndll
+}  // namespace ndll
