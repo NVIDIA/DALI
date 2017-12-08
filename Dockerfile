@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       automake \
       libtool \
       nasm \
+      python$PYVER \
+      python$PYVER-dev \
+      python$PYVER-numpy \
   && rm -rf /var/lib/apt/lists/*
 
 RUN OPENCV_VERSION=3.1.0 && \
@@ -37,7 +40,7 @@ COPY . .
 
 RUN mkdir build && cd build && \
 		cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
-				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON && \
+				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=OFF && \
 		make -j"$(nproc)" && \
 		ldconfig
 
