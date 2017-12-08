@@ -19,7 +19,7 @@ namespace ndll {
  */
 class AllocatorBase {
 public:
-  AllocatorBase(const OpSpec &spec) {}
+  AllocatorBase(const OpSpec &) {}
   virtual ~AllocatorBase() = default;
   
   /**
