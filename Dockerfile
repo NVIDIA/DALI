@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       protobuf-compiler \
       autoconf \
       automake \
+      libtool \
       nasm \
   && rm -rf /var/lib/apt/lists/*
 
