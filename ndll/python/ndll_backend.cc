@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 
 #include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/op_schema.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/init.h"
@@ -18,6 +19,10 @@ static vector<string> GetRegisteredCPUOps() {
 
 static vector<string> GetRegisteredGPUOps() {
   return GPUOperatorRegistry::Registry().RegisteredNames();
+}
+
+static OpSchema GetSchema(const string &name) {
+  return SchemaRegistry::GetSchema(name);
 }
 
 PYBIND11_MODULE(ndll_backend, m) {
@@ -122,6 +127,19 @@ PYBIND11_MODULE(ndll_backend, m) {
   // Registries for cpu & gpu operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
+
+  // Registry for OpSchema
+  m.def("GetSchema", &GetSchema);
+  
+  py::class_<OpSchema>(m, "OpSchema")
+    .def("Dox", &OpSchema::Dox)
+    .def("MaxNumInput", &OpSchema::MaxNumInput)
+    .def("MinNumInput", &OpSchema::MinNumInput)
+    .def("MaxNumOutput", &OpSchema::MaxNumOutput)
+    .def("MinNumOutput", &OpSchema::MinNumOutput)
+    .def("HasOutputFn", &OpSchema::HasOutputFn)
+    .def("CalculateOutputs", &OpSchema::CalculateOutputs)
+    .def("SupportsInPlace", &OpSchema::SupportsInPlace);
 }
 
 } // namespace python

@@ -112,6 +112,7 @@ public:
   }
 
   inline bool HasOutputFn() const {
+    if (max_num_output_ == min_num_output_) return true;
     return (bool)output_fn_;
   }
   
@@ -119,7 +120,8 @@ public:
     if (max_num_output_ == min_num_output_) {
       return max_num_output_;
     }
-    NDLL_ENFORCE(output_fn_, "Output function has not been set.");
+    NDLL_ENFORCE(output_fn_, "Output function for op '" +
+        spec.name() + "' has not been set.");
     return output_fn_(spec);
   }
 
