@@ -13,12 +13,6 @@ public:
   
   virtual inline ~DummyOp() = default;
 
-  // The DummyOp copies a single input directly to the output
-  inline int MaxNumInput() const override { return 10; }
-  inline int MinNumInput() const override { return 0; }
-  inline int MaxNumOutput() const override { return 10; }
-  inline int MinNumOutput() const override { return 0; }
-  
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {

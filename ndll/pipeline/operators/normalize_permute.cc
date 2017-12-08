@@ -4,4 +4,9 @@ namespace ndll {
 
 NDLL_REGISTER_GPU_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>);
 
+OPERATOR_SCHEMA(NormalizePermute)
+  .DocStr("Foo")
+  .NumInput(1)
+  .NumOutput(1);
+
 } // namespace ndll

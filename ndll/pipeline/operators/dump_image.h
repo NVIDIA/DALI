@@ -20,11 +20,6 @@ public:
   
   virtual inline ~DumpImage() = default;
 
-  inline int MaxNumInput() const override { return 1; }
-  inline int MinNumInput() const override { return 1; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
-  
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);

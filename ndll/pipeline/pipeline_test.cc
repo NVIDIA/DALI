@@ -8,7 +8,7 @@
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/operators/copy_op.h"
+#include "ndll/pipeline/operators/copy.h"
 #include "ndll/test/ndll_test.h"
 #include "ndll/util/image.h"
 
@@ -73,7 +73,7 @@ TEST_F(PipelineTestOnce, TestInputNotKnown) {
 
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("copy_out", "cpu")
@@ -89,7 +89,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   // must be added in a topological ordering.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("copy_out", "cpu")
@@ -100,14 +100,13 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddArg("inplace", true)
       .AddOutput("data", "gpu")
       );
 
   // Inputs to CPU ops must be on CPU
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "gpu")
           .AddOutput("copy_out", "cpu")
@@ -119,7 +118,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   // we do not auto-copy them from gpu to cpu.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("copy_out", "cpu")
@@ -130,21 +129,19 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddArg("inplace", true)
       .AddOutput("data_2", "cpu")
       );
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddArg("inplace", true)
       .AddOutput("data_3", "cpu")
       );
     
   // Outputs must have unique names.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
           .AddOutput("data_3", "cpu")
@@ -156,7 +153,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   // of the device they exist on.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
           .AddOutput("data", "cpu")
@@ -167,7 +164,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   // CPU ops can only produce CPU outputs
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
           .AddOutput("data_4", "gpu")
@@ -183,7 +180,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   // must be added in a topological ordering.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data", "gpu")
           .AddOutput("copy_out", "gpu")
@@ -194,7 +191,6 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddArg("inplace", true)
       .AddOutput("data", "gpu")
       );
 
@@ -202,7 +198,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   // not copy them back to the host.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data", "cpu")
           .AddOutput("copy_out", "gpu")
@@ -213,21 +209,19 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddArg("inplace", true)
       .AddOutput("data_2", "gpu")
       );
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddArg("inplace", true)
       .AddOutput("data_3", "gpu")
       );
     
   // Outputs must have unique names.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
           .AddOutput("data_3", "gpu")
@@ -238,7 +232,6 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddArg("inplace", true)
       .AddOutput("data_4", "cpu")
       );
 
@@ -246,7 +239,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   // of the device they exist on.
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
           .AddOutput("data_4", "gpu")
@@ -257,7 +250,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   // GPU ops can only produce GPU outputs
   ASSERT_THROW(
       pipe.AddOperator(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
           .AddOutput("data_4", "cpu")
@@ -275,7 +268,7 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(
-      OpSpec("CopyOp")
+      OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddInput("data", "cpu")
       .AddOutput("data_copy", "gpu")
@@ -319,7 +312,7 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(
-      OpSpec("CopyOp")
+      OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddInput("data", "gpu")
       .AddOutput("data_copy", "gpu")
@@ -393,7 +386,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   // Add an external source
 
   // Add a single prefetch op
-  pipe.AddTransform(OpSpec("CopyOp")
+  pipe.AddTransform(OpSpec("Copy")
       .AddArg("stage", "Prefetch"));
 
   // Build the pipeline
@@ -466,7 +459,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
       );
   
   // Add a single op to the forward stage
-  pipe.AddTransform(OpSpec("CopyOp")
+  pipe.AddTransform(OpSpec("Copy")
       .AddArg("stage", "Forward")
       );
 

@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "ndll/common.h"
 #include "ndll/error_handling.h"
 
 namespace ndll {
@@ -78,10 +79,6 @@ public:
     static ndll::OperatorRegistry<OpType> registry;                     \
     return registry;                                                    \
   }
-
-#define CONCAT_1(var1, var2) var1##var2
-#define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
-#define ANONYMIZE_VARIABLE(name) CONCAT_2(name, __LINE__)
 
 // Helper to define a registerer for a specific op type. Each op type
 // defines its own, more aptly named, registration macros on top of this

@@ -37,6 +37,13 @@ public:
   inline const string& name() const { return name_; }
 
   /**
+   * @brief Sets the name of the Operator.
+   */
+  inline void set_name(const string &name) {
+    name_ = name;
+  }
+  
+  /**
    * @brief Add an argument with the given name and value.
    */
   template <typename T>

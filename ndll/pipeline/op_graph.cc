@@ -1,5 +1,7 @@
 #include "ndll/pipeline/op_graph.h"
 
+#include "ndll/pipeline/op_schema.h"
+
 namespace ndll {
 
 namespace {
@@ -25,27 +27,30 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
-template <typename Backend>
-void CheckOpConstraints(const OpSpec &spec, const OpPtr<Backend> &op) {
-  NDLL_ENFORCE(op->SupportsInPlace() || !spec.GetArgument<bool>("inplace", false),
+void CheckOpConstraints(const OpSpec &spec) {
+  OpSchema schema = SchemaRegistry::GetSchema(spec.name());
+  NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace", false),
       "Op '" + spec.name() + "' does not support in-place execution.");
-  NDLL_ENFORCE(spec.NumInput() <= op->MaxNumInput(), "Operator '" + spec.name() +
-      "' supports a maximum of " + std::to_string(op->MaxNumInput()) + " inputs, "
+  NDLL_ENFORCE(spec.NumInput() <= schema.MaxNumInput(), "Operator '" + spec.name() +
+      "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumInput() >= op->MinNumInput(), "Operator '" + spec.name() +
-      "' supports a minimum of " + std::to_string(op->MinNumInput()) + " inputs, "
+  NDLL_ENFORCE(spec.NumInput() >= schema.MinNumInput(), "Operator '" + spec.name() +
+      "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() <= op->MaxNumOutput(), "Operator '" + spec.name() +
-      "' supports a maximum of " + std::to_string(op->MaxNumOutput()) + " outputs, "
+  NDLL_ENFORCE(spec.NumOutput() <= schema.MaxNumOutput(), "Operator '" + spec.name() +
+      "' supports a maximum of " + std::to_string(schema.MaxNumOutput()) + " outputs, "
       "but was passed " + std::to_string(spec.NumOutput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() >= op->MinNumOutput(), "Operator '" + spec.name() +
-      "' supports a minimum of " + std::to_string(op->MinNumOutput()) + " outputs, "
+  NDLL_ENFORCE(spec.NumOutput() >= schema.MinNumOutput(), "Operator '" + spec.name() +
+      "' supports a minimum of " + std::to_string(schema.MinNumOutput()) + " outputs, "
         "but was passed " + std::to_string(spec.NumOutput()) + ".");
 }
 
 } // namespace
 
 void OpGraph::AddOp(const OpSpec &spec) {
+  // Validate the op specification
+  CheckOpConstraints(spec);
+    
   string device = spec.GetArgument<string>("device", "cpu");
   OpNode *new_node;
   if (device == "cpu") {
@@ -56,9 +61,6 @@ void OpGraph::AddOp(const OpSpec &spec) {
     // Create the operator
     OpPtr<CPUBackend> tmp(
         CPUOperatorRegistry::Registry().Create(spec.name(), spec));
-
-    // Validate the number of inputs and execution settings
-    CheckOpConstraints(spec, tmp);
       
     cpu_nodes_.resize(cpu_nodes_.size()+1);
     CPUOpNode &cpu_node = cpu_nodes_.back();
@@ -73,9 +75,6 @@ void OpGraph::AddOp(const OpSpec &spec) {
     // Create the operator
     OpPtr<GPUBackend> tmp(
         GPUOperatorRegistry::Registry().Create(spec.name(), spec));
-
-    // Validate the number of inputs and execution settings
-    CheckOpConstraints(spec, tmp);
 
     gpu_nodes_.resize(gpu_nodes_.size()+1);
     GPUOpNode &gpu_node = gpu_nodes_.back();

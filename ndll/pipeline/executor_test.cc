@@ -302,7 +302,6 @@ TEST_F(ExecutorTest, TestSetupData) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddArg("inplace", true)
           .AddOutput("external_data", "cpu")
           ));
 
@@ -314,7 +313,7 @@ TEST_F(ExecutorTest, TestSetupData) {
           ));
   
   graph.AddOp(this->PrepareSpec(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("external_data", "gpu")
           .AddOutput("copy_data", "gpu")
@@ -453,7 +452,7 @@ TEST_F(ExecutorTest, TestPhasedExecution) {
           ));
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("CopyOp")
+          OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("images", "gpu")
           .AddOutput("final_images", "gpu")

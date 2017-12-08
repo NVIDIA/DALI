@@ -106,7 +106,6 @@ public:
     OpSpec spec =
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddArg("inplace", true)
       .AddOutput(name, "cpu");
     PrepareOpSpec(&spec);
     graph_.AddOp(spec);

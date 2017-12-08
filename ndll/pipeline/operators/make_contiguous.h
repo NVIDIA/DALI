@@ -13,11 +13,6 @@ public:
 
   virtual inline ~MakeContiguous() = default;
 
-  inline int MaxNumInput() const override { return 1; }
-  inline int MinNumInput() const override { return 1; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
-
   inline void Run(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();

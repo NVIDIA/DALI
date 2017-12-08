@@ -6,6 +6,7 @@
 #include "ndll/pipeline/device_workspace.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/op_schema.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/sample_workspace.h"
 
@@ -35,32 +36,6 @@ public:
   }
   
   virtual inline ~Operator() = default;
-
-  /**
-   * @brief Returns true if the Operator supports in-place execution.
-   * Default is false.
-   */
-  virtual inline bool SupportsInPlace() const { return false; }
-  
-  /**
-   * @brief Returns the maximum number of inputs supported by this op.
-   */
-  virtual int MaxNumInput() const = 0;
-
-  /**
-   * @brief Returns the minimum number of inputs required by this op.
-   */
-  virtual int MinNumInput() const = 0;
-
-  /**
-   * @brief Returns the maximum number of outputs supported by this op.
-   */
-  virtual int MaxNumOutput() const = 0;
-
-  /**
-   * @brief Returns the minimum number of outputs required by this op.
-   */
-  virtual int MinNumOutput() const = 0;
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
@@ -122,11 +97,18 @@ NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator<CPUBackend>);
 NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
 
 // Must be called from .cc or .cu file
-#define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)    \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+#define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)        \
+  int OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
+  static int ANONYMIZE_VARIABLE(OpName) =                 \
+    OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       ndll::CPUOperator, ndll::Operator<CPUBackend>)
-#define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)    \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,       \
+
+#define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)        \
+  int OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
+  static int ANONYMIZE_VARIABLE(OpName) =                 \
+    OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       ndll::GPUOperator, ndll::Operator<GPUBackend>)
 
 } // namespace ndll

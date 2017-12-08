@@ -1,5 +1,5 @@
-#ifndef NDLL_PIPELINE_OPERATORS_COPY_OP_H_
-#define NDLL_PIPELINE_OPERATORS_COPY_OP_H_
+#ifndef NDLL_PIPELINE_OPERATORS_COPY_H_
+#define NDLL_PIPELINE_OPERATORS_COPY_H_
 
 #include <cuda_runtime_api.h>
 
@@ -10,20 +10,14 @@
 namespace ndll {
 
 template <typename Backend>
-class CopyOp : public Operator<Backend> {
+class Copy : public Operator<Backend> {
 public:
-  inline explicit CopyOp(const OpSpec &spec) :
+  inline explicit Copy(const OpSpec &spec) :
     Operator<Backend>(spec) {}
   
-  virtual inline ~CopyOp() = default;
-
-  // The CopyOp copies a single input directly to the output
-  inline int MaxNumInput() const override { return 1; }
-  inline int MinNumInput() const override { return 1; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
+  virtual inline ~Copy() = default;
   
-  DISABLE_COPY_MOVE_ASSIGN(CopyOp);
+  DISABLE_COPY_MOVE_ASSIGN(Copy);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
@@ -50,4 +44,4 @@ protected:
 
 } // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_COPY_OP_H_
+#endif // NDLL_PIPELINE_OPERATORS_COPY_H_

@@ -5,8 +5,7 @@
 namespace ndll {
 
 namespace {
-// Source: Based off kernel from caffe2/image/transform_gpu.cu. This was
-// written by slayton I believe and the file has an Nvidia license at the top
+
 template <typename OUT>
 __global__ void BatchedNormalizePermuteKernel(const uint8 *in_batch,
     int N, int H, int W, int C,  float *mean, float *inv_std, OUT *out_batch) {

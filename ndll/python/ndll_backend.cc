@@ -1,6 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/init.h"
 
@@ -10,7 +12,15 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(ndll_cxx, m) {
+static vector<string> GetRegisteredCPUOps() {
+  return CPUOperatorRegistry::Registry().RegisteredNames();
+}
+
+static vector<string> GetRegisteredGPUOps() {
+  return GPUOperatorRegistry::Registry().RegisteredNames();
+}
+
+PYBIND11_MODULE(ndll_backend, m) {
   m.doc() = "Python bindings for the C++ portions of NDLL";
 
   // NDLL Init function
@@ -108,6 +118,10 @@ PYBIND11_MODULE(ndll_cxx, m) {
           }
           return *spec;
         }, py::return_value_policy::reference_internal);
+
+  // Registries for cpu & gpu operators
+  m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
+  m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
 }
 
 } // namespace python

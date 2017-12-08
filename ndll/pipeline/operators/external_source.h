@@ -20,13 +20,6 @@ public:
   
   virtual inline ~ExternalSource() = default;
 
-  inline bool SupportsInPlace() const override { return true; }
-  
-  inline int MaxNumInput() const override { return 0; }
-  inline int MinNumInput() const override { return 0; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
-
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";
   }

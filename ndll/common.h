@@ -65,16 +65,17 @@ inline bool IsColor(NDLLImageType type) {
   return false;
 }
 
-
-// Source: based on Caffe macro of the same name. Impl uses 'delete'
-// instead of just making these functions private
-//
 // Helper to delete copy constructor & copy-assignment operator
 #define DISABLE_COPY_MOVE_ASSIGN(name)          \
   name(const name&) = delete;                   \
   name& operator=(const name&) = delete;        \
   name(name&&) = delete;                        \
   name& operator=(name&&) = delete
+
+// Util to declare anonymous variable
+#define CONCAT_1(var1, var2) var1##var2
+#define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
+#define ANONYMIZE_VARIABLE(name) CONCAT_2(name, __LINE__)
 
 // HACK: This global exists so that we have a way to enable/disable
 // nvtx like we can with the cuda profiler. Could move this to a

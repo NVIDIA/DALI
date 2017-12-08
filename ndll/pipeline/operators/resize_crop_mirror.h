@@ -53,11 +53,6 @@ public:
 
   virtual inline ~ResizeCropMirror() = default;
 
-  inline int MaxNumInput() const override { return 1; }
-  inline int MinNumInput() const override { return 1; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
-  
 protected:
   using TransformMeta = struct {
     int H, W, C;
