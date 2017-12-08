@@ -20,6 +20,7 @@ stages:
     - build devel
     - trigger
     - test
+    - staging
 
 before_script:
     - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.5   && echo "${PYVER}"
