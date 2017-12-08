@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       liblmdb-dev \
       libprotobuf-dev \
       protobuf-compiler \
+      autoconf \
+      automake \
+      nasm \
   && rm -rf /var/lib/apt/lists/*
 
 RUN OPENCV_VERSION=3.1.0 && \
