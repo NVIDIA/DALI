@@ -1,6 +1,5 @@
 import ndll.backend as b
 
-
 class TensorReference(object):
     def __init__(self, name, device = "cpu", source = None):
         self.name = name

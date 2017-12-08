@@ -17,12 +17,18 @@ def python_op_factory(name):
             # for all the versions we create?
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
-            self._device = "find me in kwargs!"
 
             # Unfortunately class docstrings are immutable, so
             # we append the operator docs to the operator constructor
             type(self).__init__.__func__.__doc__ = self._schema.Dox()
-            
+
+            # Get the device argument. We will need this to determine
+            # the device that our outputs will be stored on
+            if "device" in kwargs.keys():
+                self._device = kwargs["device"]
+            else:
+                self._device = "cpu"
+
             # Store the specified arguments
             for key, value in kwargs.items():
                 self._spec.AddArg(key, value)
@@ -38,11 +44,20 @@ def python_op_factory(name):
         @property
         def device(self):
             return self._device
+
+        @property
+        def inputs(self):
+            return self._inputs
+
+        @property
+        def outputs(self):
+            return self._outputs
         
         def __call__(self, *inputs):
             # TODO(tgale): Inputs come in as a list of
             # TensorReferences. Can we also support
             # kwargs based on the docstring?
+            self._inputs = inputs
             if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
@@ -53,32 +68,34 @@ def python_op_factory(name):
                             self._schema.MaxNumInput(),
                             len(inputs)))
 
-            for tensor in inputs:
-                if type(tensor) is not TensorReference:
+            for t in inputs:
+                if type(t) is not TensorReference:
                     raise TypeError(
                         """Expected inputs of type
                         TensorReference. Received 
                         input type {}"""
-                        .format(type(tensor).__name__))
-                self._spec.AddInput(tensor.name, tensor.device)
+                        .format(type(t).__name__))
+                self._spec.AddInput(t.name, t.device)
 
             num_output = self._schema.CalculateOutputs(self._spec)
-            outputs = []
+            self._outputs = []
             for i in range(num_output):
-                outputs.append(TensorReference(
-                    type(self).__name__ + "_output_" + str(i),
-                    self.device, self))
+                t_name = type(self).__name__ + "_output_" + str(i)
+                t = TensorReference(t_name, self.device, self)
+                self._spec.AddOutput(t.name, t.device)
+                self._outputs.append(t)
 
             if num_output == 1:
-                return outputs[0]
-            return outputs
+                return self._outputs[0]
+            return self._outputs
 
     Operator.__name__ = str(name)
     return Operator
 
 # TODO(tgale): Do this for all cpu/gpu ops. Figure
 # out how we want to expose what devices are supported
-for op_name in b.RegisteredCPUOps():
+_all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps()))
+for op_name in _all_ops:
     if (b.GetSchema(op_name).HasOutputFn()):
         # Note: We only expose operators for which
         # we can infer the number of outputs from
