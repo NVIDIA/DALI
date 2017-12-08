@@ -17,7 +17,6 @@ namespace {
   bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val& key, MDB_val& value) {
     int status = mdb_cursor_get(cursor, &key, &value, op);
 
-
     if (status == MDB_NOTFOUND) {
       // reached the end of the db
       return false;
@@ -25,6 +24,14 @@ namespace {
       CHECK_LMDB(status);
       return true;
     }
+  }
+
+  void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
+    MDB_stat* stat;
+
+    LMDB_CHECK(txn, dbi, stat);
+
+    printf("DB has %d entries\n", stat.ms_entries);
   }
 }
 
@@ -39,6 +46,8 @@ class LMDBReader : public FileStoreReader {
     CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
     CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
     CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+
+    PrintLMDBStats(mdb_transaction, mdb_dbi_);
   }
   ~LMDBReader() {
     mdb_cursor_close(mdb_cursor_);

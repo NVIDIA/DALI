@@ -11,9 +11,9 @@
 namespace ndll {
 
 template <typename Backend>
-class DummyDataReaderOp : public PrefetchedDataReaderOperator<Backend> {
+class DummyDataReaderOp : public DataReaderOperator<Backend> {
  public:
-  DummyDataReaderOp(const OpSpec &spec) : PrefetchedDataReaderOperator<Backend>(spec) {
+  DummyDataReaderOp(const OpSpec &spec) : DataReaderOperator<Backend>(spec) {
 
   }
 

@@ -7,6 +7,7 @@ set(NDLL_BENCHMARK_SRCS)
 add_subdirectory(image)
 add_subdirectory(pipeline)
 add_subdirectory(util)
+add_subdirectory(file_store)
 
 # Collect files in this directory
 file(GLOB tmp *.cc)
@@ -25,10 +26,10 @@ install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR} DESTINATION
 if (BUILD_TEST)
   # get all test srcs
   add_subdirectory(test)
-  
+
   set(test_main_bin "run_tests")
   cuda_add_executable(${test_main_bin} "${NDLL_TEST_SRCS}")
-  
+
   # Link to the ndll lib
   add_dependencies(${test_main_bin} ${ndll_lib})
 

@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "ndll/file_store/file_store_reader.h"
+#include "ndll/file_store/lmdb.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -17,15 +18,15 @@ namespace ndll {
  * Operator runs an additional prefetch thread
  */
 template <typename Backend>
-class PrefetchedDataReaderOperator : public Operator<Backend> {
+class DataReaderOperator : public Operator<Backend> {
  public:
-  inline explicit PrefetchedDataReaderOperator(const OpSpec& spec) :
+  inline explicit DataReaderOperator(const OpSpec& spec) :
     Operator<Backend>(spec) {
     // TODO() stuff here
     //
   }
 
-  virtual ~PrefetchedDataReaderOperator() noexcept {
+  virtual ~DataReaderOperator() noexcept {
     // check we're good
     StopPrefetchThread();
   }
