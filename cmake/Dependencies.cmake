@@ -54,7 +54,7 @@ if (OpenCV_FOUND)
     # Get the imgcodecs library
     find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
   endif()
-  
+
   # Check for opencv
   message(STATUS "Found OpenCV ${OpenCV_VERSION} (libs: ${OpenCV_LIBRARIES})")
 endif()
@@ -70,4 +70,16 @@ if (BUILD_PYTHON)
   # Build w/ c++11
   set(PYBIND11_CPP_STANDARD -std=c++11)
   add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/pybind11)
+endif()
+
+# LMDB
+if (USE_LMDB)
+  find_package(LMDB)
+  if (LMDB_FOUND)
+    message(STATUS "Found LMDB ${LMDB_INCLUDE_DIR} : ${LMDB_LIBRARIES}")
+    include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
+    list(APPEND NDLL_LIBS ${LMDB_LIBRARIES})
+  else()
+    message(STATUS "LMDB not found")
+  endif()
 endif()
