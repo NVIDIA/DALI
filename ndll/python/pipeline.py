@@ -1,6 +1,6 @@
 from collections import deque
 import ndll.backend as b
-from ndll.tensor import TensorReference
+import ndll.tensor as nt
 
 class Pipeline(object):
     def __init__(self, batch_size, num_threads, device_id, queue_depth = 2,
@@ -22,15 +22,17 @@ class Pipeline(object):
         if self._built:
             raise RuntimeError("build() can only be called once.")
         
-        outputs = self.build_graph()
-        outputs = (outputs) if type(outputs) is not tuple else outputs
-        for tensor in outputs:
-            if type(tensor) is not TensorReference:
+        outputs = self.define_graph()
+        if type(outputs) is not tuple:
+            outputs = (outputs,)
+
+        for t in outputs:
+            if type(t) is not nt.TensorReference:
                 raise TypeError(
                     "Expected outputs of type "
                     "TensorReference. Received "
                     "output type {}"
-                    .format(type(tensor).__name__)
+                    .format(type(t).__name__)
                 )
 
         # Backtrack to construct the graph
@@ -60,6 +62,24 @@ class Pipeline(object):
         while len(ops):
             self._pipe.AddOperator(ops.pop().spec)
         self._built = True
+
+    def feed_input(self, ref, data):
+        if type(ref) is not nt.TensorReference:
+                raise TypeError(
+                    "Expected argument one to "
+                    "be TensorReference. "
+                    "Received output type {}"
+                    .format(type(ref).__name__)
+                )
+
+        if type(data) is list:
+            t = []
+            for datum in data:
+                t.append(nt.TensorCPU(datum))
+            self._pipe.SetExternalInput(ref.name, t)
+        else:
+            t = nt.TensorListCPU(data)
+            self._pipe.SetExternalInput(ref.name, t)
         
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
@@ -67,3 +87,7 @@ class Pipeline(object):
     def build_graph(self):
         raise NotImplementedError
     
+    # Can be overriden by user-defined pipeline to perform any
+    # needed setup for each iteration, e.g. feed in input data
+    def iter_setup(self):
+        pass

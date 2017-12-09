@@ -34,6 +34,17 @@ public:
     // pass anything as it is ignored.
     data_.Copy(tl, 0);
   }
+
+  /**
+   * @brief Sets the data that should be passed out of the op
+   * on the next iteration.
+   */
+  // inline void SetDataSource(vector<const Tensor<Backend>*> tl) {
+  //   // Note: If we create a GPU source, we will need to figure
+  //   // out what stream we want to do this copy in. CPU we can
+  //   // pass anything as it is ignored.
+  //   data_.Copy(tl, 0);
+  // }
   
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 protected:

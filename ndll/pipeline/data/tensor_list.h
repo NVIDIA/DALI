@@ -99,6 +99,37 @@ public:
     // we are now sharing an allocation with another buffer
     if (num_bytes_ > 0) shares_data_ = true;
   }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the TensorList is reset to
+   * a default state and is NOT marked as sharing data.
+   * 
+   * After wrapping the allocation, the TensorLists size is set to 0, 
+   * and its type is reset to NoType. Future calls to Resize or setting 
+   * of the Tensor type will evaluate whether or not the current 
+   * allocation is large enough to be used and proceed appropriately.
+   *
+   * The TensorList object assumes no ownership of the input allocation,
+   * and will not de-allocate it when it is done using it. It is up to
+   * the user to manage the lifetime of the allocation such that it
+   * persist while it is in use by the Tensor.
+   */
+  inline void ShareData(void *ptr, size_t bytes) {
+    NDLL_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+
+    // Save our new pointer and bytes. Reset our type, shape, and size
+    data_.reset(ptr, [](void *) {});
+    num_bytes_ = bytes;
+    type_ = TypeInfo::Create<NoType>();
+    shape_.clear();
+    offsets_.clear();
+    size_ = 0;
+
+    // If the input pointer stores a non-zero size allocation, mark
+    // that we are sharing our underlying data
+    if (num_bytes_ > 0) shares_data_ = true;
+  }
   
   /**
    * @brief Returns a typed pointer to the tensor with the given index.

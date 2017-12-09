@@ -1,11 +1,13 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "ndll/pipeline/init.h"
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/op_schema.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/pipeline.h"
-#include "ndll/pipeline/init.h"
+#include "ndll/pipeline/data/tensor.h"
+#include "ndll/pipeline/data/tensor_list.h"
 
 namespace ndll {
 namespace python {
@@ -13,7 +15,7 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-std::string FormatStrFromType(TypeInfo type) {
+static std::string FormatStrFromType(TypeInfo type) {
   if (IsType<uint8>(type)) {
     return py::format_descriptor<uint8>::format();
   } else if (IsType<int16>(type)) {
@@ -36,7 +38,7 @@ std::string FormatStrFromType(TypeInfo type) {
   }
 }
 
-TypeInfo TypeFromFormatStr(std::string format) {
+static TypeInfo TypeFromFormatStr(std::string format) {
   if (format == py::format_descriptor<uint8>::format()) {
     return TypeInfo::Create<uint8>();
   } else if (format == py::format_descriptor<int16>::format()) {
@@ -56,6 +58,103 @@ TypeInfo TypeFromFormatStr(std::string format) {
   } else {
     NDLL_FAIL("Cannot create type for unknow format string: " + format);
   }
+}
+
+void ExposeTensorCPU(py::module &m) {
+  py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+    .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
+          NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
+              "buffer info for tensor w/ invalid type.");
+          
+          std::vector<ssize_t> shape(t.ndim()), stride(t.ndim());
+          size_t dim_prod = 1;
+          for (int i = 0; i < t.ndim(); ++i) {
+            shape[i] = t.shape()[i];
+
+            // We iterate over stride backwards
+            stride[(t.ndim()-1) - i] = t.type().size()*dim_prod;
+            dim_prod *= t.shape()[(t.ndim()-1) - i];
+          }
+
+          return py::buffer_info(
+              t.raw_mutable_data(),
+              t.type().size(),
+              FormatStrFromType(t.type()),
+              t.ndim(), shape, stride);
+        })
+    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b) {
+          // We need to verify that hte input data is c contiguous
+          // and of a type that we can work with in the backend
+          py::buffer_info info = b.request();
+
+          std::vector<Index> i_shape;
+          for (auto &dim : info.shape) {
+            i_shape.push_back(dim);
+          }
+          size_t bytes = Product(i_shape) * info.itemsize;
+
+          // Validate the stride
+          ssize_t dim_prod = 1;
+          for (int i = info.strides.size()-1; i >= 0; --i) {
+            NDLL_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
+                "Strided data not supported. Detected on dimension " + std::to_string(i));
+            dim_prod *= info.shape[i];
+          }
+
+          // Create the Tensor and wrap the data
+          new (&t) Tensor<CPUBackend>;
+          TypeInfo type = TypeFromFormatStr(info.format);
+          t.ShareData(info.ptr, bytes);
+          t.set_type(type);
+          t.Resize(i_shape);
+        })
+    .def("shape", &Tensor<CPUBackend>::shape)
+    .def("ndim", &Tensor<CPUBackend>::ndim)
+    .def("dim", &Tensor<CPUBackend>::dim)
+    .def("resize", &Tensor<CPUBackend>::Resize);
+    // .def("show", [](Tensor<CPUBackend> &t) {
+    //       for (size_t i = 0; i < t.nbytes()/sizeof(double); ++i) {
+    //         cout << ((double*)t.raw_data())[i] << endl;
+    //       }
+    //     });
+}
+
+void ExposeTensorListCPU(py::module &m) {
+  // We only want to wrap buffers w/ TensorLists to feed then to
+  // the backend. We do not support converting from TensorLists
+  // to numpy arrays currently.
+  py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
+    .def("from_buffer", [](TensorList<CPUBackend> &t, py::buffer b) {
+          // We need to verify that the input data is C_CONTIGUOUS
+          // and of a type that we can work with in the backend
+          py::buffer_info info = b.request();
+
+          NDLL_ENFORCE(info.shape.size() > 0,
+              "Cannot create TensorList from 0-dim array.");
+
+          // Create a list of shapes
+          std::vector<Index> tensor_shape(info.shape.size()-1);
+          for (size_t i = 1; i < info.shape.size(); ++i) {
+            tensor_shape[i-1] = info.shape[i];
+          }
+          std::vector<Dims> i_shape(info.shape[0], tensor_shape);
+          size_t bytes = Product(tensor_shape)*i_shape.size()*info.itemsize;
+
+          // Validate the stride
+          ssize_t dim_prod = 1;
+          for (int i = info.strides.size()-1; i >= 0; --i) {
+            NDLL_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
+                "Strided data not supported. Detected on dimension " + std::to_string(i));
+            dim_prod *= info.shape[i];
+          }
+
+          // Create the Tensor and wrap the data
+          new (&t) TensorList<CPUBackend>;
+          TypeInfo type = TypeFromFormatStr(info.format);
+          t.ShareData(info.ptr, bytes);
+          t.set_type(type);
+          t.Resize(i_shape);
+        });
 }
 
 static vector<string> GetRegisteredCPUOps() {
@@ -186,77 +285,8 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace);
 
-  py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
-    .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
-          NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
-              "buffer info for tensor w/ invalid type.");
-          
-          std::vector<ssize_t> shape(t.ndim()), stride(t.ndim());
-          size_t dim_prod = 1;
-          for (int i = 0; i < t.ndim(); ++i) {
-            shape[i] = t.shape()[i];
-
-            // We iterate over stride backwards
-            stride[(t.ndim()-1) - i] = t.type().size()*dim_prod;
-            dim_prod *= t.shape()[(t.ndim()-1) - i];
-          }
-
-          return py::buffer_info(
-              t.raw_mutable_data(),
-              t.type().size(),
-              FormatStrFromType(t.type()),
-              t.ndim(), shape, stride);
-        })
-    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b) {
-          // We need to verify that hte input data is c contiguous
-          // and of a type that we can work with in the backend
-          py::buffer_info info = b.request();
-
-          cout << "Buffer meta-data: " << endl;
-          cout << "buffer format: " << info.format << endl;
-          cout << "buffer ptr: " << (long long)info.ptr << endl;
-          cout << "buffer itemsize: " << info.itemsize << endl;
-          cout << "buffer ndim: " << info.ndim << endl;
-          cout << "buffer shape: ";
-          std::vector<Index> i_shape;
-          for (auto &dim : info.shape) {
-            cout << dim << " ";
-            i_shape.push_back(dim);
-          }
-          size_t bytes = Product(i_shape) * info.itemsize;
-          cout << endl;
-          cout << "buffer stride: ";
-          for (auto &dim : info.strides) {
-            cout << dim << " ";
-          }
-          cout << endl;
-
-          // Validate the stride
-          ssize_t dim_prod = 1;
-          for (int i = info.strides.size()-1; i >= 0; --i) {
-            cout << "nostride: " << info.itemsize*dim_prod << endl;
-            cout << "stride: " << info.strides[i] << endl;
-            NDLL_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
-                "Strided data not supported. Detected on dimension " + std::to_string(i));
-            dim_prod *= info.shape[i];
-          }
-
-          // Create the Tensor and wrap the data
-          new (&t) Tensor<CPUBackend>;
-          TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.Resize(i_shape);
-        })
-    .def("shape", &Tensor<CPUBackend>::shape)
-    .def("ndim", &Tensor<CPUBackend>::ndim)
-    .def("dim", &Tensor<CPUBackend>::dim)
-    .def("resize", &Tensor<CPUBackend>::Resize)
-    .def("show", [](Tensor<CPUBackend> &t) {
-          for (size_t i = 0; i < t.nbytes()/sizeof(double); ++i) {
-            cout << ((double*)t.raw_data())[i] << endl;
-          }
-        });
+  ExposeTensorCPU(m);
+  ExposeTensorListCPU(m);
 }
 
 } // namespace python
