@@ -2,10 +2,6 @@ from collections import deque
 import ndll.backend as b
 from ndll.tensor import TensorReference
 
-# Python format documentation
-# Python style guide
-# Auto-expose ndll.ops [x]
-# ndll.tensor module w/ TensorReference, TensorCPU, TensorGPU
 class Pipeline(object):
     def __init__(self, batch_size, num_threads, device_id, queue_depth = 2,
                  bytes_per_sample = 0, set_affinity = False, max_streams = -1):
@@ -27,33 +23,38 @@ class Pipeline(object):
             raise RuntimeError("build() can only be called once.")
         
         outputs = self.build_graph()
-        outputs = [outputs] if type(outputs) is not list else outputs
-
+        outputs = (outputs) if type(outputs) is not tuple else outputs
         for tensor in outputs:
             if type(tensor) is not TensorReference:
                 raise TypeError(
-                    """Expected outputs of type
-                    TensorReference. Received 
-                    output type {}"""
+                    "Expected outputs of type "
+                    "TensorReference. Received "
+                    "output type {}"
                     .format(type(tensor).__name__)
                 )
 
         # Backtrack to construct the graph
+        op_ids = set()
         tensors = deque(outputs)
         ops = []
         while len(tensors):
-            # TODO(tgale): This will produce duplicate ops
-            # if an op outputs more than one tensor
             current_tensor = tensors.popleft()
             source_op = current_tensor.source
             if source_op is None:
                 raise RuntimeError(
-                    """Pipeline encountered 
-                    Tensor with no source op.""")
-            
-            ops.append(source_op)
-            for tensor in source_op.inputs:
-                tensors.append(tensor)
+                    "Pipeline encountered "
+                    "Tensor with no source op.")
+
+            # To make sure we don't double count ops in
+            # the case that they produce more than one
+            # output, we keep track of the unique op ids
+            # for each op we encounter and only add the
+            # op if we have not already
+            if source_op.id not in op_ids:
+                op_ids.add(source_op.id)
+                ops.append(source_op)
+                for tensor in source_op.inputs:
+                    tensors.append(tensor)
 
         # Add the ops to the backend graph
         while len(ops):

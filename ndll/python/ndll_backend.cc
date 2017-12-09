@@ -13,6 +13,51 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+std::string FormatStrFromType(TypeInfo type) {
+  if (IsType<uint8>(type)) {
+    return py::format_descriptor<uint8>::format();
+  } else if (IsType<int16>(type)) {
+    return py::format_descriptor<int16>::format();
+  } else if (IsType<int>(type)) {
+    return py::format_descriptor<int>::format();
+  } else if (IsType<long>(type)) {
+    return py::format_descriptor<long>::format();
+  } else if (IsType<long long>(type)) {
+    return py::format_descriptor<long long>::format();
+  } else if (IsType<float>(type)) {
+    return py::format_descriptor<float>::format();
+  } else if (IsType<double>(type)) {
+    return py::format_descriptor<double>::format();
+  } else if (IsType<bool>(type)) {
+    return py::format_descriptor<bool>::format();
+  } else {
+    NDLL_FAIL("Cannot convert type " + type.name() +
+        " to format descriptor string");
+  }
+}
+
+TypeInfo TypeFromFormatStr(std::string format) {
+  if (format == py::format_descriptor<uint8>::format()) {
+    return TypeInfo::Create<uint8>();
+  } else if (format == py::format_descriptor<int16>::format()) {
+    return TypeInfo::Create<int16>();
+  } else if (format == py::format_descriptor<int>::format()) {
+    return TypeInfo::Create<int>();
+  } else if (format == py::format_descriptor<long>::format()) {
+    return TypeInfo::Create<long>();
+  } else if (format == py::format_descriptor<long long>::format()) {
+    return TypeInfo::Create<long long>();
+  } else if (format == py::format_descriptor<float>::format()) {
+    return TypeInfo::Create<float>();
+  } else if (format == py::format_descriptor<double>::format()) {
+    return TypeInfo::Create<double>();
+  } else if (format == py::format_descriptor<bool>::format()) {
+    return TypeInfo::Create<bool>();
+  } else {
+    NDLL_FAIL("Cannot create type for unknow format string: " + format);
+  }
+}
+
 static vector<string> GetRegisteredCPUOps() {
   return CPUOperatorRegistry::Registry().RegisteredNames();
 }
@@ -140,6 +185,78 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace);
+
+  py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+    .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
+          NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
+              "buffer info for tensor w/ invalid type.");
+          
+          std::vector<ssize_t> shape(t.ndim()), stride(t.ndim());
+          size_t dim_prod = 1;
+          for (int i = 0; i < t.ndim(); ++i) {
+            shape[i] = t.shape()[i];
+
+            // We iterate over stride backwards
+            stride[(t.ndim()-1) - i] = t.type().size()*dim_prod;
+            dim_prod *= t.shape()[(t.ndim()-1) - i];
+          }
+
+          return py::buffer_info(
+              t.raw_mutable_data(),
+              t.type().size(),
+              FormatStrFromType(t.type()),
+              t.ndim(), shape, stride);
+        })
+    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b) {
+          // We need to verify that hte input data is c contiguous
+          // and of a type that we can work with in the backend
+          py::buffer_info info = b.request();
+
+          cout << "Buffer meta-data: " << endl;
+          cout << "buffer format: " << info.format << endl;
+          cout << "buffer ptr: " << (long long)info.ptr << endl;
+          cout << "buffer itemsize: " << info.itemsize << endl;
+          cout << "buffer ndim: " << info.ndim << endl;
+          cout << "buffer shape: ";
+          std::vector<Index> i_shape;
+          for (auto &dim : info.shape) {
+            cout << dim << " ";
+            i_shape.push_back(dim);
+          }
+          size_t bytes = Product(i_shape) * info.itemsize;
+          cout << endl;
+          cout << "buffer stride: ";
+          for (auto &dim : info.strides) {
+            cout << dim << " ";
+          }
+          cout << endl;
+
+          // Validate the stride
+          ssize_t dim_prod = 1;
+          for (int i = info.strides.size()-1; i >= 0; --i) {
+            cout << "nostride: " << info.itemsize*dim_prod << endl;
+            cout << "stride: " << info.strides[i] << endl;
+            NDLL_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
+                "Strided data not supported. Detected on dimension " + std::to_string(i));
+            dim_prod *= info.shape[i];
+          }
+
+          // Create the Tensor and wrap the data
+          new (&t) Tensor<CPUBackend>;
+          TypeInfo type = TypeFromFormatStr(info.format);
+          t.ShareData(info.ptr, bytes);
+          t.set_type(type);
+          t.Resize(i_shape);
+        })
+    .def("shape", &Tensor<CPUBackend>::shape)
+    .def("ndim", &Tensor<CPUBackend>::ndim)
+    .def("dim", &Tensor<CPUBackend>::dim)
+    .def("resize", &Tensor<CPUBackend>::Resize)
+    .def("show", [](Tensor<CPUBackend> &t) {
+          for (size_t i = 0; i < t.nbytes()/sizeof(double); ++i) {
+            cout << ((double*)t.raw_data())[i] << endl;
+          }
+        });
 }
 
 } // namespace python

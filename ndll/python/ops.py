@@ -1,20 +1,20 @@
+from itertools import count
 import ndll.backend as b
 from ndll.tensor import TensorReference
 import sys
 import re
 
+class OpCounter(object):
+    _op_count = count(0)
+    def __init__(self):
+        self.id = next(self._op_count)
+        
 # TODO(tgale): Do we want device as a kwarg or actually
 # in the name of the operator class?
-        
-# TODO(tgale): Support kwargs in the constructor so that
-# users can define all the args to an op on construction
-# and not in the call to execute it
 def python_op_factory(name):
     class Operator(object):
         def __init__(self, **kwargs):
-            # TODO(tgale): Can these be moved into class
-            # wide member variables or will they be constant
-            # for all the versions we create?
+            self._counter = OpCounter()
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
 
@@ -32,7 +32,11 @@ def python_op_factory(name):
             # Store the specified arguments
             for key, value in kwargs.items():
                 self._spec.AddArg(key, value)
-                
+
+        @property
+        def id(self):
+            return self._counter.id
+        
         @property
         def spec(self):
             return self._spec
