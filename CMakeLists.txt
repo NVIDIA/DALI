@@ -59,3 +59,5 @@ add_subdirectory(ndll)
 # HACK: Add __init__.pys as needed
 file(WRITE ${CMAKE_BINARY_DIR}/ndll/__init__.py "")
 file(WRITE ${CMAKE_BINARY_DIR}/ndll/python/__init__.py "")
+
+add_custom_target(lint COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
