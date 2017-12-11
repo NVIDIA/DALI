@@ -139,15 +139,21 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
 }
 
 void Pipeline::RunCPU() {
+  NDLL_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
   executor_.RunCPU();
   executor_.RunInternal();
 }
 
 void Pipeline::RunGPU() {
+  NDLL_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
   executor_.RunGPU();
 }
 
 void Pipeline::Outputs(DeviceWorkspace *ws) {
+  NDLL_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
   executor_.Outputs(ws);
 }
 

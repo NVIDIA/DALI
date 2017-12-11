@@ -84,10 +84,7 @@ NDLL_REGISTER_TYPE(TestType2);
 //
 // type -> size (bytes) : getting size triggers allocation
 // size -> type (bytes) : getting type triggers allocation
-// bytes -> type -> size : shares data, gets type (zero size), gets size
-// (may or may not allocate)
-// bytes -> size -> type : shares data, gets size (no type), gets type
-// (may or may not allocate)
+// bytes (comes w/ type & size)
 //
 // The following tests attempt to verify the correct behavior for all of
 // these cases
@@ -164,7 +161,7 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   }
 }
 
-TYPED_TEST(TensorListTest, TestGetBytesSizeTypeNoAlloc) {
+TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   TensorList<TypeParam> tl, sharer;
 
   // Allocate the sharer
@@ -175,16 +172,6 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeNoAlloc) {
   // Share the data to give the tl bytes
   tl.ShareData(&sharer);
 
-  // Verify the internals
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-  
-  // Give the tl a size
-  tl.Resize(shape);
-
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
@@ -192,14 +179,15 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeNoAlloc) {
     offsets.push_back(size);
     size += Product(tmp);
   }
-  
+
   // Verify the internals
+  ASSERT_EQ(tl.raw_data(), sharer.raw_data());
   ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
+  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
-
+  
   // Give the buffer a type smaller than float.
   // We should have enough shared bytes, so no
   // re-allocation should happen
@@ -218,7 +206,7 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeNoAlloc) {
   }
 }
 
-TYPED_TEST(TensorListTest, TestGetBytesSizeTypeAlloc) {
+TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   TensorList<TypeParam> tl, sharer;
 
   // Allocate the sharer
@@ -229,16 +217,6 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeAlloc) {
   // Share the data to give the tl bytes
   tl.ShareData(&sharer);
 
-  // Verify the internals
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-  
-  // Give the tl a size
-  tl.Resize(shape);
-
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
@@ -248,121 +226,17 @@ TYPED_TEST(TensorListTest, TestGetBytesSizeTypeAlloc) {
   }
   
   // Verify the internals
+  ASSERT_EQ(tl.raw_data(), sharer.raw_data());
   ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
+  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
-
+  
   // Give the buffer a type bigger than float.
   // We do not have enough bytes shared, so
   // this should trigger a reallocation
   tl.template mutable_data<double>();
-
-  // Verify the internals
-  ASSERT_FALSE(tl.shares_data());
-  ASSERT_NE(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(double)*size);
-  ASSERT_TRUE(IsType<double>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
-}
-
-TYPED_TEST(TensorListTest, TestGetBytesTypeSizeNoAlloc) {
-  TensorList<TypeParam> tl, sharer;
-
-  // Allocate the sharer
-  sharer.template mutable_data<float>();
-  auto shape = this->GetRandShape();
-  sharer.Resize(shape);
-
-  // Share the data to give the tl bytes
-  tl.ShareData(&sharer);
-
-  // Verify the internals
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-
-  // Give the tl a type. This should trigger no allocation,
-  // and our size should stay at zero
-  tl.template mutable_data<int16>();
-
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<int16>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-
-  // Give the tl a size. Use the same size to ensure that
-  // the tl has enough shared bytes to store its data
-  tl.Resize(shape);
-  
-  int num_tensor = shape.size();
-  vector<Index> offsets;
-  Index size = 0;
-  for (auto &tmp : shape) {
-    offsets.push_back(size);
-    size += Product(tmp);
-  }
-
-  // Verify the internals
-  ASSERT_TRUE(tl.shares_data());
-  ASSERT_EQ(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(int16)*size);
-  ASSERT_TRUE(IsType<int16>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
-}
-
-TYPED_TEST(TensorListTest, TestGetBytesTypeSizeAlloc) {
-  TensorList<TypeParam> tl, sharer;
-
-  // Allocate the sharer
-  sharer.template mutable_data<float>();
-  auto shape = this->GetRandShape();
-  sharer.Resize(shape);
-
-  // Share the data to give the tl bytes
-  tl.ShareData(&sharer);
-
-  // Verify the internals
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-
-  // Give the tl a type. This should trigger no allocation,
-  // and our size should stay at zero
-  tl.template mutable_data<double>();
-
-  ASSERT_EQ(tl.size(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<double>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), 0);
-  ASSERT_TRUE(tl.shares_data());
-
-  // Give the tl a size. This should trigger an allocation
-  tl.Resize(shape);
-  
-  int num_tensor = shape.size();
-  vector<Index> offsets;
-  Index size = 0;
-  for (auto &tmp : shape) {
-    offsets.push_back(size);
-    size += Product(tmp);
-  }
 
   // Verify the internals
   ASSERT_FALSE(tl.shares_data());

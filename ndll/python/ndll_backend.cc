@@ -112,11 +112,6 @@ void ExposeTensorCPU(py::module &m) {
     .def("ndim", &Tensor<CPUBackend>::ndim)
     .def("dim", &Tensor<CPUBackend>::dim)
     .def("resize", &Tensor<CPUBackend>::Resize);
-    // .def("show", [](Tensor<CPUBackend> &t) {
-    //       for (size_t i = 0; i < t.nbytes()/sizeof(double); ++i) {
-    //         cout << ((double*)t.raw_data())[i] << endl;
-    //       }
-    //     });
 }
 
 void ExposeTensorListCPU(py::module &m) {
@@ -124,7 +119,7 @@ void ExposeTensorListCPU(py::module &m) {
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def("from_buffer", [](TensorList<CPUBackend> &t, py::buffer b) {
+    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -212,10 +207,47 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("Build", &Pipeline::Build)
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)
+    .def("Outputs",
+        [](Pipeline *p) {
+          DeviceWorkspace ws;
+          p->Outputs(&ws);
+
+          // TODO(tgale): Figure out how to expose the results into python
+          // while maintaining our ownership over the pointers to data
+
+          // py::list list;
+          // for (int i = 0; i < ws.NumOutput(); ++i) {
+          //   if (ws.OutputIsType<CPUBackend>(0)) {
+          //     list.append(ws.Output<CPUBackend>(0));
+          //   } else {
+          //     list.append(ws.Output<GPUBackend>(0));
+          //   }
+          // }
+          // return list;
+        }, py::return_value_policy::take_ownership)
     .def("batch_size", &Pipeline::batch_size)
-    .def("num_threads", &Pipeline::num_threads);
-
-
+    .def("num_threads", &Pipeline::num_threads)
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
+          p->SetExternalInput(name, tl);
+        })
+    .def("SetExternalTensorInput",
+        [](Pipeline *p, const string &name, py::list list) {
+          // Note: This is a hack to get around weird casting
+          // issues w/ pybind and a non-copyable type (ndll::Tensor).
+          // We cannot use pybind::cast<Tensor<CPUBackend>>
+          // because somewhere through the chain of templates
+          // pybind returns the calling template type, which
+          // tries to call the deleted copy constructor for Tensor.
+          // instead, we cast to a reference type and manually
+          // move into the vector.
+          vector<Tensor<CPUBackend>> tensors(list.size());
+          for (size_t i = 0; i < list.size(); ++i) {
+            tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
+          }
+          p->SetExternalInput(name, tensors);
+        });
+  
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,

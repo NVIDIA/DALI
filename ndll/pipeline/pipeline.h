@@ -129,6 +129,25 @@ public:
         name + "' is not marked as an external input.");
     source->SetDataSource(tl);
   }
+
+  /**
+   * @brief Sets the external input with the input name to the 
+   * input data.
+   */
+  inline void SetExternalInput(const string &name,
+      const vector<Tensor<CPUBackend>> &tl) {
+    NodeID node_id = graph_.TensorSourceID(name + "_cpu");
+    NDLL_ENFORCE(graph_.NodeType(node_id) == NDLL_CPU,
+        "Internal error setting external input data.");
+
+    int op_idx = graph_.NodeIdx(node_id);
+    auto *op_ptr = &graph_.cpu_op(op_idx);
+    ExternalSource<CPUBackend> *source =
+      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
+    NDLL_ENFORCE(source != nullptr, "Input name '" +
+        name + "' is not marked as an external input.");
+    source->SetDataSource(tl);
+  }
   
   /**
    * @brief Adds an Operator with the input specification to the pipeline. The
@@ -165,7 +184,7 @@ public:
    * must be called prior to calling this or this method will result in
    * deadlock.
    *
-   * TODO(tgale): This seems bad to have a method that can deadline so
+   * TODO(tgale): This seems bad to have a method that can deadlock so
    * easily. Is there a different behavior that we would like?
    */
   void Outputs(DeviceWorkspace *ws);

@@ -100,6 +100,34 @@ public:
     shares_data_ = true;
   }
 
+    
+  /**
+   * @brief Wraps the data owned by the input tensor. The input
+   * tensor must have a valid type. If sucessful, the tensor 
+   * object will wrap the target data and assume the datatype 
+   * and shape of the data stored in the Tensor.
+   *
+   * If the input does not store any data, shares_data_ is left
+   * as false.
+   */
+  inline void ShareData(Tensor<Backend> *t) {
+    NDLL_ENFORCE(t != nullptr, "Input Tensor is nullptr");
+    NDLL_ENFORCE(IsValidType(t->type()), "To share data, "
+        "the input Tensor must have a valid data type.");
+
+    // Save a copy of our new data pointer. We create a copy of the
+    // shared_ptr to ensure the data persists while we are still
+    // using it.
+    data_ = t->data_;
+
+    // Save the tensor meta-data
+    shape_ = t->shape_;
+    size_ = t->size_;
+    type_ = t->type_;
+    num_bytes_ = t->num_bytes_;
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+  
   /**
    * @brief Wraps the raw allocation. The input pointer must not be nullptr.
    * if the size of the allocation is zero, the Tensor is reset to a default
@@ -127,7 +155,7 @@ public:
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
-    if (num_bytes_ > 0) shares_data_ = true;
+    shares_data_ = num_bytes_ > 0 ? true : false;
   }
   
   /**
@@ -155,7 +183,49 @@ public:
     return shape_[idx];
   }
   
-  DISABLE_COPY_MOVE_ASSIGN(Tensor);
+  Tensor<Backend>(const Tensor<Backend>&) = delete;
+  Tensor<Backend>& operator=(const Tensor<Backend>&) = delete;
+
+  Tensor<Backend>(Tensor<Backend> &&t) noexcept {
+    // Steal all data and set input to default state
+    shape_ = std::move(t.shape_);
+    backend_ = t.backend_;
+    type_ = t.type_;
+    data_ = t.data_;
+    size_ = t.size_;
+    shares_data_ = t.shares_data_;
+    num_bytes_ = t.num_bytes_;
+
+    t.shape_.clear();
+    t.backend_ = Backend();
+    t.type_ = TypeInfo::Create<NoType>();
+    t.data_.reset();
+    t.size_ = 0;
+    t.shares_data_ = false;
+    t.num_bytes_ = 0;
+  }
+
+  Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
+    if (&t != this) {
+      shape_ = std::move(t.shape_);
+      backend_ = t.backend_;
+      type_ = t.type_;
+      data_ = t.data_;
+      size_ = t.size_;
+      shares_data_ = t.shares_data_;
+      num_bytes_ = t.num_bytes_;
+      
+      t.shape_.clear();
+      t.backend_ = Backend();
+      t.type_ = TypeInfo::Create<NoType>();
+      t.data_.reset();
+      t.size_ = 0;
+      t.shares_data_ = false;
+      t.num_bytes_ = 0;
+    }
+    return *this;
+  }
+  
 protected:
   vector<Index> shape_;
 

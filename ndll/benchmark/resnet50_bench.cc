@@ -86,7 +86,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
 
-    // Run once to allocate the memory
+  // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();

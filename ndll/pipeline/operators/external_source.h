@@ -32,39 +32,49 @@ public:
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
-    data_.Copy(tl, 0);
+    tl_data_.Copy(tl, 0);
+    data_in_tl_ = true;
   }
 
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
    */
-  // inline void SetDataSource(vector<const Tensor<Backend>*> tl) {
-  //   // Note: If we create a GPU source, we will need to figure
-  //   // out what stream we want to do this copy in. CPU we can
-  //   // pass anything as it is ignored.
-  //   data_.Copy(tl, 0);
-  // }
+  inline void SetDataSource(const vector<Tensor<Backend>> &t) {
+    // Note: If we create a GPU source, we will need to figure
+    // out what stream we want to do this copy in. CPU we can
+    // pass anything as it is ignored.
+    t_data_.resize(t.size());
+    for (size_t i = 0; i < t.size(); ++i) {
+      t_data_[i].Copy(t[i], 0);
+    }
+    data_in_tl_ = false;
+  }
   
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     // Wrap the output tensor around our data
     auto output = ws->Output<Backend>(0);
-    output->ShareData(&data_, ws->data_idx());
-    output->set_type(data_.type());
-    output->Resize(data_.tensor_shape(ws->data_idx()));
+    if (data_in_tl_) {
+      output->ShareData(&tl_data_, ws->data_idx());
+    } else {
+      NDLL_ENFORCE_VALID_INDEX((size_t)ws->data_idx(), t_data_.size());
+      auto &data = t_data_[ws->data_idx()];
+      output->ShareData(&data);
+    }
   }
 
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
+    NDLL_ENFORCE(data_in_tl_, "Cannot feed non-contiguous data in gpu op.");
     auto output = ws->Output<Backend>(0);
-    output->ShareData(&data_);
-    output->set_type(data_.type());
-    output->ResizeLike(data_);
+    output->ShareData(&tl_data_);
   }
   
   string output_name_;
-  TensorList<Backend> data_;
+  TensorList<Backend> tl_data_;
+  vector<Tensor<Backend>> t_data_;
+  bool data_in_tl_ = true;
 };
 
 } // namespace ndll

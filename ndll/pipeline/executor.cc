@@ -43,7 +43,7 @@ void Executor::RunCPU() {
   SetOutputBuffersForIter(output_names_, type_idx_map_,
       queue_idx_, graph_, &internal_op_data_, &gpu_op_data_,
       &cpu_outputs_, &gpu_outputs_);
-
+  
   // TODO(tgale): Is this the desired behavior?
   // 
   // If we are about to issue work into a set of
