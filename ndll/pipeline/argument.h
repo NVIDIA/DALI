@@ -2,6 +2,12 @@
 #ifndef NDLL_PIPELINE_ARGUMENT_H_
 #define NDLL_PIPELINE_ARGUMENT_H_
 
+#include <vector>
+#include <string>
+
+#include "ndll/common.h"
+#include "ndll/error_handling.h"
+
 namespace ndll {
 
 // NOTE: This class should really just be a protobuf message,
@@ -14,7 +20,7 @@ namespace ndll {
  * TODO(tgale): Clearly document this API.
  */
 class Argument {
-public:
+ public:
   Argument() :
     f_(0), i_(0), ui_(0), has_name_(false),
     has_f_(false), has_i_(false), has_ui_(false),
@@ -31,7 +37,7 @@ public:
     has_name_ = false;
     name_ = "";
   }
-  
+
   // Setters & getters for double
   inline bool has_f() const { return has_f_; }
   inline double get_f() const { return f_; }
@@ -67,7 +73,7 @@ public:
     has_ui_ = false;
     ui_ = 0;
   }
-  
+
   // Setters & getters for string
   inline bool has_s() const { return has_s_; }
   inline const string& get_s() const { return s_; }
@@ -139,7 +145,7 @@ public:
   inline void clear_rui() {
     rui_.clear();
   }
-  
+
 
   // Setters & getters for repeated strings
   inline int rs_size() const { return rs_.size(); }
@@ -160,15 +166,15 @@ public:
   inline void clear_rs() {
     rs_.clear();
   }
-  
-private:
+
+ private:
   string name_;
-  
+
   double f_;
   int64 i_;
   uint64 ui_;
   string s_;
-  
+
   vector<double> rf_;
   vector<int64> ri_;
   vector<uint64> rui_;
@@ -176,6 +182,6 @@ private:
   bool has_name_, has_f_, has_i_, has_ui_, has_s_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_ARGUMENT_H_
+#endif  // NDLL_PIPELINE_ARGUMENT_H_

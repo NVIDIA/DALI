@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/image/transform.h"
 
 #include "ndll/util/image.h"
@@ -45,7 +46,7 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   cv::resize(cv_img, rsz_img,
       cv::Size(rsz_w, rsz_h),
       0, 0, ocv_type);
-  
+
   // Do the crop/mirror into the output buffer
   if (mirror) {
     for (int i = 0; i < crop_h; ++i) {
@@ -93,23 +94,23 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   NDLL_ASSERT(crop_w > 0);
   NDLL_ASSERT((crop_y + crop_h) <= rsz_h);
   NDLL_ASSERT((crop_x + crop_w) <= rsz_w);
-  
+
   // FAST RESIZE: We are going to do a crop, so we back-project the crop into the
   // input image, get an ROI on this region, and then resize to the crop dimensions
   // this effectively does the resize+crop in one step, then we just mirror.
   int roi_w, roi_h, roi_x, roi_y;
-  roi_w = int(float(crop_w) / rsz_w * W);
-  roi_h = int(float(crop_h) / rsz_h * H);
-  roi_x = int(float(crop_x) / rsz_w * W);
-  roi_y = int(float(crop_y) / rsz_h * H);
-  
+  roi_w = static_cast<int>(static_cast<float>(crop_w) / rsz_w * W);
+  roi_h = static_cast<int>(static_cast<float>(crop_h) / rsz_h * H);
+  roi_x = static_cast<int>(static_cast<float>(crop_x) / rsz_w * W);
+  roi_y = static_cast<int>(static_cast<float>(crop_y) / rsz_h * H);
+
   // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
   // is kinda icky to const_cast away the const-ness, but there isn't another way
   // (that I know of) without making the input argument non-const.
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
   const cv::Mat cv_img = cv::Mat(roi_h, roi_w, channel_flag,
       const_cast<uint8*>(img) + roi_y*W*C + roi_x*C, W*C);
-  
+
   // Note: We only need an intermediate buffer if we are going to mirror the image.
   // If we are not going to mirror the image, wrap the output pointer in a cv::Mat
   // and do the resize directly into that buffer to avoid the unnescessary memcpy.
@@ -129,7 +130,7 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     // header
     rsz_img = cv::Mat(crop_h, crop_w, channel_flag, workspace);
   }
-  
+
   int ocv_type;
   NDLL_FORWARD_ERROR(OCVInterpForNDLLInterp(type, &ocv_type));
   cv::resize(cv_img, rsz_img,
@@ -150,4 +151,4 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   return NDLLSuccess;
 }
 
-} // namespace ndll
+}  // namespace ndll

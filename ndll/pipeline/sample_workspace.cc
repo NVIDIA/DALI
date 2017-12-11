@@ -119,4 +119,4 @@ void SampleWorkspace::AddOutput(shared_ptr<Tensor<GPUBackend>> output) {
       std::make_pair(false, gpu_outputs_.size()-1));
 }
 
-} // namespace ndll
+}  // namespace ndll

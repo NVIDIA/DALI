@@ -4,6 +4,10 @@
 
 #include <cuda_runtime_api.h>
 
+#include <utility>
+#include <vector>
+#include <memory>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/tensor.h"
@@ -14,12 +18,12 @@ namespace ndll {
 class SampleWorkspace;
 
 /**
- * @brief DeviceWorkspace stores all data that a gpu operator operates on, 
- * including its input and output TensorLists, parameter tensors and 
+ * @brief DeviceWorkspace stores all data that a gpu operator operates on,
+ * including its input and output TensorLists, parameter tensors and
  * meta-data about execution.
  */
 class DeviceWorkspace {
-public:
+ public:
   DeviceWorkspace() : stream_(0) {}
   ~DeviceWorkspace() = default;
 
@@ -32,7 +36,7 @@ public:
     has_event_ = false;
     stream_ = 0;
     parent_events_.clear();
-    
+
     cpu_inputs_.clear();
     gpu_inputs_.clear();
     cpu_outputs_.clear();
@@ -44,35 +48,35 @@ public:
     cpu_outputs_index_.clear();
     gpu_outputs_index_.clear();
   }
-  
+
   /**
    * @brief Returns the number of inputs.
    */
   inline int NumInput() const { return input_index_map_.size(); }
-  
+
   /**
    * @brief Returns the number of outputs.
    */
   inline int NumOutput() const { return output_index_map_.size(); }
 
   /**
-   * Returns true if the input TensorList at the given index 
+   * Returns true if the input TensorList at the given index
    * has the calling Backend type.
    */
   template <typename Backend>
   bool InputIsType(int idx) const;
 
   /**
-   * Returns true if the output TensorList at the given index 
+   * Returns true if the output TensorList at the given index
    * has the calling Backend type.
    */
   template <typename Backend>
   bool OutputIsType(int idx) const;
-  
+
   /**
    * @brief Returns the input TensorList at index `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
@@ -90,11 +94,11 @@ public:
    */
   template <typename Backend>
   void SetInput(int idx, shared_ptr<TensorList<Backend>> input);
-  
+
   /**
    * @brief Returns the output TensorList at index `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
@@ -104,12 +108,12 @@ public:
    * @brief Returns the internal shared_ptr to the TensorList at index
    * `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
   shared_ptr<TensorList<Backend>> SharedOutput(int idx);
-  
+
   /**
    * @brief Adds the input TensorList as an output.
    */
@@ -122,7 +126,7 @@ public:
    */
   template <typename Backend>
   void SetOutput(int idx, shared_ptr<TensorList<Backend>> output);
-  
+
   /**
    * @brief Sets the stream for this workspace.
    */
@@ -135,7 +139,7 @@ public:
    * @brief Returns true if 'set_stream' has been called.
    */
   inline bool has_stream() const { return has_stream_; }
-  
+
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
@@ -156,7 +160,7 @@ public:
    * @brief Returns true if 'set_event' has been called.
    */
   inline bool has_event() const { return has_event_; }
-  
+
   /**
    * @brief Returns the cuda event that signals this works completion.
    */
@@ -166,7 +170,7 @@ public:
   }
 
   /**
-   * @brief Adds a parent event that will signal this 
+   * @brief Adds a parent event that will signal this
    * work is allowed to execute.
    */
   inline void AddParentEvent(cudaEvent_t event) { parent_events_.push_back(event); }
@@ -176,7 +180,7 @@ public:
    */
   inline vector<cudaEvent_t> ParentEvents() const { return parent_events_; }
 
-private:
+ private:
   template <typename T>
   using TensorListPtr = shared_ptr<TensorList<T>>;
   vector<TensorListPtr<CPUBackend>> cpu_inputs_, cpu_outputs_;
@@ -187,7 +191,7 @@ private:
   // workspaces outputs/inputs
   vector<int> cpu_inputs_index_, gpu_inputs_index_;
   vector<int> cpu_outputs_index_, gpu_outputs_index_;
-  
+
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)
   // to actual tensor objects. The first element indicates if the
   // Tensor is stored on cpu, and the second element is the index of
@@ -200,6 +204,6 @@ private:
   vector<cudaEvent_t> parent_events_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_DEVICE_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_DEVICE_WORKSPACE_H_

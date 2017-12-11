@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <benchmark/benchmark.h>
 
 #include "ndll/benchmark/ndll_bench.h"
@@ -7,11 +8,9 @@
 namespace ndll {
 
 class RN50 : public NDLLBenchmark {
-public:
-protected:
 };
 
-BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {  // NOLINT
   bool fast_resize = st.range(0);
   int batch_size = st.range(1);
   int num_thread = st.range(2);
@@ -27,14 +26,13 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
   pipe.SetExternalInput("raw_jpegs", data);
-  
+
   pipe.AddOperator(
       OpSpec("TJPGDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "cpu")
-      );
+      .AddOutput("images", "cpu"));
 
   // Add a resize+crop+mirror op
   if (fast_resize) {
@@ -50,8 +48,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
         .AddArg("crop_w", 224)
         .AddArg("mirror_prob", 0.5f)
         .AddInput("images", "cpu")
-        .AddOutput("resized", "cpu")
-        );
+        .AddOutput("resized", "cpu"));
   } else {
     pipe.AddOperator(
         OpSpec("ResizeCropMirror")
@@ -65,8 +62,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
         .AddArg("crop_w", 224)
         .AddArg("mirror_prob", 0.5f)
         .AddInput("images", "cpu")
-        .AddOutput("resized", "cpu")
-        );
+        .AddOutput("resized", "cpu"));
   }
 
   pipe.AddOperator(
@@ -79,9 +75,8 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
       .AddArg("width", 224)
       .AddArg("channels", 3)
       .AddInput("resized", "gpu")
-      .AddOutput("final_batch", "gpu")
-      );
-  
+      .AddOutput("final_batch", "gpu"));
+
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
@@ -92,7 +87,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  while(st.KeepRunning()) {
+  while (st.KeepRunning()) {
     if (st.iterations() == 1) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
@@ -129,7 +124,7 @@ BENCHMARK_REGISTER_F(RN50, C2Pipe)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {  // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   NDLLImageType img_type = NDLL_RGB;
@@ -151,8 +146,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
       .AddArg("device", "cpu")
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("dct_data", "cpu")
-      .AddOutput("jpeg_meta", "cpu")
-      );
+      .AddOutput("jpeg_meta", "cpu"));
 
   pipe.AddOperator(
       OpSpec("DCTQuantInv")
@@ -160,9 +154,8 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
       .AddArg("output_type", img_type)
       .AddInput("dct_data", "gpu")
       .AddInput("jpeg_meta", "cpu")
-      .AddOutput("images", "gpu")
-      );
-  
+      .AddOutput("images", "gpu"));
+
   // Add a batched resize op
   pipe.AddOperator(
       OpSpec("Resize")
@@ -174,8 +167,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
       .AddArg("image_type", img_type)
       .AddArg("interp_type", NDLL_INTERP_LINEAR)
       .AddInput("images", "gpu")
-      .AddOutput("resized", "gpu")
-      );
+      .AddOutput("resized", "gpu"));
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
@@ -190,9 +182,8 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
       .AddInput("resized", "gpu")
-      .AddOutput("final", "gpu")
-      );
-  
+      .AddOutput("final", "gpu"));
+
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final", "gpu"}};
   pipe.Build(outputs);
@@ -203,7 +194,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  while(st.KeepRunning()) {
+  while (st.KeepRunning()) {
     if (st.iterations() == 1) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
@@ -238,4 +229,4 @@ BENCHMARK_REGISTER_F(RN50, HybridPipe)->Iterations(100)
 ->UseRealTime()
 ->Apply(HybridPipeArgs);
 
-} // namespace ndll
+}  // namespace ndll

@@ -6,6 +6,7 @@
 
 #include <utility>
 #include <vector>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"

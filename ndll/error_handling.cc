@@ -1,11 +1,12 @@
-#include "error_handling.h"
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#include "ndll/error_handling.h"
 
 namespace ndll {
 
 namespace {
 // Thread local string object to store error string
 thread_local string g_ndll_error_string;
-} // namespace
+}  // namespace
 
 string NDLLGetLastError() {
   string error_str = g_ndll_error_string;
@@ -15,8 +16,8 @@ string NDLLGetLastError() {
 
 void NDLLSetLastError(string error_str) {
   // Note: This currently overwrites the string if there is
-  // already an error string stored. 
+  // already an error string stored.
   g_ndll_error_string = error_str;
 }
 
-} // namespace ndll
+}  // namespace ndll

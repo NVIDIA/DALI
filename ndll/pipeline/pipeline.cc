@@ -41,7 +41,7 @@ void Pipeline::AddOperator(OpSpec spec) {
     // gpu / gpu / gpu -> everything is fine
     string error_str = "(op: '" + spec.name() + "', input: '" +
       input_name + "')";
-      
+
     if (device == "cpu") {
       NDLL_ENFORCE(input_device == "cpu", "cpu ops can only take cpu "
           "inputs. " + error_str);
@@ -62,7 +62,7 @@ void Pipeline::AddOperator(OpSpec spec) {
     string output_device = spec.OutputDevice(i);
     string error_str = "(op: '" + spec.name() + "', output: '" +
       output_name + "')";
-    
+
     auto it = edge_names_.find(output_name);
     NDLL_ENFORCE(it == edge_names_.end(), "Output name '" +
         output_name + "' conflicts with existing intermediate "
@@ -76,7 +76,7 @@ void Pipeline::AddOperator(OpSpec spec) {
       NDLL_ENFORCE(output_device == "gpu", "gpu ops can only produce "
           "gpu outputs." + error_str);
     }
-    
+
     EdgeMeta meta = NewEdge(device);
     NDLL_ENFORCE(edge_names_.insert({output_name, meta}).second,
         "Output name insertion failure.");
@@ -189,4 +189,4 @@ void Pipeline::PrepareOpSpec(OpSpec *spec) {
     .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_);
 }
 
-} // namespace ndll
+}  // namespace ndll

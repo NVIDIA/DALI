@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/util/image.h"
 
 namespace ndll {
@@ -7,9 +8,9 @@ void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
   NDLL_ENFORCE(file.is_open());
-    
+
   string img;
-  while(file >> img) {
+  while (file >> img) {
     NDLL_ENFORCE(img.size());
     jpeg_names->push_back(image_folder + "/" + img);
   }
@@ -19,7 +20,7 @@ void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
     NDLL_ENFORCE(img_file.is_open());
 
     img_file.seekg(0, std::ios::end);
-    int img_size = (int)img_file.tellg();
+    int img_size = static_cast<int>(img_file.tellg());
     img_file.seekg(0, std::ios::beg);
 
     jpegs->push_back(new uint8[img_size]);
@@ -35,7 +36,7 @@ void LoadJPEGS(const vector<string> &jpeg_names,
     NDLL_ENFORCE(img_file.is_open());
 
     img_file.seekg(0, std::ios::end);
-    int img_size = (int)img_file.tellg();
+    int img_size = static_cast<int>(img_file.tellg());
     img_file.seekg(0, std::ios::beg);
 
     jpegs->push_back(new uint8[img_size]);
@@ -88,4 +89,4 @@ void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name) {
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

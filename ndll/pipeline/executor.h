@@ -2,6 +2,13 @@
 #ifndef NDLL_PIPELINE_EXECUTOR_H_
 #define NDLL_PIPELINE_EXECUTOR_H_
 
+#include <utility>
+#include <vector>
+#include <string>
+#include <queue>
+#include <map>
+#include <memory>
+
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/device_workspace.h"
@@ -22,7 +29,7 @@ namespace ndll {
 // A helper class to manage a set of TensorLists and cudaEvents
 template <typename Backend>
 class TensorListPool {
-public:
+ public:
   inline TensorListPool(int size, EventPool *event_pool) {
     NDLL_ENFORCE(event_pool != nullptr);
     for (int i = 0; i < size; ++i) {
@@ -42,14 +49,14 @@ public:
   }
 
   inline int size() const { return tls_.size(); }
-  
-private:
+
+ private:
   vector<shared_ptr<TensorList<Backend>>> tls_;
   vector<cudaEvent_t> tl_events_;
 };
 
 class Executor {
-public:
+ public:
   inline Executor(int batch_size, int num_thread, int device_id,
       size_t bytes_per_sample_hint, bool set_affinity = false,
       int queue_depth = 2, int max_num_stream = -1) :
@@ -61,7 +68,7 @@ public:
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
     NDLL_ENFORCE(queue_depth_ > 0, "Queue depth must be greater than 0.");
   }
-  
+
   virtual ~Executor() = default;
 
   virtual void Build(OpGraph *graph, vector<string> output_names);
@@ -73,11 +80,12 @@ public:
   virtual void RunGPU();
 
   virtual void Outputs(DeviceWorkspace *ws);
-  
+
   friend class ExecutorTest;
-  
+
   DISABLE_COPY_MOVE_ASSIGN(Executor);
-protected:
+
+ protected:
   // Return the nearest multiple of 8 that is >= base_ptr_offset
   inline size_t round_up_to_8(size_t base_ptr_offset) {
     if (base_ptr_offset & 7) {
@@ -88,7 +96,7 @@ protected:
 
   void PruneUnusedGraphNodes(OpGraph *graph,
       vector<string> output_names);
-  
+
   void SetupDataForGraph(OpGraph *graph,
       vector<HostWorkspace> *cpu_data,
       vector<internal::MixedWorkspace> *internal_data,
@@ -106,7 +114,7 @@ protected:
 
   void SetupOutputQueuesForGraph(
       const vector<string> &output_names, int queue_depth,
-      EventPool *event_pool, OpGraph *graph, 
+      EventPool *event_pool, OpGraph *graph,
       std::map<string, int> *type_idx_map,
       vector<TensorListPool<CPUBackend>> *cpu_outputs,
       vector<TensorListPool<GPUBackend>> *gpu_outputs);
@@ -119,7 +127,7 @@ protected:
       vector<DeviceWorkspace> *gpu_data,
       vector<TensorListPool<CPUBackend>> *cpu_outputs,
       vector<TensorListPool<GPUBackend>> *gpu_outputs);
-  
+
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
@@ -129,7 +137,7 @@ protected:
   // results produced from a specific iteration
   using SyncPair = std::pair<cudaStream_t, cudaEvent_t>;
   vector<SyncPair> internal_output_events_, gpu_output_events_;
-  
+
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
 
@@ -145,10 +153,10 @@ protected:
   // and the condition_variable to signal between
   // the processing thread and the waiting host
   // thread that data is complete.
-  std::queue<int> ready_queue_;  
+  std::queue<int> ready_queue_;
   std::mutex ready_mutex_;
   std::condition_variable ready_cond_;
-  
+
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
   EventPool event_pool_;
@@ -162,40 +170,7 @@ protected:
   using Executor::batch_size_;                             \
   using Executor::device_id_;                              \
   using Executor::bytes_per_sample_hint_
-  
-  
-// class ThreadedExecutor : Executor {
-// public:
-//   inline ThreadedExecutor(int batch_size, int device_id, size_t bytes_per_sample_hint,
-//       int num_threads, bool set_affinity) :
-//     Executor(batch_size, device_id, bytes_per_sample_hint), 
-//     thread_pool_(num_threads, device_id, set_affinity) {}
-  
-//   inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
-//       size_t bytes_per_sample_hint, int num_threads, bool set_affinity) :
-//     Executor(batch_size, device_id, bytes_per_sample_hint),
-//     thread_pool_(num_threads, device_id, set_affinity) {
-//     NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
-//     Build(graph);
-//   }
-  
-//   virtual ~ThreadedExecutor() = default;
 
-//   void Build(OpGraph *graph) override;
+}  // namespace ndll
 
-//   void RunCPU() override;
-
-//   void RunInternal() override;
-
-//   void RunGPU() override;
-
-//   DISABLE_COPY_MOVE_ASSIGN(ThreadedExecutor);
-// protected:
-//   ThreadPool thread_pool_;
-
-//   USE_EXECUTOR_MEMBERS();
-// };
-
-} // namespace ndll
-
-#endif // NDLL_PIPELINE_EXECUTOR_H_
+#endif  // NDLL_PIPELINE_EXECUTOR_H_

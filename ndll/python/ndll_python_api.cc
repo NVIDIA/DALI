@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -10,7 +11,7 @@ namespace ndll {
 namespace python {
 
 namespace py = pybind11;
-using namespace pybind11::literals;
+using namespace pybind11::literals; // NOLINT
 
 PYBIND11_MODULE(pyndll, m) {
   m.doc() = "Python bindings for the NDLL library.";
@@ -31,7 +32,7 @@ PYBIND11_MODULE(pyndll, m) {
   m.attr("INTERP_NN") = 0;
   m.attr("INTERP_LINEAR") = 1;
   m.attr("INTERP_CUBIC") = 2;
-    
+
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
@@ -39,8 +40,7 @@ PYBIND11_MODULE(pyndll, m) {
                 bool set_affinity = true, size_t pixels_per_image_hint = 0) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(batch_size, num_threads, (cudaStream_t)stream_id,
-                      device_id, set_affinity, pixels_per_image_hint)
-                  );
+                      device_id, set_affinity, pixels_per_image_hint));
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -59,7 +59,7 @@ PYBIND11_MODULE(pyndll, m) {
     .def("RunForward", &Pipeline::RunForward)
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
-    .def("stream_id", [](const Pipeline &pipe) { return (int64)pipe.stream(); });
+    .def("stream_id", [](const Pipeline &pipe) { return static_cast<int64>(pipe.stream()); });
 
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>())
@@ -118,5 +118,5 @@ PYBIND11_MODULE(pyndll, m) {
         }, py::return_value_policy::reference_internal);
 }
 
-} // namespace python
-} // namespace ndll
+}  // namespace python
+}  // namespace ndll

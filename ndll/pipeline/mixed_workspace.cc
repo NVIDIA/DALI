@@ -48,7 +48,7 @@ const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
 
   NDLL_ENFORCE_VALID_INDEX((size_t)data_idx,
       cpu_inputs_[tensor_meta.second].size());
-  
+
   return *cpu_inputs_[tensor_meta.second][data_idx];
 }
 
@@ -61,7 +61,7 @@ const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
 
   NDLL_ENFORCE_VALID_INDEX((size_t)data_idx,
       gpu_inputs_[tensor_meta.second].size());
-  
+
   return *gpu_inputs_[tensor_meta.second][data_idx];
 }
 
@@ -69,7 +69,7 @@ template <>
 void MixedWorkspace::AddInput(vector<shared_ptr<Tensor<CPUBackend>>> input) {
   // Save the vector of tensors
   cpu_inputs_.push_back(input);
-  
+
   // Update the input index map
   input_index_map_.push_back(std::make_pair(true, cpu_inputs_.size()-1));
 }
@@ -78,7 +78,7 @@ template <>
 void MixedWorkspace::AddInput(vector<shared_ptr<Tensor<GPUBackend>>> input) {
   // Save the vector of tensors
   gpu_inputs_.push_back(input);
-  
+
   // Update the input index map
   input_index_map_.push_back(std::make_pair(false, gpu_inputs_.size()-1));
 }
@@ -123,7 +123,7 @@ template <>
 void MixedWorkspace::AddOutput(shared_ptr<TensorList<CPUBackend>> output) {
   // Save the TensorList
   cpu_outputs_.push_back(output);
-  
+
   // Update the output index map
   output_index_map_.push_back(std::make_pair(true, cpu_outputs_.size()-1));
   cpu_outputs_index_.push_back(output_index_map_.size() - 1);
@@ -133,7 +133,7 @@ template <>
 void MixedWorkspace::AddOutput(shared_ptr<TensorList<GPUBackend>> output) {
   // Save the TensorList
   gpu_outputs_.push_back(output);
-  
+
   // Update the output index map
   output_index_map_.push_back(std::make_pair(false, gpu_outputs_.size()-1));
   gpu_outputs_index_.push_back(output_index_map_.size() - 1);
@@ -201,5 +201,5 @@ void MixedWorkspace::SetOutput(int idx,
   output_index_map_[idx] = std::make_pair(false, gpu_outputs_.size()-1);
 }
 
-} // namespace internal
-} // namespace ndll
+}  // namespace internal
+}  // namespace ndll

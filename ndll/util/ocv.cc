@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/util/ocv.h"
 
 #include "ndll/error_handling.h"
@@ -5,7 +6,7 @@
 namespace ndll {
 
 int OCVInterpForNDLLInterp(NDLLInterpType type, int *ocv_type) {
-  switch(type) {
+  switch (type) {
   case NDLL_INTERP_NN:
     *ocv_type =  cv::INTER_NEAREST;
     break;
@@ -21,4 +22,4 @@ int OCVInterpForNDLLInterp(NDLLInterpType type, int *ocv_type) {
   return NDLLSuccess;
 }
 
-} // namespace ndll
+}  // namespace ndll

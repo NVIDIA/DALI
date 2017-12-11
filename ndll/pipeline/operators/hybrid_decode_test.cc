@@ -1,9 +1,9 @@
 // Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <gtest/gtest.h>
+#include <opencv2/opencv.hpp>
+
 #include <utility>
 #include <string>
-
-#include <opencv2/opencv.hpp>
 
 #include "ndll/pipeline/operators/hybrid_decode.h"
 #include "ndll/common.h"

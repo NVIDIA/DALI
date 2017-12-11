@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/image/transform.h"
 
 #include "ndll/util/npp.h"
@@ -50,7 +51,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
   int in_step = input_steps[n];
   Out* output_ptr = &out[n*nStride];
   bool mirror_image = mirror[n];
-  
+
   if (mirror_image) {
     // Mirror the image - coalesced writes
     for (int c=0; c < C; ++c) {
@@ -81,7 +82,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
   }
 }
 
-} // namespace
+}  // namespace
 
 template <typename OUT>
 NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
@@ -183,11 +184,11 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
 
   NppiInterpolationMode npp_type;
   NDLL_FORWARD_ERROR(NPPInterpForNDLLInterp(type, &npp_type));
-  
+
   for (int i = 0; i < N; ++i) {
     NDLL_ASSERT(in_batch[i] != nullptr);
     NDLL_ASSERT(out_batch[i] != nullptr);
-    
+
     // Setup region of interests to whole image
     NppiRect in_roi, out_roi;
     in_roi.x = 0; in_roi.y = 0;
@@ -196,8 +197,8 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
     out_roi.x = 0; out_roi.y = 0;
     out_roi.width = out_sizes[i].width;
     out_roi.height = out_sizes[i].height;
-    
-    // TODO: Can move condition out w/ function ptr or std::function obj
+
+    // TODO(tgale): Can move condition out w/ function ptr or std::function obj
     if (C == 3) {
       NDLL_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
               in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
@@ -209,4 +210,4 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
   return NDLLSuccess;
 }
 
-} // namespace ndll
+}  // namespace ndll

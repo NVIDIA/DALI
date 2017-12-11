@@ -1,20 +1,20 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_COMMON_H_
 #define NDLL_COMMON_H_
 
-#include <cstdint>
-
-#include <array>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <cuda_fp16.h> // for __half & related methods
+#include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_profiler_api.h>
 
 #ifdef NDLL_USE_NVTX
 #include "nvToolsExt.h"
 #endif
+
+#include <cstdint>
+#include <array>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace ndll {
 
@@ -101,6 +101,6 @@ TimeRange(const char *name) {
 
 
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_COMMON_H_
+#endif  // NDLL_COMMON_H_

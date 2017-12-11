@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/image/jpeg.h"
 
 #include <turbojpeg.h>
@@ -9,7 +10,7 @@ namespace {
   do {                                            \
     int error = code;                             \
     NDLL_ASSERT(!error, tjGetErrorStr());         \
-  } while(0)
+  } while (0)
 
 void PrintSubsampling(int sampling) {
   switch (sampling) {
@@ -35,9 +36,9 @@ void PrintSubsampling(int sampling) {
     cout << "unknown sampling ratio" << endl;
   }
 }
-} // namespace
+}  // namespace
 
-bool CheckIsJPEG(const uint8 *jpeg, int size) {
+bool CheckIsJPEG(const uint8 *jpeg, int) {
   if ((jpeg[0] == 255) && (jpeg[1] == 216)) {
     return true;
   }
@@ -56,7 +57,7 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
           jpeg, size, w, h, &sampling, &color));
 #ifndef NDEBUG
   // PrintSubsampling(sampling);
-#endif 
+#endif
   return NDLLSuccess;
 }
 
@@ -86,4 +87,4 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   return NDLLSuccess;
 }
 
-} // namespace ndll
+}  // namespace ndll

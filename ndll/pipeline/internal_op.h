@@ -9,7 +9,7 @@ namespace ndll {
 namespace internal {
 
 class InternalOp : public Operator<CPUBackend> {
-public:
+ public:
   inline explicit InternalOp(const OpSpec &spec) :
     Operator<CPUBackend>(spec) {}
 
@@ -20,8 +20,6 @@ public:
    * their computation.
    */
   virtual void Run(MixedWorkspace *ws) = 0;
-  
-protected:
 };
 
 #define USE_INTERNAL_OP_MEMBERS()               \
@@ -34,7 +32,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(InternalOp, InternalOp);
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,   \
       InternalOp, InternalOp)
 
-} // namespace internal
-} // namespace ndll
+}  // namespace internal
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_INTERNAL_OP_H_
+#endif  // NDLL_PIPELINE_INTERNAL_OP_H_

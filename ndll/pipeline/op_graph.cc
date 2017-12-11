@@ -44,7 +44,7 @@ void CheckOpConstraints(const OpSpec &spec, const OpPtr<Backend> &op) {
         "but was passed " + std::to_string(spec.NumOutput()) + ".");
 }
 
-} // namespace
+}  // namespace
 
 void OpGraph::AddOp(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device", "cpu");
@@ -60,7 +60,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
 
     // Validate the number of inputs and execution settings
     CheckOpConstraints(spec, tmp);
-      
+
     cpu_nodes_.resize(cpu_nodes_.size()+1);
     CPUOpNode &cpu_node = cpu_nodes_.back();
     cpu_node.op = std::move(tmp);
@@ -70,7 +70,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
   } else if (device == "gpu") {
     // Enforce graph constraints
     NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
-    
+
     // Create the operator
     OpPtr<GPUBackend> tmp(
         GPUOperatorRegistry::Registry().Create(spec.name(), spec));
@@ -87,7 +87,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
   } else if (device == "internal") {
     // Enforce graph constraints
     NDLL_ENFORCE(AllInputsCPU(spec), "Internal ops cannot receive GPU input data.");
-    
+
     // Create the operator
     unique_ptr<internal::InternalOp> tmp(
         internal::InternalOpRegistry::Registry().Create(spec.name(), spec));
@@ -143,7 +143,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
     meta.node = new_node->id;
     meta.index = i;
     meta.is_cpu = spec.OutputDevice(i) == "cpu" ? true : false;
-    
+
     auto ret = tensor_producers_.insert({name, meta});
     NDLL_ENFORCE(ret.second, "Operator '" + spec.name() +
         "' has output with name " + name + ", but output "
@@ -204,10 +204,10 @@ void OpGraph::RemoveOp(NodeID id) {
         auto it = tensor_producers_.find(node.spec.Output(j));
         NDLL_ENFORCE(it != tensor_producers_.end(),
             "Could not find tensor source entry.");
-        
+
         it->second.node = node.id;
       }
-      
+
       // Update all of its consumer records with new id
       for (int j = 0; j < node.spec.NumInput(); ++j) {
         auto it = tensor_consumers_.find(node.spec.Input(j));
@@ -250,7 +250,7 @@ void OpGraph::RemoveOp(NodeID id) {
           "Insertion of updated parent id failed.");
     }
     to_add.clear();
-    
+
     // Remove the target node id if it is a child
     node.children.erase(id);
     it = node.children.begin();
@@ -266,9 +266,8 @@ void OpGraph::RemoveOp(NodeID id) {
       NDLL_ENFORCE(node.children.insert(child).second,
           "Insertion of updated child id failed.");
     }
-
   }
-  
+
   // Remove this nodes entry from the id map. This will
   // effectively decrement all node ids after this node
   // to fill the gap.
@@ -280,7 +279,7 @@ void OpGraph::RemoveOp(NodeID id) {
   NDLLOpType type = type_and_idx.first;
   int idx = type_and_idx.second;
   id_to_node_map_.erase(id_to_node_map_.begin() + id);
-  
+
   // Remove the typed node object for the target node.
   // We will then need to update the id map entry for
   // all nodes of this type that follow the deleted node
@@ -325,7 +324,7 @@ OpNode& OpGraph::node(NodeID id) {
     break;
   case NDLL_INTERNAL:
     return internal_nodes_[idx_pair.second];
-    break;    
+    break;
   default:
     NDLL_FAIL("Internal error. Invalid node type index.");
   }
@@ -341,4 +340,4 @@ bool OpGraph::TensorIsType<GPUBackend>(const string &name) {
   return !TensorSourceMeta(name).is_cpu;
 }
 
-} // namespace ndll
+}  // namespace ndll

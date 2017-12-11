@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/util/type_conversion.h"
 
 #include <cmath>
@@ -12,12 +13,12 @@ __global__ void ConvertKernel(const IN *data, int n, OUT *out) {
     out[tid] = (OUT)data[tid];
   }
 }
-} // namespace ndll
+}  // namespace
 
 template <typename IN, typename OUT>
 void Convert(const IN *data, int n, OUT *out) {
   int block_size = 512;
-  int blocks = ceil(float(n) / block_size);
+  int blocks = ceil(static_cast<float>(n) / block_size);
   ConvertKernel<<<blocks, block_size, 0, 0>>>(data, n, out);
 }
 
@@ -29,4 +30,4 @@ template void Convert<int, double>(const int*, int, double*);
 template void Convert<float, double>(const float*, int, double*);
 template void Convert<double, double>(const double*, int, double*);
 
-} // namespace ndll
+}  // namespace ndll

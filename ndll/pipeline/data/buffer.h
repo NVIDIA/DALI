@@ -7,6 +7,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"

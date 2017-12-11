@@ -1,5 +1,6 @@
-#ifndef NDLL_UTIL_TYPE_CONVERSIONS_H_
-#define NDLL_UTIL_TYPE_CONVERSIONS_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_UTIL_TYPE_CONVERSION_H_
+#define NDLL_UTIL_TYPE_CONVERSION_H_
 
 #include "ndll/common.h"
 
@@ -10,6 +11,6 @@ namespace ndll {
 template <typename IN, typename OUT>
 void Convert(const IN *data, int n, OUT *out);
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_UTIL_TYPE_CONVERSIONS_H_
+#endif  // NDLL_UTIL_TYPE_CONVERSION_H_

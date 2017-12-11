@@ -2,6 +2,7 @@
 #include "ndll/pipeline/data/backend.h"
 
 #include <mutex>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"

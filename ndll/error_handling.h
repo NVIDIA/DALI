@@ -1,12 +1,13 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_ERROR_HANDLING_H_
 #define NDLL_ERROR_HANDLING_H_
+
+#include <cuda_runtime_api.h>
+#include <nvml.h>
 
 #include <sstream>
 #include <stdexcept>
 #include <string>
-
-#include <cuda_runtime_api.h>
-#include <nvml.h>
 
 #include "ndll/common.h"
 #include "ndll/util/npp.h"
@@ -77,7 +78,7 @@ inline string BuildErrorString(string statement, string file, int line) {
     NDLLSetLastError(error);                                        \
     return NDLLError;                                               \
   } while (0)
-  
+
 // For checking npp return errors in ndll library functions
 #define NDLL_CHECK_NPP(code)                        \
   do {                                              \
@@ -136,7 +137,7 @@ inline string BuildErrorString(string statement, string file, int line) {
       throw std::runtime_error(error);                          \
     }                                                           \
   } while (0)
-    
+
 // Excpetion throwing checks for pipeline code
 #define ENFRC_1(code)                                                   \
   do {                                                                  \
@@ -170,7 +171,7 @@ inline string BuildErrorString(string statement, string file, int line) {
 
 // Enforces that the input var is in the range [0, upper)
 #define NDLL_ENFORCE_VALID_INDEX(var, upper) \
-  NDLL_ENFORCE_IN_RANGE(var, int(0), upper)
+  NDLL_ENFORCE_IN_RANGE(var, static_cast<int>(0), upper)
 
 #define NDLL_FAIL(str)                                            \
   do {                                                            \
@@ -179,7 +180,7 @@ inline string BuildErrorString(string statement, string file, int line) {
     string error_str = "[" + file + ":" + line + "] " + str;      \
     throw std::runtime_error(error_str);                          \
   } while (0)
-  
-} // namespace ndll
 
-#endif // NDLL_ERROR_HANDLING_H_
+}  // namespace ndll
+
+#endif  // NDLL_ERROR_HANDLING_H_

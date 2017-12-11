@@ -11,7 +11,7 @@ namespace ndll {
 
 template <typename Backend>
 class OperatorFactoryTest : public NDLLTest {
-public:
+ public:
   // Don't do any setup
   void SetUp() override {}
   void TearDown() override {}
@@ -20,7 +20,7 @@ public:
 // Some dummy operators for us to test with
 template <typename Backend>
 class DummyBase {
-public:
+ public:
   DummyBase() {}
 
   virtual int GetId() const = 0;
@@ -28,24 +28,24 @@ public:
 
 template <typename Backend>
 class DummyDerivedOne : public DummyBase<Backend> {
-public:
-  DummyDerivedOne(const OpSpec &spec) {}
+ public:
+  explicit DummyDerivedOne(const OpSpec &) {}
 
   int GetId() const override { return 1; }
 };
 
 template <typename Backend>
 class DummyDerivedTwo : public DummyBase<Backend>  {
-public:
-  DummyDerivedTwo(const OpSpec &spec) {}
+ public:
+  explicit DummyDerivedTwo(const OpSpec &) {}
 
   int GetId() const override { return 2; }
 };
 
 template <typename Backend>
 class DummyDerivedThree : public DummyBase<Backend> {
-public:
-  DummyDerivedThree(const OpSpec &spec) {}
+ public:
+  explicit DummyDerivedThree(const OpSpec &) {}
 
   int GetId() const override { return 3; }
 };
@@ -59,11 +59,11 @@ NDLL_DEFINE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 // Some registration macros
 #define NDLL_REGISTER_CPU_DUMMY(OpName, OpType)        \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,        \
-      CPUDummy, DummyBase<CPUBackend>) 
+      CPUDummy, DummyBase<CPUBackend>)
 
 #define NDLL_REGISTER_GPU_DUMMY(OpName, OpType)         \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,         \
-      GPUDummy, DummyBase<GPUBackend>) 
+      GPUDummy, DummyBase<GPUBackend>)
 
 
 // Register the classes
@@ -108,4 +108,4 @@ TYPED_TEST(OperatorFactoryTest, TestRegisterAndConstruct) {
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

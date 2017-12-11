@@ -14,6 +14,6 @@ namespace ndll {
 void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator);
 
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_INIT_H_
+#endif  // NDLL_PIPELINE_INIT_H_

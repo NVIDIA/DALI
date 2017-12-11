@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/util/npp.h"
 
 #include "ndll/error_handling.h"
@@ -5,7 +6,7 @@
 namespace ndll {
 
 int NPPInterpForNDLLInterp(NDLLInterpType type, NppiInterpolationMode *npp_type) {
-  switch(type) {
+  switch (type) {
   case NDLL_INTERP_NN:
     *npp_type =  NPPI_INTER_NN;
     break;
@@ -21,4 +22,4 @@ int NPPInterpForNDLLInterp(NDLLInterpType type, NppiInterpolationMode *npp_type)
   return NDLLSuccess;
 }
 
-}
+}  // namespace ndll

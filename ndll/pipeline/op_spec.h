@@ -4,6 +4,10 @@
 
 #include <map>
 #include <utility>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -13,23 +17,23 @@
 namespace ndll {
 
 /**
- * @brief Defines all parameters needed to construct an Operator, 
- * DataReader, Parser, or Allocator including the object name, 
- * any additional input and output tensors it may need, and any 
+ * @brief Defines all parameters needed to construct an Operator,
+ * DataReader, Parser, or Allocator including the object name,
+ * any additional input and output tensors it may need, and any
  * number of additional arguments.
  */
 class OpSpec {
-public:
+ public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
   using StrPair = std::pair<string, string>;
-  
+
   inline OpSpec() {}
-  
+
   /**
    * @brief Constructs a specification for an op with the given name.
    */
-  inline OpSpec(const string &name)
+  explicit inline OpSpec(const string &name)
     : name_(name) {}
 
   /**
@@ -84,7 +88,7 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].first;
   }
-  
+
   inline string InputDevice(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].second;
@@ -96,7 +100,7 @@ public:
         name + "' and device '" + device + "' does not exist.");
     return it->second;
   }
-  
+
   inline string Output(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].first + "_" + outputs_[idx].second;
@@ -106,7 +110,7 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].first;
   }
-  
+
   inline string OutputDevice(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].second;
@@ -118,7 +122,7 @@ public:
         name + "' and device '" + device + "' does not exist.");
     return it->second;
   }
-  
+
   /**
    * @brief Checks the Spec for an argument with the given name/type.
    * Returns the default if an argument with the given name/type does
@@ -144,13 +148,13 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
     return &outputs_[idx];
   }
-  
-private:
+
+ private:
   // Helper function to handle argument types. Checks the correct type
   // field in the input argument. If it is not set, return the default
   template <typename T>
   T ArgumentTypeHelper(const Argument &arg, const T &default_value) const;
-  
+
   string name_;
   std::unordered_map<string, Argument> arguments_;
 
@@ -162,7 +166,7 @@ template <typename T>
 T OpSpec::GetArgument(const string &name, const T &default_value) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
-  
+
   if (arg_it == arguments_.end()) {
     return default_value;
   }
@@ -183,6 +187,6 @@ vector<T> OpSpec::GetRepeatedArgument(const string &name,
   return ArgumentTypeHelper<vector<T>>(arg_it->second, default_value);
 }
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OP_SPEC_H_
+#endif  // NDLL_PIPELINE_OP_SPEC_H_
