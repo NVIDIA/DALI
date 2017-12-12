@@ -57,7 +57,7 @@ class LMDBReader : public FileStoreReader {
     mdb_env_ = nullptr;
   }
 
-  Sample ReadSample() {
+  void ReadSample(Tensor<CPUBackend>* tensor) {
     // assume cursor is valid, read next, loop to start if necessary
     Sample sample;
 
@@ -67,10 +67,11 @@ class LMDBReader : public FileStoreReader {
       SeekLMDB(mdb_cursor_, MDB_FIRST, key_, value_);
     }
 
-    sample.nbytes= value_.mv_size;
-    sample.data = value_.mv_data;
+    tensor->Resize({value_.mv_size});
+    data_ptr = tensor->mutable_data<uint8_t>();
+    std::memcpy(value_.mv_data, data_ptr, value_.mv_size);
 
-    return sample;
+    return;
   }
  private:
   MDB_env* mdb_env_;
