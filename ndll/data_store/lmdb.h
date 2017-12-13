@@ -1,8 +1,8 @@
-#ifndef NDLL_FILE_STORE_LMDB_H_
-#define NDLL_FILE_STORE_LMDB_H_
+#ifndef NDLL_DATA_STORE_LMDB_H_
+#define NDLL_DATA_STORE_LMDB_H_
 
 #include <lmdb.h>
-#include "ndll/file_store/file_store_reader.h"
+#include "ndll/data_store/data_store.h"
 
 namespace ndll {
 
@@ -33,10 +33,10 @@ namespace {
   }
 }
 
-class LMDBReader : public FileStoreReader {
+class LMDBReader : public DataStore {
  public:
   LMDBReader(const OpSpec& options)
-    : FileStoreReader(options),
+    : DataStore(options),
       db_path_(options.GetArgument<string>("path", "")) {
     // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));
@@ -89,4 +89,4 @@ class LMDBReader : public FileStoreReader {
 
 }; // namespace ndll
 
-#endif // NDLL_FILE_STORE_LMDB_H_
+#endif // NDLL_DATA_STORE_LMDB_H_

@@ -1,4 +1,4 @@
-#include "ndll/file_store/file_store_reader.h"
+#include "ndll/data_store/data_store.h"
 
 #include <gtest/gtest.h>
 
@@ -7,12 +7,12 @@
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/test/ndll_test.h"
 
-#include "ndll/file_store/lmdb.h"
+#include "ndll/data_store/lmdb.h"
 
 namespace ndll {
 
 template <typename Backend>
-class FileStoreReaderTest : public NDLLTest {
+class DataStoreTest : public NDLLTest {
  public:
   void SetUp() override {}
   void TearDown() override {}
@@ -20,9 +20,9 @@ class FileStoreReaderTest : public NDLLTest {
 
 typedef ::testing::Types<CPUBackend> TestTypes;
 
-TYPED_TEST_CASE(FileStoreReaderTest, TestTypes);
+TYPED_TEST_CASE(DataStoreTest, TestTypes);
 
-TYPED_TEST(FileStoreReaderTest, LMDB_test) {
+TYPED_TEST(DataStoreTest, LMDB_test) {
   shared_ptr<ndll::LMDBReader> reader(
       new LMDBReader(OpSpec("lmdb").AddArg("path", "/home/slayton/opt/caffe2-18.01/nvidia-examples/mnist/mnist_test_lmdb"))
   );

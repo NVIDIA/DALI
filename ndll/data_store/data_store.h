@@ -1,5 +1,5 @@
-#ifndef NDLL_FILE_STORE_FILE_STORE_READER_H_
-#define NDLL_FILE_STORE_FILE_STORE_READER_H_
+#ifndef NDLL_DATA_STORE_DATA_STORE_H_
+#define NDLL_DATA_STORE_DATA_STORE_H_
 
 #include <list>
 #include <map>
@@ -14,19 +14,14 @@
 
 namespace ndll {
 
-struct Sample {
-    size_t nbytes;
-    void *data;
-};
-
-class FileStoreReader {
+class DataStore {
  public:
-  FileStoreReader(const OpSpec& options) {
+  DataStore(const OpSpec& options) {
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, 1048576);
   }
-  virtual ~FileStoreReader() {};
+  virtual ~DataStore() {};
 
   // Get a random read sample
   Tensor<CPUBackend>* ReadOne() {

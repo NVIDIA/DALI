@@ -6,8 +6,8 @@
 #include <memory>
 #include <thread>
 
-#include "ndll/file_store/file_store_reader.h"
-#include "ndll/file_store/lmdb.h"
+#include "ndll/data_store/data_store.h"
+#include "ndll/data_store/lmdb.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
