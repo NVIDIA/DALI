@@ -44,7 +44,7 @@ namespace {
   }
 }
 
-class LMDBReader : public DataStore {
+class LMDBReader : public DataStore<CPUBackend> {
  public:
   LMDBReader(const OpSpec& options)
     : DataStore(options),

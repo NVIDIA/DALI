@@ -14,6 +14,7 @@
 
 namespace ndll {
 
+template <class Backend>
 class DataStore {
  public:
   DataStore(const OpSpec& options) {
@@ -24,20 +25,20 @@ class DataStore {
   virtual ~DataStore() {};
 
   // Get a random read sample
-  Tensor<CPUBackend>* ReadOne() {
+  Tensor<Backend>* ReadOne() {
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
-        Tensor<CPUBackend>* tensor = new Tensor<CPUBackend>();
+        Tensor<Backend>* tensor = new Tensor<CPUBackend>();
         ReadSample(tensor);
         sample_buffer_.push_back(tensor);
       }
 
       // need some entries in the empty_tensors_ list
       for (int i = 0; i < 10; ++i) {
-        Tensor<CPUBackend>* tensor = new Tensor<CPUBackend>();
+        Tensor<Backend>* tensor = new Tensor<CPUBackend>();
         empty_tensors_.push_back(tensor);
       }
 
@@ -45,7 +46,7 @@ class DataStore {
     }
     // choose the random index
     int idx = dis(e_) % sample_buffer_.size();
-    Tensor<CPUBackend>* elem = sample_buffer_[idx];
+    Tensor<Backend>* elem = sample_buffer_[idx];
 
     // swap end and idx, return the tensor to empties
     std::swap(sample_buffer_[idx], sample_buffer_[sample_buffer_.size()-1]);
@@ -54,7 +55,7 @@ class DataStore {
 
     // now grab an empty tensor, fill it and add to filled buffers
     NDLL_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-    Tensor<CPUBackend>* t = empty_tensors_.back();
+    Tensor<Backend>* t = empty_tensors_.back();
     empty_tensors_.pop_back();
     ReadSample(t);
     sample_buffer_.push_back(t);
@@ -62,22 +63,22 @@ class DataStore {
     return elem;
   }
 
-  void ReturnTensor(Tensor<CPUBackend>* tensor) {
+  void ReturnTensor(Tensor<Backend>* tensor) {
     empty_tensors_.push_back(tensor);
   }
 
   // Read an actual sample from the FileStore,
   // used to populate the sample buffer for "shuffled"
   // reads.
-  virtual void ReadSample(Tensor<CPUBackend>* tensor) = 0;
+  virtual void ReadSample(Tensor<Backend>* tensor) = 0;
 
   // Give the size of the data accessed through the DataStore
   virtual uint64_t Size() = 0;
 
  protected:
-  std::vector<Tensor<CPUBackend>*> sample_buffer_;
+  std::vector<Tensor<Backend>*> sample_buffer_;
 
-  std::list<Tensor<CPUBackend>*> empty_tensors_;
+  std::list<Tensor<Backend>*> empty_tensors_;
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
