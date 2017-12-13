@@ -1,19 +1,17 @@
 #ifndef NDLL_FILE_STORE_LMDB_H_
 #define NDLL_FILE_STORE_LMDB_H_
 
-#ifdef USE_LMDB
-
 #include <lmdb.h>
 #include "ndll/file_store/file_store_reader.h"
 
 namespace ndll {
 
-namespace {
-  inline void CHECK_LMDB(int status) {
-    NDLL_ENFORCE(status == MDB_SUCCESS,
-        "LMDB Error: " + string(mdb_strerror(status)));
-  }
+#define CHECK_LMDB(status) \
+  do { \
+    NDLL_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status))); \
+  } while (0)
 
+namespace {
   bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val& key, MDB_val& value) {
     int status = mdb_cursor_get(cursor, &key, &value, op);
 
@@ -27,27 +25,31 @@ namespace {
   }
 
   void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
-    MDB_stat* stat;
+    MDB_stat* stat = new MDB_stat;
 
-    LMDB_CHECK(txn, dbi, stat);
+    CHECK_LMDB(mdb_stat(txn, dbi, stat));
 
-    printf("DB has %d entries\n", stat.ms_entries);
+    printf("DB has %d entries\n", (int)stat->ms_entries);
   }
 }
 
 class LMDBReader : public FileStoreReader {
  public:
-  LMDBReader(std::string uri, Options& options)
-    : FileStoreReader(uri, options) {
+  LMDBReader(const OpSpec& options)
+    : FileStoreReader(options),
+      db_path_(options.GetArgument<string>("path", "")) {
+    // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));
     auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, uri.c_str(), mdb_flags, 0664));
+    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
 
+    // Create transaction and cursor
     CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
     CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
     CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
 
-    PrintLMDBStats(mdb_transaction, mdb_dbi_);
+    // Optional: debug printing
+    PrintLMDBStats(mdb_transaction_, mdb_dbi_);
   }
   ~LMDBReader() {
     mdb_cursor_close(mdb_cursor_);
@@ -59,17 +61,16 @@ class LMDBReader : public FileStoreReader {
 
   void ReadSample(Tensor<CPUBackend>* tensor) {
     // assume cursor is valid, read next, loop to start if necessary
-    Sample sample;
-
     bool ok = SeekLMDB(mdb_cursor_, MDB_NEXT, key_, value_);
 
     if (!ok) {
       SeekLMDB(mdb_cursor_, MDB_FIRST, key_, value_);
     }
 
-    tensor->Resize({value_.mv_size});
-    data_ptr = tensor->mutable_data<uint8_t>();
-    std::memcpy(value_.mv_data, data_ptr, value_.mv_size);
+    tensor->Resize({static_cast<int>(value_.mv_size)});
+    uint8_t* data_ptr = tensor->mutable_data<uint8_t>();
+    (void)data_ptr; // stop compiler complaining
+    std::memcpy(tensor->raw_mutable_data(), value_.mv_data, value_.mv_size);
 
     return;
   }
@@ -82,10 +83,10 @@ class LMDBReader : public FileStoreReader {
   // values
   MDB_val key_, value_;
 
+  // options
+  string db_path_;
 };
 
 }; // namespace ndll
-
-#endif // USE_LMDB
 
 #endif // NDLL_FILE_STORE_LMDB_H_

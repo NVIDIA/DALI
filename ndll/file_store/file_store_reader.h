@@ -9,6 +9,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
@@ -18,11 +19,9 @@ struct Sample {
     void *data;
 };
 
-using Options = std::map<std::string, std::string>;
-
 class FileStoreReader {
  public:
-  FileStoreReader(std::string uri, Options& options) {
+  FileStoreReader(const OpSpec& options) {
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, 1048576);
@@ -41,18 +40,25 @@ class FileStoreReader {
         sample_buffer_.push_back(tensor);
       }
 
+      // need some entries in the empty_tensors_ list
+      for (int i = 0; i < 10; ++i) {
+        Tensor<CPUBackend>* tensor = new Tensor<CPUBackend>();
+        empty_tensors_.push_back(tensor);
+      }
+
       initial_buffer_filled_ = true;
     }
     // choose the random index
     int idx = dis(e_) % sample_buffer_.size();
     Tensor<CPUBackend>* elem = sample_buffer_[idx];
 
-    // swap end and idx
+    // swap end and idx, return the tensor to empties
     std::swap(sample_buffer_[idx], sample_buffer_[sample_buffer_.size()-1]);
     // remove last element
     sample_buffer_.pop_back();
 
     // now grab an empty tensor, fill it and add to filled buffers
+    NDLL_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
     Tensor<CPUBackend>* t = empty_tensors_.back();
     empty_tensors_.pop_back();
     ReadSample(t);
@@ -61,7 +67,7 @@ class FileStoreReader {
     return elem;
   }
 
-  void ReturnEmptyTensor(Tensor<CPUBackend>* tensor) {
+  void ReturnTensor(Tensor<CPUBackend>* tensor) {
     empty_tensors_.push_back(tensor);
   }
 
