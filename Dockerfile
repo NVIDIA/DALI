@@ -16,6 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python$PYVER-numpy \
   && rm -rf /var/lib/apt/lists/*
 
+# symlink so `python` works as expected everywhere
+RUN ln -sf /usr/bin/python$PYVER /usr/bin/python
+RUN ln -sf /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
+
 RUN OPENCV_VERSION=3.1.0 && \
     wget -q -O - https://github.com/Itseez/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && \
