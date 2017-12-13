@@ -27,7 +27,7 @@ TYPED_TEST(FileStoreReaderTest, LMDB_test) {
       new LMDBReader(OpSpec("lmdb").AddArg("path", "/home/slayton/opt/caffe2-18.01/nvidia-examples/mnist/mnist_test_lmdb"))
   );
 
-  for (int i=0; i<500; ++i) {
+  for (int i=0; i<10500; ++i) {
     // grab an entry from the reader
     auto* sample = reader->ReadOne();
     // return the tensor to the reader for refilling
