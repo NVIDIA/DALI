@@ -73,7 +73,7 @@ class DataStore {
   virtual void ReadSample(Tensor<Backend>* tensor) = 0;
 
   // Give the size of the data accessed through the DataStore
-  virtual uint64_t Size() = 0;
+  virtual Index Size() = 0;
 
  protected:
   std::vector<Tensor<Backend>*> sample_buffer_;

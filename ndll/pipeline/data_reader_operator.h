@@ -6,8 +6,8 @@
 #include <memory>
 #include <thread>
 
-#include "ndll/data_store/data_store.h"
-#include "ndll/data_store/lmdb.h"
+#include "ndll/pipeline/data_store/data_store.h"
+#include "ndll/pipeline/data_store/lmdb.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {

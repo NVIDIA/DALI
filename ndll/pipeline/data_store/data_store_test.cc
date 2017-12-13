@@ -1,5 +1,3 @@
-#include "ndll/data_store/data_store.h"
-
 #include <gtest/gtest.h>
 
 #include "ndll/common.h"
@@ -7,7 +5,8 @@
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/test/ndll_test.h"
 
-#include "ndll/data_store/lmdb.h"
+#include "ndll/pipeline/data_store/data_store.h"
+#include "ndll/pipeline/data_store/lmdb.h"
 
 namespace ndll {
 

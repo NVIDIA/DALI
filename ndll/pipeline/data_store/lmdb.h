@@ -2,7 +2,7 @@
 #define NDLL_DATA_STORE_LMDB_H_
 
 #include <lmdb.h>
-#include "ndll/data_store/data_store.h"
+#include "ndll/pipeline/data_store/data_store.h"
 
 namespace ndll {
 
@@ -86,7 +86,7 @@ class LMDBReader : public DataStore<CPUBackend> {
     return;
   }
 
-  uint64_t Size() {
+  Index Size() {
     return LMDB_size(mdb_transaction_, mdb_dbi_);
   }
 
