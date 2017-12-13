@@ -24,6 +24,17 @@ namespace {
     }
   }
 
+  uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
+    MDB_stat* stat = new MDB_stat;
+
+    CHECK_LMDB(mdb_stat(txn, dbi, stat));
+
+    uint64_t size = stat->ms_entries;
+    delete stat;
+
+    return size;
+  }
+
   void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
     MDB_stat* stat = new MDB_stat;
 
@@ -74,6 +85,11 @@ class LMDBReader : public DataStore {
 
     return;
   }
+
+  uint64_t Size() {
+    return LMDB_size(mdb_transaction_, mdb_dbi_);
+  }
+
  private:
   MDB_env* mdb_env_;
   MDB_cursor* mdb_cursor_;
