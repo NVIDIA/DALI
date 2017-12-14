@@ -4,6 +4,7 @@
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
 
 #include <cstdio>
@@ -11,17 +12,31 @@
 namespace ndll {
 
 template <typename Backend>
-class DummyDataReaderOp : public DataReader<Backend> {
+class DummyDataReader : public DataReader<Backend> {
  public:
-  DummyDataReaderOp(const OpSpec &spec) : DataReader<Backend>(spec) {
+  DummyDataReader(const OpSpec &spec) : DataReader<Backend>(spec) {
 
   }
 
-  void Prefetch() {
+  ~DummyDataReader() {
+    DataReader<Backend>::StopPrefetchThread();
+  }
+
+  bool Prefetch() override {
     static int i = -1;
     i++;
     printf("prefetched %d\n", i);
+
+    return true;
   }
+
+  void RunPerSampleCPU(SampleWorkspace* ws) override {
+    printf("running\n");
+  }
+  inline int MaxNumInput() const override { return 0; }
+  inline int MinNumInput() const override { return 0; }
+  inline int MaxNumOutput() const override { return 1; }
+  inline int MinNumOutput() const override { return 1; }
 };
 
 template <typename Backend>
@@ -36,6 +51,14 @@ typedef ::testing::Types<CPUBackend> TestTypes;
 TYPED_TEST_CASE(PrefetchedDataReaderTest, TestTypes);
 
 TYPED_TEST(PrefetchedDataReaderTest, test) {
+  shared_ptr<DummyDataReader<TypeParam>> op(
+      new DummyDataReader<TypeParam>(
+        OpSpec("")
+        .AddArg("num_threads", 4)
+        .AddArg("batch_size", 128)));
+
+  op->Run((SampleWorkspace*)nullptr);
+
   return;
 }
 

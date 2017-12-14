@@ -3,6 +3,7 @@
 
 #include <list>
 #include <map>
+#include <mutex>
 #include <random>
 #include <string>
 #include <vector>
@@ -26,6 +27,9 @@ class DataStore {
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
+    // lock out other consumers
+    std::lock_guard<std::mutex> lock(db_mutex_);
+
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
       // Read an initial number of samples to fill our
@@ -88,6 +92,8 @@ class DataStore {
   // rng
   std::default_random_engine e_;
   std::uniform_int_distribution<> dis;
+
+  std::mutex db_mutex_;
 };
 
 }; // namespace ndll
