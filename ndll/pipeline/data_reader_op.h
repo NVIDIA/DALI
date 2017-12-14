@@ -18,15 +18,15 @@ namespace ndll {
  * Operator runs an additional prefetch thread
  */
 template <typename Backend>
-class DataReaderOperator : public Operator<Backend> {
+class DataReader : public Operator<Backend> {
  public:
-  inline explicit DataReaderOperator(const OpSpec& spec) :
+  inline explicit DataReader(const OpSpec& spec) :
     Operator<Backend>(spec) {
     // TODO() stuff here
     //
   }
 
-  virtual ~DataReaderOperator() noexcept {
+  virtual ~DataReader() noexcept {
     // check we're good
     StopPrefetchThread();
   }
@@ -90,6 +90,14 @@ class DataReaderOperator : public Operator<Backend> {
     } else {
       finished_ = true;
     }
+  }
+
+  void Run(SampleWorkspace* ws) override {
+
+  }
+
+  void Run(DeviceWorkspace* ws) override {
+
   }
 
  protected:

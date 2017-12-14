@@ -1,4 +1,4 @@
-#include "ndll/pipeline/data_reader_operator.h"
+#include "ndll/pipeline/data_reader_op.h"
 
 #include <gtest/gtest.h>
 
@@ -11,9 +11,9 @@
 namespace ndll {
 
 template <typename Backend>
-class DummyDataReaderOp : public DataReaderOperator<Backend> {
+class DummyDataReaderOp : public DataReader<Backend> {
  public:
-  DummyDataReaderOp(const OpSpec &spec) : DataReaderOperator<Backend>(spec) {
+  DummyDataReaderOp(const OpSpec &spec) : DataReader<Backend>(spec) {
 
   }
 
