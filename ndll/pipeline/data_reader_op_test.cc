@@ -7,14 +7,18 @@
 #include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
 
+#include <chrono>
 #include <cstdio>
+#include <thread>
 
 namespace ndll {
 
 template <typename Backend>
 class DummyDataReader : public DataReader<Backend> {
  public:
-  DummyDataReader(const OpSpec &spec) : DataReader<Backend>(spec) {
+  DummyDataReader(const OpSpec &spec)
+      : DataReader<Backend>(spec),
+        count_(0) {
 
   }
 
@@ -23,20 +27,27 @@ class DummyDataReader : public DataReader<Backend> {
   }
 
   bool Prefetch() override {
-    static int i = -1;
-    i++;
-    printf("prefetched %d\n", i);
+    if (count_.load() < max_count) {
+      printf("prefetched %d\n", count_.load());
+      count_++;
+    }
 
     return true;
   }
 
   void RunPerSampleCPU(SampleWorkspace* ws) override {
     printf("running\n");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
   inline int MaxNumInput() const override { return 0; }
   inline int MinNumInput() const override { return 0; }
   inline int MaxNumOutput() const override { return 1; }
   inline int MinNumOutput() const override { return 1; }
+
+ private:
+  std::atomic<int> count_;
+  const int max_count = 100;
 };
 
 template <typename Backend>
