@@ -150,6 +150,12 @@ void ExposeTensorListCPU(py::module &m) {
           t.set_type(type);
           t.Resize(i_shape);
         });
+
+  py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
+    .def("__init__", [](TensorList<GPUBackend> &t) {
+          // Construct a default TensorList on GPU
+          new (&t) TensorList<GPUBackend>;
+        });
 }
 
 static vector<string> GetRegisteredCPUOps() {
@@ -187,18 +193,17 @@ PYBIND11_MODULE(ndll_backend, m) {
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
-            [](int batch_size, int num_threads, int device_id, int queue_depth = 2,
+            [](int batch_size, int num_threads, int device_id,
                 size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                 int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
-                  new Pipeline(batch_size, num_threads, device_id, queue_depth,
+                  new Pipeline(batch_size, num_threads, device_id,
                       bytes_per_sample_hint, set_affinity, max_num_stream)
                   );
             }),
         "batch_size"_a,
         "num_threads"_a,
         "device_id"_a,
-        "queue_depth"_a = 2,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
         "max_num_stream"_a = -1
@@ -212,18 +217,15 @@ PYBIND11_MODULE(ndll_backend, m) {
           DeviceWorkspace ws;
           p->Outputs(&ws);
 
-          // TODO(tgale): Figure out how to expose the results into python
-          // while maintaining our ownership over the pointers to data
-
-          // py::list list;
-          // for (int i = 0; i < ws.NumOutput(); ++i) {
-          //   if (ws.OutputIsType<CPUBackend>(0)) {
-          //     list.append(ws.Output<CPUBackend>(0));
-          //   } else {
-          //     list.append(ws.Output<GPUBackend>(0));
-          //   }
-          // }
-          // return list;
+          py::list list;
+          for (int i = 0; i < ws.NumOutput(); ++i) {
+            if (ws.OutputIsType<CPUBackend>(0)) {
+              list.append(ws.Output<CPUBackend>(0));
+            } else {
+              list.append(ws.Output<GPUBackend>(0));
+            }
+          }
+          return list;
         }, py::return_value_policy::take_ownership)
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)

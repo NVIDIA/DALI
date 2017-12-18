@@ -94,7 +94,7 @@ class Pipeline(object):
         else:
             t = nt.TensorListCPU(data)
             self._pipe.SetExternalTLInput(ref.name, t)
-
+    
     def run_cpu(self):
         self._pipe.RunCPU()
 
@@ -103,6 +103,12 @@ class Pipeline(object):
         
     def outputs(self):
         return self._pipe.Outputs()
+
+    def run(self):
+        self.iter_setup()
+        self.run_cpu()
+        self.run_gpu()
+        return self.outputs()
     
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
@@ -114,4 +120,3 @@ class Pipeline(object):
     # needed setup for each iteration, e.g. feed in input data
     def iter_setup(self):
         pass
-

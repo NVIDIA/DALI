@@ -47,18 +47,46 @@ private:
   vector<cudaEvent_t> tl_events_;
 };
 
+template <typename Backend>
+class TensorVecPool {
+public:
+  TensorVecPool(int size, int batch_size, EventPool *event_pool) {
+    NDLL_ENFORCE(event_pool != nullptr);
+    tvs_.resize(size);
+    for (int i = 0; i < size; ++i) {
+      for (int j = 0; j < batch_size; ++j) {
+        tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
+      }
+      tv_events_.push_back(event_pool->GetEvent());
+    }
+  }
+
+  inline vector<shared_ptr<Tensor<Backend>>> GetTV(int idx) {
+    return tvs_[idx];
+  }
+  
+  inline cudaEvent_t GetEvent(int idx) {
+    return tv_events_[idx];
+  }
+
+  inline int size() const { return tvs_.size(); }
+  
+private:
+  vector<vector<shared_ptr<Tensor<Backend>>>> tvs_;
+  vector<cudaEvent_t> tv_events_;
+};
+
 class Executor {
 public:
   inline Executor(int batch_size, int num_thread, int device_id,
       size_t bytes_per_sample_hint, bool set_affinity = false,
-      int queue_depth = 2, int max_num_stream = -1) :
+      int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
-    queue_depth_(queue_depth), stream_pool_(max_num_stream, true),
+    queue_depth_(2), stream_pool_(max_num_stream, true),
     event_pool_(max_num_stream), thread_pool_(num_thread, device_id, set_affinity) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
-    NDLL_ENFORCE(queue_depth_ > 0, "Queue depth must be greater than 0.");
   }
   
   virtual ~Executor() = default;
@@ -76,15 +104,9 @@ public:
   friend class ExecutorTest;
   
   DISABLE_COPY_MOVE_ASSIGN(Executor);
+  
 protected:
-  // Return the nearest multiple of 8 that is >= base_ptr_offset
-  inline size_t round_up_to_8(size_t base_ptr_offset) {
-    if (base_ptr_offset & 7) {
-      base_ptr_offset = (base_ptr_offset & ~7) + 8;
-    }
-    return base_ptr_offset;
-  }
-
+  
   void PruneUnusedGraphNodes(OpGraph *graph,
       vector<string> output_names);
   
@@ -109,7 +131,7 @@ protected:
       std::map<string, int> *type_idx_map,
       vector<TensorListPool<CPUBackend>> *cpu_outputs,
       vector<TensorListPool<GPUBackend>> *gpu_outputs);
-
+  
   void SetOutputBuffersForIter(
       const vector<string> &output_names,
       const std::map<string, int> &type_idx_map,
@@ -137,7 +159,7 @@ protected:
   vector<TensorListPool<CPUBackend>> cpu_outputs_;
   vector<TensorListPool<GPUBackend>> gpu_outputs_;
   int queue_depth_, queue_idx_ = 0;
-
+  
   // The ready queue stores the indices of batches
   // who are ready for the user. We use the mutex
   // to ensure thread-safety while updating it,
@@ -155,45 +177,29 @@ protected:
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \
+  protected:                                               \
   using Executor::cpu_op_data_;                            \
   using Executor::internal_op_data_;                       \
   using Executor::gpu_op_data_;                            \
   using Executor::batch_size_;                             \
   using Executor::device_id_;                              \
-  using Executor::bytes_per_sample_hint_
+  using Executor::bytes_per_sample_hint_;                  \
+  using Executor::internal_output_events_;                 \
+  using Executor::gpu_output_events_;                      \
+  using Executor::output_names_;                           \
+  using Executor::type_idx_map_;                           \
+  using Executor::cpu_outputs_;                            \
+  using Executor::gpu_outputs_;                            \
+  using Executor::queue_depth_;                            \
+  using Executor::queue_idx_;                              \
+  using Executor::ready_queue_;                            \
+  using Executor::ready_mutex_;                            \
+  using Executor::ready_cond_;                             \
+  using Executor::graph_;                                  \
+  using Executor::stream_pool_;                            \
+  using Executor::event_pool_;                             \
+  using Executor::thread_pool_
   
-  
-// class ThreadedExecutor : Executor {
-// public:
-//   inline ThreadedExecutor(int batch_size, int device_id, size_t bytes_per_sample_hint,
-//       int num_threads, bool set_affinity) :
-//     Executor(batch_size, device_id, bytes_per_sample_hint), 
-//     thread_pool_(num_threads, device_id, set_affinity) {}
-  
-//   inline ThreadedExecutor(OpGraph *graph, int batch_size, int device_id,
-//       size_t bytes_per_sample_hint, int num_threads, bool set_affinity) :
-//     Executor(batch_size, device_id, bytes_per_sample_hint),
-//     thread_pool_(num_threads, device_id, set_affinity) {
-//     NDLL_ENFORCE(graph != nullptr, "Graph cannot be nullptr.");
-//     Build(graph);
-//   }
-  
-//   virtual ~ThreadedExecutor() = default;
-
-//   void Build(OpGraph *graph) override;
-
-//   void RunCPU() override;
-
-//   void RunInternal() override;
-
-//   void RunGPU() override;
-
-//   DISABLE_COPY_MOVE_ASSIGN(ThreadedExecutor);
-// protected:
-//   ThreadPool thread_pool_;
-
-//   USE_EXECUTOR_MEMBERS();
-// };
 
 } // namespace ndll
 

@@ -68,6 +68,13 @@ public:
    */
   template <typename Backend>
   void AddInput(vector<shared_ptr<Tensor<Backend>>> input);
+
+  /**
+   * @brief Sets the input at the specified index to the input
+   * vector of Tensors.
+   */
+  template <typename Backend>
+  void SetInput(int idx, vector<shared_ptr<Tensor<Backend>>> input);
   
   /**
    * @brief Returns the output TensorList at index `idx`. 
@@ -156,6 +163,7 @@ private:
 
   // Maps from a TensorLists position in its typed vector
   // to its absolute position in the workspaces outputs
+  vector<int> cpu_inputs_index_, gpu_inputs_index_;
   vector<int> cpu_outputs_index_, gpu_outputs_index_;
   
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)

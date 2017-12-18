@@ -69,13 +69,13 @@ public:
    * Defaults to 0.
    */
   inline Pipeline(int batch_size, int num_threads, int device_id,
-      int queue_depth = 2, size_t bytes_per_sample_hint = 0,
-      bool set_affinity = false, int max_num_stream = -1) :
+      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+      int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
     bytes_per_sample_hint_(bytes_per_sample_hint),
     executor_(batch_size, num_threads, device_id, bytes_per_sample_hint,
-        set_affinity, queue_depth, max_num_stream) {
-    NDLL_ENFORCE(batch_size_ > 0);
+        set_affinity, max_num_stream) {
+    NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
     // TODO(tgale): We need to figure out the best way to ensure that the memory
     // this object allocates is stored on the correct NUMA node that we can
@@ -91,6 +91,8 @@ public:
    * @brief Creates a placeholder for an external input with the given name
    */
   inline void AddExternalInput(const string &name) {
+    NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed");
     // Verify that this name is unique and record it
     auto it = edge_names_.find(name);
     NDLL_ENFORCE(it == edge_names_.end(), "External input name '" +

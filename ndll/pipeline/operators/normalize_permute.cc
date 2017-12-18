@@ -2,6 +2,7 @@
 
 namespace ndll {
 
+NDLL_REGISTER_CPU_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>);
 NDLL_REGISTER_GPU_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>);
 
 OPERATOR_SCHEMA(NormalizePermute)

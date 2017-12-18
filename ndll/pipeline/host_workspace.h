@@ -102,12 +102,23 @@ public:
    */
   template <typename Backend>
   void AddOutput(vector<shared_ptr<Tensor<Backend>>> output);
+
+  /**
+   * @brief Sets the output at the specified index to the input
+   * vector of Tensors.
+   */
+  template <typename Backend>
+  void SetOutput(int idx, vector<shared_ptr<Tensor<Backend>>> output);
   
 private:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
   vector<vector<TensorPtr<CPUBackend>>> cpu_inputs_, cpu_outputs_;
   vector<vector<TensorPtr<GPUBackend>>> gpu_inputs_, gpu_outputs_;
+
+  // Maps from a TensorVector position in its typed vector
+  // to its absolute position in the workspaces outputs
+  vector<int> cpu_outputs_index_, gpu_outputs_index_;
   
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)
   // to actual tensor objects. The first element indicates if the

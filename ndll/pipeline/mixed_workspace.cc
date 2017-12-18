@@ -71,6 +71,7 @@ void MixedWorkspace::AddInput(vector<shared_ptr<Tensor<CPUBackend>>> input) {
   
   // Update the input index map
   input_index_map_.push_back(std::make_pair(true, cpu_inputs_.size()-1));
+  cpu_inputs_index_.push_back(input_index_map_.size()-1);
 }
 
 template <>
@@ -80,6 +81,67 @@ void MixedWorkspace::AddInput(vector<shared_ptr<Tensor<GPUBackend>>> input) {
   
   // Update the input index map
   input_index_map_.push_back(std::make_pair(false, gpu_inputs_.size()-1));
+  gpu_inputs_index_.push_back(input_index_map_.size()-1);
+}
+
+template <>
+void MixedWorkspace::SetInput(int idx,
+    vector<shared_ptr<Tensor<CPUBackend>>> input) {
+  NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
+
+  // To remove the old input at `idx`, we need to remove it
+  // from its typed vector and update the input_index_map
+  // entry for all the elements in the vector following it.
+  auto tensor_meta = input_index_map_[idx];
+  if (tensor_meta.first) {
+    for (size_t i = tensor_meta.second; i < cpu_inputs_.size(); ++i) {
+      int &input_idx = input_index_map_[cpu_inputs_index_[i]].second;
+      --input_idx;
+    }
+    cpu_inputs_.erase(cpu_inputs_.begin() + tensor_meta.second);
+    cpu_inputs_index_.erase(cpu_inputs_index_.begin() + tensor_meta.second);
+  } else {
+    for (size_t i = tensor_meta.second; i < gpu_inputs_.size(); ++i) {
+      int &input_idx = input_index_map_[gpu_inputs_index_[i]].second;
+      --input_idx;
+    }
+    gpu_inputs_.erase(gpu_inputs_.begin() + tensor_meta.second);
+    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);    
+  }
+
+  cpu_inputs_.push_back(input);
+  cpu_inputs_index_.push_back(idx);
+  input_index_map_[idx] = std::make_pair(true, cpu_inputs_.size()-1);
+}
+
+template <>
+void MixedWorkspace::SetInput(int idx,
+    vector<shared_ptr<Tensor<GPUBackend>>> input) {
+  NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
+
+  // To remove the old input at `idx`, we need to remove it
+  // from its typed vector and update the input_index_map
+  // entry for all the elements in the vector following it.
+  auto tensor_meta = input_index_map_[idx];
+  if (tensor_meta.first) {
+    for (size_t i = tensor_meta.second; i < cpu_inputs_.size(); ++i) {
+      int &input_idx = input_index_map_[cpu_inputs_index_[i]].second;
+      --input_idx;
+    }
+    cpu_inputs_.erase(cpu_inputs_.begin() + tensor_meta.second);
+    cpu_inputs_index_.erase(cpu_inputs_index_.begin() + tensor_meta.second);
+  } else {
+    for (size_t i = tensor_meta.second; i < gpu_inputs_.size(); ++i) {
+      int &input_idx = input_index_map_[gpu_inputs_index_[i]].second;
+      --input_idx;
+    }
+    gpu_inputs_.erase(gpu_inputs_.begin() + tensor_meta.second);
+    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);    
+  }
+
+  gpu_inputs_.push_back(input);
+  gpu_inputs_index_.push_back(idx);
+  input_index_map_[idx] = std::make_pair(true, gpu_inputs_.size()-1);
 }
 
 template <>

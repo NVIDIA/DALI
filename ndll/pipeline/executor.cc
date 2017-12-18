@@ -648,7 +648,6 @@ void Executor::SetOutputBuffersForIter(
       }
     }
   }
-  
 }
 
 } // namespace ndll
