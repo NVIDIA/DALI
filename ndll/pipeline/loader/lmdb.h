@@ -1,8 +1,12 @@
-#ifndef NDLL_DATA_STORE_LMDB_H_
-#define NDLL_DATA_STORE_LMDB_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_LOADER_LMDB_H_
+#define NDLL_PIPELINE_LOADER_LMDB_H_
 
 #include <lmdb.h>
-#include "ndll/pipeline/data_store/data_store.h"
+#include <string>
+
+#include "ndll/common.h"
+#include "ndll/pipeline/loader/loader.h"
 
 namespace ndll {
 
@@ -11,9 +15,9 @@ namespace ndll {
     NDLL_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status))); \
   } while (0)
 
-namespace {
-  bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val& key, MDB_val& value) {
-    int status = mdb_cursor_get(cursor, &key, &value, op);
+namespace lmdb {
+  bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value) {
+    int status = mdb_cursor_get(cursor, key, value, op);
 
     if (status == MDB_NOTFOUND) {
       // reached the end of the db
@@ -40,14 +44,14 @@ namespace {
 
     CHECK_LMDB(mdb_stat(txn, dbi, stat));
 
-    printf("DB has %d entries\n", (int)stat->ms_entries);
+    printf("DB has %d entries\n", static_cast<int>(stat->ms_entries));
   }
-}
+}  // namespace lmdb
 
-class LMDBReader : public DataStore<CPUBackend> {
+class LMDBReader : public Loader<CPUBackend> {
  public:
-  LMDBReader(const OpSpec& options)
-    : DataStore(options),
+  explicit LMDBReader(const OpSpec& options)
+    : Loader(options),
       db_path_(options.GetArgument<string>("path", "")) {
     // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));
@@ -60,7 +64,7 @@ class LMDBReader : public DataStore<CPUBackend> {
     CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
 
     // Optional: debug printing
-    PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
   }
   ~LMDBReader() {
     mdb_cursor_close(mdb_cursor_);
@@ -72,22 +76,22 @@ class LMDBReader : public DataStore<CPUBackend> {
 
   void ReadSample(Tensor<CPUBackend>* tensor) {
     // assume cursor is valid, read next, loop to start if necessary
-    bool ok = SeekLMDB(mdb_cursor_, MDB_NEXT, key_, value_);
+    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
 
     if (!ok) {
-      SeekLMDB(mdb_cursor_, MDB_FIRST, key_, value_);
+      lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
     }
 
     tensor->Resize({static_cast<int>(value_.mv_size)});
-    uint8_t* data_ptr = tensor->mutable_data<uint8_t>();
-    (void)data_ptr; // stop compiler complaining
+    tensor->mutable_data<uint8_t>();
+
     std::memcpy(tensor->raw_mutable_data(), value_.mv_data, value_.mv_size);
 
     return;
   }
 
   Index Size() {
-    return LMDB_size(mdb_transaction_, mdb_dbi_);
+    return lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
   }
 
  private:
@@ -103,6 +107,6 @@ class LMDBReader : public DataStore<CPUBackend> {
   string db_path_;
 };
 
-}; // namespace ndll
+};  // namespace ndll
 
-#endif // NDLL_DATA_STORE_LMDB_H_
+#endif  // NDLL_PIPELINE_LOADER_LMDB_H_

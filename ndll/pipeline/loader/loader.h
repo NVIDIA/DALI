@@ -1,11 +1,13 @@
-#ifndef NDLL_DATA_STORE_DATA_STORE_H_
-#define NDLL_DATA_STORE_DATA_STORE_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_LOADER_LOADER_H_
+#define NDLL_PIPELINE_LOADER_LOADER_H_
 
 #include <list>
 #include <map>
 #include <mutex>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ndll/common.h"
@@ -16,14 +18,14 @@
 namespace ndll {
 
 template <class Backend>
-class DataStore {
+class Loader {
  public:
-  DataStore(const OpSpec& options) {
+  explicit Loader(const OpSpec& options) {
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, 1048576);
   }
-  virtual ~DataStore() {};
+  virtual ~Loader() {}
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
@@ -76,7 +78,7 @@ class DataStore {
   // reads.
   virtual void ReadSample(Tensor<Backend>* tensor) = 0;
 
-  // Give the size of the data accessed through the DataStore
+  // Give the size of the data accessed through the Loader
   virtual Index Size() = 0;
 
  protected:
@@ -96,6 +98,6 @@ class DataStore {
   std::mutex db_mutex_;
 };
 
-}; // namespace ndll
+};  // namespace ndll
 
-#endif
+#endif  // NDLL_PIPELINE_LOADER_LOADER_H_

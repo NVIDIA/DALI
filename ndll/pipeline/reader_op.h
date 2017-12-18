@@ -1,13 +1,13 @@
-#ifndef NDLL_PIPELINE_OPERATORS_PREFETCHED_DATA_READER_OPERATOR_H_
-#define NDLL_PIPELINE_OPERATORS_PREFETCHED_DATA_READER_OPERATOR_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_DATA_READER_OP_H_
+#define NDLL_PIPELINE_DATA_READER_OP_H_
 
 #include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <thread>
 
-#include "ndll/pipeline/data_store/data_store.h"
-#include "ndll/pipeline/data_store/lmdb.h"
+#include "ndll/pipeline/loader/loader.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -24,8 +24,7 @@ class DataReader : public Operator<Backend> {
     Operator<Backend>(spec),
   prefetch_success_(true),
   finished_(false) {
-    // TODO(): Anything needed here?
-
+    // TODO(slayton): Anything needed here?
   }
 
   virtual ~DataReader() noexcept {
@@ -76,9 +75,6 @@ class DataReader : public Operator<Backend> {
 
     // consume batch
     Operator<Backend>::Run(ws);
-
-    //prefetch_ready_ = false;
-    //producer_.notify_one();
   }
 
   void Run(DeviceWorkspace* ws) override {
@@ -99,4 +95,4 @@ class DataReader : public Operator<Backend> {
 
 };  // namespace ndll
 
-#endif
+#endif  // NDLL_PIPELINE_DATA_READER_OP_H_

@@ -1,6 +1,6 @@
 # Add all subdirectories
 add_subdirectory(data)
-add_subdirectory(data_store)
+add_subdirectory(loader)
 add_subdirectory(operators)
 add_subdirectory(util)
 

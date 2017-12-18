@@ -1,26 +1,24 @@
-#include "ndll/pipeline/data_reader_op.h"
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 
 #include <gtest/gtest.h>
+#include <chrono>
+#include <cstdio>
+#include <thread>
 
+#include "ndll/pipeline/reader_op.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
-
-#include <chrono>
-#include <cstdio>
-#include <thread>
 
 namespace ndll {
 
 template <typename Backend>
 class DummyDataReader : public DataReader<Backend> {
  public:
-  DummyDataReader(const OpSpec &spec)
+  explicit DummyDataReader(const OpSpec &spec)
       : DataReader<Backend>(spec),
-        count_(0) {
-
-  }
+        count_(0) {}
 
   ~DummyDataReader() {
     DataReader<Backend>::StopPrefetchThread();
@@ -31,13 +29,10 @@ class DummyDataReader : public DataReader<Backend> {
       printf("prefetched %d\n", count_.load());
       count_++;
     }
-
     return true;
   }
 
   void RunPerSampleCPU(SampleWorkspace* ws) override {
-    printf("running\n");
-
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
   inline int MaxNumInput() const override { return 0; }
