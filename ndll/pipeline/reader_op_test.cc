@@ -11,6 +11,8 @@
 #include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
 
+#include <cstdio>
+
 namespace ndll {
 
 template <typename Backend>
