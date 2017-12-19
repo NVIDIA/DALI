@@ -4,6 +4,7 @@
 #include <map>
 
 #include "ndll/common.h"
+#include "ndll/pipeline/async_pipelined_executor.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
@@ -78,7 +79,10 @@ public:
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
     if (pipelined_execution && async_execution) {
-      NDLL_FAIL("Not implemented.");
+      executor_.reset(new AsyncPipelinedExecutor(
+              batch_size, num_threads,
+              device_id, bytes_per_sample_hint,
+              set_affinity, max_num_stream));
     } else if (pipelined_execution) {
       executor_.reset(new PipelinedExecutor(
               batch_size, num_threads,

@@ -21,7 +21,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, true);
+      0, true, true);
 
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
@@ -92,6 +92,8 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
+  cout << "GOT RESULTS" << endl;
+  
   while(st.KeepRunning()) {
     if (st.iterations() == 1) {
       // We will start he processing for the next batch
@@ -138,7 +140,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, true);
+      0, true, true);
   
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);

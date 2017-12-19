@@ -87,6 +87,7 @@ void Executor::RunGPU() {
     Operator<GPUBackend> &op = graph_->gpu_op(i);
     DeviceWorkspace &ws = gpu_op_data_[i];
     auto parent_events = ws.ParentEvents();
+
     for (auto &event : parent_events) {
       CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
     }

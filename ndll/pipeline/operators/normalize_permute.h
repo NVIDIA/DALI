@@ -103,7 +103,7 @@ protected:
         "Input does not have batch_size samples ("
         + std::to_string(input.ntensor()) + " v. " +
         std::to_string(batch_size_) + ")");
-    
+
     for (int i = 0; i < batch_size_; ++i) {
       NDLL_ENFORCE(input.tensor_shape(i).size() == 3,
           "Expects 3-dim image input (v. " +
@@ -115,7 +115,7 @@ protected:
       NDLL_ENFORCE(input.tensor_shape(i)[2] == C_,
           "Input image channels does not match output channels.");
     }
-    
+
     // Resize the output & run
     output->Resize(output_shape_);
     NDLL_CALL(BatchedNormalizePermute(

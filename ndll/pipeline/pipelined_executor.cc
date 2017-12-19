@@ -46,7 +46,6 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
                     queue_depth_, batch_size_, bytes_per_sample_hint_
                     ));
             has_info_object = true;
-            cpu_stage_output_info_.push_back(info);
           }
 
           OutputInfo &info = cpu_stage_output_info_.back();
@@ -81,9 +80,9 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
                     queue_depth_, batch_size_, bytes_per_sample_hint_
                     ));
             has_info_object = true;
-            internal_stage_output_info_.push_back(info);
           }
 
+          
           OutputInfo &info = internal_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
           info.con_and_idx.push_back(tmp);
@@ -126,12 +125,12 @@ void PipelinedExecutor::SetStageOutputsForIter() {
     int output_idx = info.prod_and_idx.second;
     internal_op_data_[internal_op_id].SetOutput(
         output_idx, tlp.GetTL(queue_idx_));
-
+    
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
-        
-      int gpu_op_id = graph_->NodeIdx(node_id);
+      
+       int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
       gpu_op_data_[gpu_op_id].SetInput(
           input_idx, tlp.GetTL(queue_idx_));

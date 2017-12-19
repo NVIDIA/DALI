@@ -57,7 +57,7 @@ public:
     // Signal a thread to complete the work
     condition_.notify_one();
   }
-
+  
   // Blocks until all work issued to the thread pool is complete
   inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);
@@ -116,8 +116,12 @@ private:
         work(thread_id);
       } catch(std::runtime_error &e) {
         tl_errors_[thread_id].push(e.what());
+        // DEBUG
+        throw e;
       } catch(...) {
         tl_errors_[thread_id].push("Caught unknown exception");
+        // DEBUG
+        throw std::runtime_error("Caught unknown exception");
       }
 
       // Mark this thread as idle & check for complete work
