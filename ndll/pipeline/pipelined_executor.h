@@ -42,29 +42,14 @@ protected:
   void SetStageOutputsForIter();
 
   template <typename Backend>
-  class TensorListPool {
-  public:
-    inline TensorListPool(int size) {
-      for (int i = 0; i < size; ++i) {
-        tls_.push_back(std::make_shared<TensorList<Backend>>());
-      }
-    }
-
-    inline shared_ptr<TensorList<Backend>> GetTL(int idx) {
-      return tls_[idx];
-    }
-  private:
-    vector<shared_ptr<TensorList<Backend>>> tls_;
-  };
-
-  template <typename Backend>
   class TensorVectorPool {
   public:
-    inline TensorVectorPool(int size, int batch_size) {
+    inline TensorVectorPool(int size, int batch_size, size_t bytes_hint) {
       tvs_.resize(size);
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < batch_size; ++j) {
           tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
+          tvs_[i].back()->Resize({(Index)bytes_hint});
         }
       }
     }
@@ -89,14 +74,8 @@ protected:
   // requested by the user.
   vector<TensorVectorPool<CPUBackend>> cpu_stage_outputs_;
   vector<TensorListPool<GPUBackend>> internal_stage_outputs_;
-
-  // Meta-data about our stage outputs for fast lookup
-  using StageOutputInfo = struct {
-    std::pair<int, int> prod_and_idx;
-    vector<std::pair<int, int>> con_and_idx;
-  };
-  vector<StageOutputInfo> cpu_stage_output_info_;
-  vector<StageOutputInfo> internal_stage_output_info_;
+  vector<OutputInfo> cpu_stage_output_info_;
+  vector<OutputInfo> internal_stage_output_info_;
   
   USE_EXECUTOR_MEMBERS();
 };

@@ -18,64 +18,6 @@
 
 namespace ndll {
 
-// A helper class to manage a set of TensorLists and cudaEvents
-template <typename Backend>
-class TensorListPool {
-public:
-  inline TensorListPool(int size, EventPool *event_pool) {
-    NDLL_ENFORCE(event_pool != nullptr);
-    for (int i = 0; i < size; ++i) {
-      tls_.push_back(std::make_shared<TensorList<Backend>>());
-      tl_events_.push_back(event_pool->GetEvent());
-    }
-  }
-
-  inline ~TensorListPool() = default;
-
-  inline shared_ptr<TensorList<Backend>> GetTL(int idx) {
-    return tls_[idx];
-  }
-
-  inline cudaEvent_t GetEvent(int idx) {
-    return tl_events_[idx];
-  }
-
-  inline int size() const { return tls_.size(); }
-  
-private:
-  vector<shared_ptr<TensorList<Backend>>> tls_;
-  vector<cudaEvent_t> tl_events_;
-};
-
-template <typename Backend>
-class TensorVecPool {
-public:
-  TensorVecPool(int size, int batch_size, EventPool *event_pool) {
-    NDLL_ENFORCE(event_pool != nullptr);
-    tvs_.resize(size);
-    for (int i = 0; i < size; ++i) {
-      for (int j = 0; j < batch_size; ++j) {
-        tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
-      }
-      tv_events_.push_back(event_pool->GetEvent());
-    }
-  }
-
-  inline vector<shared_ptr<Tensor<Backend>>> GetTV(int idx) {
-    return tvs_[idx];
-  }
-  
-  inline cudaEvent_t GetEvent(int idx) {
-    return tv_events_[idx];
-  }
-
-  inline int size() const { return tvs_.size(); }
-  
-private:
-  vector<vector<shared_ptr<Tensor<Backend>>>> tvs_;
-  vector<cudaEvent_t> tv_events_;
-};
-
 class Executor {
 public:
   inline Executor(int batch_size, int num_thread, int device_id,
@@ -107,58 +49,73 @@ public:
   
 protected:
   
-  void PruneUnusedGraphNodes(OpGraph *graph,
-      vector<string> output_names);
+  void PruneUnusedGraphNodes();
   
-  void SetupDataForGraph(OpGraph *graph,
-      vector<HostWorkspace> *cpu_data,
-      vector<internal::MixedWorkspace> *internal_data,
-      vector<DeviceWorkspace> *gpu_data);
+  void SetupDataForGraph();
 
-  void PresizeData(vector<HostWorkspace> *cpu_data,
-      vector<internal::MixedWorkspace> *internal_data,
-      vector<DeviceWorkspace> *gpu_data,
-      size_t bytes_per_sample_hint);
+  void PresizeData();
 
-  void SetupStreamsForGraph(OpGraph *graph,
-      vector<internal::MixedWorkspace> *internal_data,
-      vector<DeviceWorkspace> *gpu_data,
-      StreamPool *stream_pool, EventPool *event_pool);
+  void SetupStreamsForGraph();
 
-  void SetupOutputQueuesForGraph(
-      const vector<string> &output_names, int queue_depth,
-      EventPool *event_pool, OpGraph *graph, 
-      std::map<string, int> *type_idx_map,
-      vector<TensorListPool<CPUBackend>> *cpu_outputs,
-      vector<TensorListPool<GPUBackend>> *gpu_outputs);
+  void SetupOutputQueuesForGraph();
   
-  void SetOutputBuffersForIter(
-      const vector<string> &output_names,
-      const std::map<string, int> &type_idx_map,
-      int queue_idx, OpGraph *graph,
-      vector<internal::MixedWorkspace> *internal_data,
-      vector<DeviceWorkspace> *gpu_data,
-      vector<TensorListPool<CPUBackend>> *cpu_outputs,
-      vector<TensorListPool<GPUBackend>> *gpu_outputs);
-  
+  void SetOutputBuffersForIter();
+
+  template <typename Backend>
+  class TensorListPool {
+  public:
+    inline TensorListPool(int size, int batch_size, size_t bytes_hint) {
+      for (int i = 0; i < size; ++i) {
+        tls_.push_back(std::make_shared<TensorList<Backend>>());
+        tls_.back()->Resize({{batch_size*(Index)bytes_hint}});
+      }
+    }
+
+    inline shared_ptr<TensorList<Backend>> GetTL(int idx) {
+      return tls_[idx];
+    }
+  private:
+    vector<shared_ptr<TensorList<Backend>>> tls_;
+  };
+
+  class EventList {
+  public:
+    inline EventList() {}
+    inline EventList(int size, EventPool *event_pool) {
+      NDLL_ENFORCE(event_pool != nullptr);
+      for (int i = 0; i < size; ++i) {
+        events_.push_back(event_pool->GetEvent());
+      }      
+    }
+    
+    inline cudaEvent_t GetEvent(int idx) {
+      return events_[idx];
+    }
+  private:
+    vector<cudaEvent_t> events_;
+  };
+
   vector<HostWorkspace> cpu_op_data_;
   vector<internal::MixedWorkspace> internal_op_data_;
   vector<DeviceWorkspace> gpu_op_data_;
 
-  // Used to keep track of the additional event insertions
-  // we need to perform so that the user can block on the
-  // results produced from a specific iteration
-  using SyncPair = std::pair<cudaStream_t, cudaEvent_t>;
-  vector<SyncPair> internal_output_events_, gpu_output_events_;
-  
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-
+  int queue_depth_, queue_idx_ = 0;
+  
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;
   vector<TensorListPool<CPUBackend>> cpu_outputs_;
   vector<TensorListPool<GPUBackend>> gpu_outputs_;
-  int queue_depth_, queue_idx_ = 0;
+  vector<EventList> gpu_output_events_;
+
+  // Meta-data about our stage outputs for fast lookup
+  using OutputInfo = struct {
+    std::pair<NodeID, int> prod_and_idx;
+    vector<std::pair<NodeID, int>> con_and_idx;
+  };
+  vector<OutputInfo> cpu_output_info_, gpu_output_info_;
+  
   
   // The ready queue stores the indices of batches
   // who are ready for the user. We use the mutex
@@ -184,14 +141,16 @@ protected:
   using Executor::batch_size_;                             \
   using Executor::device_id_;                              \
   using Executor::bytes_per_sample_hint_;                  \
-  using Executor::internal_output_events_;                 \
-  using Executor::gpu_output_events_;                      \
+  using Executor::queue_depth_;                            \
+  using Executor::queue_idx_;                              \
   using Executor::output_names_;                           \
   using Executor::type_idx_map_;                           \
   using Executor::cpu_outputs_;                            \
   using Executor::gpu_outputs_;                            \
-  using Executor::queue_depth_;                            \
-  using Executor::queue_idx_;                              \
+  using Executor::gpu_output_events_;                      \
+  using Executor::OutputInfo;                              \
+  using Executor::cpu_output_info_;                        \
+  using Executor::gpu_output_info_;                        \
   using Executor::ready_queue_;                            \
   using Executor::ready_mutex_;                            \
   using Executor::ready_cond_;                             \

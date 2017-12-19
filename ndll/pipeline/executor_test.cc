@@ -42,9 +42,8 @@ public:
     return spec;
   }
 
-  inline void PruneGraph(Executor *exe, OpGraph *graph,
-      vector<string> output_names) {
-    exe->PruneUnusedGraphNodes(graph, output_names);
+  inline void PruneGraph(Executor *exe) {
+    exe->PruneUnusedGraphNodes();
   }
 
   vector<HostWorkspace> CPUData(Executor *exe) {
@@ -140,7 +139,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           ));
 
   vector<string> outputs = {"data3_cpu"};
-  this->PruneGraph(&exe, &graph, outputs);
+  exe.Build(&graph, outputs);
 
   // Validate the graph - op 2 should
   // have been pruned as its outputs
@@ -197,7 +196,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           ));
 
   vector<string> outputs = {"data1_cpu"};
-  this->PruneGraph(&exe, &graph, outputs);
+  exe.Build(&graph, outputs);
 
   // Validate the graph - op 1&2 should
   // have been pruned
@@ -244,7 +243,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           ));
 
   vector<string> outputs = {"data1_cpu"};
-  this->PruneGraph(&exe, &graph, outputs);
+  exe.Build(&graph, outputs);
   
   // Validate the graph - op 1&2 should
   // have been pruned
@@ -290,36 +289,8 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
           ));
 
   vector<string> outputs = {"data_that_does_not_exist"};
-  ASSERT_THROW(this->PruneGraph(&exe, &graph, outputs),
+  ASSERT_THROW(this->PruneGraph(&exe),
       std::runtime_error);
-}
-
-TEST_F(ExecutorTest, TestSetupData) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddOutput("external_data", "cpu")
-          ));
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
-          .AddInput("external_data", "cpu")
-          .AddOutput("external_data", "gpu")
-          ));
-  
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("external_data", "gpu")
-          .AddOutput("copy_data", "gpu")
-          ));
-
-  
 }
 
 TEST_F(ExecutorTest, TestDataSetup) {
@@ -423,7 +394,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
-TEST_F(ExecutorTest, TestPhasedExecution) {
+TEST_F(ExecutorTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
   
