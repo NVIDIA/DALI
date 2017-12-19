@@ -578,10 +578,11 @@ void Executor::SetupOutputQueuesForGraph() {
       gpu_output_events_.push_back(EventList(queue_depth_, &event_pool_));
     }
   }
-}
 
-void Executor::SetupForIter() {
-  SetOutputBuffersForIter();
+  // All buffers start off as free
+  for (int i = 0; i < queue_depth_; ++i) {
+    free_queue_.push(i);
+  }
 }
 
 void Executor::SetOutputBuffersForIter() {

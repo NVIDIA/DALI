@@ -12,11 +12,6 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
   SetupStageOutputsForGraph();
 }
 
-void PipelinedExecutor::RunCPU() {
-  SetStageOutputsForIter();
-  Executor::RunCPU();
-}
-
 void PipelinedExecutor::SetupStageOutputsForGraph() {
   // Make a set of the outputs names for quick lookup
   std::set<string> output_set(output_names_.begin(), output_names_.end());
@@ -25,12 +20,12 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
     CPUOpNode &node = graph_->cpu_node(i);
-    for (int j = 0; j < node.spec.NumOutput(); ++i) {
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
       string tensor_name = node.spec.Output(j);
       if (output_set.count(tensor_name) != 0) continue;
-
+      
       vector<TensorMeta> consumer_meta =
         graph_->TensorConsumerMeta(tensor_name);
       bool has_info_object = false;
@@ -51,12 +46,12 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
                     queue_depth_, batch_size_, bytes_per_sample_hint_
                     ));
             has_info_object = true;
+            cpu_stage_output_info_.push_back(info);
           }
 
-          OutputInfo info;
+          OutputInfo &info = cpu_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
           info.con_and_idx.push_back(tmp);
-          cpu_stage_output_info_.push_back(info);
         }
       }
     }
@@ -86,12 +81,12 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
                     queue_depth_, batch_size_, bytes_per_sample_hint_
                     ));
             has_info_object = true;
+            internal_stage_output_info_.push_back(info);
           }
 
-          OutputInfo info;
+          OutputInfo &info = internal_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
           info.con_and_idx.push_back(tmp);
-          internal_stage_output_info_.push_back(info);
         }
       }
     }
@@ -113,7 +108,7 @@ void PipelinedExecutor::SetStageOutputsForIter() {
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
-      
+
       int internal_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
       internal_op_data_[internal_op_id].SetInput(
@@ -135,7 +130,7 @@ void PipelinedExecutor::SetStageOutputsForIter() {
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
-      
+        
       int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
       gpu_op_data_[gpu_op_id].SetInput(

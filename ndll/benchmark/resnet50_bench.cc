@@ -21,7 +21,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0);
+      0, true);
 
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
@@ -138,7 +138,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0);
+      0, true);
   
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);

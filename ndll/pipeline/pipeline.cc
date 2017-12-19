@@ -134,27 +134,27 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   }
 
   // Load the final graph into the executor
-  executor_.Build(&graph_, outputs);
+  executor_->Build(&graph_, outputs);
   built_ = true;
 }
 
 void Pipeline::RunCPU() {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  executor_.RunCPU();
-  executor_.RunInternal();
+  executor_->RunCPU();
+  executor_->RunInternal();
 }
 
 void Pipeline::RunGPU() {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  executor_.RunGPU();
+  executor_->RunGPU();
 }
 
 void Pipeline::Outputs(DeviceWorkspace *ws) {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  executor_.Outputs(ws);
+  executor_->Outputs(ws);
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,

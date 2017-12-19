@@ -96,14 +96,18 @@ protected:
   inline void RunHelper(DeviceWorkspace *ws) {
     auto &input = ws->Input<GPUBackend>(0);
     auto output = ws->Output<GPUBackend>(0);
-    
+
     // Validate input shape and type
     NDLL_ENFORCE(IsType<uint8>(input.type()));
     NDLL_ENFORCE(input.ntensor() == batch_size_,
-        "Input does not have batch_size samples.");
+        "Input does not have batch_size samples ("
+        + std::to_string(input.ntensor()) + " v. " +
+        std::to_string(batch_size_) + ")");
+    
     for (int i = 0; i < batch_size_; ++i) {
       NDLL_ENFORCE(input.tensor_shape(i).size() == 3,
-          "Expects 3-dim image input.");
+          "Expects 3-dim image input (v. " +
+          std::to_string(input.tensor_shape(i).size()) + ")");
       NDLL_ENFORCE(input.tensor_shape(i)[0] == H_,
           "Input image height does not match output height.");
       NDLL_ENFORCE(input.tensor_shape(i)[1] == W_,

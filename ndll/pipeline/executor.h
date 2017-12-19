@@ -29,11 +29,6 @@ public:
     event_pool_(max_num_stream), thread_pool_(num_thread, device_id, set_affinity) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
-
-    // All buffers start off as free
-    for (int i = 0; i < queue_depth_; ++i) {
-      free_queue_.push(i);
-    }
   }
   
   virtual ~Executor() = default;
@@ -66,7 +61,9 @@ protected:
 
   // Performs and needed setup for an iterations. This
   // method is called after the queue_idx has been set.
-  virtual void SetupForIter();
+  virtual inline void SetupForIter() {
+    SetOutputBuffersForIter();
+  }
   
   void SetOutputBuffersForIter();
 

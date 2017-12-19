@@ -31,14 +31,17 @@ public:
 
   void Build(OpGraph *graph, vector<string> output_names) override;
 
-  void RunCPU() override;
-
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);  
 
 protected:
 
   void SetupStageOutputsForGraph();
 
+  virtual inline void SetupForIter() {
+    SetOutputBuffersForIter();
+    SetStageOutputsForIter();
+  }
+  
   void SetStageOutputsForIter();
 
   template <typename Backend>

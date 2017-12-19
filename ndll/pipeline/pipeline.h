@@ -10,6 +10,7 @@
 #include "ndll/pipeline/executor.h"
 #include "ndll/pipeline/operators/external_source.h"
 #include "ndll/pipeline/op_graph.h"
+#include "ndll/pipeline/pipelined_executor.h"
 
 namespace ndll {
 
@@ -69,14 +70,29 @@ public:
    * Defaults to 0.
    */
   inline Pipeline(int batch_size, int num_threads, int device_id,
+      bool pipelined_execution = false, bool async_execution = false,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    bytes_per_sample_hint_(bytes_per_sample_hint),
-    executor_(batch_size, num_threads, device_id, bytes_per_sample_hint,
-        set_affinity, max_num_stream) {
+    bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
+    if (pipelined_execution && async_execution) {
+      NDLL_FAIL("Not implemented.");
+    } else if (pipelined_execution) {
+      executor_.reset(new PipelinedExecutor(
+              batch_size, num_threads,
+              device_id, bytes_per_sample_hint,
+              set_affinity, max_num_stream));
+    } else if (async_execution) {
+      NDLL_FAIL("Not implemented.");
+    } else {
+      executor_.reset(new Executor(
+              batch_size, num_threads,
+              device_id, bytes_per_sample_hint,
+              set_affinity, max_num_stream));
+    }
+    
     // TODO(tgale): We need to figure out the best way to ensure that the memory
     // this object allocates is stored on the correct NUMA node that we can
     // force on the frameworks. Frameworks like C2 are tricky because any thread
@@ -252,7 +268,7 @@ private:
   size_t bytes_per_sample_hint_;
 
   OpGraph graph_;
-  Executor executor_;
+  std::unique_ptr<Executor> executor_;
   
   std::map<string, EdgeMeta> edge_names_;
 };
