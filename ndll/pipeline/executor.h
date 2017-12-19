@@ -63,6 +63,10 @@ protected:
   void SetupStreamsForGraph();
 
   void SetupOutputQueuesForGraph();
+
+  // Performs and needed setup for an iterations. This
+  // method is called after the queue_idx has been set.
+  virtual void SetupForIter();
   
   void SetOutputBuffersForIter();
 
@@ -107,6 +111,7 @@ protected:
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
   int queue_depth_, queue_idx_ = 0;
+  int previous_queue_idx_ = -1;
   
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;

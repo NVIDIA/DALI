@@ -42,8 +42,9 @@ void Executor::RunCPU() {
   free_queue_.pop();
   lock.unlock();
 
-  // Setup the output buffers for this iteration
-  SetOutputBuffersForIter();
+  // Perform any needed setup now that we
+  // have a valid queue index
+  SetupForIter();
   
   // Run the cpu-ops in the thread pool
   for (int i = 0; i < batch_size_; ++i) {
@@ -72,6 +73,16 @@ void Executor::RunInternal() {
 }
 
 void Executor::RunGPU() {
+  // Enforce our assumed dependency between consecutive
+  // iterations of a stage of the pipeline.
+  if (previous_queue_idx_ != -1) {
+    for (size_t i = 0; i < output_names_.size(); ++i) {
+      if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
+      CUDA_CALL(cudaEventSynchronize(
+              gpu_output_events_[i].GetEvent(previous_queue_idx_)));
+    }
+  }
+  
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     Operator<GPUBackend> &op = graph_->gpu_op(i);
     DeviceWorkspace &ws = gpu_op_data_[i];
@@ -110,6 +121,11 @@ void Executor::RunGPU() {
   ready_queue_.push(queue_idx_);
   ready_cond_.notify_one();
   lock.unlock();
+
+  // Save the queue_idx so we can enforce the
+  // dependency between consecutive iterations
+  // of a stage of the pipeline.
+  previous_queue_idx_ = queue_idx_;
 }
 
 void Executor::Outputs(DeviceWorkspace *ws) {
@@ -562,6 +578,10 @@ void Executor::SetupOutputQueuesForGraph() {
       gpu_output_events_.push_back(EventList(queue_depth_, &event_pool_));
     }
   }
+}
+
+void Executor::SetupForIter() {
+  SetOutputBuffersForIter();
 }
 
 void Executor::SetOutputBuffersForIter() {
