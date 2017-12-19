@@ -33,20 +33,17 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 }
 
 void Executor::RunCPU() {
+  // Block until there is a free buffer to use
+  std::unique_lock<std::mutex> lock(free_mutex_);
+  while (free_queue_.empty()) {
+    free_cond_.wait(lock);
+  }
+  queue_idx_ = free_queue_.front();
+  free_queue_.pop();
+  lock.unlock();
+
   // Setup the output buffers for this iteration
   SetOutputBuffersForIter();
-  
-  // TODO(tgale): Is this the desired behavior?
-  // 
-  // If we are about to issue work into a set of
-  // buffers whose data has not been requested
-  // by the user yet. Block until the user
-  // queries for the data
-  std::unique_lock<std::mutex> lock(ready_mutex_);
-  while (!ready_queue_.empty() && ready_queue_.front() == queue_idx_) {
-    ready_cond_.wait(lock);
-  }
-  lock.unlock();
   
   // Run the cpu-ops in the thread pool
   for (int i = 0; i < batch_size_; ++i) {
@@ -113,26 +110,31 @@ void Executor::RunGPU() {
   ready_queue_.push(queue_idx_);
   ready_cond_.notify_one();
   lock.unlock();
-  
-  // Increment the queue index for next time.
-  queue_idx_ = (queue_idx_ + 1) % queue_depth_;
 }
 
 void Executor::Outputs(DeviceWorkspace *ws) {
   NDLL_ENFORCE(ws != nullptr, "Workspace is nullptr");
   ws->Clear();
+
+  // Mark the last in-use buffer as free and signal
+  // to waiting threads
+  if (!in_use_queue_.empty()) {
+    std::unique_lock<std::mutex> lock(free_mutex_);
+    free_queue_.push(in_use_queue_.front());
+    in_use_queue_.pop();
+    free_cond_.notify_one();
+    lock.unlock();
+  }
   
   // Block until the work for a batch has been issued.
-  // Once we get the index of our results, we notify
-  // on the ready_cond in case the worker thread is
-  // waiting to not overwrite these results
+  // Move the queue id from ready to in_use
   std::unique_lock<std::mutex> lock(ready_mutex_);
   while (ready_queue_.empty()) {
     ready_cond_.wait(lock);
   }
   int output_idx = ready_queue_.front();
   ready_queue_.pop();
-  ready_cond_.notify_one();
+  in_use_queue_.push(output_idx);
   lock.unlock();
 
   // Gather the results TensorLists and block on their

@@ -29,6 +29,11 @@ public:
     event_pool_(max_num_stream), thread_pool_(num_thread, device_id, set_affinity) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
+
+    // All buffers start off as free
+    for (int i = 0; i < queue_depth_; ++i) {
+      free_queue_.push(i);
+    }
   }
   
   virtual ~Executor() = default;
@@ -116,16 +121,16 @@ protected:
   };
   vector<OutputInfo> cpu_output_info_, gpu_output_info_;
   
-  
-  // The ready queue stores the indices of batches
-  // who are ready for the user. We use the mutex
-  // to ensure thread-safety while updating it,
-  // and the condition_variable to signal between
-  // the processing thread and the waiting host
-  // thread that data is complete.
-  std::queue<int> ready_queue_;  
-  std::mutex ready_mutex_;
-  std::condition_variable ready_cond_;
+  // Buffers are rotated between being 'free', where the
+  // pipeline is ok to fill them with data, 'ready', where
+  // they are already full of prepared data, and 'in-use',
+  // where the user currently owns that buffer. A buffer
+  // is marked as in-use when it is returned as and output.
+  // The buffer is then returned the the ready queue the
+  // next time Ouputs() is called.
+  std::queue<int> ready_queue_, free_queue_, in_use_queue_;  
+  std::mutex ready_mutex_, free_mutex_;
+  std::condition_variable ready_cond_, free_cond_;
   
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
