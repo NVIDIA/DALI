@@ -12,16 +12,21 @@ protected:
 };
 
 BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
-  bool fast_resize = st.range(0);
-  int batch_size = st.range(1);
-  int num_thread = st.range(2);
+  int executor = st.range(0);
+  bool fast_resize = st.range(1);
+  int batch_size = st.range(2);
+  int num_thread = st.range(3);
   NDLLImageType img_type = NDLL_RGB;
 
+  bool pipelined = executor > 0;
+  bool async = executor > 1;
+  
   // Create the pipeline
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, true, true);
+      0, pipelined,
+      async);
 
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
@@ -93,7 +98,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
   pipe.Outputs(&ws);
 
   while(st.KeepRunning()) {
-    if (st.iterations() == 1) {
+    if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
@@ -104,22 +109,25 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    if (st.iterations() == st.max_iterations) {
+    if (st.iterations() == st.max_iterations && pipelined) {
       // Block for the last batch to finish
       pipe.Outputs(&ws);
     }
   }
   
   // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
-  st.counters["FPS"] = benchmark::Counter(batch_size*(st.iterations()+1),
+  int num_batches = st.iterations() + int(pipelined);
+  st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
 }
 
 static void PipeArgs(benchmark::internal::Benchmark *b) {
-  for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
-    for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
-      for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-        b->Args({fast_resize, batch_size, num_thread});
+  for (int executor = 2; executor < 3; ++executor) {
+    for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
+      for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
+        for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+          b->Args({executor, fast_resize, batch_size, num_thread});
+        }
       }
     }
   }
@@ -131,15 +139,20 @@ BENCHMARK_REGISTER_F(RN50, C2Pipe)->Iterations(100)
 ->Apply(PipeArgs);
 
 BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int num_thread = st.range(1);
+  int executor = st.range(0);
+  int batch_size = st.range(1);
+  int num_thread = st.range(2);
   NDLLImageType img_type = NDLL_RGB;
-   
+
+  bool pipelined = executor > 0;
+  bool async = executor > 1;
+
   // Create the pipeline
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, true, true);
+      0, pipelined,
+      async);
   
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
@@ -205,7 +218,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
   pipe.Outputs(&ws);
 
   while(st.KeepRunning()) {
-    if (st.iterations() == 1) {
+    if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
@@ -216,21 +229,24 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    if (st.iterations() == st.max_iterations) {
+    if (st.iterations() == st.max_iterations && pipelined) {
       // Block for the last batch to finish
       pipe.Outputs(&ws);
     }
   }
 
   // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
-  st.counters["FPS"] = benchmark::Counter(batch_size*(st.iterations()+1),
+  int num_batches = st.iterations() + int(pipelined);
+  st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
 }
 
 static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
-  for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
-    for (int num_thread = 1; num_thread <= 4; ++num_thread) {
-      b->Args({batch_size, num_thread});
+  for (int executor = 0; executor < 3; ++executor) {
+    for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
+      for (int num_thread = 1; num_thread <= 4; ++num_thread) {
+        b->Args({executor, batch_size, num_thread});
+      }
     }
   }
 }

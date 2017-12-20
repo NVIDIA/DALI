@@ -7,10 +7,6 @@ class Pipeline(object):
                  exec_pipelined = False, exec_async = False,
                  bytes_per_sample = 0, set_affinity = False,
                  max_streams = -1):
-        # Note: We initialize NDLL with default allocators here. If
-        # a framework wants to hook their allocators up through the
-        # python API, we will need to stop doing this
-        b.Init(b.OpSpec("PinnedCPUAllocator"), b.OpSpec("GPUAllocator"))
         self._pipe = b.Pipeline(batch_size,
                                 num_threads,
                                 device_id,

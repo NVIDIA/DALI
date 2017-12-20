@@ -103,7 +103,7 @@ void Executor::RunGPU() {
   int queue_idx = gpu_work_queue_.front();
   gpu_work_queue_.pop();
   gpu_lock.unlock();
-  
+
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
   if (previous_gpu_queue_idx_ != -1) {

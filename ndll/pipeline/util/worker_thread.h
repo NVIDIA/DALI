@@ -57,6 +57,18 @@ public:
       string error = "Error in worker thread: " +
         errors_.front();
       errors_.pop();
+      lock.unlock();
+      throw std::runtime_error(error);
+    }
+  }
+
+  inline void CheckForErrors() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!errors_.empty()) {
+      string error = "Error in worker thread: " +
+        errors_.front();
+      errors_.pop();
+      lock.unlock();
       throw std::runtime_error(error);
     }
   }
@@ -84,10 +96,12 @@ private:
       try {
         work();
       } catch(std::runtime_error &e) {
+        cout << "Exception in thread: " << e.what() << endl;
         lock.lock();
         errors_.push(e.what());
         lock.unlock();
       } catch(...) {
+        cout << "Exception in thread" << endl;
         lock.lock();
         errors_.push("Caught unknown exception in thread.");
         lock.unlock();

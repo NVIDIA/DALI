@@ -1,3 +1,4 @@
+import argparse
 from ndll.pipeline import Pipeline
 import ndll.ops as ops
 import ndll.types as types
@@ -20,9 +21,9 @@ def make_batch(size):
     data = read_jpegs(image_folder)
     return [data[i % len(data)] for i in range(size)]
 
-class DataPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id):
-        super(DataPipe, self).__init__(batch_size, num_threads, device_id, True, True)
+class C2Pipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+        super(C2Pipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
         self.input = ops.ExternalSource()
         self.decode = ops.TJPGDecoder(output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(random_resize = True,
@@ -53,18 +54,77 @@ class DataPipe(Pipeline):
             self.feed_input(self.jpegs, raw_data)
             self.iter += 1
 
-batch_size = 128
-num_threads = 4
+class HybridPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+        super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+        self.input = ops.ExternalSource()
+        self.huffman = ops.HuffmanDecoder()
+        self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+        self.resize = ops.Resize(device = "gpu", random_resize = True,
+                                 resize_a = 256, resize_b = 480,
+                                 image_type = types.RGB,
+                                 interp_type = types.INTERP_LINEAR)
+        self.cmnp = ops.CropMirrorNormalizePermute(device = "gpu",
+                                                   output_type = types.FLOAT16,
+                                                   random_crop = True,
+                                                   crop_h = 224,
+                                                   crop_w = 224,
+                                                   image_type = types.RGB,
+                                                   mean = [128., 128., 128.],
+                                                   std = [1., 1., 1.])
+        self.iter = 0
 
-pipe = DataPipe(batch_size,
-                num_threads,
-                0)
+    def define_graph(self):
+        self.jpegs = self.input()
+        dct_coeff, jpeg_meta = self.huffman(self.jpegs)
+        images = self.idct(dct_coeff.gpu(), jpeg_meta)
+        resized = self.resize(images)
+        output = self.cmnp(resized)
+        return output
 
-pipe.build()
-max_iters = 100
-start_time = timer()
-for i in range(max_iters):
-    pipe.run()
+    def iter_setup(self):
+        if self.iter == 0:
+            raw_data = make_batch(self.batch_size)
+            self.feed_input(self.jpegs, raw_data)
+            self.iter += 1
 
-total_time = timer() - start_time
-print("Images/second: {}".format(float(batch_size * max_iters) / total_time))
+def run_benchmarks(PipeType, args):
+    print("Running Benchmarks For {}".format(PipeType.__name__))
+    for executor in args.executors:
+        pipelined = executor > 0
+        async = executor > 1
+        for batch_size in args.batch_sizes:
+            for num_threads in args.thread_counts:
+                pipe = PipeType(batch_size, num_threads, 0, pipelined, async)
+                pipe.build()
+                start_time = timer()
+                for i in range(args.num_iters):
+                    pipe.run()
+
+                total_time = timer() - start_time
+                print("{}/{}/{}/{}: FPS={}"
+                      .format(PipeType.__name__,  executor, batch_size, num_threads,
+                              float(batch_size * args.num_iters) / total_time))
+
+def get_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--batch-sizes', default = [128],
+                        help='Comma separated list of batch sizes to run')
+    parser.add_argument('--thread-counts', default = [1, 2, 3, 4],
+                        help='Comma separated list of thread counts')
+    parser.add_argument('--executors', default = [2],
+                        help='List of executors to run')
+    parser.add_argument('--num-iters', type=int, default=100,
+                        help='Number of iterations to run')
+    return parser.parse_args()
+
+def main():
+    args = get_args()
+    pipe_types = [C2Pipe, HybridPipe]
+    for PipeType in pipe_types:
+        run_benchmarks(PipeType, args)
+                        
+if __name__ == '__main__':
+    main()
+    

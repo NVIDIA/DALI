@@ -27,7 +27,18 @@ public:
 
   void RunGPU() override;
 
+  void Outputs(DeviceWorkspace *ws) override {
+    CheckForErrors();
+    PipelinedExecutor::Outputs(ws);
+  }
+  
 protected:
+  void CheckForErrors() {
+    cpu_thread_.CheckForErrors();
+    internal_thread_.CheckForErrors();
+    gpu_thread_.CheckForErrors();
+  }
+  
   WorkerThread cpu_thread_, internal_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, internal_work_counter_ = 0, gpu_work_counter_ = 0;
   std::mutex cpu_mutex_, internal_mutex_, gpu_mutex_;
