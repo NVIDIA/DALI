@@ -25,8 +25,9 @@ public:
       int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
-    queue_depth_(2), stream_pool_(max_num_stream, true),
-    event_pool_(max_num_stream), thread_pool_(num_thread, device_id, set_affinity) {
+    queue_depth_(2),
+    stream_pool_(max_num_stream, true), event_pool_(max_num_stream),
+    thread_pool_(num_thread, device_id, set_affinity) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
   }
@@ -48,24 +49,25 @@ public:
   DISABLE_COPY_MOVE_ASSIGN(Executor);
   
 protected:
+
+  using WorkspaceBlob = struct {
+    vector<HostWorkspace> cpu_op_data;
+    vector<internal::MixedWorkspace> internal_op_data;
+    vector<DeviceWorkspace> gpu_op_data;
+  };
+  vector<WorkspaceBlob> wss_;
   
   void PruneUnusedGraphNodes();
   
-  void SetupDataForGraph();
+  void SetupDataForGraph(WorkspaceBlob *wsb);
 
-  void PresizeData();
+  void PresizeData(WorkspaceBlob *wsb);
 
-  void SetupStreamsForGraph();
+  void SetupStreamsForGraph(WorkspaceBlob *wsb);
 
   void SetupOutputQueuesForGraph();
-
-  // Performs and needed setup for an iterations. This
-  // method is called after the queue_idx has been set.
-  virtual inline void SetupForIter() {
-    SetOutputBuffersForIter();
-  }
   
-  void SetOutputBuffersForIter();
+  void SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb);
 
   template <typename Backend>
   class TensorListPool {
@@ -101,14 +103,10 @@ protected:
     vector<cudaEvent_t> events_;
   };
 
-  vector<HostWorkspace> cpu_op_data_;
-  vector<internal::MixedWorkspace> internal_op_data_;
-  vector<DeviceWorkspace> gpu_op_data_;
-
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
   int queue_depth_, queue_idx_ = 0;
-  int previous_queue_idx_ = -1;
+  int previous_gpu_queue_idx_ = -1;
   
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;
@@ -133,6 +131,27 @@ protected:
   std::queue<int> ready_queue_, free_queue_, in_use_queue_;  
   std::mutex ready_mutex_, free_mutex_;
   std::condition_variable ready_cond_, free_cond_;
+
+  // Work is passed between the stages through queues. This
+  // is needed for potentially asynchronous work issue, which
+  // some Executors that derive from this class implement.
+  //
+  // In the case that work issue is pipelined, a stages issue
+  // could run at the same time as the next iterations issue
+  // for the previous stage. To avoid thread-safety issues
+  // with updating our queues, we need to lock when we update
+  // them. However, this executor assumes the same thread
+  // will call Run*, so it does not block if no work exists
+  // for the stage that was called (it will throw an error).
+  //
+  // Derived executors that implement asynchronous work issue
+  // must handle their own synchronization between the same
+  // iteration of each stage. While it is not ideal to have
+  // two sets of locks doing similar things in each stage,
+  // it simplifies the software for now so we leave it
+  // unless it becomes an issue in the future.
+  std::queue<int> internal_work_queue_, gpu_work_queue_;
+  std::mutex internal_mutex_, gpu_mutex_;
   
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
@@ -142,9 +161,8 @@ protected:
 
 #define USE_EXECUTOR_MEMBERS()                             \
   protected:                                               \
-  using Executor::cpu_op_data_;                            \
-  using Executor::internal_op_data_;                       \
-  using Executor::gpu_op_data_;                            \
+  using Executor::WorkspaceBlob;                           \
+  using Executor::wss_;                                    \
   using Executor::batch_size_;                             \
   using Executor::device_id_;                              \
   using Executor::bytes_per_sample_hint_;                  \

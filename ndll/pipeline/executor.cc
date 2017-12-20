@@ -20,16 +20,25 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 
   // Setup workspaces for each op and connect
   // their inputs and outputs.
-  SetupDataForGraph();
+  WorkspaceBlob base_wsb;
+  SetupDataForGraph(&base_wsb);
 
   // Presize the workspaces based on the hint
-  PresizeData();
+  PresizeData(&base_wsb);
   
   // Assign streams to all internal & gpu ops
-  SetupStreamsForGraph();
-  
-  // Setup queues and events for the outputs of each stage
+  SetupStreamsForGraph(&base_wsb);
+
   SetupOutputQueuesForGraph();
+  
+  // For each set of outputs, setup another set of
+  // workspaces so that nothing has to be altered
+  // during execution (this is necessary for
+  // asynchonrous executors that can overlap work issue)
+  for (int i = 0; i < queue_depth_; ++i) {
+    SetOutputBuffersForIter(i, &base_wsb);
+    wss_.push_back(base_wsb);
+  }
 }
 
 void Executor::RunCPU() {
@@ -38,54 +47,77 @@ void Executor::RunCPU() {
   while (free_queue_.empty()) {
     free_cond_.wait(lock);
   }
-  queue_idx_ = free_queue_.front();
+  int queue_idx = free_queue_.front();
   free_queue_.pop();
   lock.unlock();
-
-  // Perform any needed setup now that we
-  // have a valid queue index
-  SetupForIter();
   
   // Run the cpu-ops in the thread pool
+  WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < batch_size_; ++i) {
     thread_pool_.DoWorkWithID(std::bind(
-            [this] (int data_idx, int tid) {
+            [this, &wsb] (int data_idx, int tid) {
               SampleWorkspace ws;
               for (int j = 0; j < graph_->NumCPUOp(); ++j) {
                 Operator<CPUBackend> &op = graph_->cpu_op(j);
-                cpu_op_data_[j].GetSample(&ws, data_idx, tid);
+                wsb.cpu_op_data[j].GetSample(&ws, data_idx, tid);
                 op.Run(&ws);
               }
             }, i, std::placeholders::_1));
   }
   thread_pool_.WaitForWork();
+
+  // Pass the work to the internal stage
+  std::unique_lock<std::mutex> internal_lock(internal_mutex_);
+  internal_work_queue_.push(queue_idx);
+  internal_lock.unlock();
 }
 
 void Executor::RunInternal() {
+  std::unique_lock<std::mutex> lock(internal_mutex_);
+  NDLL_ENFORCE(!internal_work_queue_.empty(), "Internal work "
+      "queue empty. Did you call RunCPU prior to RunInternal?");
+  int queue_idx = internal_work_queue_.front();
+  internal_work_queue_.pop();
+  lock.unlock();
+
+  WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
     internal::InternalOp &op = graph_->internal_op(i);
-    internal::MixedWorkspace &ws = internal_op_data_[i];
+    internal::MixedWorkspace &ws = wsb.internal_op_data[i];
     op.Run(&ws);
     if (ws.has_stream() && ws.has_event()) {
       CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
     }
   }
+
+  // Pass the work to the gpu stage
+  std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
+  gpu_work_queue_.push(queue_idx);
+  gpu_lock.unlock();
 }
 
 void Executor::RunGPU() {
+  std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
+  NDLL_ENFORCE(!gpu_work_queue_.empty(), "GPU work queue "
+      "empty. Did you call RunInternal prior to RunGPU?");
+  int queue_idx = gpu_work_queue_.front();
+  gpu_work_queue_.pop();
+  gpu_lock.unlock();
+  
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
-  if (previous_queue_idx_ != -1) {
+  if (previous_gpu_queue_idx_ != -1) {
     for (size_t i = 0; i < output_names_.size(); ++i) {
       if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
       CUDA_CALL(cudaEventSynchronize(
-              gpu_output_events_[i].GetEvent(previous_queue_idx_)));
+              gpu_output_events_[i].GetEvent(previous_gpu_queue_idx_)));
     }
   }
-  
+
+  WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     Operator<GPUBackend> &op = graph_->gpu_op(i);
-    DeviceWorkspace &ws = gpu_op_data_[i];
+    DeviceWorkspace &ws = wsb.gpu_op_data[i];
     auto parent_events = ws.ParentEvents();
 
     for (auto &event : parent_events) {
@@ -103,12 +135,12 @@ void Executor::RunGPU() {
     int src_idx = graph_->NodeIdx(src_id);
 
     // Record events for each output requested by the user
-    cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx_);
+    cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
     if (graph_->NodeType(src_id) == NDLL_INTERNAL) {
-      auto &ws = internal_op_data_[src_idx];
+      auto &ws = wsb.internal_op_data[src_idx];
       CUDA_CALL(cudaEventRecord(event, ws.stream()));   
     } else if (graph_->NodeType(src_id) == NDLL_GPU) {
-      auto &ws = gpu_op_data_[src_idx];
+      auto &ws = wsb.gpu_op_data[src_idx];
       CUDA_CALL(cudaEventRecord(event, ws.stream()));   
     } else {
       NDLL_FAIL("Internal error. Output node is not gpu/internal");
@@ -116,17 +148,17 @@ void Executor::RunGPU() {
   }
 
   // Update the ready queue to signal that all the work
-  // in the `queue_idx_` set of output buffers has been
+  // in the `queue_idx` set of output buffers has been
   // issued. Notify any waiting threads.
   std::unique_lock<std::mutex> lock(ready_mutex_);
-  ready_queue_.push(queue_idx_);
+  ready_queue_.push(queue_idx);
   ready_cond_.notify_one();
   lock.unlock();
 
   // Save the queue_idx so we can enforce the
   // dependency between consecutive iterations
-  // of a stage of the pipeline.
-  previous_queue_idx_ = queue_idx_;
+  // of the gpu stage of the pipeline.
+  previous_gpu_queue_idx_ = queue_idx;
 }
 
 void Executor::Outputs(DeviceWorkspace *ws) {
@@ -231,21 +263,21 @@ void Executor::PruneUnusedGraphNodes() {
       "data produced by the pipeline.");
 }
 
-void Executor::SetupDataForGraph() {
+void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
   // Clear any old data setup
-  cpu_op_data_.clear();
-  internal_op_data_.clear();
-  gpu_op_data_.clear();
+  wsb->cpu_op_data.clear();
+  wsb->internal_op_data.clear();
+  wsb->gpu_op_data.clear();
 
   // Create workspaces for each operator
-  cpu_op_data_.resize(graph_->NumCPUOp());
-  internal_op_data_.resize(graph_->NumInternalOp());
-  gpu_op_data_.resize(graph_->NumGPUOp());
+  wsb->cpu_op_data.resize(graph_->NumCPUOp());
+  wsb->internal_op_data.resize(graph_->NumInternalOp());
+  wsb->gpu_op_data.resize(graph_->NumGPUOp());
 
   // Setup cpu op input and output buffers
   for (int i = 0; i < graph_->NumCPUOp(); ++i) {
     CPUOpNode &node = graph_->cpu_node(i);
-    HostWorkspace &ws = cpu_op_data_[i];
+    HostWorkspace &ws = wsb->cpu_op_data[i];
     
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -257,7 +289,7 @@ void Executor::SetupDataForGraph() {
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
-      HostWorkspace &src_ws = cpu_op_data_[parent_idx];
+      HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
       const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
       ws.AddInput(input);
     }
@@ -275,7 +307,7 @@ void Executor::SetupDataForGraph() {
   // Setup internal op input and output buffers
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
     InternalOpNode &node = graph_->internal_node(i);
-    internal::MixedWorkspace &ws = internal_op_data_[i];
+    internal::MixedWorkspace &ws = wsb->internal_op_data[i];
 
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -287,7 +319,7 @@ void Executor::SetupDataForGraph() {
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
-      HostWorkspace &src_ws = cpu_op_data_[parent_idx];
+      HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
       const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
       ws.AddInput(input);
     }
@@ -307,7 +339,7 @@ void Executor::SetupDataForGraph() {
   // Setup gpu op input and output buffers
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     GPUOpNode &node = graph_->gpu_node(i);
-    DeviceWorkspace &ws = gpu_op_data_[i];
+    DeviceWorkspace &ws = wsb->gpu_op_data[i];
     
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -318,7 +350,7 @@ void Executor::SetupDataForGraph() {
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
       if (parent_op_type == NDLL_INTERNAL) {
-        internal::MixedWorkspace &src_ws = internal_op_data_[parent_idx];
+        internal::MixedWorkspace &src_ws = wsb->internal_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
           ws.AddInput(input);          
@@ -329,7 +361,7 @@ void Executor::SetupDataForGraph() {
           NDLL_FAIL("Executor encoutered gpu op with non-cpu/gpu input.");
         }
       } else if (parent_op_type == NDLL_GPU) {
-        DeviceWorkspace &src_ws = gpu_op_data_[parent_idx];
+        DeviceWorkspace &src_ws = wsb->gpu_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           // Note: This path should currently never occur, as we
           // do not allow gpu ops to produce cpu data outputs.
@@ -353,12 +385,12 @@ void Executor::SetupDataForGraph() {
   }
 }
 
-void Executor::PresizeData() {
+void Executor::PresizeData(WorkspaceBlob *wsb) {
   // Note: At some point our graph has source nodes that
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
   // represents all the unique buffers in our graph.
-  for (auto &ws : cpu_op_data_) {
+  for (auto &ws : wsb->cpu_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       NDLL_ENFORCE(ws.NumOutputAtIdx(i) == batch_size_, "Executor "
           "encountered cpu op workspace where the number of tensors "
@@ -374,7 +406,7 @@ void Executor::PresizeData() {
     }
   }
 
-  for (auto &ws : internal_op_data_) {
+  for (auto &ws : wsb->internal_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
@@ -388,7 +420,7 @@ void Executor::PresizeData() {
     }
   }
   
-  for (auto &ws : gpu_op_data_) {
+  for (auto &ws : wsb->gpu_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       NDLL_ENFORCE(ws.OutputIsType<GPUBackend>(i), "Executor "
           "encountered gpu op with non-gpu output.");
@@ -399,14 +431,14 @@ void Executor::PresizeData() {
   }
 }
 
-void Executor::SetupStreamsForGraph() {
+void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
     // For internal ops, we assign unique streams to each
     // op. This ensures (assuming the stream pool does not
     // have a limit) that we won't have false dependencies
     // between internal ops and the previous iterations
     // gpu ops.
-    internal::MixedWorkspace &ws = internal_op_data_[i];
+    internal::MixedWorkspace &ws = wsb->internal_op_data[i];
     ws.set_stream(stream_pool_.GetStream());
     ws.set_event(event_pool_.GetEvent());
   }
@@ -445,7 +477,7 @@ void Executor::SetupStreamsForGraph() {
     // TODO(tgale): We could do this more efficiently by
     // applying the same algorithm we use to assign streams
     if (node.children.size() > 1) {
-      DeviceWorkspace &ws = gpu_op_data_[graph_->NodeIdx(i)];
+      DeviceWorkspace &ws = wsb->gpu_op_data[graph_->NodeIdx(i)];
       ws.set_event(event_pool_.GetEvent());
     }
     
@@ -459,7 +491,7 @@ void Executor::SetupStreamsForGraph() {
   while (!node_queue.empty()) {
     const OpNode &current_node = graph_->node(node_queue.front());
     int current_op_idx = graph_->NodeIdx(current_node.id);
-    DeviceWorkspace &ws = gpu_op_data_[current_op_idx];
+    DeviceWorkspace &ws = wsb->gpu_op_data[current_op_idx];
     node_queue.pop();
 
     bool found_stream = false;
@@ -472,7 +504,7 @@ void Executor::SetupStreamsForGraph() {
         // We will not re-use internal op streams, but
         // we will need to block on this ops event to
         // make sure that we respect the dependency
-        internal::MixedWorkspace parent_ws = internal_op_data_[parent_op_idx];
+        internal::MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
         // If a parent stream is still available, take it
@@ -493,7 +525,7 @@ void Executor::SetupStreamsForGraph() {
 
         // If we don't use this parent's stream, we'll need to block
         // on its event to ensure the dependency is respected.
-        DeviceWorkspace parent_ws = gpu_op_data_[parent_op_idx];
+        DeviceWorkspace parent_ws = wsb->gpu_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else {
         NDLL_FAIL("Executor encountered gpu op with non-gpu/internal parent.");
@@ -514,10 +546,10 @@ void Executor::SetupStreamsForGraph() {
       int parent_op_idx = graph_->NodeIdx(parent_id);
       
       if (graph_->NodeType(parent_id) == NDLL_INTERNAL) {
-        internal::MixedWorkspace parent_ws = internal_op_data_[parent_op_idx];
+        internal::MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
-        DeviceWorkspace parent_ws = gpu_op_data_[parent_op_idx];
+        DeviceWorkspace parent_ws = wsb->gpu_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else {
         NDLL_FAIL("Executor encountered gpu op with non-gpu/internal parent.");
@@ -586,7 +618,7 @@ void Executor::SetupOutputQueuesForGraph() {
   }
 }
 
-void Executor::SetOutputBuffersForIter() {
+void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
   // For each output, we need to hookup the next buffer
   // to the desired output workspaces, and also the
   // input workspaces of later ops that use them
@@ -597,8 +629,8 @@ void Executor::SetOutputBuffersForIter() {
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
     
     int internal_op_id = graph_->NodeIdx(node_id);
-    internal_op_data_[internal_op_id].SetOutput(
-        output_idx, cpu_outputs_[i].GetTL(queue_idx_));
+    wsb->internal_op_data[internal_op_id].SetOutput(
+        output_idx, cpu_outputs_[i].GetTL(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
@@ -606,8 +638,8 @@ void Executor::SetOutputBuffersForIter() {
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
 
       int gpu_op_id = graph_->NodeIdx(node_id);
-      gpu_op_data_[gpu_op_id].SetInput(
-          input_idx, cpu_outputs_[i].GetTL(queue_idx_));
+      wsb->gpu_op_data[gpu_op_id].SetInput(
+          input_idx, cpu_outputs_[i].GetTL(queue_idx));
     }
   }
 
@@ -618,12 +650,12 @@ void Executor::SetOutputBuffersForIter() {
 
     if (graph_->NodeType(node_id) == NDLL_INTERNAL) {
       int internal_op_id = graph_->NodeIdx(node_id);
-      internal_op_data_[internal_op_id].SetOutput(output_idx,
-          gpu_outputs_[i].GetTL(queue_idx_));
+      wsb->internal_op_data[internal_op_id].SetOutput(output_idx,
+          gpu_outputs_[i].GetTL(queue_idx));
     } else if (graph_->NodeType(node_id) == NDLL_GPU) {
       int gpu_op_id = graph_->NodeIdx(node_id);
-      gpu_op_data_[gpu_op_id].SetOutput(output_idx,
-          gpu_outputs_[i].GetTL(queue_idx_));
+      wsb->gpu_op_data[gpu_op_id].SetOutput(output_idx,
+          gpu_outputs_[i].GetTL(queue_idx));
     } else {
       NDLL_FAIL("Internal error. GPU output source is "
           "not gpu/internal op");
@@ -635,8 +667,8 @@ void Executor::SetOutputBuffersForIter() {
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
 
       int gpu_op_id = graph_->NodeIdx(node_id);
-      gpu_op_data_[gpu_op_id].SetInput(input_idx,
-          gpu_outputs_[i].GetTL(queue_idx_));
+      wsb->gpu_op_data[gpu_op_id].SetInput(input_idx,
+          gpu_outputs_[i].GetTL(queue_idx));
     }
   }
 }

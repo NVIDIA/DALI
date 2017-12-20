@@ -46,16 +46,16 @@ public:
     exe->PruneUnusedGraphNodes();
   }
 
-  vector<HostWorkspace> CPUData(Executor *exe) {
-    return exe->cpu_op_data_;
+  vector<HostWorkspace> CPUData(Executor *exe, int idx) {
+    return exe->wss_[idx].cpu_op_data;
   }
 
-  vector<internal::MixedWorkspace> InternalData(Executor *exe) {
-    return exe->internal_op_data_;
+  vector<internal::MixedWorkspace> InternalData(Executor *exe, int idx) {
+    return exe->wss_[idx].internal_op_data;
   }
 
-  vector<DeviceWorkspace> GPUData(Executor *exe) {
-    return exe->gpu_op_data_;
+  vector<DeviceWorkspace> GPUData(Executor *exe, int idx) {
+    return exe->wss_[idx].gpu_op_data;
   }
 
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) {
@@ -130,6 +130,13 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           .AddInput("data1", "cpu")
           .AddOutput("data3", "cpu")
           ));
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("data3", "cpu")
+          .AddOutput("data3_cont", "cpu")
+          ));
   
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
@@ -138,14 +145,14 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           .AddOutput("data4", "cpu")
           ));
 
-  vector<string> outputs = {"data3_cpu"};
+  vector<string> outputs = {"data3_cont_cpu"};
   exe.Build(&graph, outputs);
 
-  // Validate the graph - op 2 should
+  // Validate the graph - op 3 should
   // have been pruned as its outputs
   // are unused.
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
@@ -160,13 +167,23 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
 
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 1);
   ASSERT_EQ(node.parents.count(0), 1);
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
   ASSERT_EQ(node.spec.Output(0), "data3_cpu");
+
+  node = graph.node(2);
+  ASSERT_EQ(node.id, 2);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(node.parents.count(1), 1);
+  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
+  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  ASSERT_EQ(node.spec.Output(0), "data3_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneMultiple) {
@@ -182,6 +199,13 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           ));
 
   graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("data1", "cpu")
+          .AddOutput("data1_cont", "cpu")
+          ));
+    
+  graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
@@ -195,19 +219,19 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           .AddOutput("data4", "cpu")
           ));
 
-  vector<string> outputs = {"data1_cpu"};
+  vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
 
-  // Validate the graph - op 1&2 should
+  // Validate the graph - op 2&3 should
   // have been pruned
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
   auto node = graph.node(0);
   ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
@@ -215,6 +239,16 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   ASSERT_EQ(node.spec.NumOutput(), 2);
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
   ASSERT_EQ(node.spec.Output(1), "data2_cpu");
+
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  ASSERT_EQ(node.spec.NumOutput(), 1);
+  ASSERT_EQ(node.spec.Output(0), "data1_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneRecursive) {
@@ -229,6 +263,13 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           ));
 
   graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "internal")
+          .AddInput("data1", "cpu")
+          .AddOutput("data1_cont", "cpu")
+          ));
+  
+  graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
@@ -242,25 +283,35 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           .AddOutput("data3", "cpu")
           ));
 
-  vector<string> outputs = {"data1_cpu"};
+  vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
   
-  // Validate the graph - op 1&2 should
+  // Validate the graph - op 2&3 should
   // have been pruned
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
   auto node = graph.node(0);
   ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
   ASSERT_EQ(node.spec.NumOutput(), 1);
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
+
+  node = graph.node(1);
+  ASSERT_EQ(node.id, 1);
+  ASSERT_EQ(node.children.size(), 0);
+  ASSERT_EQ(node.parents.size(), 1);
+  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  ASSERT_EQ(node.spec.NumOutput(), 1);
+  ASSERT_EQ(node.spec.Output(0), "data1_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneWholeGraph) {
@@ -322,30 +373,32 @@ TEST_F(ExecutorTest, TestDataSetup) {
   exe.Build(&graph, outputs);
 
   // Verify the data has been setup correctly
-  auto host_workspaces = this->CPUData(&exe);
-  ASSERT_EQ(host_workspaces.size(), 1);
-  HostWorkspace &hws = host_workspaces[0];
-  ASSERT_EQ(hws.NumInput(), 0);
-  ASSERT_EQ(hws.NumOutput(), 1);
-  ASSERT_EQ(hws.NumOutputAtIdx(0), batch_size_);
-  ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
+  for (int i = 0; i < 2; ++i) {
+    auto host_workspaces = this->CPUData(&exe, i);
+    ASSERT_EQ(host_workspaces.size(), 1);
+    HostWorkspace &hws = host_workspaces[0];
+    ASSERT_EQ(hws.NumInput(), 0);
+    ASSERT_EQ(hws.NumOutput(), 1);
+    ASSERT_EQ(hws.NumOutputAtIdx(0), batch_size_);
+    ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
 
-  auto internal_workspaces = this->InternalData(&exe);
-  ASSERT_EQ(internal_workspaces.size(), 1);
-  internal::MixedWorkspace &mws = internal_workspaces[0];
-  ASSERT_EQ(mws.NumInput(), 1);
-  ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
-  ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
-  ASSERT_EQ(mws.NumOutput(), 1);
-  ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
+    auto internal_workspaces = this->InternalData(&exe, i);
+    ASSERT_EQ(internal_workspaces.size(), 1);
+    internal::MixedWorkspace &mws = internal_workspaces[0];
+    ASSERT_EQ(mws.NumInput(), 1);
+    ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
+    ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
+    ASSERT_EQ(mws.NumOutput(), 1);
+    ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
 
-  auto device_workspaces = this->GPUData(&exe);
-  ASSERT_EQ(device_workspaces.size(), 1);
-  DeviceWorkspace &dws = device_workspaces[0];
-  ASSERT_EQ(dws.NumInput(), 1);
-  ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
-  ASSERT_EQ(dws.NumOutput(), 1);
-  ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
+    auto device_workspaces = this->GPUData(&exe, i);
+    ASSERT_EQ(device_workspaces.size(), 1);
+    DeviceWorkspace &dws = device_workspaces[0];
+    ASSERT_EQ(dws.NumInput(), 1);
+    ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
+    ASSERT_EQ(dws.NumOutput(), 1);
+    ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
+  }
 }
 
 TEST_F(ExecutorTest, TestRunBasicGraph) {

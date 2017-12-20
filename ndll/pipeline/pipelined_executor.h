@@ -37,14 +37,7 @@ protected:
 
   void SetupStageOutputsForGraph();
 
-  virtual inline void SetupForIter() {
-    cout << "SETTING FOR ITERATION" << endl;
-    SetOutputBuffersForIter();
-    SetStageOutputsForIter();
-    cout << "FINISHED SETTING FOR ITERATION" << endl;
-  }
-  
-  void SetStageOutputsForIter();
+  void SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb);
 
   template <typename Backend>
   class TensorVectorPool {

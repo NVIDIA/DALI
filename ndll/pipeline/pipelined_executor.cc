@@ -92,7 +92,8 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
   }
 } 
 
-void PipelinedExecutor::SetStageOutputsForIter() {
+void PipelinedExecutor::SetStageOutputsForIter(
+    int queue_idx, WorkspaceBlob *wsb) {
   for (size_t i = 0; i < cpu_stage_outputs_.size(); ++i) {
     auto &tvp = cpu_stage_outputs_[i];
     auto &info = cpu_stage_output_info_[i];
@@ -101,8 +102,8 @@ void PipelinedExecutor::SetStageOutputsForIter() {
     
     int cpu_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    cpu_op_data_[cpu_op_id].SetOutput(
-        output_idx, tvp.GetTV(queue_idx_));
+    wsb->cpu_op_data[cpu_op_id].SetOutput(
+        output_idx, tvp.GetTV(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
@@ -110,8 +111,8 @@ void PipelinedExecutor::SetStageOutputsForIter() {
 
       int internal_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
-      internal_op_data_[internal_op_id].SetInput(
-          input_idx, tvp.GetTV(queue_idx_));
+      wsb->internal_op_data[internal_op_id].SetInput(
+          input_idx, tvp.GetTV(queue_idx));
     }
   }
 
@@ -123,8 +124,8 @@ void PipelinedExecutor::SetStageOutputsForIter() {
     
     int internal_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    internal_op_data_[internal_op_id].SetOutput(
-        output_idx, tlp.GetTL(queue_idx_));
+    wsb->internal_op_data[internal_op_id].SetOutput(
+        output_idx, tlp.GetTL(queue_idx));
     
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
@@ -132,8 +133,8 @@ void PipelinedExecutor::SetStageOutputsForIter() {
       
        int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
-      gpu_op_data_[gpu_op_id].SetInput(
-          input_idx, tlp.GetTL(queue_idx_));
+      wsb->gpu_op_data[gpu_op_id].SetInput(
+          input_idx, tlp.GetTL(queue_idx));
     }
   }
 }
