@@ -194,16 +194,19 @@ PYBIND11_MODULE(ndll_backend, m) {
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
             [](int batch_size, int num_threads, int device_id,
+                bool pipelined_execution = false, bool async_execution = false,
                 size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                 int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
-                  new Pipeline(batch_size, num_threads, device_id,
-                      bytes_per_sample_hint, set_affinity, max_num_stream)
+                  new Pipeline(batch_size, num_threads, device_id, pipelined_execution,
+                      async_execution, bytes_per_sample_hint, set_affinity, max_num_stream)
                   );
             }),
         "batch_size"_a,
         "num_threads"_a,
         "device_id"_a,
+        "exec_pipelined"_a,
+        "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
         "max_num_stream"_a = -1

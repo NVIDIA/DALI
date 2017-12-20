@@ -3,8 +3,10 @@ import ndll.backend as b
 import ndll.tensor as nt
 
 class Pipeline(object):
-    def __init__(self, batch_size, num_threads, device_id, queue_depth = 2,
-                 bytes_per_sample = 0, set_affinity = False, max_streams = -1):
+    def __init__(self, batch_size, num_threads, device_id,
+                 exec_pipelined = False, exec_async = False,
+                 bytes_per_sample = 0, set_affinity = False,
+                 max_streams = -1):
         # Note: We initialize NDLL with default allocators here. If
         # a framework wants to hook their allocators up through the
         # python API, we will need to stop doing this
@@ -12,11 +14,14 @@ class Pipeline(object):
         self._pipe = b.Pipeline(batch_size,
                                 num_threads,
                                 device_id,
-                                queue_depth,
+                                exec_pipelined,
+                                exec_async,
                                 bytes_per_sample,
                                 set_affinity,
                                 max_streams)
+        self._exec_pipelined = exec_pipelined
         self._built = False
+        self._first_iter = True
 
     @property
     def batch_size(self):
@@ -105,6 +110,11 @@ class Pipeline(object):
         return self._pipe.Outputs()
 
     def run(self):
+        if self._first_iter and self._exec_pipelined:
+            self.iter_setup()
+            self.run_cpu()
+            self.run_gpu()
+            self._first_iter = False
         self.iter_setup()
         self.run_cpu()
         self.run_gpu()
