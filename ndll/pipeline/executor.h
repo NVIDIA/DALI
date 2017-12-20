@@ -1,5 +1,13 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_EXECUTOR_H_
 #define NDLL_PIPELINE_EXECUTOR_H_
+
+#include <utility>
+#include <vector>
+#include <string>
+#include <queue>
+#include <map>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -19,7 +27,7 @@
 namespace ndll {
 
 class Executor {
-public:
+ public:
   inline Executor(int batch_size, int num_thread, int device_id,
       size_t bytes_per_sample_hint, bool set_affinity = false,
       int max_num_stream = -1) :
@@ -31,7 +39,7 @@ public:
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
   }
-  
+
   virtual ~Executor() = default;
 
   virtual void Build(OpGraph *graph, vector<string> output_names);
@@ -43,9 +51,9 @@ public:
   virtual void RunGPU();
 
   virtual void Outputs(DeviceWorkspace *ws);
-  
+
   friend class ExecutorTest;
-  
+
   DISABLE_COPY_MOVE_ASSIGN(Executor);
   
 protected:

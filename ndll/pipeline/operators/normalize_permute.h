@@ -1,5 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_NORMALIZE_PERMUTE_H_
 #define NDLL_PIPELINE_OPERATORS_NORMALIZE_PERMUTE_H_
+
+#include <vector>
 
 #include "ndll/image/transform.h"
 #include "ndll/pipeline/operator.h"
@@ -8,8 +11,8 @@ namespace ndll {
 
 template <typename Backend>
 class NormalizePermute : public Operator<Backend> {
-public:
-  inline NormalizePermute(const OpSpec &spec) :
+ public:
+  explicit inline NormalizePermute(const OpSpec &spec) :
     Operator<Backend>(spec),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     H_(spec.GetArgument<int>("height", -1)),
@@ -18,7 +21,7 @@ public:
     NDLL_ENFORCE(H_ > 0);
     NDLL_ENFORCE(W_ > 0);
     NDLL_ENFORCE(C_ == 3 || C_ == 1);
-    
+
     vector<float> mean = spec.GetRepeatedArgument<float>("mean");
     vector<float> std = spec.GetRepeatedArgument<float>("std");
     NDLL_ENFORCE((int)mean.size() == C_);
@@ -38,7 +41,7 @@ public:
     output_shape_.resize(batch_size_);
     for (auto &shape : output_shape_) shape = {C_, H_, W_};
   }
-    
+
   virtual inline ~NormalizePermute() = default;
   
 protected:
@@ -126,7 +129,7 @@ protected:
             output->template mutable_data<OUT>(),
             ws->stream()));
   }
-  
+
   Tensor<Backend> mean_, inv_std_;
   NDLLDataType output_type_;
   int H_, W_, C_;
@@ -135,6 +138,6 @@ protected:
   USE_OPERATOR_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_NORMALIZE_PERMUTE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_NORMALIZE_PERMUTE_H_

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_UTIL_NPP_H_
 #define NDLL_UTIL_NPP_H_
 
@@ -11,10 +12,8 @@ typedef NppiSize NDLLSize;
 
 int NPPInterpForNDLLInterp(NDLLInterpType type, NppiInterpolationMode *npp_type);
 
-static const char *nppErrorString(NppStatus error)
-{
-  switch (error)
-  {
+static const char *nppErrorString(NppStatus error) {
+  switch (error) {
   case NPP_NOT_SUPPORTED_MODE_ERROR:
     return "NPP_NOT_SUPPORTED_MODE_ERROR";
 
@@ -272,6 +271,6 @@ static const char *nppErrorString(NppStatus error)
   return "<unknown>";
 }
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_UTIL_NPP_H_
+#endif  // NDLL_UTIL_NPP_H_

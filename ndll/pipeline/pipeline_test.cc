@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/pipeline.h"
 
 #include <cuda_runtime_api.h>
@@ -16,7 +17,7 @@ namespace ndll {
 
 template <typename ThreadCount>
 class PipelineTest : public NDLLTest {
-public:
+ public:
   inline void SetUp() {
     NDLLTest::SetUp();
     NDLLTest::DecodeJPEGS(NDLL_RGB);
@@ -30,7 +31,7 @@ public:
 
     vector<double> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(double(tmp_cpu[i]) - double(ground_truth[i]));
+      abs_diff[i] = abs(static_cast<double>(tmp_cpu[i]) - static_cast<double>(ground_truth[i]));
     }
     double mean, std;
     NDLLTest::MeanStdDev(abs_diff, &mean, &std);
@@ -40,7 +41,7 @@ public:
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
 #endif
-    
+
     ASSERT_LT(mean, 0.000001);
     ASSERT_LT(std, 0.000001);
   }
@@ -48,8 +49,6 @@ public:
   inline OpGraph& GetGraph(Pipeline *pipe) {
     return pipe->graph_;
   }
-  
-protected:
 };
 
 template <int number_of_threads>
@@ -58,8 +57,6 @@ struct ThreadCount {
 };
 
 class PipelineTestOnce : public PipelineTest<ThreadCount<1>> {
-public:
-protected:
 };
 
 typedef ::testing::Types<ThreadCount<1>,
@@ -76,10 +73,8 @@ TEST_F(PipelineTestOnce, TestInputNotKnown) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("copy_out", "cpu")),
+      std::runtime_error);
 }
 
 TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
@@ -92,10 +87,8 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("copy_out", "cpu")),
+      std::runtime_error);
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
@@ -109,11 +102,9 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "gpu")
-          .AddOutput("copy_out", "cpu")
-          ),
-      std::runtime_error
-      );
-  
+          .AddOutput("copy_out", "cpu")),
+      std::runtime_error);
+
   // Inputs to CPU ops must already exist on CPU,
   // we do not auto-copy them from gpu to cpu.
   ASSERT_THROW(
@@ -121,11 +112,9 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")
-          ),
-      std::runtime_error
-      );
-  
+          .AddOutput("copy_out", "cpu")),
+      std::runtime_error);
+
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
@@ -137,18 +126,16 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
       .AddArg("device", "cpu")
       .AddOutput("data_3", "cpu")
       );
-    
+   
   // Outputs must have unique names.
   ASSERT_THROW(
       pipe.AddOperator(
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
-          .AddOutput("data_3", "cpu")
-          ),
-      std::runtime_error
-      );
-  
+          .AddOutput("data_3", "cpu")),
+      std::runtime_error);
+
   // All data must have unique names regardless
   // of the device they exist on.
   ASSERT_THROW(
@@ -156,10 +143,8 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
-          .AddOutput("data", "cpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("data", "cpu")),
+      std::runtime_error);
 
   // CPU ops can only produce CPU outputs
   ASSERT_THROW(
@@ -167,10 +152,8 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
-          .AddOutput("data_4", "gpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("data_4", "gpu")),
+      std::runtime_error);
 }
 
 TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
@@ -183,10 +166,8 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data", "gpu")
-          .AddOutput("copy_out", "gpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("copy_out", "gpu")),
+      std::runtime_error);
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
@@ -201,11 +182,9 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data", "cpu")
-          .AddOutput("copy_out", "gpu")
-          ),
-      std::runtime_error
-      );
-  
+          .AddOutput("copy_out", "gpu")),
+      std::runtime_error);
+
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
@@ -224,11 +203,9 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
-          .AddOutput("data_3", "gpu")
-          ),
-      std::runtime_error
-      );
-  
+          .AddOutput("data_3", "gpu")),
+      std::runtime_error);
+
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
@@ -242,10 +219,8 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
-          .AddOutput("data_4", "gpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("data_4", "gpu")),
+      std::runtime_error);
 
   // GPU ops can only produce GPU outputs
   ASSERT_THROW(
@@ -253,10 +228,8 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("data_2", "gpu")
-          .AddOutput("data_4", "cpu")
-          ),
-      std::runtime_error
-      );
+          .AddOutput("data_4", "cpu")),
+      std::runtime_error);
 }
 
 // TODO(tgale): An external input is already contiguous, so it
@@ -271,18 +244,17 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddInput("data", "cpu")
-      .AddOutput("data_copy", "gpu")
-      );
+      .AddOutput("data_copy", "gpu"));
 
   OpGraph &graph = this->GetGraph(&pipe);
-  
+
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
   ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
   ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
-  
+
   // Validate the source op
   auto node = graph.node(0);
   ASSERT_EQ(node.id, 0);
@@ -315,18 +287,17 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddInput("data", "gpu")
-      .AddOutput("data_copy", "gpu")
-      );
+      .AddOutput("data_copy", "gpu"));
 
   OpGraph &graph = this->GetGraph(&pipe);
-  
+
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
   ASSERT_EQ(graph.NumInternalOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
   ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
-    
+
   // Validate the source op
   auto node = graph.node(0);
   ASSERT_EQ(node.id, 0);
@@ -353,7 +324,7 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
 TYPED_TEST(PipelineTest, TestExternalSource) {
   int num_thread = TypeParam::nt;
   int batch_size = this->jpegs_.size();
-  
+
   Pipeline pipe(batch_size, num_thread, 0);
 
   pipe.AddExternalInput("data");
@@ -380,7 +351,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   int batch_size = this->jpegs_.size();
   cudaStream_t stream;
   CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-  
+
   Pipeline pipe(batch_size, num_thread, stream, 0, true);
 
   // Add an external source
@@ -391,7 +362,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 
   // Build the pipeline
   pipe.Build();
-  
+
   // Run the pipeline
   for (int i = 0; i < 5; ++i) {
     pipe.RunPrefetch();
@@ -399,7 +370,7 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
     pipe.RunForward();
 
     CUDA_CALL(cudaStreamSynchronize(stream));
-        
+
     // Verify the results
     this->CompareData(
         pipe.output_batch().template data<uint8>(),
@@ -410,23 +381,23 @@ TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
 
 TYPED_TEST(PipelineTest, TestNoOps) {
   int num_thread = TypeParam::nt;
-  
+
   int batch_size = this->jpegs_.size();
   Pipeline pipe(batch_size, num_thread, 0, 0, true);
 
   Batch<CPUBackend> *batch =
     CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
-    
-  
+
+
   // Add a data reader
   pipe.AddDataReader(
       OpSpec("BatchDataReader")
       .AddArg("jpeg_folder", image_folder)
       );
-  
+
   // Build the pipeline
   pipe.Build();
-  
+
   // Run the pipeline
   for (int i = 0; i < 5; ++i) {
     pipe.RunPrefetch();
@@ -434,7 +405,7 @@ TYPED_TEST(PipelineTest, TestNoOps) {
     pipe.RunForward();
 
     CUDA_CALL(cudaStreamSynchronize(0));
-    
+
     // Verify the results
     this->CompareData(
         pipe.output_batch().template data<uint8>(),
@@ -451,13 +422,13 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
 
   Batch<CPUBackend> *batch =
     CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
-  
+
   // Add a data reader
   pipe.AddDataReader(
       OpSpec("BatchDataReader")
       .AddArg("jpeg_folder", image_folder)
       );
-  
+
   // Add a single op to the forward stage
   pipe.AddTransform(OpSpec("Copy")
       .AddArg("stage", "Forward")
@@ -465,7 +436,7 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
 
   // Build the pipeline
   pipe.Build();
-  
+
   // Run the pipeline
   for (int i = 0; i < 5; ++i) {
     pipe.RunPrefetch();
@@ -481,4 +452,4 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   }
 }
 */
-} // namespace ndll
+}  // namespace ndll

@@ -1,8 +1,11 @@
-#include "ndll/pipeline/operators/hybrid_decode.h"
-
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 
+#include <utility>
+#include <string>
+
+#include "ndll/pipeline/operators/hybrid_decode.h"
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/image/jpeg.h"
@@ -25,11 +28,11 @@ const vector<string> hybdec_images = {
   image_folder + "/420-odd-both.jpg",
   image_folder + "/422-odd-width.jpg"
 };
-} // namespace
+}  // namespace
 
 template <typename ImgType>
 class HybridDecoderTest : public NDLLTest {
-public:
+ public:
   void SetUp() {
     if (IsColor(img_type_)) {
       c_ = 3;
@@ -51,12 +54,12 @@ public:
     // Load the image to host
     uint8 *host_img = new uint8[h*w*c_];
     CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
-      
+
     // Compare w/ opencv result
     cv::Mat ver;
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
-    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
+    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));
     int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
@@ -70,12 +73,12 @@ public:
 
     // DEBUG
     // WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
-    
+
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
     vector<int> diff(h*w*c_, 0);
     for (int i = 0; i < h*w*c_; ++i) {
-      diff[i] = abs(int(ver_img.ptr()[i] - host_img[i]));
+      diff[i] = abs(static_cast<int>(ver_img.ptr()[i] - host_img[i]));
     }
 
     // calculate the MSE
@@ -98,7 +101,7 @@ public:
   void MeanStdDev(const vector<int> &diff, float *mean, float *std) {
     // Avoid division by zero
     ASSERT_NE(diff.size(), 0);
-    
+
     double sum = 0, var_sum = 0;
     for (auto &val : diff) {
       sum += val;
@@ -109,8 +112,8 @@ public:
     }
     *std = sqrt(var_sum / diff.size());
   }
-  
-protected:
+
+ protected:
   const NDLLImageType img_type_ = ImgType::type;
   int c_;
 };
@@ -132,25 +135,23 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
   pipe.SetExternalInput("raw_jpegs", data);
-  
+
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
       OpSpec("HuffmanDecoder")
       .AddArg("device", "cpu")
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("dct_data", "cpu")
-      .AddOutput("jpeg_meta", "cpu")
-      );
-  
+      .AddOutput("jpeg_meta", "cpu"));
+
   pipe.AddOperator(
       OpSpec("DCTQuantInv")
       .AddArg("device", "gpu")
       .AddArg("output_type", this->img_type_)
       .AddInput("dct_data", "gpu")
       .AddInput("jpeg_meta", "cpu")
-      .AddOutput("images", "gpu")
-      );
-    
+      .AddOutput("images", "gpu"));
+
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"images", "gpu"}};
   pipe.Build(outputs);
@@ -161,7 +162,7 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
 
   DeviceWorkspace results;
   pipe.Outputs(&results);
-  
+
   // Verify the results
   auto output = results.Output<GPUBackend>(0);
   // WriteHWCBatch(*output, "image");
@@ -173,4 +174,4 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

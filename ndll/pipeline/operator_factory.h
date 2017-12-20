@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATOR_FACTORY_H_
 #define NDLL_PIPELINE_OPERATOR_FACTORY_H_
 
@@ -5,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -15,12 +17,12 @@ class OpSpec;
 
 template <typename OpType>
 class OperatorRegistry {
-public:
+ public:
   typedef std::function<std::unique_ptr<OpType> (const OpSpec &spec)> Creator;
   typedef std::unordered_map<std::string, Creator> CreatorRegistry;
 
   OperatorRegistry() {}
-  
+
   void Register(const std::string &name, Creator creator) {
     std::lock_guard<std::mutex> lock(mutex_);
     NDLL_ENFORCE(registry_.count(name) == 0,
@@ -44,15 +46,15 @@ public:
     }
     return names;
   }
-  
-private:
+
+ private:
   CreatorRegistry registry_;
   std::mutex mutex_;
 };
 
 template <typename OpType>
 class Registerer {
-public:
+ public:
   Registerer(const std::string &name,
       OperatorRegistry<OpType> *registry,
       typename OperatorRegistry<OpType>::Creator creator) {
@@ -68,10 +70,10 @@ public:
 
 
 // Creators a registry object for a specific op type
-#define NDLL_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)          \
-  class RegistryName##Registry {                                    \
-  public:                                                           \
-  static ndll::OperatorRegistry<OpType>& Registry();                \
+#define NDLL_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)            \
+  class RegistryName##Registry {                                      \
+   public:                                                            \
+    static ndll::OperatorRegistry<OpType>& Registry();                \
   };
 
 #define NDLL_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
@@ -90,6 +92,6 @@ public:
         ndll::Registerer<OpType>::OperatorCreator<DerivedType>);        \
   }
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATOR_FACTORY_H_
+#endif  // NDLL_PIPELINE_OPERATOR_FACTORY_H_

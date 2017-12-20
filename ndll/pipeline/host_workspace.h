@@ -1,5 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_HOST_WORKSPACE_H_
 #define NDLL_PIPELINE_HOST_WORKSPACE_H_
+
+#include <utility>
+#include <vector>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -16,7 +21,7 @@ class SampleWorkspace;
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
 class HostWorkspace {
-public:
+ public:
   inline HostWorkspace() {}
   inline ~HostWorkspace() = default;
 
@@ -25,7 +30,7 @@ public:
    * index and thread index
    */
   void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
-  
+
   /**
    * @brief Returns the number of inputs.
    */
@@ -36,7 +41,7 @@ public:
    * tensors at the given index.
    */
   int NumInputAtIdx(int idx) const;
-  
+
   /**
    * @brief Returns the number of outputs.
    */
@@ -47,24 +52,24 @@ public:
    * tensors at the given index.
    */
   int NumOutputAtIdx(int idx) const;
-  
+
   /**
-   * Returns true if the input Tensors at the given index 
+   * Returns true if the input Tensors at the given index
    * has the calling Backend type.
    */
   template <typename Backend>
   bool InputIsType(int idx) const;
 
   /**
-   * Returns true if the output Tensors at the given index 
+   * Returns true if the output Tensors at the given index
    * has the calling Backend type.
    */
   template <typename Backend>
   bool OutputIsType(int idx) const;
-  
+
   /**
-   * @brief Returns the Tensor at index `data_idx` in the input 
-   * Tensors at index `idx`. 
+   * @brief Returns the Tensor at index `data_idx` in the input
+   * Tensors at index `idx`.
    *
    * @throws runtime_error if the calling type does not match the
    * type of the tensor at the given index
@@ -77,10 +82,10 @@ public:
    */
   template <typename Backend>
   void AddInput(vector<shared_ptr<Tensor<Backend>>> input);
-  
+
   /**
-   * @brief Returns the Tensor at index `data_idx` in the output 
-   * Tensors at index `idx`. 
+   * @brief Returns the Tensor at index `data_idx` in the output
+   * Tensors at index `idx`.
    *
    * @throws runtime_error if the calling type does not match the
    * type of the tensor at the given index
@@ -89,7 +94,7 @@ public:
   Tensor<Backend>* Output(int idx, int data_idx);
 
   /**
-   * @brief Returns all output Tensors at index `idx`. 
+   * @brief Returns all output Tensors at index `idx`.
    *
    * @throws runtime_error if the calling type does not match the
    * type of the tensor at the given index
@@ -127,6 +132,6 @@ private:
   vector<std::pair<bool, int>> input_index_map_, output_index_map_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_HOST_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_HOST_WORKSPACE_H_

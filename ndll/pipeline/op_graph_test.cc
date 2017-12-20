@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/op_graph.h"
 
 #include <gtest/gtest.h>
@@ -8,7 +9,7 @@
 namespace ndll {
 
 class OpGraphTest : public NDLLTest {
-public:
+ public:
   inline OpSpec PrepareSpec(OpSpec spec) {
     spec.AddArg("batch_size", 1)
       .AddArg("num_threads", 1)
@@ -16,7 +17,6 @@ public:
       .AddArg("pixels_per_image_hint", 0);
     return spec;
   }
-protected:
 };
 
 TEST_F(OpGraphTest, TestCPUOnly) {
@@ -33,8 +33,7 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddInput("external_data", "cpu")
-          .AddOutput("copy_data", "cpu")
-          ));
+          .AddOutput("copy_data", "cpu")));
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
@@ -50,7 +49,7 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-      
+
   // Validate copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
@@ -81,8 +80,7 @@ TEST_F(OpGraphTest, TestGPUOnly) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("external_data", "gpu")
-          .AddOutput("copy_data", "gpu")
-          ));
+          .AddOutput("copy_data", "gpu")));
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 0);
@@ -98,7 +96,7 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
-  
+
   // Validate copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
@@ -108,7 +106,7 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
-  
+
   vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
@@ -129,15 +127,13 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("external_data", "cpu")
-          .AddOutput("external_data", "gpu")
-          ));
-  
+          .AddOutput("external_data", "gpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("external_data", "gpu")
-          .AddOutput("copy_data", "gpu")
-          ));
+          .AddOutput("copy_data", "gpu")));
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
@@ -153,7 +149,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  
+
   // Validate copy-to-dev op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
@@ -170,7 +166,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, true);
-  
+
   // Validate copy op
   node = graph.node(2);
   ASSERT_EQ(node.id, 2);
@@ -201,8 +197,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("external_dev_data", "gpu")
-          .AddOutput("copy_data", "gpu")
-          ));
+          .AddOutput("copy_data", "gpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
@@ -214,8 +209,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("external_host_data", "cpu")
-          .AddOutput("copy_data", "cpu")
-          ));
+          .AddOutput("copy_data", "cpu")));
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
@@ -231,7 +225,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
-  
+
   // Validate gpu copy op
   node = graph.node(1);
   ASSERT_EQ(node.id, 1);
@@ -247,7 +241,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, false);
-  
+
   // Validate cpu source op
   node = graph.node(2);
   ASSERT_EQ(node.id, 2);
@@ -257,7 +251,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  
+
   // Validate cpu copy op
   node = graph.node(3);
   ASSERT_EQ(node.id, 3);
@@ -282,23 +276,20 @@ TEST_F(OpGraphTest, TestOpRemoval) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddOutput("data_1", "cpu")
-          .AddOutput("data_2", "cpu")
-          ));
+          .AddOutput("data_2", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data_2", "cpu")
           .AddInput("data_1", "cpu")
-          .AddOutput("dummy_out", "cpu")
-          ));
-  
+          .AddOutput("dummy_out", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data_1", "cpu")
-          .AddOutput("dummy_out_two", "cpu")
-          ));
+          .AddOutput("dummy_out_two", "cpu")));
 
 
   // Validate the graph
@@ -332,7 +323,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, true);
-  
+
   // Validate dummy op 2
   node = graph.node(2);
   ASSERT_EQ(node.id, 2);
@@ -352,7 +343,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(meta[1].node, 2);
   ASSERT_EQ(meta[1].index, 0);
   ASSERT_EQ(meta[1].is_cpu, true);
-  
+
   // Remove op 1
   graph.RemoveOp(1);
 
@@ -360,7 +351,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(graph.NumCPUOp(), 2);
   ASSERT_EQ(graph.NumInternalOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
-  
+
   // Validate the source op
   node = graph.node(0);
   ASSERT_EQ(node.id, 0);
@@ -404,10 +395,8 @@ TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
               OpSpec("Copy")
               .AddArg("device", "cpu")
               .AddInput("external_data", "gpu")
-              .AddOutput("copy_data", "cpu")
-              )),
-      std::runtime_error
-      );
+              .AddOutput("copy_data", "cpu"))),
+      std::runtime_error);
 }
 
 TEST_F(OpGraphTest, TestFailureCPUToGPUOp) {
@@ -424,10 +413,8 @@ TEST_F(OpGraphTest, TestFailureCPUToGPUOp) {
               OpSpec("Copy")
               .AddArg("device", "cpu")
               .AddInput("external_data", "cpu")
-              .AddOutput("copy_data", "cpu")
-              )),
-      std::runtime_error
-      );
+              .AddOutput("copy_data", "cpu"))),
+      std::runtime_error);
 }
 
 TEST_F(OpGraphTest, TestFailureNonTopological) {
@@ -438,10 +425,8 @@ TEST_F(OpGraphTest, TestFailureNonTopological) {
               OpSpec("Copy")
               .AddArg("device", "cpu")
               .AddInput("external_data", "cpu")
-              .AddOutput("copy_data", "cpu")
-              )),
-      std::runtime_error
-      );
+              .AddOutput("copy_data", "cpu"))),
+      std::runtime_error);
 
   // Note: Just to make it clear what this verifies...
   // graph.AddOp(this->PrepareSpec(
@@ -459,13 +444,8 @@ TEST_F(OpGraphTest, TestFailureCircularOp) {
               OpSpec("Copy")
               .AddArg("device", "cpu")
               .AddInput("data", "cpu")
-              .AddOutput("data", "cpu")
-              )),
-      std::runtime_error
-      );
+              .AddOutput("data", "cpu"))),
+      std::runtime_error);
 }
 
- 
-
-
-} // namespace ndll
+}  // namespace ndll

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_COPY_H_
 #define NDLL_PIPELINE_OPERATORS_COPY_H_
 
@@ -30,7 +31,7 @@ protected:
         output->raw_mutable_data(),
         input.raw_data(), input.size(), 0);
   }
-  
+
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     auto &input = ws->Input<GPUBackend>(0);
     auto output = ws->Output<GPUBackend>(0);
@@ -45,6 +46,6 @@ protected:
   }
 };
 
-} // namespace ndll
+}  // namespace ndll
 
 #endif // NDLL_PIPELINE_OPERATORS_COPY_H_

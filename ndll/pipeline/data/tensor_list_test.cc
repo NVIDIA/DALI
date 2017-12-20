@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/tensor_list.h"
 
 #include <gtest/gtest.h>
@@ -10,7 +11,7 @@ namespace ndll {
 
 template <typename Backend>
 class TensorListTest : public NDLLTest {
-public:
+ public:
   vector<Dims> GetRandShape() {
     int num_tensor = this->RandInt(1, 128);
     vector<Dims> shape(num_tensor);
@@ -38,8 +39,6 @@ public:
     }
     return shape;
   }
-  
-protected:
 };
 
 typedef ::testing::Types<CPUBackend,
@@ -47,8 +46,8 @@ typedef ::testing::Types<CPUBackend,
 TYPED_TEST_CASE(TensorListTest, Backends);
 
 class TestType {
-public:
-  TestType(int size = 2) : ptr_(nullptr), size_(size) {
+ public:
+  explicit TestType(int size = 2) : ptr_(nullptr), size_(size) {
     ptr_ = new float[size];
   }
 
@@ -61,8 +60,8 @@ public:
 };
 
 class TestType2 {
-public:
-  TestType2(int size = 1) : ptr_(nullptr), size_(size), id_(5) {
+ public:
+  explicit TestType2(int size = 1) : ptr_(nullptr), size_(size), id_(5) {
     ptr_ = new float[size];
   }
 
@@ -224,7 +223,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
     offsets.push_back(size);
     size += Product(tmp);
   }
-  
+
   // Verify the internals
   ASSERT_EQ(tl.raw_data(), sharer.raw_data());
   ASSERT_EQ(tl.size(), size);
@@ -279,13 +278,13 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), vector<Index>{});
     ASSERT_EQ(tensor_list.tensor_offset(i), 0);
-  }      
+  }
 }
 
 TYPED_TEST(TensorListTest, TestScalarResize) {
   TensorList<TypeParam> tensor_list;
 
-  int num_scalar = this->RandInt(0, 128);
+  int num_scalar = this->RandInt(1, 128);
   vector<Dims> shape(num_scalar, {(Index)1});
   tensor_list.Resize(shape);
 
@@ -293,7 +292,7 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
   ASSERT_EQ(tensor_list.size(), num_scalar);
   ASSERT_FALSE(tensor_list.shares_data());
-  
+
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), vector<Index>{1});
     ASSERT_EQ(tensor_list.tensor_offset(i), i);
@@ -309,7 +308,7 @@ TYPED_TEST(TensorListTest, TestDataTypeConstructor) {
   tensor_list.Resize(shape);
 
   tensor_list.template mutable_data<TestType>();
-  
+
   for (int i = 0; i < tensor_list.size(); ++i) {
     // verify that the internal data has been constructed
     TestType &obj = tensor_list.template mutable_data<TestType>()[i];
@@ -343,7 +342,7 @@ TYPED_TEST(TensorListTest, TestResize) {
 
   // Resize the buffer
   tensor_list.Resize(shape);
-    
+
   // Check the internals
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
@@ -374,7 +373,7 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
 
   // Resize the buffer
   tensor_list.Resize(shape);
-    
+
   // The only thing that should matter is the resize
   // after the call to 'mutable_data<T>()'
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
@@ -400,7 +399,7 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
 
   // Resize the buffer
   tensor_list.Resize(shape);
-    
+
   // Check the internals
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
@@ -412,7 +411,7 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   // Save the pointer
   const void *ptr = tensor_list.raw_data();
   size_t nbytes = tensor_list.nbytes();
-  
+
   // Change the data type
   tensor_list.template mutable_data<int>();
 
@@ -426,17 +425,17 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   // No memory allocation should have occured
   ASSERT_EQ(ptr, tensor_list.raw_data());
   ASSERT_EQ(nbytes, tensor_list.nbytes());
-  
+
   // Change the data type to something smaller
   tensor_list.template mutable_data<uint8>();
-  
+
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
-  
+
   // No memory allocation should have occured
   ASSERT_EQ(ptr, tensor_list.raw_data());
 
@@ -445,14 +444,14 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
 
   // Change the data type to something smaller
   tensor_list.template mutable_data<double>();
-  
+
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
-  
+
   // Size doubled, memory allocation should have occured
   ASSERT_NE(ptr, tensor_list.raw_data());
 
@@ -475,7 +474,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Resize the buffer
   tensor_list.Resize(shape);
-    
+
   // Check the internals
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
@@ -491,11 +490,11 @@ TYPED_TEST(TensorListTest, TestShareData) {
   tensor_list2.ShareData(&tensor_list);
   tensor_list2.Resize(vector<Dims>{{tensor_list.size()}});
   tensor_list2.template mutable_data<uint8>();
-  
+
   // Make sure the pointers match
   ASSERT_EQ(tensor_list.raw_data(), tensor_list2.raw_data());
   ASSERT_TRUE(tensor_list2.shares_data());
-  
+
   // Verify the default dims of the tensor_list 2
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
 
@@ -512,7 +511,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
-  
+
   // Trigger allocation through buffer API, verify we no longer share
   tensor_list2.template mutable_data<double>();
   ASSERT_FALSE(tensor_list2.shares_data());
@@ -527,4 +526,4 @@ TYPED_TEST(TensorListTest, TestShareData) {
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

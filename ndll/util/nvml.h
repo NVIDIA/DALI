@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_UTIL_NVML_H_
 #define NDLL_UTIL_NVML_H_
 
@@ -31,7 +32,7 @@ inline void Shutdown() {
   NVML_CALL(nvmlShutdown());
 }
 
-} // namespace nvml
-} // namespace ndll
+}  // namespace nvml
+}  // namespace ndll
 
-#endif // NDLL_UTIL_NVML_H_
+#endif  // NDLL_UTIL_NVML_H_

@@ -1,7 +1,12 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
 #define NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
 
 #include <cuda_runtime_api.h>
+
+#include <utility>
+#include <vector>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -18,7 +23,7 @@ namespace ndll {
  * perform its computation on a single sample.
  */
 class SampleWorkspace {
-public:
+ public:
   SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
   ~SampleWorkspace() = default;
@@ -32,7 +37,7 @@ public:
     thread_idx_ = -1;
     has_stream_ = false;
     stream_ = 0;
-    
+
     cpu_inputs_.clear();
     gpu_inputs_.clear();
     cpu_outputs_.clear();
@@ -40,12 +45,12 @@ public:
     input_index_map_.clear();
     output_index_map_.clear();
   }
-  
+
   /**
    * @brief Returns the number of input CPU tensors
    */
   inline int NumInput() { return input_index_map_.size(); }
-  
+
   /**
    * @brief Returns the number of input GPU tensors
    */
@@ -64,7 +69,7 @@ public:
    */
   template <typename Backend>
   bool OutputIsType(int idx);
-  
+
   /**
    * @brief Returns Tensor with index = data_idx() from the input
    * TensorList at index = `idx`.
@@ -77,7 +82,7 @@ public:
    */
   template <typename Backend>
   void AddInput(shared_ptr<Tensor<Backend>> input);
-  
+
   /**
    * @brief Returns Tensor with index = data_idx() from the output
    * TensorList at index = `idx`.
@@ -90,7 +95,7 @@ public:
    */
   template <typename Backend>
   void AddOutput(shared_ptr<Tensor<Backend>> output);
-  
+
   /**
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.
@@ -104,7 +109,7 @@ public:
     NDLL_ENFORCE(data_idx >= 0, "Negative data index not supported.");
     data_idx_ = data_idx;
   }
-  
+
   /**
    * @brief Returns the index of the thread that will process this data.
    */
@@ -117,12 +122,12 @@ public:
     NDLL_ENFORCE(thread_idx >= 0, "Negative thread index not supported.");
     thread_idx_ = thread_idx;
   }
-  
+
   /**
    * @brief Returns true if the workspace contains a valid stream.
    */
   inline bool has_stream() const { return has_stream_; }
-  
+
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
@@ -136,26 +141,26 @@ public:
    */
   inline void set_stream(cudaStream_t stream) {
     has_stream_ = true;
-    stream_= stream;
+    stream_ = stream;
   }
-  
-private:
+
+ private:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
   vector<TensorPtr<CPUBackend>> cpu_inputs_, cpu_outputs_;
   vector<TensorPtr<GPUBackend>> gpu_inputs_, gpu_outputs_;
-  
+
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)
   // to actual tensor objects. The first element indicates if the
   // Tensor is stored on cpu, and the second element is the index of
   // that tensor in the {cpu, gpu}_inputs_ vector.
   vector<std::pair<bool, int>> input_index_map_, output_index_map_;
-  
+
   int data_idx_, thread_idx_;
   cudaStream_t stream_;
   bool has_stream_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_SAMPLE_WORKSPACE_H_ 
+#endif  // NDLL_PIPELINE_SAMPLE_WORKSPACE_H_

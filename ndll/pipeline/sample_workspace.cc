@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/sample_workspace.h"
 
 namespace ndll {
@@ -118,4 +119,4 @@ void SampleWorkspace::AddOutput(shared_ptr<Tensor<GPUBackend>> output) {
       std::make_pair(false, gpu_outputs_.size()-1));
 }
 
-} // namespace ndll
+}  // namespace ndll

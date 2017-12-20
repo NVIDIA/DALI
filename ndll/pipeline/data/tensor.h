@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_DATA_TENSOR_H_
 #define NDLL_PIPELINE_DATA_TENSOR_H_
 
 #include <cstring>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -12,12 +14,12 @@
 namespace ndll {
 
 /**
- * @brief Stores dense, multi-dimensional data. Provides utilities 
+ * @brief Stores dense, multi-dimensional data. Provides utilities
  * methods for handling dimensions and shapes of the stored data.
  */
 template <typename Backend>
 class Tensor : public Buffer<Backend> {
-public:
+ public:
   inline Tensor() {}
   inline ~Tensor() = default;
 
@@ -28,7 +30,7 @@ public:
   inline void Copy(const vector<T> &data, cudaStream_t stream) {
     this->template mutable_data<T>();
     this->Resize({(Index)data.size()});
-    type_.Copy<Backend, CPUBackend>(this->raw_mutable_data(),
+    type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
   }
 
@@ -39,19 +41,19 @@ public:
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
     this->ResizeLike(other);
-    type_.Copy<Backend, InBackend>(this->raw_mutable_data(),
+    type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
-  
+
   template <typename InBackend>
   inline void ResizeLike(const Tensor<InBackend> &other) {
     Resize(other.shape());
   }
-  
+
   /**
    * @brief Resizes the buffer to fit `Product(shape)` elements.
    * The underlying storage is only reallocated in the case that
-   * the current buffer is not large enough for the requested 
+   * the current buffer is not large enough for the requested
    * number of elements.
    */
   inline void Resize(const vector<Index> &shape) {
@@ -59,7 +61,7 @@ public:
     ResizeHelper(new_size);
     shape_ = shape;
   }
-  
+
   /**
    * @brief Wraps the data owned by the tensor at the given index
    * in the input tensor list. The input tensor list must have
@@ -86,7 +88,7 @@ public:
     // while this object still uses it, we could just keep a copy of
     // the actual shared_ptr of the TensorList. Is this behavior something
     // that we are interested in supporting?
-    
+
     // Reset our pointer to the correct offset inside the tensor list.
     // This is not the beginning of the allocation, so we pass a noop
     // deleter to the shared_ptr
@@ -134,7 +136,7 @@ public:
    * state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the Tensors size is set to 0, and its
-   * type is reset to NoType. Future calls to Resize or setting of the 
+   * type is reset to NoType. Future calls to Resize or setting of the
    * Tensor type will evaluate whether or not the current allocation is
    * large enough to be used and proceed appropriately.
    *
@@ -157,7 +159,7 @@ public:
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
-  
+
   /**
    * @brief Returns the shape of the Tensor
    */
@@ -232,6 +234,6 @@ protected:
   USE_BUFFER_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_TENSOR_H_
+#endif  // NDLL_PIPELINE_DATA_TENSOR_H_

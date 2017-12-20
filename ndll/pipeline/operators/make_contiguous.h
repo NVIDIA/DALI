@@ -1,5 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
 #define NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
+
+#include <vector>
 
 #include "ndll/pipeline/internal_op.h"
 
@@ -7,7 +10,7 @@ namespace ndll {
 namespace internal {
 
 class MakeContiguous : public InternalOp {
-public:
+ public:
   inline explicit MakeContiguous(const OpSpec &spec) :
     InternalOp(spec) {}
 
@@ -41,7 +44,7 @@ public:
       auto output = ws->Output<GPUBackend>(0);
       output->Resize(output_shape);
       output->set_type(type);
-      
+
       for (int i = 0; i < batch_size_; ++i) {
         auto &input = ws->Input<CPUBackend>(0, i);
         CUDA_CALL(cudaMemcpyAsync(
@@ -49,18 +52,18 @@ public:
                 input.raw_data(),
                 input.nbytes(),
                 cudaMemcpyHostToDevice,
-                ws->stream()
-                ));
+                ws->stream()));
       }
     }
   }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
-protected:
+
+ protected:
   USE_INTERNAL_OP_MEMBERS();
 };
 
-} // namespace internal
-} // namespace ndll
+}  // namespace internal
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_
+#endif  // NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_

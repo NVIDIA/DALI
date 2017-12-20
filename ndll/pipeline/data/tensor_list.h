@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_DATA_TENSOR_LIST_H_
 #define NDLL_PIPELINE_DATA_TENSOR_LIST_H_
 
 #include <cstring>
+#include <vector>
 
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
@@ -11,7 +13,7 @@ namespace ndll {
 typedef vector<Index> Dims;
 
 /**
- * @brief Stores a number of Tensors in a contiguous buffer. 
+ * @brief Stores a number of Tensors in a contiguous buffer.
  * Functions similar to a jagged tensor, i.e. a tensor
  * where each element along the outer dimension can be of
  * different size.
@@ -21,7 +23,7 @@ typedef vector<Index> Dims;
  */
 template <typename Backend>
 class TensorList : public Buffer<Backend> {
-public:
+ public:
   TensorList() {}
   ~TensorList() = default;
 
@@ -34,17 +36,17 @@ public:
   }
 
   /**
-   * @brief Copies the input TensorList, resizing this TensorList and 
+   * @brief Copies the input TensorList, resizing this TensorList and
    * changing the underlying data type if needed.
    */
   template <typename SrcBackend>
   inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
     ResizeLike(other);
-    type_.Copy<Backend, SrcBackend>(this->raw_mutable_data(),
+    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
-  
+
   /**
    * @brief Resize function to allocate a list of tensors. The input vector
    * contains a set of dimensions for each tensor to be allocated in the
@@ -52,7 +54,7 @@ public:
    */
   inline void Resize(const vector<Dims> &new_shape) {
     if (new_shape == shape_) return;
-    
+
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);
@@ -75,7 +77,7 @@ public:
    * TensorList must have a valid type. If the input TensorList
    * stores no data, this tensor is reset to a default state
    *
-   * When this function is called, the calling object shares the 
+   * When this function is called, the calling object shares the
    * underlying allocation of the input TensorList. Its size, type
    * and shape are set to match the calling TensorList. While this 
    * list shares data with another list, 'shares_data()' will 
@@ -129,7 +131,7 @@ public:
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
-  
+
   /**
    * @brief Returns a typed pointer to the tensor with the given index.
    */
@@ -145,15 +147,14 @@ public:
   inline const T* tensor(int idx) const {
     return this->template data<T>() + tensor_offset(idx);
   }
-  
+
   /**
    * @brief Returns a raw pointer to the tensor with the given index.
    */
   inline void* raw_mutable_tensor(int idx) {
     return static_cast<void*>(
         static_cast<uint8*>(this->raw_mutable_data()) +
-        (tensor_offset(idx) * type_.size())
-        );
+        (tensor_offset(idx) * type_.size()));
   }
 
   /**
@@ -162,10 +163,9 @@ public:
   inline const void* raw_tensor(int idx) const {
     return static_cast<const void*>(
         static_cast<const uint8*>(this->raw_data()) +
-        (tensor_offset(idx) * type_.size())
-        );
+        (tensor_offset(idx) * type_.size()));
   }
-  
+
   /**
    * @brief Returns the number of tensors in the list.
    */
@@ -201,14 +201,15 @@ public:
   inline vector<Dims> shape() const {
     return shape_;
   }
-  
+
   // So we can access the members of other TensorListes
   // with different template types
   template <typename InBackend>
   friend class TensorList;
-  
+
   DISABLE_COPY_MOVE_ASSIGN(TensorList);
-protected:
+
+ protected:
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access
@@ -218,6 +219,6 @@ protected:
   USE_BUFFER_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_TENSOR_LIST_H_
+#endif  // NDLL_PIPELINE_DATA_TENSOR_LIST_H_

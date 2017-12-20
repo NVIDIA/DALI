@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/tensor.h"
 
 #include <gtest/gtest.h>
@@ -10,7 +11,7 @@ namespace ndll {
 
 template <typename Backend>
 class TensorTest : public NDLLTest {
-public:
+ public:
   vector<Dims> GetRandShapeList() {
     int num_tensor = this->RandInt(1, 128);
     vector<Dims> shape(num_tensor);
@@ -24,7 +25,7 @@ public:
     }
     return shape;
   }
-  
+
   vector<Index> GetRandShape() {
     int dims = this->RandInt(1, 5);
     vector<Index> shape(dims, 0);
@@ -33,8 +34,6 @@ public:
     }
     return shape;
   }
-  
-protected:
 };
 
 typedef ::testing::Types<CPUBackend,
@@ -120,7 +119,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.shape(), vector<Index>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a type
   t.template mutable_data<int16>();
 
@@ -130,7 +129,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.shape(), vector<Index>{});
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a size - should not trigger allocation
   t.Resize(shape);
 
@@ -159,7 +158,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.shape(), vector<Index>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a type
   t.template mutable_data<double>();
 
@@ -169,7 +168,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.shape(), vector<Index>{});
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a size - should not trigger allocation
   t.Resize(shape);
 
@@ -206,7 +205,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), shape);
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a type
   t.template mutable_data<int16>();
 
@@ -243,7 +242,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), shape);
   ASSERT_TRUE(t.shares_data());
-  
+
   // Give the Tensor a type
   t.template mutable_data<double>();
 
@@ -295,7 +294,7 @@ TYPED_TEST(TensorTest, TestResize) {
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);      
+    ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 }
 
@@ -307,13 +306,13 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
     // Get shape
     vector<Index> shape = this->GetRandShape();
     tensor.Resize(shape);
-      
+
     // Verify the settings
     ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), Product(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
     for (size_t i = 0; i < shape.size(); ++i) {
-      ASSERT_EQ(tensor.dim(i), shape[i]);      
+      ASSERT_EQ(tensor.dim(i), shape[i]);
     }
   }
 }
@@ -324,7 +323,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
   // Get shape
   vector<Index> shape = {1};
   tensor.Resize(shape);
-       
+
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor.size(), Product(shape));
@@ -337,7 +336,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
   // Get shape
   vector<Index> shape = {};
   tensor.Resize(shape);
-       
+
   // Verify the settings
   ASSERT_EQ(tensor.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor.size(), Product(shape));
@@ -346,23 +345,23 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
 
 TYPED_TEST(TensorTest, TestTypeChange) {
   Tensor<TypeParam> tensor;
-  
+
   // Get shape
   vector<Index> shape = this->GetRandShape();
   tensor.Resize(shape);
-  
+
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);      
+    ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
   // Save the pointer
   const void *ptr = tensor.raw_data();
   size_t nbytes = tensor.nbytes();
-  
+
   // Change the type of the buffer
   tensor.template mutable_data<int>();
 
@@ -370,13 +369,13 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);      
+    ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
   // No re-allocation should have occured
   ASSERT_EQ(ptr, tensor.raw_data());
   ASSERT_EQ(nbytes, tensor.nbytes());
-  
+
   // Change the type to a smaller type
   tensor.template mutable_data<uint8>();
 
@@ -384,13 +383,13 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);      
+    ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
   // No re-allocation should have occured
   ASSERT_EQ(ptr, tensor.raw_data());
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor.nbytes());
-  
+
   // Change the type to a larger type
   tensor.template mutable_data<double>();
 
@@ -398,7 +397,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(tensor.size(), Product(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);      
+    ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
   // The memory should have been re-allocated
@@ -406,4 +405,4 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor.nbytes());
 }
 
-} // namespace ndll
+}  // namespace ndll

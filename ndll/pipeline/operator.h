@@ -1,5 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATOR_H_
 #define NDLL_PIPELINE_OPERATOR_H_
+
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -27,14 +30,14 @@ enum NDLLOpType {
  */
 template <typename Backend>
 class Operator {
-public:
+ public:
   inline explicit Operator(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
     batch_size_(spec.GetArgument<int>("batch_size", -1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
-  
+
   virtual inline ~Operator() = default;
 
   /**
@@ -65,9 +68,10 @@ public:
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Operator);
-protected:
+
+ protected:
   /**
-   * @brief Per image CPU computation of the operator to be 
+   * @brief Per image CPU computation of the operator to be
    * implemented by derived ops.
    */
   virtual inline void RunPerSampleCPU(SampleWorkspace *ws) {
@@ -75,7 +79,7 @@ protected:
   }
 
   /**
-   * @brief Batched GPU computation of the operator to be 
+   * @brief Batched GPU computation of the operator to be
    * implemented by derived ops.
    */
   virtual inline void RunBatchedGPU(DeviceWorkspace *ws) {
@@ -111,6 +115,6 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       ndll::GPUOperator, ndll::Operator<GPUBackend>)
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATOR_H_
+#endif  // NDLL_PIPELINE_OPERATOR_H_

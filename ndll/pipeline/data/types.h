@@ -1,8 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_DATA_TYPES_H_
 #define NDLL_PIPELINE_DATA_TYPES_H_
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include <functional>
 #include <mutex>
@@ -24,15 +26,14 @@ struct NoType {};
  * @brief Keeps track of mappings between types and unique identifiers.
  */
 class TypeTable {
-public:
-  
+ public:
   template <typename T>
   static TypeID GetTypeID();
-  
+
   template <typename T>
   static string GetTypeName();
 
-private:
+ private:
   // TypeTable should only be referenced through its static members
   TypeTable();
 
@@ -42,10 +43,10 @@ private:
     // Lock the mutex to ensure correct setup even if this
     // method is triggered from threads
     std::lock_guard<std::mutex> lock(mutex_);
-    
+
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));
-    
+
     // This method should only be called once per type. It shouldn't
     // even be possible to call this twice without compiler errors
     // because it is only called from the explicit specialization of
@@ -66,7 +67,7 @@ private:
 
 // Stores the unqiue ID for a type and its size in bytes
 class TypeInfo {
-public:
+ public:
   inline TypeInfo() {
     SetType<NoType>();
   }
@@ -77,7 +78,7 @@ public:
     type.SetType<T>();
     return type;
   }
-  
+
   template <typename T>
   inline void SetType() {
     // Note: We enforce the fact that NoType is invalid by
@@ -98,13 +99,13 @@ public:
 
   template <typename Backend>
   void Construct(void *ptr, Index n);
-  
+
   template <typename Backend>
   void Destruct(void *ptr, Index n);
 
   template <typename DstBackend, typename SrcBackend>
   void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
-  
+
   inline TypeID id() const {
     return id_;
   }
@@ -126,7 +127,7 @@ public:
     return false;
   }
 
-private:
+ private:
   template <typename T>
   inline void ConstructorFunc(void *ptr, Index n) {
     T *typed_ptr = static_cast<T*>(ptr);
@@ -134,7 +135,7 @@ private:
       new (typed_ptr + i) T;
     }
   }
-  
+
   template <typename T>
   inline void DestructorFunc(void *ptr, Index n) {
     T *typed_ptr = static_cast<T*>(ptr);
@@ -161,7 +162,7 @@ private:
       typed_dst[i] = typed_src[i];
     }
   }
-  
+
   typedef std::function<void (void*, Index)> Constructor;
   typedef std::function<void (void*, Index)> Destructor;
   typedef std::function<void (void *, const void*, Index)> Copier;
@@ -169,7 +170,7 @@ private:
   Constructor constructor_;
   Destructor destructor_;
   Copier copier_;
-  
+
   TypeID id_;
   size_t type_size_;
   string name_;
@@ -206,7 +207,7 @@ inline bool IsValidType(TypeInfo type) {
 
 /**
  * @brief Enum identifiers for the different data types that
- * the pipeline can output. Only exists to simplify users 
+ * the pipeline can output. Only exists to simplify users
  * interaction with the type system, e.g. they don't have to
  * call TypeTable::GetTypeID<type>() to give an operator its
  * output data type
@@ -218,6 +219,6 @@ enum NDLLDataType {
   NDLL_FLOAT = 2,
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_DATA_TYPES_H_
+#endif  // NDLL_PIPELINE_DATA_TYPES_H_

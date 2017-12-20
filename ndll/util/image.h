@@ -1,9 +1,12 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_UTIL_IMAGE_H_
 #define NDLL_UTIL_IMAGE_H_
 
-#include <fstream>
-
 #include <cuda_runtime_api.h>
+
+#include <fstream>
+#include <vector>
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -20,7 +23,7 @@ namespace ndll {
 
 /**
  * Loads jpegs from a specified image folder. Assumes the folder contains
- * a file 'image_list.txt' that lists all the different images in the 
+ * a file 'image_list.txt' that lists all the different images in the
  * folder
  */
 void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
@@ -55,7 +58,7 @@ void WriteHWCBatch(const TensorList<Backend> &tl, string suffix) {
 }
 
 /**
- * @brief Writes an image after applying a scale and bias to get 
+ * @brief Writes an image after applying a scale and bias to get
  * pixel values in the range 0-255
  */
 template <typename T>
@@ -68,13 +71,13 @@ void WriteHWCImageScaleBias(const T *img, int h, int w,
   CUDA_CALL(cudaDeviceSynchronize());
   Tensor<GPUBackend> tmp_gpu, double_gpu;
   tmp_gpu.Resize({h, w, c});
-  tmp_gpu.template mutable_data<T>(); // make sure the buffer is allocated
+  tmp_gpu.template mutable_data<T>();  // make sure the buffer is allocated
   double_gpu.Resize({h, w, c});
-  
+
   // Copy the data and convert to double
   MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
   Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
-  
+
   vector<double> tmp(h*w*c, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
   std::ofstream file(file_name + ".ppm");
@@ -95,7 +98,7 @@ void WriteHWCImageScaleBias(const T *img, int h, int w,
 }
 
 /**
- * @brief Writes an image after applying a scale and bias to get 
+ * @brief Writes an image after applying a scale and bias to get
  * pixel values in the range 0-255
  */
 template <typename T>
@@ -108,13 +111,13 @@ void WriteCHWImageScaleBias(const T *img, int h, int w,
   CUDA_CALL(cudaDeviceSynchronize());
   Tensor<GPUBackend> tmp_gpu, double_gpu;
   tmp_gpu.Resize({h, w, c});
-  tmp_gpu.template mutable_data<T>(); // make sure the buffer is allocated
+  tmp_gpu.template mutable_data<T>();  // make sure the buffer is allocated
   double_gpu.Resize({h, w, c});
-  
+
   // Copy the data and convert to double
   MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
   Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
-  
+
   vector<double> tmp(h*w*c, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
   std::ofstream file(file_name + ".ppm");
@@ -148,8 +151,7 @@ void WriteHWCBatch(const TensorList<Backend> &tl, float bias, float scale, strin
     WriteHWCImageScaleBias(
         tl.template tensor<T>(i),
         h, w, c, bias, scale,
-        std::to_string(i) + "-" + suffix
-        );
+        std::to_string(i) + "-" + suffix);
   }
 }
 
@@ -167,11 +169,10 @@ void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, strin
     WriteCHWImageScaleBias(
         tl.template tensor<T>(i),
         h, w, c, bias, scale,
-        std::to_string(i) + "-" + suffix
-        );
+        std::to_string(i) + "-" + suffix);
   }
 }
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_UTIL_IMAGE_H_
+#endif  // NDLL_UTIL_IMAGE_H_

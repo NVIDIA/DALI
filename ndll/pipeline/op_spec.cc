@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/op_spec.h"
 
 #include "ndll/pipeline/data/types.h"
@@ -63,7 +64,7 @@ OpSpec& OpSpec::AddInput(const string &name, const string &device) {
   NDLL_ENFORCE(input_name_idx_.count(name_device_pair) == 0,
       "Input '" + name + "' with device '" + device + "' "
       "already added to OpSpec");
-  
+
   inputs_.push_back(std::make_pair(name, device));
   auto ret = input_name_idx_.insert({name_device_pair, inputs_.size()-1});
   NDLL_ENFORCE(ret.second, "Input name/device insertion failed.");
@@ -78,7 +79,7 @@ OpSpec& OpSpec::AddOutput(const string &name, const string &device) {
   NDLL_ENFORCE(output_name_idx_.count(name_device_pair) == 0,
       "Output '" + name + "' with device '" + device + "' "
       "already added to OpSpec");
-  
+
   outputs_.push_back(std::make_pair(name, device));
   auto ret = output_name_idx_.insert({name_device_pair, outputs_.size()-1});
   NDLL_ENFORCE(ret.second, "Output name/device insertion failed.");
@@ -113,7 +114,7 @@ INSTANTIATE_SINGLE_ARGUMENT_HELPER(string, s);
 #define INSTANTIATE_REPEATED_ARGUMENT_HELPER(T, fieldname)          \
   template <>                                                       \
   vector<T> OpSpec::ArgumentTypeHelper(const Argument &arg,         \
-      const vector<T> &default_value) const {                       \
+      const vector<T> &) const {                                    \
     vector<T> tmp;                                                  \
     for (const auto &val : arg.fieldname()) tmp.push_back((T)val);  \
     return tmp;                                                     \
@@ -129,5 +130,5 @@ INSTANTIATE_REPEATED_ARGUMENT_HELPER(NDLLInterpType, ri);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(NDLLDataType, ri);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(uint64, rui);
 INSTANTIATE_REPEATED_ARGUMENT_HELPER(string, rs);
-  
-} // namespace ndll
+
+}  // namespace ndll

@@ -1,5 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_MIXED_WORKSPACE_H_
 #define NDLL_PIPELINE_MIXED_WORKSPACE_H_
+
+#include <vector>
+#include <utility>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -19,7 +24,7 @@ namespace internal {
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
 class MixedWorkspace {
-public:
+ public:
   inline MixedWorkspace() : stream_(0) {}
   inline ~MixedWorkspace() = default;
 
@@ -33,31 +38,31 @@ public:
    * tensors at the given index.
    */
   int NumInputAtIdx(int idx) const;
-  
+
   /**
    * @brief Returns the number of outputs.
    */
   inline int NumOutput() const { return output_index_map_.size(); }
 
   /**
-   * Returns true if the set of input Tensor at the given 
+   * Returns true if the set of input Tensor at the given
    * index has the calling Backend type.
    */
   template <typename Backend>
   bool InputIsType(int idx) const;
 
   /**
-   * Returns true if the output TensorList at the given index 
+   * Returns true if the output TensorList at the given index
    * has the calling Backend type.
    */
   template <typename Backend>
   bool OutputIsType(int idx) const;
-  
+
   /**
    * @brief Returns the input Tensor at index `data_idx` in the input
    * set of Tensors at index `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
@@ -75,11 +80,11 @@ public:
    */
   template <typename Backend>
   void SetInput(int idx, vector<shared_ptr<Tensor<Backend>>> input);
-  
+
   /**
-   * @brief Returns the output TensorList at index `idx`. 
+   * @brief Returns the output TensorList at index `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
@@ -89,12 +94,12 @@ public:
    * @brief Returns the internal shared_ptr to the TensorList at index
    * `idx`.
    *
-   * @throws runtime_error If calling type does not match the type of 
+   * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
   shared_ptr<TensorList<Backend>> SharedOutput(int idx);
-  
+
   /**
    * @brief Adds the input TensorList as an output
    */
@@ -107,7 +112,7 @@ public:
    */
   template <typename Backend>
   void SetOutput(int idx, shared_ptr<TensorList<Backend>> output);
-  
+
   /**
    * @brief Sets the stream for this workspace.
    */
@@ -120,7 +125,7 @@ public:
    * @brief Returns true if 'set_stream' has been called.
    */
   inline bool has_stream() const { return has_stream_; }
-  
+
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
@@ -141,21 +146,21 @@ public:
    * @brief Returns true if 'set_event' has been called.
    */
   inline bool has_event() const { return has_event_; }
-  
+
   /**
    * @brief Returns the cuda event that signals this works completion.
    */
   inline cudaEvent_t event() const {
     NDLL_ENFORCE(has_event_, "Workspace does not have an event.");
     return event_;
-  }  
+  }
 
-private:
+ private:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
   vector<vector<TensorPtr<CPUBackend>>> cpu_inputs_;
   vector<vector<TensorPtr<GPUBackend>>> gpu_inputs_;
-  
+
   template <typename T>
   using TensorListPtr = shared_ptr<TensorList<T>>;
   vector<TensorListPtr<CPUBackend>> cpu_outputs_;
@@ -165,7 +170,7 @@ private:
   // to its absolute position in the workspaces outputs
   vector<int> cpu_inputs_index_, gpu_inputs_index_;
   vector<int> cpu_outputs_index_, gpu_outputs_index_;
-  
+
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)
   // to actual tensor objects. The first element indicates if the
   // Tensor is stored on cpu, and the second element is the index of
@@ -177,7 +182,7 @@ private:
   cudaEvent_t event_;
 };
 
-} // namespace internal
-} // namespace ndll
+}  // namespace internal
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_MIXED_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_MIXED_WORKSPACE_H_

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_IMAGE_JPEG_H_
 #define NDLL_IMAGE_JPEG_H_
 
@@ -22,6 +23,6 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
 NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     NDLLImageType image_type, int h, int w, uint8 *image);
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_IMAGE_JPEG_H_
+#endif  // NDLL_IMAGE_JPEG_H_

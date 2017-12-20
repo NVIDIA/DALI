@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/executor.h"
 
 #include <opencv2/opencv.hpp>
@@ -23,10 +24,10 @@ const vector<string> tjpg_test_images = {
   image_folder + "/420-odd-both.jpg",
   image_folder + "/422-odd-width.jpg"
 };
-}
+}  // namespace
 
 class ExecutorTest : public NDLLTest {
-public:
+ public:
   void SetUp() override {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(tjpg_test_images, &jpegs_, &jpeg_sizes_);
@@ -35,7 +36,7 @@ public:
   }
 
   inline void set_batch_size(int size) { batch_size_ = size; }
-  
+
   inline OpSpec PrepareSpec(OpSpec spec) {
     spec.AddArg("batch_size", batch_size_)
       .AddArg("num_threads", num_threads_);
@@ -62,12 +63,12 @@ public:
     // Load the image to host
     uint8 *host_img = new uint8[h*w*c_];
     CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
-      
+
     // Compare w/ opencv result
     cv::Mat ver;
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
-    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
+    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));
     int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
@@ -81,12 +82,12 @@ public:
 
     // DEBUG
     // WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
-    
+
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
     vector<int> diff(h*w*c_, 0);
     for (int i = 0; i < h*w*c_; ++i) {
-      diff[i] = abs(int(ver_img.ptr()[i] - host_img[i]));
+      diff[i] = abs(static_cast<int>(ver_img.ptr()[i] - host_img[i]));
     }
 
     // calculate the MSE
@@ -97,7 +98,7 @@ public:
     cout << "num: " << diff.size() << endl;
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
-#endif 
+#endif
 
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
@@ -105,8 +106,8 @@ public:
     ASSERT_LT(mean, 2.f);
     ASSERT_LT(std, 3.f);
   }
-  
-protected:
+
+ protected:
   int batch_size_, num_threads_ = 1;
   int c_ = 3;
   NDLLImageType img_type_ = NDLL_RGB;
@@ -114,15 +115,14 @@ protected:
 
 TEST_F(ExecutorTest, TestPruneBasicGraph) {
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
-  
+
   // Build a basic cpu->gpu graph
   OpGraph graph;
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")
-          ));
+          .AddOutput("data2", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
@@ -142,8 +142,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")
-          ));
+          .AddOutput("data4", "cpu")));
 
   vector<string> outputs = {"data3_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -188,15 +187,14 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
 
 TEST_F(ExecutorTest, TestPruneMultiple) {
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
-  
+
   // Build a basic cpu->gpu graph
   OpGraph graph;
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")
-          ));
+          .AddOutput("data2", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
@@ -209,15 +207,13 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")
-          ));
-  
+          .AddOutput("data3", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")
-          ));
+          .AddOutput("data4", "cpu")));
 
   vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -253,14 +249,13 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 
 TEST_F(ExecutorTest, TestPruneRecursive) {
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
-  
+
   // Build a basic cpu->gpu graph
   OpGraph graph;
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")
-          ));
+          .AddOutput("data1", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
@@ -273,15 +268,13 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")
-          ));
-  
+          .AddOutput("data2", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")
-          ));
+          .AddOutput("data3", "cpu")));
 
   vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -316,28 +309,25 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 
 TEST_F(ExecutorTest, TestPruneWholeGraph) {
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
-  
+
   // Build a basic cpu->gpu graph
   OpGraph graph;
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")
-          ));
+          .AddOutput("data1", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")
-          ));
-  
+          .AddOutput("data2", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")
-          ));
+          .AddOutput("data3", "cpu")));
 
   vector<string> outputs = {"data_that_does_not_exist"};
   ASSERT_THROW(this->PruneGraph(&exe),
@@ -352,22 +342,19 @@ TEST_F(ExecutorTest, TestDataSetup) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")
-          ));
+          .AddOutput("data1", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "gpu")
-          ));
-  
+          .AddOutput("data2", "gpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "gpu")
           .AddInput("data2", "gpu")
-          .AddOutput("data3", "gpu")
-          ));
+          .AddOutput("data3", "gpu")));
 
   vector<string> outputs = {"data3_gpu"};
   exe.Build(&graph, outputs);
@@ -409,22 +396,19 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data", "cpu")
-          ));
+          .AddOutput("data", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("TJPGDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")
-          ));
+          .AddOutput("images", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")
-          ));
+          .AddOutput("final_images", "cpu")));
 
   vector<string> outputs = {"final_images_cpu"};
   exe.Build(&graph, outputs);
@@ -435,7 +419,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
   src_op->SetDataSource(tl);
-  
+
   exe.RunCPU();
   exe.RunInternal();
   exe.RunGPU();
@@ -450,7 +434,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
 TEST_F(ExecutorTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
-  
+
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
@@ -458,29 +442,25 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data", "cpu")
-          ));
+          .AddOutput("data", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("TJPGDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")
-          ));
+          .AddOutput("images", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("images", "cpu")
-          .AddOutput("images", "gpu")
-          ));
+          .AddOutput("images", "gpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("images", "gpu")
-          .AddOutput("final_images", "gpu")
-          ));
+          .AddOutput("final_images", "gpu")));
 
   vector<string> outputs = {"final_images_gpu"};
   exe.Build(&graph, outputs);
@@ -505,13 +485,11 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
     std::memcpy(
         tl1.template mutable_tensor<uint8>(i),
         tl.template tensor<uint8>(i),
-        Product(tl.tensor_shape(i))
-        );
+        Product(tl.tensor_shape(i)));
     std::memcpy(
         tl2.template mutable_tensor<uint8>(i),
         tl.template tensor<uint8>(i+batch_size),
-        Product(tl.tensor_shape(i+batch_size))
-        );
+        Product(tl.tensor_shape(i+batch_size)));
   }
 
   // Run twice without getting the results
@@ -536,8 +514,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
     this->VerifyDecode(
         res1->template tensor<uint8>(i),
         res1->tensor_shape(i)[0],
-        res1->tensor_shape(i)[1], i
-        );
+        res1->tensor_shape(i)[1], i);
   }
 
   exe.Outputs(&ws);
@@ -550,9 +527,8 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
         res2->template tensor<uint8>(i),
         res2->tensor_shape(i)[0],
         res2->tensor_shape(i)[1],
-        i+batch_size
-        );
+        i+batch_size);
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

@@ -1,5 +1,6 @@
-#ifndef NDLL_PIPELINE_THREAD_POOL_H_
-#define NDLL_PIPELINE_THREAD_POOL_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_UTIL_THREAD_POOL_H_
+#define NDLL_PIPELINE_UTIL_THREAD_POOL_H_
 
 #include <cstdlib>
 
@@ -8,6 +9,8 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <vector>
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/util/nvml.h"
@@ -15,10 +18,10 @@
 namespace ndll {
 
 class ThreadPool {
-public:
+ public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
-  
+
   inline ThreadPool(int num_thread, int device_id, bool set_affinity)
     : threads_(num_thread),
       running_(true),
@@ -64,7 +67,7 @@ public:
   inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);
     completed_.wait(lock, [this] { return this->work_complete_; });
-    
+
     // Check for errors
     for (size_t i = 0; i < threads_.size(); ++i) {
       if (!tl_errors_[i].empty()) {
@@ -76,13 +79,14 @@ public:
       }
     }
   }
-  
+
   inline int size() const {
     return threads_.size();
   }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
-private:
+
+ private:
   inline void ThreadMain(int thread_id, int device_id, bool set_affinity) {
     CUDA_CALL(cudaSetDevice(device_id));
     if (set_affinity) {
@@ -91,12 +95,12 @@ private:
       std::lock_guard<std::mutex> lock(mutex_);
       nvml::SetCPUAffinity();
     }
-    
+
     while (running_) {
       // Block on the condition to wait for work
       std::unique_lock<std::mutex> lock(mutex_);
       condition_.wait(lock, [this] { return !(running_ && work_queue_.empty()); });
-      
+
       // If we're no longer running, exit the run loop
       if (!running_) break;
 
@@ -105,7 +109,7 @@ private:
       Work work = work_queue_.front();
       work_queue_.pop();
       ++active_threads_;
-      
+
       // Unlock the lock
       lock.unlock();
 
@@ -135,7 +139,7 @@ private:
   }
   vector<std::thread> threads_;
   std::queue<Work> work_queue_;
-  
+
   bool running_;
   bool work_complete_;
   int active_threads_;
@@ -143,10 +147,10 @@ private:
   std::condition_variable condition_;
   std::condition_variable completed_;
 
-  // Stored error strings for each thread
+  //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_THREAD_POOL_H_
+#endif  // NDLL_PIPELINE_UTIL_THREAD_POOL_H_

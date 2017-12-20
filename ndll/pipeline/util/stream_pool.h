@@ -1,7 +1,9 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_UTIL_STREAM_POOL_H_
 #define NDLL_PIPELINE_UTIL_STREAM_POOL_H_
 
 #include <cuda_runtime_api.h>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -9,15 +11,15 @@
 namespace ndll {
 
 /**
- * @brief Manages the lifetimes and allocations of cuda streams. 
+ * @brief Manages the lifetimes and allocations of cuda streams.
  */
 class StreamPool {
-public:
+ public:
   /**
-   * @brief Creates a pool with the given max size. If the input 
+   * @brief Creates a pool with the given max size. If the input
    * size is < 0, the pool has no size limit.
    */
-  inline StreamPool(int max_size, bool non_blocking = true) :
+  explicit inline StreamPool(int max_size, bool non_blocking = true) :
     max_size_(max_size), non_blocking_(non_blocking) {
     NDLL_ENFORCE(max_size != 0, "Stream pool must have non-zero size.");
   }
@@ -45,13 +47,13 @@ public:
     idx_ = (idx_+1) % streams_.size();
     return stream;
   }
-  
-private:
+
+ private:
   vector<cudaStream_t> streams_;
   int max_size_, idx_ = 0;
   bool non_blocking_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_UTIL_STREAM_POOL_H_
+#endif  // NDLL_PIPELINE_UTIL_STREAM_POOL_H_

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/executor.h"
 
 #include <algorithm>
@@ -13,7 +14,7 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   NDLL_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
   output_names_ = output_names;
   graph_ = graph;
-  
+
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
   PruneUnusedGraphNodes();
@@ -50,7 +51,7 @@ void Executor::RunCPU() {
   int queue_idx = free_queue_.front();
   free_queue_.pop();
   lock.unlock();
-  
+
   // Run the cpu-ops in the thread pool
   WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < batch_size_; ++i) {
@@ -217,7 +218,6 @@ void Executor::PruneUnusedGraphNodes() {
     vector<NodeID> to_remove;
     for (int i = 0; i < graph_->NumOp(); ++i) {
       OpNode &node = graph_->node(i);
-      
       // If this node has children, don't prune it
       if (!node.children.empty()) continue;
 
@@ -238,14 +238,14 @@ void Executor::PruneUnusedGraphNodes() {
 
       // If this node produces an output, don't prune it
       if (found_match) continue;
-      
+
       // Mark the node for pruning
       to_remove.push_back(node.id);
     }
 
     // No nodes were removed, pruning complete
     if (to_remove.size() == 0) break;
-    
+
     for (size_t i = 0; i < to_remove.size(); ++i) {
       // Note: After deleting a node, the graph updates
       // all other nodes in the graph to keep the node
@@ -278,7 +278,6 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
   for (int i = 0; i < graph_->NumCPUOp(); ++i) {
     CPUOpNode &node = graph_->cpu_node(i);
     HostWorkspace &ws = wsb->cpu_op_data[i];
-    
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this cpu ops workspace.
@@ -299,7 +298,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       // results and add them to the workspace.
       vector<shared_ptr<Tensor<CPUBackend>>> output(batch_size_, nullptr);
       for (auto &tensor_ptr : output) tensor_ptr.reset(new Tensor<CPUBackend>);
-      
+
       ws.AddOutput(output);
     }
   }
@@ -340,7 +339,6 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     GPUOpNode &node = graph_->gpu_node(i);
     DeviceWorkspace &ws = wsb->gpu_op_data[i];
-    
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this internal ops workspace.
@@ -353,7 +351,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
         internal::MixedWorkspace &src_ws = wsb->internal_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
-          ws.AddInput(input);          
+          ws.AddInput(input);
         } else if (node.spec.InputDevice(j) == "gpu") {
           const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
           ws.AddInput(input);
@@ -366,7 +364,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
           // Note: This path should currently never occur, as we
           // do not allow gpu ops to produce cpu data outputs.
           const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
-          ws.AddInput(input);          
+          ws.AddInput(input);
         } else if (node.spec.InputDevice(j) == "gpu") {
           const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
           ws.AddInput(input);
@@ -442,7 +440,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     ws.set_stream(stream_pool_.GetStream());
     ws.set_event(event_pool_.GetEvent());
   }
-  
+
   // Note: Basic stream assignment algorithm -
   // Each node can reuse its parents stream as
   // long as no other node in the same front
@@ -461,7 +459,6 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     // An op is a root if it has no gpu inputs
     GPUOpNode &node = graph_->gpu_node(i);
-    
     bool is_root = true;
     for (auto &parent_id : node.parents) {
       if (graph_->NodeType(parent_id) == NDLL_GPU) {
@@ -480,7 +477,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
       DeviceWorkspace &ws = wsb->gpu_op_data[graph_->NodeIdx(i)];
       ws.set_event(event_pool_.GetEvent());
     }
-    
+
     if (is_root) {
       node_queue.push(node.id);
       NDLL_ENFORCE(processed_nodes.insert(node.id).second);
@@ -513,12 +510,12 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
           // Add the stream to this ops workspace
           cudaStream_t stream = it->second;
           ws.set_stream(stream);
-          
+
           // Remove this stream from the parents entry
           // and add it to the entry for this op
           node_streams.erase(it);
           NDLL_ENFORCE(node_streams.insert({current_node.id, stream}).second);
-          
+
           found_stream = true;
           break;
         }
@@ -538,7 +535,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     // increment the iterator to the next parent or it will
     // be out of the valid range
     if (it != current_node.parents.end()) ++it;
-    
+
     // Make sure we finish adding all parents events
     // if we exited the prevous loop early
     for (; it != current_node.parents.end(); ++it) {
@@ -555,7 +552,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
         NDLL_FAIL("Executor encountered gpu op with non-gpu/internal parent.");
       }
     }
-    
+
     if (!found_stream) {
       // Couldn't reuse any parent streams, request
       // a new stream from the stream pool
@@ -673,4 +670,4 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

@@ -1,5 +1,6 @@
-#ifndef NDLL_PIPELINE_BACKEND_H_
-#define NDLL_PIPELINE_BACKEND_H_
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_DATA_BACKEND_H_
+#define NDLL_PIPELINE_DATA_BACKEND_H_
 
 #include <cuda_runtime_api.h>
 
@@ -12,12 +13,12 @@ namespace ndll {
 // to user-defined memory allocators
 void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &gpu_allocator);
-  
+
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */
 class GPUBackend final {
-public:
+ public:
   static void* New(size_t bytes);
   static void Delete(void *ptr, size_t bytes);
 };
@@ -26,8 +27,8 @@ public:
  * @brief Provides access to CPU allocator and other cpu meta-data
  */
 class CPUBackend final {
-public:
-  static void* New(size_t bytes); 
+ public:
+  static void* New(size_t bytes);
   static void Delete(void *ptr, size_t bytes);
 };
 
@@ -40,6 +41,6 @@ inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t strea
   CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
 }
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_BACKEND_H_
+#endif  // NDLL_PIPELINE_DATA_BACKEND_H_

@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/device_workspace.h"
 
 #include "ndll/pipeline/sample_workspace.h"
@@ -50,7 +51,7 @@ template <>
 void DeviceWorkspace::AddInput(shared_ptr<TensorList<CPUBackend>> input) {
   // Save the TensorList
   cpu_inputs_.push_back(input);
-  
+
   // Update the input index map
   input_index_map_.push_back(std::make_pair(true, cpu_inputs_.size()-1));
   cpu_inputs_index_.push_back(input_index_map_.size() - 1);
@@ -60,7 +61,7 @@ template <>
 void DeviceWorkspace::AddInput(shared_ptr<TensorList<GPUBackend>> input) {
   // Save the TensorList
   gpu_inputs_.push_back(input);
-  
+
   // Update the input index map
   input_index_map_.push_back(std::make_pair(false, gpu_inputs_.size()-1));
   gpu_inputs_index_.push_back(input_index_map_.size() - 1);
@@ -246,4 +247,4 @@ void DeviceWorkspace::SetOutput(int idx,
   output_index_map_[idx] = std::make_pair(false, gpu_outputs_.size()-1);
 }
 
-} // namespace ndll
+}  // namespace ndll

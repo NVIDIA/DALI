@@ -1,5 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_DUMP_IMAGE_H_
 #define NDLL_PIPELINE_OPERATORS_DUMP_IMAGE_H_
+
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -10,14 +13,14 @@ namespace ndll {
 
 template <typename Backend>
 class DumpImage : public Operator<Backend> {
-public:
-  inline DumpImage(const OpSpec &spec) :
+ public:
+  explicit inline DumpImage(const OpSpec &spec) :
     Operator<Backend>(spec),
     suffix_(spec.GetArgument<string>("suffix", "")),
     hwc_(spec.GetArgument<bool>("hwc_format", true)) {
     NDLL_ENFORCE(hwc_, "CHW not supported yet.");
-  }    
-  
+  }
+
   virtual inline ~DumpImage() = default;
 
 protected:
@@ -33,12 +36,12 @@ protected:
     int c = input.dim(2);
 
     WriteHWCImage(input.template data<uint8>(),
-        h, w, c, ws->data_idx() + "-" + suffix_);
+        h, w, c, std::to_string(ws->data_idx()) + "-" + suffix_);
 
     // Forward the input
     output->Copy(input, 0);
   }
-  
+
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);
@@ -52,6 +55,6 @@ protected:
   const string suffix_;
   bool hwc_;
 };
-}
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_DUMP_IMAGE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_DUMP_IMAGE_H_

@@ -4,3 +4,6 @@ build
 doxygen
 html
 latex
+.vimrc
+.ycm_extra_conf.py
+**/imgui.ini

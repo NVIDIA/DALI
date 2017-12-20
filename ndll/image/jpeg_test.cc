@@ -1,15 +1,16 @@
-#include "ndll/image/jpeg.h"
-
-#include <cmath>
-
-#include <fstream>
-#include <stdexcept>
-
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 
+#include <cmath>
+#include <fstream>
+#include <stdexcept>
+#include <vector>
+#include <string>
+
 #include "ndll/common.h"
 #include "ndll/test/ndll_test.h"
+#include "ndll/image/jpeg.h"
 
 namespace ndll {
 
@@ -29,13 +30,13 @@ const vector<string> tjpg_test_images = {
   image_folder + "/420-odd-both.jpg",
   image_folder + "/422-odd-width.jpg"
 };
-}
+}  // namespace
 
 // Fixture for jpeg decode testing. Templated
 // to make googletest run our tests grayscale & rgb
 template <typename ImgType>
 class JpegDecodeTest : public NDLLTest {
-public:
+ public:
   void SetUp() {
     if (IsColor(img_type_)) {
       c_ = 3;
@@ -49,13 +50,13 @@ public:
   void TearDown() {
     NDLLTest::TearDown();
   }
-  
+
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) {
     // Compare w/ opencv result
     cv::Mat ver;
     cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
 
-    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));    
+    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));
     int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
@@ -66,12 +67,12 @@ public:
     } else {
       ver_img = ver;
     }
-    
+
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
     vector<int> diff(h*w*c_, 0);
     for (int i = 0; i < h*w*c_; ++i) {
-      diff[i] = abs(int(ver_img.ptr()[i] - img[i]));
+      diff[i] = abs(static_cast<int>(ver_img.ptr()[i] - img[i]));
     }
 
     // calculate the MSE
@@ -82,7 +83,7 @@ public:
     cout << "num: " << diff.size() << endl;
     cout << "mean: " << mean << endl;
     cout << "std: " << std << endl;
-#endif 
+#endif
 
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test
@@ -94,7 +95,7 @@ public:
   void MeanStdDev(const vector<int> &diff, float *mean, float *std) {
     // Avoid division by zero
     ASSERT_NE(diff.size(), 0);
-    
+
     double sum = 0, var_sum = 0;
     for (auto &val : diff) {
       sum += val;
@@ -106,7 +107,7 @@ public:
     *std = sqrt(var_sum / diff.size());
   }
 
-protected:
+ protected:
   const NDLLImageType img_type_ = ImgType::type;
   int c_;
 };
@@ -130,9 +131,9 @@ TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
 #ifndef NDEBUG
     cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;
     cout << "dims: " << w << "x" << h << endl;
-#endif 
+#endif
     this->VerifyDecode(image.data(), h, w, img);
   }
 }
 
-} // namespace ndll
+}  // namespace ndll

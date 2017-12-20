@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_INIT_H_
 #define NDLL_PIPELINE_INIT_H_
 
@@ -13,6 +14,6 @@ namespace ndll {
 void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator);
 
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_INIT_H_
+#endif  // NDLL_PIPELINE_INIT_H_

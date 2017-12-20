@@ -1,8 +1,13 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OP_GRAPH_H_
 #define NDLL_PIPELINE_OP_GRAPH_H_
 
 #include <map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
+#include <string>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -46,7 +51,7 @@ struct TensorMeta {
 };
 
 class OpGraph {
-public:
+ public:
   inline OpGraph() {}
   inline ~OpGraph() = default;
 
@@ -56,19 +61,19 @@ public:
   void AddOp(const OpSpec &spec);
 
   /**
-   * @brief Removes the node with the specified NodeID from 
+   * @brief Removes the node with the specified NodeID from
    * the graph. Fails if the removal would produce an invalid
    * graph.
    */
   void RemoveOp(NodeID id);
-  
+
   /**
    * @brief Returns the total number of ops in the graph.
    */
   inline int NumOp() const {
     return NumCPUOp() + NumGPUOp() + NumInternalOp();
   }
-  
+
   /**
    * @brief Returns the number of cpu ops in the graph.
    */
@@ -101,7 +106,7 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx];
   }
-  
+
   /**
    * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
@@ -119,7 +124,7 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return gpu_nodes_[idx];
   }
-  
+
   /**
    * @brief Returns a reference to the `idx`-th internal op
    * that was added to the graph.
@@ -137,7 +142,7 @@ public:
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
     return internal_nodes_[idx];
   }
-  
+
   /**
    * @brief Returns the graph node with the given index in the graph.
    */
@@ -162,7 +167,7 @@ public:
   }
 
   /**
-   * @brief Returns the TensorMeta objects for the tensor 
+   * @brief Returns the TensorMeta objects for the tensor
    * with the given name and its producer node.
    */
   inline TensorMeta TensorSourceMeta(const string &name) const {
@@ -171,7 +176,7 @@ public:
         name + "\" has no know source.");
     return it->second;
   }
-  
+
   /**
    * @brief Returns the id of the op that produces the tensor with
    * the given name.
@@ -181,13 +186,13 @@ public:
   }
 
   /**
-   * @brief Returns the output idx of the input tensor in 
+   * @brief Returns the output idx of the input tensor in
    * its source.
    */
   inline int TensorIdxInSource(const string &name) {
     return TensorSourceMeta(name).index;
   }
-  
+
   /**
    * @brief Returns true if the tensor with the given name
    * has a backend type that matches the calling type.
@@ -208,9 +213,10 @@ public:
     }
     return it->second;
   }
-  
+
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
-private:
+
+ private:
   vector<CPUOpNode> cpu_nodes_;
   vector<GPUOpNode> gpu_nodes_;
   vector<InternalOpNode> internal_nodes_;
@@ -224,6 +230,6 @@ private:
   std::map<string, vector<TensorMeta>> tensor_consumers_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_OP_GRAPH_H_
+#endif  // NDLL_PIPELINE_OP_GRAPH_H_

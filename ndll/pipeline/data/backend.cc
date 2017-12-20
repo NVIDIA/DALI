@@ -1,6 +1,8 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/data/backend.h"
 
 #include <mutex>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"
@@ -9,7 +11,7 @@
 namespace ndll {
 
 class AllocatorManager {
-public:
+ public:
   static void SetAllocators(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator) {
     // Lock so we can give a good error if the user calls this from multiple threads.
     std::lock_guard<std::mutex> lock(mutex_);
@@ -20,23 +22,23 @@ public:
     gpu_allocator_ = GPUAllocatorRegistry::Registry()
       .Create(gpu_allocator.name(), gpu_allocator);
   }
-  
+
   static CPUAllocator& GetCPUAllocator() {
     NDLL_ENFORCE(cpu_allocator_ != nullptr,
         "NDLL CPU allocator not set. Did you forget to call NDLLInit?");
     return *cpu_allocator_.get();
   }
-  
+
   static GPUAllocator& GetGPUAllocator() {
     NDLL_ENFORCE(gpu_allocator_ != nullptr,
         "NDLL GPU allocator not set. Did you forget to call NDLLInit?");
     return *gpu_allocator_.get();
   }
-  
-private:
+
+ private:
   // AllocatorManager should be accessed through its static members
   AllocatorManager() {}
-  
+
   static unique_ptr<CPUAllocator> cpu_allocator_;
   static unique_ptr<GPUAllocator> gpu_allocator_;
   static std::mutex mutex_;
@@ -72,4 +74,4 @@ void CPUBackend::Delete(void *ptr, size_t bytes) {
   AllocatorManager::GetCPUAllocator().Delete(ptr, bytes);
 }
 
-} // namespace ndll
+}  // namespace ndll

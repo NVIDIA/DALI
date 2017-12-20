@@ -1,3 +1,6 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#include "ndll/benchmark/ndll_bench.h"
+
 #include <benchmark/benchmark.h>
 
 #include "ndll/common.h"
