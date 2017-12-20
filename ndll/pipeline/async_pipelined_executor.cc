@@ -16,11 +16,10 @@ void AsyncPipelinedExecutor::RunCPU() {
             "Internal error, thread has no cpu work.");
         --cpu_work_counter_;
         lock.unlock();
-        cout << "got cpu work" << endl;
-        
-        PipelinedExecutor::RunCPU();
 
-        cout << "finished cpu work" << endl;
+        // cout << "got cpu work" << endl;        
+        PipelinedExecutor::RunCPU();
+        // cout << "finished cpu work" << endl;
         
         // Mark that there is now internal work to do
         // and signal to any threads that are waiting
@@ -34,7 +33,6 @@ void AsyncPipelinedExecutor::RunInternal() {
   issue_threads_.DoWorkWithID(
       [this](int tid) {
         // Block until there is internal work to do
-        // cout << "thread looking for internal work" << endl;
         std::unique_lock<std::mutex> lock(internal_mutex_);
         while (internal_work_counter_ == 0) {
           internal_work_cv_.wait(lock);
@@ -42,11 +40,9 @@ void AsyncPipelinedExecutor::RunInternal() {
         --internal_work_counter_;
         lock.unlock();
 
-        cout << "got internal work" << endl;
-
+        // cout << "got internal work" << endl;
         PipelinedExecutor::RunInternal();
-
-        cout << "finished internal issue" << endl;
+        // cout << "finished internal issue" << endl;
         
         // Mark that there is now gpu work to do
         // and signal to any threads that are waiting
@@ -68,11 +64,11 @@ void AsyncPipelinedExecutor::RunGPU() {
         }
         --gpu_work_counter_;
         lock.unlock();
-        cout << "got gpu work" << endl;
-        
-        PipelinedExecutor::RunGPU();
 
-        cout << "Finished gpu issue" << endl;
+        // cout << "got gpu work" << endl;        
+        PipelinedExecutor::RunGPU();
+        // cout << "Finished gpu issue" << endl;
+        
         // All the work for this batch has now been issued,
         // but has not necessarilly finished. The base-class
         // handles any synchronization for output completion
