@@ -22,7 +22,7 @@ public:
   inline ThreadPool(int num_thread, int device_id, bool set_affinity)
     : threads_(num_thread),
       running_(true),
-      work_complete_(false),
+      work_complete_(true),
       active_threads_(0) {
     NDLL_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
     nvml::Init();
@@ -35,11 +35,13 @@ public:
   }
 
   inline ~ThreadPool() {
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      running_ = false;
-    }
+    // Wait for work to find errors
+    WaitForWork();
+    
+    std::unique_lock<std::mutex> lock(mutex_);
+    running_ = false;
     condition_.notify_all();
+    lock.unlock();
 
     for (auto &thread : threads_) {
       thread.join();
@@ -66,12 +68,10 @@ public:
     // Check for errors
     for (size_t i = 0; i < threads_.size(); ++i) {
       if (!tl_errors_[i].empty()) {
-        // TODO(tgale): What is the desired behavior when
-        // more than one error occurs?
-        
         // Throw the first error that occured
         string error = "Error in thread " +
           std::to_string(i) + ": " + tl_errors_[i].front();
+        tl_errors_[i].pop();
         throw std::runtime_error(error);
       }
     }
@@ -115,13 +115,13 @@ private:
       try {
         work(thread_id);
       } catch(std::runtime_error &e) {
+        lock.lock();
         tl_errors_[thread_id].push(e.what());
-        // DEBUG
-        throw e;
+        lock.unlock();
       } catch(...) {
+        lock.lock();
         tl_errors_[thread_id].push("Caught unknown exception");
-        // DEBUG
-        throw std::runtime_error("Caught unknown exception");
+        lock.unlock();
       }
 
       // Mark this thread as idle & check for complete work

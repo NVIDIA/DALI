@@ -109,7 +109,8 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) {
       pipe.Outputs(&ws);
     }
   }
-
+  
+  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
   st.counters["FPS"] = benchmark::Counter(batch_size*(st.iterations()+1),
       benchmark::Counter::kIsRate);
 }
