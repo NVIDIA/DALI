@@ -102,9 +102,9 @@ inline string BuildErrorString(string statement, string file, int line) {
   do {                                              \
     cudaError_t status = code;                      \
     if (status != cudaSuccess) {                    \
-      string file = __FILE__;                       \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
+      std::string file = __FILE__;                  \
+      std::string line = std::to_string(__LINE__);  \
+      std::string error = "[" + file + ":" + line + \
         "]: CUDA error \"" +                        \
         cudaGetErrorString(status) + "\"";          \
       throw std::runtime_error(error);              \

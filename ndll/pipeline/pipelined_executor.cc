@@ -10,6 +10,12 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
 
   // Setup queues for the intermediate outputs of each stage
   SetupStageOutputsForGraph();
+
+  // For each set of outputs, link the correct stage
+  // output buffer to each workspace.
+  for (int i = 0; i < queue_depth_; ++i) {
+    SetStageOutputsForIter(i, &wss_[i]);
+  }
 }
 
 void PipelinedExecutor::SetupStageOutputsForGraph() {
@@ -24,6 +30,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
       string tensor_name = node.spec.Output(j);
+      NDLL_ENFORCE(graph_->TensorIsType<CPUBackend>(tensor_name));
       if (output_set.count(tensor_name) != 0) continue;
       
       vector<TensorMeta> consumer_meta =
@@ -69,23 +76,46 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       vector<TensorMeta> consumer_meta =
         graph_->TensorConsumerMeta(tensor_name);
       bool has_info_object = false;
-      for (auto &meta : consumer_meta) {
-        if (graph_->NodeType(meta.node) != NDLL_INTERNAL) {
-          if (!has_info_object) {
-            OutputInfo info;
-            info.prod_and_idx = std::make_pair(node.id, j);
-            internal_stage_output_info_.push_back(info);
-            internal_stage_outputs_.push_back(
-                TensorListPool<GPUBackend>(
-                    queue_depth_, batch_size_, bytes_per_sample_hint_
-                    ));
-            has_info_object = true;
-          }
+
+      if (graph_->TensorIsType<CPUBackend>(tensor_name)) {
+        for (auto &meta : consumer_meta) {
+          if (graph_->NodeType(meta.node) != NDLL_INTERNAL) {
+            if (!has_info_object) {
+              OutputInfo info;
+              info.prod_and_idx = std::make_pair(node.id, j);
+              internal_stage_cpu_output_info_.push_back(info);
+              internal_stage_cpu_outputs_.push_back(
+                  TensorListPool<CPUBackend>(
+                      queue_depth_, batch_size_, bytes_per_sample_hint_
+                      ));
+              has_info_object = true;
+            }
 
           
-          OutputInfo &info = internal_stage_output_info_.back();
-          auto tmp = std::make_pair(meta.node, meta.index);
-          info.con_and_idx.push_back(tmp);
+            OutputInfo &info = internal_stage_cpu_output_info_.back();
+            auto tmp = std::make_pair(meta.node, meta.index);
+            info.con_and_idx.push_back(tmp);
+          }
+        }
+      } else {
+        for (auto &meta : consumer_meta) {
+          if (graph_->NodeType(meta.node) != NDLL_INTERNAL) {
+            if (!has_info_object) {
+              OutputInfo info;
+              info.prod_and_idx = std::make_pair(node.id, j);
+              internal_stage_gpu_output_info_.push_back(info);
+              internal_stage_gpu_outputs_.push_back(
+                  TensorListPool<GPUBackend>(
+                      queue_depth_, batch_size_, bytes_per_sample_hint_
+                      ));
+              has_info_object = true;
+            }
+
+          
+            OutputInfo &info = internal_stage_gpu_output_info_.back();
+            auto tmp = std::make_pair(meta.node, meta.index);
+            info.con_and_idx.push_back(tmp);
+          }
         }
       }
     }
@@ -116,9 +146,9 @@ void PipelinedExecutor::SetStageOutputsForIter(
     }
   }
 
-  for (size_t i = 0; i < internal_stage_outputs_.size(); ++i) {
-    auto &tlp = internal_stage_outputs_[i];
-    auto &info = internal_stage_output_info_[i];
+  for (size_t i = 0; i < internal_stage_cpu_outputs_.size(); ++i) {
+    auto &tlp = internal_stage_cpu_outputs_[i];
+    auto &info = internal_stage_cpu_output_info_[i];
     NodeID node_id = info.prod_and_idx.first;
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
     
@@ -126,12 +156,35 @@ void PipelinedExecutor::SetStageOutputsForIter(
     int output_idx = info.prod_and_idx.second;
     wsb->internal_op_data[internal_op_id].SetOutput(
         output_idx, tlp.GetTL(queue_idx));
-    
+
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
-      
-       int gpu_op_id = graph_->NodeIdx(node_id);
+
+      int gpu_op_id = graph_->NodeIdx(node_id);
+      int input_idx = info.con_and_idx[j].second;
+      wsb->gpu_op_data[gpu_op_id].SetInput(
+          input_idx, tlp.GetTL(queue_idx));
+    }
+  }
+
+  
+  for (size_t i = 0; i < internal_stage_gpu_outputs_.size(); ++i) {
+    auto &tlp = internal_stage_gpu_outputs_[i];
+    auto &info = internal_stage_gpu_output_info_[i];
+    NodeID node_id = info.prod_and_idx.first;
+    NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
+    
+    int internal_op_id = graph_->NodeIdx(node_id);
+    int output_idx = info.prod_and_idx.second;
+    wsb->internal_op_data[internal_op_id].SetOutput(
+        output_idx, tlp.GetTL(queue_idx));
+
+    for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
+      node_id = info.con_and_idx[j].first;
+      NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_GPU);
+
+      int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
       wsb->gpu_op_data[gpu_op_id].SetInput(
           input_idx, tlp.GetTL(queue_idx));

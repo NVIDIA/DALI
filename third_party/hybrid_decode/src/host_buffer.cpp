@@ -18,7 +18,8 @@ HostBuffer::HostBuffer(unsigned int nSize): pData_(nullptr), nSize_(nSize) {
 }
 
 HostBuffer::~HostBuffer() {
-  if (pData_) CHECK_CUDA(cudaFreeHost(pData_));
+  // Do not delete, let hte shared ptr handle it
+  // if (pData_) CHECK_CUDA(cudaFreeHost(pData_));
 }
 
 void
@@ -33,6 +34,10 @@ HostBuffer::resize(unsigned int nSize) {
     CHECK_CUDA(cudaFreeHost(pData_));
     CHECK_CUDA(cudaHostAlloc((void**)&pData_, nSize, cudaHostAllocDefault));
     nSize_ = nSize;
+
+    // HACK: Load the ptr into a shared ptr so that we don't have nasty
+    // double free errors when we create a copy of a ParseJpeg object
+    ptr_.reset(pData_, [](void *ptr) { CHECK_CUDA(cudaFreeHost(ptr)); });
   }
 }
 

@@ -71,9 +71,11 @@ protected:
   // stage, as these will only be created as outputs
   // requested by the user.
   vector<TensorVectorPool<CPUBackend>> cpu_stage_outputs_;
-  vector<TensorListPool<GPUBackend>> internal_stage_outputs_;
+  vector<TensorListPool<CPUBackend>> internal_stage_cpu_outputs_;
+  vector<TensorListPool<GPUBackend>> internal_stage_gpu_outputs_;
   vector<OutputInfo> cpu_stage_output_info_;
-  vector<OutputInfo> internal_stage_output_info_;
+  vector<OutputInfo> internal_stage_cpu_output_info_;
+  vector<OutputInfo> internal_stage_gpu_output_info_;
   
   USE_EXECUTOR_MEMBERS();
 };

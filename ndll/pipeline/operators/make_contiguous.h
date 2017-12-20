@@ -27,12 +27,15 @@ public:
       auto output = ws->Output<CPUBackend>(0);
       output->Resize(output_shape);
       output->set_type(type);
-
+      
       for (int i = 0; i < batch_size_; ++i) {
         auto &input = ws->Input<CPUBackend>(0, i);
-        
-        std::memcpy(output->raw_mutable_tensor(i),
-            input.raw_data(), input.nbytes());
+
+        // Note: We know that this will translate into
+        // a std::memcpy, so it is safe to pass stream 0
+        type.Copy<CPUBackend, CPUBackend>(
+            output->raw_mutable_tensor(i),
+            input.raw_data(), input.size(), 0);
       }
     } else {
       auto output = ws->Output<GPUBackend>(0);

@@ -164,37 +164,20 @@ public:
       NDLL_ENFORCE((num_bytes_ == 0) || shares_data_,
           "Buffer has no type and does not share data, "
           "num_bytes_ should be 0.");
-      type_ = new_type;
-
-      size_t new_num_bytes = size_ * type_.size();
-      if (new_num_bytes > num_bytes_) {
-        data_.reset(Backend::New(new_num_bytes), std::bind(
-                &Buffer<Backend>::DeleterHelper,
-                this, std::placeholders::_1,
-                type_, size_));
-        num_bytes_ = new_num_bytes;
-        shares_data_ = false;
-      }
-      type_.template Construct<Backend>(data_.get(), size_);
-    } else {
-      // If the calling type does not match the current buffer
-      // type, reset the type and re-allocate the memory if
-      // we do not have enough
-      size_t new_num_bytes = size_ * new_type.size();
-      if (new_num_bytes > num_bytes_) {
-        // Re-allocate the underlying storage
-        data_.reset(Backend::New(new_num_bytes), std::bind(
-                &Buffer<Backend>::DeleterHelper,
-                this, std::placeholders::_1,
-                type_, size_));
-        num_bytes_ = new_num_bytes;
-        shares_data_ = false;
-      }
-
-      // Save the new type
-      type_ = new_type;
-      type_.template Construct<Backend>(data_.get(), size_);
     }
+    type_ = new_type;
+    
+    size_t new_num_bytes = size_ * type_.size();
+    if (new_num_bytes > num_bytes_) {
+      data_.reset(Backend::New(new_num_bytes), std::bind(
+              &Buffer<Backend>::DeleterHelper,
+              this, std::placeholders::_1,
+              type_, size_));
+      num_bytes_ = new_num_bytes;
+      shares_data_ = false;
+    }
+      
+    type_.template Construct<Backend>(data_.get(), size_);
   }
 
   /**

@@ -83,9 +83,9 @@ public:
     MeanStdDev(diff, &mean, &std);
 
 #ifndef NDEBUG
-    cout << "num: " << diff.size() << endl;
-    cout << "mean: " << mean << endl;
-    cout << "std: " << std << endl;
+    // cout << "num: " << diff.size() << endl;
+    // cout << "mean: " << mean << endl;
+    // cout << "std: " << std << endl;
 #endif 
 
     // Note: We allow a slight deviation from the ground truth.
@@ -126,7 +126,7 @@ TYPED_TEST(HybridDecoderTest, JPEGDecode) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0);
+      0, false);
 
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);

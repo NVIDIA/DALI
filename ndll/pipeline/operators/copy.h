@@ -24,8 +24,11 @@ protected:
     auto output = ws->Output<CPUBackend>(0);
     output->set_type(input.type());
     output->ResizeLike(input);
-    std::memcpy(output->raw_mutable_data(),
-        input.raw_data(), input.nbytes());
+
+    TypeInfo type = input.type();
+    type.Copy<CPUBackend, CPUBackend>(
+        output->raw_mutable_data(),
+        input.raw_data(), input.size(), 0);
   }
   
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {

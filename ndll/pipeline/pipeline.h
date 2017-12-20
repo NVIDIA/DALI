@@ -77,7 +77,7 @@ public:
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
     bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
-
+    
     if (pipelined_execution && async_execution) {
       executor_.reset(new AsyncPipelinedExecutor(
               batch_size, num_threads,

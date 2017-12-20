@@ -105,7 +105,7 @@ protected:
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  int queue_depth_, queue_idx_ = 0;
+  int queue_depth_;
   int previous_gpu_queue_idx_ = -1;
   
   vector<string> output_names_;
@@ -167,7 +167,6 @@ protected:
   using Executor::device_id_;                              \
   using Executor::bytes_per_sample_hint_;                  \
   using Executor::queue_depth_;                            \
-  using Executor::queue_idx_;                              \
   using Executor::output_names_;                           \
   using Executor::type_idx_map_;                           \
   using Executor::cpu_outputs_;                            \

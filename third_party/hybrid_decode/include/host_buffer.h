@@ -2,6 +2,7 @@
 #define HOST_BUFFER_H_
 
 #include <cstdlib> // size_t
+#include <memory>
 
 class HostBuffer {
 public:
@@ -18,6 +19,7 @@ public:
   unsigned int size() const;
 
 private:
+  std::shared_ptr<void> ptr_;
   unsigned char * pData_;
   unsigned int    nSize_;
 };
