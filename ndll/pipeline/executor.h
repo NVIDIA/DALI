@@ -19,13 +19,14 @@
 #include "ndll/pipeline/util/stream_pool.h"
 #include "ndll/pipeline/util/thread_pool.h"
 
-// TODO(tgale):
-// Document stream/event innefficiencies
-// Document internal api improvements we could make
-// - *OpNode could has accessors for important data in spec
-
 namespace ndll {
 
+/**
+ * @brief Basic executor for ndll graphs. This executor enables
+ * prefetching of results by maintaining two copies of output
+ * buffers, so that we can produce data into one while the 
+ * other is in use by the user.
+ */
 class Executor {
  public:
   inline Executor(int batch_size, int num_thread, int device_id,

@@ -24,9 +24,14 @@ enum NDLLOpType {
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline.
  *
- * Operator defines the API used by the pipeline to execute operations,
- * perform shape/type inference, and setup any needed paramters for kernel
- * execution.
+ * Operator defines the API used by the pipeline to execute operations.
+ * To create a custom operator, derive from this class, implement the
+ * RunPerSampleCPU / RunBatchedGPU methods as desired, and register
+ * the operator using the macros NDLL_REGISTER_{CPU,GPU}_OPERATOR.
+ * To define meta-data about the op like the min/max number of inputs
+ * it takes, a doctstring (for python), etc., use the OPERATOR_SCHEMA,
+ * macro. The op can then be added to a pipeline through its registered
+ * name (the first arg to the registration macros).
  */
 template <typename Backend>
 class Operator {

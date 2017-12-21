@@ -450,6 +450,12 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
   // that are not in the same stream will make
   // their stream block on the parent event prior
   // to executing anything in their stream.
+  //
+  // TODO(tgale): We could do better than this
+  // in terms of event assignment. We currently
+  // allocate new events for all ops that will
+  // need them, but we could apply the same
+  // algorithm we do for streams to events.
 
   // We will traverse the graph breadth-first,
   // initialize queue with the ids of our gpu
@@ -470,9 +476,6 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     // If this op has more than a single child node,
     // we will need an event to synchronize the child
     // that does not get the parents stream
-    //
-    // TODO(tgale): We could do this more efficiently by
-    // applying the same algorithm we use to assign streams
     if (node.children.size() > 1) {
       DeviceWorkspace &ws = wsb->gpu_op_data[graph_->NodeIdx(i)];
       ws.set_event(event_pool_.GetEvent());

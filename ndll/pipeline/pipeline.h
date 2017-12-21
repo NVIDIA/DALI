@@ -20,43 +20,27 @@
 
 namespace ndll {
 
-// TODO(tgale): Update dox for the pipeline and
-// for all other classes that we have changed
-// the semantics of.
-
 /**
  * @brief Organizes and executes the set of operators chosen by the user.
- * Provides optimizations like batched copies to GPU and pre-sizing of
- * buffers.
  *
- * The Pipeline produces a processed batch of data on the GPU. It is
- * composed of Operators (@ref ndll::Operator<Backend>), and breaks
- * its execution into 3 phases: 'prefetch', 'copy', and 'forward'
- * Operators are added to a specific phase when the pipeline is built
- * up. Prefetch operators are executed per-image w/ multiple threads,
- * while Forward operators are executed on an entire batch at once on
- * the GPU. We currently don't support running all operations (cpu or gpu)
- * per-image in the prefetch stage, but it wouldn't be too difficult to
- * enable.
+ * Pipelines are composed of cpu and gpu operators. When adding ops the
+ * the pipeline, users can specify the 'device' argument as either 'cpu'
+ * or 'gpu' to control where the op is executed. The only constraints on
+ * the graphs of ops that users can define is that all cpu ops must
+ * precede all gpu ops, and that cpu ops can only output cpu data, and 
+ * gpu ops can only output gpu data.
  *
- * The pipeline manages all memory used in the pipeline. We currently
- * maintain buffers for all intermediate results, but this central
- * management means that we could do some tricks (e.g. just using two
- * buffers and ping-ponging back and forth) to reduce memory requirements
- *
- * The pipeline also provides a mechanism for combining all batched GPU
- * operation parameters into a single mega-buffer during the prefetch stage.
- * Operations in the Forward stage are queried for the amount of batched
- * paramter storage they need after performing shape inference. They are
- * then  given a chance to set up their batched paramters (both serially
- * and threaded, depending on the need of the operation) into their chunk
- * of the mega-buffer. During the copy stage, we copy the output of the
- * prefetch stage, as well as the mega-buffer to the GPU.
+ * When adding an op, the user specifies a name for its outputs, as well
+ * as the device they will exist on (cpu or gpu). If a GPU op requests
+ * a gpu version of a cpu tensor that has been produced earlier in the
+ * graph, the pipeline will insert the needed operations to transfer
+ * the data to the gpu.
  */
 class Pipeline {
  public:
   /**
-   * @brief Creates a pipeline with `num_threads` worker threads.
+   * @brief Creates a pipeline that will produce batches of size `batch_size`,
+   * using `num_threads` worker threads on gpu `device_id`.
    *
    * GPU memory and pinned memory allocations cause implicit synchronization of
    * the device, resulting in very slow startup times as ndll buffer sizes
@@ -68,12 +52,17 @@ class Pipeline {
    *
    * @param batch_size the size of the batch that should be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
-   * @param stream the stream to operate in.
    * @param device_id id of the GPU to operate on.
-   * @param set_affinity indicates whether thread affinity should be
-   * configured in the thread pool. Defaults to 'true'.
+   * @param whether to allocate the necessary buffers to pipeline execution
+   * between the cpu and gpu portions of the graph. See PipelinedExecutor.
+   * @param whether to use extra host-threads to enable asynchronous issue
+   * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor.
    * @param bytes_per_sample_hint Estimated size of each sample to be processed.
    * Defaults to 0.
+   * @param set_affinity indicates whether thread affinity should be
+   * configured in the thread pool. Defaults to 'false'.
+   * @param max_num_stream set an upper limit on the number of cudaStreams
+   * that can be allocated by the pipeline.
    */
   inline Pipeline(int batch_size, int num_threads, int device_id,
       bool pipelined_execution = false, bool async_execution = false,
@@ -197,11 +186,6 @@ class Pipeline {
 
   /**
    * @brief Run the gpu portion of the pipeline.
-   *
-   * This stage is designed to be extremely light weight to minimize cost
-   * on the front of the forward pass. All parameter setup and allocations
-   * have been done previously, and we simply iterate over the forward
-   * stage ops and launch their kernels.
    */
   void RunGPU();
 
@@ -210,9 +194,6 @@ class Pipeline {
    * This method blocks until the next batch is complete. RunCPU and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
-   *
-   * TODO(tgale): This seems bad to have a method that can deadlock so
-   * easily. Is there a different behavior that we would like?
    */
   void Outputs(DeviceWorkspace *ws);
 
@@ -265,10 +246,6 @@ class Pipeline {
     }
     return edge;
   }
-
-  // Helper function to setup mega-buffer and distribute
-  // sub-buffers to the ops in the forward pass
-  void MegaBufferSetupAndDistribution();
 
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);

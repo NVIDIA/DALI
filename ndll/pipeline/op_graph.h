@@ -50,6 +50,23 @@ struct TensorMeta {
   bool is_cpu;
 };
 
+/**
+ * @brief Stores all meta-data about a graph of operations to be run
+ * keeps track of useful meta-data about consumers/producers of
+ * different intermediates.
+ *
+ * Operators in the graph have a global NodeID that is assigned in
+ * the order ops are added to the graph. Operators also have an 
+ * index within the set of ops of its type (cpu, internal, gpu).
+ * This enables us to iterate over select portions of the graph, or
+ * the entire graph.
+ *
+ * TODO(tgale): The Executor uses alot of information about the graph
+ * that is not that easily accessed through the graph (e.g., we often
+ * go into the OpSpec of the node directly). Now that we have running
+ * executors, consider refactoring this API to make important info
+ * more obviously available.
+ */
 class OpGraph {
  public:
   inline OpGraph() {}

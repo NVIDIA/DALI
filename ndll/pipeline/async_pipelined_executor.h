@@ -9,6 +9,13 @@
 
 namespace ndll {
 
+/**
+ * @brief This executor uses worker threads to pipelined the
+ * issue of cpu, internal, and gpu work. Calls the RunCPU,
+ * RunInternal, and RunGPU are all asynchronous, and results
+ * are retrieved by calling Outputs, which manages all
+ * needed synchronization.
+ */
 class AsyncPipelinedExecutor : public PipelinedExecutor {
  public:
   inline AsyncPipelinedExecutor(int batch_size, int num_thread,

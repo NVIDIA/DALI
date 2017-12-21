@@ -16,21 +16,26 @@
  * and data loading functions.
  *
  * @section pipe Pipeline
- * The Pipeline class is heavily documented. See @ref ndll::Pipeline for core docs, and 
- * the following classes for documentation on other important classes used in the Pipeline.
+ * The Pipeline is the user-facing class that enables the construction and execution of
+ * graphs of operations. Underneath, it makes use of a few core classes that provide
+ * key services.
+ *
+ * @subsection graph Graph:
+ * @ref ndll::OpGraph @n
+ *
+ * @subsection exec Executors:
+ * @ref ndll::Executor @n
+ * @ref ndll::PipelinedExecutor @n
+ * @ref ndll::AsyncPipelinedExecutor @n
+ * @ref ndll::AsyncExecutor (WIP) @n
  *
  * @subsection ops Operators:
  * @ref ndll::Operator<Backend> @n
- * @ref ndll::Transformer<Backend> @n
- * @ref ndll::Decoder<Backend> @n
- * @ref ndll::DataReader @n
- * @ref ndll::Parser @n
  *
  * @subsection data Data Storage:
  * @ref ndll::Buffer<Backend> @n
- * @ref ndll::Batch<Backend> @n
+ * @ref ndll::TensorList<Backend> @n
  * @ref ndll::Tensor<Backend> @n
- * @ref ndll::Sample<Backend>
  *
  * @subsection mem Memory Allocation:
  * @ref ndll::CPUBackend @n
@@ -39,8 +44,9 @@
  * @ref ndll::CPUAllocator @n
  * @ref ndll::GPUAllocator
  *
- * The Pipeline also has Python bindings that expose a very similar API to the C++
- * Pipeline. See the examples in 'ndll/benchmark'.
+ * The Pipeline also has Python bindings that expose a much nicer API than the 
+ * C++ Pipeline. See the examples in 'ndll/benchmark'. All python code is under
+ * the 'ndll/python' directory.
  *
  * @section todo TODO
  * This section discusses some areas where NDLL needs work.
@@ -54,34 +60,11 @@
  * Update: Tried to use SSIM for these tests but the results were still crappy.
  * It seems like the NPP resize method may actually have some deficiencies.
  *
- * @subsection include Including NDLL
- * I haven't decided on the best way to include NDLL. Currently we just include the
- * individual files we need, but this requires poking into the src tree which is
- * gross. Thinking about creating two header files: "ndll_lib.h" for the library
- * of primitives and "ndll_pipeline.h" for all pipeline stuff you need.
- *
- * @subsection inline Inline Member Functions
- * Alot of methods are defined inline in the pipeline. These should be moved out to
- * make the code more readable.
- *
- * @subsection docs Operator & Python Documentation
- * The only part of NDLL that isn't document well is the Operators. We need to figure
- * out a way to write docs for these that can then also be exposed to the Python API
- * as well. The Python API in general could use some more documentation.
- *
  * @subsection docker Docker Container Warning
  * In the C2+NDLL container, we get a warning "Unexpected end of /proc/mounts line..."
  * when we start up a run that uses the NDLL code. The internet seems to indicate this
  * could be produced by the hwloc library used by NVML. We should clean this up when
  * we get the chance.
- *
- * @subsection data NDLL Data Hierarchy
- * The hierarchy of classes used to store data in ndll is a bit complex, and some
- * resposibilities are redundant. We should refactor to remove the 'Sample' object
- * and replace them with Tensors. We can extend the Tensor class with a method
- * like 'ShareDataShard' to support the functionality that Sample objects provide.
- * We should also get rid of SubTensor and just use Tensor objects that wrap shards
- * of larger buffers. This could also likely be done with 'ShareDataShard'.
  *
  * @subsection hybrid_decode Hybrid Decode Lib
  * The hybrid decoder code is currently separate from the rest of NDLL 

@@ -9,8 +9,6 @@ class OpCounter(object):
     def __init__(self):
         self.id = next(self._op_count)
         
-# TODO(tgale): Do we want device as a kwarg or actually
-# in the name of the operator class?
 def python_op_factory(name):
     class Operator(object):
         def __init__(self, **kwargs):
