@@ -47,29 +47,4 @@
  * The Pipeline also has Python bindings that expose a much nicer API than the 
  * C++ Pipeline. See the examples in 'ndll/benchmark'. All python code is under
  * the 'ndll/python' directory.
- *
- * @section todo TODO
- * This section discusses some areas where NDLL needs work.
- *
- * @subsection test Image Similarity Metrics
- * The BatchedResize methods currently fail in the test suite because they produce
- * images that are slightly off from the opencv resize method in terms of MSE, but
- * are identical when looking at them side by side. We should have better similarity
- * metrics in our test suite to fix this issue.
- *
- * Update: Tried to use SSIM for these tests but the results were still crappy.
- * It seems like the NPP resize method may actually have some deficiencies.
- *
- * @subsection docker Docker Container Warning
- * In the C2+NDLL container, we get a warning "Unexpected end of /proc/mounts line..."
- * when we start up a run that uses the NDLL code. The internet seems to indicate this
- * could be produced by the hwloc library used by NVML. We should clean this up when
- * we get the chance.
- *
- * @subsection hybrid_decode Hybrid Decode Lib
- * The hybrid decoder code is currently separate from the rest of NDLL 
- * (in third_party/hybrid_decode), and the current version is a bit messy and has some
- * hacks in it that need to be fixed including the memory allocation in HostBuffer, and
- * support for kepler generation of architectures. However, we should be able to replace 
- * it with libnvjpeg prior to release of NDLL, so this is a low priority to fix.
  */
