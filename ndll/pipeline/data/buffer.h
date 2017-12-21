@@ -170,7 +170,7 @@ class Buffer {
           "num_bytes_ should be 0.");
     }
     type_ = new_type;
-    
+
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
       data_.reset(Backend::New(new_num_bytes), std::bind(
@@ -180,7 +180,7 @@ class Buffer {
       num_bytes_ = new_num_bytes;
       shares_data_ = false;
     }
-      
+
     type_.template Construct<Backend>(data_.get(), size_);
   }
 

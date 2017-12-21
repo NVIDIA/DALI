@@ -186,7 +186,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
-  
+
   // Give the buffer a type smaller than float.
   // We should have enough shared bytes, so no
   // re-allocation should happen
@@ -231,7 +231,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
-  
+
   // Give the buffer a type bigger than float.
   // We do not have enough bytes shared, so
   // this should trigger a reallocation

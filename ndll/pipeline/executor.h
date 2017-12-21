@@ -55,18 +55,17 @@ class Executor {
   friend class ExecutorTest;
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
-  
-protected:
 
+ protected:
   using WorkspaceBlob = struct {
     vector<HostWorkspace> cpu_op_data;
     vector<internal::MixedWorkspace> internal_op_data;
     vector<DeviceWorkspace> gpu_op_data;
   };
   vector<WorkspaceBlob> wss_;
-  
+
   void PruneUnusedGraphNodes();
-  
+
   void SetupDataForGraph(WorkspaceBlob *wsb);
 
   void PresizeData(WorkspaceBlob *wsb);
@@ -74,12 +73,12 @@ protected:
   void SetupStreamsForGraph(WorkspaceBlob *wsb);
 
   void SetupOutputQueuesForGraph();
-  
+
   void SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb);
 
   template <typename Backend>
   class TensorListPool {
-  public:
+   public:
     inline TensorListPool(int size, int batch_size, size_t bytes_hint) {
       for (int i = 0; i < size; ++i) {
         tls_.push_back(std::make_shared<TensorList<Backend>>());
@@ -90,24 +89,24 @@ protected:
     inline shared_ptr<TensorList<Backend>> GetTL(int idx) {
       return tls_[idx];
     }
-  private:
+   private:
     vector<shared_ptr<TensorList<Backend>>> tls_;
   };
 
   class EventList {
-  public:
+   public:
     inline EventList() {}
     inline EventList(int size, EventPool *event_pool) {
       NDLL_ENFORCE(event_pool != nullptr);
       for (int i = 0; i < size; ++i) {
         events_.push_back(event_pool->GetEvent());
-      }      
+      }
     }
-    
+
     inline cudaEvent_t GetEvent(int idx) {
       return events_[idx];
     }
-  private:
+   private:
     vector<cudaEvent_t> events_;
   };
 
@@ -115,7 +114,7 @@ protected:
   size_t bytes_per_sample_hint_;
   int queue_depth_;
   int previous_gpu_queue_idx_ = -1;
-  
+
   vector<string> output_names_;
   std::map<string, int> type_idx_map_;
   vector<TensorListPool<CPUBackend>> cpu_outputs_;
@@ -128,7 +127,7 @@ protected:
     vector<std::pair<NodeID, int>> con_and_idx;
   };
   vector<OutputInfo> cpu_output_info_, gpu_output_info_;
-  
+
   // Buffers are rotated between being 'free', where the
   // pipeline is ok to fill them with data, 'ready', where
   // they are already full of prepared data, and 'in-use',
@@ -136,7 +135,7 @@ protected:
   // is marked as in-use when it is returned as and output.
   // The buffer is then returned the the ready queue the
   // next time Ouputs() is called.
-  std::queue<int> ready_queue_, free_queue_, in_use_queue_;  
+  std::queue<int> ready_queue_, free_queue_, in_use_queue_;
   std::mutex ready_mutex_, free_mutex_;
   std::condition_variable ready_cond_, free_cond_;
 
@@ -160,7 +159,7 @@ protected:
   // unless it becomes an issue in the future.
   std::queue<int> internal_work_queue_, gpu_work_queue_;
   std::mutex internal_mutex_, gpu_mutex_;
-  
+
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
   EventPool event_pool_;
@@ -190,8 +189,7 @@ protected:
   using Executor::stream_pool_;                            \
   using Executor::event_pool_;                             \
   using Executor::thread_pool_
-  
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_EXECUTOR_H_
+#endif  // NDLL_PIPELINE_EXECUTOR_H_

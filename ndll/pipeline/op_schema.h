@@ -1,8 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OP_SCHEMA_H_
 #define NDLL_PIPELINE_OP_SCHEMA_H_
 
 #include <functional>
 #include <map>
+#include <string>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -11,9 +13,9 @@
 namespace ndll {
 
 class OpSchema {
-public:
+ public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
-  
+
   inline OpSchema() {}
   inline ~OpSchema() = default;
 
@@ -24,7 +26,7 @@ public:
     dox_ = dox;
     return *this;
   }
-  
+
   /**
    * @brief Sets a funtion that infers the number of outputs this
    * op will produce from the ops specfication. This is required
@@ -81,7 +83,7 @@ public:
     max_num_output_ = max;
     return *this;
   }
-  
+
   /**
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
@@ -94,7 +96,7 @@ public:
   inline string Dox() const {
     return dox_;
   }
-  
+
   inline int MaxNumInput() const {
     return max_num_input_;
   }
@@ -113,9 +115,9 @@ public:
 
   inline bool HasOutputFn() const {
     if (max_num_output_ == min_num_output_) return true;
-    return (bool)output_fn_;
+    return static_cast<bool>(output_fn_);
   }
-  
+
   inline int CalculateOutputs(const OpSpec &spec) const {
     if (max_num_output_ == min_num_output_) {
       return max_num_output_;
@@ -129,8 +131,8 @@ public:
     if (!in_place_fn_) return false;
     return in_place_fn_(spec);
   }
-  
-private:
+
+ private:
   string dox_;
   SpecFunc output_fn_, in_place_fn_;
 
@@ -139,13 +141,13 @@ private:
 };
 
 class SchemaRegistry {
-public:
+ public:
   static OpSchema& RegisterSchema(std::string name) {
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
         "registered for operator '" + name + "'. OPERATOR_SCHEMA(op) "
         "should only be called once per op.");
-    
+
     // Insert the op schema and return a reference to it
     return schema_map[name];
   }
@@ -157,8 +159,8 @@ public:
         name + "' not registered");
     return it->second;
   }
-  
-private:
+
+ private:
   inline SchemaRegistry() {}
 
   static std::map<string, OpSchema>& registry();
@@ -170,7 +172,7 @@ private:
   }                                                   \
   static OpSchema* ANONYMIZE_VARIABLE(OpName) =       \
     &SchemaRegistry::RegisterSchema(#OpName)          \
-    
-} // namespace ndll
 
-#endif // NDLL_PIPELINE_OP_SCHEMA_H_
+}  // namespace ndll
+
+#endif  // NDLL_PIPELINE_OP_SCHEMA_H_

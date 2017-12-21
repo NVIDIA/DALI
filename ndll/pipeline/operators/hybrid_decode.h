@@ -146,7 +146,7 @@ class DCTQuantInv : public Operator<Backend> {
 
   virtual inline ~DCTQuantInv() = default;
 
-protected:
+ protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     cudaStream_t old_stream = nppGetStream();
     nppSetStream(ws->stream());

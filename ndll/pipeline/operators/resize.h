@@ -38,7 +38,7 @@ class Resize : public Operator<Backend> {
 
   virtual inline ~Resize() = default;
 
-protected:
+ protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     DataDependentSetup(ws);
 

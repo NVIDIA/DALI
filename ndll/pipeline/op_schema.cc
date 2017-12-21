@@ -1,4 +1,7 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/op_schema.h"
+
+#include <string>
 
 namespace ndll {
 
@@ -7,4 +10,4 @@ std::map<string, OpSchema>& SchemaRegistry::registry() {
   return schema_map;
 }
 
-} // namespace ndll
+}  // namespace ndll

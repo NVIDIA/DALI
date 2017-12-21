@@ -43,8 +43,8 @@ class NormalizePermute : public Operator<Backend> {
   }
 
   virtual inline ~NormalizePermute() = default;
-  
-protected:
+
+ protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);
@@ -74,7 +74,7 @@ protected:
     OUT *out = output->template mutable_data<OUT>();
     float *mean = mean_.template mutable_data<float>();
     float *inv_std = inv_std_.template mutable_data<float>();
-    
+
     for (int c = 0; c < C_; ++c) {
       for (int h = 0; h < H_; ++h) {
         for (int w = 0; w < W_; ++w) {
@@ -84,7 +84,7 @@ protected:
       }
     }
   }
-  
+
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     if (output_type_ == NDLL_FLOAT) {
       RunHelper<float>(ws);

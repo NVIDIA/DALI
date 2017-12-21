@@ -51,7 +51,7 @@ void CheckOpConstraints(const OpSpec &spec) {
 void OpGraph::AddOp(const OpSpec &spec) {
   // Validate the op specification
   CheckOpConstraints(spec);
-    
+
   string device = spec.GetArgument<string>("device", "cpu");
   OpNode *new_node;
   if (device == "cpu") {

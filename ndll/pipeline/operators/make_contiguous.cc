@@ -11,5 +11,5 @@ OPERATOR_SCHEMA(MakeContiguous)
   .NumInput(1)
   .NumOutput(1);
 
-} // namespace internal
-} // namespace ndll
+}  // namespace internal
+}  // namespace ndll

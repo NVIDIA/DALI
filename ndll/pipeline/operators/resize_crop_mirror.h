@@ -55,7 +55,7 @@ class ResizeCropMirror : public Operator<Backend> {
 
   virtual inline ~ResizeCropMirror() = default;
 
-protected:
+ protected:
   using TransformMeta = struct {
     int H, W, C;
     int rsz_h, rsz_w;

@@ -23,7 +23,7 @@ class DumpImage : public Operator<Backend> {
 
   virtual inline ~DumpImage() = default;
 
-protected:
+ protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);

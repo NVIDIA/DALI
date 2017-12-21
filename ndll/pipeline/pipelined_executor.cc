@@ -1,7 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/pipelined_executor.h"
 
 #include <set>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace ndll {
 
@@ -21,7 +24,7 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
 void PipelinedExecutor::SetupStageOutputsForGraph() {
   // Make a set of the outputs names for quick lookup
   std::set<string> output_set(output_names_.begin(), output_names_.end());
-  
+
   for (int i = 0; i < graph_->NumCPUOp(); ++i) {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
@@ -32,7 +35,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       string tensor_name = node.spec.Output(j);
       NDLL_ENFORCE(graph_->TensorIsType<CPUBackend>(tensor_name));
       if (output_set.count(tensor_name) != 0) continue;
-      
+
       vector<TensorMeta> consumer_meta =
         graph_->TensorConsumerMeta(tensor_name);
       bool has_info_object = false;
@@ -50,8 +53,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
             cpu_stage_output_info_.push_back(info);
             cpu_stage_outputs_.push_back(
                 TensorVectorPool<CPUBackend>(
-                    queue_depth_, batch_size_, bytes_per_sample_hint_
-                    ));
+                    queue_depth_, batch_size_, bytes_per_sample_hint_));
             has_info_object = true;
           }
 
@@ -86,12 +88,11 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
               internal_stage_cpu_output_info_.push_back(info);
               internal_stage_cpu_outputs_.push_back(
                   TensorListPool<CPUBackend>(
-                      queue_depth_, batch_size_, bytes_per_sample_hint_
-                      ));
+                      queue_depth_, batch_size_, bytes_per_sample_hint_));
               has_info_object = true;
             }
 
-          
+
             OutputInfo &info = internal_stage_cpu_output_info_.back();
             auto tmp = std::make_pair(meta.node, meta.index);
             info.con_and_idx.push_back(tmp);
@@ -106,12 +107,11 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
               internal_stage_gpu_output_info_.push_back(info);
               internal_stage_gpu_outputs_.push_back(
                   TensorListPool<GPUBackend>(
-                      queue_depth_, batch_size_, bytes_per_sample_hint_
-                      ));
+                      queue_depth_, batch_size_, bytes_per_sample_hint_));
               has_info_object = true;
             }
 
-          
+
             OutputInfo &info = internal_stage_gpu_output_info_.back();
             auto tmp = std::make_pair(meta.node, meta.index);
             info.con_and_idx.push_back(tmp);
@@ -120,7 +120,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       }
     }
   }
-} 
+}
 
 void PipelinedExecutor::SetStageOutputsForIter(
     int queue_idx, WorkspaceBlob *wsb) {
@@ -129,7 +129,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
     auto &info = cpu_stage_output_info_[i];
     NodeID node_id = info.prod_and_idx.first;
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_CPU);
-    
+
     int cpu_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
     wsb->cpu_op_data[cpu_op_id].SetOutput(
@@ -151,7 +151,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
     auto &info = internal_stage_cpu_output_info_[i];
     NodeID node_id = info.prod_and_idx.first;
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
-    
+
     int internal_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
     wsb->internal_op_data[internal_op_id].SetOutput(
@@ -168,13 +168,13 @@ void PipelinedExecutor::SetStageOutputsForIter(
     }
   }
 
-  
+
   for (size_t i = 0; i < internal_stage_gpu_outputs_.size(); ++i) {
     auto &tlp = internal_stage_gpu_outputs_[i];
     auto &info = internal_stage_gpu_output_info_[i];
     NodeID node_id = info.prod_and_idx.first;
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
-    
+
     int internal_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
     wsb->internal_op_data[internal_op_id].SetOutput(
@@ -192,5 +192,5 @@ void PipelinedExecutor::SetStageOutputsForIter(
   }
 }
 
-} // namespace ndll
+}  // namespace ndll
 

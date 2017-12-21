@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_DATA_TENSOR_H_
 
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "ndll/common.h"
@@ -102,7 +103,6 @@ class Tensor : public Buffer<Backend> {
     shares_data_ = true;
   }
 
-    
   /**
    * @brief Wraps the data owned by the input tensor. The input
    * tensor must have a valid type. If sucessful, the tensor 
@@ -129,7 +129,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = t->num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
-  
+
   /**
    * @brief Wraps the raw allocation. The input pointer must not be nullptr.
    * if the size of the allocation is zero, the Tensor is reset to a default
@@ -184,7 +184,7 @@ class Tensor : public Buffer<Backend> {
 #endif
     return shape_[idx];
   }
-  
+
   Tensor<Backend>(const Tensor<Backend>&) = delete;
   Tensor<Backend>& operator=(const Tensor<Backend>&) = delete;
 
@@ -216,7 +216,7 @@ class Tensor : public Buffer<Backend> {
       size_ = t.size_;
       shares_data_ = t.shares_data_;
       num_bytes_ = t.num_bytes_;
-      
+
       t.shape_.clear();
       t.backend_ = Backend();
       t.type_ = TypeInfo::Create<NoType>();
@@ -227,8 +227,8 @@ class Tensor : public Buffer<Backend> {
     }
     return *this;
   }
-  
-protected:
+
+ protected:
   vector<Index> shape_;
 
   USE_BUFFER_MEMBERS();

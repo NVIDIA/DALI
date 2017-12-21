@@ -89,7 +89,7 @@ class HybridDecoderTest : public NDLLTest {
     // cout << "num: " << diff.size() << endl;
     // cout << "mean: " << mean << endl;
     // cout << "std: " << std << endl;
-#endif 
+#endif
 
     // Note: We allow a slight deviation from the ground truth.
     // This value was picked fairly arbitrarily to let the test

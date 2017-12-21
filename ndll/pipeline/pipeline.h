@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_PIPELINE_H_
 
 #include <map>
+#include <memory>
 #include <utility>
 #include <vector>
 #include <string>
@@ -81,7 +82,7 @@ class Pipeline {
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
     bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
-    
+
     if (pipelined_execution && async_execution) {
       executor_.reset(new AsyncPipelinedExecutor(
               batch_size, num_threads,
@@ -100,7 +101,7 @@ class Pipeline {
               device_id, bytes_per_sample_hint,
               set_affinity, max_num_stream));
     }
-    
+
     // TODO(tgale): We need to figure out the best way to ensure that the memory
     // this object allocates is stored on the correct NUMA node that we can
     // force on the frameworks. Frameworks like C2 are tricky because any thread
@@ -174,7 +175,7 @@ class Pipeline {
         name + "' is not marked as an external input.");
     source->SetDataSource(tl);
   }
-  
+
   /**
    * @brief Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version

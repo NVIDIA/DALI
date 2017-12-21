@@ -27,9 +27,8 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_data", "cpu")
-          ));
-  
+          .AddOutput("external_data", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddInput("external_data", "cpu")
@@ -73,9 +72,8 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")
-          ));
-    
+          .AddOutput("external_data", "gpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
@@ -120,8 +118,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_data", "cpu")
-          ));
+          .AddOutput("external_data", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
@@ -190,9 +187,8 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_dev_data", "gpu")
-          ));
-  
+          .AddOutput("external_dev_data", "gpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
@@ -202,9 +198,8 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_host_data", "cpu")
-          ));
-    
+          .AddOutput("external_host_data", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
@@ -387,9 +382,8 @@ TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")
-          ));
-  
+          .AddOutput("external_data", "gpu")));
+
   ASSERT_THROW(
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")
@@ -405,9 +399,8 @@ TEST_F(OpGraphTest, TestFailureCPUToGPUOp) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")
-          ));
-  
+          .AddOutput("external_data", "gpu")));
+
   ASSERT_THROW(
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")

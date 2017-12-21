@@ -128,16 +128,14 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")
-          ));
+          .AddOutput("data3", "cpu")));
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data3", "cpu")
-          .AddOutput("data3_cont", "cpu")
-          ));
-  
+          .AddOutput("data3_cont", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
@@ -200,9 +198,8 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")
-          ));
-    
+          .AddOutput("data1_cont", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
@@ -261,9 +258,8 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")
-          ));
-  
+          .AddOutput("data1_cont", "cpu")));
+
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
@@ -278,7 +274,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 
   vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
-  
+
   // Validate the graph - op 2&3 should
   // have been pruned
   ASSERT_EQ(graph.NumCPUOp(), 1);

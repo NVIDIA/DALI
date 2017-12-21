@@ -17,4 +17,4 @@ OPERATOR_SCHEMA(FastResizeCropMirror)
   .NumInput(1)
   .NumOutput(1);
 
-} // namespace ndll
+}  // namespace ndll

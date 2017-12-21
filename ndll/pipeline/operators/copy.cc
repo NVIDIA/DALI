@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/operators/copy.h"
 
 namespace ndll {
@@ -10,4 +11,4 @@ OPERATOR_SCHEMA(Copy)
   .NumInput(1)
   .NumOutput(1);
 
-} // namespace ndll
+}  // namespace ndll

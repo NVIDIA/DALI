@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_UTIL_WORKER_THREAD_H_
 #define NDLL_PIPELINE_UTIL_WORKER_THREAD_H_
 
@@ -5,6 +6,7 @@
 #include <functional>
 #include <mutex>
 #include <queue>
+#include <string>
 #include <thread>
 
 #include "ndll/common.h"
@@ -14,9 +16,9 @@
 namespace ndll {
 
 class WorkerThread {
-public:
+ public:
   typedef std::function<void(void)> Work;
-  
+
   inline WorkerThread(int device_id, bool set_affinity) :
     running_(true), work_complete_(true) {
     nvml::Init();
@@ -72,8 +74,8 @@ public:
       throw std::runtime_error(error);
     }
   }
-  
-private:
+
+ private:
   void ThreadMain(int device_id, bool set_affinity) {
     CUDA_CALL(cudaSetDevice(device_id));
     if (set_affinity) {
@@ -88,11 +90,11 @@ private:
       }
 
       if (!running_) break;
-      
+
       Work work = work_queue_.front();
       work_queue_.pop();
       lock.unlock();
-      
+
       try {
         work();
       } catch(std::runtime_error &e) {
@@ -124,6 +126,6 @@ private:
   std::queue<string> errors_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_UTIL_WORKER_THREAD_H_
+#endif  // NDLL_PIPELINE_UTIL_WORKER_THREAD_H_

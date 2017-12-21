@@ -12,14 +12,15 @@ namespace ndll {
 
 template <typename Backend>
 class Copy : public Operator<Backend> {
-public:
+ public:
   inline explicit Copy(const OpSpec &spec) :
     Operator<Backend>(spec) {}
-  
+
   virtual inline ~Copy() = default;
-  
+
   DISABLE_COPY_MOVE_ASSIGN(Copy);
-protected:
+
+ protected:
   inline void RunPerSampleCPU(SampleWorkspace *ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto output = ws->Output<CPUBackend>(0);
@@ -48,4 +49,4 @@ protected:
 
 }  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_COPY_H_
+#endif  // NDLL_PIPELINE_OPERATORS_COPY_H_

@@ -15,4 +15,4 @@ OPERATOR_SCHEMA(DummyOp)
   .NumInput(0, 10)
   .NumOutput(0, 10);
 
-} // namespace ndll
+}  // namespace ndll

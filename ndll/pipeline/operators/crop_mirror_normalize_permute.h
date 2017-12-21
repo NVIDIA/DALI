@@ -57,8 +57,8 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
   }
 
   virtual inline ~CropMirrorNormalizePermute() = default;
-  
-protected:
+
+ protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws) override {
     DataDependentSetup(ws);
     if (output_type_ == NDLL_FLOAT) {

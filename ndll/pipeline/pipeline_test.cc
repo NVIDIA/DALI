@@ -93,8 +93,7 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddOutput("data", "gpu")
-      );
+      .AddOutput("data", "gpu"));
 
   // Inputs to CPU ops must be on CPU
   ASSERT_THROW(
@@ -118,15 +117,13 @@ TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddOutput("data_2", "cpu")
-      );
+      .AddOutput("data_2", "cpu"));
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddOutput("data_3", "cpu")
-      );
-   
+      .AddOutput("data_3", "cpu"));
+
   // Outputs must have unique names.
   ASSERT_THROW(
       pipe.AddOperator(
@@ -172,8 +169,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddOutput("data", "gpu")
-      );
+      .AddOutput("data", "gpu"));
 
   // CPU inputs to GPU ops must be on CPU, we will
   // not copy them back to the host.
@@ -188,15 +184,13 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddOutput("data_2", "gpu")
-      );
+      .AddOutput("data_2", "gpu"));
 
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "gpu")
-      .AddOutput("data_3", "gpu")
-      );
-    
+      .AddOutput("data_3", "gpu"));
+
   // Outputs must have unique names.
   ASSERT_THROW(
       pipe.AddOperator(
@@ -209,8 +203,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   pipe.AddOperator(
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
-      .AddOutput("data_4", "cpu")
-      );
+      .AddOutput("data_4", "cpu"));
 
   // All data must have unique names regardless
   // of the device they exist on.

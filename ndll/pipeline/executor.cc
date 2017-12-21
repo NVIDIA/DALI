@@ -26,12 +26,12 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 
   // Presize the workspaces based on the hint
   PresizeData(&base_wsb);
-  
+
   // Assign streams to all internal & gpu ops
   SetupStreamsForGraph(&base_wsb);
 
   SetupOutputQueuesForGraph();
-  
+
   // For each set of outputs, setup another set of
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
@@ -139,10 +139,10 @@ void Executor::RunGPU() {
     cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
     if (graph_->NodeType(src_id) == NDLL_INTERNAL) {
       auto &ws = wsb.internal_op_data[src_idx];
-      CUDA_CALL(cudaEventRecord(event, ws.stream()));   
+      CUDA_CALL(cudaEventRecord(event, ws.stream()));
     } else if (graph_->NodeType(src_id) == NDLL_GPU) {
       auto &ws = wsb.gpu_op_data[src_idx];
-      CUDA_CALL(cudaEventRecord(event, ws.stream()));   
+      CUDA_CALL(cudaEventRecord(event, ws.stream()));
     } else {
       NDLL_FAIL("Internal error. Output node is not gpu/internal");
     }
@@ -175,7 +175,7 @@ void Executor::Outputs(DeviceWorkspace *ws) {
     free_cond_.notify_one();
     lock.unlock();
   }
-  
+
   // Block until the work for a batch has been issued.
   // Move the queue id from ready to in_use
   std::unique_lock<std::mutex> lock(ready_mutex_);
@@ -417,7 +417,7 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       }
     }
   }
-  
+
   for (auto &ws : wsb->gpu_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       NDLL_ENFORCE(ws.OutputIsType<GPUBackend>(i), "Executor "
@@ -541,7 +541,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     for (; it != current_node.parents.end(); ++it) {
       NodeID parent_id = *it;
       int parent_op_idx = graph_->NodeIdx(parent_id);
-      
+
       if (graph_->NodeType(parent_id) == NDLL_INTERNAL) {
         internal::MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
@@ -624,7 +624,7 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     NodeID node_id = info.prod_and_idx.first;
     int output_idx = info.prod_and_idx.second;
     NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_INTERNAL);
-    
+
     int internal_op_id = graph_->NodeIdx(node_id);
     wsb->internal_op_data[internal_op_id].SetOutput(
         output_idx, cpu_outputs_[i].GetTL(queue_idx));

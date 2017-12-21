@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
 
 #include <string>
+#include <vector>
 
 #include "ndll/pipeline/operator.h"
 

@@ -17,4 +17,4 @@ OPERATOR_SCHEMA(DCTQuantInv)
   .NumInput(2)
   .NumOutput(1);
 
-} // namespace ndll
+}  // namespace ndll

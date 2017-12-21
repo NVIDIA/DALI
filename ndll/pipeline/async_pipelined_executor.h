@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_
 #define NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_
 
@@ -9,12 +10,12 @@
 namespace ndll {
 
 class AsyncPipelinedExecutor : public PipelinedExecutor {
-public:
+ public:
   inline AsyncPipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
     PipelinedExecutor(batch_size, num_thread, device_id,
-        bytes_per_sample_hint, set_affinity, max_num_stream), 
+        bytes_per_sample_hint, set_affinity, max_num_stream),
     cpu_thread_(device_id, set_affinity),
     internal_thread_(device_id, set_affinity),
     gpu_thread_(device_id, set_affinity) {}
@@ -31,20 +32,20 @@ public:
     CheckForErrors();
     PipelinedExecutor::Outputs(ws);
   }
-  
-protected:
+
+ protected:
   void CheckForErrors() {
     cpu_thread_.CheckForErrors();
     internal_thread_.CheckForErrors();
     gpu_thread_.CheckForErrors();
   }
-  
+
   WorkerThread cpu_thread_, internal_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, internal_work_counter_ = 0, gpu_work_counter_ = 0;
   std::mutex cpu_mutex_, internal_mutex_, gpu_mutex_;
   std::condition_variable internal_work_cv_, gpu_work_cv_;
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_
+#endif  // NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_

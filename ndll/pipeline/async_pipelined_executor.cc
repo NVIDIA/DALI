@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/async_pipelined_executor.h"
 
 namespace ndll {
@@ -16,10 +17,10 @@ void AsyncPipelinedExecutor::RunCPU() {
         --cpu_work_counter_;
         lock.unlock();
 
-        // cout << "got cpu work" << endl;        
+        // cout << "got cpu work" << endl;
         PipelinedExecutor::RunCPU();
         // cout << "finished cpu work" << endl;
-        
+
         // Mark that there is now internal work to do
         // and signal to any threads that are waiting
         std::unique_lock<std::mutex> internal_lock(internal_mutex_);
@@ -41,7 +42,7 @@ void AsyncPipelinedExecutor::RunInternal() {
         // cout << "got internal work" << endl;
         PipelinedExecutor::RunInternal();
         // cout << "finished internal issue" << endl;
-        
+
         // Mark that there is now gpu work to do
         // and signal to any threads that are waiting
         std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
@@ -61,14 +62,14 @@ void AsyncPipelinedExecutor::RunGPU() {
         --gpu_work_counter_;
         lock.unlock();
 
-        // cout << "got gpu work" << endl;        
+        // cout << "got gpu work" << endl;
         PipelinedExecutor::RunGPU();
         // cout << "Finished gpu issue" << endl;
-        
+
         // All the work for this batch has now been issued,
         // but has not necessarilly finished. The base-class
         // handles any synchronization for output completion
       });
 }
 
-} // namespace ndll
+}  // namespace ndll

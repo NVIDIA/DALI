@@ -40,7 +40,7 @@ class ThreadPool {
   inline ~ThreadPool() {
     // Wait for work to find errors
     WaitForWork();
-    
+
     std::unique_lock<std::mutex> lock(mutex_);
     running_ = false;
     condition_.notify_all();
@@ -62,7 +62,7 @@ class ThreadPool {
     // Signal a thread to complete the work
     condition_.notify_one();
   }
-  
+
   // Blocks until all work issued to the thread pool is complete
   inline void WaitForWork() {
     std::unique_lock<std::mutex> lock(mutex_);

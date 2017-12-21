@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -13,7 +14,7 @@ namespace ndll {
 namespace python {
 
 namespace py = pybind11;
-using namespace pybind11::literals;
+using namespace pybind11::literals; // NOLINT
 
 static std::string FormatStrFromType(TypeInfo type) {
   if (IsType<uint8>(type)) {
@@ -22,10 +23,10 @@ static std::string FormatStrFromType(TypeInfo type) {
     return py::format_descriptor<int16>::format();
   } else if (IsType<int>(type)) {
     return py::format_descriptor<int>::format();
-  } else if (IsType<long>(type)) {
-    return py::format_descriptor<long>::format();
-  } else if (IsType<long long>(type)) {
-    return py::format_descriptor<long long>::format();
+  } else if (IsType<long>(type)) { // NOLINT
+    return py::format_descriptor<long>::format(); // NOLINT
+  } else if (IsType<long long>(type)) { // NOLINT
+    return py::format_descriptor<long long>::format(); // NOLINT
   } else if (IsType<float>(type)) {
     return py::format_descriptor<float>::format();
   } else if (IsType<double>(type)) {
@@ -45,10 +46,10 @@ static TypeInfo TypeFromFormatStr(std::string format) {
     return TypeInfo::Create<int16>();
   } else if (format == py::format_descriptor<int>::format()) {
     return TypeInfo::Create<int>();
-  } else if (format == py::format_descriptor<long>::format()) {
-    return TypeInfo::Create<long>();
-  } else if (format == py::format_descriptor<long long>::format()) {
-    return TypeInfo::Create<long long>();
+  } else if (format == py::format_descriptor<long>::format()) { // NOLINT
+    return TypeInfo::Create<long>(); // NOLINT
+  } else if (format == py::format_descriptor<long long>::format()) { // NOLINT
+    return TypeInfo::Create<long long>(); // NOLINT
   } else if (format == py::format_descriptor<float>::format()) {
     return TypeInfo::Create<float>();
   } else if (format == py::format_descriptor<double>::format()) {
@@ -60,12 +61,12 @@ static TypeInfo TypeFromFormatStr(std::string format) {
   }
 }
 
-void ExposeTensorCPU(py::module &m) {
+void ExposeTensorCPU(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          
+
           std::vector<ssize_t> shape(t.ndim()), stride(t.ndim());
           size_t dim_prod = 1;
           for (int i = 0; i < t.ndim(); ++i) {
@@ -114,7 +115,7 @@ void ExposeTensorCPU(py::module &m) {
     .def("resize", &Tensor<CPUBackend>::Resize);
 }
 
-void ExposeTensorListCPU(py::module &m) {
+void ExposeTensorListCPU(py::module &m) { // NOLINT
   // We only want to wrap buffers w/ TensorLists to feed then to
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
@@ -189,7 +190,7 @@ PYBIND11_MODULE(ndll_backend, m) {
   m.attr("INTERP_NN") = 0;
   m.attr("INTERP_LINEAR") = 1;
   m.attr("INTERP_CUBIC") = 2;
-    
+
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
@@ -199,8 +200,7 @@ PYBIND11_MODULE(ndll_backend, m) {
                 int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(batch_size, num_threads, device_id, pipelined_execution,
-                      async_execution, bytes_per_sample_hint, set_affinity, max_num_stream)
-                  );
+                      async_execution, bytes_per_sample_hint, set_affinity, max_num_stream));
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -252,7 +252,7 @@ PYBIND11_MODULE(ndll_backend, m) {
           }
           p->SetExternalInput(name, tensors);
         });
-  
+
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,
@@ -311,7 +311,7 @@ PYBIND11_MODULE(ndll_backend, m) {
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema);
-  
+
   py::class_<OpSchema>(m, "OpSchema")
     .def("Dox", &OpSchema::Dox)
     .def("MaxNumInput", &OpSchema::MaxNumInput)
@@ -326,5 +326,5 @@ PYBIND11_MODULE(ndll_backend, m) {
   ExposeTensorListCPU(m);
 }
 
-} // namespace python
-} // namespace ndll
+}  // namespace python
+}  // namespace ndll

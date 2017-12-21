@@ -19,7 +19,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
 
   bool pipelined = executor > 0;
   bool async = executor > 1;
-  
+
   // Create the pipeline
   Pipeline pipe(
       batch_size,
@@ -92,7 +92,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  while(st.KeepRunning()) {
+  while (st.KeepRunning()) {
     if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
@@ -109,9 +109,9 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       pipe.Outputs(&ws);
     }
   }
-  
+
   // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
-  int num_batches = st.iterations() + int(pipelined);
+  int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
 }
@@ -148,7 +148,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       num_thread,
       0, pipelined,
       async);
-  
+
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
@@ -208,7 +208,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  while(st.KeepRunning()) {
+  while (st.KeepRunning()) {
     if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
@@ -227,7 +227,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   }
 
   // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
-  int num_batches = st.iterations() + int(pipelined);
+  int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
 }

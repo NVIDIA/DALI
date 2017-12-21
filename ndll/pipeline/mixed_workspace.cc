@@ -107,7 +107,7 @@ void MixedWorkspace::SetInput(int idx,
       --input_idx;
     }
     gpu_inputs_.erase(gpu_inputs_.begin() + tensor_meta.second);
-    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);    
+    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);
   }
 
   cpu_inputs_.push_back(input);
@@ -137,7 +137,7 @@ void MixedWorkspace::SetInput(int idx,
       --input_idx;
     }
     gpu_inputs_.erase(gpu_inputs_.begin() + tensor_meta.second);
-    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);    
+    gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);
   }
 
   gpu_inputs_.push_back(input);

@@ -11,4 +11,4 @@ OPERATOR_SCHEMA(ExternalSource)
   .NumInput(0)
   .NumOutput(1);
 
-} // namespace ndll
+}  // namespace ndll

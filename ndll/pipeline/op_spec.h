@@ -47,7 +47,7 @@ class OpSpec {
   inline void set_name(const string &name) {
     name_ = name;
   }
-  
+
   /**
    * @brief Add an argument with the given name and value.
    */

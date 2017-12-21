@@ -1,5 +1,10 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_PIPELINED_EXECUTOR_H_
 #define NDLL_PIPELINE_PIPELINED_EXECUTOR_H_
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -18,7 +23,7 @@ namespace ndll {
  * and gpu portions of the graph.
  */
 class PipelinedExecutor : public Executor {
-public:
+ public:
   inline PipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
@@ -31,17 +36,16 @@ public:
 
   void Build(OpGraph *graph, vector<string> output_names) override;
 
-  DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);  
+  DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);
 
-protected:
-
+ protected:
   void SetupStageOutputsForGraph();
 
   void SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb);
 
   template <typename Backend>
   class TensorVectorPool {
-  public:
+   public:
     inline TensorVectorPool(int size, int batch_size, size_t bytes_hint) {
       tvs_.resize(size);
       for (int i = 0; i < size; ++i) {
@@ -54,11 +58,11 @@ protected:
 
     inline vector<shared_ptr<Tensor<Backend>>> GetTV(int idx) {
       return tvs_[idx];
-    }    
-  private:
+    }
+   private:
     vector<vector<shared_ptr<Tensor<Backend>>>> tvs_;
   };
-  
+
   // Note: Pipelining the cpu, internal, and gpu execution
   // can be viewed as prefetching each stage w.r.t. the
   // other stages. Thus, we need to queue the outputs of
@@ -76,10 +80,10 @@ protected:
   vector<OutputInfo> cpu_stage_output_info_;
   vector<OutputInfo> internal_stage_cpu_output_info_;
   vector<OutputInfo> internal_stage_gpu_output_info_;
-  
+
   USE_EXECUTOR_MEMBERS();
 };
 
-} // namespace ndll
+}  // namespace ndll
 
-#endif // NDLL_PIPELINE_PIPELINED_EXECUTOR_H_
+#endif  // NDLL_PIPELINE_PIPELINED_EXECUTOR_H_
