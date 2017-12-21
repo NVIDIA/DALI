@@ -4,15 +4,26 @@
 
 #include <nvml.h>
 
+#include <mutex>
+
 #include "ndll/error_handling.h"
 
 namespace ndll {
 namespace nvml {
 
 /**
+ * @brief Getter for the nvml mutex
+ */
+inline std::mutex& Mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+/**
  * @brief Initializes the NVML library
  */
 inline void Init() {
+  std::lock_guard<std::mutex> lock(Mutex());
   NVML_CALL(nvmlInit());
 }
 
@@ -20,6 +31,7 @@ inline void Init() {
  * @brief Sets the CPU affinity for the calling thread
  */
 inline void SetCPUAffinity() {
+  std::lock_guard<std::mutex> lock(Mutex());
   int device_idx;
   CUDA_CALL(cudaGetDevice(&device_idx));
 
@@ -29,6 +41,7 @@ inline void SetCPUAffinity() {
 }
 
 inline void Shutdown() {
+  std::lock_guard<std::mutex> lock(Mutex());
   NVML_CALL(nvmlShutdown());
 }
 

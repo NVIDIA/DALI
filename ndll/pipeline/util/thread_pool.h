@@ -90,9 +90,6 @@ class ThreadPool {
   inline void ThreadMain(int thread_id, int device_id, bool set_affinity) {
     CUDA_CALL(cudaSetDevice(device_id));
     if (set_affinity) {
-      // Set device affinity. Lock to ensure we don't hit
-      // the thread safety issue in NVML
-      std::lock_guard<std::mutex> lock(mutex_);
       nvml::SetCPUAffinity();
     }
 
