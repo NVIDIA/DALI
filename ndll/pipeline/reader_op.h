@@ -23,8 +23,12 @@ class DataReader : public Operator<Backend> {
   inline explicit DataReader(const OpSpec& spec) :
     Operator<Backend>(spec),
   prefetch_ready_(false),
+  prefetch_ready_workers_(false),
   prefetch_success_(true),
-  finished_(false) {
+  finished_(false),
+  samples_processed_(0),
+  condition_vars_(Operator<Backend>::num_threads_),
+  thread_locks_(Operator<Backend>::num_threads_) {
     // TODO(slayton): Anything needed here?
   }
 
@@ -50,6 +54,7 @@ class DataReader : public Operator<Backend> {
     while (!finished_) {
       try {
         printf("calling Prefetch()\n");
+        prefetched_batch_.reserve(Operator<Backend>::batch_size_);
         prefetch_success_ = Prefetch();
       } catch (const std::exception& e) {
         // error out
@@ -60,7 +65,7 @@ class DataReader : public Operator<Backend> {
       // mark as ready
       prefetch_ready_ = true;
       // notify the consumer of a result ready to consume
-      consumer_.notify_one();
+      consumer_.notify_all();
 
       // wait until the result is consumed
       printf("waiting for consumption\n");
@@ -73,12 +78,14 @@ class DataReader : public Operator<Backend> {
 
   // to be called in constructor
   void StartPrefetchThread() {
-    // if thread hasn't been started yet, start it
-    if (!prefetch_thread_.get()) {
-      prefetch_thread_.reset(
-          new std::thread([this] { this->PrefetchWorker(); }));
+    {
+      // if thread hasn't been started yet, start it
+      if (!prefetch_thread_.get()) {
+        prefetch_thread_.reset(
+            new std::thread([this] { this->PrefetchWorker(); }));
+        printf("Prefetch thread started\n");
+      }
     }
-    printf("Prefetch thread started\n");
   }
 
   // to be called in destructor
@@ -109,21 +116,46 @@ class DataReader : public Operator<Backend> {
   }
 
   void Run(SampleWorkspace* ws) override {
-    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-    StartPrefetchThread();
-
-    // wait for a batch to be ready
-    while (!prefetch_ready_) {
-      consumer_.wait(lock);
+    {
+      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+      StartPrefetchThread();
     }
 
-    printf("running RunPerSampleCPU\n");
+    {
+      // block all other worker threads from taking the prefetch-controller lock
+      std::unique_lock<std::mutex> worker_lock(worker_mutex_);
+      if (!prefetch_ready_workers_) {
+
+        std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+        while (!prefetch_ready_) {
+          consumer_.wait(prefetch_lock);
+          prefetch_ready_ = true;
+        }
+        // signal the other workers we're ready
+        prefetch_ready_workers_ = true;
+
+        // signal the prefetch thread to start again
+        prefetch_ready_ = false;
+        producer_.notify_one();
+      }
+    }
+
+    printf("[%d] running RunPerSampleCPU\n", ws->thread_idx());
     // consume batch
     Operator<Backend>::Run(ws);
-    printf("finished RunPerSampleCPU\n");
+    printf("[%d] finished RunPerSampleCPU\n", ws->thread_idx());
 
-    prefetch_ready_ = false;
-    producer_.notify_one();
+    samples_processed_++;
+
+    if (samples_processed_.load() == Operator<Backend>::batch_size_-1) {
+      // lock, reset, notify
+      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+      if (prefetch_ready_workers_) {
+        prefetch_ready_workers_ = false;
+        // producer_.notify_one();
+      }
+      return;
+    }
   }
 
   void Run(DeviceWorkspace* ws) override {
@@ -146,18 +178,30 @@ class DataReader : public Operator<Backend> {
 
   // mutex to control access to the producer
   std::mutex prefetch_access_mutex_;
+  std::mutex worker_mutex_;
+  std::vector<std::mutex> thread_locks_;
 
   // signals for producer and consumer
   std::condition_variable producer_, consumer_;
+  std::vector<std::condition_variable> condition_vars_;
+  std::condition_variable worker_threads_;
 
   // signal that a complete batch has been prefetched
   std::atomic<bool> prefetch_ready_;
+  std::atomic<bool> prefetch_ready_workers_;
 
   // check if prefetching was successful
   std::atomic<bool> prefetch_success_;
 
   // signal that the prefetch thread has finished
   std::atomic<bool> finished_;
+
+  // prefetched batch
+  std::vector<Tensor<Backend>*> prefetched_batch_;
+
+  // keep track of how many samples have been processed
+  // over all threads.
+  std::atomic<int> samples_processed_;
 };
 
 };  // namespace ndll
