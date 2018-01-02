@@ -9,6 +9,7 @@
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
+#include "ndll/python/python3_compat.h"
 
 namespace ndll {
 namespace python {
@@ -265,8 +266,8 @@ PYBIND11_MODULE(ndll_backend, m) {
           // cast errors from pybind so we can give the user better error messages?
           PyObject *value = obj.ptr();
           // Switch on supported data types
-          if (PyString_Check(value)) {
-            std::string str_val(PyString_AsString(value));
+          if (PyStr_Check(value)) {
+            std::string str_val(PyStr_AsString(value));
             spec->AddArg(name, str_val);
           } else if (PyBool_Check(value)) {
             bool bool_val(value == Py_True);
@@ -283,7 +284,7 @@ PYBIND11_MODULE(ndll_backend, m) {
 
             // Get the first type
             PyObject *elt = PyList_GetItem(value, 0);
-            if (PyString_Check(elt)) {
+            if (PyStr_Check(elt)) {
               vector<string> str_vals = obj.cast<vector<string>>();
               spec->AddArg(name, str_vals);
             } else if (PyBool_Check(elt)) {
