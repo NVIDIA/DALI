@@ -2,6 +2,7 @@
 add_subdirectory(data)
 add_subdirectory(loader)
 add_subdirectory(operators)
+add_subdirectory(parser)
 add_subdirectory(util)
 
 # Get all the source files and dump test files

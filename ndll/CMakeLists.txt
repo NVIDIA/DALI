@@ -13,7 +13,12 @@ file(GLOB tmp *.cc)
 set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 
 set(ndll_lib "ndll")
-cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})
+
+if (USE_PROTOBUF)
+  cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO> $<TARGET_OBJECTS:TF_PROTO>)
+else()
+  cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})
+endif()
 target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
 
 # Add install rules

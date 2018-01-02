@@ -83,3 +83,16 @@ if (USE_LMDB)
     message(STATUS "LMDB not found")
   endif()
 endif()
+
+# protobuf
+if (USE_PROTOBUF)
+  find_package(Protobuf)
+
+  if (PROTOBUF_FOUND)
+    message(STATUS "Found Protobuf ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
+    include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
+    list(APPEND NDLL_LIBS ${PROTOBUF_LIBRARY})
+  else()
+    message(STATUS "Protobuf not found")
+  endif()
+endif()
