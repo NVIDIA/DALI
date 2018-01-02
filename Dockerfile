@@ -44,7 +44,7 @@ COPY . .
 
 RUN mkdir build && cd build && \
 		cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
-				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=OFF && \
+				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON && \
 		make -j"$(nproc)" && \
 		ldconfig
 
