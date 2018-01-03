@@ -29,15 +29,12 @@ class DataReader : public Operator<Backend> {
   prefetch_ready_workers_(false),
   prefetch_success_(true),
   finished_(false),
-  samples_processed_(0) {
+  samples_processed_(0),
+  batch_stop_(false) {
     // TODO(slayton): Anything needed here?
   }
 
-  virtual ~DataReader() noexcept {
-    printf("calling ~DataReader\n");
-    // check we're good
-    // StopPrefetchThread();
-  }
+  virtual ~DataReader() noexcept {}
 
   // perform the prefetching operation
   virtual bool Prefetch() = 0;
@@ -46,7 +43,6 @@ class DataReader : public Operator<Backend> {
   void PrefetchWorker() {
     std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
 
-    printf("started prefetch worker\n");
     // if a result is already ready, wait until it's consumed
     while (prefetch_ready_) {
       producer_.wait(lock);
@@ -54,12 +50,10 @@ class DataReader : public Operator<Backend> {
 
     while (!finished_) {
       try {
-        printf("calling Prefetch()\n");
         prefetched_batch_.reserve(Operator<Backend>::batch_size_);
-        prefetch_success_ = Prefetch();
+        // prefetch_success_ = Prefetch();
       } catch (const std::exception& e) {
-        // error out
-
+        printf("Prefetch Failed\n");
         // notify of failure
         prefetch_success_ = false;
       }
@@ -69,11 +63,9 @@ class DataReader : public Operator<Backend> {
       consumer_.notify_all();
 
       // wait until the result is consumed
-      printf("waiting for consumption\n");
       while (prefetch_ready_) {
         producer_.wait(lock);
       }
-      printf("consumed\n");
     }
   }
 
@@ -84,7 +76,6 @@ class DataReader : public Operator<Backend> {
       if (!prefetch_thread_.get()) {
         prefetch_thread_.reset(
             new std::thread([this] { this->PrefetchWorker(); }));
-        printf("Prefetch thread started\n");
       }
     }
   }
@@ -95,20 +86,16 @@ class DataReader : public Operator<Backend> {
       {
         std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
 
-        printf("waiting on consumer\n");
         while (!prefetch_ready_) {
           consumer_.wait(lock);
         }
         finished_ = true;
         prefetch_ready_ = false;
-        printf("done\n");
       }
       // notify the prefetcher to stop
       producer_.notify_one();
       // join the prefetch thread and destroy it
-      printf("joining prefetch thread\n");
       prefetch_thread_->join();
-      printf("joined\n");
       prefetch_thread_.reset();
 
     } else {
@@ -120,13 +107,19 @@ class DataReader : public Operator<Backend> {
     {
       std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
       StartPrefetchThread();
+
+      if (batch_stop_) batch_stop_ = false;
     }
 
     {
       // block all other worker threads from taking the prefetch-controller lock
       std::unique_lock<std::mutex> worker_lock(worker_mutex_);
+
       if (!prefetch_ready_workers_) {
+        // grab the actual prefetching lock
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+
+        // Wait until prefetch is ready
         while (!prefetch_ready_) {
           consumer_.wait(prefetch_lock);
           prefetch_ready_ = true;
@@ -140,19 +133,25 @@ class DataReader : public Operator<Backend> {
       }
     }
 
-    printf("[%d] running RunPerSampleCPU\n", ws->thread_idx());
     // consume batch
     Operator<Backend>::Run(ws);
-    printf("[%d] finished RunPerSampleCPU\n", ws->thread_idx());
 
     samples_processed_++;
 
-    if (samples_processed_.load() == Operator<Backend>::batch_size_-1) {
-      // lock, reset, notify
+    // lock, check if batch is finished, notify
+    {
       std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-      if (prefetch_ready_workers_) {
+
+      // if we need to stop, stop.
+      if (batch_stop_) return;
+
+      // if we've consumed all samples in this batch, reset state and stop
+      if (samples_processed_.load() == Operator<Backend>::batch_size_-1) {
         prefetch_ready_workers_ = false;
-        // producer_.notify_one();
+        prefetch_ready_ = false;
+        producer_.notify_one();
+        samples_processed_ = 0;
+        batch_stop_ = true;
       }
       return;
     }
@@ -202,6 +201,9 @@ class DataReader : public Operator<Backend> {
   // keep track of how many samples have been processed
   // over all threads.
   std::atomic<int> samples_processed_;
+
+  // notify threads to stop processing
+  std::atomic<bool> batch_stop_;
 };
 
 };  // namespace ndll
