@@ -1,11 +1,12 @@
 // Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_DATA_READER_OP_H_
-#define NDLL_PIPELINE_DATA_READER_OP_H_
+#ifndef NDLL_PIPELINE_READER_OP_H_
+#define NDLL_PIPELINE_READER_OP_H_
 
 #include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <thread>
+#include <vector>
 
 #include "ndll/pipeline/loader/loader.h"
 #include "ndll/pipeline/operator.h"
@@ -22,13 +23,13 @@ class DataReader : public Operator<Backend> {
  public:
   inline explicit DataReader(const OpSpec& spec) :
     Operator<Backend>(spec),
+  thread_locks_(Operator<Backend>::num_threads_),
+  condition_vars_(Operator<Backend>::num_threads_),
   prefetch_ready_(false),
   prefetch_ready_workers_(false),
   prefetch_success_(true),
   finished_(false),
-  samples_processed_(0),
-  condition_vars_(Operator<Backend>::num_threads_),
-  thread_locks_(Operator<Backend>::num_threads_) {
+  samples_processed_(0) {
     // TODO(slayton): Anything needed here?
   }
 
@@ -125,7 +126,6 @@ class DataReader : public Operator<Backend> {
       // block all other worker threads from taking the prefetch-controller lock
       std::unique_lock<std::mutex> worker_lock(worker_mutex_);
       if (!prefetch_ready_workers_) {
-
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
         while (!prefetch_ready_) {
           consumer_.wait(prefetch_lock);
@@ -206,4 +206,4 @@ class DataReader : public Operator<Backend> {
 
 };  // namespace ndll
 
-#endif  // NDLL_PIPELINE_DATA_READER_OP_H_
+#endif  // NDLL_PIPELINE_READER_OP_H_

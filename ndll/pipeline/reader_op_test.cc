@@ -3,7 +3,10 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <cstdio>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/reader_op.h"
@@ -11,8 +14,6 @@
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
-
-#include <cstdio>
 
 namespace ndll {
 
@@ -48,17 +49,18 @@ class DummyDataReader : public DataReader<Backend> {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
 
-  inline int MaxNumInput() const override { return 0; }
-  inline int MinNumInput() const override { return 0; }
-  inline int MaxNumOutput() const override { return 1; }
-  inline int MinNumOutput() const override { return 1; }
-
  private:
   std::atomic<int> count_;
   const int max_count = 100;
 };
 
 NDLL_REGISTER_CPU_OPERATOR(DummyDataReader, DummyDataReader<CPUBackend>);
+
+OPERATOR_SCHEMA(DummyDataReader)
+  .DocStr("Dummy")
+  .OutputFn([](const OpSpec& spec) { return 1; })
+  .NumInput(0)
+  .NumOutput(1);
 
 template <typename Backend>
 class ReaderTest : public NDLLTest {
@@ -72,7 +74,6 @@ typedef ::testing::Types<CPUBackend> TestTypes;
 TYPED_TEST_CASE(ReaderTest, TestTypes);
 
 TYPED_TEST(ReaderTest, test) {
-
   Pipeline pipe(128, 4, 0);
 
   pipe.AddOperator(

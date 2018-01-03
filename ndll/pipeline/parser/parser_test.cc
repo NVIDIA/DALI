@@ -27,7 +27,7 @@ class IntArrayParser : public Parser {
     printf("H: %d, W: %d, C: %d\n", H, W, C);
 
     Tensor<Backend>* output = ws->template Output<Backend>(0);
-    output->Resize({H,W,C});
+    output->Resize({H, W, C});
 
     int *output_data = output->template mutable_data<int>();
 
@@ -47,7 +47,6 @@ typedef ::testing::Types<CPUBackend> TestTypes;
 TYPED_TEST_CASE(ParserTest, TestTypes);
 
 TYPED_TEST(ParserTest, BasicTest) {
-
   const int H = 64, W = 64, C = 3;
   int *data = new int[3 + H*W*C];
   data[0] = H;
