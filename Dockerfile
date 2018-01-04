@@ -43,7 +43,7 @@ RUN JPEG_TURBO_VERSION=1.5.2 && \
 # protobuf v3.5.1
 RUN PROTOBUF_VERSION=3.5.1 && \
     wget -q -O - https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
-    cd protobuf-all-${PROTOBUF_VERSION} && \
+    cd protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
     ./configure --prefix=/usr 2>&1 > /dev/null && \
     make -j"$(nproc)" install 2>&1 > /dev/null && \
