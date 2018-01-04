@@ -9,17 +9,6 @@ set_target_properties(${ndll_python_lib} PROPERTIES
 
 file(COPY "${PROJECT_SOURCE_DIR}/ndll/python" DESTINATION "${PROJECT_BINARY_DIR}/ndll" FILES_MATCHING PATTERN "*.py")
 
-## Copy all python files to the binary dir
-#file(GLOB tmp *.py)
-#foreach (ITEM ${tmp})
-  #get_filename_component(FILE ${ITEM} NAME)
-  #if (${FILE} MATCHES "setup.py")
-    #configure_file(${ITEM} ${PROJECT_BINARY_DIR}/ndll/python/${FILE} COPYONLY)
-  #else()
-    #configure_file(${ITEM} ${PROJECT_BINARY_DIR}/ndll/python/ndll/${FILE} COPYONLY)
-  #endif()
-#endforeach()
-
 # Add install rule
 install(CODE "execute_process(COMMAND pip install --upgrade .
                               WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/ndll/python)")
