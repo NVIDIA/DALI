@@ -18,7 +18,11 @@ def python_op_factory(name):
 
             # Unfortunately class docstrings are immutable, so
             # we append the operator docs to the operator constructor
-            type(self).__init__.__func__.__doc__ = self._schema.Dox()
+            try:
+                type(self).__init__.__func__.__doc__ = self._schema.Dox()
+            except:
+                # In Python 3 __func__ attribute does not exist
+                type(self).__init__.__doc__ = self._schema.Dox()
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on

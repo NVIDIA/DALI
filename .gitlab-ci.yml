@@ -272,6 +272,14 @@ L0_rn50-benchmarks--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
+L0_rn50_python-benchmarks--P100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *P100_R384_4GPU
+
+L0_rn50_python-benchmarks--py2--P100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *P100_R384_4GPU
+
 L0_self-test--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
@@ -280,3 +288,10 @@ L0_rn50-benchmarks--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
+L0_rn50_python-benchmarks--V100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *V100_R384_4GPU
+
+L0_rn50_python-benchmarks--py2--V100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *V100_R384_4GPU

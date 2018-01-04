@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python$PYVER /usr/bin/python
 RUN ln -sf /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
 
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py && \
+    rm get-pip.py
+
 RUN OPENCV_VERSION=3.1.0 && \
     wget -q -O - https://github.com/Itseez/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && \
@@ -43,10 +47,11 @@ WORKDIR /opt/ndll
 COPY . .
 
 RUN mkdir build && cd build && \
-		cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
-				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON && \
-		make -j"$(nproc)" && \
-		ldconfig
+    cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
+      -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON && \
+    make -j"$(nproc)" && \
+    make install && \
+    ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
 
