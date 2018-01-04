@@ -1,5 +1,6 @@
 // Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
 #include "ndll/pipeline/init.h"
@@ -10,6 +11,7 @@
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/python/python3_compat.h"
+#include "ndll/util/user_stream.h"
 
 namespace ndll {
 namespace python {
@@ -151,12 +153,48 @@ void ExposeTensorListCPU(py::module &m) { // NOLINT
           t.ShareData(info.ptr, bytes);
           t.set_type(type);
           t.Resize(i_shape);
+        })
+    .def("at", [](TensorList<CPUBackend> &t, Index id) -> py::array {
+          NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
+              "buffer info for tensor w/ invalid type.");
+          NDLL_ENFORCE(id < t.ntensor(), "Index is out-of-range.");
+          NDLL_ENFORCE(id >= 0, "Index is out-of-range.");
+
+          std::vector<ssize_t> shape(t.tensor_shape(id).size()), stride(t.tensor_shape(id).size());
+          size_t dim_prod = 1;
+          for (size_t i = 0; i < shape.size(); ++i) {
+            shape[i] = t.tensor_shape(id)[i];
+
+            // We iterate over stride backwards
+            stride[(stride.size()-1) - i] = t.type().size()*dim_prod;
+            dim_prod *= t.tensor_shape(id)[(shape.size()-1) - i];
+          }
+
+          return py::array(py::buffer_info(
+              t.raw_mutable_tensor(id),
+              t.type().size(),
+              FormatStrFromType(t.type()),
+              shape.size(), shape, stride));
+        })
+    .def("__len__", [](TensorList<CPUBackend> &t) {
+          return t.ntensor();
         });
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
     .def("__init__", [](TensorList<GPUBackend> &t) {
           // Construct a default TensorList on GPU
           new (&t) TensorList<GPUBackend>;
+        })
+    .def("asCPU", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
+          TensorList<CPUBackend> * ret = new TensorList<CPUBackend>();
+          UserStream * us = UserStream::Get();
+          cudaStream_t s = us->GetStream(t);
+          ret->Copy(t, s);
+          CUDA_CALL(cudaStreamSynchronize(s));
+          return ret;
+        }, py::return_value_policy::take_ownership)
+    .def("__len__", [](TensorList<GPUBackend> &t) {
+          return t.ntensor();
         });
 }
 

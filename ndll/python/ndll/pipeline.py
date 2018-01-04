@@ -30,11 +30,11 @@ class Pipeline(object):
     @property
     def device_id(self):
         return self._pipe.device_id()
-    
+
     def build(self):
         if self._built:
             raise RuntimeError("build() can only be called once.")
-        
+
         outputs = self.define_graph()
         if type(outputs) is not tuple:
             outputs = (outputs,)
@@ -71,7 +71,7 @@ class Pipeline(object):
                 for tensor in source_op.inputs:
                     tensors.append(tensor)
 
-        # Add the ops to the graph and build the backend 
+        # Add the ops to the graph and build the backend
         while len(ops):
             self._pipe.AddOperator(ops.pop().spec)
         names_and_devices = [(t.name, t.device) for t in outputs]
@@ -95,13 +95,13 @@ class Pipeline(object):
         else:
             t = nt.TensorListCPU(data)
             self._pipe.SetExternalTLInput(ref.name, t)
-    
+
     def run_cpu(self):
         self._pipe.RunCPU()
 
     def run_gpu(self):
         self._pipe.RunGPU()
-        
+
     def outputs(self):
         return self._pipe.Outputs()
 
@@ -115,13 +115,13 @@ class Pipeline(object):
         self.run_cpu()
         self.run_gpu()
         return self.outputs()
-    
+
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
     # trace back to add them to the graph
     def build_graph(self):
         raise NotImplementedError
-    
+
     # Can be overriden by user-defined pipeline to perform any
     # needed setup for each iteration, e.g. feed in input data
     def iter_setup(self):

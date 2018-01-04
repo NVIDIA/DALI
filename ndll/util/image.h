@@ -80,6 +80,7 @@ void WriteHWCImageScaleBias(const T *img, int h, int w,
 
   vector<double> tmp(h*w*c, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
+  CUDA_CALL(cudaDeviceSynchronize());
   std::ofstream file(file_name + ".ppm");
   NDLL_ENFORCE(file.is_open());
 
