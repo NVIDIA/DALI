@@ -36,7 +36,7 @@ def python_op_factory(name):
                 # Add outputs
                 num_output = op.schema.CalculateOutputs(self._spec)
                 for i in range(num_output):
-                    t_name = type(op).__name__ + "_output_" + str(i)
+                    t_name = type(op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
                     t = TensorReference(t_name, op.device, self)
                     self._spec.AddOutput(t.name, t.device)
                     self.append_output(t)
@@ -47,18 +47,18 @@ def python_op_factory(name):
 
             @property
             def inputs(self):
-                return _inputs
+                return self._inputs
 
             @property
-            def inputs(self):
-                return _outputs
+            def outputs(self):
+                return self._outputs
 
             @property
             def spec(self):
                 return self._spec
 
             def append_output(self, output):
-                _outputs.append(output)
+                self._outputs.append(output)
 
         def __init__(self, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
@@ -109,7 +109,7 @@ def python_op_factory(name):
                             self._schema.MaxNumInput(),
                             len(inputs)))
 
-            op_instance = OperatorInstance(inputs, self)
+            op_instance = self.OperatorInstance(inputs, self)
 
             if len(op_instance.outputs) == 1:
                 return op_instance.outputs[0]
