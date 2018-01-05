@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/host_workspace.h"
 
 #include "ndll/pipeline/sample_workspace.h"
