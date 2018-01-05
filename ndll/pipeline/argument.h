@@ -167,6 +167,55 @@ class Argument {
     rs_.clear();
   }
 
+  string ToString() {
+    string ret = "";
+    if (has_name()) {
+      ret += get_name();
+    } else {
+      ret += "<No Name>";
+    }
+    ret += ": ";
+    if (has_f()) {
+      ret += std::to_string(get_f());
+    } else if (has_i()) {
+      ret += std::to_string(get_i());
+    } else if (has_ui()) {
+      ret += std::to_string(get_ui());
+    } else if (has_s()) {
+      ret += get_s();
+    } else if (rf_size()) {
+      ret += "[";
+      for (auto& t : rf_) {
+        ret += std::to_string(t);
+        ret += ",";
+      }
+      ret += "]";
+    } else if (ri_size()) {
+      ret += "[";
+      for (auto& t : ri_) {
+        ret += std::to_string(t);
+        ret += ",";
+      }
+      ret += "]";
+    } else if (rui_size()) {
+      ret += "[";
+      for (auto& t : rui_) {
+        ret += std::to_string(t);
+        ret += ",";
+      }
+      ret += "]";
+    } else if (rs_size()) {
+      ret += "[";
+      for (auto& t : rs_) {
+        ret += t;
+        ret += ",";
+      }
+      ret += "]";
+    }
+
+    return ret;
+  }
+
  private:
   string name_;
 
