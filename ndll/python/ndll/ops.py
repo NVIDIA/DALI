@@ -1,18 +1,66 @@
+#pylint: disable=no-member
+import sys
+import copy
 from itertools import count
 import ndll.backend as b
 from ndll.tensor import TensorReference
-import sys
-import re
 
 class OpCounter(object):
+    #pylint: disable=too-few-public-methods
     _op_count = count(0)
     def __init__(self):
-        self.id = next(self._op_count)
-        
+        self._id = next(self._op_count)
+
+    @property
+    def id(self):
+        return self._id
+
 def python_op_factory(name):
     class Operator(object):
+        class OperatorInstance(object):
+            def __init__(self, inputs, op):
+                self._counter = OpCounter()
+                self._inputs = inputs
+                self._outputs = []
+                self._op = op
+                self._spec = op.spec.copy()
+                # Add inputs
+                for inp in inputs:
+                    if not isinstance(inp, TensorReference):
+                        raise TypeError(
+                            """Expected inputs of type
+                            TensorReference. Received
+                            input type {}"""
+                            .format(type(inp).__name__))
+                    self._spec.AddInput(inp.name, inp.device)
+                # Add outputs
+                num_output = op.schema.CalculateOutputs(self._spec)
+                for i in range(num_output):
+                    t_name = type(op).__name__ + "_output_" + str(i)
+                    t = TensorReference(t_name, op.device, self)
+                    self._spec.AddOutput(t.name, t.device)
+                    self.append_output(t)
+
+            @property
+            def id(self):
+                return self._counter.id
+
+            @property
+            def inputs(self):
+                return _inputs
+
+            @property
+            def inputs(self):
+                return _outputs
+
+            @property
+            def spec(self):
+                return self._spec
+
+            def append_output(self, output):
+                _outputs.append(output)
+
         def __init__(self, **kwargs):
-            self._counter = OpCounter()
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
 
@@ -36,10 +84,6 @@ def python_op_factory(name):
                 self._spec.AddArg(key, value)
 
         @property
-        def id(self):
-            return self._counter.id
-        
-        @property
         def spec(self):
             return self._spec
 
@@ -51,21 +95,12 @@ def python_op_factory(name):
         def device(self):
             return self._device
 
-        @property
-        def inputs(self):
-            return self._inputs
-
-        @property
-        def outputs(self):
-            return self._outputs
-        
         def __call__(self, *inputs):
             # TODO(tgale): Inputs come in as a list of
             # TensorReferences. Can we also support
             # kwargs based on the docstring?
-            self._inputs = inputs
             if (len(inputs) > self._schema.MaxNumInput() or
-                len(inputs) < self._schema.MinNumInput()):
+                    len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
                     """Operator {} expects [{},
                     {}] inputs, but received {}"""
@@ -74,26 +109,11 @@ def python_op_factory(name):
                             self._schema.MaxNumInput(),
                             len(inputs)))
 
-            for t in inputs:
-                if type(t) is not TensorReference:
-                    raise TypeError(
-                        """Expected inputs of type
-                        TensorReference. Received 
-                        input type {}"""
-                        .format(type(t).__name__))
-                self._spec.AddInput(t.name, t.device)
+            op_instance = OperatorInstance(inputs, self)
 
-            num_output = self._schema.CalculateOutputs(self._spec)
-            self._outputs = []
-            for i in range(num_output):
-                t_name = type(self).__name__ + "_output_" + str(i)
-                t = TensorReference(t_name, self.device, self)
-                self._spec.AddOutput(t.name, t.device)
-                self._outputs.append(t)
-
-            if num_output == 1:
-                return self._outputs[0]
-            return self._outputs
+            if len(op_instance.outputs) == 1:
+                return op_instance.outputs[0]
+            return op_instance.outputs
 
     Operator.__name__ = str(name)
     return Operator
@@ -102,7 +122,7 @@ def python_op_factory(name):
 # out how we want to expose what devices are supported
 _all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps()))
 for op_name in _all_ops:
-    if (b.GetSchema(op_name).HasOutputFn()):
+    if b.GetSchema(op_name).HasOutputFn():
         # Note: We only expose operators for which
         # we can infer the number of outputs from
         # the op spec.
