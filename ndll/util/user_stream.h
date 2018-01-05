@@ -27,20 +27,20 @@ class UserStream {
     return us_;
   }
 
-  cudaStream_t GetStream(ndll::Buffer<GPUBackend> &b) {
+  cudaStream_t GetStream(const ndll::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     NDLL_ENFORCE(dev < streams_.size(), "Requested stream for unknown device");
     NDLL_ENFORCE(dev >= 0, "Requested stream for unknown device");
     return streams_[dev];
   }
 
-  void WaitForDevice(ndll::Buffer<GPUBackend> &b) {
+  void WaitForDevice(const ndll::Buffer<GPUBackend> &b) {
     GetDeviceForBuffer(b);
     // GetDeviceForBuffer sets proper current device
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void Wait(ndll::Buffer<GPUBackend> &b) {
+  void Wait(const ndll::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
@@ -61,7 +61,7 @@ class UserStream {
     }
   }
 
-  size_t GetDeviceForBuffer(ndll::Buffer<GPUBackend> &b) {
+  size_t GetDeviceForBuffer(const ndll::Buffer<GPUBackend> &b) {
     const void* ptr = b.raw_data();
     cudaPointerAttributes attr;
     CUDA_CALL(cudaPointerGetAttributes(&attr, ptr));
@@ -76,4 +76,4 @@ class UserStream {
 };
 }  // namespace ndll
 
-#endif
+#endif  // NDLL_UTIL_USER_STREAM_H_

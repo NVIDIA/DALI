@@ -1,3 +1,4 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 #include <mutex>
 
 #include "ndll/util/user_stream.h"
