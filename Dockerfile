@@ -58,6 +58,7 @@ RUN mkdir build && cd build && \
         -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
         -DUSE_PROTOBUF=ON -DUSE_LMDB=ON && \
     make -j"$(nproc)" && \
+    make install && \
     ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
