@@ -47,7 +47,7 @@ RUN PROTOBUF_VERSION=3.5.1 && \
     ./autogen.sh && \
     ./configure --prefix=/usr 2>&1 > /dev/null && \
     make -j"$(nproc)" install 2>&1 > /dev/null && \
-    rm -rf /protobuf-all-${PROTOBUF_VERSION}
+    rm -rf /protobuf-${PROTOBUF_VERSION}
 
 WORKDIR /opt/ndll
 
