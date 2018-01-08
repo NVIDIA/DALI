@@ -3,4 +3,4 @@ set -e
 # cd "$( dirname "${BASH_SOURCE[0]}" )"
 
 cd /opt/ndll/build
-./ndll/run_benchmarks
+./ndll/run_benchmarks --gtest_filter="RN50*"
