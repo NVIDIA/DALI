@@ -41,24 +41,24 @@ inline string BuildErrorString(string statement, string file, int line) {
   return error;
 }
 
-#define ASRT_1(code)                                                    \
-  do {                                                                  \
-    if (!(code)) {                                                      \
-      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
-      NDLLSetLastError(error);                                          \
-      return NDLLError;                                                 \
-    }                                                                   \
+#define ASRT_1(code)                                                          \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      NDLLSetLastError(error);                                                \
+      return NDLLError;                                                       \
+    }                                                                         \
   } while (0)
 
-#define ASRT_2(code, str)                                               \
-  do {                                                                  \
-    if (!(code)) {                                                      \
-      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                             \
-      error += ": " + usr_str;                                          \
-      NDLLSetLastError(error);                                          \
-      return NDLLError;                                                 \
-    }                                                                   \
+#define ASRT_2(code, str)                                                     \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      ndll::string usr_str = str;                                             \
+      error += ": " + usr_str;                                                \
+      NDLLSetLastError(error);                                                \
+      return NDLLError;                                                       \
+    }                                                                         \
   } while (0)
 
 #define GET_MACRO(_1, _2, NAME, ...) NAME
@@ -69,29 +69,29 @@ inline string BuildErrorString(string statement, string file, int line) {
     return NDLLError;            \
   }
 
-#define NDLL_RETURN_ERROR(str)                                      \
-  do {                                                              \
-    string file = __FILE__;                                         \
-    string line = std::to_string(__LINE__);                         \
-    string error =  "[" + file + ":" + line + "]: Error in NDLL: "; \
-    error += str;                                                   \
-    NDLLSetLastError(error);                                        \
-    return NDLLError;                                               \
+#define NDLL_RETURN_ERROR(str)                                            \
+  do {                                                                    \
+    ndll::string file = __FILE__;                                         \
+    ndll::string line = std::to_string(__LINE__);                         \
+    ndll::string error =  "[" + file + ":" + line + "]: Error in NDLL: "; \
+    error += str;                                                         \
+    NDLLSetLastError(error);                                              \
+    return NDLLError;                                                     \
   } while (0)
 
 // For checking npp return errors in ndll library functions
-#define NDLL_CHECK_NPP(code)                        \
-  do {                                              \
-    NppStatus status = code;                        \
-    if (status != NPP_SUCCESS) {                    \
-    string file = __FILE__;                         \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
-        "]: NPP error \"" +                         \
-        nppErrorString(status) + "\"";              \
-      NDLLSetLastError(error);                      \
-      return NDLLError;                             \
-    }                                               \
+#define NDLL_CHECK_NPP(code)                              \
+  do {                                                    \
+    NppStatus status = code;                              \
+    if (status != NPP_SUCCESS) {                          \
+    ndll::string file = __FILE__;                         \
+      ndll::string line = std::to_string(__LINE__);       \
+      ndll::string error = "[" + file + ":" + line +      \
+        "]: NPP error \"" +                               \
+        nppErrorString(status) + "\"";                    \
+      NDLLSetLastError(error);                            \
+      return NDLLError;                                   \
+    }                                                     \
   } while (0)
 
 //////////////////////////////////////////////////////
@@ -99,31 +99,31 @@ inline string BuildErrorString(string statement, string file, int line) {
 //////////////////////////////////////////////////////
 
 // For calling CUDA library functions
-#define CUDA_CALL(code)                             \
-  do {                                              \
-    cudaError_t status = code;                      \
-    if (status != cudaSuccess) {                    \
-      std::string file = __FILE__;                  \
-      std::string line = std::to_string(__LINE__);  \
-      std::string error = "[" + file + ":" + line + \
-        "]: CUDA error \"" +                        \
-        cudaGetErrorString(status) + "\"";          \
-      throw std::runtime_error(error);              \
-    }                                               \
+#define CUDA_CALL(code)                                   \
+  do {                                                    \
+    cudaError_t status = code;                            \
+    if (status != cudaSuccess) {                          \
+      ndll::string file = __FILE__;                       \
+      ndll::string line = std::to_string(__LINE__);       \
+      ndll::string error = "[" + file + ":" + line +      \
+        "]: CUDA error \"" +                              \
+        cudaGetErrorString(status) + "\"";                \
+      throw std::runtime_error(error);                    \
+    }                                                     \
   } while (0)
 
 // For calling NVML library functions
-#define NVML_CALL(code)                             \
-  do {                                              \
-    nvmlReturn_t status = code;                     \
-    if (status != NVML_SUCCESS) {                   \
-      string file = __FILE__;                       \
-      string line = std::to_string(__LINE__);       \
-      string error = "[" + file + ":" + line +      \
-        "]: NVML error \"" +                        \
-        nvmlErrorString(status) + "\"";             \
-      throw std::runtime_error(error);              \
-    }                                               \
+#define NVML_CALL(code)                                   \
+  do {                                                    \
+    nvmlReturn_t status = code;                           \
+    if (status != NVML_SUCCESS) {                         \
+      ndll::string file = __FILE__;                       \
+      ndll::string line = std::to_string(__LINE__);       \
+      ndll::string error = "[" + file + ":" + line +      \
+        "]: NVML error \"" +                              \
+        nvmlErrorString(status) + "\"";                   \
+      throw std::runtime_error(error);                    \
+    }                                                     \
   } while (0)
 
 // For calling NDLL library functions
@@ -131,54 +131,54 @@ inline string BuildErrorString(string statement, string file, int line) {
   do {                                                          \
     NDLLError_t status = code;                                  \
     if (status != NDLLSuccess) {                                \
-      string file = __FILE__;                                   \
-      string line = std::to_string(__LINE__);                   \
-      string error = NDLLGetLastError();                        \
+      ndll::string file = __FILE__;                             \
+      ndll::string line = std::to_string(__LINE__);             \
+      ndll::string error = NDLLGetLastError();                  \
       throw std::runtime_error(error);                          \
     }                                                           \
   } while (0)
 
 // Excpetion throwing checks for pipeline code
-#define ENFRC_1(code)                                                   \
-  do {                                                                  \
-    if (!(code)) {                                                      \
-      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
-      throw std::runtime_error(error);                                  \
-    }                                                                   \
+#define ENFRC_1(code)                                                         \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      throw std::runtime_error(error);                                        \
+    }                                                                         \
   } while (0)
 
-#define ENFRC_2(code, str)                                              \
-  do {                                                                  \
-    if (!(code)) {                                                      \
-      string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
-      string usr_str = str;                                             \
-      error += ": " + usr_str;                                          \
-      throw std::runtime_error(error);                                  \
-    }                                                                   \
+#define ENFRC_2(code, str)                                                    \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      ndll::string usr_str = str;                                             \
+      error += ": " + usr_str;                                                \
+      throw std::runtime_error(error);                                        \
+    }                                                                         \
   } while (0)
 
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
 
 // Enforces that the value of 'var' is in the range [lower, upper)
-#define NDLL_ENFORCE_IN_RANGE(var, lower, upper)                        \
-  do {                                                                  \
-    if (((var) < (lower)) || ((var) >= (upper))) {                      \
-      string error = "Index " + std::to_string(var) + " out of range [" + \
-        std::to_string(lower) + ", " + std::to_string(upper) + ").";    \
-      NDLL_FAIL(error);                                                 \
-    }                                                                   \
+#define NDLL_ENFORCE_IN_RANGE(var, lower, upper)                                \
+  do {                                                                          \
+    if (((var) < (lower)) || ((var) >= (upper))) {                              \
+      ndll::string error = "Index " + std::to_string(var) + " out of range [" + \
+        std::to_string(lower) + ", " + std::to_string(upper) + ").";            \
+      NDLL_FAIL(error);                                                         \
+    }                                                                           \
   } while (0)
 
 // Enforces that the input var is in the range [0, upper)
 #define NDLL_ENFORCE_VALID_INDEX(var, upper) \
   NDLL_ENFORCE_IN_RANGE(var, static_cast<int>(0), upper)
 
-#define NDLL_FAIL(str)                                            \
-  do {                                                            \
-    string file = __FILE__;                                       \
-    string line = std::to_string(__LINE__);                       \
-    string error_str = "[" + file + ":" + line + "] " + str;      \
-    throw std::runtime_error(error_str);                          \
+#define NDLL_FAIL(str)                                              \
+  do {                                                              \
+    ndll::string file = __FILE__;                                   \
+    ndll::string line = std::to_string(__LINE__);                   \
+    ndll::string error_str = "[" + file + ":" + line + "] " + str;  \
+    throw std::runtime_error(error_str);                            \
   } while (0)
 
 }  // namespace ndll

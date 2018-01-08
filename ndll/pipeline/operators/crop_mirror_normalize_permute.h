@@ -88,6 +88,9 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
       int H = input_shape[0];
       int W = input_shape[1];
 
+      NDLL_ENFORCE(H >= crop_h_);
+      NDLL_ENFORCE(W >= crop_w_);
+
       // Set crop parameters
       int crop_y, crop_x;
       if (random_crop_) {

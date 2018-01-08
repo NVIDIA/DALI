@@ -5,8 +5,6 @@ ARG PYVER=2.7
 RUN apt-get update && apt-get install -y --no-install-recommends \
       cmake \
       liblmdb-dev \
-      libprotobuf-dev \
-      protobuf-compiler \
       autoconf \
       automake \
       libtool \
@@ -42,15 +40,24 @@ RUN JPEG_TURBO_VERSION=1.5.2 && \
     make -j"$(nproc)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# protobuf v3.5.1
+RUN PROTOBUF_VERSION=3.5.1 && \
+    wget -q -O - https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
+    cd protobuf-${PROTOBUF_VERSION} && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr 2>&1 > /dev/null && \
+    make -j"$(nproc)" install 2>&1 > /dev/null && \
+    rm -rf /protobuf-${PROTOBUF_VERSION}
+
 WORKDIR /opt/ndll
 
 COPY . .
 
 RUN mkdir build && cd build && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
-      -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON && \
+        -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
+        -DUSE_PROTOBUF=ON -DUSE_LMDB=ON && \
     make -j"$(nproc)" && \
-    make install && \
     ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH

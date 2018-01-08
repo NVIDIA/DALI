@@ -48,7 +48,7 @@ class Operator {
   /**
    * @brief Executes the operator on a single sample on the CPU.
    */
-  inline void Run(SampleWorkspace *ws) {
+  inline virtual void Run(SampleWorkspace *ws) {
 #ifndef NDEBUG
     NDLL_ENFORCE_VALID_INDEX(ws->thread_idx(), num_threads_);
     NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), batch_size_);
@@ -59,7 +59,7 @@ class Operator {
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  inline void Run(DeviceWorkspace *ws) {
+  inline virtual void Run(DeviceWorkspace *ws) {
     RunBatchedGPU(ws);
   }
 
