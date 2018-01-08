@@ -54,11 +54,11 @@ WORKDIR /opt/ndll
 COPY . .
 
 RUN mkdir build && cd build && \
-		cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
-				-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
+    cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
+        -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
         -DUSE_PROTOBUF=ON -DUSE_LMDB=ON && \
-		make -j"$(nproc)" && \
-		ldconfig
+    make -j"$(nproc)" && \
+    ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
 
