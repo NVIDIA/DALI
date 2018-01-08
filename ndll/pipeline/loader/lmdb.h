@@ -96,7 +96,8 @@ class LMDBReader : public Loader<CPUBackend> {
     tensor->mutable_data<uint8_t>();
 
     std::memcpy(tensor->raw_mutable_data(),
-                (uint8_t*)value_.mv_data, value_.mv_size*sizeof(uint8_t));
+                reinterpret_cast<uint8_t*>(value_.mv_data),
+                value_.mv_size*sizeof(uint8_t));
 
     return;
   }

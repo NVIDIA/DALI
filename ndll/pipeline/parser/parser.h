@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_PARSER_PARSER_H_
 #define NDLL_PIPELINE_PARSER_PARSER_H_
 

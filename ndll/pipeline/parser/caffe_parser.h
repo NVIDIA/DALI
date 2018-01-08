@@ -1,3 +1,4 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_PARSER_CAFFE_PARSER_H_
 #define NDLL_PIPELINE_PARSER_CAFFE_PARSER_H_
 
@@ -25,7 +26,8 @@ class CaffeParser : public Parser {
 
     // copy image
     image->Resize({datum.data().size()});
-    std::memcpy(image->mutable_data<uint8_t>(), datum.data().data(), datum.data().size()*sizeof(uint8_t));
+    std::memcpy(image->mutable_data<uint8_t>(), datum.data().data(),
+                datum.data().size()*sizeof(uint8_t));
   }
 };
 

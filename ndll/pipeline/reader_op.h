@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_READER_OP_H_
 #define NDLL_PIPELINE_READER_OP_H_
 
@@ -51,7 +51,7 @@ class DataReader : public Operator<Backend> {
     // TODO(slayton): swap prefetched batches around
 
     return true;
-  };
+  }
 
   // Main prefetch work loop
   void PrefetchWorker() {

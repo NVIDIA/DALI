@@ -1,5 +1,6 @@
-#ifndef NDLL_PIPELINE_CAFFE_READER_H_
-#define NDLL_PIPELINE_CAFFE_READER_H_
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_CAFFE_READER_OP_H_
+#define NDLL_PIPELINE_CAFFE_READER_OP_H_
 
 #include "ndll/pipeline/reader_op.h"
 #include "ndll/pipeline/loader/lmdb.h"
@@ -33,4 +34,4 @@ class CaffeReader : public DataReader<CPUBackend> {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_CAFFE_READER_H_
+#endif  // NDLL_PIPELINE_CAFFE_READER_OP_H_
