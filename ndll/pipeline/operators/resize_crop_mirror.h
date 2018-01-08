@@ -77,7 +77,7 @@ class ResizeCropMirror : public Operator<Backend> {
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
-    ResizeCropMirrorHost(
+    NDLL_CALL(ResizeCropMirrorHost(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
         meta.rsz_h, meta.rsz_w,
@@ -86,7 +86,7 @@ class ResizeCropMirror : public Operator<Backend> {
         meta.mirror,
         output->template mutable_data<uint8>(),
         NDLL_INTERP_LINEAR,
-        tl_workspace_[ws->thread_idx()].data());
+        tl_workspace_[ws->thread_idx()].data()));
   }
 
   inline TransformMeta GetTransformMeta(const vector<Index> &input_shape) {
@@ -191,7 +191,7 @@ class FastResizeCropMirror : public ResizeCropMirror<Backend> {
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
-    FastResizeCropMirrorHost(
+    NDLL_CALL(FastResizeCropMirrorHost(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
         meta.rsz_h, meta.rsz_w,
@@ -200,7 +200,7 @@ class FastResizeCropMirror : public ResizeCropMirror<Backend> {
         meta.mirror,
         output->template mutable_data<uint8>(),
         NDLL_INTERP_LINEAR,
-        tl_workspace_[ws->thread_idx()].data());
+        tl_workspace_[ws->thread_idx()].data()));
   }
 
   using ResizeCropMirror<Backend>::tl_workspace_;
