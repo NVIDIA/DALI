@@ -20,7 +20,10 @@ namespace ndll {
 template <class Backend>
 class Loader {
  public:
-  explicit Loader(const OpSpec& options) {
+  explicit Loader(const OpSpec& options)
+    : initial_buffer_fill_(options.GetArgument<int>("initial_fill", 1024)),
+      shard_id_(options.GetArgument<int>("shard_id", 0)),
+      num_shards_(options.GetArgument<int>("num_shards", 1)) {
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, 1048576);
@@ -29,9 +32,6 @@ class Loader {
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
-    // lock out other consumers
-    std::lock_guard<std::mutex> lock(db_mutex_);
-
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
       // Read an initial number of samples to fill our
@@ -43,7 +43,7 @@ class Loader {
       }
 
       // need some entries in the empty_tensors_ list
-      for (int i = 0; i < 10; ++i) {
+      for (int i = 0; i < initial_empty_size_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
         empty_tensors_.push_back(tensor);
       }
@@ -60,16 +60,25 @@ class Loader {
     sample_buffer_.pop_back();
 
     // now grab an empty tensor, fill it and add to filled buffers
-    NDLL_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-    Tensor<Backend>* t = empty_tensors_.back();
-    empty_tensors_.pop_back();
+    // empty_tensors_ needs to be thread-safe w.r.t. ReturnTensor()
+    // being called by multiple consumer threads
+    Tensor<Backend>* t;
+    {
+      std::lock_guard<std::mutex> lock(return_mutex_);
+      NDLL_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
+      t = empty_tensors_.back();
+      empty_tensors_.pop_back();
+    }
     ReadSample(t);
     sample_buffer_.push_back(t);
 
     return elem;
   }
 
+  // return a tensor to the empty pile
+  // called by multiple consumer threads
   void ReturnTensor(Tensor<Backend>* tensor) {
+    std::lock_guard<std::mutex> lock(return_mutex_);
     empty_tensors_.push_back(tensor);
   }
 
@@ -89,13 +98,19 @@ class Loader {
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
   const int initial_buffer_fill_ = 1024;
+  const int initial_empty_size_ = 1024;
   bool initial_buffer_filled_ = false;
 
   // rng
   std::default_random_engine e_;
   std::uniform_int_distribution<> dis;
 
-  std::mutex db_mutex_;
+  // control return of tensors
+  std::mutex return_mutex_;
+
+  // sharding
+  const int shard_id_;
+  const int num_shards_;
 };
 
 };  // namespace ndll

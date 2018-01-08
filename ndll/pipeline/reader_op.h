@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "ndll/pipeline/loader/loader.h"
+#include "ndll/pipeline/parser/parser.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -37,7 +38,20 @@ class DataReader : public Operator<Backend> {
   virtual ~DataReader() noexcept {}
 
   // perform the prefetching operation
-  virtual bool Prefetch() = 0;
+  virtual bool Prefetch() {
+    // first clear the batch
+    // TODO(slayton): exchange multiple batches
+    prefetched_batch_.clear();
+
+    for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
+      auto* t = loader_->ReadOne();
+      prefetched_batch_.push_back(t);
+    }
+
+    // TODO(slayton): swap prefetched batches around
+
+    return true;
+  };
 
   // Main prefetch work loop
   void PrefetchWorker() {
@@ -51,7 +65,7 @@ class DataReader : public Operator<Backend> {
     while (!finished_) {
       try {
         prefetched_batch_.reserve(Operator<Backend>::batch_size_);
-        // prefetch_success_ = Prefetch();
+        prefetch_success_ = Prefetch();
       } catch (const std::exception& e) {
         printf("Prefetch Failed\n");
         // notify of failure
@@ -128,13 +142,15 @@ class DataReader : public Operator<Backend> {
         prefetch_ready_workers_ = true;
 
         // signal the prefetch thread to start again
-        prefetch_ready_ = false;
+        prefetch_ready_ = true;
         producer_.notify_one();
       }
     }
 
     // consume batch
     Operator<Backend>::Run(ws);
+
+    loader_->ReturnTensor(prefetched_batch_[ws->data_idx()]);
 
     samples_processed_++;
 
@@ -158,18 +174,7 @@ class DataReader : public Operator<Backend> {
   }
 
   void Run(DeviceWorkspace* ws) override {
-    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-    StartPrefetchThread();
-
-    // wait for a batch to be ready
-    while (!prefetch_ready_) {
-      consumer_.wait(lock);
-    }
-
-    Operator<Backend>::Run(ws);
-
-    prefetch_ready_ = false;
-    producer_.notify_one();
+    NDLL_FAIL("Not Implemented");
   }
 
  protected:
@@ -204,7 +209,23 @@ class DataReader : public Operator<Backend> {
 
   // notify threads to stop processing
   std::atomic<bool> batch_stop_;
+
+  // Loader
+  std::unique_ptr<Loader<Backend>> loader_;
+
+  // Parser
+  std::unique_ptr<Parser> parser_;
 };
+
+#define DEFAULT_READER_DESTRUCTOR(cls, Backend)  \
+  ~cls() {                                      \
+    DataReader<Backend>::StopPrefetchThread();   \
+  }
+
+#define USE_READER_OPERATOR_MEMBERS(Backend)         \
+  using DataReader<Backend>::loader_;                \
+  using DataReader<Backend>::parser_;                \
+  using DataReader<Backend>::prefetched_batch_;
 
 };  // namespace ndll
 

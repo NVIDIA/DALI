@@ -53,6 +53,7 @@ class LMDBReader : public Loader<CPUBackend> {
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
       db_path_(options.GetArgument<string>("path", "")) {
+
     // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));
     auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
@@ -65,6 +66,15 @@ class LMDBReader : public Loader<CPUBackend> {
 
     // Optional: debug printing
     lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+
+    // work out how many entries to move forward to handle sharding
+    if (shard_id_ == 0) return;
+    int samples_per_shard = Size() / num_shards_;
+    int start_idx = shard_id_ * samples_per_shard;
+
+    for (int i = 0; i < start_idx; ++i) {
+      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    }
   }
   ~LMDBReader() {
     mdb_cursor_close(mdb_cursor_);
@@ -74,7 +84,7 @@ class LMDBReader : public Loader<CPUBackend> {
     mdb_env_ = nullptr;
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) {
+  void ReadSample(Tensor<CPUBackend>* tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
     bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
 
@@ -85,7 +95,8 @@ class LMDBReader : public Loader<CPUBackend> {
     tensor->Resize({static_cast<int>(value_.mv_size)});
     tensor->mutable_data<uint8_t>();
 
-    std::memcpy(tensor->raw_mutable_data(), value_.mv_data, value_.mv_size);
+    std::memcpy(tensor->raw_mutable_data(),
+                (uint8_t*)value_.mv_data, value_.mv_size*sizeof(uint8_t));
 
     return;
   }
@@ -95,6 +106,9 @@ class LMDBReader : public Loader<CPUBackend> {
   }
 
  private:
+  using Loader<CPUBackend>::shard_id_;
+  using Loader<CPUBackend>::num_shards_;
+
   MDB_env* mdb_env_;
   MDB_cursor* mdb_cursor_;
   MDB_dbi mdb_dbi_;

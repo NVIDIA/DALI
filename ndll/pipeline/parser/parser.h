@@ -14,12 +14,14 @@ class Parser {
   explicit Parser(const OpSpec& spec) {}
 
   /**
-   * Parse the information contained in data to
+   * Parse the 'size' bytes of information contained in data to
    * whatever is necessary to continue the pipeline.
    * e.g. Extracting (image, label) pairs from a protobuf
    * entry
    */
-  virtual void Parse(uint8_t* data, SampleWorkspace* ws) = 0;
+  virtual void Parse(const uint8_t* data,
+                     const size_t size,
+                     SampleWorkspace* ws) = 0;
 };
 
 }  // namespace ndll
