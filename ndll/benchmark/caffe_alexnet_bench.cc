@@ -27,10 +27,11 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       0, pipelined,
       async);
 
+  ndll::string path(std::getenv("NDLL_TEST_CAFFE_LMDB_PATH"));
   pipe.AddOperator(
       OpSpec("CaffeReader")
       .AddArg("device", "cpu")
-      .AddArg("path", "/data/imagenet-compressed/256px/ilsvrc12_train_lmdb")
+      .AddArg("path", path)
       .AddOutput("compressed_images", "cpu")
       .AddOutput("labels", "cpu"));
 
