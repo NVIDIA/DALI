@@ -156,6 +156,25 @@ class OpSpec {
     return &outputs_[idx];
   }
 
+  string ToString() {
+    string ret;
+    ret += "OpSpec for " + name() + ":\n  Inputs:\n";
+    for (size_t i = 0; i < inputs_.size(); ++i) {
+      ret += "    " + Input(i) + "\n";
+    }
+    ret += "  Outputs:\n";
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      ret += "    " + Output(i) + "\n";
+    }
+    ret += "  Arguments:\n";
+    for (auto& a : arguments_) {
+      ret += "    ";
+      ret += a.second.ToString();
+      ret += "\n";
+    }
+    return ret;
+  }
+
  private:
   // Helper function to handle argument types. Checks the correct type
   // field in the input argument. If it is not set, return the default

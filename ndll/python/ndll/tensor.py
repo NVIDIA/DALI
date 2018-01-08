@@ -1,9 +1,10 @@
-import ndll.backend as b
+#pylint: disable=no-name-in-module, unused-import
+import ndll.backend
 from ndll.backend import TensorCPU
 from ndll.backend import TensorListCPU
 
 class TensorReference(object):
-    def __init__(self, name, device = "cpu", source = None):
+    def __init__(self, name, device="cpu", source=None):
         self.name = name
         self.device = device
         self.source = source

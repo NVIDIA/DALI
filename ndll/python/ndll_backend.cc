@@ -342,7 +342,12 @@ PYBIND11_MODULE(ndll_backend, m) {
             NDLL_FAIL("Unsupported argument type with name " + name);
           }
           return *spec;
-        }, py::return_value_policy::reference_internal);
+        }, py::return_value_policy::reference_internal)
+    .def("__repr__", &OpSpec::ToString)
+    .def("copy", [](OpSpec &o) -> OpSpec * {
+        OpSpec * ret = new OpSpec(o);
+        return ret;
+        }, py::return_value_policy::reference);
 
   // Registries for cpu & gpu operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
