@@ -347,7 +347,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("copy", [](OpSpec &o) -> OpSpec * {
         OpSpec * ret = new OpSpec(o);
         return ret;
-        }, py::return_value_policy::take_ownership);
+        }, py::return_value_policy::reference);
 
   // Registries for cpu & gpu operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
