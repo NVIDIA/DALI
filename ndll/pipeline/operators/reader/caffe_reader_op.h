@@ -2,9 +2,9 @@
 #ifndef NDLL_PIPELINE_CAFFE_READER_OP_H_
 #define NDLL_PIPELINE_CAFFE_READER_OP_H_
 
-#include "ndll/pipeline/reader_op.h"
-#include "ndll/pipeline/loader/lmdb.h"
-#include "ndll/pipeline/parser/caffe_parser.h"
+#include "ndll/pipeline/operators/reader/reader_op.h"
+#include "ndll/pipeline/operators/reader/loader/lmdb.h"
+#include "ndll/pipeline/operators/reader/parser/caffe_parser.h"
 
 namespace ndll {
 

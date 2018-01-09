@@ -8,8 +8,8 @@
 #include <thread>
 #include <vector>
 
-#include "ndll/pipeline/loader/loader.h"
-#include "ndll/pipeline/parser/parser.h"
+#include "ndll/pipeline/operators/reader/loader/loader.h"
+#include "ndll/pipeline/operators/reader/parser/parser.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {

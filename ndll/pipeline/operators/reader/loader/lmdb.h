@@ -6,7 +6,7 @@
 #include <string>
 
 #include "ndll/common.h"
-#include "ndll/pipeline/loader/loader.h"
+#include "ndll/pipeline/operators/reader/loader/loader.h"
 
 namespace ndll {
 

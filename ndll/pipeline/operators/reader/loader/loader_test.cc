@@ -7,8 +7,8 @@
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/test/ndll_test.h"
 
-#include "ndll/pipeline/loader/loader.h"
-#include "ndll/pipeline/loader/lmdb.h"
+#include "ndll/pipeline/operators/reader/loader/loader.h"
+#include "ndll/pipeline/operators/reader/loader/lmdb.h"
 
 namespace ndll {
 
@@ -23,8 +23,7 @@ typedef ::testing::Types<CPUBackend> TestTypes;
 
 TYPED_TEST_CASE(DataStoreTest, TestTypes);
 
-const char* path =
-    "/home/slayton/opt/caffe2-18.01/nvidia-examples/mnist/mnist_test_lmdb";
+const char* path = std::getenv("NDLL_TEST_CAFFE_LMDB_PATH");
 
 TYPED_TEST(DataStoreTest, LMDB_test) {
   shared_ptr<ndll::LMDBReader> reader(
