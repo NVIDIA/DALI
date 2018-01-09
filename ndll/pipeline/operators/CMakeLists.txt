@@ -1,3 +1,5 @@
+add_subdirectory(reader)
+
 # Get all the source files and dump test files
 file(GLOB tmp *.cc)
 set(NDLL_SRCS ${NDLL_SRCS} ${tmp})

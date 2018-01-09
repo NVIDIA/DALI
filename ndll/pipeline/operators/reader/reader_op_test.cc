@@ -9,11 +9,11 @@
 #include <vector>
 
 #include "ndll/pipeline/pipeline.h"
-#include "ndll/pipeline/reader_op.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
+#include "ndll/pipeline/operators/reader/reader_op.h"
 
 namespace ndll {
 

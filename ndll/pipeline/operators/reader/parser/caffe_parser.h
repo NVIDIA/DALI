@@ -2,8 +2,8 @@
 #ifndef NDLL_PIPELINE_PARSER_CAFFE_PARSER_H_
 #define NDLL_PIPELINE_PARSER_CAFFE_PARSER_H_
 
-#include "ndll/pipeline/parser/parser.h"
-#include "ndll/pipeline/parser/caffe.pb.h"
+#include "ndll/pipeline/operators/reader/parser/parser.h"
+#include "ndll/pipeline/operators/reader/parser/caffe.pb.h"
 
 namespace ndll {
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#include "ndll/pipeline/caffe_reader_op.h"
+#include "ndll/pipeline/operators/reader/caffe_reader_op.h"
 
 namespace ndll {
 
