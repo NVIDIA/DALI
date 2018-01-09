@@ -71,6 +71,13 @@ class Pipeline(object):
                 ops.append(source_op)
                 for tensor in source_op.inputs:
                     tensors.append(tensor)
+            else:
+                # If the op was already added, we need to
+                # change its position to the top of the list.
+                # This ensures topological ordering of ops
+                # when adding to the backend pipeline
+                ops.remove(source_op)
+                ops.append(source_op)
 
         # Add the ops to the graph and build the backend
         while ops:
