@@ -261,10 +261,10 @@ PYBIND11_MODULE(ndll_backend, m) {
 
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
-            if (ws.OutputIsType<CPUBackend>(0)) {
-              list.append(ws.Output<CPUBackend>(0));
+            if (ws.OutputIsType<CPUBackend>(i)) {
+              list.append(ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(0));
+              list.append(ws.Output<GPUBackend>(i));
             }
           }
           return list;
