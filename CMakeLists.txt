@@ -8,8 +8,8 @@ option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
 option(USE_NVTX "Build with NVTX profiling enabled" ON)
 option(BUILD_PYTHON "Build python bindings" ON)
-option(USE_PROTOBUF "Build protobuf parsers" ON)
-option(USE_LMDB "Build LMDB readers" ON)
+option(BUILD_PROTOBUF "Build protobuf parsers" OFF)
+option(BUILD_LMDB "Build LMDB readers" OFF)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)

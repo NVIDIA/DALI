@@ -1,5 +1,13 @@
 if (BUILD_BENCHMARK)
-  # Get all the benchmark srcs
-  file(GLOB tmp *_bench.cc)
-  set(NDLL_BENCHMARK_SRCS ${NDLL_BENCHMARK_SRCS} ${tmp} PARENT_SCOPE)
+  # Get basic benchmark sources that don't depend on any other options
+  set(NDLL_BENCHMARK_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ndll_bench.cc"
+  )
+
+  if (BUILD_LMDB AND BUILD_PROTOBUF)
+    list(APPEND NDLL_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe_alexnet_bench.cc")
+  endif()
+
+  set(NDLL_BENCHMARK_SRCS ${NDLL_BENCHMARK_SRCS} PARENT_SCOPE)
 endif()
