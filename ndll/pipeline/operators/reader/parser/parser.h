@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_PARSER_PARSER_H_
-#define NDLL_PIPELINE_PARSER_PARSER_H_
+#ifndef NDLL_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
+#define NDLL_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
 
 #include "ndll/pipeline/sample_workspace.h"
 
@@ -26,4 +26,4 @@ class Parser {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_PARSER_PARSER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
