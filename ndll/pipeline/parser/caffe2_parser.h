@@ -53,13 +53,14 @@ float proto_get_data<float>(const caffe2::TensorProto& proto, const size_t idx) 
 
 // Extract the data contained in a protobuf tensor
 template <typename T>
-void extract_label_data(const caffe2::TensorProto& proto,
-                        Tensor<CPUBackend>* t) {
+void extract_data(const caffe2::TensorProto& proto,
+                  Tensor<CPUBackend>* t) {
   NDLL_FAIL("Base method should never be called");
 }
+
 template <>
-void extract_label_data<int>(const caffe2::TensorProto& proto,
-                             Tensor<CPUBackend>* t) {
+void extract_data<int>(const caffe2::TensorProto& proto,
+                       Tensor<CPUBackend>* t) {
   auto size = proto.int32_data_size();
 
   t->Resize({size});
@@ -71,8 +72,8 @@ void extract_label_data<int>(const caffe2::TensorProto& proto,
 }
 
 template <>
-void extract_label_data<float>(const caffe2::TensorProto& proto,
-                               Tensor<CPUBackend>* t) {
+void extract_data<float>(const caffe2::TensorProto& proto,
+                         Tensor<CPUBackend>* t) {
   auto size = proto.float_data_size();
 
   t->Resize({size});
@@ -80,6 +81,19 @@ void extract_label_data<float>(const caffe2::TensorProto& proto,
   float* t_data = t->mutable_data<float>();
   for (int i = 0; i < size; ++i) {
     t_data[i] = proto.float_data(i);
+  }
+}
+
+template <>
+void extract_data<int64_t>(const caffe2::TensorProto& proto,
+                           Tensor<CPUBackend>* t) {
+  auto size = proto.int64_data_size();
+
+  t->Resize({size});
+
+  int64_t* t_data = t->mutable_data<int64_t>();
+  for (auto i = 0; i < size; ++i) {
+    t_data[i] = proto.int64_data(i);
   }
 }
 
@@ -95,7 +109,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       // ensure we only have a single label in the proto
       NDLL_ENFORCE(proto_data_size<T>(protos.protos(1)) == 1);
 
-      extract_label_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
+      extract_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
       break;
     }
    case MULTI_LABEL_SPARSE: {
@@ -115,7 +129,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
     }
    case MULTI_LABEL_DENSE: {
       // multiple elements, stored contiguously
-      extract_label_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
+      extract_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
       break;
     }
    case MULTI_LABEL_WEIGHTED_SPARSE: {
@@ -177,6 +191,7 @@ class Caffe2Parser : public Parser {
                   image_proto.byte_data().size());
     }
 
+    // Parse all label types
     auto label_data_type = label_proto.data_type();
     if (label_data_type == caffe2::TensorProto::FLOAT) {
       ParseLabels<float>(protos, label_type_, num_labels_, ws);
@@ -186,6 +201,42 @@ class Caffe2Parser : public Parser {
       NDLL_FAIL("Unsupported label data type");
     }
 
+    // handle any additional protos defined
+    // additional outputs start at Output(2)
+    auto additional_proto_start = (label_type_ == MULTI_LABEL_WEIGHTED_SPARSE) ? 3 : 2;
+    auto additional_proto_end = additional_proto_start + additional_inputs_;
+    int current_output_idx = 2;
+
+    for (int i = additional_proto_start; i < additional_proto_end; ++i) {
+      auto& additional_proto = protos.protos(i);
+      auto* output_tensor = ws->Output<CPUBackend>(current_output_idx);
+
+      switch (additional_proto.data_type()) {
+       case caffe2::TensorProto::FLOAT:
+        extract_data<float>(additional_proto, output_tensor);
+        break;
+       case caffe2::TensorProto::INT32:
+        extract_data<int>(additional_proto, output_tensor);
+        break;
+       case caffe2::TensorProto::INT64:
+        extract_data<int64_t>(additional_proto, output_tensor);
+        break;
+       default:
+        NDLL_FAIL("Unsupported data type in additional proto");
+      }
+      current_output_idx++;
+    }
+
+    // handle bounding box if needed
+    // Final proto -> final output
+    if (protos.protos_size() == additional_proto_end + 1) {
+      auto& bbox_proto = protos.protos(additional_proto_end);
+
+      NDLL_ENFORCE(bbox_proto.data_type() == caffe2::TensorProto::INT32);
+      NDLL_ENFORCE(bbox_proto.int32_data_size() == 4);
+
+      extract_data<int>(bbox_proto, ws->Output<CPUBackend>(current_output_idx));
+    }
   }
 
  private:
