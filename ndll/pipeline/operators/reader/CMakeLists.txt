@@ -1,16 +1,14 @@
 add_subdirectory(loader)
 add_subdirectory(parser)
 
-# Get all the source files and dump test files
-file(GLOB tmp *.cc)
-set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(NDLL_SRCS "${NDLL_SRCS}" ${tmp})
+if (BUILD_LMDB AND BUILD_PROTOBUF)
+  list(APPEND ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/caffe_reader_op.cc")
+endif()
 
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
   # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(NDLL_TEST_SRCS ${NDLL_TEST_SRCS} ${tmp} PARENT_SCOPE)
+  list(APPEND ${NDLL_TEST_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/reader_op_test.cc")
+  set(NDLL_TEST_SRCS ${NDLL_TEST_SRCS} PARENT_SCOPE)
 endif()

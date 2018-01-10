@@ -14,7 +14,7 @@ set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 
 set(ndll_lib "ndll")
 
-if (USE_PROTOBUF)
+if (BUILD_PROTOBUF)
   cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO> $<TARGET_OBJECTS:TF_PROTO>)
 else()
   cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})

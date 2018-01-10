@@ -73,7 +73,7 @@ if (BUILD_PYTHON)
 endif()
 
 # LMDB
-if (USE_LMDB)
+if (BUILD_LMDB)
   find_package(LMDB)
   if (LMDB_FOUND)
     message(STATUS "Found LMDB ${LMDB_INCLUDE_DIR} : ${LMDB_LIBRARIES}")
@@ -85,7 +85,7 @@ if (USE_LMDB)
 endif()
 
 # protobuf
-if (USE_PROTOBUF)
+if (BUILD_PROTOBUF)
   find_package(Protobuf)
 
   if (PROTOBUF_FOUND)
