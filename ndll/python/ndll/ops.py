@@ -32,6 +32,8 @@ class _OperatorInstance(object):
                     input type {}"""
                     .format(type(inp).__name__))
             self._spec.AddInput(inp.name, inp.device)
+
+    def generate_outputs(self):
         # Add outputs
         num_output = op.schema.CalculateOutputs(self._spec)
         for i in range(num_output):
@@ -69,14 +71,6 @@ def python_op_factory(name):
         def __init__(self, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
-
-            # # Unfortunately class docstrings are immutable, so
-            # # we append the operator docs to the operator constructor
-            # try:
-                # type(self).__init__.__func__.__doc__ = self._schema.Dox()
-            # except:
-                # # In Python 3 __func__ attribute does not exist
-                # type(self).__init__.__doc__ = self._schema.Dox()
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
@@ -121,6 +115,7 @@ def python_op_factory(name):
                             len(inputs)))
 
             op_instance = _OperatorInstance(inputs, self)
+            op_instance.generate_outputs()
 
             if len(op_instance.outputs) == 1:
                 return op_instance.outputs[0]
@@ -142,8 +137,64 @@ for op_name in _all_ops:
 
 # custom wrappers around ops
 
-# class TFRecordReader(object):
-    # """Class implementing reading and parsing TFRecord file
-    # format.
-    # """
-    # def __init__(self, desc
+class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
+    def __init__(self, path, features, **kwargs):
+        if isinstance(path, list):
+            self._path = path
+        else:
+            self._path = [path]
+        self._schema = b.GetSchema("_TFRecordReader")
+        self._spec = b.OpSpec("_TFRecordReader")
+        self._device = "cpu"
+
+        self._spec.AddArg("path", self._path)
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self._features = features
+
+        @classmethod
+        def _docstring(cls):
+            schema = b.GetSchema("_TFRecordReader")
+            return schema.Dox()
+
+        @property
+        def spec(self):
+            return self._spec
+
+        @property
+        def schema(self):
+            return self._schema
+
+        @property
+        def device(self):
+            return self._device
+
+        def __call__(self, *inputs):
+            if (len(inputs) > self._schema.MaxNumInput() or
+                    len(inputs) < self._schema.MinNumInput()):
+                raise ValueError(
+                    """Operator {} expects [{},
+                    {}] inputs, but received {}"""
+                    .format(type(self).__name__,
+                            self._schema.MinNumInput(),
+                            self._schema.MaxNumInput(),
+                            len(inputs)))
+
+            op_instance = _OperatorInstance(inputs, self)
+            outputs = {}
+            feature_names = []
+            features = []
+            for feature_name, feature in self._features.items():
+                t_name = "_TFRecordReader" + "_id_" + str(self.id) + "_output_" + str(i)
+                t = TensorReference(t_name, self._device, self)
+                op_instance.spec.AddOutput(t.name, t.device)
+                op_instance.append_output(t)
+                outputs[feature_name] = t
+                feature_names.append(feature_name)
+                features.append(feature)
+
+            op_instance.spec.AddArg("feature_names", feature_names)
+            op_instance.spec.AddArg("features", features)
+            return outputs

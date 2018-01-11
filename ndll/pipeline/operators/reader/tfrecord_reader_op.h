@@ -2,6 +2,8 @@
 #ifndef NDLL_PIPELINE_TFRECORD_READER_OP_H_
 #define NDLL_PIPELINE_TFRECORD_READER_OP_H_
 
+#if NDLL_USE_PROTOBUF
+
 #include "ndll/pipeline/operators/reader/reader_op.h"
 #include "ndll/pipeline/operators/reader/loader/tfrecord.h"
 #include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
@@ -34,4 +36,5 @@ class TFRecordReader : public DataReader<CPUBackend> {
 
 }  // namespace ndll
 
+#endif  // NDLL_USE_PROTOBUF
 #endif  // NDLL_PIPELINE_TFRECORD_READER_OP_H_

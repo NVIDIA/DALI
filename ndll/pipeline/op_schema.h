@@ -143,6 +143,7 @@ class OpSchema {
 class SchemaRegistry {
  public:
   static OpSchema& RegisterSchema(std::string name) {
+    std::cout << "Registering schema " << name << std::endl;
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
         "registered for operator '" + name + "'. OPERATOR_SCHEMA(op) "
@@ -153,6 +154,7 @@ class SchemaRegistry {
   }
 
   static OpSchema& GetSchema(std::string name) {
+    std::cout << "Finding schema " << name << std::endl;
     auto &schema_map = registry();
     auto it = schema_map.find(name);
     NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +

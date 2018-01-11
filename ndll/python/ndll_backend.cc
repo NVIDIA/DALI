@@ -12,6 +12,7 @@
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/python/python3_compat.h"
 #include "ndll/util/user_stream.h"
+#include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
 
 namespace ndll {
 namespace python {
@@ -209,6 +210,36 @@ static vector<string> GetRegisteredGPUOps() {
 static OpSchema GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
+#if NDLL_USE_PROTOBUF
+typedef ndll::TFRecordParser::FeatureType FeatureType;
+typedef ndll::TFRecordParser::Feature Feature;
+typedef Feature::Value Value;
+
+Value ConvertTFRecordDefaultValue(FeatureType type, py::object val) {
+  PyObject *ptr = val.ptr();
+  Value ret;
+  switch (type) {
+    case FeatureType::int64:
+      NDLL_ENFORCE(PyInt_Check(ptr) || PyLong_Check(ptr),
+          "Invalid type for default value, expected int.");
+      ret.int64 = PyInt_AsLong(ptr);
+      break;
+    case FeatureType::string:
+      NDLL_ENFORCE(PyStr_Check(ptr),
+          "Invalid type for default value, expected string.");
+      ret.str = PyStr_AsString(ptr);
+      break;
+    case FeatureType::float32:
+      NDLL_ENFORCE(PyFloat_Check(ptr),
+          "Invalid type for default value, expected float.");
+      ret.float32 = PyFloat_AsDouble(ptr);
+      break;
+    default:
+      NDLL_FAIL("Invalid type for default value, expected string, int or float.");
+  }
+  return ret;
+}
+#endif  // NDLL_USE_PROTOBUF
 
 PYBIND11_MODULE(ndll_backend, m) {
   m.doc() = "Python bindings for the C++ portions of NDLL";
@@ -368,7 +399,31 @@ PYBIND11_MODULE(ndll_backend, m) {
 
   ExposeTensorCPU(m);
   ExposeTensorListCPU(m);
+
+#if NDLL_USE_PROTOBUF
+  // TFRecord
+  py::module tfrecord_m = m.def_submodule("tfrecord");
+  tfrecord_m.doc() = "Additional data structures and constants for TFRecord file format support";
+  tfrecord_m.attr("int64") = static_cast<int>(ndll::TFRecordParser::FeatureType::int64);
+  tfrecord_m.attr("string") = static_cast<int>(ndll::TFRecordParser::FeatureType::string);
+  tfrecord_m.attr("float32") = static_cast<int>(ndll::TFRecordParser::FeatureType::float32);
+
+  py::class_<Feature>(tfrecord_m, "Feature");
+
+  tfrecord_m.def("FixedLenFeature",
+      [](vector<Index> converted_shape, int type, py::object default_value) {
+        FeatureType converted_type = static_cast<FeatureType>(type);
+        Value converted_default_value = ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new Feature(converted_shape, converted_type, converted_default_value);
+      });
+  tfrecord_m.def("VarLenFeature",
+      [](int type, py::object default_value) {
+        FeatureType converted_type = static_cast<FeatureType>(type);
+        Value converted_default_value = ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new Feature(converted_type, converted_default_value);
+      });
 }
+#endif  // NDLL_USE_PROTOBUF
 
 }  // namespace python
 }  // namespace ndll
