@@ -4,6 +4,8 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
 
@@ -21,7 +23,7 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
  * @brief Decodes `jpeg` into the the buffer pointed to by `image`
  */
 NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
-    NDLLImageType image_type, int h, int w, uint8 *image);
+    NDLLImageType image_type, Tensor<CPUBackend>* output);
 
 }  // namespace ndll
 
