@@ -106,17 +106,13 @@ class Resize : public Operator<Backend> {
         // the input image is resizes such that the smallest side is
         // >= resize_a_
         if (in_size.width < in_size.height) {
-          if (in_size.width < resize_a_) {
-            out_size.width = resize_a_;
-            out_size.height =
+          out_size.width = resize_a_;
+          out_size.height =
               static_cast<float>(in_size.height) / in_size.width * out_size.width;
-          }
         } else {
-          if (in_size.height < resize_a_) {
-            out_size.height = resize_a_;
-            out_size.width =
+          out_size.height = resize_a_;
+          out_size.width =
               static_cast<float>(in_size.width) / in_size.height * out_size.height;
-          }
         }
       }
 
