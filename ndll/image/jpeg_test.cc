@@ -119,20 +119,15 @@ TYPED_TEST_CASE(JpegDecodeTest, Types);
 TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   vector<uint8> image;
   for (size_t img = 0; img < this->jpegs_.size(); ++img) {
-    int h = 0, w = 0;
-    NDLL_CALL(GetJPEGImageDims(this->jpegs_[img],
-            this->jpeg_sizes_[img], &h, &w));
-
-    image.resize(h * w * this->c_);
+    Tensor<CPUBackend> t;
     NDLL_CALL(DecodeJPEGHost(this->jpegs_[img],
             this->jpeg_sizes_[img],
-            this->img_type_, h, w,
-            image.data()));
+            this->img_type_, &t));
 #ifndef NDEBUG
     cout << img << " " << tjpg_test_images[img] << " " << this->jpeg_sizes_[img] << endl;
-    cout << "dims: " << w << "x" << h << endl;
+    cout << "dims: " << t.dim(1) << "x" << t.dim(0) << endl;
 #endif
-    this->VerifyDecode(image.data(), h, w, img);
+    this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), img);
   }
 }
 

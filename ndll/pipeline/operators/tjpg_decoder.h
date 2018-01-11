@@ -31,16 +31,10 @@ class TJPGDecoder : public Operator<Backend> {
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Input must be stored as uint8 data.");
 
-    int h, w;
-    NDLL_CALL(GetJPEGImageDims(input.template data<uint8>(), input.size(), &h, &w));
-
-    // Resize the output buffer and decode the jpeg
-    output->Resize({h, w, c_});
-
     NDLL_CALL(DecodeJPEGHost(
             input.template data<uint8>(),
-            input.size(), output_type_, h, w,
-            output->template mutable_data<uint8>()));
+            input.size(), output_type_,
+            output));
   }
 
   NDLLImageType output_type_;

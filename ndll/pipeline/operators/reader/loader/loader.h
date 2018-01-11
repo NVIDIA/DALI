@@ -1,6 +1,6 @@
 // Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_LOADER_LOADER_H_
-#define NDLL_PIPELINE_LOADER_LOADER_H_
+#ifndef NDLL_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
+#define NDLL_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 
 #include <list>
 #include <map>
@@ -115,4 +115,4 @@ class Loader {
 
 };  // namespace ndll
 
-#endif  // NDLL_PIPELINE_LOADER_LOADER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_

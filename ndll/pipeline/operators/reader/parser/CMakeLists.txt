@@ -4,7 +4,7 @@ if (BUILD_TEST)
   set(NDLL_TEST_SRCS ${NDLL_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
 
-if (USE_PROTOBUF)
+if (BUILD_PROTOBUF)
   # caffe, C2
   protobuf_generate_cpp(CAFFE_PROTO_SRCS CAFFE_PROTO_HEADERS proto/caffe.proto)
   protobuf_generate_cpp(CAFFE2_PROTO_SRCS CAFFE2_PROTO_HEADERS proto/caffe2.proto)
