@@ -64,9 +64,9 @@ class ResizeCropMirror : public Operator<Backend> {
     bool mirror;
   };
 
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
     NDLL_ENFORCE(input.ndim() == 3);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expects input data in uint8.");
@@ -174,9 +174,9 @@ class FastResizeCropMirror : public ResizeCropMirror<Backend> {
   virtual inline ~FastResizeCropMirror() = default;
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
     NDLL_ENFORCE(input.ndim() == 3);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expects input data in uint8.");

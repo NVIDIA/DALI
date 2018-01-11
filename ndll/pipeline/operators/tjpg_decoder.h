@@ -21,9 +21,9 @@ class TJPGDecoder : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(TJPGDecoder);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
 
     // Verify input
     NDLL_ENFORCE(input.ndim() == 1,

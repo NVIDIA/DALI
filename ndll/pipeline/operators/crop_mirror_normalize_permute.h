@@ -59,20 +59,20 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
   virtual inline ~CropMirrorNormalizePermute() = default;
 
  protected:
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
-    DataDependentSetup(ws);
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
+    DataDependentSetup(ws, idx);
     if (output_type_ == NDLL_FLOAT) {
-      RunHelper<float>(ws);
+      RunHelper<float>(ws, idx);
     } else if (output_type_ == NDLL_FLOAT16) {
-      RunHelper<float16>(ws);
+      RunHelper<float16>(ws, idx);
     } else {
       NDLL_FAIL("Unsupported output type.");
     }
   }
 
-  inline void DataDependentSetup(DeviceWorkspace *ws) {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expected input data as uint8.");
 
@@ -138,8 +138,8 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
   }
 
   template <typename OUT>
-  inline void RunHelper(DeviceWorkspace *ws) {
-    auto output = ws->Output<GPUBackend>(0);
+  inline void RunHelper(DeviceWorkspace *ws, const int idx) {
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_CALL(BatchedCropMirrorNormalizePermute(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),

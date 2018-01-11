@@ -17,11 +17,11 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *) override {
+  inline void RunPerSampleCPU(SampleWorkspace *, const int) override {
     NDLL_FAIL("I'm a dummy op don't run me");
   }
 
-  inline void RunBatchedGPU(DeviceWorkspace *) override {
+  inline void RunBatchedGPU(DeviceWorkspace *, const int) override {
     NDLL_FAIL("I'm a dummy op don't run me");
   }
 };

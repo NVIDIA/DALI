@@ -21,9 +21,9 @@ class Copy : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
     output->set_type(input.type());
     output->ResizeLike(input);
 
@@ -33,9 +33,9 @@ class Copy : public Operator<Backend> {
         input.raw_data(), input.size(), 0);
   }
 
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
     output->set_type(input.type());
     output->ResizeLike(input);
     CUDA_CALL(cudaMemcpyAsync(

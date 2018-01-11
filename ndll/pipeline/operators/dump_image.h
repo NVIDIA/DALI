@@ -24,9 +24,9 @@ class DumpImage : public Operator<Backend> {
   virtual inline ~DumpImage() = default;
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
 
     NDLL_ENFORCE(input.ndim() == 3,
         "Input images must have three dimensions.");
@@ -36,17 +36,17 @@ class DumpImage : public Operator<Backend> {
     int c = input.dim(2);
 
     WriteHWCImage(input.template data<uint8>(),
-        h, w, c, std::to_string(ws->data_idx()) + "-" + suffix_);
+        h, w, c, std::to_string(ws->data_idx()) + "-" + suffix_ + "-" + std::to_string(idx));
 
     // Forward the input
     output->Copy(input, 0);
   }
 
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunBatchedGPU(DeviceWorkspace *ws, int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
 
-    WriteHWCBatch(input, suffix_);
+    WriteHWCBatch(input, suffix_ + "-" + std::to_string(idx));
 
     // Forward the input
     output->Copy(input, ws->stream());
