@@ -114,17 +114,15 @@ class OpSchema {
   }
 
   inline bool HasOutputFn() const {
-    if (max_num_output_ == min_num_output_) return true;
     return static_cast<bool>(output_fn_);
   }
 
   inline int CalculateOutputs(const OpSpec &spec) const {
-    if (max_num_output_ == min_num_output_) {
+    if (!output_fn_) {
       return max_num_output_;
+    } else {
+      return output_fn_(spec);
     }
-    NDLL_ENFORCE(output_fn_, "Output function for op '" +
-        spec.name() + "' has not been set.");
-    return output_fn_(spec);
   }
 
   inline bool SupportsInPlace(const OpSpec &spec) const {

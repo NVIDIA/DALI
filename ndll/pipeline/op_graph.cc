@@ -38,7 +38,7 @@ void CheckOpConstraints(const OpSpec &spec) {
   NDLL_ENFORCE(spec.NumInput() >= schema.MinNumInput(), "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() <= schema.MaxNumOutput(), "Operator '" + spec.name() +
+  NDLL_ENFORCE(spec.NumOutput() <= schema.CalculateOutputs(spec), "Operator '" + spec.name() +
       "' supports a maximum of " + std::to_string(schema.MaxNumOutput()) + " outputs, "
       "but was passed " + std::to_string(spec.NumOutput()) + ".");
   NDLL_ENFORCE(spec.NumOutput() >= schema.MinNumOutput(), "Operator '" + spec.name() +
