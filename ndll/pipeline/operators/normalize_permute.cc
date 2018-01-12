@@ -9,6 +9,10 @@ NDLL_REGISTER_GPU_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>);
 OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
-  .NumOutput(1);
+  .OutputFn([](const OpSpec &spec) {
+      auto num_loops = spec.GetArgument<int>("num_loops", 1);
+      NDLL_ENFORCE(spec.NumInput() % num_loops == 0);
+      return spec.NumInput();
+  });
 
 }  // namespace ndll
