@@ -31,7 +31,7 @@ const vector<string> hybdec_images = {
 }  // namespace
 
 template <typename ImgType>
-class ResizeCropMirrorTest : public NDLLTest {
+class ResizeTest : public NDLLTest {
  public:
   void SetUp() {
     if (IsColor(img_type_)) {
@@ -52,9 +52,14 @@ class ResizeCropMirrorTest : public NDLLTest {
 
   void VerifyImage(const uint8 *img, const uint8 *img2, int n,
       float mean_bound = 2.0, float std_bound = 3.0) {
+    std::vector<uint8> host_img(n), host_img2(n);
+
+    CUDA_CALL(cudaMemcpy(host_img.data(), img, n*sizeof(uint8), cudaMemcpyDefault));
+    CUDA_CALL(cudaMemcpy(host_img2.data(), img2, n*sizeof(uint8), cudaMemcpyDefault));
+
     vector<int> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(static_cast<int>(img[i] - img2[i]));
+      abs_diff[i] = abs(static_cast<int>(host_img[i] - host_img2[i]));
     }
     double mean, std;
     MeanStdDev(abs_diff, &mean, &std);
@@ -94,9 +99,9 @@ class ResizeCropMirrorTest : public NDLLTest {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(ResizeCropMirrorTest, Types);
+TYPED_TEST_CASE(ResizeTest, Types);
 
-TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
+TYPED_TEST(ResizeTest, MultipleData) {
   int batch_size = this->jpegs_.size();
   int num_thread = 1;
 
@@ -124,7 +129,6 @@ TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
 
 
   // Resize + crop multiple sets of images
-#if 0
   pipe.AddOperator(
       OpSpec("Resize")
       .AddArg("device", "gpu")
@@ -138,23 +142,6 @@ TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
 
     // Build and run the pipeline
     vector<std::pair<string, string>> outputs = {{"resized1", "gpu"}, {"resized2", "gpu"}};
-#else
-  pipe.AddOperator(
-      OpSpec("ResizeCropMirror")
-      .AddArg("device", "cpu")
-      .AddInput("images", "cpu")
-      .AddOutput("resized1", "cpu")
-      .AddInput("images2", "cpu")
-      .AddOutput("resized2", "cpu")
-      .AddArg("resize_a", 128)
-      .AddArg("resize_b", 128)
-      .AddArg("crop_h", 24)
-      .AddArg("crop_w", 24)
-      .AddArg("loop_count", 2));
-
-      // Build and run the pipeline
-      vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
-#endif
 
   pipe.Build(outputs);
 
@@ -166,8 +153,8 @@ TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
   pipe.Outputs(&results);
 
   // Verify the results
-  auto output0 = results.Output<CPUBackend>(0);
-  auto output1 = results.Output<CPUBackend>(1);
+  auto output0 = results.Output<GPUBackend>(0);
+  auto output1 = results.Output<GPUBackend>(1);
 
   // WriteHWCBatch(*output, "image");
   for (int i = 0; i < batch_size; ++i) {
