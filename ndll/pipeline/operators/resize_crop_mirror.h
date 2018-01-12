@@ -52,6 +52,9 @@ class ResizeCropMirror : public Operator<Backend> {
 
     // Resize per-image & per-thread data
     tl_workspace_.resize(num_threads_);
+
+    // per-image-set data
+    per_thread_meta_.resize(num_threads_);
   }
 
   virtual inline ~ResizeCropMirror() = default;
@@ -64,6 +67,17 @@ class ResizeCropMirror : public Operator<Backend> {
     bool mirror;
   };
 
+  inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
+    auto &input = ws->Input<CPUBackend>(0);
+
+    // enforce that all shapes match
+    for (int i = 1; i < ws->NumInput(); ++i) {
+      NDLL_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+    }
+
+    per_thread_meta_[ws->thread_idx()] = GetTransformMeta(input.shape());
+  }
+
   inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
@@ -73,7 +87,7 @@ class ResizeCropMirror : public Operator<Backend> {
     NDLL_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
         "ResizeCropMirror supports hwc rgb & grayscale inputs.");
 
-    const TransformMeta &meta = GetTransformMeta(input.shape());
+    const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
@@ -159,6 +173,7 @@ class ResizeCropMirror : public Operator<Backend> {
   float mirror_prob_;
 
   vector<vector<uint8>> tl_workspace_;
+  vector<TransformMeta> per_thread_meta_;
   USE_OPERATOR_MEMBERS();
 };
 

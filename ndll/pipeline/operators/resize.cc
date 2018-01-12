@@ -9,6 +9,8 @@ OPERATOR_SCHEMA(Resize)
   .DocStr("Foo")
   .NumInput(1, INT_MAX)
   .OutputFn([](const OpSpec &spec) {
+      auto num_loops = spec.GetArgument<int>("num_loops", 1);
+      NDLL_ENFORCE(spec.NumInput() % num_loops == 0);
       return spec.NumInput();
   });
 

@@ -34,15 +34,15 @@ class Resize : public Operator<Backend> {
     output_ptrs_.resize(batch_size_);
     input_sizes_.resize(batch_size_);
     output_sizes_.resize(batch_size_);
+
+    // Per set-of-samples random numbers
+    per_sample_rand_.resize(batch_size_);
   }
 
   virtual inline ~Resize() = default;
 
  protected:
   inline void SetupSharedSampleParams(DeviceWorkspace* ws) override {
-
-    per_sample_rand_.resize(batch_size_);
-
     for (int i = 0; i < batch_size_; ++i) {
       auto rand_a = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
       auto rand_b = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
@@ -110,18 +110,18 @@ class Resize : public Operator<Backend> {
       } else if (warp_resize_) {
         // no random + warp. We take the new dims to be h = resize_a_
         // and w = resize_b_
-        out_size.height = resize_a_;
-        out_size.width = resize_b_;
+        out_size.height = rand_a;
+        out_size.width = rand_b;
       } else {
         // no random + no warp. In this mode resize_b_ is ignored and
         // the input image is resizes such that the smallest side is
         // >= resize_a_
         if (in_size.width < in_size.height) {
-          out_size.width = resize_a_;
+          out_size.width = rand_a;
           out_size.height =
               static_cast<float>(in_size.height) / in_size.width * out_size.width;
         } else {
-          out_size.height = resize_a_;
+          out_size.height = rand_a;
           out_size.width =
               static_cast<float>(in_size.width) / in_size.height * out_size.height;
         }
