@@ -66,7 +66,6 @@ class Operator {
    * @brief Executes the operator on a batch of samples on the GPU.
    */
   inline virtual void Run(DeviceWorkspace *ws) {
-
     SetupSharedSampleParams(ws);
 
     for (int i = 0; i < loop_count_; ++i) {
@@ -90,7 +89,7 @@ class Operator {
    * @brief Per image CPU computation of the operator to be
    * implemented by derived ops.
    */
-  virtual inline void RunPerSampleCPU(SampleWorkspace *ws, int idx=0) {
+  virtual inline void RunPerSampleCPU(SampleWorkspace *ws, int idx = 0) {
     NDLL_FAIL("RunPerSampleCPU not implemented");
   }
 
@@ -98,7 +97,7 @@ class Operator {
    * @brief Batched GPU computation of the operator to be
    * implemented by derived ops.
    */
-  virtual inline void RunBatchedGPU(DeviceWorkspace *ws, int idx=0) {
+  virtual inline void RunBatchedGPU(DeviceWorkspace *ws, int idx = 0) {
     NDLL_FAIL("RunBatchedGPU not implemented");
   }
 

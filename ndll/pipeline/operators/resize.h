@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATORS_RESIZE_H_
 
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "ndll/common.h"
