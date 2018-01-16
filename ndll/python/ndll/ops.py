@@ -154,47 +154,47 @@ class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
 
         self._features = features
 
-        @classmethod
-        def _docstring(cls):
-            schema = b.GetSchema("_TFRecordReader")
-            return schema.Dox()
+    @classmethod
+    def _docstring(cls):
+        schema = b.GetSchema("_TFRecordReader")
+        return schema.Dox()
 
-        @property
-        def spec(self):
-            return self._spec
+    @property
+    def spec(self):
+        return self._spec
 
-        @property
-        def schema(self):
-            return self._schema
+    @property
+    def schema(self):
+        return self._schema
 
-        @property
-        def device(self):
-            return self._device
+    @property
+    def device(self):
+        return self._device
 
-        def __call__(self, *inputs):
-            if (len(inputs) > self._schema.MaxNumInput() or
-                    len(inputs) < self._schema.MinNumInput()):
-                raise ValueError(
-                    """Operator {} expects [{},
-                    {}] inputs, but received {}"""
-                    .format(type(self).__name__,
-                            self._schema.MinNumInput(),
-                            self._schema.MaxNumInput(),
-                            len(inputs)))
+    def __call__(self, *inputs):
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                """Operator {} expects [{},
+                {}] inputs, but received {}"""
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
 
-            op_instance = _OperatorInstance(inputs, self)
-            outputs = {}
-            feature_names = []
-            features = []
-            for feature_name, feature in self._features.items():
-                t_name = "_TFRecordReader" + "_id_" + str(self.id) + "_output_" + str(i)
-                t = TensorReference(t_name, self._device, self)
-                op_instance.spec.AddOutput(t.name, t.device)
-                op_instance.append_output(t)
-                outputs[feature_name] = t
-                feature_names.append(feature_name)
-                features.append(feature)
+        op_instance = _OperatorInstance(inputs, self)
+        outputs = {}
+        feature_names = []
+        features = []
+        for feature_name, feature in self._features.items():
+            t_name = "_TFRecordReader" + "_id_" + str(self.id) + "_output_" + str(i)
+            t = TensorReference(t_name, self._device, self)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs[feature_name] = t
+            feature_names.append(feature_name)
+            features.append(feature)
 
-            op_instance.spec.AddArg("feature_names", feature_names)
-            op_instance.spec.AddArg("features", features)
-            return outputs
+        op_instance.spec.AddArg("feature_names", feature_names)
+        op_instance.spec.AddArg("features", features)
+        return outputs
