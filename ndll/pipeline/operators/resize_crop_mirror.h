@@ -29,6 +29,7 @@ namespace ndll {
  * Mirror Options:
  * 1. Mirror probability
  */
+
 template <typename Backend>
 class ResizeCropMirror : public Operator<Backend> {
  public:
@@ -72,10 +73,11 @@ class ResizeCropMirror : public Operator<Backend> {
     NDLL_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
         "ResizeCropMirror supports hwc rgb & grayscale inputs.");
 
-    TransformMeta meta = GetTransformMeta(input.shape());
+    const TransformMeta &meta = GetTransformMeta(input.shape());
 
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});
+
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     NDLL_CALL(ResizeCropMirrorHost(
         input.template data<uint8>(),
@@ -89,7 +91,7 @@ class ResizeCropMirror : public Operator<Backend> {
         tl_workspace_[ws->thread_idx()].data()));
   }
 
-  inline TransformMeta GetTransformMeta(const vector<Index> &input_shape) {
+  inline const TransformMeta GetTransformMeta(const vector<Index> &input_shape) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
@@ -120,15 +122,11 @@ class ResizeCropMirror : public Operator<Backend> {
       // the input image is resizes such that the smallest side is
       // >= resize_a_
       if (meta.W < meta.H) {
-        if (meta.W < resize_a_) {
           meta.rsz_w = resize_a_;
           meta.rsz_h = static_cast<float>(meta.H) / meta.W * meta.rsz_w;
-        }
       } else {
-        if (meta.H < resize_a_) {
           meta.rsz_h = resize_a_;
           meta.rsz_w = static_cast<float>(meta.W) / meta.H * meta.rsz_h;
-        }
       }
     }
 
