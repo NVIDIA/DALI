@@ -150,7 +150,7 @@ TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
       .AddArg("resize_b", 128)
       .AddArg("crop_h", 24)
       .AddArg("crop_w", 24)
-      .AddArg("loop_count", 2));
+      .AddArg("num_input_sets", 2));
 
       // Build and run the pipeline
       vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};

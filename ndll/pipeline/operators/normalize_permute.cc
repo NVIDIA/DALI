@@ -10,8 +10,8 @@ OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
   .OutputFn([](const OpSpec &spec) {
-      auto num_loops = spec.GetArgument<int>("num_loops", 1);
-      NDLL_ENFORCE(spec.NumInput() % num_loops == 0);
+      auto input_sets = spec.GetArgument<int>("num_input_sets", 1);
+      NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
       return spec.NumInput();
   });
 

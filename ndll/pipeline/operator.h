@@ -39,7 +39,7 @@ class Operator {
   inline explicit Operator(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
     batch_size_(spec.GetArgument<int>("batch_size", -1)),
-    loop_count_(spec.GetArgument<int>("loop_count", 1)) {
+    input_sets_(spec.GetArgument<int>("num_input_sets", 1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
@@ -57,7 +57,7 @@ class Operator {
 
     SetupSharedSampleParams(ws);
 
-    for (int i = 0; i < loop_count_; ++i) {
+    for (int i = 0; i < input_sets_; ++i) {
       RunPerSampleCPU(ws, i);
     }
   }
@@ -68,7 +68,7 @@ class Operator {
   inline virtual void Run(DeviceWorkspace *ws) {
     SetupSharedSampleParams(ws);
 
-    for (int i = 0; i < loop_count_; ++i) {
+    for (int i = 0; i < input_sets_; ++i) {
       RunBatchedGPU(ws, i);
     }
   }
@@ -114,7 +114,7 @@ class Operator {
   OpSpec spec_;
   int num_threads_;
   int batch_size_;
-  int loop_count_;
+  int input_sets_;
 };
 
 #define USE_OPERATOR_MEMBERS()                  \

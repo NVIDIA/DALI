@@ -138,7 +138,7 @@ TYPED_TEST(ResizeTest, MultipleData) {
       .AddOutput("resized2", "gpu")
       .AddArg("resize_a", 384)
       .AddArg("resize_b", 384)
-      .AddArg("loop_count", 2));
+      .AddArg("num_input_sets", 2));
 
     // Build and run the pipeline
     vector<std::pair<string, string>> outputs = {{"resized1", "gpu"}, {"resized2", "gpu"}};

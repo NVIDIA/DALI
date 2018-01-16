@@ -148,7 +148,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
       .AddArg("mean", mean_vec)
       .AddArg("std", mean_vec)
       .AddArg("image_type", this->img_type_)
-      .AddArg("loop_count", 2));
+      .AddArg("num_input_sets", 2));
 
     // Build and run the pipeline
     vector<std::pair<string, string>> outputs = {{"cropped1", "gpu"}, {"cropped2", "gpu"}};
