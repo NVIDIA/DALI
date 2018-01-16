@@ -131,6 +131,19 @@ class OpSpec {
   }
 
   /**
+   * @brief Checks the spec to see if an argument has been specified
+   */
+  bool HasArgument(const string &name) const {
+    auto arg_it = arguments_.find(name);
+
+    if (arg_it == arguments_.end()) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  /**
    * @brief Checks the Spec for an argument with the given name/type.
    * Returns the default if an argument with the given name/type does
    * not exist.

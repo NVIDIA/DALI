@@ -7,16 +7,16 @@ NDLL_REGISTER_CPU_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>);
 
 OPERATOR_SCHEMA(ResizeCropMirror)
   .DocStr("Foo")
-  .NumInput(1, INT_MAX)
-  .OutputFn([](const OpSpec &spec) {
-      return spec.NumInput();
-  });
+  .NumInput(1)
+  .NumOutput(1)
+  .AllowMultipleInputSets();
 
 NDLL_REGISTER_CPU_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>);
 
 OPERATOR_SCHEMA(FastResizeCropMirror)
   .DocStr("Foo")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AllowMultipleInputSets();
 
 }  // namespace ndll

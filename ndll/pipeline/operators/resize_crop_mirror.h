@@ -199,7 +199,7 @@ class FastResizeCropMirror : public ResizeCropMirror<Backend> {
         "FastResizeCropMirror supports hwc rgb & grayscale inputs.");
 
     typename ResizeCropMirror<CPUBackend>::TransformMeta meta =
-      this->GetTransformMeta(input.shape());
+        ResizeCropMirror<Backend>::per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
     output->Resize({crop_h_, crop_w_, meta.C});

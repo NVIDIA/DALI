@@ -16,7 +16,8 @@ class OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
-  inline OpSchema() {}
+  inline OpSchema()
+    : allow_multiple_input_sets_(false) {}
   inline ~OpSchema() = default;
 
   /**
@@ -85,6 +86,14 @@ class OpSchema {
   }
 
   /**
+   * @brief Notes that multiple input sets can be used with this op
+   */
+  inline OpSchema& AllowMultipleInputSets() {
+    allow_multiple_input_sets_ = true;
+    return *this;
+  }
+
+  /**
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
    */
@@ -113,6 +122,10 @@ class OpSchema {
     return min_num_output_;
   }
 
+  inline bool AllowsMultipleInputSets() const {
+    return allow_multiple_input_sets_;
+  }
+
   inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
@@ -136,6 +149,8 @@ class OpSchema {
 
   int min_num_input_ = 0, max_num_input_ = 0;
   int min_num_output_ = 0, max_num_output_ = 0;
+
+  bool allow_multiple_input_sets_;
 };
 
 class SchemaRegistry {

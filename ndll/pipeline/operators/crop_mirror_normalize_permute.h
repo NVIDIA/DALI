@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
 
 #include <cstring>
+#include <utility>
 #include <vector>
 #include <random>
 

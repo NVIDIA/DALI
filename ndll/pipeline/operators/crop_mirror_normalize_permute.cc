@@ -8,11 +8,8 @@ NDLL_REGISTER_GPU_OPERATOR(CropMirrorNormalizePermute,
 
 OPERATOR_SCHEMA(CropMirrorNormalizePermute)
   .DocStr("Foo")
-  .NumInput(1, INT_MAX)
-  .OutputFn([](const OpSpec &spec) {
-      auto input_sets = spec.GetArgument<int>("num_input_sets", 1);
-      NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
-      return spec.NumInput();
-  });
+  .NumInput(1)
+  .NumOutput(1)
+  .AllowMultipleInputSets();
 
 }  // namespace ndll

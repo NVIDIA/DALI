@@ -88,6 +88,50 @@ class ResizeCropMirrorTest : public NDLLTest {
     *std = sqrt(var_sum / diff.size());
   }
 
+  Pipeline *BuildPipe(int batch_size, int num_thread,
+                      bool use_fast_resize) {
+    // Create the pipeline
+    Pipeline *pipe = new Pipeline(
+        batch_size,
+        num_thread,
+        0, false);
+
+    TensorList<CPUBackend> data;
+    this->MakeJPEGBatch(&data, batch_size);
+    pipe->AddExternalInput("jpegs");
+    pipe->SetExternalInput("jpegs", data);
+
+    // Decode the images
+    pipe->AddOperator(
+        OpSpec("TJPGDecoder")
+        .AddInput("jpegs", "cpu")
+        .AddOutput("images", "cpu"));
+
+    pipe->AddOperator(
+        OpSpec("TJPGDecoder")
+        .AddInput("jpegs", "cpu")
+        .AddOutput("images2", "cpu"));
+
+    string op_name = (use_fast_resize) ?
+          "FastResizeCropMirror" : "ResizeCropMirror";
+
+    // Resize + crop multiple sets of images
+    pipe->AddOperator(
+        OpSpec(op_name)
+        .AddArg("device", "cpu")
+        .AddInput("images", "cpu")
+        .AddOutput("resized1", "cpu")
+        .AddInput("images2", "cpu")
+        .AddOutput("resized2", "cpu")
+        .AddArg("resize_a", 128)
+        .AddArg("resize_b", 128)
+        .AddArg("crop_h", 24)
+        .AddArg("crop_w", 24)
+        .AddArg("num_input_sets", 2));
+
+    return pipe;
+  }
+
  protected:
   const NDLLImageType img_type_ = ImgType::type;
   int c_;
@@ -96,74 +140,52 @@ class ResizeCropMirrorTest : public NDLLTest {
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(ResizeCropMirrorTest, Types);
 
-TYPED_TEST(ResizeCropMirrorTest, MultipleData) {
+TYPED_TEST(ResizeCropMirrorTest, MultipleInputSets) {
   int batch_size = this->jpegs_.size();
   int num_thread = 1;
 
-  // Create the pipeline
-  Pipeline pipe(
-      batch_size,
-      num_thread,
-      0, false);
+  Pipeline *pipe = this->BuildPipe(batch_size, num_thread, false);
 
-  TensorList<CPUBackend> data;
-  this->MakeJPEGBatch(&data, batch_size);
-  pipe.AddExternalInput("jpegs");
-  pipe.SetExternalInput("jpegs", data);
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
+  pipe->Build(outputs);
 
   // Decode the images
-  pipe.AddOperator(
-      OpSpec("TJPGDecoder")
-      .AddInput("jpegs", "cpu")
-      .AddOutput("images", "cpu"));
-
-  pipe.AddOperator(
-      OpSpec("TJPGDecoder")
-      .AddInput("jpegs", "cpu")
-      .AddOutput("images2", "cpu"));
-
-
-  // Resize + crop multiple sets of images
-#if 0
-  pipe.AddOperator(
-      OpSpec("Resize")
-      .AddArg("device", "gpu")
-      .AddInput("images", "gpu")
-      .AddOutput("resized1", "gpu")
-      .AddInput("images2", "gpu")
-      .AddOutput("resized2", "gpu")
-      .AddArg("resize_a", 384)
-      .AddArg("resize_b", 384)
-      .AddArg("loop_count", 2));
-
-    // Build and run the pipeline
-    vector<std::pair<string, string>> outputs = {{"resized1", "gpu"}, {"resized2", "gpu"}};
-#else
-  pipe.AddOperator(
-      OpSpec("ResizeCropMirror")
-      .AddArg("device", "cpu")
-      .AddInput("images", "cpu")
-      .AddOutput("resized1", "cpu")
-      .AddInput("images2", "cpu")
-      .AddOutput("resized2", "cpu")
-      .AddArg("resize_a", 128)
-      .AddArg("resize_b", 128)
-      .AddArg("crop_h", 24)
-      .AddArg("crop_w", 24)
-      .AddArg("num_input_sets", 2));
-
-      // Build and run the pipeline
-      vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
-#endif
-
-  pipe.Build(outputs);
-
-  // Decode the images
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe->RunCPU();
+  pipe->RunGPU();
 
   DeviceWorkspace results;
-  pipe.Outputs(&results);
+  pipe->Outputs(&results);
+
+  // Verify the results
+  auto output0 = results.Output<CPUBackend>(0);
+  auto output1 = results.Output<CPUBackend>(1);
+
+  // WriteHWCBatch(*output, "image");
+  for (int i = 0; i < batch_size; ++i) {
+    this->VerifyImage(
+        output0->template tensor<uint8>(i),
+        output1->template tensor<uint8>(i),
+        output0->tensor_shape(i)[0]*output0->tensor_shape(i)[1]*output0->tensor_shape(i)[2]);
+  }
+}
+
+TYPED_TEST(ResizeCropMirrorTest, FastMultipleInputSets) {
+  int batch_size = this->jpegs_.size();
+  int num_thread = 1;
+
+  Pipeline *pipe = this->BuildPipe(batch_size, num_thread, true);
+
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
+  pipe->Build(outputs);
+
+  // Decode the images
+  pipe->RunCPU();
+  pipe->RunGPU();
+
+  DeviceWorkspace results;
+  pipe->Outputs(&results);
 
   // Verify the results
   auto output0 = results.Output<CPUBackend>(0);

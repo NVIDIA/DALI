@@ -30,18 +30,40 @@ bool AllOutputsGPU(const OpSpec &spec) {
 
 void CheckOpConstraints(const OpSpec &spec) {
   OpSchema schema = SchemaRegistry::GetSchema(spec.name());
+
+  bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
+
+  int num_input_sets = 1;
+  if (allows_multiple_inputs) {
+    // If Min/Max Inputs/Outputs are the same, we can infer the number
+    // of input sets, otherwise get from a user-passed argument
+    if (schema.MinNumInput() == schema.MaxNumInput() &&
+        schema.MinNumOutput() == schema.MaxNumOutput()) {
+      num_input_sets = spec.NumInput() / schema.MinNumInput();
+      int num_output_sets = spec.NumOutput() / schema.MinNumOutput();
+
+      NDLL_ENFORCE(num_input_sets == num_output_sets, "Inconsistent number of inputs / outputs");
+    } else {
+      num_input_sets = spec.GetArgument<int>("num_input_sets", 1);
+    }
+  }
+
   NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace", false),
       "Op '" + spec.name() + "' does not support in-place execution.");
-  NDLL_ENFORCE(spec.NumInput() <= schema.MaxNumInput(), "Operator '" + spec.name() +
+  NDLL_ENFORCE(spec.NumInput() <= num_input_sets * schema.MaxNumInput(),
+      "Operator '" + spec.name() +
       "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumInput() >= schema.MinNumInput(), "Operator '" + spec.name() +
+  NDLL_ENFORCE(spec.NumInput() >= num_input_sets * schema.MinNumInput(),
+      "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() <= schema.CalculateOutputs(spec), "Operator '" + spec.name() +
+  NDLL_ENFORCE(spec.NumOutput() <= num_input_sets * schema.CalculateOutputs(spec),
+      "Operator '" + spec.name() +
       "' supports a maximum of " + std::to_string(schema.MaxNumOutput()) + " outputs, "
       "but was passed " + std::to_string(spec.NumOutput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() >= schema.MinNumOutput(), "Operator '" + spec.name() +
+  NDLL_ENFORCE(spec.NumOutput() >= num_input_sets * schema.MinNumOutput(),
+      "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumOutput()) + " outputs, "
         "but was passed " + std::to_string(spec.NumOutput()) + ".");
 }
