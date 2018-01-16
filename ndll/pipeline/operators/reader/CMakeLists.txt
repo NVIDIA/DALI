@@ -2,7 +2,7 @@ add_subdirectory(loader)
 add_subdirectory(parser)
 
 if (BUILD_LMDB AND BUILD_PROTOBUF)
-  list(APPEND ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/caffe_reader_op.cc")
+  list(APPEND NDLL_SRCS ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/caffe_reader_op.cc")
 endif()
 
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
