@@ -330,48 +330,47 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
     .def("AddArg",
+        [](OpSpec *spec, const string &name, std::string str) -> OpSpec& {
+          spec->AddArg(name, str);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, bool val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, int64 val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, double val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, std::vector<std::string> val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, std::vector<int64> val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, std::vector<double> val) -> OpSpec& {
+          spec->AddArg(name, val);
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
+        [](OpSpec *spec, const string &name, py::list list) -> OpSpec& {
+          return *spec;
+        }, py::return_value_policy::reference_internal)
+    .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
-          // TODO(tgale): Can we clean this conversion up? Do we want to handle
-          // cast errors from pybind so we can give the user better error messages?
-          PyObject *value = obj.ptr();
-          // Switch on supported data types
-          if (PyStr_Check(value)) {
-            std::string str_val(PyStr_AsString(value));
-            spec->AddArg(name, str_val);
-          } else if (PyBool_Check(value)) {
-            bool bool_val(value == Py_True);
-            spec->AddArg(name, bool_val);
-          } else if (PyInt_Check(value) || PyLong_Check(value)) {
-            int64 int_val = PyInt_AsLong(value);
-            spec->AddArg(name, int_val);
-          } else if (PyFloat_Check(value)) {
-            double float_val = PyFloat_AsDouble(value);
-            spec->AddArg(name, float_val);
-          } else if (PyList_Check(value)) {
-            size_t size = PyList_Size(value);
-            NDLL_ENFORCE(size > 0, "Empty list arguments not supported.");
-
-            // Get the first type
-            PyObject *elt = PyList_GetItem(value, 0);
-            if (PyStr_Check(elt)) {
-              vector<string> str_vals = obj.cast<vector<string>>();
-              spec->AddArg(name, str_vals);
-            } else if (PyBool_Check(elt)) {
-              vector<bool> bool_vals = obj.cast<vector<bool>>();
-              spec->AddArg(name, bool_vals);
-            } else if (PyInt_Check(elt) || PyLong_Check(value)) {
-              vector<int64> int_vals = obj.cast<vector<int64>>();
-              spec->AddArg(name, int_vals);
-            } else if (PyFloat_Check(elt)) {
-              vector<double> float_vals = obj.cast<vector<double>>();
-              spec->AddArg(name, float_vals);
-            } else {
-              NDLL_FAIL("Unsupported list element type in argument "
-                  "with name " + name);
-            }
-          } else {
-            NDLL_FAIL("Unsupported argument type with name " + name);
-          }
+          NDLL_FAIL("Unsupported argument type with name " + name);
           return *spec;
         }, py::return_value_policy::reference_internal)
     .def("__repr__", &OpSpec::ToString)
