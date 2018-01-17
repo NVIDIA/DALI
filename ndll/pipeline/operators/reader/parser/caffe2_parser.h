@@ -1,8 +1,11 @@
-#ifndef NDLL_PIPELINE_PARSER_CAFFE2_PARSER_H_
-#define NDLL_PIPELINE_PARSER_CAFFE2_PARSER_H_
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_OPERATORS_READER_PARSER_CAFFE2_PARSER_H_
+#define NDLL_PIPELINE_OPERATORS_READER_PARSER_CAFFE2_PARSER_H_
 
-#include "ndll/pipeline/parser/parser.h"
-#include "ndll/pipeline/parser/caffe2.pb.h"
+#include <string>
+
+#include "ndll/pipeline/operators/reader/parser/parser.h"
+#include "ndll/pipeline/operators/reader/parser/caffe2.pb.h"
 
 namespace ndll {
 
@@ -104,7 +107,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
                  SampleWorkspace* ws) {
   auto* label_tensor = ws->Output<CPUBackend>(1);
   switch (label_type) {
-   case SINGLE_LABEL: {
+    case SINGLE_LABEL: {
       // single element, from protos(1) to Output(1)
       // ensure we only have a single label in the proto
       NDLL_ENFORCE(proto_data_size<T>(protos.protos(1)) == 1);
@@ -112,7 +115,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       extract_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
       break;
     }
-   case MULTI_LABEL_SPARSE: {
+    case MULTI_LABEL_SPARSE: {
       // multiple labels, all 1. in elements defined in protos(1)
       auto* label_tensor = ws->Output<CPUBackend>(1);
       label_tensor->Resize({num_labels});
@@ -123,16 +126,17 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       T* label_tensor_data = label_tensor->mutable_data<T>();
       std::memset(label_tensor_data, 0, num_labels*sizeof(T));
       for (int i = 0; i < label_data_size; ++i) {
-        label_tensor_data[static_cast<int>(proto_get_data<T>(label_indices, i))] = static_cast<T>(1);
+        label_tensor_data[static_cast<int>(proto_get_data<T>(label_indices, i))]
+          = static_cast<T>(1);
       }
       break;
     }
-   case MULTI_LABEL_DENSE: {
+    case MULTI_LABEL_DENSE: {
       // multiple elements, stored contiguously
       extract_data<T>(protos.protos(1), ws->Output<CPUBackend>(1));
       break;
     }
-   case MULTI_LABEL_WEIGHTED_SPARSE: {
+    case MULTI_LABEL_WEIGHTED_SPARSE: {
       // multiple elements with distinct weights
       // indices [int/float] in protos(1), weights [float] in protos(2)
       label_tensor->Resize({num_labels});
@@ -149,8 +153,9 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       }
       break;
     }
-   default:
-    NDLL_FAIL("Unsupported label type");
+    default: {
+      NDLL_FAIL("Unsupported label type");
+    }
   }
 }
 
@@ -249,4 +254,4 @@ class Caffe2Parser : public Parser {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_PARSER_CAFFE2_PARSER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_PARSER_CAFFE2_PARSER_H_

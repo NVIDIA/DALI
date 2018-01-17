@@ -1,9 +1,10 @@
-#ifndef NDLL_PIPELINE_CAFFE2_READER_H_
-#define NDLL_PIPELINE_CAFFE2_READER_H_
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_OPERATORS_READER_CAFFE2_READER_OP_H_
+#define NDLL_PIPELINE_OPERATORS_READER_CAFFE2_READER_OP_H_
 
-#include "ndll/pipeline/reader_op.h"
-#include "ndll/pipeline/loader/lmdb.h"
-#include "ndll/pipeline/parser/caffe2_parser.h"
+#include "ndll/pipeline/operators/reader/reader_op.h"
+#include "ndll/pipeline/operators/reader/loader/lmdb.h"
+#include "ndll/pipeline/operators/reader/parser/caffe2_parser.h"
 
 namespace ndll {
 
@@ -17,7 +18,7 @@ class Caffe2Reader : public DataReader<CPUBackend> {
 
   DEFAULT_READER_DESTRUCTOR(Caffe2Reader, CPUBackend);
 
-  void RunPerSampleCPU(SampleWorkspace* ws) override {
+  void RunPerSampleCPU(SampleWorkspace* ws, const int i) override {
     const int idx = ws->data_idx();
 
     auto* raw_data = prefetched_batch_[idx];
@@ -33,5 +34,5 @@ class Caffe2Reader : public DataReader<CPUBackend> {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_CAFFE2_READER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_CAFFE2_READER_OP_H_
 
