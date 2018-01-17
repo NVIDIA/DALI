@@ -323,51 +323,28 @@ PYBIND11_MODULE(ndll_backend, m) {
           p->SetExternalInput(name, tensors);
         });
 
+#define NDLL_OPSPEC_ADDARG(T) \
+    .def("AddArg", \
+        [](OpSpec *spec, const string& name, T v) -> OpSpec& { \
+        spec->AddArg(name, v); \
+        return *spec; \
+      }, py::return_value_policy::reference_internal) \
+    .def("AddArg", \
+        [](OpSpec *spec, const string& name, std::vector<T> v) -> OpSpec& { \
+        spec->AddArg(name, v); \
+        return *spec; \
+      }, py::return_value_policy::reference_internal)
+
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, std::string str) -> OpSpec& {
-          spec->AddArg(name, str);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, bool val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, int64 val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, double val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, std::vector<std::string> val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, std::vector<int64> val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, std::vector<double> val) -> OpSpec& {
-          spec->AddArg(name, val);
-          return *spec;
-        }, py::return_value_policy::reference_internal)
-    .def("AddArg",
-        [](OpSpec *spec, const string &name, py::list list) -> OpSpec& {
-          return *spec;
-        }, py::return_value_policy::reference_internal)
+    NDLL_OPSPEC_ADDARG(std::string)
+    NDLL_OPSPEC_ADDARG(int64)
+    NDLL_OPSPEC_ADDARG(bool)
+    NDLL_OPSPEC_ADDARG(float)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           NDLL_FAIL("Unsupported argument type with name " + name);

@@ -37,8 +37,8 @@ template <typename Backend>
 class Operator {
  public:
   inline explicit Operator(const OpSpec &spec) :
-    spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
-    batch_size_(spec.GetArgument<int>("batch_size", -1)) {
+    spec_(spec), num_threads_(spec.GetArgument<int64>("num_threads", -1)),
+    batch_size_(spec.GetArgument<int64>("batch_size", -1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }

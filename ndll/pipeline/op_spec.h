@@ -57,8 +57,14 @@ class OpSpec {
   // Forward to string implementation
   template <unsigned N>
   OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
-    return this->AddArg<string>(name, c_str);
+    return this->AddArg<std::string>(name, c_str);
   }
+
+  // Forward to int64 implementation
+  OpSpec& AddArg(const string& name, int val);
+  OpSpec& AddArg(const string& name, unsigned int val);
+  OpSpec& AddArg(const string& name, unsigned long val);
+  OpSpec& AddArg(const string& name, long val);
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -169,20 +175,15 @@ class OpSpec {
     ret += "  Arguments:\n";
     for (auto& a : arguments_) {
       ret += "    ";
-      ret += a.second.ToString();
+      ret += a.second->ToString();
       ret += "\n";
     }
     return ret;
   }
 
  private:
-  // Helper function to handle argument types. Checks the correct type
-  // field in the input argument. If it is not set, return the default
-  template <typename T>
-  T ArgumentTypeHelper(const Argument &arg, const T &default_value) const;
-
   string name_;
-  std::unordered_map<string, Argument> arguments_;
+  std::unordered_map<string, Argument*> arguments_;
 
   std::map<StrPair, int> input_name_idx_, output_name_idx_;
   vector<StrPair> inputs_, outputs_;
@@ -197,7 +198,7 @@ T OpSpec::GetArgument(const string &name, const T &default_value) const {
     return default_value;
   }
 
-  return ArgumentTypeHelper<T>(arg_it->second, default_value);
+  return arg_it->second->template Get<T>();
 }
 
 template <typename T>
@@ -210,7 +211,7 @@ vector<T> OpSpec::GetRepeatedArgument(const string &name,
     return default_value;
   }
 
-  return ArgumentTypeHelper<vector<T>>(arg_it->second, default_value);
+  return arg_it->second->template Get<vector<T>>();
 }
 
 }  // namespace ndll
