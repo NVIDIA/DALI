@@ -247,19 +247,27 @@ PYBIND11_MODULE(ndll_backend, m) {
   // NDLL Init function
   m.def("Init", &NDLLInit);
 
-  // NDLLDataType, NDLLImageType, NDLLInterpType enums
-  m.attr("NO_TYPE") = -1;
-  m.attr("UINT8") = 0;
-  m.attr("FLOAT16") = 1;
-  m.attr("FLOAT") = 2;
+  // NDLLDataType
+  py::enum_<NDLLDataType>(m, "NDLLDataType", "Data type of image")
+    .value("NO_TYPE", NDLL_NO_TYPE)
+    .value("UINT8", NDLL_UINT8)
+    .value("FLOAT16", NDLL_FLOAT16)
+    .value("FLOAT", NDLL_FLOAT)
+    .export_values();
 
-  m.attr("RGB") = 0;
-  m.attr("BGR") = 1;
-  m.attr("GRAY") = 2;
+  // NDLLImageType
+  py::enum_<NDLLImageType>(m, "NDLLImageType", "Image type")
+    .value("RGB", NDLL_RGB)
+    .value("BGR", NDLL_BGR)
+    .value("GRAY", NDLL_GRAY)
+    .export_values();
 
-  m.attr("INTERP_NN") = 0;
-  m.attr("INTERP_LINEAR") = 1;
-  m.attr("INTERP_CUBIC") = 2;
+  // NDLLInterpType
+  py::enum_<NDLLInterpType>(m, "NDLLInterpType", "Interpolation mode")
+    .value("INTERP_NN", NDLL_INTERP_NN)
+    .value("INTERP_LINEAR", NDLL_INTERP_LINEAR)
+    .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
+    .export_values();
 
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
@@ -345,6 +353,9 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(bool)
     NDLL_OPSPEC_ADDARG(float)
+    NDLL_OPSPEC_ADDARG(NDLLImageType)
+    NDLL_OPSPEC_ADDARG(NDLLDataType)
+    NDLL_OPSPEC_ADDARG(NDLLInterpType)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           NDLL_FAIL("Unsupported argument type with name " + name);

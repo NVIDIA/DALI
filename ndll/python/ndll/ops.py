@@ -35,10 +35,10 @@ class _OperatorInstance(object):
 
     def generate_outputs(self):
         # Add outputs
-        num_output = op.schema.CalculateOutputs(self._spec)
+        num_output = self._op.schema.CalculateOutputs(self._spec)
         for i in range(num_output):
-            t_name = type(op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = TensorReference(t_name, op.device, self)
+            t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
+            t = TensorReference(t_name, self._op.device, self)
             self._spec.AddOutput(t.name, t.device)
             self.append_output(t)
 
