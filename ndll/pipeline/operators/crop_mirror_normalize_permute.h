@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
 
 #include <cstring>
+#include <utility>
 #include <vector>
 #include <random>
 
@@ -54,25 +55,28 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
     input_ptrs_.Resize({batch_size_});
     input_strides_.Resize({batch_size_});
     mirror_.Resize({batch_size_});
+
+    // Reset per-set-of-samples random numbers
+    per_sample_crop_.resize(batch_size_);
   }
 
   virtual inline ~CropMirrorNormalizePermute() = default;
 
  protected:
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
-    DataDependentSetup(ws);
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
+    DataDependentSetup(ws, idx);
     if (output_type_ == NDLL_FLOAT) {
-      RunHelper<float>(ws);
+      RunHelper<float>(ws, idx);
     } else if (output_type_ == NDLL_FLOAT16) {
-      RunHelper<float16>(ws);
+      RunHelper<float16>(ws, idx);
     } else {
       NDLL_FAIL("Unsupported output type.");
     }
   }
 
-  inline void DataDependentSetup(DeviceWorkspace *ws) {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expected input data as uint8.");
 
@@ -93,12 +97,21 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
 
       // Set crop parameters
       int crop_y, crop_x;
-      if (random_crop_) {
-        crop_y = std::uniform_int_distribution<>(0, H - crop_h_)(rand_gen_);
-        crop_x = std::uniform_int_distribution<>(0, W - crop_w_)(rand_gen_);
+      if (idx == 0) {
+        // First set of samples determines the crop offsets to be used
+        // for all sets of samples and stores.
+        if (random_crop_) {
+          crop_y = std::uniform_int_distribution<>(0, H - crop_h_)(rand_gen_);
+          crop_x = std::uniform_int_distribution<>(0, W - crop_w_)(rand_gen_);
+        } else {
+          crop_y = (H - crop_h_) / 2;
+          crop_x = (W - crop_w_) / 2;
+        }
+        per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
       } else {
-        crop_y = (H - crop_h_) / 2;
-        crop_x = (W - crop_w_) / 2;
+        // retrieve already determined offsets
+        crop_y = per_sample_crop_[i].first;
+        crop_x = per_sample_crop_[i].second;
       }
 
       // Save image stride & crop offset
@@ -138,8 +151,8 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
   }
 
   template <typename OUT>
-  inline void RunHelper(DeviceWorkspace *ws) {
-    auto output = ws->Output<GPUBackend>(0);
+  inline void RunHelper(DeviceWorkspace *ws, const int idx) {
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_CALL(BatchedCropMirrorNormalizePermute(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),
@@ -187,6 +200,9 @@ class CropMirrorNormalizePermute : public Operator<Backend> {
   // Tensor to store mean & stddiv
   Tensor<Backend> mean_, inv_std_;
   vector<float> mean_vec_, inv_std_vec_;
+
+  // store per-thread crop offsets for same resize on multiple data
+  std::vector<std::pair<int, int>> per_sample_crop_;
 
   USE_OPERATOR_MEMBERS();
 };
