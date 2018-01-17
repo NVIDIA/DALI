@@ -98,7 +98,7 @@ class OpSchema {
    * be executed in-place depending on the ops specification.
    */
   inline OpSchema& InPlaceFn(SpecFunc f) {
-    NDLL_FAIL("In-place op support not yet implemented.");
+    REPORT_FATAL_PROBLEM("In-place op support not yet implemented.");
     return *this;
   }
 
