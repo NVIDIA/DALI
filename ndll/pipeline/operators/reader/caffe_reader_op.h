@@ -18,7 +18,7 @@ class CaffeReader : public DataReader<CPUBackend> {
 
   DEFAULT_READER_DESTRUCTOR(CaffeReader, CPUBackend);
 
-  void RunPerSampleCPU(SampleWorkspace* ws) override {
+  void RunPerSampleCPU(SampleWorkspace* ws, const int i) override {
     const int idx = ws->data_idx();
 
     auto* raw_data = prefetched_batch_[idx];
