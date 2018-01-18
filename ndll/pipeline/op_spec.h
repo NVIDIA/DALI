@@ -209,6 +209,12 @@ class OpSpec {
     for (size_t i = 0; i < outputs_.size(); ++i) {
       op->add_output(Output(i));
     }
+
+    for (auto& a : arguments_) {
+      ndll_proto::Argument *arg = op->add_args();
+
+      a.second->SerializeToProtobuf(arg);
+    }
   }
 
  private:

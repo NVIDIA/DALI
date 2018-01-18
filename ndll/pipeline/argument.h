@@ -7,6 +7,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/ndll.pb.h"
 
 namespace ndll {
 
@@ -45,6 +46,8 @@ class Argument {
   virtual std::string ToString() const {
     return get_name();
   }
+
+  virtual void SerializeToProtobuf(ndll_proto::Argument *arg) = 0;
 
   template<typename T>
   T Get();
@@ -86,9 +89,46 @@ class ArgumentInst : public Argument {
     return ret;
   }
 
+  virtual void SerializeToProtobuf(ndll_proto::Argument *arg) override {
+    NDLL_FAIL("Default ArgumentInst::SerializeToProtobuf should never be called\n");
+  }
+
  private:
   T val;
 };
+
+template <>
+inline void ArgumentInst<bool>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  arg->set_b(this->Get());
+}
+
+template <>
+inline void ArgumentInst<int64_t>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  arg->set_i(this->Get());
+}
+
+template <>
+inline void ArgumentInst<float>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  arg->set_f(this->Get());
+}
+
+template <>
+inline void ArgumentInst<string>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  arg->set_s(this->Get());
+}
+
+template <>
+inline void ArgumentInst<std::vector<float>>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  auto vec = this->Get();
+  for (size_t i = 0; i < vec.size(); ++i) {
+    arg->add_floats(vec[i]);
+  }
+}
 
 
 template<typename T>

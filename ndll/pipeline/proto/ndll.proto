@@ -11,6 +11,8 @@ message Argument {
   repeated int64 ints = 5;
   optional string s = 6;
   repeated string strings = 7;
+  required bool b = 8;
+  repeated bool bools = 9;
 }
 
 // stores info about a single operator

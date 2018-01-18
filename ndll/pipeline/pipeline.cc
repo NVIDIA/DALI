@@ -224,7 +224,9 @@ string Pipeline::SerializeToProtobuf() const {
 
   string output = pipe.SerializeAsString();
 
-  printf("pipe: %s\n", pipe.DebugString().c_str());
+#ifndef NDEBUG
+  printf("%s\n", pipe.DebugString().c_str());
+#endif
 
   return pipe.SerializeAsString();
 }
