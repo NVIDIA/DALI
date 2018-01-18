@@ -98,4 +98,4 @@ class Sphere : public Operator<Backend> {
 };
 }  // namespace ndll
 
-#endif // NDLL_PIPELINE_OPERATORS_SPHERE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_SPHERE_H_

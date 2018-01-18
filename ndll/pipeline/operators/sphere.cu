@@ -27,3 +27,4 @@ NDLLError_t BatchedSphere(const uint8 *in_batch,
 }
 
 }  // namespace ndll
+
