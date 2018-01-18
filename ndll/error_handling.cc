@@ -20,4 +20,11 @@ void NDLLSetLastError(string error_str) {
   g_ndll_error_string = error_str;
 }
 
+void NDLLReportFatalProblem(const char *file, int lineNumb, const char *pComment)
+{
+  ndll::string line = std::to_string(lineNumb);
+  ndll::string error_str = "[" + ndll::string(file) + ":" + line + "] " + pComment;
+  throw std::runtime_error(error_str);
+}
+
 }  // namespace ndll

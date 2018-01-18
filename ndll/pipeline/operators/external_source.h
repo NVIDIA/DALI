@@ -58,9 +58,9 @@ class ExternalSource : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
     // Wrap the output tensor around our data
-    auto output = ws->Output<Backend>(0);
+    auto output = ws->Output<Backend>(idx);
     if (data_in_tl_) {
       output->ShareData(&tl_data_, ws->data_idx());
     } else {
@@ -70,9 +70,9 @@ class ExternalSource : public Operator<Backend> {
     }
   }
 
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
     NDLL_ENFORCE(data_in_tl_, "Cannot feed non-contiguous data in gpu op.");
-    auto output = ws->Output<Backend>(0);
+    auto output = ws->Output<Backend>(idx);
     output->ShareData(&tl_data_);
   }
 

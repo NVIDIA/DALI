@@ -9,6 +9,7 @@ NDLL_REGISTER_GPU_OPERATOR(CropMirrorNormalizePermute,
 OPERATOR_SCHEMA(CropMirrorNormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AllowMultipleInputSets();
 
 }  // namespace ndll

@@ -45,9 +45,9 @@ class NormalizePermute : public Operator<Backend> {
   virtual inline ~NormalizePermute() = default;
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto output = ws->Output<CPUBackend>(0);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto output = ws->Output<CPUBackend>(idx);
 
     NDLL_ENFORCE(IsType<uint8>(input.type()));
     NDLL_ENFORCE(input.ndim() == 3,
@@ -85,20 +85,20 @@ class NormalizePermute : public Operator<Backend> {
     }
   }
 
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
     if (output_type_ == NDLL_FLOAT) {
-      RunHelper<float>(ws);
+      RunHelper<float>(ws, idx);
     } else if (output_type_ == NDLL_FLOAT16) {
-      RunHelper<float16>(ws);
+      RunHelper<float16>(ws, idx);
     } else {
       NDLL_FAIL("Unsupported output type.");
     }
   }
 
   template <typename OUT>
-  inline void RunHelper(DeviceWorkspace *ws) {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void RunHelper(DeviceWorkspace *ws, const int idx) {
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
 
     // Validate input shape and type
     NDLL_ENFORCE(IsType<uint8>(input.type()));

@@ -16,7 +16,8 @@ class OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
-  inline OpSchema() {}
+  inline OpSchema()
+    : allow_multiple_input_sets_(false) {}
   inline ~OpSchema() = default;
 
   /**
@@ -85,11 +86,19 @@ class OpSchema {
   }
 
   /**
+   * @brief Notes that multiple input sets can be used with this op
+   */
+  inline OpSchema& AllowMultipleInputSets() {
+    allow_multiple_input_sets_ = true;
+    return *this;
+  }
+
+  /**
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
    */
   inline OpSchema& InPlaceFn(SpecFunc f) {
-    NDLL_FAIL("In-place op support not yet implemented.");
+    REPORT_FATAL_PROBLEM("In-place op support not yet implemented.");
     return *this;
   }
 
@@ -113,18 +122,20 @@ class OpSchema {
     return min_num_output_;
   }
 
+  inline bool AllowsMultipleInputSets() const {
+    return allow_multiple_input_sets_;
+  }
+
   inline bool HasOutputFn() const {
-    if (max_num_output_ == min_num_output_) return true;
     return static_cast<bool>(output_fn_);
   }
 
   inline int CalculateOutputs(const OpSpec &spec) const {
-    if (max_num_output_ == min_num_output_) {
+    if (!output_fn_) {
       return max_num_output_;
+    } else {
+      return output_fn_(spec);
     }
-    NDLL_ENFORCE(output_fn_, "Output function for op '" +
-        spec.name() + "' has not been set.");
-    return output_fn_(spec);
   }
 
   inline bool SupportsInPlace(const OpSpec &spec) const {
@@ -138,6 +149,8 @@ class OpSchema {
 
   int min_num_input_ = 0, max_num_input_ = 0;
   int min_num_output_ = 0, max_num_output_ = 0;
+
+  bool allow_multiple_input_sets_;
 };
 
 class SchemaRegistry {

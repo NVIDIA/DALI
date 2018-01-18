@@ -128,12 +128,8 @@ def python_op_factory(name):
 # out how we want to expose what devices are supported
 _all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps()))
 for op_name in _all_ops:
-    if b.GetSchema(op_name).HasOutputFn():
-        # Note: We only expose operators for which
-        # we can infer the number of outputs from
-        # the op spec.
-        setattr(sys.modules[__name__], op_name,
-                python_op_factory(op_name))
+    setattr(sys.modules[__name__], op_name,
+            python_op_factory(op_name))
 
 # custom wrappers around ops
 

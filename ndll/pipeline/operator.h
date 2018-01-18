@@ -37,8 +37,9 @@ template <typename Backend>
 class Operator {
  public:
   inline explicit Operator(const OpSpec &spec) :
-    spec_(spec), num_threads_(spec.GetArgument<int64>("num_threads", -1)),
-    batch_size_(spec.GetArgument<int64>("batch_size", -1)) {
+    spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
+    batch_size_(spec.GetArgument<int>("batch_size", -1)),
+    input_sets_(spec.GetArgument<int>("num_input_sets", 1)) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
@@ -53,14 +54,23 @@ class Operator {
     NDLL_ENFORCE_VALID_INDEX(ws->thread_idx(), num_threads_);
     NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), batch_size_);
 #endif
-    RunPerSampleCPU(ws);
+
+    SetupSharedSampleParams(ws);
+
+    for (int i = 0; i < input_sets_; ++i) {
+      RunPerSampleCPU(ws, i);
+    }
   }
 
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
   inline virtual void Run(DeviceWorkspace *ws) {
-    RunBatchedGPU(ws);
+    SetupSharedSampleParams(ws);
+
+    for (int i = 0; i < input_sets_; ++i) {
+      RunBatchedGPU(ws, i);
+    }
   }
 
   /**
@@ -79,7 +89,7 @@ class Operator {
    * @brief Per image CPU computation of the operator to be
    * implemented by derived ops.
    */
-  virtual inline void RunPerSampleCPU(SampleWorkspace *ws) {
+  virtual inline void RunPerSampleCPU(SampleWorkspace *ws, int idx = 0) {
     NDLL_FAIL("RunPerSampleCPU not implemented");
   }
 
@@ -87,13 +97,24 @@ class Operator {
    * @brief Batched GPU computation of the operator to be
    * implemented by derived ops.
    */
-  virtual inline void RunBatchedGPU(DeviceWorkspace *ws) {
+  virtual inline void RunBatchedGPU(DeviceWorkspace *ws, int idx = 0) {
     NDLL_FAIL("RunBatchedGPU not implemented");
   }
+
+  /**
+   * @brief Shared param setup for CPU computation
+   */
+  virtual inline void SetupSharedSampleParams(SampleWorkspace *ws) {}
+
+  /**
+   * @brief Shared param setup for GPU computation
+   */
+  virtual inline void SetupSharedSampleParams(DeviceWorkspace *ws) {}
 
   OpSpec spec_;
   int num_threads_;
   int batch_size_;
+  int input_sets_;
 };
 
 #define USE_OPERATOR_MEMBERS()                  \
@@ -121,5 +142,36 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
       ndll::GPUOperator, ndll::Operator<GPUBackend>)
 
 }  // namespace ndll
+
+
+// Macros for  creation of the CPU/GPU augmentation methods:
+
+#define AUGMENT_TRANSFORM(H, W, C, img_in, img_out, AUGMENT_PREAMBLE, AUGMENT_CORE, stepW, stepH, startW, startH, imgIdx) \
+    AUGMENT_PREAMBLE(H, W, C);                              \
+    const int stride = H * W * C * imgIdx;                  \
+    const long shift = stepH * W * C;                       \
+    const uint8 *in = img_in + stride;                      \
+    uint8 *out = img_out + stride + startH * W * C - shift; \
+    for (int h = startH; h < H; h += stepH) {               \
+        out += shift;                                       \
+        for (int w = startW; w < W; w += stepW) {           \
+            AUGMENT_CORE(H, W, C);                          \
+            const int to = w * C;                           \
+            out[to] = in[from];                             \
+            if (C > 1) {                                    \
+                out[to + 1] = in[from + 1];                 \
+                out[to + 2] = in[from + 2];                 \
+            }                                               \
+        }                                                   \
+    }
+
+#define AUGMENT_TRANSFORM_CPU(H, W, C, img_in, img_out, KIND) \
+        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE, KIND ## _CORE, 1, 1, 0, 0, 0)
+
+#define AUGMENT_TRANSFORM_GPU(H, W, C, img_in, img_out, KIND) \
+        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE, KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
+
+#define AUGMENT_PREAMBLE_DEF(H, W, C)                                       // empty macro
+#define AUGMENT_CORE_DEF(H, W, C)       const int from = (h * W + w) * C    // identical augmentation
 
 #endif  // NDLL_PIPELINE_OPERATOR_H_

@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATORS_RESIZE_H_
 
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "ndll/common.h"
@@ -34,13 +35,24 @@ class Resize : public Operator<Backend> {
     output_ptrs_.resize(batch_size_);
     input_sizes_.resize(batch_size_);
     output_sizes_.resize(batch_size_);
+
+    // Per set-of-samples random numbers
+    per_sample_rand_.resize(batch_size_);
   }
 
   virtual inline ~Resize() = default;
 
  protected:
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
-    DataDependentSetup(ws);
+  inline void SetupSharedSampleParams(DeviceWorkspace* ws) override {
+    for (int i = 0; i < batch_size_; ++i) {
+      auto rand_a = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
+      auto rand_b = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
+
+      per_sample_rand_[i] = std::make_pair(rand_a, rand_b);
+    }
+  }
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
+    DataDependentSetup(ws, idx);
 
     // Run the kernel
     cudaStream_t old_stream = nppGetStream();
@@ -53,9 +65,9 @@ class Resize : public Operator<Backend> {
     nppSetStream(old_stream);
   }
 
-  inline void DataDependentSetup(DeviceWorkspace *ws) {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_ENFORCE(IsType<uint8>(input.type()),
         "Expected input data stored in uint8.");
 
@@ -74,43 +86,43 @@ class Resize : public Operator<Backend> {
       in_size.height = input_shape[0];
       in_size.width = input_shape[1];
 
+      // retrieve the random numbers for this sample
+      auto rand_a = per_sample_rand_[i].first;
+      auto rand_b = per_sample_rand_[i].second;
+
       NDLLSize &out_size = output_sizes_[i];
       if (random_resize_ && warp_resize_) {
         // random resize + warp. Select a new size for both dims of
         // the image uniformly from the range [resize_a_, resize_b_]
-        out_size.height =
-          std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
-        out_size.width =
-          std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
+        out_size.height = rand_a;
+        out_size.width = rand_b;
       } else if (random_resize_) {
         // random + no warp. We select a new size of the smallest side
         // of the image uniformly in the range [resize_a_, resize_b_]
         if (in_size.width < in_size.height) {
-          out_size.width =
-            std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
+          out_size.width = rand_a;
           out_size.height =
             static_cast<float>(in_size.height) / in_size.width * out_size.width;
         } else {
-          out_size.height =
-            std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
+          out_size.height = rand_a;
           out_size.width =
             static_cast<float>(in_size.width) / in_size.height * out_size.height;
         }
       } else if (warp_resize_) {
         // no random + warp. We take the new dims to be h = resize_a_
         // and w = resize_b_
-        out_size.height = resize_a_;
-        out_size.width = resize_b_;
+        out_size.height = rand_a;
+        out_size.width = rand_b;
       } else {
         // no random + no warp. In this mode resize_b_ is ignored and
         // the input image is resizes such that the smallest side is
         // >= resize_a_
         if (in_size.width < in_size.height) {
-          out_size.width = resize_a_;
+          out_size.width = rand_a;
           out_size.height =
               static_cast<float>(in_size.height) / in_size.width * out_size.width;
         } else {
-          out_size.height = resize_a_;
+          out_size.height = rand_a;
           out_size.width =
               static_cast<float>(in_size.width) / in_size.height * out_size.height;
         }
@@ -144,6 +156,9 @@ class Resize : public Operator<Backend> {
 
   // Interpolation type
   NDLLInterpType type_;
+
+  // store per-thread data for same resize on multiple data
+  std::vector<std::pair<int, int>> per_sample_rand_;
 
   vector<const uint8*> input_ptrs_;
   vector<uint8*> output_ptrs_;

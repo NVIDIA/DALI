@@ -181,6 +181,9 @@ inline string BuildErrorString(string statement, string file, int line) {
     throw std::runtime_error(error_str);                            \
   } while (0)
 
+void NDLLReportFatalProblem(const char *file, int line, const char *pComment);
+#define REPORT_FATAL_PROBLEM(comment) NDLLReportFatalProblem(__FILE__, __LINE__, comment)
+
 }  // namespace ndll
 
 #endif  // NDLL_ERROR_HANDLING_H_

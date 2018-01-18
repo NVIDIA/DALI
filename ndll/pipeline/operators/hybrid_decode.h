@@ -38,10 +38,11 @@ class HuffmanDecoder : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(HuffmanDecoder);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto dct_coeff = ws->Output<CPUBackend>(0);
-    auto jpeg_meta = ws->Output<CPUBackend>(1);
+  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    int output_offset = idx * 2;
+    auto dct_coeff = ws->Output<CPUBackend>(output_offset);
+    auto jpeg_meta = ws->Output<CPUBackend>(output_offset + 1);
 
     // Validate input
     NDLL_ENFORCE(input.ndim() == 1,
@@ -147,10 +148,10 @@ class DCTQuantInv : public Operator<Backend> {
   virtual inline ~DCTQuantInv() = default;
 
  protected:
-  inline void RunBatchedGPU(DeviceWorkspace *ws) override {
+  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
     cudaStream_t old_stream = nppGetStream();
     nppSetStream(ws->stream());
-    DataDependentKernelSetup(ws);
+    DataDependentKernelSetup(ws, idx);
 
     batchedDctQuantInv(
         dct_params_gpu_.template mutable_data<DctQuantInvImageParam>(),
@@ -158,7 +159,7 @@ class DCTQuantInv : public Operator<Backend> {
         block_image_indices_gpu_.template mutable_data<int>(),
         num_cuda_blocks_);
 
-    auto output = ws->Output<GPUBackend>(0);
+    auto output = ws->Output<GPUBackend>(idx);
     if (color_) {
       // Convert the strided and subsampled YUV images to unstrided,
       // RGB or BGR images packed densely into the output batch
@@ -182,10 +183,11 @@ class DCTQuantInv : public Operator<Backend> {
     nppSetStream(old_stream);
   }
 
-  inline void DataDependentKernelSetup(DeviceWorkspace *ws) {
-    auto &dct_coeff = ws->Input<GPUBackend>(0);
-    auto &jpeg_meta = ws->Input<CPUBackend>(1);
-    auto output = ws->Output<GPUBackend>(0);
+  inline void DataDependentKernelSetup(DeviceWorkspace *ws, const int idx) {
+    int input_offset = idx * 2;
+    auto &dct_coeff = ws->Input<GPUBackend>(input_offset);
+    auto &jpeg_meta = ws->Input<CPUBackend>(input_offset + 1);
+    auto output = ws->Output<GPUBackend>(idx);
     NDLL_ENFORCE(dct_coeff.ntensor() == batch_size_,
         "Expected dct coefficients for each image.");
     NDLL_ENFORCE(IsType<int16>(dct_coeff.type()),

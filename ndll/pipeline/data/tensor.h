@@ -185,6 +185,20 @@ class Tensor : public Buffer<Backend> {
     return shape_[idx];
   }
 
+  /**
+   * @brief Compares the shape of this tensor against another tensor,
+   * returning equality
+   */
+  template <typename OtherBackend>
+  inline bool SameShape(const Tensor<OtherBackend> &other) const {
+    if (this->ndim() != other.ndim()) return false;
+
+    for (int i = 0; i < ndim(); ++i) {
+      if (this->dim(i) != other.dim(i)) return false;
+    }
+    return true;
+  }
+
   Tensor<Backend>(const Tensor<Backend>&) = delete;
   Tensor<Backend>& operator=(const Tensor<Backend>&) = delete;
 

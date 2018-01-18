@@ -93,14 +93,6 @@ NDLLError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     NDLLImageType type, Tensor<CPUBackend>* image) {
-#ifndef NDEBUG
-  NDLL_ASSERT(jpeg != nullptr);
-  NDLL_ASSERT(size > 0);
-  NDLL_ASSERT(h > 0);
-  NDLL_ASSERT(w > 0);
-  NDLL_ASSERT(image != nullptr);
-  NDLL_ASSERT(CheckIsJPEG(jpeg, size));
-#endif
   tjhandle handle = tjInitDecompress();
   TJPF pixel_format;
   if (type == NDLL_RGB) {
@@ -116,6 +108,15 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   int c = (type == NDLL_GRAY) ? 1 : 3;
 
   NDLL_CALL(GetJPEGImageDims(jpeg, size, &h, &w));
+
+#ifndef NDEBUG
+  NDLL_ASSERT(jpeg != nullptr);
+  NDLL_ASSERT(size > 0);
+  NDLL_ASSERT(h > 0);
+  NDLL_ASSERT(w > 0);
+  NDLL_ASSERT(image != nullptr);
+  NDLL_ASSERT(CheckIsJPEG(jpeg, size));
+#endif
 
   // resize the output tensor
   image->Resize({h, w, c});
