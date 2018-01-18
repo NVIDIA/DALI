@@ -261,7 +261,7 @@ inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
     }                                                                                 \
     vector<int64> tmp = arg_it->second->template Get<vector<int64>>();                \
     vector<T> ret;                                                                    \
-    for (auto t: tmp) {                                                               \
+    for (auto t : tmp) {                                                               \
       ret.push_back(static_cast<T>(t));                                               \
     }                                                                                 \
     return ret;                                                                       \
