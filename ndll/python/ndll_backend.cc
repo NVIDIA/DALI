@@ -353,6 +353,9 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(bool)
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
+#ifdef NDLL_USE_PROTOBUF
+    NDLL_OPSPEC_ADDARG(Feature)
+#endif
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           NDLL_FAIL("Unsupported argument type with name " + name);

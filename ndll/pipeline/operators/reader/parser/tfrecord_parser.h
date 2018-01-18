@@ -45,25 +45,50 @@ class TFRecordParser : public Parser {
     bool HasShape() { return has_shape_; }
 
     template<typename T>
-      T GetDefaultValue() {
-        if (std::is_same<T, std::string>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::string,
-              "Requested invalid type from the Feature");
-          return val_.str;
-        } else if (std::is_same<T, int64_t>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::int64,
-              "Requested invalid type from the Feature");
-          return val_.int64;
-        } else if (std::is_same<T, float>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::float32,
-              "Requested invalid type from the Feature");
-          return val_.float32;
-        } else {
-          NDLL_FAIL("Requested invalid type from the feature");
-          return T();
-        }
+    T GetDefaultValue() {
+      if (std::is_same<T, std::string>::value()) {
+        NDLL_ENFORCE(GetType() == FeatureType::string,
+            "Requested invalid type from the Feature");
+        return val_.str;
+      } else if (std::is_same<T, int64_t>::value()) {
+        NDLL_ENFORCE(GetType() == FeatureType::int64,
+            "Requested invalid type from the Feature");
+        return val_.int64;
+      } else if (std::is_same<T, float>::value()) {
+        NDLL_ENFORCE(GetType() == FeatureType::float32,
+            "Requested invalid type from the Feature");
+        return val_.float32;
+      } else {
+        NDLL_FAIL("Requested invalid type from the feature");
+        return T();
       }
+    }
 
+   std::string ToString() const {
+     std::string ret = "";
+     if (has_shape_) {
+       ret += "FixedLenFeature {";
+       ret += to_string(shape_);
+       ret += ",";
+     } else {
+       ret += "VarLenFeature {";
+     }
+     ret += to_string(type_);
+     ret += ",";
+     switch (type_) {
+       case FeatureType::string:
+         ret += to_string(val_.str);
+         break;
+       case FeatureType::int64:
+         ret += to_string(val_.int64);
+         break;
+       case FeatureType::float32:
+         ret += to_string(val_.float32);
+         break;
+     }
+     ret += " }";
+     return ret;
+   }
 
    private:
     bool has_shape_;

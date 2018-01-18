@@ -184,7 +184,7 @@ class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
         features = []
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
-            t = TensorReference(t_name, self._device, self)
+            t = TensorReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             outputs[feature_name] = t
