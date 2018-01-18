@@ -52,19 +52,20 @@ class OpSpec {
    * @brief Add an argument with the given name and value.
    */
   template <typename T>
-  OpSpec& AddArg(const string &name, const T &val);
+  inline OpSpec& AddArg(const string &name, const T &val) {
+    Argument * arg = Argument::Store(name, val);
+    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),
+        "AddArg failed. Argument with name \"" + name +
+        "\" already exists. ");
+    arguments_[name] = arg;
+    return *this;
+  }
 
   // Forward to string implementation
   template <unsigned N>
-  OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
+  inline OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
     return this->AddArg<std::string>(name, c_str);
   }
-
-  // Forward to int64 implementation
-  OpSpec& AddArg(const string& name, int val);
-  OpSpec& AddArg(const string& name, unsigned int val);
-  OpSpec& AddArg(const string& name, unsigned long val);
-  OpSpec& AddArg(const string& name, long val);
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -142,14 +143,14 @@ class OpSpec {
    * not exist.
    */
   template <typename T>
-  T GetArgument(const string &name, const T &default_value) const;
+  inline T GetArgument(const string &name, const T &default_value) const;
 
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  vector<T> GetRepeatedArgument(const string &name,
+  inline vector<T> GetRepeatedArgument(const string &name,
       const vector<T> &default_value = {}) const;
 
   inline StrPair* mutable_input(int idx) {
@@ -190,7 +191,7 @@ class OpSpec {
 };
 
 template <typename T>
-T OpSpec::GetArgument(const string &name, const T &default_value) const {
+inline T OpSpec::GetArgument(const string &name, const T &default_value) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
 
@@ -202,7 +203,7 @@ T OpSpec::GetArgument(const string &name, const T &default_value) const {
 }
 
 template <typename T>
-vector<T> OpSpec::GetRepeatedArgument(const string &name,
+inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
     const vector<T> &default_value) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
@@ -214,6 +215,51 @@ vector<T> OpSpec::GetRepeatedArgument(const string &name,
   return arg_it->second->template Get<vector<T>>();
 }
 
+#define INSTANTIATE_ARGUMENT_AS_INT64(T)                                              \
+  template<>                                                                          \
+  inline OpSpec& OpSpec::AddArg(const string& name, const T& val) {                   \
+    return this->AddArg<int64>(name, static_cast<int64>(val));                        \
+  }                                                                                   \
+  template<>                                                                          \
+  inline OpSpec& OpSpec::AddArg(const string& name, const std::vector<T>& val) {      \
+    vector<int64> tmp;                                                                \
+    for (auto t: val) {                                                               \
+      tmp.push_back(static_cast<int64>(t));                                           \
+    }                                                                                 \
+    Argument * arg = Argument::Store(name, tmp);                                      \
+    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),                           \
+        "AddArg failed. Argument with name \"" + name +                               \
+        "\" already exists. ");                                                       \
+    arguments_[name] = arg;                                                           \
+    return *this;                                                                     \
+  }                                                                                   \
+  template<>                                                                          \
+  inline T OpSpec::GetArgument(const string& name, const T& default_value) const {    \
+    int64 tmp = this->GetArgument<int64>(name, static_cast<int64>(default_value));    \
+    return static_cast<T>(tmp);                                                       \
+  }                                                                                   \
+  template<>                                                                          \
+  inline std::vector<T> OpSpec::GetRepeatedArgument(                                  \
+      const string& name,                                                             \
+      const std::vector<T>& default_value) const {                                    \
+    auto arg_it = arguments_.find(name);                                              \
+    if (arg_it == arguments_.end()) {                                                 \
+      return default_value;                                                           \
+    }                                                                                 \
+    vector<int64> tmp = arg_it->second->template Get<vector<int64>>();                \
+    vector<T> ret;                                                                    \
+    for (auto t: tmp) {                                                               \
+      ret.push_back(static_cast<T>(t));                                               \
+    }                                                                                 \
+    return ret;                                                                       \
+  }
+
+INSTANTIATE_ARGUMENT_AS_INT64(int);
+INSTANTIATE_ARGUMENT_AS_INT64(unsigned int);
+INSTANTIATE_ARGUMENT_AS_INT64(unsigned long);
+INSTANTIATE_ARGUMENT_AS_INT64(NDLLImageType);
+INSTANTIATE_ARGUMENT_AS_INT64(NDLLDataType);
+INSTANTIATE_ARGUMENT_AS_INT64(NDLLInterpType);
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_OP_SPEC_H_

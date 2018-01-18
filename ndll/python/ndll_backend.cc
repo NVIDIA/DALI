@@ -350,12 +350,9 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
     NDLL_OPSPEC_ADDARG(std::string)
-    NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(bool)
+    NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
-    NDLL_OPSPEC_ADDARG(NDLLImageType)
-    NDLL_OPSPEC_ADDARG(NDLLDataType)
-    NDLL_OPSPEC_ADDARG(NDLLInterpType)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           NDLL_FAIL("Unsupported argument type with name " + name);

@@ -17,12 +17,13 @@ namespace ndll {
  * for wrapper classes storing arguments
  * given to ops.
  * In order to add a new type of argument,
- * One needs to use INSTANTIATE_ARGUMENT
- * macro in pipeline/opspec.cc as well as
- * exposing the type to Python
+ * one needs to expose the type to Python
  * in python/ndll_backend.cc file
  * by using py::class_<new_type> and
- * NDLL_OPSPEC_ADDARG macro
+ * NDLL_OPSPEC_ADDARG macro. For integral
+ * types (like enums), one needs to use
+ * INSTANTIATE_ARGUMENT_AS_INT64 macro
+ * in pipeline/op_spec.h instead.
  */
 
 class Argument {

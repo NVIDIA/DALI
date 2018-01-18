@@ -5,52 +5,6 @@
 
 namespace ndll {
 
-#define INSTANTIATE_ARGUMENT(T)                                            \
-  template<>                                                               \
-  OpSpec& OpSpec::AddArg(const string& name, const T& val) {               \
-    Argument * arg = Argument::Store(name, val);                           \
-    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),                \
-        "AddArg failed. Argument with name \"" + name +                    \
-        "\" already exists. ");                                            \
-    arguments_[name] = arg;                                                \
-    return *this;                                                          \
-  }                                                                        \
-  template<>                                                               \
-  OpSpec& OpSpec::AddArg(const string& name, const std::vector<T>& val) {  \
-    Argument * arg = Argument::Store(name, val);                           \
-    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),                \
-        "AddArg failed. Argument with name \"" + name +                    \
-        "\" already exists. ");                                            \
-    arguments_[name] = arg;                                                \
-    return *this;                                                          \
-  }                                                                        \
-  template<>                                                               \
-  T OpSpec::GetArgument(const string& name, const T& default_value) const; \
-  template<>                                                               \
-  std::vector<T> OpSpec::GetArgument(const string& name,                   \
-      const std::vector<T>& default_value) const;
-
-INSTANTIATE_ARGUMENT(float);
-INSTANTIATE_ARGUMENT(int64);
-INSTANTIATE_ARGUMENT(bool);
-INSTANTIATE_ARGUMENT(NDLLImageType);
-INSTANTIATE_ARGUMENT(NDLLInterpType);
-INSTANTIATE_ARGUMENT(NDLLDataType);
-INSTANTIATE_ARGUMENT(std::string);
-
-OpSpec& OpSpec::AddArg(const string& name, int val) {
-  return this->AddArg<int64>(name, val);
-}
-OpSpec& OpSpec::AddArg(const string& name, unsigned int val) {
-  return this->AddArg<int64>(name, val);
-}
-OpSpec& OpSpec::AddArg(const string& name, long val) {
-  return this->AddArg<int64>(name, val);
-}
-OpSpec& OpSpec::AddArg(const string& name, unsigned long val) {
-  return this->AddArg<int64>(name, val);
-}
-
 OpSpec& OpSpec::AddInput(const string &name, const string &device) {
   NDLL_ENFORCE(device == "gpu" || device == "cpu", "Invalid device "
       "specifier \"" + device + "\" for input \"" + name + "\". "
