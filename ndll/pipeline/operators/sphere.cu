@@ -21,8 +21,9 @@ __global__ void BatchedSphereKernel(const uint8 *in_batch,
 NDLLError_t BatchedSphere(const uint8 *in_batch,
                           int N, const Dims &dims,
                           uint8 *out_batch, cudaStream_t stream) {
-    BatchedSphereKernel<<<N, dim3(32, 32), 0, stream>>>(in_batch, dims[0], dims[1], dims[2], out_batch);
+    BatchedSphereKernel<<<N, dim3(32, 32), 0, stream>>>
+            (in_batch, dims[0], dims[1], dims[2], out_batch);
     return NDLLSuccess;
 }
 
-}
+}  // namespace ndll
