@@ -15,7 +15,7 @@ set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 set(ndll_lib "ndll")
 
 cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO> $<TARGET_OBJECTS:TF_PROTO> $<TARGET_OBJECTS:NDLL_PROTO>)
-add_definitions(-DNDLL_USE_PROTOBUF=0)
+add_definitions(-DNDLL_USE_PROTOBUF=1)
 target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
 
 # Add install rules
