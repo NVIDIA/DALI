@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_PARSER_TFRECORD_PARSER_H_
-#define NDLL_PIPELINE_PARSER_TFRECORD_PARSER_H_
+#ifndef NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_
+#define NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_
 
 #if NDLL_USE_PROTOBUF
 
@@ -47,13 +47,16 @@ class TFRecordParser : public Parser {
     template<typename T>
       T GetDefaultValue() {
         if (std::is_same<T, std::string>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::string, "Requested invalid type from the Feature");
+          NDLL_ENFORCE(GetType() == FeatureType::string,
+              "Requested invalid type from the Feature");
           return val_.str;
         } else if (std::is_same<T, int64_t>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::int64, "Requested invalid type from the Feature");
+          NDLL_ENFORCE(GetType() == FeatureType::int64,
+              "Requested invalid type from the Feature");
           return val_.int64;
         } else if (std::is_same<T, float>::value()) {
-          NDLL_ENFORCE(GetType() == FeatureType::float32, "Requested invalid type from the Feature");
+          NDLL_ENFORCE(GetType() == FeatureType::float32,
+              "Requested invalid type from the Feature");
           return val_.float32;
         } else {
           NDLL_FAIL("Requested invalid type from the feature");
@@ -73,24 +76,10 @@ class TFRecordParser : public Parser {
 
   void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
     tensorflow::Example example;
-    // NDLL_ENFORCE(datum.ParseFromString(string(reinterpret_cast<const char*>(data), size)));
-    //NDLL_ENFORCE(datum.ParseFromArray(data, size));
-
-    //auto* image = ws->Output<CPUBackend>(0);
-    //auto* label = ws->Output<CPUBackend>(1);
-
-     //copy label
-    //label->Resize({1});
-    //label->mutable_data<int>()[0] = datum.label();
-
-     //copy image
-    //image->Resize({datum.data().size()});
-    //std::memcpy(image->mutable_data<uint8_t>(), datum.data().data(),
-                //datum.data().size()*sizeof(uint8_t));
   }
 };
 
 };  // namespace ndll
 
 #endif  // NDLL_USE_PROTOBUF
-#endif  // NDLL_PIPELINE_PARSER_TFRECORD_PARSER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_

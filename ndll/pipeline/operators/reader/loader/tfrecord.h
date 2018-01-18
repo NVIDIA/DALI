@@ -1,6 +1,6 @@
 // Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_LOADER_TFRECORD_H_
-#define NDLL_PIPELINE_LOADER_TFRECORD_H_
+#ifndef NDLL_PIPELINE_OPERATORS_READER_LOADER_TFRECORD_H_
+#define NDLL_PIPELINE_OPERATORS_READER_LOADER_TFRECORD_H_
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/reader/loader/loader.h"
@@ -18,9 +18,8 @@ class TFRecordLoader : public Loader<CPUBackend> {
   Index Size() override {
     return 0;
   }
-
 };
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_LOADER_TFRECORD_H_
+#endif  // NDLL_PIPELINE_OPERATORS_READER_LOADER_TFRECORD_H_

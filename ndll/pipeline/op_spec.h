@@ -236,7 +236,7 @@ inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
   template<>                                                                          \
   inline OpSpec& OpSpec::AddArg(const string& name, const std::vector<T>& val) {      \
     vector<int64> tmp;                                                                \
-    for (auto t: val) {                                                               \
+    for (auto t : val) {                                                              \
       tmp.push_back(static_cast<int64>(t));                                           \
     }                                                                                 \
     Argument * arg = Argument::Store(name, tmp);                                      \
@@ -269,7 +269,7 @@ inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
 
 INSTANTIATE_ARGUMENT_AS_INT64(int);
 INSTANTIATE_ARGUMENT_AS_INT64(unsigned int);
-INSTANTIATE_ARGUMENT_AS_INT64(unsigned long);
+INSTANTIATE_ARGUMENT_AS_INT64(uint64_t);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLImageType);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLDataType);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLInterpType);
