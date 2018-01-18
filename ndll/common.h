@@ -100,7 +100,30 @@ TimeRange(const char *name) {
 }
 };
 
+using std::to_string;
 
+template<typename T>
+auto to_string(const T& v)
+  -> decltype(std::string(v)) {
+    return v;
+}
+
+template<typename T>
+auto to_string(const T& t)
+  -> decltype(t.ToString()) {
+  return t.ToString();
+}
+
+template<typename T>
+std::string to_string(const std::vector<T>& v) {
+  std::string ret = "[";
+  for (T t : v) {
+    ret += to_string(t);
+    ret += ", ";
+  }
+  ret += "]";
+  return ret;
+}
 
 }  // namespace ndll
 

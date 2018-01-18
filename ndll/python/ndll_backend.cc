@@ -12,6 +12,7 @@
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/python/python3_compat.h"
 #include "ndll/util/user_stream.h"
+#include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
 
 namespace ndll {
 namespace python {
@@ -209,6 +210,36 @@ static vector<string> GetRegisteredGPUOps() {
 static OpSchema GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
+#if NDLL_USE_PROTOBUF
+typedef ndll::TFRecordParser::FeatureType FeatureType;
+typedef ndll::TFRecordParser::Feature Feature;
+typedef Feature::Value Value;
+
+Value ConvertTFRecordDefaultValue(FeatureType type, py::object val) {
+  PyObject *ptr = val.ptr();
+  Value ret;
+  switch (type) {
+    case FeatureType::int64:
+      NDLL_ENFORCE(PyInt_Check(ptr) || PyLong_Check(ptr),
+          "Invalid type for default value, expected int.");
+      ret.int64 = PyInt_AsLong(ptr);
+      break;
+    case FeatureType::string:
+      NDLL_ENFORCE(PyStr_Check(ptr),
+          "Invalid type for default value, expected string.");
+      ret.str = PyStr_AsString(ptr);
+      break;
+    case FeatureType::float32:
+      NDLL_ENFORCE(PyFloat_Check(ptr),
+          "Invalid type for default value, expected float.");
+      ret.float32 = PyFloat_AsDouble(ptr);
+      break;
+    default:
+      NDLL_FAIL("Invalid type for default value, expected string, int or float.");
+  }
+  return ret;
+}
+#endif  // NDLL_USE_PROTOBUF
 
 PYBIND11_MODULE(ndll_backend, m) {
   m.doc() = "Python bindings for the C++ portions of NDLL";
@@ -216,19 +247,27 @@ PYBIND11_MODULE(ndll_backend, m) {
   // NDLL Init function
   m.def("Init", &NDLLInit);
 
-  // NDLLDataType, NDLLImageType, NDLLInterpType enums
-  m.attr("NO_TYPE") = -1;
-  m.attr("UINT8") = 0;
-  m.attr("FLOAT16") = 1;
-  m.attr("FLOAT") = 2;
+  // NDLLDataType
+  py::enum_<NDLLDataType>(m, "NDLLDataType", "Data type of image")
+    .value("NO_TYPE", NDLL_NO_TYPE)
+    .value("UINT8", NDLL_UINT8)
+    .value("FLOAT16", NDLL_FLOAT16)
+    .value("FLOAT", NDLL_FLOAT)
+    .export_values();
 
-  m.attr("RGB") = 0;
-  m.attr("BGR") = 1;
-  m.attr("GRAY") = 2;
+  // NDLLImageType
+  py::enum_<NDLLImageType>(m, "NDLLImageType", "Image type")
+    .value("RGB", NDLL_RGB)
+    .value("BGR", NDLL_BGR)
+    .value("GRAY", NDLL_GRAY)
+    .export_values();
 
-  m.attr("INTERP_NN") = 0;
-  m.attr("INTERP_LINEAR") = 1;
-  m.attr("INTERP_CUBIC") = 2;
+  // NDLLInterpType
+  py::enum_<NDLLInterpType>(m, "NDLLInterpType", "Interpolation mode")
+    .value("INTERP_NN", NDLL_INTERP_NN)
+    .value("INTERP_LINEAR", NDLL_INTERP_LINEAR)
+    .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
+    .export_values();
 
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
@@ -292,55 +331,31 @@ PYBIND11_MODULE(ndll_backend, m) {
           p->SetExternalInput(name, tensors);
         });
 
+#define NDLL_OPSPEC_ADDARG(T) \
+    .def("AddArg", \
+        [](OpSpec *spec, const string& name, T v) -> OpSpec& { \
+        spec->AddArg(name, v); \
+        return *spec; \
+      }, py::return_value_policy::reference_internal) \
+    .def("AddArg", \
+        [](OpSpec *spec, const string& name, std::vector<T> v) -> OpSpec& { \
+        spec->AddArg(name, v); \
+        return *spec; \
+      }, py::return_value_policy::reference_internal)
+
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
+    NDLL_OPSPEC_ADDARG(std::string)
+    NDLL_OPSPEC_ADDARG(bool)
+    NDLL_OPSPEC_ADDARG(int64)
+    NDLL_OPSPEC_ADDARG(float)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
-          // TODO(tgale): Can we clean this conversion up? Do we want to handle
-          // cast errors from pybind so we can give the user better error messages?
-          PyObject *value = obj.ptr();
-          // Switch on supported data types
-          if (PyStr_Check(value)) {
-            std::string str_val(PyStr_AsString(value));
-            spec->AddArg(name, str_val);
-          } else if (PyBool_Check(value)) {
-            bool bool_val(value == Py_True);
-            spec->AddArg(name, bool_val);
-          } else if (PyInt_Check(value) || PyLong_Check(value)) {
-            int64 int_val = PyInt_AsLong(value);
-            spec->AddArg(name, int_val);
-          } else if (PyFloat_Check(value)) {
-            double float_val = PyFloat_AsDouble(value);
-            spec->AddArg(name, float_val);
-          } else if (PyList_Check(value)) {
-            size_t size = PyList_Size(value);
-            NDLL_ENFORCE(size > 0, "Empty list arguments not supported.");
-
-            // Get the first type
-            PyObject *elt = PyList_GetItem(value, 0);
-            if (PyStr_Check(elt)) {
-              vector<string> str_vals = obj.cast<vector<string>>();
-              spec->AddArg(name, str_vals);
-            } else if (PyBool_Check(elt)) {
-              vector<bool> bool_vals = obj.cast<vector<bool>>();
-              spec->AddArg(name, bool_vals);
-            } else if (PyInt_Check(elt) || PyLong_Check(value)) {
-              vector<int64> int_vals = obj.cast<vector<int64>>();
-              spec->AddArg(name, int_vals);
-            } else if (PyFloat_Check(elt)) {
-              vector<double> float_vals = obj.cast<vector<double>>();
-              spec->AddArg(name, float_vals);
-            } else {
-              NDLL_FAIL("Unsupported list element type in argument "
-                  "with name " + name);
-            }
-          } else {
-            NDLL_FAIL("Unsupported argument type with name " + name);
-          }
+          NDLL_FAIL("Unsupported argument type with name " + name);
           return *spec;
         }, py::return_value_policy::reference_internal)
     .def("__repr__", &OpSpec::ToString)
@@ -368,7 +383,31 @@ PYBIND11_MODULE(ndll_backend, m) {
 
   ExposeTensorCPU(m);
   ExposeTensorListCPU(m);
+
+#if NDLL_USE_PROTOBUF
+  // TFRecord
+  py::module tfrecord_m = m.def_submodule("tfrecord");
+  tfrecord_m.doc() = "Additional data structures and constants for TFRecord file format support";
+  tfrecord_m.attr("int64") = static_cast<int>(ndll::TFRecordParser::FeatureType::int64);
+  tfrecord_m.attr("string") = static_cast<int>(ndll::TFRecordParser::FeatureType::string);
+  tfrecord_m.attr("float32") = static_cast<int>(ndll::TFRecordParser::FeatureType::float32);
+
+  py::class_<Feature>(tfrecord_m, "Feature");
+
+  tfrecord_m.def("FixedLenFeature",
+      [](vector<Index> converted_shape, int type, py::object default_value) {
+        FeatureType converted_type = static_cast<FeatureType>(type);
+        Value converted_default_value = ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new Feature(converted_shape, converted_type, converted_default_value);
+      });
+  tfrecord_m.def("VarLenFeature",
+      [](int type, py::object default_value) {
+        FeatureType converted_type = static_cast<FeatureType>(type);
+        Value converted_default_value = ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new Feature(converted_type, converted_default_value);
+      });
 }
+#endif  // NDLL_USE_PROTOBUF
 
 }  // namespace python
 }  // namespace ndll

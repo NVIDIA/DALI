@@ -22,6 +22,8 @@ RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
+RUN pip install future numpy setuptools
+
 RUN OPENCV_VERSION=3.1.0 && \
     wget -q -O - https://github.com/Itseez/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && \

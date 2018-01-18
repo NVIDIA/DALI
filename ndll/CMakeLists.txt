@@ -16,8 +16,10 @@ set(ndll_lib "ndll")
 
 if (BUILD_PROTOBUF)
   cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO> $<TARGET_OBJECTS:TF_PROTO>)
+  add_definitions(-DNDLL_USE_PROTOBUF=1)
 else()
   cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS})
+  add_definitions(-DNDLL_USE_PROTOBUF=0)
 endif()
 target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
 
