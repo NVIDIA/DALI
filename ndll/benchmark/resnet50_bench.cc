@@ -39,61 +39,36 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
 
-
-#define USE_SPHERE_CPU      0   // For activation of CPU version
-#define USE_RESIZE_CROP     1
-#define USE_SPHERE_GPU      (1 - USE_SPHERE_CPU)
-#define USE_RESIZE          0
-
-#define RANDOM_CROP         true
-#define MAKE_IMG_OUTPUT     0
-
-#if USE_SPHERE_CPU
-  pipe.AddOperator(
-      OpSpec("Sphere")
-      .AddArg("device", "cpu")   // It seems that this one is optional, when "cpu" input is used
-      .AddInput("images", "cpu")
-      .AddOutput("sphered", "cpu"));
-#endif
-
-#if USE_RESIZE_CROP
-      // Add a resize+crop+mirror op
-  pipe.AddOperator(
-      OpSpec(fast_resize? "FastResizeCropMirror" : "ResizeCropMirror")
-      .AddArg("device", "cpu")
-      .AddArg("random_resize", true)
-      .AddArg("warp_resize", false)
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 480)
-      .AddArg("random_crop", RANDOM_CROP)
-      .AddArg("crop_h", 224)
-      .AddArg("crop_w", 224)
-      .AddArg("mirror_prob", 0.5f)
-      .AddInput(USE_SPHERE_CPU? "sphered" : "images", "cpu")
-      .AddOutput("resized", "cpu"));
-#endif
-
-#if USE_SPHERE_GPU
-#if USE_RESIZE == 0
-  pipe.AddOperator(
-      OpSpec("Sphere")
-      .AddArg("device", "gpu")
-      .AddInput("resized", "gpu")
-      .AddOutput("sphered_GPU", "gpu"));
-#else
-  pipe.AddOperator(
-      OpSpec("Resize")
-      .AddArg("device", "gpu")
-      .AddArg("random_resize", false)
-      .AddArg("warp_resize", false)
-      .AddArg("resize_a", 224)
-      .AddArg("resize_b", 224)
-      .AddArg("image_type", img_type)
-      .AddArg("interp_type", NDLL_INTERP_LINEAR)
-      .AddInput(USE_RESIZE_CROP? "resized" : USE_SPHERE? "sphered" : "images", "gpu")
-      .AddOutput("sphered_GPU", "gpu"));
-#endif
-#endif
+  // Add a resize+crop+mirror op
+  if (fast_resize) {
+    pipe.AddOperator(
+        OpSpec("FastResizeCropMirror")
+        .AddArg("device", "cpu")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        .AddInput("images", "cpu")
+        .AddOutput("resized", "cpu"));
+  } else {
+    pipe.AddOperator(
+        OpSpec("ResizeCropMirror")
+        .AddArg("device", "cpu")
+        .AddArg("random_resize", true)
+        .AddArg("warp_resize", false)
+        .AddArg("resize_a", 256)
+        .AddArg("resize_b", 480)
+        .AddArg("random_crop", true)
+        .AddArg("crop_h", 224)
+        .AddArg("crop_w", 224)
+        .AddArg("mirror_prob", 0.5f)
+        .AddInput("images", "cpu")
+        .AddOutput("resized", "cpu"));
+  }
 
   pipe.AddOperator(
       OpSpec("NormalizePermute")
@@ -104,7 +79,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddArg("height", 224)
       .AddArg("width", 224)
       .AddArg("channels", 3)
-      .AddInput(USE_SPHERE_GPU? "sphered_GPU" : "resized", "gpu")
+      .AddInput("resized", "gpu")
       .AddOutput("final_batch", "gpu"));
 
   // Build and run the pipeline
@@ -135,10 +110,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-#if MAKE_IMG_OUTPUT
-  WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
-#endif
-
+  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
