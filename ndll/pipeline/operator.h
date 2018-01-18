@@ -7,6 +7,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/device_workspace.h"
+#include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_schema.h"
@@ -80,6 +81,13 @@ class Operator {
    */
   virtual string name() const {
     return spec_.name();
+  }
+
+  /**
+   * @brief serialize operator to a ndll_proto::OpDef object
+   */
+  virtual void SerializeToProtobuf(ndll_proto::OpDef *op) {
+    spec_.SerializeToProtobuf(op);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Operator);

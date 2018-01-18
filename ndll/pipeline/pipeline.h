@@ -10,6 +10,7 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/async_pipelined_executor.h"
+#include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
@@ -27,7 +28,7 @@ namespace ndll {
  * the pipeline, users can specify the 'device' argument as either 'cpu'
  * or 'gpu' to control where the op is executed. The only constraints on
  * the graphs of ops that users can define is that all cpu ops must
- * precede all gpu ops, and that cpu ops can only output cpu data, and 
+ * precede all gpu ops, and that cpu ops can only output cpu data, and
  * gpu ops can only output gpu data.
  *
  * When adding an op, the user specifies a name for its outputs, as well
@@ -98,6 +99,17 @@ class Pipeline {
     // these specfic allocations to go our way without messing with everything
     // else.
   }
+  inline Pipeline(const ndll_proto::PipelineDef &def,
+      int batch_size, int num_threads, int device_id,
+      bool pipelined_execution = false, bool async_execution = false,
+      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+      int max_num_stream = -1) :
+    built_(false), batch_size_(batch_size), num_threads_(num_threads),
+    bytes_per_sample_hint_(bytes_per_sample_hint) {
+    // initialize executor, loop over ops in def, extract OpSpec and add
+    //
+    // how to deal with external input / output?
+  }
 
   ~Pipeline() = default;
 
@@ -125,6 +137,8 @@ class Pipeline {
       .AddOutput(name, "cpu");
     PrepareOpSpec(&spec);
     graph_.AddOp(spec);
+
+    external_inputs_.push_back(name);
   }
 
   /**
@@ -147,7 +161,7 @@ class Pipeline {
   }
 
   /**
-   * @brief Sets the external input with the input name to the 
+   * @brief Sets the external input with the input name to the
    * input data.
    */
   inline void SetExternalInput(const string &name,
@@ -196,6 +210,11 @@ class Pipeline {
    * deadlock.
    */
   void Outputs(DeviceWorkspace *ws);
+
+  /**
+   * @brief serializes the pipe to a protobuf
+   */
+  string SerializeToProtobuf() const;
 
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -257,6 +276,12 @@ class Pipeline {
   OpGraph graph_;
   std::unique_ptr<Executor> executor_;
   std::map<string, EdgeMeta> edge_names_;
+
+  // store a list of all OpSpec and external inputs
+  // added, in order to recreate the pipeline in a
+  // serialized form
+  vector<string> external_inputs_;
+  vector<OpSpec> op_specs_;
 };
 
 }  // namespace ndll

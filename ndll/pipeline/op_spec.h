@@ -12,6 +12,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/argument.h"
+#include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
@@ -193,6 +194,21 @@ class OpSpec {
       ret += "\n";
     }
     return ret;
+  }
+
+  /**
+   * @brief Serialize spec to protobuf
+   */
+  void SerializeToProtobuf(ndll_proto::OpDef *op) const {
+    op->set_name(name());
+
+    for (size_t i = 0; i < inputs_.size(); ++i) {
+      op->add_input(Input(i));
+    }
+
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      op->add_output(Output(i));
+    }
   }
 
  private:
