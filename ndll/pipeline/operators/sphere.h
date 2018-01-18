@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#ifndef NDLL_SPHERE_H
-#define NDLL_SPHERE_H
+#ifndef NDLL_PIPELINE_OPERATORS_SPHERE_H_
+#define NDLL_PIPELINE_OPERATORS_SPHERE_H_
 
 #include <ctgmath>
+#include <vector>
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -28,12 +29,12 @@ NDLLError_t BatchedSphere(const uint8 *in_batch, int N, const Dims &dims,
 
 template <typename Backend>
 class Sphere : public Operator<Backend> {
-public:
-    inline Sphere(const OpSpec &spec) : Operator<Backend>(spec) {}
+ public:
+    inline explicit Sphere(const OpSpec &spec) : Operator<Backend>(spec) {}
 
     virtual ~Sphere() = default;
 
-protected:
+ protected:
     void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
         const auto &input = ws->Input<CPUBackend>(idx);
         const auto &output = ws->Output<CPUBackend>(idx);
@@ -50,7 +51,8 @@ protected:
                      "Sphere supports hwc rgb & grayscale inputs.");
 
         output->Resize(shape);
-        AUGMENT_TRANSFORM_CPU(H, W, C, input.template data<uint8>(), static_cast<uint8*>(output->raw_mutable_data()), SPHERE);
+        AUGMENT_TRANSFORM_CPU(H, W, C, input.template data<uint8>(),
+                              static_cast<uint8*>(output->raw_mutable_data()), SPHERE);
     }
 
     void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
@@ -91,9 +93,9 @@ protected:
         output->Resize(output_shape);
     }
 
-private:
+ private:
     USE_OPERATOR_MEMBERS();
 };
-}
+}  // namespace ndll
 
-#endif //NDLL_SPHERE_H
+#endif // NDLL_PIPELINE_OPERATORS_SPHERE_H_

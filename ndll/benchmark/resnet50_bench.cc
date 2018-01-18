@@ -81,7 +81,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddInput("resized", "gpu")
       .AddOutput("sphered_GPU", "gpu"));
 #else
-   pipe.AddOperator(
+  pipe.AddOperator(
       OpSpec("Resize")
       .AddArg("device", "gpu")
       .AddArg("random_resize", false)
