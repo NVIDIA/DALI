@@ -1,7 +1,7 @@
 add_subdirectory(reader)
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc)
+file(GLOB tmp *.cc *.cu)
 set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 file(GLOB tmp *_test.cc)
 remove(NDLL_SRCS "${NDLL_SRCS}" ${tmp})
