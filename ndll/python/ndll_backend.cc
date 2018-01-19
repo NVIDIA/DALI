@@ -391,9 +391,9 @@ PYBIND11_MODULE(ndll_backend, m) {
   // TFRecord
   py::module tfrecord_m = m.def_submodule("tfrecord");
   tfrecord_m.doc() = "Additional data structures and constants for TFRecord file format support";
-  tfrecord_m.attr("int64") = static_cast<int>(ndll::TFRecordParser::FeatureType::int64);
-  tfrecord_m.attr("string") = static_cast<int>(ndll::TFRecordParser::FeatureType::string);
-  tfrecord_m.attr("float32") = static_cast<int>(ndll::TFRecordParser::FeatureType::float32);
+  tfrecord_m.attr("int64") = static_cast<int>(FeatureType::int64);
+  tfrecord_m.attr("string") = static_cast<int>(FeatureType::string);
+  tfrecord_m.attr("float32") = static_cast<int>(FeatureType::float32);
 
   py::class_<Feature>(tfrecord_m, "Feature");
 

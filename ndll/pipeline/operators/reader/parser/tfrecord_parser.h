@@ -96,6 +96,7 @@ class TFRecordParser : public Parser {
     FeatureType type_;
     Value val_;
   };
+
   explicit TFRecordParser(const OpSpec& spec) :
     Parser(spec) {}
 
