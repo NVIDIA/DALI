@@ -5,14 +5,14 @@ namespace ndll {
 
 NDLL_REGISTER_CPU_OPERATOR(HuffmanDecoder, HuffmanDecoder<CPUBackend>);
 
-OPERATOR_SCHEMA(HuffmanDecoder)
+NDLL_OPERATOR_SCHEMA(HuffmanDecoder)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(2);
 
 NDLL_REGISTER_GPU_OPERATOR(DCTQuantInv, DCTQuantInv<GPUBackend>);
 
-OPERATOR_SCHEMA(DCTQuantInv)
+NDLL_OPERATOR_SCHEMA(DCTQuantInv)
   .DocStr("Foo")
   .NumInput(2)
   .NumOutput(1);

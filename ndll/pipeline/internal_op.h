@@ -29,9 +29,9 @@ class InternalOp : public Operator<CPUBackend> {
 NDLL_DECLARE_OPTYPE_REGISTRY(InternalOp, InternalOp);
 
 #define NDLL_REGISTER_INTERNAL_OP(OpName, OpType)         \
-  int OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
+  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
-    OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
+    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       InternalOp, InternalOp)
 
