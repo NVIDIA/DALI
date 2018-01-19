@@ -7,7 +7,7 @@ namespace ndll {
 NDLL_REGISTER_CPU_OPERATOR(Sphere, Sphere<CPUBackend>);
 NDLL_REGISTER_GPU_OPERATOR(Sphere, Sphere<GPUBackend>);
 
-OPERATOR_SCHEMA(Sphere)
+NDLL_OPERATOR_SCHEMA(Sphere)
     .DocStr("Foo")
     .NumInput(1)
     .NumOutput(1);

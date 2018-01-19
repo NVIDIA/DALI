@@ -6,7 +6,7 @@ namespace ndll {
 NDLL_REGISTER_CPU_OPERATOR(DumpImage, DumpImage<CPUBackend>);
 NDLL_REGISTER_GPU_OPERATOR(DumpImage, DumpImage<GPUBackend>);
 
-OPERATOR_SCHEMA(DumpImage)
+NDLL_OPERATOR_SCHEMA(DumpImage)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1);

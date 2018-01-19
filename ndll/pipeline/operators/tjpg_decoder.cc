@@ -5,7 +5,7 @@ namespace ndll {
 
 NDLL_REGISTER_CPU_OPERATOR(TJPGDecoder, TJPGDecoder<CPUBackend>);
 
-OPERATOR_SCHEMA(TJPGDecoder)
+NDLL_OPERATOR_SCHEMA(TJPGDecoder)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1);

@@ -29,7 +29,7 @@ enum NDLLOpType {
  * RunPerSampleCPU / RunBatchedGPU methods as desired, and register
  * the operator using the macros NDLL_REGISTER_{CPU,GPU}_OPERATOR.
  * To define meta-data about the op like the min/max number of inputs
- * it takes, a doctstring (for python), etc., use the OPERATOR_SCHEMA,
+ * it takes, a doctstring (for python), etc., use the NDLL_OPERATOR_SCHEMA,
  * macro. The op can then be added to a pipeline through its registered
  * name (the first arg to the registration macros).
  */
@@ -128,16 +128,16 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
 
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)        \
-  int OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
+  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
-    OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
+    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       ndll::CPUOperator, ndll::Operator<CPUBackend>)
 
 #define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)        \
-  int OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
+  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
-    OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
+    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       ndll::GPUOperator, ndll::Operator<GPUBackend>)
 

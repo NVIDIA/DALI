@@ -8,7 +8,7 @@ namespace ndll {
 
 NDLL_REGISTER_CPU_OPERATOR(_TFRecordReader, TFRecordReader);
 
-OPERATOR_SCHEMA(_TFRecordReader)
+NDLL_OPERATOR_SCHEMA(_TFRecordReader)
   .OutputFn([](const OpSpec &spec) {
       return spec.NumOutput();
     })
