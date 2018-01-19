@@ -224,9 +224,10 @@ string Pipeline::SerializeToProtobuf() const {
 
   string output = pipe.SerializeAsString();
 
-//#ifndef NDEBUG
+#ifndef NDEBUG
+  // print out debug string
   printf("%s\n", pipe.DebugString().c_str());
-//#endif
+#endif
 
   return pipe.SerializeAsString();
 }
