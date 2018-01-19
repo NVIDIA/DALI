@@ -37,6 +37,43 @@ class OpSpec {
   explicit inline OpSpec(const string &name)
     : name_(name) {}
 
+  explicit inline OpSpec(const ndll_proto::OpDef& def) {
+    name_ = def.name();
+
+    // Extract all the arguments with correct types
+    for (auto &arg : def.args()) {
+      auto name = arg.name();
+      // handle all cases
+      if (arg.has_i()) {
+        this->AddArg(name, arg.i());
+      } else if (arg.ints_size() > 0) {
+        this->AddArg(name, std::vector<int64_t>(arg.ints().begin(), arg.ints().end()));
+      } else if (arg.has_f()) {
+        this->AddArg(name, arg.f());
+      } else if (arg.floats_size() > 0) {
+        this->AddArg(name, std::vector<float>(arg.floats().begin(), arg.floats().end()));
+      } else if (arg.has_s()) {
+        this->AddArg(name, arg.s());
+      } else if (arg.strings_size() > 0) {
+        this->AddArg(name, std::vector<string>(arg.strings().begin(), arg.strings().end()));
+      } else if (arg.has_b()) {
+        this->AddArg(name, arg.b());
+      } else if (arg.bools_size() > 0) {
+        this->AddArg(name, std::vector<bool>(arg.bools().begin(), arg.bools().end()));
+      } else {
+        NDLL_FAIL("At least one argument type should be contained");
+      }
+    }
+
+    for (int i = 0; i < def.input_size(); ++i) {
+      this->AddInput(def.input(i).name(), def.input(i).device());
+    }
+
+    for (int i = 0; i < def.output_size(); ++i) {
+      this->AddOutput(def.output(i).name(), def.output(i).device());
+    }
+  }
+
   /**
    * @brief Getter for the name of the Operator.
    */
@@ -203,14 +240,26 @@ class OpSpec {
     op->set_name(name());
 
     for (size_t i = 0; i < inputs_.size(); ++i) {
-      op->add_input(Input(i));
+      ndll_proto::InputOutput *in = op->add_input();
+      in->set_name(inputs_[i].first);
+      in->set_device(inputs_[i].second);
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
-      op->add_output(Output(i));
+      ndll_proto::InputOutput *out = op->add_output();
+      out->set_name(outputs_[i].first);
+      out->set_device(outputs_[i].second);
     }
 
     for (auto& a : arguments_) {
+      // filter out args that need to be dealt with on
+      // loading a serialized pipeline
+      if (a.first == "batch_size" ||
+          a.first == "num_threads" ||
+          a.first == "bytes_per_sample_hint") {
+        continue;
+      }
+
       ndll_proto::Argument *arg = op->add_args();
 
       a.second->SerializeToProtobuf(arg);

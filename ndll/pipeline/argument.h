@@ -9,6 +9,10 @@
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/ndll.pb.h"
 
+#ifdef NDLL_BUILD_PROTO3
+#include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
+#endif  // NDLL_BUILD_PROTO3
+
 namespace ndll {
 
 /**
@@ -130,6 +134,12 @@ inline void ArgumentInst<std::vector<float>>::SerializeToProtobuf(ndll_proto::Ar
   }
 }
 
+#ifdef NDLL_BUILD_PROTO3
+template <>
+inline void ArgumentInst<TFRecordParser::Feature>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+
+}
+#endif  // NDLL_BUILD_PROTO3
 
 template<typename T>
 T Argument::Get() {

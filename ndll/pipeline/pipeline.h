@@ -99,16 +99,28 @@ class Pipeline {
     // these specfic allocations to go our way without messing with everything
     // else.
   }
-  inline Pipeline(const ndll_proto::PipelineDef &def,
+  inline Pipeline(const string &serialized_pipe,
       int batch_size, int num_threads, int device_id,
       bool pipelined_execution = false, bool async_execution = false,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
-    built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    bytes_per_sample_hint_(bytes_per_sample_hint) {
-    // initialize executor, loop over ops in def, extract OpSpec and add
-    //
-    // how to deal with external input / output?
+    Pipeline(batch_size, num_threads, device_id, pipelined_execution,
+             async_execution, bytes_per_sample_hint, set_affinity,
+             max_num_stream) {
+    ndll_proto::PipelineDef def;
+    def.ParseFromString(serialized_pipe);
+
+    // from serialized pipeline, construct new pipeline
+    // All external inputs
+    for (auto& ex : def.external_inputs()) {
+      this->AddExternalInput(ex);
+    }
+    // all operators
+    for (auto& op_def : def.op()) {
+      OpSpec spec{op_def};
+
+      this->AddOperator(spec);
+    }
   }
 
   ~Pipeline() = default;

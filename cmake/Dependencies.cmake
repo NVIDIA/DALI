@@ -88,7 +88,15 @@ endif()
 find_package(Protobuf REQUIRED)
 
 if (PROTOBUF_FOUND)
-  message(STATUS "Found Protobuf ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
+  # Determine if we have proto v2.x or 3.x
+  execute_process(COMMAND protoc --version COMMAND cut -d " " -f 2 COMMAND cut -d . -f 1
+    OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE PROTOBUF_VERSION RESULT_VARIABLE __res)
+  message(STATUS "Found Protobuf version ${PROTOBUF_VERSION} : ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
+
+  if (PROTOBUF_VERSION MATCHES 3)
+    add_definitions(-DNDLL_BUILD_PROTO3=1)
+    set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
+  endif()
   include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
   list(APPEND NDLL_LIBS ${PROTOBUF_LIBRARY})
 else()

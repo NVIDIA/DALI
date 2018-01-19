@@ -2,7 +2,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_
 #define NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_
 
-#if NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
 
 #include <vector>
 #include <string>
@@ -172,5 +172,6 @@ class TFRecordParser : public Parser {
 
 };  // namespace ndll
 
-#endif  // NDLL_USE_PROTOBUF
+#endif  // NDLL_BUILD_PROTO3
+
 #endif  // NDLL_PIPELINE_OPERATORS_READER_PARSER_TFRECORD_PARSER_H_

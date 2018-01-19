@@ -2,6 +2,14 @@ syntax = "proto2";
 
 package ndll_proto;
 
+// Tensorflow feature
+message TFFeature {
+  required string name = 1;
+  required int64 type = 2;
+  repeated int64 shape = 3;
+  required string default_value = 4;
+}
+
 // Stores a single argument
 message Argument {
   required string name = 1;
@@ -11,20 +19,25 @@ message Argument {
   repeated int64 ints = 5;
   optional string s = 6;
   repeated string strings = 7;
-  required bool b = 8;
+  optional bool b = 8;
   repeated bool bools = 9;
+  optional TFFeature feature = 10;
+  repeated TFFeature features = 11;
+}
+
+message InputOutput {
+  required string name = 1;
+  required string device = 2;
 }
 
 // stores info about a single operator
 message OpDef {
   required string name = 1;
   // list of inputs & outputs
-  repeated string input = 2;
-  repeated string output = 3;
-  // device
-  required string device = 4;
+  repeated InputOutput input = 2;
+  repeated InputOutput output = 3;
   // Arguments
-  repeated Argument args = 5;
+  repeated Argument args = 4;
 }
 
 // Stores pipeline options and a list of operators

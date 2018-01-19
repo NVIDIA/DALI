@@ -210,7 +210,7 @@ static vector<string> GetRegisteredGPUOps() {
 static OpSchema GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
-#if NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
 typedef ndll::TFRecordParser::FeatureType TFFeatureType;
 typedef ndll::TFRecordParser::Feature TFFeature;
 typedef TFFeature::Value TFValue;
@@ -239,7 +239,7 @@ TFValue ConvertTFRecordDefaultValue(TFFeatureType type, py::object val) {
   }
   return ret;
 }
-#endif  // NDLL_USE_PROTOBUF
+#endif  // NDLL_BUILD_PROTO3
 
 PYBIND11_MODULE(ndll_backend, m) {
   m.doc() = "Python bindings for the C++ portions of NDLL";
@@ -289,6 +289,27 @@ PYBIND11_MODULE(ndll_backend, m) {
         "set_affinity"_a = false,
         "max_num_stream"_a = -1
         )
+    // initialize from serialized pipeline
+    .def(py::init(
+          [](string serialized_pipe,
+             int batch_size, int num_threads, int device_id,
+             bool pipelined_execution = false, bool async_execution = false,
+             size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+             int max_num_stream = -1) {
+              return std::unique_ptr<Pipeline>(
+                  new Pipeline(serialized_pipe, batch_size, num_threads, device_id, pipelined_execution,
+                      async_execution, bytes_per_sample_hint, set_affinity, max_num_stream));
+            }),
+        "serialized_pipe"_a,
+        "batch_size"_a,
+        "num_threads"_a,
+        "device_id"_a,
+        "exec_pipelined"_a,
+        "exec_async"_a,
+        "bytes_per_sample_hint"_a = 0,
+        "set_affinity"_a = false,
+        "max_num_stream"_a = -1
+        )
     .def("AddOperator", &Pipeline::AddOperator)
     .def("Build", &Pipeline::Build)
     .def("RunCPU", &Pipeline::RunCPU)
@@ -329,7 +350,12 @@ PYBIND11_MODULE(ndll_backend, m) {
             tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
           }
           p->SetExternalInput(name, tensors);
-        });
+        })
+    .def("SerializeToProtobuf",
+        [](Pipeline *p) {
+          string s = p->SerializeToProtobuf();
+          return s;
+          }, py::return_value_policy::take_ownership);
 
 #define NDLL_OPSPEC_ADDARG(T) \
     .def("AddArg", \
@@ -353,7 +379,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(bool)
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
-#ifdef NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
     NDLL_OPSPEC_ADDARG(TFFeature)
 #endif
     .def("AddArg",
@@ -387,7 +413,7 @@ PYBIND11_MODULE(ndll_backend, m) {
   ExposeTensorCPU(m);
   ExposeTensorListCPU(m);
 
-#if NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
   // TFRecord
   py::module tfrecord_m = m.def_submodule("tfrecord");
   tfrecord_m.doc() = "Additional data structures and constants for TFRecord file format support";
@@ -411,7 +437,7 @@ PYBIND11_MODULE(ndll_backend, m) {
           ConvertTFRecordDefaultValue(converted_type, default_value);
         return new TFFeature(converted_type, converted_default_value);
       });
-#endif  // NDLL_USE_PROTOBUF
+#endif  // NDLL_BUILD_PROTO3
 }
 
 }  // namespace python
