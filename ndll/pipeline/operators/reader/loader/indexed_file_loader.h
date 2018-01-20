@@ -50,6 +50,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
 
     current_file_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()),
                         size);
+    ++current_index_;
     return;
   }
 
