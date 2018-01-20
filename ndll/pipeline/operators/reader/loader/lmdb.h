@@ -92,7 +92,7 @@ class LMDBReader : public Loader<CPUBackend> {
       lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
     }
 
-    tensor->Resize({static_cast<int>(value_.mv_size)});
+    tensor->Resize({static_cast<Index>(value_.mv_size)});
     tensor->mutable_data<uint8_t>();
 
     std::memcpy(tensor->raw_mutable_data(),

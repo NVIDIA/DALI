@@ -134,16 +134,21 @@ for op_name in _all_ops:
 # custom wrappers around ops
 
 class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
-    def __init__(self, path, features, **kwargs):
+    def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
             self._path = path
         else:
             self._path = [path]
+        if isinstance(index_path, list):
+            self._index_path = index_path
+        else:
+            self._index_path = [index_path]
         self._schema = b.GetSchema("_TFRecordReader")
         self._spec = b.OpSpec("_TFRecordReader")
         self._device = "cpu"
 
         self._spec.AddArg("path", self._path)
+        self._spec.AddArg("index_path", self._index_path)
 
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
