@@ -52,4 +52,4 @@ size_t LocalFileStream::Size() const {
   return sb.st_size;
 }
 
-}  // namespace ndll;
+}  // namespace ndll

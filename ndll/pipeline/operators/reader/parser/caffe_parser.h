@@ -25,7 +25,7 @@ class CaffeParser : public Parser {
     label->mutable_data<int>()[0] = datum.label();
 
     // copy image
-    image->Resize({datum.data().size()});
+    image->Resize({static_cast<Index>(datum.data().size())});
     std::memcpy(image->mutable_data<uint8_t>(), datum.data().data(),
                 datum.data().size()*sizeof(uint8_t));
   }

@@ -33,7 +33,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
       current_file_->Seek(seek_pos);
     }
 
-  virtual void ReadSample(Tensor<CPUBackend>* tensor) override {
+  void ReadSample(Tensor<CPUBackend>* tensor) override {
     if (current_index_ >= indices_.size()) {
       Reset();
     }
@@ -64,13 +64,13 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     }
   }
 
-  virtual void ReadIndexFile(std::vector<std::string>& index_uris) {
+  virtual void ReadIndexFile(const std::vector<std::string>& index_uris) {
     NDLL_ENFORCE(index_uris.size() == uris_.size(),
         "Number of index files needs to match the number of data files");
     for (size_t i = 0; i < index_uris.size(); ++i) {
       std::ifstream fin(index_uris[i]);
       int64 pos, size;
-      while(fin >> pos >> size) {
+      while (fin >> pos >> size) {
         indices_.push_back(std::make_tuple(pos, size, i));
       }
       fin.close();
@@ -78,7 +78,6 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   }
 
  protected:
-
   void Reset() {
     current_index_ = 0;
     int64 seek_pos, size;

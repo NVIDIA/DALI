@@ -12,7 +12,7 @@ namespace ndll {
 
 class LocalFileStream : public FileStream {
  public:
-  LocalFileStream(const std::string& path);
+  explicit LocalFileStream(const std::string& path);
   void Close() override;
   void Read(uint8_t * buffer, size_t n_bytes) override;
   void Seek(int64 pos) override;

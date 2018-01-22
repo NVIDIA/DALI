@@ -67,31 +67,31 @@ class TFRecordParser : public Parser {
       }
     }
 
-   std::string ToString() const {
-     std::string ret = "";
-     if (has_shape_) {
-       ret += "FixedLenFeature {";
-       ret += to_string(shape_);
-       ret += ",";
-     } else {
-       ret += "VarLenFeature {";
-     }
-     ret += to_string(type_);
-     ret += ",";
-     switch (type_) {
-       case FeatureType::string:
-         ret += to_string(val_.str);
-         break;
-       case FeatureType::int64:
-         ret += to_string(val_.int64);
-         break;
-       case FeatureType::float32:
-         ret += to_string(val_.float32);
-         break;
-     }
-     ret += " }";
-     return ret;
-   }
+    std::string ToString() const {
+      std::string ret = "";
+      if (has_shape_) {
+        ret += "FixedLenFeature {";
+        ret += to_string(shape_);
+        ret += ",";
+      } else {
+        ret += "VarLenFeature {";
+      }
+      ret += to_string(type_);
+      ret += ",";
+      switch (type_) {
+        case FeatureType::string:
+          ret += to_string(val_.str);
+          break;
+        case FeatureType::int64:
+          ret += to_string(val_.int64);
+          break;
+        case FeatureType::float32:
+          ret += to_string(val_.float32);
+          break;
+      }
+      ret += " }";
+      return ret;
+    }
 
    private:
     bool has_shape_;
@@ -128,15 +128,14 @@ class TFRecordParser : public Parser {
       Feature& f = features_[i];
       std::string& name = feature_names_[i];
       auto& encoded_feature = example.features().feature().at(name);
-      if (f.HasShape() && f.GetType() != FeatureType::string)
-      {
+      if (f.HasShape() && f.GetType() != FeatureType::string) {
         if (f.Shape().empty()) {
         output->Resize({1});
         } else {
           output->Resize(f.Shape());
         }
       }
-      switch(f.GetType()) {
+      switch (f.GetType()) {
         case FeatureType::int64:
           if (!f.HasShape()) {
             output->Resize({encoded_feature.int64_list().value().size()});
@@ -149,7 +148,7 @@ class TFRecordParser : public Parser {
           if (!f.HasShape() || Product(f.Shape()) > 1) {
             NDLL_FAIL("Tensors of strings are not supported.");
           }
-          output->Resize({encoded_feature.bytes_list().value(0).size()});
+          output->Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
           std::memcpy(output->mutable_data<uint8_t>(),
               encoded_feature.bytes_list().value(0).c_str(),
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
