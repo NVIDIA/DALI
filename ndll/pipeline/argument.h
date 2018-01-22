@@ -101,45 +101,39 @@ class ArgumentInst : public Argument {
   T val;
 };
 
-template <>
-inline void ArgumentInst<bool>::SerializeToProtobuf(ndll_proto::Argument *arg) {
-  arg->set_name(Argument::ToString());
-  arg->set_type("bool");
-  arg->set_b(this->Get());
+#define SERIALIZE_ARGUMENT(type, field)                                           \
+template <>                                                                       \
+inline void ArgumentInst<type>::SerializeToProtobuf(ndll_proto::Argument *arg) {  \
+  arg->set_name(Argument::ToString());                                            \
+  arg->set_type("#type");                                                         \
+  arg->set_##field(this->Get());                                                    \
 }
 
-template <>
-inline void ArgumentInst<int64_t>::SerializeToProtobuf(ndll_proto::Argument *arg) {
-  arg->set_name(Argument::ToString());
-  arg->set_type("int64");
-  arg->set_i(this->Get());
+#define SERIALIZE_VECTOR_ARGUMENT(type, field)                                                \
+template <>                                                                                   \
+inline void ArgumentInst<std::vector<type>>::SerializeToProtobuf(ndll_proto::Argument *arg) { \
+  arg->set_name(Argument::ToString());                                                        \
+  arg->set_type("#type");                                                                     \
+  arg->set_is_vector(true);                                                                   \
+  auto vec = this->Get();                                                                     \
+  for (size_t i = 0; i < vec.size(); ++i) {                                                   \
+    arg->add_##field(vec[i]);                                                                   \
+  }                                                                                           \
 }
 
-template <>
-inline void ArgumentInst<float>::SerializeToProtobuf(ndll_proto::Argument *arg) {
-  arg->set_name(Argument::ToString());
-  arg->set_type("float");
-  arg->set_f(this->Get());
-}
+SERIALIZE_ARGUMENT(int64_t, i);
+SERIALIZE_ARGUMENT(float, f);
+SERIALIZE_ARGUMENT(bool, b);
+SERIALIZE_ARGUMENT(string, s);
 
-template <>
-inline void ArgumentInst<string>::SerializeToProtobuf(ndll_proto::Argument *arg) {
-  arg->set_name(Argument::ToString());
-  arg->set_type("string");
-  arg->set_s(this->Get());
-}
 
-template <>
-inline void ArgumentInst<std::vector<float>>::SerializeToProtobuf(ndll_proto::Argument *arg) {
-  arg->set_name(Argument::ToString());
-  arg->set_type("float");
-  arg->set_is_vector(true);
-  auto vec = this->Get();
-  for (size_t i = 0; i < vec.size(); ++i) {
-    arg->add_floats(vec[i]);
-  }
-}
+SERIALIZE_VECTOR_ARGUMENT(int64_t, ints);
+SERIALIZE_VECTOR_ARGUMENT(float, floats);
+SERIALIZE_VECTOR_ARGUMENT(bool, bools);
+SERIALIZE_VECTOR_ARGUMENT(string, strings);
 
+#undef SERIALIZE_ARGUMENT
+#undef SERIALIZE_VECTOR_ARGUMENT
 
 template <typename T>
 inline Argument *DeserializeProtobufImpl(const ndll_proto::Argument&) {
@@ -152,53 +146,35 @@ inline Argument *DeserializeProtobufVectorImpl(const ndll_proto::Argument& arg) 
   NDLL_FAIL("Base DeserializeProtobufVectorImpl should never be called");
 }
 
-template <>
-inline Argument *DeserializeProtobufImpl<int64_t>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), arg.i());
-  return new_arg;
+#define DESERIALIZE_PROTOBUF(type, field)                                         \
+template <>                                                                       \
+inline Argument *DeserializeProtobufImpl<type>(const ndll_proto::Argument& arg) { \
+  Argument* new_arg = Argument::Store(arg.name(), arg.field());                   \
+  return new_arg;                                                                 \
 }
 
-template <>
-inline Argument *DeserializeProtobufImpl<float>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), arg.f());
-  return new_arg;
+#define DESERIALIZE_VECTOR_PROTOBUF(type, field)                                          \
+template <>                                                                               \
+inline Argument *DeserializeProtobufVectorImpl<type>(                                     \
+    const ndll_proto::Argument& arg) {                                                    \
+  auto& f = arg.field();                                                                  \
+  Argument* new_arg =                                                                     \
+      Argument::Store(arg.name(), vector<type>(f.begin(), f.end()));                      \
+  return new_arg;                                                                         \
 }
 
-template <>
-inline Argument *DeserializeProtobufImpl<string>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), arg.s());
-  return new_arg;
-}
+DESERIALIZE_PROTOBUF(int64_t, i);
+DESERIALIZE_PROTOBUF(float, f);
+DESERIALIZE_PROTOBUF(bool, b);
+DESERIALIZE_PROTOBUF(string, s);
 
-template <>
-inline Argument *DeserializeProtobufImpl<bool>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), arg.b());
-  return new_arg;
-}
+DESERIALIZE_VECTOR_PROTOBUF(int64_t, ints);
+DESERIALIZE_VECTOR_PROTOBUF(float, floats);
+DESERIALIZE_VECTOR_PROTOBUF(bool, bools);
+DESERIALIZE_VECTOR_PROTOBUF(string, strings);
 
-template <>
-inline Argument *DeserializeProtobufVectorImpl<int64_t>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), vector<int64_t>(arg.ints().begin(), arg.ints().end()));
-  return new_arg;
-}
-
-template <>
-inline Argument *DeserializeProtobufVectorImpl<float>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), vector<float>(arg.floats().begin(), arg.floats().end()));
-  return new_arg;
-}
-
-template <>
-inline Argument *DeserializeProtobufVectorImpl<string>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), vector<string>(arg.strings().begin(), arg.strings().end()));
-  return new_arg;
-}
-
-template <>
-inline Argument *DeserializeProtobufVectorImpl<bool>(const ndll_proto::Argument& arg) {
-  Argument* new_arg = Argument::Store(arg.name(), vector<bool>(arg.bools().begin(), arg.bools().end()));
-  return new_arg;
-}
+#undef DESERIALIZE_PROTOBUF
+#undef DESERIALIZE_VECTOR_PROTOBUF
 
 #ifdef NDLL_BUILD_PROTO3
 template <>
