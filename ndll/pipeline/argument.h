@@ -104,40 +104,183 @@ class ArgumentInst : public Argument {
 template <>
 inline void ArgumentInst<bool>::SerializeToProtobuf(ndll_proto::Argument *arg) {
   arg->set_name(Argument::ToString());
+  arg->set_type("bool");
   arg->set_b(this->Get());
 }
 
 template <>
 inline void ArgumentInst<int64_t>::SerializeToProtobuf(ndll_proto::Argument *arg) {
   arg->set_name(Argument::ToString());
+  arg->set_type("int64");
   arg->set_i(this->Get());
 }
 
 template <>
 inline void ArgumentInst<float>::SerializeToProtobuf(ndll_proto::Argument *arg) {
   arg->set_name(Argument::ToString());
+  arg->set_type("float");
   arg->set_f(this->Get());
 }
 
 template <>
 inline void ArgumentInst<string>::SerializeToProtobuf(ndll_proto::Argument *arg) {
   arg->set_name(Argument::ToString());
+  arg->set_type("string");
   arg->set_s(this->Get());
 }
 
 template <>
 inline void ArgumentInst<std::vector<float>>::SerializeToProtobuf(ndll_proto::Argument *arg) {
   arg->set_name(Argument::ToString());
+  arg->set_type("float");
+  arg->set_is_vector(true);
   auto vec = this->Get();
   for (size_t i = 0; i < vec.size(); ++i) {
     arg->add_floats(vec[i]);
   }
 }
 
+
+template <typename T>
+inline Argument *DeserializeProtobufImpl(const ndll_proto::Argument&) {
+  NDLL_FAIL("Base DeserializeProtobufImpl should never be called");
+  return nullptr;
+}
+
+template <typename T>
+inline Argument *DeserializeProtobufVectorImpl(const ndll_proto::Argument& arg) {
+  NDLL_FAIL("Base DeserializeProtobufVectorImpl should never be called");
+}
+
+template <>
+inline Argument *DeserializeProtobufImpl<int64_t>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), arg.i());
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufImpl<float>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), arg.f());
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufImpl<string>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), arg.s());
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufImpl<bool>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), arg.b());
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufVectorImpl<int64_t>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), vector<int64_t>(arg.ints().begin(), arg.ints().end()));
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufVectorImpl<float>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), vector<float>(arg.floats().begin(), arg.floats().end()));
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufVectorImpl<string>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), vector<string>(arg.strings().begin(), arg.strings().end()));
+  return new_arg;
+}
+
+template <>
+inline Argument *DeserializeProtobufVectorImpl<bool>(const ndll_proto::Argument& arg) {
+  Argument* new_arg = Argument::Store(arg.name(), vector<bool>(arg.bools().begin(), arg.bools().end()));
+  return new_arg;
+}
+
+#ifdef NDLL_BUILD_PROTO3
+template <>
+inline Argument *DeserializeProtobufImpl<TFRecordParser::Feature>(const ndll_proto::Argument& arg) {
+  // type argument
+  ndll_proto::Argument type_arg = arg.extra_args(0);
+  TFRecordParser::FeatureType type = static_cast<TFRecordParser::FeatureType>(type_arg.i());
+
+  // shape
+  ndll_proto::Argument shape_arg = arg.extra_args(1);
+  std::vector<Index> shape{shape_arg.ints().begin(), shape_arg.ints().end()};
+
+  // default value
+  ndll_proto::Argument value_arg = arg.extra_args(2);
+  TFRecordParser::Feature::Value val;
+  if (type == TFRecordParser::FeatureType::int64) {
+    val.int64 = value_arg.i();
+  } else if (type == TFRecordParser::FeatureType::string) {
+    val.str = value_arg.s();
+  } else if (type == TFRecordParser::FeatureType::float32) {
+    val.float32 = value_arg.f();
+  } else {
+    NDLL_FAIL("Unknown TFRecordParser::FeatureType value");
+  }
+
+  TFRecordParser::Feature feature(shape, type, val);
+
+  Argument* new_arg = Argument::Store(arg.name(), feature);
+  return new_arg;
+}
+#endif
+
+inline Argument *DeserializeProtobuf(const ndll_proto::Argument& arg) {
+  // map
+  std::map<std::pair<string, bool>, std::function<Argument*(const ndll_proto::Argument&)>> fn_map{
+    {{"int", false}, DeserializeProtobufImpl<int64_t>},
+    {{"int", true}, DeserializeProtobufVectorImpl<int64_t>},
+    {{"float", false}, DeserializeProtobufImpl<float>},
+    {{"float", true}, DeserializeProtobufVectorImpl<float>},
+    {{"string", false}, DeserializeProtobufImpl<string>},
+    {{"string", true}, DeserializeProtobufVectorImpl<string>},
+    {{"bool", false}, DeserializeProtobufImpl<bool>},
+    {{"bool", true}, DeserializeProtobufVectorImpl<bool>},
+    {{"TFRecord", false}, DeserializeProtobufImpl<TFRecordParser::Feature>}
+  };
+
+  return fn_map[{arg.type(), arg.is_vector()}](arg);
+}
+
+
 #ifdef NDLL_BUILD_PROTO3
 template <>
 inline void ArgumentInst<TFRecordParser::Feature>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  arg->set_name(Argument::ToString());
+  arg->set_type("TFFeature");
 
+  TFRecordParser::Feature self = this->Get();
+  // set the datatype of the record
+  auto *type_arg = arg->add_extra_args();
+  type_arg->set_name("type");
+  type_arg->set_i(static_cast<int>(self.GetType()));
+
+  // set the shape
+  auto *shape_arg = arg->add_extra_args();
+  shape_arg->set_name("shape");
+  auto& shape = self.GetShape();
+  for (size_t i = 0; i < shape.size(); ++i) {
+    shape_arg->set_ints(i, shape[i]);
+  }
+
+  // set the default value
+  auto *default_arg = arg->add_extra_args();
+  default_arg->set_name("default_value");
+  if (self.GetType() == TFRecordParser::FeatureType::int64) {
+    default_arg->set_i(self.GetValue().int64);
+  } else if (self.GetType() == TFRecordParser::FeatureType::string) {
+    default_arg->set_s(self.GetValue().str);
+  } else if (self.GetType() == TFRecordParser::FeatureType::float32) {
+    default_arg->set_f(self.GetValue().float32);
+  } else {
+    NDLL_FAIL("Unknown TFRecordParser::FeatureType value");
+  }
 }
 #endif  // NDLL_BUILD_PROTO3
 

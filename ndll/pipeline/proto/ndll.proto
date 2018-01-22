@@ -2,27 +2,22 @@ syntax = "proto2";
 
 package ndll_proto;
 
-// Tensorflow feature
-message TFFeature {
-  required string name = 1;
-  required int64 type = 2;
-  repeated int64 shape = 3;
-  required string default_value = 4;
-}
-
 // Stores a single argument
 message Argument {
   required string name = 1;
-  optional float f = 2;
-  repeated float floats = 3;
-  optional int64 i = 4;
-  repeated int64 ints = 5;
-  optional string s = 6;
-  repeated string strings = 7;
-  optional bool b = 8;
-  repeated bool bools = 9;
-  optional TFFeature feature = 10;
-  repeated TFFeature features = 11;
+  optional string type = 2;
+  optional float f = 3;
+  repeated float floats = 4;
+  optional int64 i = 5;
+  repeated int64 ints = 6;
+  optional string s = 7;
+  repeated string strings = 8;
+  optional bool b = 9;
+  repeated bool bools = 10;
+  repeated Argument extra_args = 11;
+
+  // vector storage
+  required bool is_vector = 12 [default = false];
 }
 
 message InputOutput {

@@ -43,26 +43,8 @@ class OpSpec {
     // Extract all the arguments with correct types
     for (auto &arg : def.args()) {
       auto name = arg.name();
-      // handle all cases
-      if (arg.has_i()) {
-        this->AddArg(name, arg.i());
-      } else if (arg.ints_size() > 0) {
-        this->AddArg(name, std::vector<int64_t>(arg.ints().begin(), arg.ints().end()));
-      } else if (arg.has_f()) {
-        this->AddArg(name, arg.f());
-      } else if (arg.floats_size() > 0) {
-        this->AddArg(name, std::vector<float>(arg.floats().begin(), arg.floats().end()));
-      } else if (arg.has_s()) {
-        this->AddArg(name, arg.s());
-      } else if (arg.strings_size() > 0) {
-        this->AddArg(name, std::vector<string>(arg.strings().begin(), arg.strings().end()));
-      } else if (arg.has_b()) {
-        this->AddArg(name, arg.b());
-      } else if (arg.bools_size() > 0) {
-        this->AddArg(name, std::vector<bool>(arg.bools().begin(), arg.bools().end()));
-      } else {
-        NDLL_FAIL("At least one argument type should be contained");
-      }
+
+      this->AddInitializedArg(name, DeserializeProtobuf(arg));
     }
 
     for (int i = 0; i < def.input_size(); ++i) {
@@ -92,6 +74,17 @@ class OpSpec {
   template <typename T>
   inline OpSpec& AddArg(const string &name, const T &val) {
     Argument * arg = Argument::Store(name, val);
+    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),
+        "AddArg failed. Argument with name \"" + name +
+        "\" already exists. ");
+    arguments_[name] = arg;
+    return *this;
+  }
+
+  /**
+   * @brief Add an instantiated argument with given name
+   */
+  inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
     NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
