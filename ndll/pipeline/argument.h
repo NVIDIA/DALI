@@ -105,19 +105,20 @@ class ArgumentInst : public Argument {
 template <>                                                                       \
 inline void ArgumentInst<type>::SerializeToProtobuf(ndll_proto::Argument *arg) {  \
   arg->set_name(Argument::ToString());                                            \
-  arg->set_type("#type");                                                         \
-  arg->set_##field(this->Get());                                                    \
+  arg->set_type(#type);                                                         \
+  arg->set_is_vector(false);                                                      \
+  arg->set_##field(this->Get());                                                  \
 }
 
 #define SERIALIZE_VECTOR_ARGUMENT(type, field)                                                \
 template <>                                                                                   \
 inline void ArgumentInst<std::vector<type>>::SerializeToProtobuf(ndll_proto::Argument *arg) { \
   arg->set_name(Argument::ToString());                                                        \
-  arg->set_type("#type");                                                                     \
+  arg->set_type(#type);                                                                    \
   arg->set_is_vector(true);                                                                   \
   auto vec = this->Get();                                                                     \
   for (size_t i = 0; i < vec.size(); ++i) {                                                   \
-    arg->add_##field(vec[i]);                                                                   \
+    arg->add_##field(vec[i]);                                                                 \
   }                                                                                           \
 }
 
