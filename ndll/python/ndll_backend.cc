@@ -411,8 +411,8 @@ PYBIND11_MODULE(ndll_backend, m) {
           ConvertTFRecordDefaultValue(converted_type, default_value);
         return new TFFeature(converted_type, converted_default_value);
       });
-}
 #endif  // NDLL_USE_PROTOBUF
+}
 
 }  // namespace python
 }  // namespace ndll

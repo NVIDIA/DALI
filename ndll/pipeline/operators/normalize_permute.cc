@@ -6,7 +6,7 @@ namespace ndll {
 NDLL_REGISTER_CPU_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>);
 NDLL_REGISTER_GPU_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>);
 
-OPERATOR_SCHEMA(NormalizePermute)
+NDLL_OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
   .OutputFn([](const OpSpec &spec) {

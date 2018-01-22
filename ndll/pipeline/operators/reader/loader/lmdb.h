@@ -16,7 +16,7 @@ namespace ndll {
   } while (0)
 
 namespace lmdb {
-  bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value) {
+  inline bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value) {
     int status = mdb_cursor_get(cursor, key, value, op);
 
     if (status == MDB_NOTFOUND) {
@@ -28,7 +28,7 @@ namespace lmdb {
     }
   }
 
-  uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
+  inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
     MDB_stat* stat = new MDB_stat;
 
     CHECK_LMDB(mdb_stat(txn, dbi, stat));
@@ -39,7 +39,7 @@ namespace lmdb {
     return size;
   }
 
-  void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
+  inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
     MDB_stat* stat = new MDB_stat;
 
     CHECK_LMDB(mdb_stat(txn, dbi, stat));
