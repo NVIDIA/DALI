@@ -68,6 +68,7 @@ class DataReader : public Operator<Backend> {
         prefetch_success_ = Prefetch();
       } catch (const std::exception& e) {
         printf("Prefetch Failed\n");
+        NDLL_FAIL(e.what());
         // notify of failure
         prefetch_success_ = false;
       }

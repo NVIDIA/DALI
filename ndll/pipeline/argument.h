@@ -42,7 +42,7 @@ class Argument {
     name_ = "";
   }
 
-  virtual std::string ToString() {
+  virtual std::string ToString() const {
     return get_name();
   }
 
@@ -79,7 +79,7 @@ class ArgumentInst : public Argument {
 
   T Get() { return val; }
 
-  std::string ToString() override {
+  std::string ToString() const override {
     string ret = Argument::ToString();
     ret += ": ";
     ret += to_string(val);

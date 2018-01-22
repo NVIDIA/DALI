@@ -5,7 +5,7 @@
 #if NDLL_USE_PROTOBUF
 
 #include "ndll/pipeline/operators/reader/reader_op.h"
-#include "ndll/pipeline/operators/reader/loader/tfrecord.h"
+#include "ndll/pipeline/operators/reader/loader/indexed_file_loader.h"
 #include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
 
 namespace ndll {
@@ -14,7 +14,7 @@ class TFRecordReader : public DataReader<CPUBackend> {
  public:
   explicit TFRecordReader(const OpSpec& spec)
   : DataReader<CPUBackend>(spec) {
-    loader_.reset(new TFRecordLoader(spec));
+    loader_.reset(new IndexedFileLoader(spec));
     parser_.reset(new TFRecordParser(spec));
   }
 
