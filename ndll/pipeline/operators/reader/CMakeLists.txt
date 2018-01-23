@@ -7,7 +7,9 @@ if (BUILD_LMDB)
 endif()
 
 #tfrecord
-list(APPEND NDLL_SRCS ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/tfrecord_reader_op.cc")
+if (BUILD_PROTO3)
+  list(APPEND NDLL_SRCS ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/tfrecord_reader_op.cc")
+endif()
 
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
 
