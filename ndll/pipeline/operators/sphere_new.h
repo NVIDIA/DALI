@@ -48,4 +48,4 @@ class SphereNew : public DisplacementFilter<Backend, SphereAugment, ColorIdentit
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_OPERATORS_SPHERE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_SPHERE_NEW_H_

@@ -12,10 +12,11 @@
 
 namespace ndll {
 
-namespace {
 template <typename T, class Displacement, class Color>
 __global__
-void DisplacementKernel(const T *in, T* out, const int N, const int H, const int W, const int C, Displacement displace, Color color) {
+void DisplacementKernel(const T *in, T* out,
+                        const int N, const int H, const int W, const int C,
+                        Displacement displace, Color color) {
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     // thread per pixel
@@ -34,15 +35,14 @@ void DisplacementKernel(const T *in, T* out, const int N, const int H, const int
   }
 }
 
-}
-
 class ColorIdentity {
  public:
   ColorIdentity() {}
 
   template <typename T>
   __host__ __device__
-  T operator()(const T in, const int h, const int w, const int c, const int H, const int W, const int C) {
+  T operator()(const T in, const int h, const int w, const int c,
+               const int H, const int W, const int C) {
     // identity
     return in;
   }
@@ -61,13 +61,13 @@ class DisplacementIdentity {
   }
 };
 
-template <typename Backend, class Displacement = DisplacementIdentity, class Augment = ColorIdentity>
+template <typename Backend,
+          class Displacement = DisplacementIdentity,
+          class Augment = ColorIdentity>
 class DisplacementFilter : public Operator<Backend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec)
-    : Operator<Backend>(spec) {
-
-  }
+    : Operator<Backend>(spec) {}
 
   void RunPerSampleCPU(SampleWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
