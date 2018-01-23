@@ -5,7 +5,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/ndll_bench.cc"
   )
 
-  if (BUILD_LMDB AND BUILD_PROTOBUF)
+  if (BUILD_LMDB)
     list(APPEND NDLL_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe_alexnet_bench.cc")
     list(APPEND NDLL_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()

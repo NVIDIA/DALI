@@ -338,6 +338,56 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   // TODO(tgale): Build and execute the graph, verify the outputs
 }
 
+TYPED_TEST(PipelineTest, TestSerialization) {
+  int num_thread = TypeParam::nt;
+  int batch_size = this->jpegs_.size();
+
+  Pipeline pipe(batch_size, num_thread, 0);
+
+
+  TensorList<CPUBackend> batch;
+  this->MakeJPEGBatch(&batch, batch_size);
+
+  pipe.AddExternalInput("data");
+  pipe.SetExternalInput("data", batch);
+
+  pipe.AddOperator(
+      OpSpec("TJPGDecoder")
+      .AddArg("device", "cpu")
+      .AddInput("data", "cpu")
+      .AddOutput("decoded", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("decoded", "gpu")
+      .AddOutput("copied", "gpu"));
+
+  auto serialized = pipe.SerializeToProtobuf();
+
+  Pipeline loaded_pipe(serialized, batch_size, num_thread, 0);
+  loaded_pipe.SetExternalInput("data", batch);
+
+  vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
+
+  pipe.Build(outputs);
+  loaded_pipe.Build(outputs);
+
+  pipe.RunCPU();
+  pipe.RunGPU();
+
+  loaded_pipe.RunCPU();
+  loaded_pipe.RunGPU();
+
+  OpGraph &original_graph = this->GetGraph(&pipe);
+  OpGraph &loaded_graph = this->GetGraph(&loaded_pipe);
+
+  // Validate the graph contains the same ops
+  ASSERT_EQ(loaded_graph.NumCPUOp(), original_graph.NumCPUOp());
+  ASSERT_EQ(loaded_graph.NumInternalOp(), original_graph.NumInternalOp());
+  ASSERT_EQ(loaded_graph.NumGPUOp(), original_graph.NumGPUOp());
+}
+
 /*
 TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
   int num_thread = TypeParam::nt;

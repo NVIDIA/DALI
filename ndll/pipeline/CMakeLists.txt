@@ -23,3 +23,8 @@ if (BUILD_BENCHMARK)
   file(GLOB tmp *_bench.cc)
   set(NDLL_BENCHMARK_SRCS ${NDLL_BENCHMARK_SRCS} ${tmp} PARENT_SCOPE)
 endif()
+
+# Get the protobuf files for pipe serialization
+protobuf_generate_cpp(NDLL_PROTO_SRCS NDLL_PROTO_HEADERS proto/ndll.proto)
+add_library(NDLL_PROTO OBJECT ${NDLL_PROTO_HEADERS} ${NDLL_PROTO_SRCS})
+install(FILES ${NDLL_PROTO_HEADERS} DESTINATION include/ndll/pipeline)

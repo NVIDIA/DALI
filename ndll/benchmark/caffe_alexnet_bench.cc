@@ -71,6 +71,8 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
 
+  string serialized = pipe.SerializeToProtobuf();
+
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();

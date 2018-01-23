@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#if NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
 
 #include "ndll/pipeline/operators/reader/tfrecord_reader_op.h"
 
@@ -19,4 +19,4 @@ NDLL_OPERATOR_SCHEMA(_TFRecordReader)
 
 }  // namespace ndll
 
-#endif  // NDLL_USE_PROTOBUF
+#endif  // NDLL_BUILD_PROTO3

@@ -1,0 +1,50 @@
+syntax = "proto2";
+
+package ndll_proto;
+
+// Stores a single argument
+message Argument {
+  required string name = 1;
+  optional string type = 2;
+  optional float f = 3;
+  repeated float floats = 4;
+  optional int64 i = 5;
+  repeated int64 ints = 6;
+  optional string s = 7;
+  repeated string strings = 8;
+  optional bool b = 9;
+  repeated bool bools = 10;
+  repeated Argument extra_args = 11;
+
+  // vector storage
+  required bool is_vector = 12 [default = false];
+}
+
+message InputOutput {
+  required string name = 1;
+  required string device = 2;
+}
+
+// stores info about a single operator
+message OpDef {
+  required string name = 1;
+  // list of inputs & outputs
+  repeated InputOutput input = 2;
+  repeated InputOutput output = 3;
+  // Arguments
+  repeated Argument args = 4;
+}
+
+// Stores pipeline options and a list of operators
+message PipelineDef {
+  optional int64 num_threads = 1 [default = 4];
+  required int64 batch_size = 2;
+  optional bool use_async = 3 [default = false];
+  optional bool pipeline = 4 [default = false];
+
+  // Store all container operators
+  repeated OpDef op = 5;
+
+  // Explicitly store all external inputs
+  repeated string external_inputs = 6;
+}

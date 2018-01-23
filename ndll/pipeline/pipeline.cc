@@ -1,6 +1,8 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/pipeline.h"
 
+#include <google/protobuf/message.h>
+
 #include <algorithm>
 #include <functional>
 #include <memory>
@@ -85,6 +87,9 @@ void Pipeline::AddOperator(OpSpec spec) {
   // Add the operator to the graph
   PrepareOpSpec(&spec);
   graph_.AddOp(spec);
+
+  // Take a copy of the passed OpSpec for serialization purposes
+  this->op_specs_.push_back(spec);
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
@@ -193,6 +198,38 @@ void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_);
+}
+
+string Pipeline::SerializeToProtobuf() const {
+  ndll_proto::PipelineDef pipe;
+  pipe.set_num_threads(this->num_threads());
+  pipe.set_batch_size(this->batch_size());
+
+  // loop over external inputs
+  for (auto &name : external_inputs_) {
+    pipe.add_external_inputs(name);
+  }
+
+  // loop over ops, create messages and append
+  for (size_t i = 0; i < this->op_specs_.size(); ++i) {
+    ndll_proto::OpDef *op_def = pipe.add_op();
+
+    const OpSpec& spec = this->op_specs_[i];
+
+    // As long as spec isn't an ExternalSource node, serialize
+    if (spec.name() != "ExternalSource") {
+      spec.SerializeToProtobuf(op_def);
+    }
+  }
+
+  string output = pipe.SerializeAsString();
+
+#ifndef NDEBUG
+  // print out debug string
+  printf("%s\n", pipe.DebugString().c_str());
+#endif
+
+  return pipe.SerializeAsString();
 }
 
 }  // namespace ndll

@@ -56,7 +56,7 @@ struct TensorMeta {
  * different intermediates.
  *
  * Operators in the graph have a global NodeID that is assigned in
- * the order ops are added to the graph. Operators also have an 
+ * the order ops are added to the graph. Operators also have an
  * index within the set of ops of its type (cpu, internal, gpu).
  * This enables us to iterate over select portions of the graph, or
  * the entire graph.

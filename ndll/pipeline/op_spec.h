@@ -12,6 +12,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/argument.h"
+#include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
@@ -36,6 +37,25 @@ class OpSpec {
   explicit inline OpSpec(const string &name)
     : name_(name) {}
 
+  explicit inline OpSpec(const ndll_proto::OpDef& def) {
+    name_ = def.name();
+
+    // Extract all the arguments with correct types
+    for (auto &arg : def.args()) {
+      auto name = arg.name();
+
+      this->AddInitializedArg(name, DeserializeProtobuf(arg));
+    }
+
+    for (int i = 0; i < def.input_size(); ++i) {
+      this->AddInput(def.input(i).name(), def.input(i).device());
+    }
+
+    for (int i = 0; i < def.output_size(); ++i) {
+      this->AddOutput(def.output(i).name(), def.output(i).device());
+    }
+  }
+
   /**
    * @brief Getter for the name of the Operator.
    */
@@ -54,6 +74,17 @@ class OpSpec {
   template <typename T>
   inline OpSpec& AddArg(const string &name, const T &val) {
     Argument * arg = Argument::Store(name, val);
+    NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),
+        "AddArg failed. Argument with name \"" + name +
+        "\" already exists. ");
+    arguments_[name] = arg;
+    return *this;
+  }
+
+  /**
+   * @brief Add an instantiated argument with given name
+   */
+  inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
     NDLL_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
@@ -193,6 +224,39 @@ class OpSpec {
       ret += "\n";
     }
     return ret;
+  }
+
+  /**
+   * @brief Serialize spec to protobuf
+   */
+  void SerializeToProtobuf(ndll_proto::OpDef *op) const {
+    op->set_name(name());
+
+    for (size_t i = 0; i < inputs_.size(); ++i) {
+      ndll_proto::InputOutput *in = op->add_input();
+      in->set_name(inputs_[i].first);
+      in->set_device(inputs_[i].second);
+    }
+
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      ndll_proto::InputOutput *out = op->add_output();
+      out->set_name(outputs_[i].first);
+      out->set_device(outputs_[i].second);
+    }
+
+    for (auto& a : arguments_) {
+      // filter out args that need to be dealt with on
+      // loading a serialized pipeline
+      if (a.first == "batch_size" ||
+          a.first == "num_threads" ||
+          a.first == "bytes_per_sample_hint") {
+        continue;
+      }
+
+      ndll_proto::Argument *arg = op->add_args();
+
+      a.second->SerializeToProtobuf(arg);
+    }
   }
 
  private:

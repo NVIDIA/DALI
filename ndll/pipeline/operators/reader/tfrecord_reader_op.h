@@ -2,7 +2,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_READER_TFRECORD_READER_OP_H_
 #define NDLL_PIPELINE_OPERATORS_READER_TFRECORD_READER_OP_H_
 
-#if NDLL_USE_PROTOBUF
+#ifdef NDLL_BUILD_PROTO3
 
 #include "ndll/pipeline/operators/reader/reader_op.h"
 #include "ndll/pipeline/operators/reader/loader/indexed_file_loader.h"
@@ -36,5 +36,5 @@ class TFRecordReader : public DataReader<CPUBackend> {
 
 }  // namespace ndll
 
-#endif  // NDLL_USE_PROTOBUF
+#endif  // NDLL_BUILD_PROTO3
 #endif  // NDLL_PIPELINE_OPERATORS_READER_TFRECORD_READER_OP_H_
