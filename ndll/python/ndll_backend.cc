@@ -297,8 +297,10 @@ PYBIND11_MODULE(ndll_backend, m) {
              size_t bytes_per_sample_hint = 0, bool set_affinity = false,
              int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
-                  new Pipeline(serialized_pipe, batch_size, num_threads, device_id, pipelined_execution,
-                      async_execution, bytes_per_sample_hint, set_affinity, max_num_stream));
+                  new Pipeline(serialized_pipe,
+                               batch_size, num_threads, device_id, pipelined_execution,
+                               async_execution, bytes_per_sample_hint, set_affinity,
+                               max_num_stream));
             }),
         "serialized_pipe"_a,
         "batch_size"_a,
