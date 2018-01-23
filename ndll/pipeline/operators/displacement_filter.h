@@ -13,14 +13,14 @@
 namespace ndll {
 
 namespace {
-template <typename T, class Displacement>
+template <typename T, class Displacement, class Color>
 __global__
-void DisplacementKernel(const T *in, T* out, const int N, const int H, const int W, const int C, Displacement displace) {
+void DisplacementKernel(const T *in, T* out, const int N, const int H, const int W, const int C, Displacement displace, Color color) {
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     // thread per pixel
-    const T *image_in = in + H * W * C;
-    T *image_out = out + H * W * C;
+    const T *image_in = in + n * H * W * C;
+    T *image_out = out + n * H * W * C;
     for (int out_idx = threadIdx.x; out_idx < H * W * C; out_idx += blockDim.x) {
       const int c = out_idx % C;
       const int w = (out_idx / C) % W;
@@ -29,14 +29,39 @@ void DisplacementKernel(const T *in, T* out, const int N, const int H, const int
       // calculate input idx from function
       auto in_idx = displace(h, w, c, H, W, C);
 
-      image_out[out_idx] = image_in[in_idx];
+      image_out[out_idx] = color(image_in[in_idx], h, w, c, H, W, C);
     }
   }
 }
 
 }
 
-template <class Displacement, typename Backend>
+class ColorIdentity {
+ public:
+  ColorIdentity() {}
+
+  template <typename T>
+  __host__ __device__
+  T operator()(const T in, const int h, const int w, const int c, const int H, const int W, const int C) {
+    // identity
+    return in;
+  }
+};
+
+class DisplacementIdentity {
+ public:
+  DisplacementIdentity() {}
+
+  template <typename T>
+  __host__ __device__
+  Index operator()(const int h, const int w, const int c,
+                   const int H, const int W, const int C) {
+    // identity
+    return (h * W + w) * C + c;
+  }
+};
+
+template <typename Backend, class Displacement = DisplacementIdentity, class Augment = ColorIdentity>
 class DisplacementFilter : public Operator<Backend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec)
@@ -47,29 +72,45 @@ class DisplacementFilter : public Operator<Backend> {
   void RunPerSampleCPU(SampleWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
-    if (IsType<float>(ws->Input<CPUBackend>(idx).type())) {
+    auto &input = ws->Input<CPUBackend>(idx);
+    if (IsType<float>(input.type())) {
       PerSampleCPULoop<float>(ws, idx);
-    } else if (IsType<uint8_t>(ws->Input<CPUBackend>(idx).type())) {
+    } else if (IsType<uint8_t>(input.type())) {
       PerSampleCPULoop<uint8_t>(ws, idx);
     } else {
-      NDLL_FAIL("Unexpected input type");
+      NDLL_FAIL("Unexpected input type " + input.type().name());
     }
   }
 
   void RunBatchedGPU(DeviceWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
-    if (IsType<float>(ws->Input<GPUBackend>(idx).type())) {
+    auto &input = ws->Input<CPUBackend>(idx);
+    if (IsType<float>(input.type())) {
       BatchedGPUKernel<float>(ws, idx);
-    } else if (IsType<uint8_t>(ws->Input<GPUBackend>(idx).type())) {
+    } else if (IsType<uint8_t>(input.type())) {
       BatchedGPUKernel<uint8_t>(ws, idx);
     } else {
-      NDLL_FAIL("Unexpected input type");
+      NDLL_FAIL("Unexpected input type " + input.type().name());
     }
   }
 
-  virtual void DataDependentSetup(SampleWorkspace *ws, const int idx) {}
-  virtual void DataDependentSetup(DeviceWorkspace *ws, const int idx) {}
+  /**
+   * @brief Do basic input checking and output setup
+   * assuming output_shape = input_shape
+   */
+  virtual void DataDependentSetup(SampleWorkspace *ws, const int idx) {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto *output = ws->Output<CPUBackend>(idx);
+    output->ResizeLike(input);
+  }
+
+  virtual void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+    // check input is valid, resize output
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto *output = ws->Output<GPUBackend>(idx);
+    output->ResizeLike(input);
+  }
 
  private:
   template <typename T>
@@ -78,6 +119,7 @@ class DisplacementFilter : public Operator<Backend> {
     auto *output = ws->Output<CPUBackend>(idx);
 
     Displacement displace;
+    Augment augment;
 
     const auto H = input.shape()[0];
     const auto W = input.shape()[1];
@@ -95,7 +137,7 @@ class DisplacementFilter : public Operator<Backend> {
           Index in_idx = displace(h, w, c, H, W, C);
 
           // copy
-          out[out_idx] = in[in_idx];
+          out[out_idx] = augment(in[in_idx], h, w, c, H, W, C);
         }
       }
     }
@@ -105,6 +147,7 @@ class DisplacementFilter : public Operator<Backend> {
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
     Displacement displace;
+    Augment augment;
 
     auto &input = ws->Input<GPUBackend>(idx);
     auto *output = ws->Output<GPUBackend>(idx);
@@ -117,7 +160,7 @@ class DisplacementFilter : public Operator<Backend> {
     DisplacementKernel<T, Displacement><<<N, 256, 0, ws->stream()>>>(
         input.template data<T>(), output->template mutable_data<T>(),
         input.ntensor(), shape[0], shape[1], shape[2],
-        displace);
+        displace, augment);
     return true;
   }
 

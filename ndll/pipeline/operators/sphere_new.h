@@ -38,15 +38,14 @@ class SphereAugment {
 };
 
 template <typename Backend>
-class SphereNew : public DisplacementFilter<SphereAugment, Backend> {
+class SphereNew : public DisplacementFilter<Backend, SphereAugment, ColorIdentity> {
  public:
     inline explicit SphereNew(const OpSpec &spec)
-      : DisplacementFilter<SphereAugment, Backend>(spec) {}
+      : DisplacementFilter<Backend, SphereAugment, ColorIdentity>(spec) {}
 
     virtual ~SphereNew() = default;
-
- private:
 };
+
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_OPERATORS_SPHERE_H_
