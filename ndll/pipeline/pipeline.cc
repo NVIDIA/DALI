@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#include "ndll/pipeline/argument.h"
 #include "ndll/pipeline/pipeline.h"
 
 #include <google/protobuf/message.h>
