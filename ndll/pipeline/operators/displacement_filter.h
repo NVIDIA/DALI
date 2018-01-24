@@ -131,7 +131,7 @@ class DisplacementFilter : public Operator<Backend> {
       for (Index w = 0; w < W; ++w) {
         for (Index c = 0; c < C; ++c) {
           // output idx is set by location
-          Index out_idx = h * W * C + w * C + c;
+          Index out_idx = (h * W + w) * C + c;
           // input idx is calculated by function
           Index in_idx = displace(h, w, c, H, W, C);
 

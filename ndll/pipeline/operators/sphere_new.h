@@ -27,11 +27,11 @@ class SphereAugment {
     const int trueX = w - mid_x;
     const float rad = sqrtf(trueX * trueX + trueY * trueY) / d;
 
-    auto newX = mid_x + rad * trueX;
-    auto newY = mid_y + rad * trueY;
+    int newX = mid_x + rad * trueX;
+    int newY = mid_y + rad * trueY;
 
     const int from_idx = newX > 0 && newX < W && newY > 0 && newY < H ?
-      newX * C + newY * nYoffset : 0;
+      newX * C + newY * nYoffset + c : c;
 
     return from_idx;
   }
