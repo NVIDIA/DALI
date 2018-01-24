@@ -19,6 +19,12 @@ class Pipeline(object):
         self._exec_pipelined = exec_pipelined
         self._built = False
         self._first_iter = True
+        self._prepared = False
+        self._names_and_devices = None
+        self._exec_async = exec_async
+        self._bytes_per_sample = bytes_per_sample
+        self._set_affinity = set_affinity
+        self._max_streams = max_streams
 
     @property
     def batch_size(self):
@@ -37,10 +43,7 @@ class Pipeline(object):
             return self._pipe.epoch_size(name)
         return self._pipe.epoch_size()
 
-    def build(self):
-        if self._built:
-            raise RuntimeError("build() can only be called once.")
-
+    def _prepare_graph(self):
         outputs = self.define_graph()
         if not isinstance(outputs, tuple):
             outputs = (outputs,)
@@ -88,8 +91,17 @@ class Pipeline(object):
         while ops:
             op = ops.pop()
             self._pipe.AddOperator(op.spec, op.name)
-        names_and_devices = [(t.name, t.device) for t in outputs]
-        self._pipe.Build(names_and_devices)
+        self._prepared = True
+        self._names_and_devices = [(t.name, t.device) for t in outputs]
+
+    def build(self):
+        if self._built:
+            raise RuntimeError("build() can only be called once.")
+
+        if not self._prepared:
+            self._prepare_graph()
+
+        self._pipe.Build(self._names_and_devices)
         self._built = True
 
     def feed_input(self, ref, data):
@@ -128,6 +140,21 @@ class Pipeline(object):
         self.run_cpu()
         self.run_gpu()
         return self.outputs()
+
+    def serialize(self):
+        return self._pipe.SerializeToProtobuf()
+
+    def deserialize(self, serialized_pipeline):
+        new_pipe = b.Pipeline(serialized_pipeline,
+                              self.batch_size,
+                              self.num_threads,
+                              self.device_id,
+                              self._exec_pipelined,
+                              self._exec_async,
+                              self._bytes_per_sample,
+                              self._set_affinity,
+                              self._max_streams)
+        self._pipe = new_pipe
 
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
