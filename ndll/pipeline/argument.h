@@ -91,9 +91,7 @@ class ArgumentInst : public Argument {
     return ret;
   }
 
-  void SerializeToProtobuf(ndll_proto::Argument *arg) override {
-    NDLL_FAIL("Default ArgumentInst::SerializeToProtobuf should never be called\n");
-  }
+  void SerializeToProtobuf(ndll_proto::Argument *arg) override;
 
  private:
   T val;

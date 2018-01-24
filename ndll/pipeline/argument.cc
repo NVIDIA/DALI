@@ -7,6 +7,12 @@
 
 namespace ndll {
 
+
+template <typename T>
+void ArgumentInst<T>::SerializeToProtobuf(ndll_proto::Argument *arg) {
+  NDLL_FAIL("Default ArgumentInst::SerializeToProtobuf should never be called\n");
+}
+
 #define SERIALIZE_ARGUMENT(type, field)                                           \
 template <>                                                                       \
 inline void ArgumentInst<type>::SerializeToProtobuf(ndll_proto::Argument *arg) {  \
