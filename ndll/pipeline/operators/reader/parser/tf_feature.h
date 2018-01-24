@@ -66,7 +66,6 @@ class Feature {
       return val_.float32;
     } else {
       NDLL_FAIL("Requested invalid type from the feature");
-      return T();
     }
   }
 

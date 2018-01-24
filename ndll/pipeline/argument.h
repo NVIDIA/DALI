@@ -141,7 +141,6 @@ SERIALIZE_VECTOR_ARGUMENT(string, strings);
 template <typename T>
 inline Argument *DeserializeProtobufImpl(const ndll_proto::Argument&) {
   NDLL_FAIL("Base DeserializeProtobufImpl should never be called");
-  return nullptr;
 }
 
 template <typename T>
