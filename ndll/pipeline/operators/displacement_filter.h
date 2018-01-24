@@ -41,8 +41,8 @@ class ColorIdentity {
 
   template <typename T>
   __host__ __device__
-  T operator()(const T in, const int h, const int w, const int c,
-               const int H, const int W, const int C) {
+  T operator()(const T in, const Index h, const Index w, const Index c,
+               const Index H, const Index W, const Index C) {
     // identity
     return in;
   }
@@ -52,10 +52,9 @@ class DisplacementIdentity {
  public:
   DisplacementIdentity() {}
 
-  template <typename T>
   __host__ __device__
-  Index operator()(const int h, const int w, const int c,
-                   const int H, const int W, const int C) {
+  Index operator()(const Index h, const Index w, const Index c,
+                   const Index H, const Index W, const Index C) {
     // identity
     return (h * W + w) * C + c;
   }
@@ -85,7 +84,7 @@ class DisplacementFilter : public Operator<Backend> {
   void RunBatchedGPU(DeviceWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
-    auto &input = ws->Input<CPUBackend>(idx);
+    auto &input = ws->Input<GPUBackend>(idx);
     if (IsType<float>(input.type())) {
       BatchedGPUKernel<float>(ws, idx);
     } else if (IsType<uint8_t>(input.type())) {
