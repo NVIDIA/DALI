@@ -37,7 +37,7 @@ void DisplacementKernel(const T *in, T* out,
 
 class ColorIdentity {
  public:
-  ColorIdentity() {}
+  ColorIdentity(const OpSpec& spec) {}
 
   template <typename T>
   __host__ __device__
@@ -50,7 +50,7 @@ class ColorIdentity {
 
 class DisplacementIdentity {
  public:
-  DisplacementIdentity() {}
+  DisplacementIdentity(const OpSpec& spec) {}
 
   __host__ __device__
   Index operator()(const Index h, const Index w, const Index c,
@@ -66,7 +66,9 @@ template <typename Backend,
 class DisplacementFilter : public Operator<Backend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec)
-    : Operator<Backend>(spec) {}
+    : Operator<Backend>(spec),
+      displace_(spec),
+      augment_(spec) {}
 
   void RunPerSampleCPU(SampleWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
@@ -117,9 +119,6 @@ class DisplacementFilter : public Operator<Backend> {
     auto& input = ws->Input<CPUBackend>(idx);
     auto *output = ws->Output<CPUBackend>(idx);
 
-    Displacement displace;
-    Augment augment;
-
     const auto H = input.shape()[0];
     const auto W = input.shape()[1];
     const auto C = input.shape()[2];
@@ -133,10 +132,10 @@ class DisplacementFilter : public Operator<Backend> {
           // output idx is set by location
           Index out_idx = (h * W + w) * C + c;
           // input idx is calculated by function
-          Index in_idx = displace(h, w, c, H, W, C);
+          Index in_idx = displace_(h, w, c, H, W, C);
 
           // copy
-          out[out_idx] = augment(in[in_idx], h, w, c, H, W, C);
+          out[out_idx] = augment_(in[in_idx], h, w, c, H, W, C);
         }
       }
     }
@@ -145,9 +144,6 @@ class DisplacementFilter : public Operator<Backend> {
 
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
-    Displacement displace;
-    Augment augment;
-
     auto &input = ws->Input<GPUBackend>(idx);
     auto *output = ws->Output<GPUBackend>(idx);
 
@@ -159,11 +155,15 @@ class DisplacementFilter : public Operator<Backend> {
     DisplacementKernel<T, Displacement><<<N, 256, 0, ws->stream()>>>(
         input.template data<T>(), output->template mutable_data<T>(),
         input.ntensor(), shape[0], shape[1], shape[2],
-        displace, augment);
+        displace_, augment_);
     return true;
   }
 
   USE_OPERATOR_MEMBERS();
+
+ private:
+  Displacement displace_;
+  Augment augment_;
 };
 
 }  // namespace ndll

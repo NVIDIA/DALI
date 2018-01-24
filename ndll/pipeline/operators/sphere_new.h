@@ -12,7 +12,7 @@ namespace ndll {
 
 class SphereAugment {
  public:
-  SphereAugment() {}
+  explicit SphereAugment(const OpSpec& spec) {}
 
   __host__ __device__
   Index operator()(int h, int w, int c, int H, int W, int C) {
