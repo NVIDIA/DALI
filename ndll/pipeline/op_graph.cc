@@ -70,7 +70,7 @@ void CheckOpConstraints(const OpSpec &spec) {
 
 }  // namespace
 
-void OpGraph::AddOp(const OpSpec &spec) {
+void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
@@ -127,6 +127,7 @@ void OpGraph::AddOp(const OpSpec &spec) {
   // Add node meta-data and add to the list of nodes
   new_node->id = NumOp()-1;
   new_node->spec = spec;
+  new_node->instance_name = name;
 
   // Setup references between nodes. We require that the
   // ops are added to the graph in a topological ordering.
@@ -349,6 +350,28 @@ OpNode& OpGraph::node(NodeID id) {
   default:
     NDLL_FAIL("Internal error. Invalid node type index.");
   }
+}
+
+OpNode& OpGraph::node(const std::string& name) {
+  // Search cpu nodes
+  for (auto& node : cpu_nodes_) {
+    if (node.instance_name == name) {
+      return node;
+    }
+  }
+  // Search gpu nodes
+  for (auto& node : gpu_nodes_) {
+    if (node.instance_name == name) {
+      return node;
+    }
+  }
+  // Search internal nodes
+  for (auto& node : internal_nodes_) {
+    if (node.instance_name == name) {
+      return node;
+    }
+  }
+  NDLL_FAIL("Operator node with name " + name + " not found.");
 }
 
 template <>

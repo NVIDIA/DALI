@@ -148,8 +148,7 @@ class Pipeline {
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
     PrepareOpSpec(&spec);
-    graph_.AddOp(spec);
-
+    graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
   }
 
@@ -196,7 +195,13 @@ class Pipeline {
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
    */
-  void AddOperator(OpSpec spec);
+  void AddOperator(OpSpec spec, const std::string& inst_name = "<no name>");
+
+  /**
+   * @brief Returns the graph node with Operator
+   * with a given name
+   */
+  OpNode * GetOperatorNode(const std::string& name);
 
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
@@ -232,6 +237,12 @@ class Pipeline {
    * @brief Returns the batch size that will be produced by the pipeline.
    */
   inline int batch_size() const { return batch_size_; }
+
+  /**
+   * @brief Returns the map of (node name, node's epoch size)
+   * for all nodes that return a valid epoch size
+   */
+  std::map<std::string, Index> EpochSize();
 
   /**
    * @brief Returns the number of threads used by the pipeline.

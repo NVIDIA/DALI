@@ -17,12 +17,16 @@ class _OpCounter(object):
         return self._id
 
 class _OperatorInstance(object):
-    def __init__(self, inputs, op):
+    def __init__(self, inputs, op, **kwargs):
         self._counter = _OpCounter()
         self._inputs = inputs
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
+        if "name" in kwargs.keys():
+            self._name = kwargs["name"]
+        else:
+            self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
         for inp in inputs:
             if not isinstance(inp, TensorReference):
@@ -57,6 +61,10 @@ class _OperatorInstance(object):
     @property
     def spec(self):
         return self._spec
+
+    @property
+    def name(self):
+        return self._name
 
     def append_output(self, output):
         self._outputs.append(output)
@@ -100,7 +108,7 @@ def python_op_factory(name):
         def device(self):
             return self._device
 
-        def __call__(self, *inputs):
+        def __call__(self, *inputs, **kwargs):
             # TODO(tgale): Inputs come in as a list of
             # TensorReferences. Can we also support
             # kwargs based on the docstring?
@@ -114,7 +122,7 @@ def python_op_factory(name):
                             self._schema.MaxNumInput(),
                             len(inputs)))
 
-            op_instance = _OperatorInstance(inputs, self)
+            op_instance = _OperatorInstance(inputs, self, **kwargs)
             op_instance.generate_outputs()
 
             if len(op_instance.outputs) == 1:
@@ -172,7 +180,7 @@ class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
     def device(self):
         return self._device
 
-    def __call__(self, *inputs):
+    def __call__(self, *inputs, **kwargs):
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -183,7 +191,7 @@ class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
                         self._schema.MaxNumInput(),
                         len(inputs)))
 
-        op_instance = _OperatorInstance(inputs, self)
+        op_instance = _OperatorInstance(inputs, self, **kwargs)
         outputs = {}
         feature_names = []
         features = []

@@ -90,6 +90,14 @@ class Operator {
     spec_.SerializeToProtobuf(op);
   }
 
+  /**
+   * @brief For reader Ops, returns the size of the dataset
+   * For all other Ops, returns -1
+   */
+  virtual Index epoch_size() const {
+    return -1;
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(Operator);
 
  protected:

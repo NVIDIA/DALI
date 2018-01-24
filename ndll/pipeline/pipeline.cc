@@ -12,7 +12,7 @@ namespace ndll {
 // TODO(tgale): The constraint that GPU ops cannot produce CPU
 // outputs is arbitrary. We could easily enable cpu/gpu outputs
 // for gpu ops, do we want to do this?
-void Pipeline::AddOperator(OpSpec spec) {
+void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
 
@@ -89,7 +89,7 @@ void Pipeline::AddOperator(OpSpec spec) {
 
   // Add the operator to the graph
   PrepareOpSpec(&spec);
-  graph_.AddOp(spec);
+  graph_.AddOp(spec, inst_name);
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
@@ -117,7 +117,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec);
-        graph_.AddOp(spec);
+        graph_.AddOp(spec, "__MakeContiguous_" + name);
       }
       outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
@@ -130,7 +130,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddInput(name, "cpu")
           .AddOutput(name, "gpu");
         PrepareOpSpec(&spec);
-        graph_.AddOp(spec);
+        graph_.AddOp(spec, "__MakeContiguous_" + name);
       }
       outputs.push_back(name + "_" + device);
     } else {
@@ -172,7 +172,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     PrepareOpSpec(&make_contiguous_spec);
-    graph_.AddOp(make_contiguous_spec);
+    graph_.AddOp(make_contiguous_spec, "__MakeContiguous_" + it->first);
   }
 
   // Update the OpSpec to use the contiguous input
@@ -191,7 +191,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   PrepareOpSpec(&copy_to_dev_spec);
-  graph_.AddOp(copy_to_dev_spec);
+  graph_.AddOp(copy_to_dev_spec, "__Copy_" + it->first);
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
@@ -230,6 +230,29 @@ string Pipeline::SerializeToProtobuf() const {
 #endif
 
   return pipe.SerializeAsString();
+}
+
+OpNode * Pipeline::GetOperatorNode(const std::string& name) {
+  return &(graph_.node(name));
+}
+
+std::map<std::string, Index> Pipeline::EpochSize() {
+  std::map<std::string, Index> ret;
+  for (Index i = 0; i < graph_.NumCPUOp(); ++i) {
+    const CPUOpNode& current = graph_.cpu_node(i);
+    Index epoch_size = current.op->epoch_size();
+    if (epoch_size != -1) {
+      ret.insert(make_pair(current.instance_name, epoch_size));
+    }
+  }
+  for (Index i = 0; i < graph_.NumGPUOp(); ++i) {
+    const GPUOpNode& current = graph_.gpu_node(i);
+    Index epoch_size = current.op->epoch_size();
+    if (epoch_size != -1) {
+      ret.insert(make_pair(current.instance_name, epoch_size));
+    }
+  }
+  return ret;
 }
 
 }  // namespace ndll

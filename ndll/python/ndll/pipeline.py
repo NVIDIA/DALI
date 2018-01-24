@@ -32,6 +32,11 @@ class Pipeline(object):
     def device_id(self):
         return self._pipe.device_id()
 
+    def epoch_size(self, name = None):
+        if name is not None:
+            return self._pipe.epoch_size(name)
+        return self._pipe.epoch_size()
+
     def build(self):
         if self._built:
             raise RuntimeError("build() can only be called once.")
@@ -81,7 +86,8 @@ class Pipeline(object):
 
         # Add the ops to the graph and build the backend
         while ops:
-            self._pipe.AddOperator(ops.pop().spec)
+            op = ops.pop()
+            self._pipe.AddOperator(op.spec, op.name)
         names_and_devices = [(t.name, t.device) for t in outputs]
         self._pipe.Build(names_and_devices)
         self._built = True

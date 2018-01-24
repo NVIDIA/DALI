@@ -269,6 +269,17 @@ PYBIND11_MODULE(ndll_backend, m) {
     .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
     .export_values();
 
+  // Operator node
+  py::class_<OpNode>(m, "OpNode")
+    .def("instance_name",
+        [](OpNode* node) {
+          return node->instance_name;
+        })
+    .def("name",
+        [](OpNode* node) {
+          return node->spec.name();
+        });
+
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
@@ -313,6 +324,7 @@ PYBIND11_MODULE(ndll_backend, m) {
         "max_num_stream"_a = -1
         )
     .def("AddOperator", &Pipeline::AddOperator)
+    .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build", &Pipeline::Build)
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)
@@ -357,7 +369,15 @@ PYBIND11_MODULE(ndll_backend, m) {
         [](Pipeline *p) {
           string s = p->SerializeToProtobuf();
           return s;
-          }, py::return_value_policy::take_ownership);
+          }, py::return_value_policy::take_ownership)
+    .def("epoch_size", &Pipeline::EpochSize)
+    .def("epoch_size",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, Index> sizes = p->EpochSize();
+          NDLL_ENFORCE(sizes.find(op_name) != sizes.end(),
+              "Operator " + op_name + " does not expose valid epoch size.");
+          return sizes[op_name];
+        });
 
 #define NDLL_OPSPEC_ADDARG(T) \
     .def("AddArg", \
