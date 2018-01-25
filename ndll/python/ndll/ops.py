@@ -89,6 +89,9 @@ def python_op_factory(name):
 
             # Store the specified arguments
             for key, value in kwargs.items():
+                if isinstance(value, list):
+                    if not value:
+                        raise RuntimeError("List arguments need to have at least 1 element.")
                 self._spec.AddArg(key, value)
 
         @classmethod

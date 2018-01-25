@@ -345,6 +345,7 @@ PYBIND11_MODULE(ndll_backend, m) {
         }, py::return_value_policy::take_ownership)
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
+    .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
           p->SetExternalInput(name, tl);
@@ -366,7 +367,7 @@ PYBIND11_MODULE(ndll_backend, m) {
           p->SetExternalInput(name, tensors);
         })
     .def("SerializeToProtobuf",
-        [](Pipeline *p) {
+        [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
           return s;
           }, py::return_value_policy::take_ownership)

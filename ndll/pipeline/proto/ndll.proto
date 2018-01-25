@@ -6,18 +6,14 @@ package ndll_proto;
 message Argument {
   required string name = 1;
   optional string type = 2;
-  optional float f = 3;
-  repeated float floats = 4;
-  optional int64 i = 5;
-  repeated int64 ints = 6;
-  optional string s = 7;
-  repeated string strings = 8;
-  optional bool b = 9;
-  repeated bool bools = 10;
-  repeated Argument extra_args = 11;
+  repeated float floats = 3;
+  repeated int64 ints = 4;
+  repeated string strings = 5;
+  repeated bool bools = 6;
+  repeated Argument extra_args = 7;
 
   // vector storage
-  required bool is_vector = 12 [default = false];
+  required bool is_vector = 8 [default = false];
 }
 
 message InputOutput {

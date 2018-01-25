@@ -70,7 +70,7 @@ class Pipeline {
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    bytes_per_sample_hint_(bytes_per_sample_hint) {
+    device_id_(device_id), bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
     if (pipelined_execution && async_execution) {
@@ -249,6 +249,11 @@ class Pipeline {
    */
   inline int num_threads() const { return num_threads_; }
 
+  /**
+   * @brief Returns the GPU device number used by the pipeline
+   */
+  inline int device_id() const { return device_id_; }
+
   // For testing
   template <typename T>
   friend class PipelineTest;
@@ -293,7 +298,7 @@ class Pipeline {
   void PrepareOpSpec(OpSpec *spec);
 
   bool built_;
-  int batch_size_, num_threads_;
+  int batch_size_, num_threads_, device_id_;
   size_t bytes_per_sample_hint_;
 
   OpGraph graph_;
