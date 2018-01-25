@@ -354,7 +354,7 @@ PYBIND11_MODULE(ndll_backend, m) {
           p->SetExternalInput(name, tensors);
         })
     .def("SerializeToProtobuf",
-        [](Pipeline *p) {
+        [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
           return s;
           }, py::return_value_policy::take_ownership);

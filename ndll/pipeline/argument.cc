@@ -123,8 +123,8 @@ inline Argument *DeserializeProtobufImpl<TFUtil::Feature>(const ndll_proto::Argu
 Argument *DeserializeProtobuf(const ndll_proto::Argument& arg) {
   // map
   std::map<std::pair<string, bool>, std::function<Argument*(const ndll_proto::Argument&)>> fn_map{
-    {{"int", false}, DeserializeProtobufImpl<int64_t>},
-    {{"int", true}, DeserializeProtobufVectorImpl<int64_t>},
+    {{"int64_t", false}, DeserializeProtobufImpl<int64_t>},
+    {{"int64_t", true}, DeserializeProtobufVectorImpl<int64_t>},
     {{"float", false}, DeserializeProtobufImpl<float>},
     {{"float", true}, DeserializeProtobufVectorImpl<float>},
     {{"string", false}, DeserializeProtobufImpl<string>},
@@ -137,7 +137,7 @@ Argument *DeserializeProtobuf(const ndll_proto::Argument& arg) {
 #endif
 
   auto it = fn_map.find({arg.type(), arg.is_vector()});
-  NDLL_ENFORCE(it != fn_map.end(), "Invalid argument \"type\" in protobuf");
+  NDLL_ENFORCE(it != fn_map.end(), "Invalid argument \"" + arg.type() + "\" in protobuf");
 
   return fn_map[{arg.type(), arg.is_vector()}](arg);
 }
