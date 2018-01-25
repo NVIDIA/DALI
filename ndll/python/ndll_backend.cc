@@ -313,7 +313,14 @@ PYBIND11_MODULE(ndll_backend, m) {
         "max_num_stream"_a = -1
         )
     .def("AddOperator", &Pipeline::AddOperator)
-    .def("Build", &Pipeline::Build)
+    .def("Build",
+        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
+          p->Build(outputs);
+          })
+    .def("Build",
+        [](Pipeline *p) {
+          p->Build();
+          })
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
