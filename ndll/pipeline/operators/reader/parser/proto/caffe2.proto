@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-package caffe2;
+package ndll.caffe2;
 
 // TensorProto stores serialized Tensor objects.
 message TensorProto {
