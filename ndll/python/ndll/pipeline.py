@@ -142,6 +142,10 @@ class Pipeline(object):
         return self.outputs()
 
     def serialize(self):
+        if self._built:
+            raise RuntimeError("Can't serialize already built pipeline!")
+        if not self._prepared:
+            self._prepare_graph()
         return self._pipe.SerializeToProtobuf()
 
     def deserialize(self, serialized_pipeline):
@@ -155,6 +159,7 @@ class Pipeline(object):
                               self._set_affinity,
                               self._max_streams)
         self._pipe = new_pipe
+        self._prepared = True
 
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can

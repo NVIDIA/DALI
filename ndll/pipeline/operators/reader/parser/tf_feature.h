@@ -111,6 +111,11 @@ class Feature {
     type_arg->set_name("type");
     ndll::SerializeToProtobuf(static_cast<int>(GetType()), type_arg);
 
+    // has_shape
+    auto *has_shape_arg = arg->add_extra_args();
+    has_shape_arg->set_name("has_shape");
+    ndll::SerializeToProtobuf(HasShape(), has_shape_arg);
+
     // set the shape
     auto *shape_arg = arg->add_extra_args();
     shape_arg->set_name("shape");
@@ -144,12 +149,16 @@ class Feature {
     ndll_proto::Argument type_arg = arg.extra_args(0);
     TFUtil::FeatureType type = static_cast<TFUtil::FeatureType>(type_arg.ints(0));
 
+    // has_shape
+    ndll_proto::Argument has_shape_arg = arg.extra_args(1);
+    bool has_shape = has_shape_arg.bools(0);
+
     // shape
-    ndll_proto::Argument shape_arg = arg.extra_args(1);
+    ndll_proto::Argument shape_arg = arg.extra_args(2);
     std::vector<Index> shape{shape_arg.ints().begin(), shape_arg.ints().end()};
 
     // default value
-    ndll_proto::Argument value_arg = arg.extra_args(2);
+    ndll_proto::Argument value_arg = arg.extra_args(3);
     TFUtil::Feature::Value val;
     switch (type) {
       case TFUtil::FeatureType::int64:
@@ -165,7 +174,7 @@ class Feature {
         NDLL_FAIL("Unknown TFUtil::FeatureType value");
     }
 
-    if (!shape.empty()) {
+    if (has_shape) {
       return Feature(shape, type, val);
     } else {
       return Feature(type, val);

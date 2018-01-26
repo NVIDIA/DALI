@@ -17,7 +17,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       "\"Build()\" has been called are not allowed");
 
   // Take a copy of the passed OpSpec for serialization purposes
-  this->op_specs_.push_back(spec);
+  this->op_specs_.push_back(make_pair(inst_name, spec));
 
   // Validate op device
   string device = spec.GetArgument<string>("device", "cpu");
@@ -214,11 +214,12 @@ string Pipeline::SerializeToProtobuf() const {
   for (size_t i = 0; i < this->op_specs_.size(); ++i) {
     ndll_proto::OpDef *op_def = pipe.add_op();
 
-    const OpSpec& spec = this->op_specs_[i];
+    const auto& p = this->op_specs_[i];
+    const OpSpec& spec = p.second;
 
     // As long as spec isn't an ExternalSource node, serialize
     if (spec.name() != "ExternalSource") {
-      spec.SerializeToProtobuf(op_def);
+      spec.SerializeToProtobuf(op_def, p.first);
     }
   }
 

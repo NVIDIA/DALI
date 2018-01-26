@@ -229,8 +229,9 @@ class OpSpec {
   /**
    * @brief Serialize spec to protobuf
    */
-  void SerializeToProtobuf(ndll_proto::OpDef *op) const {
+  void SerializeToProtobuf(ndll_proto::OpDef *op, const string& inst_name) const {
     op->set_name(name());
+    op->set_inst_name(inst_name);
 
     for (size_t i = 0; i < inputs_.size(); ++i) {
       ndll_proto::InputOutput *in = op->add_input();

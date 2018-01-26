@@ -84,13 +84,6 @@ class Operator {
   }
 
   /**
-   * @brief serialize operator to a ndll_proto::OpDef object
-   */
-  virtual void SerializeToProtobuf(ndll_proto::OpDef *op) {
-    spec_.SerializeToProtobuf(op);
-  }
-
-  /**
    * @brief For reader Ops, returns the size of the dataset
    * For all other Ops, returns -1
    */

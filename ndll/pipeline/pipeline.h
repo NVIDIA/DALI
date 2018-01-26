@@ -119,7 +119,7 @@ class Pipeline {
     for (auto& op_def : def.op()) {
       OpSpec spec{op_def};
 
-      this->AddOperator(spec);
+      this->AddOperator(spec, op_def.inst_name());
     }
   }
 
@@ -309,7 +309,7 @@ class Pipeline {
   // added, in order to recreate the pipeline in a
   // serialized form
   vector<string> external_inputs_;
-  vector<OpSpec> op_specs_;
+  vector<std::pair<string, OpSpec>> op_specs_;
 };
 
 }  // namespace ndll

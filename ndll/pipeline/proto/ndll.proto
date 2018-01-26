@@ -29,6 +29,8 @@ message OpDef {
   repeated InputOutput output = 3;
   // Arguments
   repeated Argument args = 4;
+  // instance name
+  optional string inst_name = 5;
 }
 
 // Stores pipeline options and a list of operators
