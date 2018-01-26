@@ -410,7 +410,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
 #ifdef NDLL_BUILD_PROTO3
-    // NDLL_OPSPEC_ADDARG(TFFeature)
+    NDLL_OPSPEC_ADDARG(TFFeature)
 #endif
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
