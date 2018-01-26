@@ -18,6 +18,9 @@ void Pipeline::AddOperator(OpSpec spec) {
   NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
 
+  // Take a copy of the passed OpSpec for serialization purposes
+  this->op_specs_.push_back(spec);
+
   // Validate op device
   string device = spec.GetArgument<string>("device", "cpu");
   NDLL_ENFORCE(device == "cpu" || device == "gpu", "Invalid "
@@ -89,9 +92,6 @@ void Pipeline::AddOperator(OpSpec spec) {
   // Add the operator to the graph
   PrepareOpSpec(&spec);
   graph_.AddOp(spec);
-
-  // Take a copy of the passed OpSpec for serialization purposes
-  this->op_specs_.push_back(spec);
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
