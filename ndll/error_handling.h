@@ -184,19 +184,19 @@ inline string BuildErrorString(string statement, string file, int line) {
   NDLL_ENFORCE_IN_RANGE(var, static_cast<int>(0), upper)
 
 #if NDLL_USE_STACKTRACE && NDLL_DEBUG
-inline void ltrim(std::string &s) {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
+inline void ltrim(std::string *s) {
+    s->erase(s->begin(), std::find_if(s->begin(), s->end(), [](int ch) {
         return !std::isspace(ch);
     }));
 }
 
-inline void rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
+inline void rtrim(std::string *s) {
+    s->erase(std::find_if(s->rbegin(), s->rend(), [](int ch) {
         return !std::isspace(ch);
-    }).base(), s.end());
+    }).base(), s->end());
 }
 
-inline void trim(std::string &s) {
+inline void trim(std::string *s) {
     ltrim(s);
     rtrim(s);
 }
@@ -217,7 +217,7 @@ inline ndll::string GetStacktrace() {
           && (symbol_end = msg.find("+0x", symbol_start)) != string::npos ) {
         string left(msg, 0, symbol_start);
         string symbol(msg, symbol_start, symbol_end - symbol_start);
-        trim(symbol);
+        trim(&symbol);
         string right(msg, symbol_end);
         int status = 0;
         char * demangled_symbol =
