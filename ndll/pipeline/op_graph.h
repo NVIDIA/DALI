@@ -28,6 +28,7 @@ struct OpNode {
   NodeID id;
   OpSpec spec;
   std::unordered_set<NodeID> parents, children;
+  std::string instance_name;
 };
 
 struct CPUOpNode : public OpNode {
@@ -46,7 +47,7 @@ struct InternalOpNode : public OpNode {
 // is used by a producer/consumer node.
 struct TensorMeta {
   NodeID node;
-  int index;
+  Index index;
   bool is_cpu;
 };
 
@@ -75,7 +76,7 @@ class OpGraph {
   /**
    * @brief Adds an op with the input specification to the graph.
    */
-  void AddOp(const OpSpec &spec);
+  void AddOp(const OpSpec &spec, const std::string& name);
 
   /**
    * @brief Removes the node with the specified NodeID from
@@ -87,30 +88,30 @@ class OpGraph {
   /**
    * @brief Returns the total number of ops in the graph.
    */
-  inline int NumOp() const {
+  inline Index NumOp() const {
     return NumCPUOp() + NumGPUOp() + NumInternalOp();
   }
 
   /**
    * @brief Returns the number of cpu ops in the graph.
    */
-  inline int NumCPUOp() const { return cpu_nodes_.size(); }
+  inline Index NumCPUOp() const { return cpu_nodes_.size(); }
 
   /**
    * @brief Returns the number of gpu ops in the graph.
    */
-  inline int NumGPUOp() const { return gpu_nodes_.size(); }
+  inline Index NumGPUOp() const { return gpu_nodes_.size(); }
 
   /**
    * @brief Returns the number of internal ops in the graph.
    */
-  inline int NumInternalOp() const { return internal_nodes_.size(); }
+  inline Index NumInternalOp() const { return internal_nodes_.size(); }
 
   /**
    * @brief Returns a reference to the `idx`-th cpu op that was
    * added to the graph.
    */
-  inline Operator<CPUBackend>& cpu_op(int idx) {
+  inline Operator<CPUBackend>& cpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return *cpu_nodes_[idx].op;
   }
@@ -119,7 +120,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th cpu op that
    * was added to the graph.
    */
-  inline CPUOpNode& cpu_node(int idx) {
+  inline CPUOpNode& cpu_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx];
   }
@@ -128,7 +129,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline Operator<GPUBackend>& gpu_op(int idx) {
+  inline Operator<GPUBackend>& gpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return *gpu_nodes_[idx].op;
   }
@@ -137,7 +138,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline GPUOpNode& gpu_node(int idx) {
+  inline GPUOpNode& gpu_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return gpu_nodes_[idx];
   }
@@ -146,7 +147,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th internal op
    * that was added to the graph.
    */
-  inline internal::InternalOp& internal_op(int idx) {
+  inline internal::InternalOp& internal_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
     return *internal_nodes_[idx].op;
   }
@@ -155,10 +156,18 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th internal op that
    * was added to the graph.
    */
-  inline InternalOpNode& internal_node(int idx) {
+  inline InternalOpNode& internal_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
     return internal_nodes_[idx];
   }
+
+  /**
+   * @brief Returns the graph node with the given name.
+   * This function is much slower than the version taking
+   * index as argument so should not be used in performance
+   * critical section of the code.
+   */
+  OpNode& node(const std::string& name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
@@ -178,7 +187,7 @@ class OpGraph {
    * @brief Returns the index of the node with the specified id
    * among nodes of its type.
    */
-  inline int NodeIdx(NodeID id) const {
+  inline Index NodeIdx(NodeID id) const {
     NDLL_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
     return id_to_node_map_[id].second;
   }
@@ -206,7 +215,7 @@ class OpGraph {
    * @brief Returns the output idx of the input tensor in
    * its source.
    */
-  inline int TensorIdxInSource(const string &name) {
+  inline Index TensorIdxInSource(const string &name) {
     return TensorSourceMeta(name).index;
   }
 
@@ -241,7 +250,7 @@ class OpGraph {
   // Stores a mapping from NodeIDs to a pair where the first
   // element indicates what type of node it is,  and the second
   // is the index of the op within the specified vector.
-  vector<std::pair<NDLLOpType, int>> id_to_node_map_;
+  vector<std::pair<NDLLOpType, Index>> id_to_node_map_;
 
   std::map<string, TensorMeta> tensor_producers_;
   std::map<string, vector<TensorMeta>> tensor_consumers_;

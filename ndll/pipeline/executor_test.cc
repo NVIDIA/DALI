@@ -122,25 +122,25 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")));
+          .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")));
+          .AddOutput("data3", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data3", "cpu")
-          .AddOutput("data3_cont", "cpu")));
+          .AddOutput("data3_cont", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")));
+          .AddOutput("data4", "cpu")), "");
 
   vector<string> outputs = {"data3_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -192,25 +192,25 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")));
+          .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")));
+          .AddOutput("data1_cont", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")));
+          .AddOutput("data3", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")));
+          .AddOutput("data4", "cpu")), "");
 
   vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -252,25 +252,25 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")));
+          .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")));
+          .AddOutput("data1_cont", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")));
+          .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")));
+          .AddOutput("data3", "cpu")), "");
 
   vector<string> outputs = {"data1_cont_cpu"};
   exe.Build(&graph, outputs);
@@ -311,19 +311,19 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")));
+          .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")));
+          .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")));
+          .AddOutput("data3", "cpu")), "");
 
   vector<string> outputs = {"data_that_does_not_exist"};
   ASSERT_THROW(this->PruneGraph(&exe),
@@ -338,19 +338,19 @@ TEST_F(ExecutorTest, TestDataSetup) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")));
+          .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("data1", "cpu")
-          .AddOutput("data2", "gpu")));
+          .AddOutput("data2", "gpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "gpu")
           .AddInput("data2", "gpu")
-          .AddOutput("data3", "gpu")));
+          .AddOutput("data3", "gpu")), "");
 
   vector<string> outputs = {"data3_gpu"};
   exe.Build(&graph, outputs);
@@ -392,19 +392,19 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data", "cpu")));
+          .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("TJPGDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")));
+          .AddOutput("images", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")));
+          .AddOutput("final_images", "cpu")), "");
 
   vector<string> outputs = {"final_images_cpu"};
   exe.Build(&graph, outputs);
@@ -438,25 +438,25 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data", "cpu")));
+          .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("TJPGDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")));
+          .AddOutput("images", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "internal")
           .AddInput("images", "cpu")
-          .AddOutput("images", "gpu")));
+          .AddOutput("images", "gpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
           .AddInput("images", "gpu")
-          .AddOutput("final_images", "gpu")));
+          .AddOutput("final_images", "gpu")), "");
 
   vector<string> outputs = {"final_images_gpu"};
   exe.Build(&graph, outputs);

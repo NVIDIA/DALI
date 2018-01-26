@@ -70,7 +70,7 @@ class Pipeline {
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    bytes_per_sample_hint_(bytes_per_sample_hint) {
+    device_id_(device_id), bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
     if (pipelined_execution && async_execution) {
@@ -119,7 +119,7 @@ class Pipeline {
     for (auto& op_def : def.op()) {
       OpSpec spec{op_def};
 
-      this->AddOperator(spec);
+      this->AddOperator(spec, op_def.inst_name());
     }
     // output names
     for (auto& output : def.pipe_outputs()) {
@@ -152,8 +152,7 @@ class Pipeline {
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
     PrepareOpSpec(&spec);
-    graph_.AddOp(spec);
-
+    graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
   }
 
@@ -200,7 +199,13 @@ class Pipeline {
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
    */
-  void AddOperator(OpSpec spec);
+  void AddOperator(OpSpec spec, const std::string& inst_name = "<no name>");
+
+  /**
+   * @brief Returns the graph node with Operator
+   * with a given name
+   */
+  OpNode * GetOperatorNode(const std::string& name);
 
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
@@ -245,9 +250,20 @@ class Pipeline {
   inline int batch_size() const { return batch_size_; }
 
   /**
+   * @brief Returns the map of (node name, node's epoch size)
+   * for all nodes that return a valid epoch size
+   */
+  std::map<std::string, Index> EpochSize();
+
+  /**
    * @brief Returns the number of threads used by the pipeline.
    */
   inline int num_threads() const { return num_threads_; }
+
+  /**
+   * @brief Returns the GPU device number used by the pipeline
+   */
+  inline int device_id() const { return device_id_; }
 
   // For testing
   template <typename T>
@@ -293,7 +309,7 @@ class Pipeline {
   void PrepareOpSpec(OpSpec *spec);
 
   bool built_;
-  int batch_size_, num_threads_;
+  int batch_size_, num_threads_, device_id_;
   size_t bytes_per_sample_hint_;
 
   OpGraph graph_;
@@ -304,7 +320,7 @@ class Pipeline {
   // added, in order to recreate the pipeline in a
   // serialized form
   vector<string> external_inputs_;
-  vector<OpSpec> op_specs_;
+  vector<std::pair<string, OpSpec>> op_specs_;
   vector<std::pair<string, string>> output_names_;
 };
 

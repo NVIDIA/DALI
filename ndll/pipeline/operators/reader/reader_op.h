@@ -178,6 +178,10 @@ class DataReader : public Operator<Backend> {
     NDLL_FAIL("Not Implemented");
   }
 
+  Index epoch_size() const override {
+    return loader_->Size();
+  }
+
  protected:
   std::unique_ptr<std::thread> prefetch_thread_;
 

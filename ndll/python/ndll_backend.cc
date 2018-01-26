@@ -269,6 +269,17 @@ PYBIND11_MODULE(ndll_backend, m) {
     .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
     .export_values();
 
+  // Operator node
+  py::class_<OpNode>(m, "OpNode")
+    .def("instance_name",
+        [](OpNode* node) {
+          return node->instance_name;
+        })
+    .def("name",
+        [](OpNode* node) {
+          return node->spec.name();
+        });
+
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
@@ -313,6 +324,7 @@ PYBIND11_MODULE(ndll_backend, m) {
         "max_num_stream"_a = -1
         )
     .def("AddOperator", &Pipeline::AddOperator)
+    .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
           p->Build(outputs);
@@ -340,6 +352,7 @@ PYBIND11_MODULE(ndll_backend, m) {
         }, py::return_value_policy::take_ownership)
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
+    .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
           p->SetExternalInput(name, tl);
@@ -364,7 +377,15 @@ PYBIND11_MODULE(ndll_backend, m) {
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
           return s;
-          }, py::return_value_policy::take_ownership);
+          }, py::return_value_policy::take_ownership)
+    .def("epoch_size", &Pipeline::EpochSize)
+    .def("epoch_size",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, Index> sizes = p->EpochSize();
+          NDLL_ENFORCE(sizes.find(op_name) != sizes.end(),
+              "Operator " + op_name + " does not expose valid epoch size.");
+          return sizes[op_name];
+        });
 
 #define NDLL_OPSPEC_ADDARG(T) \
     .def("AddArg", \
@@ -389,7 +410,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
 #ifdef NDLL_BUILD_PROTO3
-    // NDLL_OPSPEC_ADDARG(TFFeature)
+    NDLL_OPSPEC_ADDARG(TFFeature)
 #endif
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
