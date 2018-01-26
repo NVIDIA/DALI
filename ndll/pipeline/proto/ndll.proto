@@ -45,4 +45,7 @@ message PipelineDef {
 
   // Explicitly store all external inputs
   repeated string external_inputs = 6;
+
+  // Store all registered outputs
+  repeated InputOutput pipe_outputs = 7;
 }

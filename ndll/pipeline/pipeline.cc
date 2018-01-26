@@ -7,6 +7,8 @@
 #include <functional>
 #include <memory>
 
+#include "ndll/pipeline/argument.h"
+
 namespace ndll {
 
 // TODO(tgale): The constraint that GPU ops cannot produce CPU
@@ -93,6 +95,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
+  output_names_ = output_names;
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once.");
   NDLL_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
@@ -221,6 +224,14 @@ string Pipeline::SerializeToProtobuf() const {
     if (spec.name() != "ExternalSource") {
       spec.SerializeToProtobuf(op_def, p.first);
     }
+  }
+
+  // loop over outputs used to create the graph
+  for (auto& output : output_names_) {
+    ndll_proto::InputOutput *out = pipe.add_pipe_outputs();
+
+    out->set_name(output.first);
+    out->set_device(output.second);
   }
 
   string output = pipe.SerializeAsString();

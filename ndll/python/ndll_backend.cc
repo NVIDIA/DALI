@@ -325,7 +325,14 @@ PYBIND11_MODULE(ndll_backend, m) {
         )
     .def("AddOperator", &Pipeline::AddOperator)
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
-    .def("Build", &Pipeline::Build)
+    .def("Build",
+        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
+          p->Build(outputs);
+          })
+    .def("Build",
+        [](Pipeline *p) {
+          p->Build();
+          })
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
@@ -403,7 +410,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     NDLL_OPSPEC_ADDARG(int64)
     NDLL_OPSPEC_ADDARG(float)
 #ifdef NDLL_BUILD_PROTO3
-    NDLL_OPSPEC_ADDARG(TFFeature)
+    // NDLL_OPSPEC_ADDARG(TFFeature)
 #endif
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
