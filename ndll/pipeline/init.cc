@@ -9,4 +9,12 @@ void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator) {
   InitializeBackends(cpu_allocator, gpu_allocator);
 }
 
+void NDLLSetCPUAllocator(const OpSpec& allocator) {
+  SetCPUAllocator(allocator);
+}
+
+void NDLLSetGPUAllocator(const OpSpec& allocator) {
+  SetGPUAllocator(allocator);
+}
+
 }  // namespace ndll

@@ -13,6 +13,9 @@ namespace ndll {
  */
 void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator);
 
+void NDLLSetCPUAllocator(const OpSpec& allocator);
+void NDLLSetGPUAllocator(const OpSpec& allocator);
+
 
 }  // namespace ndll
 

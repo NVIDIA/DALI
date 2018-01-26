@@ -213,15 +213,17 @@ inline Argument *DeserializeProtobufImpl<TFUtil::Feature>(const ndll_proto::Argu
 inline Argument *DeserializeProtobuf(const ndll_proto::Argument& arg) {
   // map
   std::map<std::pair<string, bool>, std::function<Argument*(const ndll_proto::Argument&)>> fn_map{
-    {{"int", false}, DeserializeProtobufImpl<int64_t>},
-    {{"int", true}, DeserializeProtobufVectorImpl<int64_t>},
+    {{"int64_t", false}, DeserializeProtobufImpl<int64_t>},
+    {{"int64_t", true}, DeserializeProtobufVectorImpl<int64_t>},
     {{"float", false}, DeserializeProtobufImpl<float>},
     {{"float", true}, DeserializeProtobufVectorImpl<float>},
     {{"string", false}, DeserializeProtobufImpl<string>},
     {{"string", true}, DeserializeProtobufVectorImpl<string>},
     {{"bool", false}, DeserializeProtobufImpl<bool>},
     {{"bool", true}, DeserializeProtobufVectorImpl<bool>},
+#ifdef NDLL_BUILD_PROTO3
     {{"TFRecord", false}, DeserializeProtobufImpl<TFUtil::Feature>}
+#endif
   };
 
   auto it = fn_map.find({arg.type(), arg.is_vector()});

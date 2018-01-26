@@ -121,6 +121,10 @@ class Pipeline {
 
       this->AddOperator(spec);
     }
+    // output names
+    for (auto& output : def.pipe_outputs()) {
+      this->output_names_.push_back(std::make_pair(output.name(), output.device()));
+    }
   }
 
   ~Pipeline() = default;
@@ -204,6 +208,13 @@ class Pipeline {
    * vector specifies the name and device of the desired outputs of the pipeline.
    */
   void Build(vector<std::pair<string, string>> output_names);
+
+  /**
+   * @brief Build a pipeline from deserialized output (name, device) pairs
+   */
+  void Build() {
+    Build(this->output_names_);
+  }
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -294,6 +305,7 @@ class Pipeline {
   // serialized form
   vector<string> external_inputs_;
   vector<OpSpec> op_specs_;
+  vector<std::pair<string, string>> output_names_;
 };
 
 }  // namespace ndll

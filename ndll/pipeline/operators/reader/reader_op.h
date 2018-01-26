@@ -163,7 +163,7 @@ class DataReader : public Operator<Backend> {
       if (batch_stop_) return;
 
       // if we've consumed all samples in this batch, reset state and stop
-      if (samples_processed_.load() == Operator<Backend>::batch_size_-1) {
+      if (samples_processed_.load() == Operator<Backend>::batch_size_) {
         prefetch_ready_workers_ = false;
         prefetch_ready_ = false;
         producer_.notify_one();

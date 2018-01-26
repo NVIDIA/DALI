@@ -14,6 +14,8 @@ namespace ndll {
 void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &gpu_allocator);
 
+void SetCPUAllocator(const OpSpec& allocator);
+void SetGPUAllocator(const OpSpec& allocator);
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */

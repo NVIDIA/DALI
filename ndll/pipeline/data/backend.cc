@@ -35,6 +35,18 @@ class AllocatorManager {
     return *gpu_allocator_.get();
   }
 
+  static void SetCPUAllocator(const OpSpec& allocator) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cpu_allocator_ = CPUAllocatorRegistry::Registry()
+      .Create(allocator.name(), allocator);
+  }
+
+  static void SetGPUAllocator(const OpSpec& allocator) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    gpu_allocator_ = GPUAllocatorRegistry::Registry()
+      .Create(allocator.name(), allocator);
+  }
+
  private:
   // AllocatorManager should be accessed through its static members
   AllocatorManager() {}
@@ -52,6 +64,14 @@ std::mutex AllocatorManager::mutex_;
 void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &gpu_allocator) {
   AllocatorManager::SetAllocators(cpu_allocator, gpu_allocator);
+}
+
+void SetCPUAllocator(const OpSpec& allocator) {
+  AllocatorManager::SetCPUAllocator(allocator);
+}
+
+void SetGPUAllocator(const OpSpec& allocator) {
+  AllocatorManager::SetGPUAllocator(allocator);
 }
 
 void* GPUBackend::New(size_t bytes) {
