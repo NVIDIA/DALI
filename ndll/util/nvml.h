@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "ndll/error_handling.h"
+#include "ndll/util/nvml_wrap.h"
 
 namespace ndll {
 namespace nvml {
@@ -24,7 +25,8 @@ inline std::mutex& Mutex() {
  */
 inline void Init() {
   std::lock_guard<std::mutex> lock(Mutex());
-  NVML_CALL(nvmlInit());
+  NDLL_CALL(wrapSymbols());
+  NDLL_CALL(wrapNvmlInit());
 }
 
 /**
@@ -36,13 +38,13 @@ inline void SetCPUAffinity() {
   CUDA_CALL(cudaGetDevice(&device_idx));
 
   nvmlDevice_t device;
-  NVML_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
-  NVML_CALL(nvmlDeviceSetCpuAffinity(device));
+  NDLL_CALL(wrapNvmlDeviceGetHandleByIndex(device_idx, &device));
+  NDLL_CALL(wrapNvmlDeviceSetCpuAffinity(device));
 }
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
-  NVML_CALL(nvmlShutdown());
+  NDLL_CALL(wrapNvmlShutdown());
 }
 
 }  // namespace nvml

@@ -7,17 +7,6 @@ list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
 find_cuda_helper_libs(nppig)
 list(APPEND NDLL_LIBS ${CUDA_nppig_LIBRARY})
 
-# For NVML
-find_library(CUDA_NVML_LIB nvidia-ml
-  PATHS ${CUDA_TOOLKIT_ROOT_DIR}
-  PATH_SUFFIXES lib lib64 lib/stubs targets/x86_64-linux/lib/stubs)
-if (CUDA_NVML_LIB)
-  message(STATUS "Found libnvidia-ml: ${CUDA_NVML_LIB}")
-  list(APPEND NDLL_LIBS ${CUDA_NVML_LIB})
-else()
-  message(FATAL_ERROR "Cannot find libnvidia-ml.so")
-endif()
-
 # NVTX for profiling
 if (USE_NVTX)
   find_cuda_helper_libs(nvToolsExt)
