@@ -202,6 +202,23 @@ class TensorList : public Buffer<Backend> {
     return shape_;
   }
 
+  /**
+   * @brief Checks whether all of the tensors
+   * stored in TensorList have the same shape
+   */
+  inline bool IsTensor() const {
+    if (ntensor() == 0) {
+      return true;
+    }
+    const Dims& d = shape_[0];
+    for (const auto& o : shape_) {
+      if (d != o) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // So we can access the members of other TensorListes
   // with different template types
   template <typename InBackend>

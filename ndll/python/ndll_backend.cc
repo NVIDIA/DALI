@@ -13,6 +13,7 @@
 #include "ndll/python/python3_compat.h"
 #include "ndll/util/user_stream.h"
 #include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
+#include "ndll/plugin/copy.h"
 
 namespace ndll {
 namespace python {
@@ -179,6 +180,11 @@ void ExposeTensorListCPU(py::module &m) { // NOLINT
         })
     .def("__len__", [](TensorList<CPUBackend> &t) {
           return t.ntensor();
+        })
+    .def("is_dense_tensor", &TensorList<CPUBackend>::IsTensor)
+    .def("copy_to_external",
+        [](TensorList<CPUBackend> &t, void *ptr) {
+          CopyToExternalTensor(t, ptr);
         });
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
@@ -196,6 +202,11 @@ void ExposeTensorListCPU(py::module &m) { // NOLINT
         }, py::return_value_policy::take_ownership)
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.ntensor();
+        })
+    .def("is_dense_tensor", &TensorList<GPUBackend>::IsTensor)
+    .def("copy_to_external",
+        [](TensorList<GPUBackend> &t, void *ptr) {
+          CopyToExternalTensor(t, ptr);
         });
 }
 

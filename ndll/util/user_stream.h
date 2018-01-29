@@ -30,7 +30,6 @@ class UserStream {
   cudaStream_t GetStream(const ndll::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     NDLL_ENFORCE(dev < streams_.size(), "Requested stream for unknown device");
-    NDLL_ENFORCE(dev >= 0, "Requested stream for unknown device");
     return streams_[dev];
   }
 
