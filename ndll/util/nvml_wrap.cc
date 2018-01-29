@@ -16,15 +16,16 @@ int symbolsLoaded = 0;
 
 static nvmlReturn_t (*nvmlInternalInit)(void);
 static nvmlReturn_t (*nvmlInternalShutdown)(void);
-static nvmlReturn_t (*nvmlInternalDeviceGetHandleByPciBusId)(const char* pciBusId, nvmlDevice_t* device);
-static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex)(const int device_id, nvmlDevice_t* device);
+static nvmlReturn_t (*nvmlInternalDeviceGetHandleByPciBusId)(const char* pciBusId,
+                                                             nvmlDevice_t* device);
+static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex)(const int device_id,
+                                                          nvmlDevice_t* device);
 static nvmlReturn_t (*nvmlInternalDeviceGetIndex)(nvmlDevice_t device, unsigned* index);
 static nvmlReturn_t (*nvmlInternalDeviceSetCpuAffinity)(nvmlDevice_t device);
 static nvmlReturn_t (*nvmlInternalDeviceClearCpuAffinity)(nvmlDevice_t device);
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
 NDLLError_t wrapSymbols(void) {
-
   if (symbolsLoaded)
     return NDLLSuccess;
 
@@ -32,23 +33,23 @@ NDLLError_t wrapSymbols(void) {
   void* tmp;
   void** cast;
 
-  nvmlhandle=dlopen("libnvidia-ml.so", RTLD_NOW);
+  nvmlhandle = dlopen("libnvidia-ml.so", RTLD_NOW);
   if (!nvmlhandle) {
-    nvmlhandle=dlopen("libnvidia-ml.so.1", RTLD_NOW);
+    nvmlhandle = dlopen("libnvidia-ml.so.1", RTLD_NOW);
     if (!nvmlhandle) {
       NDLL_FAIL("Failed to open libnvidia-ml.so[.1]");
       goto teardown;
     }
   }
 
-  #define LOAD_SYM(handle, symbol, funcptr) do {         \
-    cast = (void**)&funcptr;                             \
-    tmp = dlsym(handle, symbol);                         \
-    if (tmp == NULL) {                                   \
-      NDLL_FAIL("dlsym failed on " + symbol + " - " + dlerror());\
-      goto teardown;                                     \
-    }                                                    \
-    *cast = tmp;                                         \
+  #define LOAD_SYM(handle, symbol, funcptr) do {                     \
+    cast = reinterpret_cast<void**>(&funcptr);                       \
+    tmp = dlsym(handle, symbol);                                     \
+    if (tmp == NULL) {                                               \
+      NDLL_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
+      goto teardown;                                                 \
+    }                                                                \
+    *cast = tmp;                                                     \
   } while (0)
 
   LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
@@ -176,4 +177,4 @@ NDLLError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device) {
 
 }  // namespace nvml
 
-}  // namspace ndll
+}  // namespace ndll
