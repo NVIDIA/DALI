@@ -69,6 +69,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
         "Number of index files needs to match the number of data files");
     for (size_t i = 0; i < index_uris.size(); ++i) {
       std::ifstream fin(index_uris[i]);
+      NDLL_ENFORCE(fin.good(), "Failed to open file " + index_uris[i]);
       int64 pos, size;
       while (fin >> pos >> size) {
         indices_.push_back(std::make_tuple(pos, size, i));

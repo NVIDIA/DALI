@@ -8,28 +8,37 @@
 
 namespace ndll {
 
-void CopyToExternalTensor(const TensorList<CPUBackend>& tl, void* ptr) {
-  NDLL_ENFORCE(tl.IsTensor(),
-      "All tensors in the TensorList must have the same shape to copy to external tensor.");
-  NDLL_ENFORCE(tl.ntensor() > 0,
-      "Can't copy empty TensorList.");
+void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr) {
+  NDLL_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   std::memcpy(ptr,
-              tl.raw_tensor(0),
-              tl.ntensor() * Product(tl.tensor_shape(0)) * sizeof(tl.type().size()));
+              t.raw_data(),
+              Product(t.shape()) * t.type().size());
 }
 
-void CopyToExternalTensor(const TensorList<GPUBackend>& tl, void* ptr) {
-  NDLL_ENFORCE(tl.IsTensor(),
-      "All tensors in the TensorList must have the same shape to copy to external tensor.");
-  NDLL_ENFORCE(tl.ntensor() > 0,
-      "Can't copy empty TensorList.");
-  cudaStream_t stream = UserStream::Get()->GetStream(tl);
+void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr) {
+  NDLL_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
+  cudaStream_t stream = UserStream::Get()->GetStream(t);
+  std::cout << ptr << std::endl;
+  std::cout << t.raw_data() << std::endl;
+  std::cout << Product(t.shape()) * t.type().size() << std::endl;
   CUDA_CALL(cudaMemcpyAsync(ptr,
-                            tl.raw_tensor(0),
-                            tl.ntensor() * Product(tl.tensor_shape(0)) * sizeof(tl.type().size()),
+                            t.raw_data(),
+                            Product(t.shape()) * t.type().size(),
                             cudaMemcpyDeviceToDevice,
                             stream));
   CUDA_CALL(cudaStreamSynchronize(stream));
+}
+
+void CopyToExternalTensor(TensorList<CPUBackend>& tl, void* ptr) {
+  Tensor<CPUBackend> t;
+  t.ShareData(&tl);
+  CopyToExternalTensor(t, ptr);
+}
+
+void CopyToExternalTensor(TensorList<GPUBackend>& tl, void* ptr) {
+  Tensor<GPUBackend> t;
+  t.ShareData(&tl);
+  CopyToExternalTensor(t, ptr);
 }
 
 }  // namespace ndll

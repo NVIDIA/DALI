@@ -211,10 +211,17 @@ class TensorList : public Buffer<Backend> {
       return true;
     }
     const Dims& d = shape_[0];
-    for (const auto& o : shape_) {
+    Index offset = 0;
+
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      const auto& o = shape_[i];
       if (d != o) {
         return false;
       }
+      if (offset != offsets_[i]) {
+        return false;
+      }
+      offset += Product(o);
     }
     return true;
   }

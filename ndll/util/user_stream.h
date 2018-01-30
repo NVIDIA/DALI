@@ -50,6 +50,13 @@ class UserStream {
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
+  void WaitAll() {
+    for (size_t i = 0; i < streams_.size(); ++i) {
+      CUDA_CALL(cudaSetDevice(i));
+      CUDA_CALL(cudaStreamSynchronize(streams_[i]));
+    }
+  }
+
  private:
   UserStream() {
     int gpu_count = 0;

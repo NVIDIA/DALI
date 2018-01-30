@@ -3,11 +3,14 @@
 #define NDLL_PLUGIN_COPY_H_
 
 #include "ndll/pipeline/data/tensor_list.h"
+#include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
 
-void CopyToExternalTensor(const TensorList<CPUBackend>& tl, void* ptr);
-void CopyToExternalTensor(const TensorList<GPUBackend>& tl, void* ptr);
+void CopyToExternalTensor(TensorList<CPUBackend>& tl, void* ptr);
+void CopyToExternalTensor(TensorList<GPUBackend>& tl, void* ptr);
+void CopyToExternalTensor(const Tensor<CPUBackend>& tl, void* ptr);
+void CopyToExternalTensor(const Tensor<GPUBackend>& tl, void* ptr);
 
 }  // namespace ndll
 
