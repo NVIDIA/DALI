@@ -8,28 +8,81 @@
 #include <utility>
 #include <vector>
 
+#include <dirent.h>
+#include <sys/stat.h>
+
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/reader/loader/loader.h"
 #include "ndll/util/file.h"
 
 namespace ndll {
 
+namespace filesystem {
+
+void assemble_file_list(const std::string& path, int label,
+                        std::vector<std::pair<std::string, int>>& file_label_pairs) {
+  DIR *dir = opendir(path.c_str());
+  struct dirent *entry;
+
+  while ((entry = readdir(dir))) {
+    std::string full_path = path + "/" + std::string{entry->d_name};
+    struct stat s;
+    stat(full_path.c_str(), &s);
+    if (S_ISREG(s.st_mode)) {
+      file_label_pairs.push_back(std::make_pair(full_path, label));
+    }
+  }
+  closedir(dir);
+}
+
+vector<std::pair<string, int>> traverse_directories(const std::string& path) {
+  // open the root
+  DIR *dir = opendir(path.c_str());
+
+  struct dirent *entry;
+  int dir_count = 0;
+  int file_count = 0;
+
+  std::vector<std::pair<std::string, int>> file_label_pairs;
+
+  while ((entry = readdir(dir))) {
+    struct stat s;
+    stat(entry->d_name, &s);
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+    if (S_ISDIR(s.st_mode)) {
+      std::string new_folder = path + "/" + std::string{entry->d_name};
+      assemble_file_list(new_folder, dir_count, file_label_pairs);
+      dir_count++;
+    }
+  }
+  printf("read %d files from %d directories\n", file_label_pairs.size(), dir_count);
+
+  closedir(dir);
+
+  return file_label_pairs;
+}
+
+}  // namespace fs
+
 class FileLoader : public Loader<CPUBackend> {
  public:
   explicit FileLoader(const OpSpec& spec)
     : Loader<CPUBackend>(spec),
       file_root_(spec.GetArgument<string>("file_root", "")),
-      file_list_(spec.GetArgument<string>("file_list", "")),
       current_index_(0) {
-    // load (path, label) pairs from list
-    std::ifstream s(file_list_);
-    NDLL_ENFORCE(s.is_open());
+    if (!spec.HasArgument("file_list")) {
+      image_label_pairs_ = filesystem::traverse_directories(file_root_);
+    } else {
+      // load (path, label) pairs from list
+      std::ifstream s(file_list_);
+      NDLL_ENFORCE(s.is_open());
 
-    string image_file;
-    int label;
-    while (s >> image_file >> label) {
-      auto p = std::make_pair(file_root_ + "/" + image_file, label);
-      image_label_pairs_.push_back(p);
+      string image_file;
+      int label;
+      while (s >> image_file >> label) {
+        auto p = std::make_pair(file_root_ + "/" + image_file, label);
+        image_label_pairs_.push_back(p);
+      }
     }
 
     // first / only shard: no change needed

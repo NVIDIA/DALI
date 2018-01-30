@@ -27,12 +27,10 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       0, pipelined,
       async);
 
-  ndll::string list_path(std::getenv("NDLL_TEST_FILE_READER_LIST_PATH"));
   ndll::string list_root(std::getenv("NDLL_TEST_FILE_READER_LIST_ROOT"));
   pipe.AddOperator(
       OpSpec("FileReader")
       .AddArg("device", "cpu")
-      .AddArg("file_list", list_path)
       .AddArg("file_root", list_root)
       .AddOutput("compressed_images", "cpu")
       .AddOutput("labels", "cpu"));
