@@ -3,6 +3,7 @@ if (BUILD_BENCHMARK)
   set(NDLL_BENCHMARK_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/ndll_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_alexnet_bench.cc"
   )
 
   if (BUILD_LMDB)
