@@ -35,6 +35,8 @@ class SphereAugment {
 
     return from_idx;
   }
+
+  void Cleanup() {}
 };
 
 template <typename Backend>
@@ -42,6 +44,7 @@ class SphereNew : public DisplacementFilter<Backend, SphereAugment, ColorIdentit
  public:
     inline explicit SphereNew(const OpSpec &spec)
       : DisplacementFilter<Backend, SphereAugment, ColorIdentity>(spec) {}
+
 
     virtual ~SphereNew() = default;
 };

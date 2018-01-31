@@ -37,7 +37,7 @@ void DisplacementKernel(const T *in, T* out,
 
 class ColorIdentity {
  public:
-  ColorIdentity(const OpSpec& spec) {}
+  explicit ColorIdentity(const OpSpec& spec) {}
 
   template <typename T>
   __host__ __device__
@@ -46,11 +46,13 @@ class ColorIdentity {
     // identity
     return in;
   }
+
+  void Cleanup() {}
 };
 
 class DisplacementIdentity {
  public:
-  DisplacementIdentity(const OpSpec& spec) {}
+  explicit DisplacementIdentity(const OpSpec& spec) {}
 
   __host__ __device__
   Index operator()(const Index h, const Index w, const Index c,
@@ -58,6 +60,8 @@ class DisplacementIdentity {
     // identity
     return (h * W + w) * C + c;
   }
+
+  void Cleanup() {}
 };
 
 template <typename Backend,
@@ -70,6 +74,11 @@ class DisplacementFilter : public Operator<Backend> {
     : Operator<Backend>(spec),
       displace_(spec),
       augment_(spec) {}
+
+  ~DisplacementFilter() {
+    displace_.Cleanup();
+    augment_.Cleanup();
+  }
 
   void RunPerSampleCPU(SampleWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
