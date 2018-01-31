@@ -305,6 +305,9 @@ PYBIND11_MODULE(ndll_backend, m) {
     .value("UINT8", NDLL_UINT8)
     .value("FLOAT16", NDLL_FLOAT16)
     .value("FLOAT", NDLL_FLOAT)
+    .value("INT64", NDLL_INT64)
+    .value("INT32", NDLL_INT32)
+    .value("BOOL", NDLL_BOOL)
     .export_values();
 
   // NDLLImageType

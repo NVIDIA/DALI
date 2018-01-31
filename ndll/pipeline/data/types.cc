@@ -5,8 +5,7 @@
 
 namespace ndll {
 std::mutex TypeTable::mutex_;
-int TypeTable::id_ = 0;
-std::unordered_map<std::type_index, TypeID> TypeTable::type_map_;
+std::unordered_map<std::type_index, NDLLDataType> TypeTable::type_map_;
 
 template <>
 void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
@@ -57,15 +56,15 @@ void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
 }
 
 // Instantiate some basic types
-NDLL_REGISTER_TYPE(NoType);
-NDLL_REGISTER_TYPE(uint8);
-NDLL_REGISTER_TYPE(int16);
-NDLL_REGISTER_TYPE(int);
-NDLL_REGISTER_TYPE(long);  // NOLINT
-NDLL_REGISTER_TYPE(long long);  // NOLINT
-NDLL_REGISTER_TYPE(float16);
-NDLL_REGISTER_TYPE(float);
-NDLL_REGISTER_TYPE(double);
-NDLL_REGISTER_TYPE(bool);
+NDLL_REGISTER_TYPE(NoType, NDLL_NO_TYPE);
+NDLL_REGISTER_TYPE(uint8, NDLL_UINT8);
+NDLL_REGISTER_TYPE(int16, NDLL_INT16);
+NDLL_REGISTER_TYPE(int32, NDLL_INT32);
+NDLL_REGISTER_TYPE(int64, NDLL_INT64);
+//NDLL_REGISTER_TYPE(long long);  // NOLINT
+NDLL_REGISTER_TYPE(float16, NDLL_FLOAT16);
+NDLL_REGISTER_TYPE(float, NDLL_FLOAT);
+NDLL_REGISTER_TYPE(double, NDLL_FLOAT64);
+NDLL_REGISTER_TYPE(bool, NDLL_BOOL);
 
 }  // namespace ndll
