@@ -231,10 +231,27 @@ inline bool IsValidType(TypeInfo type) {
   switch(type) {                                     \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
-      break;                                         \
     case NDLL_UINT8:                                 \
       {                                              \
         typedef uint8 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT16:                                 \
+      {                                              \
+        typedef int16 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT32:                                 \
+      {                                              \
+        typedef int32 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT64:                                 \
+      {                                              \
+        typedef int64 DType;                         \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
@@ -246,19 +263,13 @@ inline bool IsValidType(TypeInfo type) {
       break;                                         \
     case NDLL_FLOAT:                                 \
       {                                              \
-        typedef float32 DType;                       \
+        typedef float DType;                         \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
-    case NDLL_INT64:                                 \
+    case NDLL_FLOAT64:                               \
       {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case NDLL_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
+        typedef double DType;                        \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
@@ -276,16 +287,21 @@ inline bool IsValidType(TypeInfo type) {
   switch(type) {                                     \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
-      break;                                         \
     case NDLL_UINT8:                                 \
       {                                              \
         typedef uint8 DType;                         \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
-    case NDLL_FLOAT:                                 \
+    case NDLL_INT16:                                 \
       {                                              \
-        typedef float32 DType;                       \
+        typedef int16 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT32:                                 \
+      {                                              \
+        typedef int32 DType;                         \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
@@ -295,9 +311,15 @@ inline bool IsValidType(TypeInfo type) {
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
-    case NDLL_INT32:                                 \
+    case NDLL_FLOAT:                                 \
       {                                              \
-        typedef int32 DType;                         \
+        typedef float DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT64:                               \
+      {                                              \
+        typedef double DType;                        \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \

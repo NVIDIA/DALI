@@ -30,7 +30,7 @@ static std::string FormatStrFromType(TypeInfo type) {
     return py::format_descriptor<int>::format();
   } else if (IsType<long>(type)) { // NOLINT
     return py::format_descriptor<long>::format(); // NOLINT
-  } else if (IsType<long long>(type)) { // NOLINT
+  } else if (IsType<int64>(type)) { // NOLINT
     return py::format_descriptor<long long>::format(); // NOLINT
   } else if (IsType<float>(type)) {
     return py::format_descriptor<float>::format();
@@ -54,7 +54,7 @@ static TypeInfo TypeFromFormatStr(std::string format) {
   } else if (format == py::format_descriptor<long>::format()) { // NOLINT
     return TypeInfo::Create<long>(); // NOLINT
   } else if (format == py::format_descriptor<long long>::format()) { // NOLINT
-    return TypeInfo::Create<long long>(); // NOLINT
+    return TypeInfo::Create<int64>(); // NOLINT
   } else if (format == py::format_descriptor<float>::format()) {
     return TypeInfo::Create<float>();
   } else if (format == py::format_descriptor<double>::format()) {
