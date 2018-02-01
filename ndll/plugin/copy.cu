@@ -29,15 +29,15 @@ void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr) {
   CUDA_CALL(cudaStreamSynchronize(stream));
 }
 
-void CopyToExternalTensor(TensorList<CPUBackend>& tl, void* ptr) {
+void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr) {
   Tensor<CPUBackend> t;
-  t.ShareData(&tl);
+  t.ShareData(tl);
   CopyToExternalTensor(t, ptr);
 }
 
-void CopyToExternalTensor(TensorList<GPUBackend>& tl, void* ptr) {
+void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr) {
   Tensor<GPUBackend> t;
-  t.ShareData(&tl);
+  t.ShareData(tl);
   CopyToExternalTensor(t, ptr);
 }
 

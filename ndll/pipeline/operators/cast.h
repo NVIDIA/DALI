@@ -32,9 +32,7 @@ class Cast : public Operator<Backend> {
         CPUHelper<IType, OType>(
           output->mutable_data<OType>(),
           input.data<IType>(),
-          input.size());
-      );
-    );
+          input.size());););
   };
 
 void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override;

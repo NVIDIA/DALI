@@ -31,7 +31,7 @@ enum NDLLDataType {
   NDLL_FLOAT = 5,
   NDLL_FLOAT64 = 6,
   NDLL_BOOL = 7,
-  //Internal types
+  // Internal types
   NDLL_INTERNAL_C_UINT8_P = 1000,
   NDLL_INTERNAL_PARSEDJPEG = 1001,
   NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM = 1002,
@@ -228,7 +228,7 @@ inline bool IsValidType(TypeInfo type) {
  * DType becomes a type corresponding to given NDLLDataType
  */
 #define NDLL_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
-  switch(type) {                                     \
+  switch (type) {                                     \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
     case NDLL_UINT8:                                 \
@@ -284,7 +284,7 @@ inline bool IsValidType(TypeInfo type) {
   }
 
 #define NDLL_TYPE_SWITCH(type, DType, ...)           \
-  switch(type) {                                     \
+  switch (type) {                                     \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
     case NDLL_UINT8:                                 \

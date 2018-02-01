@@ -15,7 +15,7 @@ BatchedCastKernel(OType * output, const IType * in, size_t N) {
       output[tid] = static_cast<OType>(in[tid]);
     }
   }
- }
+}
 
 template <typename IType, typename OType>
 NDLLError_t BatchedCast(OType * output,
@@ -45,9 +45,7 @@ void Cast<Backend>::RunBatchedGPU(DeviceWorkspace *ws, const int idx) {
           output->mutable_data<OType>(),
           input.data<IType>(),
           input.size(),
-          ws->stream()));
-    );
-  );
+          ws->stream()));););
 }
 
 template
