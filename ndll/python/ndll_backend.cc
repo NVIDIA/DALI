@@ -210,7 +210,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr);
+          CopyToExternalTensor(&t, ptr);
         })
     .def("as_tensor",
         [](TensorList<CPUBackend> &t) -> Tensor<CPUBackend>* {
@@ -241,7 +241,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr);
+          CopyToExternalTensor(&t, ptr);
         })
     .def("as_tensor",
         [](TensorList<GPUBackend> &t) -> Tensor<GPUBackend>* {
