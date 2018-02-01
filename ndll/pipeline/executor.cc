@@ -399,7 +399,8 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
         Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
         // We set the type of the tensor to uint8 temporarily
         tensor->mutable_data<uint8>();
-        tensor->Resize({(Index)bytes_per_sample_hint_});
+        // Note: set sample hint to 4x as a test
+        tensor->Resize({(Index)bytes_per_sample_hint_*4});
       }
     }
   }
@@ -409,7 +410,7 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
         tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_*4}});
       } else {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
         tl->mutable_data<uint8>();
