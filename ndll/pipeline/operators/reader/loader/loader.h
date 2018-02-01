@@ -22,6 +22,7 @@ class Loader {
  public:
   explicit Loader(const OpSpec& options)
     : initial_buffer_fill_(options.GetArgument<int>("initial_fill", 1024)),
+      tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes", 1048576)),
       shard_id_(options.GetArgument<int>("shard_id", 0)),
       num_shards_(options.GetArgument<int>("num_shards", 1)) {
     // initialize a random distribution -- this will be
@@ -38,6 +39,11 @@ class Loader {
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
+        // Initialize tensors to a set size to limit expensive reallocations
+        // using cudaMallocHost (and paired cudaFreeHost calls)
+        tensor->Resize({tensor_init_bytes_});
+        tensor->template mutable_data<uint8_t>();
+
         ReadSample(tensor);
         sample_buffer_.push_back(tensor);
       }
@@ -45,6 +51,10 @@ class Loader {
       // need some entries in the empty_tensors_ list
       for (int i = 0; i < initial_empty_size_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
+        // Force allocation for empties
+        tensor->Resize({tensor_init_bytes_});
+        tensor->template mutable_data<uint8_t>();
+
         empty_tensors_.push_back(tensor);
       }
 
@@ -99,6 +109,7 @@ class Loader {
   // ~1 minibatch seems reasonable
   const int initial_buffer_fill_ = 1024;
   const int initial_empty_size_ = 1024;
+  const int tensor_init_bytes_;
   bool initial_buffer_filled_ = false;
 
   // rng

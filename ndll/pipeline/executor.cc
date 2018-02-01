@@ -397,10 +397,10 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
         Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
+        // Note: set sample hint to 4x as a test
+        tensor->Resize({(Index)bytes_per_sample_hint_});
         // We set the type of the tensor to uint8 temporarily
         tensor->mutable_data<uint8>();
-        // Note: set sample hint to 4x as a test
-        tensor->Resize({(Index)bytes_per_sample_hint_*4});
       }
     }
   }
@@ -409,12 +409,12 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
         tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_*4}});
       } else {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
         tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        tl->mutable_data<uint8>();
       }
     }
   }
@@ -424,8 +424,8 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       NDLL_ENFORCE(ws.OutputIsType<GPUBackend>(i), "Executor "
           "encountered gpu op with non-gpu output.");
       TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-      tl->mutable_data<uint8>();
       tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      tl->mutable_data<uint8>();
     }
   }
 }
