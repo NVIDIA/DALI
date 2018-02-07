@@ -2,14 +2,14 @@
 #ifndef NDLL_PIPELINE_OPERATORS_READER_LOADER_FILE_LOADER_H_
 #define NDLL_PIPELINE_OPERATORS_READER_LOADER_FILE_LOADER_H_
 
+#include <dirent.h>
+#include <sys/stat.h>
+
 #include <fstream>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
-
-#include <dirent.h>
-#include <sys/stat.h>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/reader/loader/loader.h"
@@ -20,7 +20,7 @@ namespace ndll {
 namespace filesystem {
 
 void assemble_file_list(const std::string& path, int label,
-                        std::vector<std::pair<std::string, int>>& file_label_pairs) {
+                        std::vector<std::pair<std::string, int>> *file_label_pairs) {
   DIR *dir = opendir(path.c_str());
   struct dirent *entry;
 
@@ -29,7 +29,7 @@ void assemble_file_list(const std::string& path, int label,
     struct stat s;
     stat(full_path.c_str(), &s);
     if (S_ISREG(s.st_mode)) {
-      file_label_pairs.push_back(std::make_pair(full_path, label));
+      file_label_pairs->push_back(std::make_pair(full_path, label));
     }
   }
   closedir(dir);
@@ -41,7 +41,6 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
 
   struct dirent *entry;
   int dir_count = 0;
-  int file_count = 0;
 
   std::vector<std::pair<std::string, int>> file_label_pairs;
 
@@ -51,18 +50,18 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
     if (S_ISDIR(s.st_mode)) {
       std::string new_folder = path + "/" + std::string{entry->d_name};
-      assemble_file_list(new_folder, dir_count, file_label_pairs);
+      assemble_file_list(new_folder, dir_count, &file_label_pairs);
       dir_count++;
     }
   }
-  printf("read %d files from %d directories\n", file_label_pairs.size(), dir_count);
+  printf("read %lu files from %d directories\n", file_label_pairs.size(), dir_count);
 
   closedir(dir);
 
   return file_label_pairs;
 }
 
-}  // namespace fs
+}  // namespace filesystem
 
 class FileLoader : public Loader<CPUBackend> {
  public:
