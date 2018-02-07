@@ -61,7 +61,6 @@ class NDLLIterator:
             self._first_batch = None
             return batch
         if self._counter > self._size:
-            self._counter = self._counter % self._size
             raise StopIteration
         outputs = []
         for p in self._pipes:
@@ -90,3 +89,9 @@ class NDLLIterator:
 
     def __iter__(self):
         return self
+
+    def reset(self):
+        if self._counter > self._size:
+            self._counter = self._counter % self._size
+        else:
+            raise RuntimeWarning("NDLL iterator does not support resetting while epoch is not finish. Ignoring...")
