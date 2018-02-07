@@ -24,23 +24,20 @@ def feed_ndarray(ndll_tensor, arr):
 
 class NDLLIterator:
     def __init__(self,
-                 batch_size,
-                 pipeline,
-                 num_gpus = 1,
-                 num_threads = 2,
+                 pipelines,
                  size = -1,
                  data_name='data',
                  label_name='softmax_label'):
-        self._s = pipeline.serialize()
-        self.batch_size = batch_size
-        self._num_gpus = num_gpus
-        assert num_gpus > 0, "Number of GPUs used has to be at least 1"
-        self._num_threads = num_threads
+        if not isinstance(pipelines, list):
+            pipelines = [pipelines]
+        self._num_gpus = len(pipelines)
+        assert pipelines is not None, "Number of provided pipelines has to be at least 1"
+        self.batch_size = pipelines[0].batch_size
         self._size = size
-        self._pipes = [Pipeline(batch_size, num_threads, i, True, True) for i in range(num_gpus)]
+        self._pipes = pipelines
         for p in self._pipes:
-            p.deserialize_and_build(self._s)
-        self._data_batches = [[None, None] for i in range(num_gpus)]
+            p.build()
+        self._data_batches = [[None, None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
 
@@ -49,8 +46,8 @@ class NDLLIterator:
         data = self._first_batch[0].data[0]
         label = self._first_batch[0].label[0]
 
-        data_shape  = (data.shape[0] * num_gpus,) + data.shape[1:]
-        label_shape = (label.shape[0] * num_gpus,) + label.shape[1:]
+        data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
+        label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
 
         self.provide_data = [mx.io.DataDesc(data_name, data_shape, data.dtype)]
         self.provide_label = [mx.io.DataDesc(label_name, label_shape, label.dtype)]
@@ -73,7 +70,7 @@ class NDLLIterator:
             label.squeeze()
             label_shape = label.shape()
             if self._data_batches[i][self._current_data_batch] is None:
-                d = mx.nd.zeros(data_shape, mx.gpu(0))
+                d = mx.nd.zeros(data_shape, mx.gpu(self._pipes[i].device_id))
                 l = mx.nd.zeros(label_shape, mx.cpu(0))
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=[d], label=[l])
             d = self._data_batches[i][self._current_data_batch].data

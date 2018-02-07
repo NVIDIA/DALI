@@ -18,9 +18,6 @@ void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr) {
 void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr) {
   NDLL_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   cudaStream_t stream = UserStream::Get()->GetStream(t);
-  std::cout << ptr << std::endl;
-  std::cout << t.raw_data() << std::endl;
-  std::cout << Product(t.shape()) * t.type().size() << std::endl;
   CUDA_CALL(cudaMemcpyAsync(ptr,
                             t.raw_data(),
                             Product(t.shape()) * t.type().size(),
