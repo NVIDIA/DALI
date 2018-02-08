@@ -72,6 +72,7 @@ class UserStream {
     cudaPointerAttributes attr;
     CUDA_CALL(cudaPointerGetAttributes(&attr, ptr));
     CUDA_CALL(cudaSetDevice(attr.device));
+    std::cout << "cudaSetDevice: " << attr.device << std::endl;
     return attr.device;
   }
 
