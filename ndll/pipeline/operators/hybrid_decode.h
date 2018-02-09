@@ -27,7 +27,8 @@ template <typename Backend>
 class HuffmanDecoder : public Operator<Backend> {
  public:
   explicit inline HuffmanDecoder(const OpSpec &spec) :
-    Operator<Backend>(spec) {
+    Operator<Backend>(spec),
+    initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint", 10*1048576)) {
     // Resize per-image & per-thread data
     tl_parser_state_.resize(num_threads_);
     tl_huffman_state_.resize(num_threads_);
@@ -72,7 +73,16 @@ class HuffmanDecoder : public Operator<Backend> {
     }
 
     // Resize output dct coeffs and setup for the huffman
+    // Take a minimum size (empirical) and make allocate that amount,
+    // before resizing (non-destructive) to the correct size.
+    // Limits # of very expensive pinned alloc / free pairs
+    size_t min_coeff_size = initial_dct_coeff_size_byte_;
+    // Force large allocation
+    dct_coeff->Resize({total_size < min_coeff_size ? min_coeff_size : total_size});
+    dct_coeff->template mutable_data<int16>();
+    // Correct sizing
     dct_coeff->Resize({total_size});
+
     vector<int16*> dct_ptrs(jpeg->components);
     HuffmanDecoderState &state =
       tl_huffman_state_[ws->thread_idx()];
@@ -88,6 +98,9 @@ class HuffmanDecoder : public Operator<Backend> {
 
   vector<JpegParserState> tl_parser_state_;
   vector<HuffmanDecoderState> tl_huffman_state_;
+
+ private:
+  const int initial_dct_coeff_size_byte_;
 
   USE_OPERATOR_MEMBERS();
 };
