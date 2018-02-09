@@ -40,7 +40,6 @@ class StreamPool {
       cudaStream_t new_stream;
       int dev;
       cudaGetDevice(&dev);
-      std::cout << "Creating stream on device " << dev << std::endl;
       CUDA_CALL(cudaStreamCreateWithFlags(&new_stream,
               non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault));
       streams_.push_back(new_stream);
