@@ -138,7 +138,6 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          std::cout << ptr << std::endl;
           CopyToExternalTensor(t, ptr);
         });
 }
