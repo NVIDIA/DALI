@@ -203,8 +203,10 @@ class TensorList : public Buffer<Backend> {
   }
 
   /**
-   * @brief Checks whether all of the tensors
-   * stored in TensorList have the same shape
+   * @brief Checks whether the TensorList is
+   * a dense Tensor. It returns true if and only if
+   * all of the stored Tensors have the same shape
+   * and they are densely packed in memory.
    */
   inline bool IsTensor() const {
     if (ntensor() == 0) {
