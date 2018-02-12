@@ -17,10 +17,10 @@ namespace ndll {
 NDLL_REGISTER_TYPE(const uint8*, NDLL_INTERNAL_C_UINT8_P);
 
 template <typename Backend>
-class CropMirrorNormalizePermute : public Operator<Backend> {
+class CropMirrorNormalizePermute : public Operator {
  public:
   explicit inline CropMirrorNormalizePermute(const OpSpec &spec) :
-    Operator<Backend>(spec), rand_gen_(time(nullptr)),
+    Operator(spec), rand_gen_(time(nullptr)),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
     crop_h_(spec.GetArgument<int>("crop_h", -1)),

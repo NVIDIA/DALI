@@ -7,10 +7,10 @@
 namespace ndll {
 
 template <typename Backend>
-class Cast : public Operator<Backend> {
+class Cast : public Operator {
  public:
   explicit inline Cast(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     output_type_(spec.GetArgument<NDLLDataType>("dtype", NDLL_FLOAT))
     {}
 

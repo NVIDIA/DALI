@@ -30,7 +30,7 @@
  * @ref ndll::AsyncExecutor (WIP) @n
  *
  * @subsection ops Operators:
- * @ref ndll::Operator<Backend> @n
+ * @ref ndll::Operator @n
  *
  * @subsection data Data Storage:
  * @ref ndll::Buffer<Backend> @n

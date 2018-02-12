@@ -59,7 +59,7 @@ void Executor::RunCPU() {
             [this, &wsb] (int data_idx, int tid) {
               SampleWorkspace ws;
               for (int j = 0; j < graph_->NumCPUOp(); ++j) {
-                Operator<CPUBackend> &op = graph_->cpu_op(j);
+                Operator &op = graph_->cpu_op(j);
                 wsb.cpu_op_data[j].GetSample(&ws, data_idx, tid);
                 op.Run(&ws);
               }
@@ -117,7 +117,7 @@ void Executor::RunGPU() {
 
   WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-    Operator<GPUBackend> &op = graph_->gpu_op(i);
+    Operator &op = graph_->gpu_op(i);
     DeviceWorkspace &ws = wsb.gpu_op_data[i];
     auto parent_events = ws.ParentEvents();
 

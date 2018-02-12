@@ -10,10 +10,10 @@
 namespace ndll {
 
 template <typename Backend>
-class TJPGDecoder : public Operator<Backend> {
+class TJPGDecoder : public Operator {
  public:
   explicit inline TJPGDecoder(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     output_type_(spec.GetArgument<NDLLImageType>("output_type", NDLL_RGB)),
     c_(IsColor(output_type_) ? 3 : 1) {}
 

@@ -11,10 +11,10 @@
 namespace ndll {
 
 template <typename Backend>
-class Copy : public Operator<Backend> {
+class Copy : public Operator {
  public:
   inline explicit Copy(const OpSpec &spec) :
-    Operator<Backend>(spec) {}
+    Operator(spec) {}
 
   virtual inline ~Copy() = default;
 

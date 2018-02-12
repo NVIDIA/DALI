@@ -34,7 +34,6 @@ enum NDLLOpType {
  * macro. The op can then be added to a pipeline through its registered
  * name (the first arg to the registration macros).
  */
-template <typename Backend>
 class Operator {
  public:
   inline explicit Operator(const OpSpec &spec) :
@@ -127,13 +126,13 @@ class Operator {
 };
 
 #define USE_OPERATOR_MEMBERS()                  \
-  using Operator<Backend>::spec_;               \
-  using Operator<Backend>::num_threads_;        \
-  using Operator<Backend>::batch_size_
+  using Operator::spec_;               \
+  using Operator::num_threads_;        \
+  using Operator::batch_size_
 
 // Create registries for CPU & GPU Operators
-NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator<CPUBackend>);
-NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
 
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)        \
@@ -141,14 +140,14 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
   static int ANONYMIZE_VARIABLE(OpName) =                 \
     NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::CPUOperator, ndll::Operator<CPUBackend>)
+      ndll::CPUOperator, ndll::Operator)
 
 #define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)        \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
     NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::GPUOperator, ndll::Operator<GPUBackend>)
+      ndll::GPUOperator, ndll::Operator)
 
 }  // namespace ndll
 

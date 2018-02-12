@@ -16,8 +16,7 @@
 
 namespace ndll {
 
-template <typename T>
-using OpPtr = unique_ptr<Operator<T>>;
+using OpPtr = unique_ptr<Operator>;
 
 typedef int64 NodeID;
 
@@ -32,11 +31,11 @@ struct OpNode {
 };
 
 struct CPUOpNode : public OpNode {
-  OpPtr<CPUBackend> op;
+  OpPtr op;
 };
 
 struct GPUOpNode : public OpNode {
-  OpPtr<GPUBackend> op;
+  OpPtr op;
 };
 
 struct InternalOpNode : public OpNode {
@@ -111,7 +110,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th cpu op that was
    * added to the graph.
    */
-  inline Operator<CPUBackend>& cpu_op(Index idx) {
+  inline Operator& cpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return *cpu_nodes_[idx].op;
   }
@@ -129,7 +128,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline Operator<GPUBackend>& gpu_op(Index idx) {
+  inline Operator& gpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return *gpu_nodes_[idx].op;
   }

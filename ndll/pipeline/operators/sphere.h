@@ -28,9 +28,9 @@ NDLLError_t BatchedSphere(const uint8 *in_batch, int N, const Dims &dims,
                           uint8 *out_batch, cudaStream_t stream);
 
 template <typename Backend>
-class Sphere : public Operator<Backend> {
+class Sphere : public Operator {
  public:
-    inline explicit Sphere(const OpSpec &spec) : Operator<Backend>(spec) {}
+    inline explicit Sphere(const OpSpec &spec) : Operator(spec) {}
 
     virtual ~Sphere() = default;
 

@@ -82,7 +82,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     NDLL_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
 
     // Create the operator
-    OpPtr<CPUBackend> tmp(
+    OpPtr tmp(
         CPUOperatorRegistry::Registry().Create(spec.name(), spec));
 
     cpu_nodes_.resize(cpu_nodes_.size()+1);
@@ -96,7 +96,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
 
     // Create the operator
-    OpPtr<GPUBackend> tmp(
+    OpPtr tmp(
         GPUOperatorRegistry::Registry().Create(spec.name(), spec));
 
     gpu_nodes_.resize(gpu_nodes_.size()+1);

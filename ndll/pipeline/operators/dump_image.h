@@ -12,10 +12,10 @@
 namespace ndll {
 
 template <typename Backend>
-class DumpImage : public Operator<Backend> {
+class DumpImage : public Operator {
  public:
   explicit inline DumpImage(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     suffix_(spec.GetArgument<string>("suffix", "")),
     hwc_(spec.GetArgument<bool>("hwc_format", true)) {
     NDLL_ENFORCE(hwc_, "CHW not supported yet.");

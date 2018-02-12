@@ -10,10 +10,10 @@
 namespace ndll {
 
 template <typename Backend>
-class NormalizePermute : public Operator<Backend> {
+class NormalizePermute : public Operator {
  public:
   explicit inline NormalizePermute(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     H_(spec.GetArgument<int>("height", -1)),
     W_(spec.GetArgument<int>("width", -1)),

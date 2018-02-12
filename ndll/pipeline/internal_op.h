@@ -8,10 +8,10 @@
 namespace ndll {
 namespace internal {
 
-class InternalOp : public Operator<CPUBackend> {
+class InternalOp : public Operator {
  public:
   inline explicit InternalOp(const OpSpec &spec) :
-    Operator<CPUBackend>(spec) {}
+    Operator(spec) {}
 
   virtual inline ~InternalOp() = default;
 
@@ -23,8 +23,8 @@ class InternalOp : public Operator<CPUBackend> {
 };
 
 #define USE_INTERNAL_OP_MEMBERS()               \
-  using Operator<CPUBackend>::num_threads_;     \
-  using Operator<CPUBackend>::batch_size_
+  using Operator::num_threads_;     \
+  using Operator::batch_size_
 
 NDLL_DECLARE_OPTYPE_REGISTRY(InternalOp, InternalOp);
 
