@@ -7,6 +7,7 @@ set(NDLL_BENCHMARK_SRCS)
 add_subdirectory(image)
 add_subdirectory(pipeline)
 add_subdirectory(util)
+add_subdirectory(plugin)
 
 # Collect files in this directory
 file(GLOB tmp *.cc)

@@ -202,6 +202,32 @@ class TensorList : public Buffer<Backend> {
     return shape_;
   }
 
+  /**
+   * @brief Checks whether the TensorList is
+   * a dense Tensor. It returns true if and only if
+   * all of the stored Tensors have the same shape
+   * and they are densely packed in memory.
+   */
+  inline bool IsDenseTensor() const {
+    if (ntensor() == 0) {
+      return true;
+    }
+    const Dims& d = shape_[0];
+    Index offset = 0;
+
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      const auto& o = shape_[i];
+      if (d != o) {
+        return false;
+      }
+      if (offset != offsets_[i]) {
+        return false;
+      }
+      offset += Product(o);
+    }
+    return true;
+  }
+
   // So we can access the members of other TensorListes
   // with different template types
   template <typename InBackend>

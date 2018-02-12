@@ -5,6 +5,7 @@
 #include <cstring>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -161,6 +162,32 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
+   * @brief Wraps a TensorList
+   * TensorList has to be a valid tensor
+   * (there must be at least 1 tensor stored in TensorList,
+   * all shapes should be identical,
+   * all tensors need to be stored without
+   * any offset between them)
+   */
+  inline void ShareData(TensorList<Backend> *tl) {
+    NDLL_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
+    NDLL_ENFORCE(IsValidType(tl->type()), "To share data, "
+        "the input TensorList must have a valid data type.");
+    NDLL_ENFORCE(tl->IsDenseTensor(),
+      "All tensors in the input TensorList must have the same shape and be densely packed.");
+    NDLL_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
+    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
+
+    // Get the meta-data for the target tensor
+    shape_ = tl->tensor_shape(0);
+    shape_.insert(shape_.begin(), tl->ntensor());
+    size_ = Product(shape_);
+    type_ = tl->type();
+    num_bytes_ = type_.size() * size_;
+    shares_data_ = true;
+  }
+
+  /**
    * @brief Returns the shape of the Tensor
    */
   inline vector<Index> shape() const {
@@ -183,6 +210,14 @@ class Tensor : public Buffer<Backend> {
     NDLL_ENFORCE(idx >= 0, "negative index not supported");
 #endif
     return shape_[idx];
+  }
+
+  /**
+   * @brief Remove single-dimensional entries from the shape
+   * of a Tensor
+   */
+  inline void Squeeze() {
+    shape_.erase(std::remove(shape_.begin(), shape_.end(), 1), shape_.end());
   }
 
   /**

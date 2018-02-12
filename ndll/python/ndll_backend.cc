@@ -13,6 +13,7 @@
 #include "ndll/python/python3_compat.h"
 #include "ndll/util/user_stream.h"
 #include "ndll/pipeline/operators/reader/parser/tfrecord_parser.h"
+#include "ndll/plugin/copy.h"
 
 namespace ndll {
 namespace python {
@@ -29,7 +30,7 @@ static std::string FormatStrFromType(TypeInfo type) {
     return py::format_descriptor<int>::format();
   } else if (IsType<long>(type)) { // NOLINT
     return py::format_descriptor<long>::format(); // NOLINT
-  } else if (IsType<long long>(type)) { // NOLINT
+  } else if (IsType<int64>(type)) { // NOLINT
     return py::format_descriptor<long long>::format(); // NOLINT
   } else if (IsType<float>(type)) {
     return py::format_descriptor<float>::format();
@@ -53,7 +54,7 @@ static TypeInfo TypeFromFormatStr(std::string format) {
   } else if (format == py::format_descriptor<long>::format()) { // NOLINT
     return TypeInfo::Create<long>(); // NOLINT
   } else if (format == py::format_descriptor<long long>::format()) { // NOLINT
-    return TypeInfo::Create<long long>(); // NOLINT
+    return TypeInfo::Create<int64>(); // NOLINT
   } else if (format == py::format_descriptor<float>::format()) {
     return TypeInfo::Create<float>();
   } else if (format == py::format_descriptor<double>::format()) {
@@ -65,7 +66,7 @@ static TypeInfo TypeFromFormatStr(std::string format) {
   }
 }
 
-void ExposeTensorCPU(py::module &m) { // NOLINT
+void ExposeTensor(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           NDLL_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -116,10 +117,32 @@ void ExposeTensorCPU(py::module &m) { // NOLINT
     .def("shape", &Tensor<CPUBackend>::shape)
     .def("ndim", &Tensor<CPUBackend>::ndim)
     .def("dim", &Tensor<CPUBackend>::dim)
-    .def("resize", &Tensor<CPUBackend>::Resize);
+    .def("resize", &Tensor<CPUBackend>::Resize)
+    .def("squeeze", &Tensor<CPUBackend>::Squeeze)
+    .def("copy_to_external",
+        [](Tensor<CPUBackend> &t, py::object p) {
+          PyObject *p_ptr = p.ptr();
+          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+          CopyToExternalTensor(t, ptr);
+        });
+
+  py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+    .def("shape", &Tensor<GPUBackend>::shape)
+    .def("ndim", &Tensor<GPUBackend>::ndim)
+    .def("dim", &Tensor<GPUBackend>::dim)
+    .def("resize", &Tensor<GPUBackend>::Resize)
+    .def("squeeze", &Tensor<GPUBackend>::Squeeze)
+    .def("copy_to_external",
+        [](Tensor<GPUBackend> &t, py::object p) {
+          PyObject *p_ptr = p.ptr();
+          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+          CopyToExternalTensor(t, ptr);
+        });
 }
 
-void ExposeTensorListCPU(py::module &m) { // NOLINT
+void ExposeTensorList(py::module &m) { // NOLINT
   // We only want to wrap buffers w/ TensorLists to feed then to
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
@@ -179,7 +202,21 @@ void ExposeTensorListCPU(py::module &m) { // NOLINT
         })
     .def("__len__", [](TensorList<CPUBackend> &t) {
           return t.ntensor();
-        });
+        })
+    .def("is_dense_tensor", &TensorList<CPUBackend>::IsDenseTensor)
+    .def("copy_to_external",
+        [](TensorList<CPUBackend> &t, py::object p) {
+          PyObject *p_ptr = p.ptr();
+          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+          CopyToExternalTensor(&t, ptr);
+        })
+    .def("as_tensor",
+        [](TensorList<CPUBackend> &t) -> Tensor<CPUBackend>* {
+          Tensor<CPUBackend> * ret = new Tensor<CPUBackend>();
+          ret->ShareData(&t);
+          return ret;
+        }, py::return_value_policy::take_ownership);
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
     .def("__init__", [](TensorList<GPUBackend> &t) {
@@ -196,7 +233,21 @@ void ExposeTensorListCPU(py::module &m) { // NOLINT
         }, py::return_value_policy::take_ownership)
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.ntensor();
-        });
+        })
+    .def("is_dense_tensor", &TensorList<GPUBackend>::IsDenseTensor)
+    .def("copy_to_external",
+        [](TensorList<GPUBackend> &t, py::object p) {
+          PyObject *p_ptr = p.ptr();
+          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+          CopyToExternalTensor(&t, ptr);
+        })
+    .def("as_tensor",
+        [](TensorList<GPUBackend> &t) -> Tensor<GPUBackend>* {
+          Tensor<GPUBackend> * ret = new Tensor<GPUBackend>();
+          ret->ShareData(&t);
+          return ret;
+        }, py::return_value_policy::take_ownership);
 }
 
 static vector<string> GetRegisteredCPUOps() {
@@ -253,6 +304,9 @@ PYBIND11_MODULE(ndll_backend, m) {
     .value("UINT8", NDLL_UINT8)
     .value("FLOAT16", NDLL_FLOAT16)
     .value("FLOAT", NDLL_FLOAT)
+    .value("INT64", NDLL_INT64)
+    .value("INT32", NDLL_INT32)
+    .value("BOOL", NDLL_BOOL)
     .export_values();
 
   // NDLLImageType
@@ -440,8 +494,8 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace);
 
-  ExposeTensorCPU(m);
-  ExposeTensorListCPU(m);
+  ExposeTensor(m);
+  ExposeTensorList(m);
 
 #ifdef NDLL_BUILD_PROTO3
   // TFRecord

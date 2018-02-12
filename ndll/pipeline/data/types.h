@@ -17,8 +17,27 @@
 
 namespace ndll {
 
-typedef int64_t TypeID;
-
+/**
+ * @brief Enum identifiers for the different data types that
+ * the pipeline can output.
+ */
+enum NDLLDataType {
+  NDLL_NO_TYPE = -1,
+  NDLL_UINT8 = 0,
+  NDLL_INT16 = 1,
+  NDLL_INT32 = 2,
+  NDLL_INT64 = 3,
+  NDLL_FLOAT16 = 4,
+  NDLL_FLOAT = 5,
+  NDLL_FLOAT64 = 6,
+  NDLL_BOOL = 7,
+  // Internal types
+  NDLL_INTERNAL_C_UINT8_P = 1000,
+  NDLL_INTERNAL_PARSEDJPEG = 1001,
+  NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM = 1002,
+  NDLL_INTERNAL_TEST_TYPE = 1003,
+  NDLL_INTERNAL_TEST_TYPE_2 = 1004,
+};
 // Dummy type to represent the invalid default state of ndll types.
 struct NoType {};
 
@@ -28,7 +47,7 @@ struct NoType {};
 class TypeTable {
  public:
   template <typename T>
-  static TypeID GetTypeID();
+  static NDLLDataType GetTypeID();
 
   template <typename T>
   static string GetTypeName();
@@ -39,7 +58,7 @@ class TypeTable {
 
   // Used by NDLL_REGISTER_TYPE macros to register a type in the type table
   template <typename T>
-  static TypeID RegisterType() {
+  static NDLLDataType RegisterType(NDLLDataType dtype) {
     // Lock the mutex to ensure correct setup even if this
     // method is triggered from threads
     std::lock_guard<std::mutex> lock(mutex_);
@@ -54,15 +73,12 @@ class TypeTable {
     NDLL_ENFORCE(id_it == type_map_.end(),
         "Re-registration of type, check for duplicate NDLL_REGISTER_TYPE calls");
 
-    int new_id = id_;
-    type_map_[typeid(T)] = new_id;
-    ++id_;
-    return new_id;
+    type_map_[typeid(T)] = dtype;
+    return dtype;
   }
 
   static std::mutex mutex_;
-  static int id_;
-  static std::unordered_map<std::type_index, TypeID> type_map_;
+  static std::unordered_map<std::type_index, NDLLDataType> type_map_;
 };
 
 // Stores the unqiue ID for a type and its size in bytes
@@ -106,7 +122,7 @@ class TypeInfo {
   template <typename DstBackend, typename SrcBackend>
   void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
 
-  inline TypeID id() const {
+  inline NDLLDataType id() const {
     return id_;
   }
 
@@ -171,7 +187,7 @@ class TypeInfo {
   Destructor destructor_;
   Copier copier_;
 
-  TypeID id_;
+  NDLLDataType id_;
   size_t type_size_;
   string name_;
 };
@@ -196,29 +212,126 @@ inline bool IsValidType(TypeInfo type) {
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define NDLL_REGISTER_TYPE(Type)                                  \
+#define NDLL_REGISTER_TYPE(Type, dtype)                           \
   template <> string TypeTable::GetTypeName<Type>() {             \
     return #Type;                                                 \
   }                                                               \
-  template <> TypeID TypeTable::GetTypeID<Type>() {               \
-    static TypeID type_id = TypeTable::RegisterType<Type>();      \
+  template <> NDLLDataType TypeTable::GetTypeID<Type>() {               \
+    static NDLLDataType type_id = TypeTable::RegisterType<Type>(dtype);      \
     return type_id;                                               \
   }
 
-/**
- * @brief Enum identifiers for the different data types that
- * the pipeline can output. Only exists to simplify users
- * interaction with the type system, e.g. they don't have to
- * call TypeTable::GetTypeID<type>() to give an operator its
- * output data type
- */
-enum NDLLDataType {
-  NDLL_NO_TYPE = -1,
-  NDLL_UINT8 = 0,
-  NDLL_FLOAT16 = 1,
-  NDLL_FLOAT = 2,
-};
 
+/**
+ * @brief Easily instantiate templates for all types
+ * type - NDLLDataType
+ * DType becomes a type corresponding to given NDLLDataType
+ */
+#define NDLL_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
+  switch (type) {                                     \
+    case NDLL_NO_TYPE:                               \
+      NDLL_FAIL("Invalid type.");                    \
+    case NDLL_UINT8:                                 \
+      {                                              \
+        typedef uint8 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT16:                                 \
+      {                                              \
+        typedef int16 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT32:                                 \
+      {                                              \
+        typedef int32 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT64:                                 \
+      {                                              \
+        typedef int64 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT16:                               \
+      {                                              \
+        typedef float16 DType;                       \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT:                                 \
+      {                                              \
+        typedef float DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT64:                               \
+      {                                              \
+        typedef double DType;                        \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_BOOL:                                  \
+      {                                              \
+        typedef bool DType;                          \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    default:                                         \
+      NDLL_FAIL("Unknown type");                     \
+  }
+
+#define NDLL_TYPE_SWITCH(type, DType, ...)           \
+  switch (type) {                                     \
+    case NDLL_NO_TYPE:                               \
+      NDLL_FAIL("Invalid type.");                    \
+    case NDLL_UINT8:                                 \
+      {                                              \
+        typedef uint8 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT16:                                 \
+      {                                              \
+        typedef int16 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT32:                                 \
+      {                                              \
+        typedef int32 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_INT64:                                 \
+      {                                              \
+        typedef int64 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT:                                 \
+      {                                              \
+        typedef float DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_FLOAT64:                               \
+      {                                              \
+        typedef double DType;                        \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case NDLL_BOOL:                                  \
+      {                                              \
+        typedef bool DType;                          \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    default:                                         \
+      NDLL_FAIL("Unknown type");                     \
+  }
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_DATA_TYPES_H_

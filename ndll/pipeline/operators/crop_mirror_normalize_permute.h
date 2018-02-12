@@ -14,7 +14,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_TYPE(const uint8*);
+NDLL_REGISTER_TYPE(const uint8*, NDLL_INTERNAL_C_UINT8_P);
 
 template <typename Backend>
 class CropMirrorNormalizePermute : public Operator<Backend> {

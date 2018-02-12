@@ -74,8 +74,8 @@ class TestType2 {
   int id_;
 };
 
-NDLL_REGISTER_TYPE(TestType);
-NDLL_REGISTER_TYPE(TestType2);
+NDLL_REGISTER_TYPE(TestType, NDLL_INTERNAL_TEST_TYPE);
+NDLL_REGISTER_TYPE(TestType2, NDLL_INTERNAL_TEST_TYPE_2);
 
 // Note: A TensorList in a valid state has a type. To get to a valid state, we
 // can aquire our type relative to the allocation and the size of the buffer

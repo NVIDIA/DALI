@@ -16,8 +16,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_TYPE(ParsedJpeg);
-NDLL_REGISTER_TYPE(DctQuantInvImageParam);
+NDLL_REGISTER_TYPE(ParsedJpeg, NDLL_INTERNAL_PARSEDJPEG);
+NDLL_REGISTER_TYPE(DctQuantInvImageParam, NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM);
 
 /**
  * @brief Perform the host-side part of a hybrid cpu+gpu jpeg decode. This

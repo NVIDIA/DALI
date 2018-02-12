@@ -96,7 +96,7 @@ class Pipeline(object):
 
     def build(self):
         if self._built:
-            raise RuntimeError("build() can only be called once.")
+            return
 
         if not self._prepared:
             self._prepare_graph()

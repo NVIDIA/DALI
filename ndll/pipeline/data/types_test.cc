@@ -24,21 +24,21 @@ class TypesTest : public NDLLTest {
 
 TYPENAME_FUNC(uint8);
 TYPENAME_FUNC(int16);
-TYPENAME_FUNC(int);
-TYPENAME_FUNC(long);  // NOLINT
-TYPENAME_FUNC(long long);  // NOLINT
+TYPENAME_FUNC(int32);
+TYPENAME_FUNC(int64);
 TYPENAME_FUNC(float16);
 TYPENAME_FUNC(float);
 TYPENAME_FUNC(double);
+TYPENAME_FUNC(bool);
 
 typedef ::testing::Types<uint8,
                          int16,
-                         int,
-                         long,  // NOLINT
-                         long long,  // NOLINT
+                         int32,
+                         int64,
                          float16,
                          float,
-                         double> TestTypes;
+                         double,
+                         bool> TestTypes;
 
 TYPED_TEST_CASE(TypesTest, TestTypes);
 
