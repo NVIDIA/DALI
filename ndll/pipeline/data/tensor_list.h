@@ -208,7 +208,7 @@ class TensorList : public Buffer<Backend> {
    * all of the stored Tensors have the same shape
    * and they are densely packed in memory.
    */
-  inline bool IsTensor() const {
+  inline bool IsDenseTensor() const {
     if (ntensor() == 0) {
       return true;
     }

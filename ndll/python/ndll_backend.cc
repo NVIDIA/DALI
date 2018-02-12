@@ -203,7 +203,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
     .def("__len__", [](TensorList<CPUBackend> &t) {
           return t.ntensor();
         })
-    .def("is_dense_tensor", &TensorList<CPUBackend>::IsTensor)
+    .def("is_dense_tensor", &TensorList<CPUBackend>::IsDenseTensor)
     .def("copy_to_external",
         [](TensorList<CPUBackend> &t, py::object p) {
           PyObject *p_ptr = p.ptr();
@@ -234,7 +234,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.ntensor();
         })
-    .def("is_dense_tensor", &TensorList<GPUBackend>::IsTensor)
+    .def("is_dense_tensor", &TensorList<GPUBackend>::IsDenseTensor)
     .def("copy_to_external",
         [](TensorList<GPUBackend> &t, py::object p) {
           PyObject *p_ptr = p.ptr();

@@ -173,7 +173,7 @@ class Tensor : public Buffer<Backend> {
     NDLL_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     NDLL_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
-    NDLL_ENFORCE(tl->IsTensor(),
+    NDLL_ENFORCE(tl->IsDenseTensor(),
       "All tensors in the input TensorList must have the same shape and be densely packed.");
     NDLL_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
