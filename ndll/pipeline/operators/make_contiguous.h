@@ -7,7 +7,6 @@
 #include "ndll/pipeline/internal_op.h"
 
 namespace ndll {
-namespace internal {
 
 class MakeContiguous : public InternalOp {
  public:
@@ -63,7 +62,6 @@ class MakeContiguous : public InternalOp {
   USE_INTERNAL_OP_MEMBERS();
 };
 
-}  // namespace internal
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_OPERATORS_MAKE_CONTIGUOUS_H_

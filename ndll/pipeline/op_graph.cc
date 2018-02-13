@@ -86,7 +86,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
         CPUOperatorRegistry::Registry().Create(spec.name(), spec));
 
     cpu_nodes_.resize(cpu_nodes_.size()+1);
-    CPUOpNode &cpu_node = cpu_nodes_.back();
+    OpNode &cpu_node = cpu_nodes_.back();
     cpu_node.op = std::move(tmp);
     id_to_node_map_.push_back({NDLL_CPU, cpu_nodes_.size()-1});
 
@@ -100,7 +100,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
         GPUOperatorRegistry::Registry().Create(spec.name(), spec));
 
     gpu_nodes_.resize(gpu_nodes_.size()+1);
-    GPUOpNode &gpu_node = gpu_nodes_.back();
+    OpNode &gpu_node = gpu_nodes_.back();
     gpu_node.op = std::move(tmp);
     id_to_node_map_.push_back({NDLL_GPU, gpu_nodes_.size()-1});
 
@@ -110,11 +110,11 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     NDLL_ENFORCE(AllInputsCPU(spec), "Internal ops cannot receive GPU input data.");
 
     // Create the operator
-    unique_ptr<internal::InternalOp> tmp(
-        internal::InternalOpRegistry::Registry().Create(spec.name(), spec));
+    unique_ptr<InternalOp> tmp(
+        InternalOpRegistry::Registry().Create(spec.name(), spec));
 
     internal_nodes_.resize(internal_nodes_.size()+1);
-    InternalOpNode &internal_node = internal_nodes_.back();
+    OpNode &internal_node = internal_nodes_.back();
     internal_node.op = std::move(tmp);
     id_to_node_map_.push_back({NDLL_INTERNAL, internal_nodes_.size()-1});
 
@@ -310,7 +310,7 @@ void OpGraph::RemoveOp(NodeID id) {
     cpu_nodes_.erase(cpu_nodes_.begin() + idx);
 
     for (size_t i = idx; i < cpu_nodes_.size(); ++i) {
-      CPUOpNode &cpu_node = this->cpu_node(i);
+      OpNode &cpu_node = this->cpu_node(i);
       id_to_node_map_[cpu_node.id].second = i;
     }
     break;
@@ -318,7 +318,7 @@ void OpGraph::RemoveOp(NodeID id) {
     gpu_nodes_.erase(gpu_nodes_.begin() + idx);
 
     for (size_t i = idx; i < gpu_nodes_.size(); ++i) {
-      GPUOpNode &gpu_node = this->gpu_node(i);
+      OpNode &gpu_node = this->gpu_node(i);
       id_to_node_map_[gpu_node.id].second = i;
     }
     break;
@@ -326,7 +326,7 @@ void OpGraph::RemoveOp(NodeID id) {
     internal_nodes_.erase(internal_nodes_.begin() + idx);
 
     for (size_t i = idx; i < internal_nodes_.size(); ++i) {
-      InternalOpNode &internal_node = this->internal_node(i);
+      OpNode &internal_node = this->internal_node(i);
       id_to_node_map_[internal_node.id].second = i;
     }
     break;

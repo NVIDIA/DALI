@@ -4,7 +4,6 @@
 #include "ndll/pipeline/sample_workspace.h"
 
 namespace ndll {
-namespace internal {
 
 int MixedWorkspace::NumInputAtIdx(int idx) const {
   NDLL_ENFORCE_VALID_INDEX((size_t)idx, input_index_map_.size());
@@ -263,5 +262,4 @@ void MixedWorkspace::SetOutput(int idx,
   output_index_map_[idx] = std::make_pair(false, gpu_outputs_.size()-1);
 }
 
-}  // namespace internal
 }  // namespace ndll

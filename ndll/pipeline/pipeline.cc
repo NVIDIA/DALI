@@ -264,14 +264,14 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
 std::map<std::string, Index> Pipeline::EpochSize() {
   std::map<std::string, Index> ret;
   for (Index i = 0; i < graph_.NumCPUOp(); ++i) {
-    const CPUOpNode& current = graph_.cpu_node(i);
+    const OpNode& current = graph_.cpu_node(i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));
     }
   }
   for (Index i = 0; i < graph_.NumGPUOp(); ++i) {
-    const GPUOpNode& current = graph_.gpu_node(i);
+    const OpNode& current = graph_.gpu_node(i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));

@@ -74,6 +74,13 @@ class Operator {
   }
 
   /**
+   * @brief Used by operators interfacing with both CPU and GPU.
+   */
+  virtual void Run(MixedWorkspace *ws) {
+    NDLL_FAIL("Run using mixed workspace is not implemented for this operator!");
+  }
+
+  /**
    * @brief returns the name of the operator. By default returns
    * the name of the op as specified by the OpSpec it was constructed
    * from.

@@ -16,8 +16,6 @@ namespace ndll {
 
 class SampleWorkspace;
 
-namespace internal {
-
 /**
  * @brief MixedWorkspace stores all data that an InternalOp operates on.
  * MixedWorkspace differs from BatchWorkspace in that the input data
@@ -182,7 +180,6 @@ class MixedWorkspace {
   cudaEvent_t event_;
 };
 
-}  // namespace internal
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_MIXED_WORKSPACE_H_

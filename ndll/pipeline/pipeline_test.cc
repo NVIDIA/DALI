@@ -249,26 +249,26 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
   ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children.count(1), 1);
 
   // Validate the MakeContiguous op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(node.children.count(2), 1);
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 1);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(node2.children.count(2), 1);
 
   // Validate the copy op
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(1), 1);
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 0);
+  ASSERT_EQ(node3.parents.size(), 1);
+  ASSERT_EQ(node3.parents.count(1), 1);
 }
 
 TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
@@ -292,26 +292,26 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
   ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(node.children.count(1), 1);
 
   // Validate the MakeContiguous op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(node.children.count(2), 1);
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 1);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(node2.children.count(2), 1);
 
   // Validate the copy op
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(1), 1);
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 0);
+  ASSERT_EQ(node3.parents.size(), 1);
+  ASSERT_EQ(node3.parents.count(1), 1);
 }
 
 TYPED_TEST(PipelineTest, TestExternalSource) {
@@ -330,7 +330,7 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the gpu source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 0);

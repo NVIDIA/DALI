@@ -60,7 +60,7 @@ class Executor {
  protected:
   using WorkspaceBlob = struct {
     vector<HostWorkspace> cpu_op_data;
-    vector<internal::MixedWorkspace> internal_op_data;
+    vector<MixedWorkspace> internal_op_data;
     vector<DeviceWorkspace> gpu_op_data;
   };
   vector<WorkspaceBlob> wss_;

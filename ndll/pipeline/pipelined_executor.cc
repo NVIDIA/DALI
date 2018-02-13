@@ -28,7 +28,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
   for (int i = 0; i < graph_->NumCPUOp(); ++i) {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
-    CPUOpNode &node = graph_->cpu_node(i);
+    OpNode &node = graph_->cpu_node(i);
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
@@ -68,7 +68,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
     // Find all outputs of the internal stage. An output
     // is a tensor that is used by an op in a later stage.
-    InternalOpNode &node = graph_->internal_node(i);
+    OpNode &node = graph_->internal_node(i);
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base

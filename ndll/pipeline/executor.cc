@@ -83,8 +83,8 @@ void Executor::RunInternal() {
 
   WorkspaceBlob &wsb = wss_[queue_idx];
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
-    internal::InternalOp &op = graph_->internal_op(i);
-    internal::MixedWorkspace &ws = wsb.internal_op_data[i];
+    Operator &op = graph_->internal_op(i);
+    MixedWorkspace &ws = wsb.internal_op_data[i];
     op.Run(&ws);
     if (ws.has_stream() && ws.has_event()) {
       CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
@@ -276,7 +276,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
   // Setup cpu op input and output buffers
   for (int i = 0; i < graph_->NumCPUOp(); ++i) {
-    CPUOpNode &node = graph_->cpu_node(i);
+    OpNode &node = graph_->cpu_node(i);
     HostWorkspace &ws = wsb->cpu_op_data[i];
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -305,8 +305,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
   // Setup internal op input and output buffers
   for (int i = 0; i < graph_->NumInternalOp(); ++i) {
-    InternalOpNode &node = graph_->internal_node(i);
-    internal::MixedWorkspace &ws = wsb->internal_op_data[i];
+    OpNode &node = graph_->internal_node(i);
+    MixedWorkspace &ws = wsb->internal_op_data[i];
 
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -337,7 +337,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
   // Setup gpu op input and output buffers
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-    GPUOpNode &node = graph_->gpu_node(i);
+    OpNode &node = graph_->gpu_node(i);
     DeviceWorkspace &ws = wsb->gpu_op_data[i];
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       // Go get each set of input Tensors and add
@@ -348,7 +348,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
       if (parent_op_type == NDLL_INTERNAL) {
-        internal::MixedWorkspace &src_ws = wsb->internal_op_data[parent_idx];
+        MixedWorkspace &src_ws = wsb->internal_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
           ws.AddInput(input);
@@ -436,7 +436,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     // have a limit) that we won't have false dependencies
     // between internal ops and the previous iterations
     // gpu ops.
-    internal::MixedWorkspace &ws = wsb->internal_op_data[i];
+    MixedWorkspace &ws = wsb->internal_op_data[i];
     ws.set_stream(stream_pool_.GetStream());
     ws.set_event(event_pool_.GetEvent());
   }
@@ -464,7 +464,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
   std::queue<NodeID> node_queue;
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
     // An op is a root if it has no gpu inputs
-    GPUOpNode &node = graph_->gpu_node(i);
+    OpNode &node = graph_->gpu_node(i);
     bool is_root = true;
     for (auto &parent_id : node.parents) {
       if (graph_->NodeType(parent_id) == NDLL_GPU) {
@@ -504,7 +504,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
         // We will not re-use internal op streams, but
         // we will need to block on this ops event to
         // make sure that we respect the dependency
-        internal::MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
+        MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
         // If a parent stream is still available, take it
@@ -546,7 +546,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
       int parent_op_idx = graph_->NodeIdx(parent_id);
 
       if (graph_->NodeType(parent_id) == NDLL_INTERNAL) {
-        internal::MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
+        MixedWorkspace parent_ws = wsb->internal_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
       } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
         DeviceWorkspace parent_ws = wsb->gpu_op_data[parent_op_idx];

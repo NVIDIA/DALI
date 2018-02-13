@@ -51,7 +51,7 @@ class ExecutorTest : public NDLLTest {
     return exe->wss_[idx].cpu_op_data;
   }
 
-  vector<internal::MixedWorkspace> InternalData(Executor *exe, int idx) {
+  vector<MixedWorkspace> InternalData(Executor *exe, int idx) {
     return exe->wss_[idx].internal_op_data;
   }
 
@@ -153,7 +153,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -162,25 +162,25 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
 
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.Output(0), "data3_cpu");
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 1);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
+  ASSERT_EQ(node2.spec.Output(0), "data3_cpu");
 
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(1), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.Output(0), "data3_cont_cpu");
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 0);
+  ASSERT_EQ(node3.parents.size(), 1);
+  ASSERT_EQ(node3.parents.count(1), 1);
+  ASSERT_EQ(graph.TensorSourceID(node3.spec.Output(0)), 2);
+  ASSERT_EQ(graph.TensorIdxInSource(node3.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node3.spec.Output(0)));
+  ASSERT_EQ(node3.spec.Output(0), "data3_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneMultiple) {
@@ -222,7 +222,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -233,15 +233,15 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
   ASSERT_EQ(node.spec.Output(1), "data2_cpu");
 
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.NumOutput(), 1);
-  ASSERT_EQ(node.spec.Output(0), "data1_cont_cpu");
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
+  ASSERT_EQ(node2.spec.NumOutput(), 1);
+  ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneRecursive) {
@@ -282,7 +282,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -292,15 +292,15 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   ASSERT_EQ(node.spec.NumOutput(), 1);
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
 
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.NumOutput(), 1);
-  ASSERT_EQ(node.spec.Output(0), "data1_cont_cpu");
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
+  ASSERT_EQ(node2.spec.NumOutput(), 1);
+  ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
 }
 
 TEST_F(ExecutorTest, TestPruneWholeGraph) {
@@ -367,7 +367,7 @@ TEST_F(ExecutorTest, TestDataSetup) {
 
     auto internal_workspaces = this->InternalData(&exe, i);
     ASSERT_EQ(internal_workspaces.size(), 1);
-    internal::MixedWorkspace &mws = internal_workspaces[0];
+    MixedWorkspace &mws = internal_workspaces[0];
     ASSERT_EQ(mws.NumInput(), 1);
     ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
     ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
