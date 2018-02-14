@@ -36,7 +36,7 @@ TEST_F(OpGraphTest, TestCPUOnly) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
@@ -82,7 +82,7 @@ TEST_F(OpGraphTest, TestGPUOnly) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 0);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 2);
 
   // Validate the source op
@@ -122,7 +122,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("external_data", "cpu")
           .AddOutput("external_data", "gpu")), "");
 
@@ -134,7 +134,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
   // Validate the source op
@@ -208,7 +208,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 2);
 
   // Validate the gpu source op
@@ -289,7 +289,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 3);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the dummy source op
@@ -344,7 +344,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
 
   // Validate the updated graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op

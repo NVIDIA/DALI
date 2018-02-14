@@ -4,14 +4,14 @@
 
 #include <vector>
 
-#include "ndll/pipeline/internal_op.h"
+#include "ndll/pipeline/operator.h"
 
 namespace ndll {
 
-class MakeContiguous : public InternalOp {
+class MakeContiguous : public Operator {
  public:
   inline explicit MakeContiguous(const OpSpec &spec) :
-    InternalOp(spec) {}
+    Operator(spec) {}
 
   virtual inline ~MakeContiguous() = default;
 
@@ -59,7 +59,7 @@ class MakeContiguous : public InternalOp {
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
 
  protected:
-  USE_INTERNAL_OP_MEMBERS();
+  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace ndll

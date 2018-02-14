@@ -243,10 +243,10 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
-  ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
+  ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
 
   // Validate the source op
   auto& node = graph.node(0);
@@ -286,10 +286,10 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
-  ASSERT_EQ(graph.internal_op(0).name(), "MakeContiguous");
+  ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
 
   // Validate the source op
   auto& node = graph.node(0);
@@ -326,7 +326,7 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the gpu source op
@@ -384,7 +384,7 @@ TYPED_TEST(PipelineTest, TestSerialization) {
 
   // Validate the graph contains the same ops
   ASSERT_EQ(loaded_graph.NumCPUOp(), original_graph.NumCPUOp());
-  ASSERT_EQ(loaded_graph.NumInternalOp(), original_graph.NumInternalOp());
+  ASSERT_EQ(loaded_graph.NumMixedOp(), original_graph.NumMixedOp());
   ASSERT_EQ(loaded_graph.NumGPUOp(), original_graph.NumGPUOp());
 }
 

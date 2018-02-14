@@ -19,7 +19,7 @@ namespace ndll {
 enum NDLLOpType {
   NDLL_GPU = 0,
   NDLL_CPU = 1,
-  NDLL_INTERNAL = 2
+  NDLL_MIXED = 2
 };
 
 /**
@@ -140,21 +140,15 @@ class Operator {
 // Create registries for CPU & GPU Operators
 NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
 NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
+NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
 
 // Must be called from .cc or .cu file
-#define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)        \
+#define NDLL_REGISTER_OPERATOR(OpName, OpType, device)        \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
     NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::CPUOperator, ndll::Operator)
-
-#define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)        \
-  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
-  static int ANONYMIZE_VARIABLE(OpName) =                 \
-    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::GPUOperator, ndll::Operator)
+      device##Operator, ndll::Operator)
 
 }  // namespace ndll
 

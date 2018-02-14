@@ -126,7 +126,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
         // Add a make contiguous op to produce this output
         OpSpec spec =
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec);
@@ -139,7 +139,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
             "' exists on neither cpu or gpu, internal error");
         // Add a copy to device to create the gpu output
         OpSpec spec = OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput(name, "cpu")
           .AddOutput(name, "gpu");
         PrepareOpSpec(&spec);
@@ -164,7 +164,7 @@ void Pipeline::RunCPU() {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
   executor_->RunCPU();
-  executor_->RunInternal();
+  executor_->RunMixed();
 }
 
 void Pipeline::RunGPU() {
@@ -184,7 +184,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
   if (!it->second.has_contiguous) {
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
-      .AddArg("device", "internal")
+      .AddArg("device", "mixed")
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     PrepareOpSpec(&make_contiguous_spec);
@@ -203,7 +203,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
-    .AddArg("device", "internal")
+    .AddArg("device", "mixed")
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   PrepareOpSpec(&copy_to_dev_spec);

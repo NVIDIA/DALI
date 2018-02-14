@@ -3,8 +3,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(DumpImage, DumpImage<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(DumpImage, DumpImage<GPUBackend>);
+NDLL_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(DumpImage, DumpImage<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(DumpImage)
   .DocStr("Foo")

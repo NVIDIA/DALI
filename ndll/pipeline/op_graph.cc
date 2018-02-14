@@ -105,23 +105,23 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     id_to_node_map_.push_back({NDLL_GPU, gpu_nodes_.size()-1});
 
     new_node = &gpu_node;
-  } else if (device == "internal") {
+  } else if (device == "mixed") {
     // Enforce graph constraints
-    NDLL_ENFORCE(AllInputsCPU(spec), "Internal ops cannot receive GPU input data.");
+    NDLL_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
 
     // Create the operator
-    unique_ptr<InternalOp> tmp(
-        InternalOpRegistry::Registry().Create(spec.name(), spec));
+    OpPtr tmp(
+        MixedOperatorRegistry::Registry().Create(spec.name(), spec));
 
-    internal_nodes_.resize(internal_nodes_.size()+1);
-    OpNode &internal_node = internal_nodes_.back();
-    internal_node.op = std::move(tmp);
-    id_to_node_map_.push_back({NDLL_INTERNAL, internal_nodes_.size()-1});
+    mixed_nodes_.resize(mixed_nodes_.size()+1);
+    OpNode &mixed_node = mixed_nodes_.back();
+    mixed_node.op = std::move(tmp);
+    id_to_node_map_.push_back({NDLL_MIXED, mixed_nodes_.size()-1});
 
-    new_node = &internal_node;
+    new_node = &mixed_node;
   } else {
     NDLL_FAIL("Invalid device argument \"" + device +
-        "\". Valid options are \"cpu\", \"gpu\" or \"internal\"");
+        "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
   }
 
   // Add node meta-data and add to the list of nodes
@@ -322,12 +322,12 @@ void OpGraph::RemoveOp(NodeID id) {
       id_to_node_map_[gpu_node.id].second = i;
     }
     break;
-  case NDLL_INTERNAL:
-    internal_nodes_.erase(internal_nodes_.begin() + idx);
+  case NDLL_MIXED:
+    mixed_nodes_.erase(mixed_nodes_.begin() + idx);
 
-    for (size_t i = idx; i < internal_nodes_.size(); ++i) {
-      OpNode &internal_node = this->internal_node(i);
-      id_to_node_map_[internal_node.id].second = i;
+    for (size_t i = idx; i < mixed_nodes_.size(); ++i) {
+      OpNode &mixed_node = this->mixed_node(i);
+      id_to_node_map_[mixed_node.id].second = i;
     }
     break;
   }
@@ -344,8 +344,8 @@ OpNode& OpGraph::node(NodeID id) {
   case NDLL_GPU:
     return gpu_nodes_[idx_pair.second];
     break;
-  case NDLL_INTERNAL:
-    return internal_nodes_[idx_pair.second];
+  case NDLL_MIXED:
+    return mixed_nodes_[idx_pair.second];
     break;
   default:
     NDLL_FAIL("Internal error. Invalid node type index.");
@@ -365,8 +365,8 @@ OpNode& OpGraph::node(const std::string& name) {
       return node;
     }
   }
-  // Search internal nodes
-  for (auto& node : internal_nodes_) {
+  // Search mixed nodes
+  for (auto& node : mixed_nodes_) {
     if (node.instance_name == name) {
       return node;
     }

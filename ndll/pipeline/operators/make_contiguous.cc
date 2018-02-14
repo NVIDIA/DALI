@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_INTERNAL_OP(MakeContiguous, MakeContiguous);
+NDLL_REGISTER_OPERATOR(MakeContiguous, MakeContiguous, Mixed);
 
 NDLL_OPERATOR_SCHEMA(MakeContiguous)
   .DocStr("Foo")

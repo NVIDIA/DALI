@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>);
+NDLL_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(ResizeCropMirror)
   .DocStr("Foo")
@@ -11,7 +11,7 @@ NDLL_OPERATOR_SCHEMA(ResizeCropMirror)
   .NumOutput(1)
   .AllowMultipleInputSets();
 
-NDLL_REGISTER_CPU_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>);
+NDLL_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(FastResizeCropMirror)
   .DocStr("Foo")

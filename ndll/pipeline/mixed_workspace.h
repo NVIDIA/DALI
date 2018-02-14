@@ -17,7 +17,7 @@ namespace ndll {
 class SampleWorkspace;
 
 /**
- * @brief MixedWorkspace stores all data that an InternalOp operates on.
+ * @brief MixedWorkspace stores all data that an mixed op operates on.
  * MixedWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */

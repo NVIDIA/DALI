@@ -47,7 +47,7 @@ class Executor {
 
   virtual void RunCPU();
 
-  virtual void RunInternal();
+  virtual void RunMixed();
 
   virtual void RunGPU();
 
@@ -60,7 +60,7 @@ class Executor {
  protected:
   using WorkspaceBlob = struct {
     vector<HostWorkspace> cpu_op_data;
-    vector<MixedWorkspace> internal_op_data;
+    vector<MixedWorkspace> mixed_op_data;
     vector<DeviceWorkspace> gpu_op_data;
   };
   vector<WorkspaceBlob> wss_;
@@ -158,8 +158,8 @@ class Executor {
   // two sets of locks doing similar things in each stage,
   // it simplifies the software for now so we leave it
   // unless it becomes an issue in the future.
-  std::queue<int> internal_work_queue_, gpu_work_queue_;
-  std::mutex internal_mutex_, gpu_mutex_;
+  std::queue<int> mixed_work_queue_, gpu_work_queue_;
+  std::mutex mixed_mutex_, gpu_mutex_;
 
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;

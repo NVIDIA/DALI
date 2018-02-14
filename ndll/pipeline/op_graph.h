@@ -11,7 +11,6 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/internal_op.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -50,7 +49,7 @@ struct TensorMeta {
  *
  * Operators in the graph have a global NodeID that is assigned in
  * the order ops are added to the graph. Operators also have an
- * index within the set of ops of its type (cpu, internal, gpu).
+ * index within the set of ops of its type (cpu, mixed, gpu).
  * This enables us to iterate over select portions of the graph, or
  * the entire graph.
  *
@@ -81,7 +80,7 @@ class OpGraph {
    * @brief Returns the total number of ops in the graph.
    */
   inline Index NumOp() const {
-    return NumCPUOp() + NumGPUOp() + NumInternalOp();
+    return NumCPUOp() + NumGPUOp() + NumMixedOp();
   }
 
   /**
@@ -95,9 +94,9 @@ class OpGraph {
   inline Index NumGPUOp() const { return gpu_nodes_.size(); }
 
   /**
-   * @brief Returns the number of internal ops in the graph.
+   * @brief Returns the number of mixed ops in the graph.
    */
-  inline Index NumInternalOp() const { return internal_nodes_.size(); }
+  inline Index NumMixedOp() const { return mixed_nodes_.size(); }
 
   /**
    * @brief Returns a reference to the `idx`-th cpu op that was
@@ -136,21 +135,21 @@ class OpGraph {
   }
 
   /**
-   * @brief Returns a reference to the `idx`-th internal op
+   * @brief Returns a reference to the `idx`-th mixed op
    * that was added to the graph.
    */
-  inline Operator& internal_op(Index idx) {
-    NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
-    return *internal_nodes_[idx].op;
+  inline Operator& mixed_op(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
+    return *mixed_nodes_[idx].op;
   }
 
   /**
-   * @brief Returns the node object for the `idx`-th internal op that
+   * @brief Returns the node object for the `idx`-th mixed op that
    * was added to the graph.
    */
-  inline OpNode& internal_node(Index idx) {
-    NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
-    return internal_nodes_[idx];
+  inline OpNode& mixed_node(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
+    return mixed_nodes_[idx];
   }
 
   /**
@@ -167,7 +166,7 @@ class OpGraph {
   OpNode& node(NodeID id);
 
   /**
-   * @brief Returns the type (cpu, gpu, internal) of the node
+   * @brief Returns the type (cpu, gpu, mixed) of the node
    * at the given index.
    */
   inline NDLLOpType NodeType(NodeID id) const {
@@ -237,7 +236,7 @@ class OpGraph {
  private:
   vector<OpNode> cpu_nodes_;
   vector<OpNode> gpu_nodes_;
-  vector<OpNode> internal_nodes_;
+  vector<OpNode> mixed_nodes_;
 
   // Stores a mapping from NodeIDs to a pair where the first
   // element indicates what type of node it is,  and the second

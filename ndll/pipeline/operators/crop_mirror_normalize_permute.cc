@@ -3,8 +3,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_GPU_OPERATOR(CropMirrorNormalizePermute,
-    CropMirrorNormalizePermute<GPUBackend>);
+NDLL_REGISTER_OPERATOR(CropMirrorNormalizePermute,
+    CropMirrorNormalizePermute<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(CropMirrorNormalizePermute)
   .DocStr("Foo")

@@ -11,8 +11,8 @@ namespace ndll {
 
 /**
  * @brief This executor uses worker threads to pipelined the
- * issue of cpu, internal, and gpu work. Calls the RunCPU,
- * RunInternal, and RunGPU are all asynchronous, and results
+ * issue of cpu, mixed, and gpu work. Calls the RunCPU,
+ * RunMixed, and RunGPU are all asynchronous, and results
  * are retrieved by calling Outputs, which manages all
  * needed synchronization.
  */
@@ -24,14 +24,14 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
     PipelinedExecutor(batch_size, num_thread, device_id,
         bytes_per_sample_hint, set_affinity, max_num_stream),
     cpu_thread_(device_id, set_affinity),
-    internal_thread_(device_id, set_affinity),
+    mixed_thread_(device_id, set_affinity),
     gpu_thread_(device_id, set_affinity) {}
 
   virtual ~AsyncPipelinedExecutor() = default;
 
   void RunCPU() override;
 
-  void RunInternal() override;
+  void RunMixed() override;
 
   void RunGPU() override;
 
@@ -43,14 +43,14 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
  protected:
   void CheckForErrors() {
     cpu_thread_.CheckForErrors();
-    internal_thread_.CheckForErrors();
+    mixed_thread_.CheckForErrors();
     gpu_thread_.CheckForErrors();
   }
 
-  WorkerThread cpu_thread_, internal_thread_, gpu_thread_;
-  int cpu_work_counter_ = 0, internal_work_counter_ = 0, gpu_work_counter_ = 0;
-  std::mutex cpu_mutex_, internal_mutex_, gpu_mutex_;
-  std::condition_variable internal_work_cv_, gpu_work_cv_;
+  WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
+  int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
+  std::mutex cpu_mutex_, mixed_mutex_, gpu_mutex_;
+  std::condition_variable mixed_work_cv_, gpu_work_cv_;
 };
 
 }  // namespace ndll

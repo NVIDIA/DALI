@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_GPU_OPERATOR(Resize, Resize<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Resize, Resize<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Resize)
   .DocStr("Foo")

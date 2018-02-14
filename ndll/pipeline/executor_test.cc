@@ -51,8 +51,8 @@ class ExecutorTest : public NDLLTest {
     return exe->wss_[idx].cpu_op_data;
   }
 
-  vector<MixedWorkspace> InternalData(Executor *exe, int idx) {
-    return exe->wss_[idx].internal_op_data;
+  vector<MixedWorkspace> MixedData(Executor *exe, int idx) {
+    return exe->wss_[idx].mixed_op_data;
   }
 
   vector<DeviceWorkspace> GPUData(Executor *exe, int idx) {
@@ -132,7 +132,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("data3", "cpu")
           .AddOutput("data3_cont", "cpu")), "");
 
@@ -149,7 +149,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   // have been pruned as its outputs
   // are unused.
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
@@ -196,7 +196,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("data1", "cpu")
           .AddOutput("data1_cont", "cpu")), "");
 
@@ -218,7 +218,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   // Validate the graph - op 2&3 should
   // have been pruned
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
@@ -256,7 +256,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("data1", "cpu")
           .AddOutput("data1_cont", "cpu")), "");
 
@@ -278,7 +278,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   // Validate the graph - op 2&3 should
   // have been pruned
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
@@ -342,7 +342,7 @@ TEST_F(ExecutorTest, TestDataSetup) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("data1", "cpu")
           .AddOutput("data2", "gpu")), "");
 
@@ -365,9 +365,9 @@ TEST_F(ExecutorTest, TestDataSetup) {
     ASSERT_EQ(hws.NumOutputAtIdx(0), batch_size_);
     ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
 
-    auto internal_workspaces = this->InternalData(&exe, i);
-    ASSERT_EQ(internal_workspaces.size(), 1);
-    MixedWorkspace &mws = internal_workspaces[0];
+    auto mixed_workspaces = this->MixedData(&exe, i);
+    ASSERT_EQ(mixed_workspaces.size(), 1);
+    MixedWorkspace &mws = mixed_workspaces[0];
     ASSERT_EQ(mws.NumInput(), 1);
     ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
     ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
@@ -402,7 +402,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("images", "cpu")
           .AddOutput("final_images", "cpu")), "");
 
@@ -417,7 +417,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   src_op->SetDataSource(tl);
 
   exe.RunCPU();
-  exe.RunInternal();
+  exe.RunMixed();
   exe.RunGPU();
 
   DeviceWorkspace ws;
@@ -448,7 +448,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("images", "cpu")
           .AddOutput("images", "gpu")), "");
 
@@ -491,12 +491,12 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   // Run twice without getting the results
   src_op->SetDataSource(tl1);
   exe.RunCPU();
-  exe.RunInternal();
+  exe.RunMixed();
   exe.RunGPU();
 
   src_op->SetDataSource(tl2);
   exe.RunCPU();
-  exe.RunInternal();
+  exe.RunMixed();
   exe.RunGPU();
 
   // Verify that both sets of results are correct
