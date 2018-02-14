@@ -18,9 +18,12 @@ class MakeContiguous : public Operator {
   inline void Run(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
+    bool scalar = true;
     for (int i = 0; i < batch_size_; ++i) {
       auto &input = ws->Input<CPUBackend>(0, i);
       output_shape[i] = input.shape();
+      if (scalar && (output_shape[i].size() > 1 || output_shape[i][0] > 1))
+        scalar = false;
       NDLL_ENFORCE(type == input.type(), "Inconsistent types in "
           "input batch. Cannot copy to contiguous device buffer.");
     }
@@ -44,14 +47,30 @@ class MakeContiguous : public Operator {
       output->Resize(output_shape);
       output->set_type(type);
 
-      for (int i = 0; i < batch_size_; ++i) {
-        auto &input = ws->Input<CPUBackend>(0, i);
-        CUDA_CALL(cudaMemcpyAsync(
-                output->raw_mutable_tensor(i),
-                input.raw_data(),
-                input.nbytes(),
-                cudaMemcpyHostToDevice,
-                ws->stream()));
+      // Optimization if the Tensor is a scalar
+      if (scalar) {
+        TensorList<CPUBackend> cpu_output_buff;
+        cpu_output_buff.ResizeLike(*output);
+        for (int i = 0; i < batch_size_; ++i) {
+          auto &input = ws->Input<CPUBackend>(0, i);
+          memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());
+        }
+        CUDA_CALL(cudaMemcpy(
+              output->raw_mutable_data(),
+              cpu_output_buff.raw_mutable_data(),
+              cpu_output_buff.nbytes(),
+              cudaMemcpyHostToDevice));
+
+      } else {
+        for (int i = 0; i < batch_size_; ++i) {
+          auto &input = ws->Input<CPUBackend>(0, i);
+          CUDA_CALL(cudaMemcpyAsync(
+                  output->raw_mutable_tensor(i),
+                  input.raw_data(),
+                  input.nbytes(),
+                  cudaMemcpyHostToDevice,
+                  ws->stream()));
+        }
       }
     }
   }
