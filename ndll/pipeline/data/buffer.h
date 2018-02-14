@@ -56,7 +56,12 @@ class Buffer {
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr), size_(0), shares_data_(false), num_bytes_(0) {}
+  inline Buffer() : data_(nullptr),
+                    size_(0),
+                    shares_data_(false),
+                    num_bytes_(0),
+                    pinned_(true)
+    {}
 
   virtual ~Buffer() = default;
 
@@ -174,7 +179,7 @@ class Buffer {
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
-      data_.reset(Backend::New(new_num_bytes), std::bind(
+      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
               type_, size_));
@@ -223,7 +228,7 @@ class Buffer {
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
-      data_.reset(Backend::New(new_num_bytes), std::bind(
+      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
               type_, new_size));
@@ -251,6 +256,8 @@ class Buffer {
   // To keep track of the true size
   // of the underlying allocation
   size_t num_bytes_;
+
+  bool pinned_;  // Whether the allocation uses pinned memory
 };
 
 // Macro so we don't have to list these in all

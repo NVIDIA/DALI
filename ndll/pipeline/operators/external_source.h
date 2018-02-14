@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
-#define NDLL_PIPELINE_OPERATORS_XTERNAL_SOURCE_H_
+#define NDLL_PIPELINE_OPERATORS_EXTERNAL_SOURCE_H_
 
 #include <string>
 #include <vector>
