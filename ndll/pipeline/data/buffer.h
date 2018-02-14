@@ -173,6 +173,7 @@ class Buffer {
 
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
+      new_num_bytes *= alloc_mult;
       data_.reset(Backend::New(new_num_bytes), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
@@ -221,6 +222,7 @@ class Buffer {
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
+      new_num_bytes *= alloc_mult;
       data_.reset(Backend::New(new_num_bytes), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
@@ -236,6 +238,8 @@ class Buffer {
 
     size_ = new_size;
   }
+
+  const double alloc_mult = 1.5;
 
   Backend backend_;
 
