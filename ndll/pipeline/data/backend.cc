@@ -104,14 +104,13 @@ void* GPUBackend::New(size_t bytes, bool) {
   return ptr;
 }
 
-void GPUBackend::Delete(void *ptr, size_t bytes) {
+void GPUBackend::Delete(void *ptr, size_t bytes, bool) {
   AllocatorManager::GetGPUAllocator().Delete(ptr, bytes);
 }
 
 void* CPUBackend::New(size_t bytes, bool pinned) {
   void *ptr = nullptr;
-  if (
-      !pinned) {
+  if (!pinned) {
     AllocatorManager::GetCPUAllocator().New(&ptr, bytes);
   } else {
     AllocatorManager::GetPinnedCPUAllocator().New(&ptr, bytes);
@@ -119,8 +118,12 @@ void* CPUBackend::New(size_t bytes, bool pinned) {
   return ptr;
 }
 
-void CPUBackend::Delete(void *ptr, size_t bytes) {
-  AllocatorManager::GetCPUAllocator().Delete(ptr, bytes);
+void CPUBackend::Delete(void *ptr, size_t bytes, bool pinned) {
+  if (!pinned) {
+    AllocatorManager::GetCPUAllocator().Delete(ptr, bytes);
+  } else {
+    AllocatorManager::GetPinnedCPUAllocator().Delete(ptr, bytes);
+  }
 }
 
 }

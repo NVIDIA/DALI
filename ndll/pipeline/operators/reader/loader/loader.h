@@ -39,6 +39,7 @@ class Loader {
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
+        tensor->set_pinned(false);
         // Initialize tensors to a set size to limit expensive reallocations
         // using cudaMallocHost (and paired cudaFreeHost calls)
         tensor->Resize({tensor_init_bytes_});

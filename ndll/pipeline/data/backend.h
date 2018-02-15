@@ -24,7 +24,7 @@ void SetGPUAllocator(const OpSpec& allocator);
 class GPUBackend final {
  public:
   static void* New(size_t bytes, bool);
-  static void Delete(void *ptr, size_t bytes);
+  static void Delete(void *ptr, size_t bytes, bool);
 };
 
 /**
@@ -33,7 +33,7 @@ class GPUBackend final {
 class CPUBackend final {
  public:
   static void* New(size_t bytes, bool pinned);
-  static void Delete(void *ptr, size_t bytes);
+  static void Delete(void *ptr, size_t bytes, bool pinned);
 };
 
 // Utility to copy between backends

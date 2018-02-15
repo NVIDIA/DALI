@@ -150,6 +150,15 @@ class Buffer {
   }
 
   /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for
+   * CPU buffers
+   */
+  inline void set_pinned(const bool pinned) {
+    NDLL_ENFORCE(!data_, "Can only set allocation mode before first allocation");
+    pinned_ = pinned;
+  }
+
+  /**
    * @brief Sets the type of the buffer. If the buffer has not been
    * allocated because it does not yet have a type, the calling type
    * is taken to be the type of the data and the memory is allocated.
@@ -200,7 +209,7 @@ class Buffer {
   // shared pointers
   void DeleterHelper(void *ptr, TypeInfo type, Index size) {
     type.template Destruct<Backend>(ptr, size);
-    Backend::Delete(ptr, size*type.size());
+    Backend::Delete(ptr, size*type.size(), pinned_);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
