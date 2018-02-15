@@ -126,5 +126,4 @@ void CPUBackend::Delete(void *ptr, size_t bytes, bool pinned) {
   }
 }
 
-}
-// namespace ndll
+}  // namespace ndll
