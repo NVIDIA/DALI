@@ -33,8 +33,10 @@ class Loader {
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
+    TimeRange tr("[Loader] ReadOne");
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
+      TimeRange tr("[Loader] Filling initial buffer");
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
@@ -49,9 +51,11 @@ class Loader {
         sample_buffer_.push_back(tensor);
       }
 
+      TimeRange tr2("[Loader] Filling empty list");
       // need some entries in the empty_tensors_ list
       for (int i = 0; i < initial_empty_size_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
+        tensor->set_pinned(false);
         // Force allocation for empties
         tensor->Resize({tensor_init_bytes_});
         tensor->template mutable_data<uint8_t>();

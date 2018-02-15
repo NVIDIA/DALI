@@ -43,6 +43,7 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 }
 
 void Executor::RunCPU() {
+  TimeRange tr("[Executor] RunCPU");
   // Block until there is a free buffer to use
   std::unique_lock<std::mutex> lock(free_mutex_);
   while (free_queue_.empty()) {
@@ -57,6 +58,7 @@ void Executor::RunCPU() {
   for (int i = 0; i < batch_size_; ++i) {
     thread_pool_.DoWorkWithID(std::bind(
             [this, &wsb] (int data_idx, int tid) {
+              TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
               SampleWorkspace ws;
               for (int j = 0; j < graph_->NumCPUOp(); ++j) {
                 Operator &op = graph_->cpu_op(j);
@@ -74,6 +76,7 @@ void Executor::RunCPU() {
 }
 
 void Executor::RunMixed() {
+  TimeRange tr("[Executor] RunMixed");
   std::unique_lock<std::mutex> lock(mixed_mutex_);
   NDLL_ENFORCE(!mixed_work_queue_.empty(), "Mixed work "
       "queue empty. Did you call RunCPU prior to RunMixed?");
@@ -98,6 +101,7 @@ void Executor::RunMixed() {
 }
 
 void Executor::RunGPU() {
+  TimeRange tr("[Executor] RunGPU");
   std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
   NDLL_ENFORCE(!gpu_work_queue_.empty(), "GPU work queue "
       "empty. Did you call RunMixed prior to RunGPU?");
@@ -297,7 +301,10 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       // Allocate `batch_size` Tensors for this ops
       // results and add them to the workspace.
       vector<shared_ptr<Tensor<CPUBackend>>> output(batch_size_, nullptr);
-      for (auto &tensor_ptr : output) tensor_ptr.reset(new Tensor<CPUBackend>);
+      for (auto &tensor_ptr : output) {
+        tensor_ptr.reset(new Tensor<CPUBackend>);
+        tensor_ptr->set_pinned(false);
+      }
 
       ws.AddOutput(output);
     }
@@ -319,7 +326,10 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
       HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
-      const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+      auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+      for (auto t : input) {
+        t->set_pinned(true);
+      }
       ws.AddInput(input);
     }
 
@@ -356,7 +366,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
           const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
           ws.AddInput(input);
         } else {
-          NDLL_FAIL("Executor encoutered gpu op with non-cpu/gpu input.");
+          NDLL_FAIL("Executor encountered gpu op with non-cpu/gpu input.");
         }
       } else if (parent_op_type == NDLL_GPU) {
         DeviceWorkspace &src_ws = wsb->gpu_op_data[parent_idx];
@@ -369,10 +379,10 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
           const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
           ws.AddInput(input);
         } else {
-          NDLL_FAIL("Executor encoutered gpu op with non-cpu/gpu input.");
+          NDLL_FAIL("Executor encountered gpu op with non-cpu/gpu input.");
         }
       } else {
-        NDLL_FAIL("Executor encoutered gpu op with non-mixed/gpu input.");
+        NDLL_FAIL("Executor encountered gpu op with non-mixed/gpu input.");
       }
     }
 
@@ -384,6 +394,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 }
 
 void Executor::PresizeData(WorkspaceBlob *wsb) {
+  TimeRange tr("[Executor] PresizeData");
   // Note: At some point our graph has source nodes that
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
