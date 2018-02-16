@@ -137,6 +137,16 @@ class Operator {
   using Operator::num_threads_;        \
   using Operator::batch_size_
 
+#define USE_CPU_OPERATOR_MEMBERS()                 \
+  using Operator<CPUBackend>::spec_;               \
+  using Operator<CPUBackend>::num_threads_;        \
+  using Operator<CPUBackend>::batch_size_
+
+#define USE_GPU_OPERATOR_MEMBERS()                 \
+  using Operator<GPUBackend>::spec_;               \
+  using Operator<GPUBackend>::num_threads_;        \
+  using Operator<GPUBackend>::batch_size_
+
 // Create registries for CPU & GPU Operators
 NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
 NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
@@ -151,40 +161,5 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
       device##Operator, ndll::Operator)
 
 }  // namespace ndll
-
-
-// Macros for  creation of the CPU/GPU augmentation methods:
-
-#define AUGMENT_TRANSFORM(H, W, C, img_in, img_out,         \
-                          AUGMENT_PREAMBLE, AUGMENT_CORE,   \
-                      stepW, stepH, startW, startH, imgIdx) \
-    AUGMENT_PREAMBLE(H, W, C);                              \
-    const int64 stride = H * W * C * imgIdx;                \
-    const int64 shift = stepH * W * C;                      \
-    const uint8 *in = img_in + stride;                      \
-    uint8 *out = img_out + stride + startH * W * C - shift; \
-    for (int h = startH; h < H; h += stepH) {               \
-        out += shift;                                       \
-        for (int w = startW; w < W; w += stepW) {           \
-            AUGMENT_CORE(H, W, C);                          \
-            const int to = w * C;                           \
-            out[to] = in[from];                             \
-            if (C > 1) {                                    \
-                out[to + 1] = in[from + 1];                 \
-                out[to + 2] = in[from + 2];                 \
-            }                                               \
-        }                                                   \
-    }
-
-#define AUGMENT_TRANSFORM_CPU(H, W, C, img_in, img_out, KIND)           \
-        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, 1, 1, 0, 0, 0)
-
-#define AUGMENT_TRANSFORM_GPU(H, W, C, img_in, img_out, KIND)           \
-        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
-
-#define AUGMENT_PREAMBLE_DEF(H, W, C)                                       // empty macro
-#define AUGMENT_CORE_DEF(H, W, C)       const int from = (h * W + w) * C    // identical
 
 #endif  // NDLL_PIPELINE_OPERATOR_H_
