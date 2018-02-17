@@ -4,8 +4,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(Jitter, Jitter<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(Jitter, Jitter<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Jitter)
     .DocStr("Foo")

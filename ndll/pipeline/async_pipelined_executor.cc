@@ -21,27 +21,25 @@ void AsyncPipelinedExecutor::RunCPU() {
         PipelinedExecutor::RunCPU();
         // cout << "finished cpu work" << endl;
 
-        // Mark that there is now internal work to do
+        // Mark that there is now mixed work to do
         // and signal to any threads that are waiting
-        std::unique_lock<std::mutex> internal_lock(internal_mutex_);
-        ++internal_work_counter_;
-        internal_work_cv_.notify_one();
+        std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
+        ++mixed_work_counter_;
+        mixed_work_cv_.notify_one();
       });
 }
 
-void AsyncPipelinedExecutor::RunInternal() {
-  internal_thread_.DoWork([this]() {
-        // Block until there is internal work to do
-        std::unique_lock<std::mutex> lock(internal_mutex_);
-        while (internal_work_counter_ == 0) {
-          internal_work_cv_.wait(lock);
+void AsyncPipelinedExecutor::RunMixed() {
+  mixed_thread_.DoWork([this]() {
+        // Block until there is mixed work to do
+        std::unique_lock<std::mutex> lock(mixed_mutex_);
+        while (mixed_work_counter_ == 0) {
+          mixed_work_cv_.wait(lock);
         }
-        --internal_work_counter_;
+        --mixed_work_counter_;
         lock.unlock();
 
-        // cout << "got internal work" << endl;
-        PipelinedExecutor::RunInternal();
-        // cout << "finished internal issue" << endl;
+        PipelinedExecutor::RunMixed();
 
         // Mark that there is now gpu work to do
         // and signal to any threads that are waiting

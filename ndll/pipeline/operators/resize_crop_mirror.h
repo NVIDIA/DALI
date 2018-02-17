@@ -31,10 +31,10 @@ namespace ndll {
  */
 
 template <typename Backend>
-class ResizeCropMirror : public Operator<Backend> {
+class ResizeCropMirror : public Operator {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     rand_gen_(time(nullptr)),
     random_resize_(spec.GetArgument<bool>("random_resize", false)),
     warp_resize_(spec.GetArgument<bool>("warp_resize", false)),

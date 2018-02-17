@@ -12,17 +12,19 @@ namespace ndll {
 // Called by "NDLLInit" to set up polymorphic pointers
 // to user-defined memory allocators
 void InitializeBackends(const OpSpec &cpu_allocator,
+    const OpSpec &pinned_cpu_allocator,
     const OpSpec &gpu_allocator);
 
 void SetCPUAllocator(const OpSpec& allocator);
+void SetPinnedCPUAllocator(const OpSpec& allocator);
 void SetGPUAllocator(const OpSpec& allocator);
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */
 class GPUBackend final {
  public:
-  static void* New(size_t bytes);
-  static void Delete(void *ptr, size_t bytes);
+  static void* New(size_t bytes, bool);
+  static void Delete(void *ptr, size_t bytes, bool);
 };
 
 /**
@@ -30,8 +32,8 @@ class GPUBackend final {
  */
 class CPUBackend final {
  public:
-  static void* New(size_t bytes);
-  static void Delete(void *ptr, size_t bytes);
+  static void* New(size_t bytes, bool pinned);
+  static void Delete(void *ptr, size_t bytes, bool pinned);
 };
 
 // Utility to copy between backends

@@ -36,11 +36,11 @@ TEST_F(OpGraphTest, TestCPUOnly) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -50,16 +50,16 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
 
   // Validate copy op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
 
-  vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  vector<TensorMeta> meta = graph.TensorConsumerMeta(node2.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
@@ -82,11 +82,11 @@ TEST_F(OpGraphTest, TestGPUOnly) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 0);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 2);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -96,16 +96,16 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
 
   // Validate copy op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node2.spec.Output(0)));
 
-  vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  vector<TensorMeta> meta = graph.TensorConsumerMeta(node2.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
@@ -122,7 +122,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "internal")
+          .AddArg("device", "mixed")
           .AddInput("external_data", "cpu")
           .AddOutput("external_data", "gpu")), "");
 
@@ -134,11 +134,11 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumInternalOp(), 1);
+  ASSERT_EQ(graph.NumMixedOp(), 1);
   ASSERT_EQ(graph.NumGPUOp(), 1);
 
   // Validate the source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -148,33 +148,33 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
 
   // Validate copy-to-dev op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(node.children.count(2), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 1);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(node2.children.count(2), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node2.spec.Output(0)));
 
-  vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  vector<TensorMeta> meta = graph.TensorConsumerMeta(node2.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, true);
 
   // Validate copy op
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(1), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 0);
+  ASSERT_EQ(node3.parents.size(), 1);
+  ASSERT_EQ(node3.parents.count(1), 1);
+  ASSERT_EQ(graph.TensorSourceID(node3.spec.Output(0)), 2);
+  ASSERT_EQ(graph.TensorIdxInSource(node3.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node3.spec.Output(0)));
 
-  meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  meta = graph.TensorConsumerMeta(node3.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 2);
   ASSERT_EQ(meta[0].index, 0);
@@ -208,11 +208,11 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 2);
 
   // Validate the gpu source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -222,42 +222,42 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
 
   // Validate gpu copy op
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node.spec.Output(0)));
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<GPUBackend>(node2.spec.Output(0)));
 
-  vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  vector<TensorMeta> meta = graph.TensorConsumerMeta(node2.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, false);
 
   // Validate cpu source op
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(node.children.count(3), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 1);
+  ASSERT_EQ(node3.parents.size(), 0);
+  ASSERT_EQ(node3.children.count(3), 1);
+  ASSERT_EQ(graph.TensorSourceID(node3.spec.Output(0)), 2);
+  ASSERT_EQ(graph.TensorIdxInSource(node3.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node3.spec.Output(0)));
 
   // Validate cpu copy op
-  node = graph.node(3);
-  ASSERT_EQ(node.id, 3);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(2), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 3);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node4 = graph.node(3);
+  ASSERT_EQ(node4.id, 3);
+  ASSERT_EQ(node4.children.size(), 0);
+  ASSERT_EQ(node4.parents.size(), 1);
+  ASSERT_EQ(node4.parents.count(2), 1);
+  ASSERT_EQ(graph.TensorSourceID(node4.spec.Output(0)), 3);
+  ASSERT_EQ(graph.TensorIdxInSource(node4.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node4.spec.Output(0)));
 
-  meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  meta = graph.TensorConsumerMeta(node4.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 3);
   ASSERT_EQ(meta[0].index, 0);
@@ -289,11 +289,11 @@ TEST_F(OpGraphTest, TestOpRemoval) {
 
   // Validate the graph
   ASSERT_EQ(graph.NumCPUOp(), 3);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the dummy source op
-  auto node = graph.node(0);
+  auto& node = graph.node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 2);
   ASSERT_EQ(node.parents.size(), 0);
@@ -304,33 +304,33 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
 
   // Validate dummy op 1
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node2 = graph.node(1);
+  ASSERT_EQ(node2.id, 1);
+  ASSERT_EQ(node2.children.size(), 0);
+  ASSERT_EQ(node2.parents.size(), 1);
+  ASSERT_EQ(node2.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
 
-  vector<TensorMeta> meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  vector<TensorMeta> meta = graph.TensorConsumerMeta(node2.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
   ASSERT_EQ(meta[0].is_cpu, true);
 
   // Validate dummy op 2
-  node = graph.node(2);
-  ASSERT_EQ(node.id, 2);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 2);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node3 = graph.node(2);
+  ASSERT_EQ(node3.id, 2);
+  ASSERT_EQ(node3.children.size(), 0);
+  ASSERT_EQ(node3.parents.size(), 1);
+  ASSERT_EQ(node3.parents.count(0), 1);
+  ASSERT_EQ(graph.TensorSourceID(node3.spec.Output(0)), 2);
+  ASSERT_EQ(graph.TensorIdxInSource(node3.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node3.spec.Output(0)));
 
   // Input zero is also consumed (as input 1) to op 1
-  meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  meta = graph.TensorConsumerMeta(node3.spec.Input(0));
   ASSERT_EQ(meta.size(), 2);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 1);
@@ -344,32 +344,32 @@ TEST_F(OpGraphTest, TestOpRemoval) {
 
   // Validate the updated graph
   ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumInternalOp(), 0);
+  ASSERT_EQ(graph.NumMixedOp(), 0);
   ASSERT_EQ(graph.NumGPUOp(), 0);
 
   // Validate the source op
-  node = graph.node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(node.children.count(1), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node4 = graph.node(0);
+  ASSERT_EQ(node4.id, 0);
+  ASSERT_EQ(node4.children.size(), 1);
+  ASSERT_EQ(node4.parents.size(), 0);
+  ASSERT_EQ(node4.children.count(1), 1);
+  ASSERT_EQ(graph.TensorSourceID(node4.spec.Output(0)), 0);
+  ASSERT_EQ(graph.TensorIdxInSource(node4.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node4.spec.Output(0)));
 
   // Validate copy op 1
-  node = graph.node(1);
-  ASSERT_EQ(node.id, 1);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 1);
-  ASSERT_EQ(node.parents.count(0), 1);
-  ASSERT_EQ(node.spec.NumInput(), 1);
-  ASSERT_EQ(node.spec.NumOutput(), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
+  auto& node5 = graph.node(1);
+  ASSERT_EQ(node5.id, 1);
+  ASSERT_EQ(node5.children.size(), 0);
+  ASSERT_EQ(node5.parents.size(), 1);
+  ASSERT_EQ(node5.parents.count(0), 1);
+  ASSERT_EQ(node5.spec.NumInput(), 1);
+  ASSERT_EQ(node5.spec.NumOutput(), 1);
+  ASSERT_EQ(graph.TensorSourceID(node5.spec.Output(0)), 1);
+  ASSERT_EQ(graph.TensorIdxInSource(node5.spec.Output(0)), 0);
+  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node5.spec.Output(0)));
 
-  meta = graph.TensorConsumerMeta(node.spec.Input(0));
+  meta = graph.TensorConsumerMeta(node5.spec.Input(0));
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);

@@ -4,8 +4,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(Cast, Cast<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(Cast, Cast<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Cast, Cast<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Cast)
   .DocStr("Cast tensor to a different type")

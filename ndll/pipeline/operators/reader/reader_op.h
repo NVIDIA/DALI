@@ -20,12 +20,12 @@ namespace ndll {
  * Operator runs an additional prefetch thread
  */
 template <typename Backend>
-class DataReader : public Operator<Backend> {
+class DataReader : public Operator {
  public:
   inline explicit DataReader(const OpSpec& spec) :
-    Operator<Backend>(spec),
-  thread_locks_(Operator<Backend>::num_threads_),
-  condition_vars_(Operator<Backend>::num_threads_),
+    Operator(spec),
+  thread_locks_(Operator::num_threads_),
+  condition_vars_(Operator::num_threads_),
   prefetch_ready_(false),
   prefetch_ready_workers_(false),
   prefetch_success_(true),
@@ -43,7 +43,7 @@ class DataReader : public Operator<Backend> {
     // TODO(slayton): exchange multiple batches
     prefetched_batch_.clear();
 
-    for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
+    for (int i = 0; i < Operator::batch_size_; ++i) {
       auto* t = loader_->ReadOne();
       prefetched_batch_.push_back(t);
     }
@@ -64,7 +64,7 @@ class DataReader : public Operator<Backend> {
 
     while (!finished_) {
       try {
-        prefetched_batch_.reserve(Operator<Backend>::batch_size_);
+        prefetched_batch_.reserve(Operator::batch_size_);
         prefetch_success_ = Prefetch();
       } catch (const std::exception& e) {
         printf("Prefetch Failed\n");
@@ -149,7 +149,7 @@ class DataReader : public Operator<Backend> {
     }
 
     // consume batch
-    Operator<Backend>::Run(ws);
+    Operator::Run(ws);
 
     loader_->ReturnTensor(prefetched_batch_[ws->data_idx()]);
 
@@ -163,7 +163,7 @@ class DataReader : public Operator<Backend> {
       if (batch_stop_) return;
 
       // if we've consumed all samples in this batch, reset state and stop
-      if (samples_processed_.load() == Operator<Backend>::batch_size_) {
+      if (samples_processed_.load() == Operator::batch_size_) {
         prefetch_ready_workers_ = false;
         prefetch_ready_ = false;
         producer_.notify_one();

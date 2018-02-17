@@ -11,9 +11,12 @@ namespace ndll {
  * pipeline objects. Must be called prior to constructing pipeline objects.
  * This must be called only once within a process.
  */
-void NDLLInit(const OpSpec &cpu_allocator, const OpSpec &gpu_allocator);
+void NDLLInit(const OpSpec &cpu_allocator,
+              const OpSpec &pinned_cpu_allocator,
+              const OpSpec &gpu_allocator);
 
 void NDLLSetCPUAllocator(const OpSpec& allocator);
+void NDLLSetPinnedCPUAllocator(const OpSpec& allocator);
 void NDLLSetGPUAllocator(const OpSpec& allocator);
 
 

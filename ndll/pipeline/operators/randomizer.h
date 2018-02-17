@@ -20,7 +20,7 @@ void initializeStates(const int N, unsigned int seed, curandState *states) {
 class Randomizer {
  public:
   explicit Randomizer(int seed = 1234, size_t len = 128*32*32) : len_(len) {
-        states_ = reinterpret_cast<curandState*>(GPUBackend::New(sizeof(curandState) * len));
+        states_ = reinterpret_cast<curandState*>(GPUBackend::New(sizeof(curandState) * len, true));
         initializeStates<<<128, 256>>>(len_, seed, states_);
     }
 
@@ -34,7 +34,7 @@ class Randomizer {
     }
 
   void Cleanup() {
-    GPUBackend::Delete(states_, sizeof(curandState) * len_);
+    GPUBackend::Delete(states_, sizeof(curandState) * len_, true);
   }
 
  private:

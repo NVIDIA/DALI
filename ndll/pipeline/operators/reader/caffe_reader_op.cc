@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(CaffeReader, CaffeReader);
+NDLL_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 
 NDLL_OPERATOR_SCHEMA(CaffeReader)
   .DocStr("Read (Image, label) pairs from a Caffe LMDB")

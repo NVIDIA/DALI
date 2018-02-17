@@ -15,10 +15,10 @@ namespace ndll {
  * potential scoping and data corruption issues.
  */
 template <typename Backend>
-class ExternalSource : public Operator<Backend> {
+class ExternalSource : public Operator {
  public:
   inline explicit ExternalSource(const OpSpec &spec) :
-    Operator<Backend>(spec) {
+    Operator(spec) {
     output_name_ = spec.Output(0);
   }
 

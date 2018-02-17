@@ -24,10 +24,10 @@ NDLL_REGISTER_TYPE(DctQuantInvImageParam, NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM)
  * decoder must be followed by the DCTQuantInvOp to complete the jpeg decode
  */
 template <typename Backend>
-class HuffmanDecoder : public Operator<Backend> {
+class HuffmanDecoder : public Operator {
  public:
   explicit inline HuffmanDecoder(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint", 10*1048576)) {
     // Resize per-image & per-thread data
     tl_parser_state_.resize(num_threads_);
@@ -125,10 +125,10 @@ class HuffmanDecoder : public Operator<Backend> {
 // dev-to-dev copies to get the final grayscale images into the
 // output buffer
 template <typename Backend>
-class DCTQuantInv : public Operator<Backend> {
+class DCTQuantInv : public Operator {
  public:
   explicit inline DCTQuantInv(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    Operator(spec),
     output_type_(spec.GetArgument<NDLLImageType>("output_type", NDLL_RGB)),
     color_(IsColor(output_type_)), C_(color_ ? 3 : 1) {
     // Resize per-thread & per-image data

@@ -6,8 +6,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(DummyOp, DummyOp<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(DummyOp, DummyOp<GPUBackend>);
+NDLL_REGISTER_OPERATOR(DummyOp, DummyOp<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(DummyOp, DummyOp<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(DummyOp)
   .DocStr("Foo")

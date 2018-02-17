@@ -90,9 +90,9 @@ inline void NDLLProfilerStop() {
 
 // Basic timerange for profiling
 struct TimeRange {
-TimeRange(const char *name) {
+TimeRange(std::string name) {
 #ifdef NDLL_USE_NVTX
-  nvtxRangePushA(name);
+  nvtxRangePushA(name.c_str());
 #endif
 }
 ~TimeRange() {

@@ -19,7 +19,7 @@ namespace ndll {
 enum NDLLOpType {
   NDLL_GPU = 0,
   NDLL_CPU = 1,
-  NDLL_INTERNAL = 2
+  NDLL_MIXED = 2
 };
 
 /**
@@ -34,7 +34,6 @@ enum NDLLOpType {
  * macro. The op can then be added to a pipeline through its registered
  * name (the first arg to the registration macros).
  */
-template <typename Backend>
 class Operator {
  public:
   inline explicit Operator(const OpSpec &spec) :
@@ -72,6 +71,13 @@ class Operator {
     for (int i = 0; i < input_sets_; ++i) {
       RunBatchedGPU(ws, i);
     }
+  }
+
+  /**
+   * @brief Used by operators interfacing with both CPU and GPU.
+   */
+  virtual void Run(MixedWorkspace *ws) {
+    NDLL_FAIL("Run using mixed workspace is not implemented for this operator!");
   }
 
   /**
@@ -127,38 +133,22 @@ class Operator {
 };
 
 #define USE_OPERATOR_MEMBERS()                  \
-  using Operator<Backend>::spec_;               \
-  using Operator<Backend>::num_threads_;        \
-  using Operator<Backend>::batch_size_
-
-#define USE_CPU_OPERATOR_MEMBERS()                 \
-  using Operator<CPUBackend>::spec_;               \
-  using Operator<CPUBackend>::num_threads_;        \
-  using Operator<CPUBackend>::batch_size_
-
-#define USE_GPU_OPERATOR_MEMBERS()                 \
-  using Operator<GPUBackend>::spec_;               \
-  using Operator<GPUBackend>::num_threads_;        \
-  using Operator<GPUBackend>::batch_size_
+  using Operator::spec_;               \
+  using Operator::num_threads_;        \
+  using Operator::batch_size_
 
 // Create registries for CPU & GPU Operators
-NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator<CPUBackend>);
-NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
+NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
 
 // Must be called from .cc or .cu file
-#define NDLL_REGISTER_CPU_OPERATOR(OpName, OpType)        \
+#define NDLL_REGISTER_OPERATOR(OpName, OpType, device)        \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
   static int ANONYMIZE_VARIABLE(OpName) =                 \
     NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::CPUOperator, ndll::Operator<CPUBackend>)
-
-#define NDLL_REGISTER_GPU_OPERATOR(OpName, OpType)        \
-  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
-  static int ANONYMIZE_VARIABLE(OpName) =                 \
-    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      ndll::GPUOperator, ndll::Operator<GPUBackend>)
+      device##Operator, ndll::Operator)
 
 }  // namespace ndll
 

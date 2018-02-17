@@ -68,10 +68,10 @@ template <typename Backend,
           class Displacement = DisplacementIdentity,
           class Augment = ColorIdentity,
           bool per_channel_transform = false>
-class DisplacementFilter : public Operator<Backend> {
+class DisplacementFilter : public Operator {
  public:
   explicit DisplacementFilter(const OpSpec &spec)
-    : Operator<Backend>(spec),
+    : Operator(spec),
       displace_(spec),
       augment_(spec) {}
 

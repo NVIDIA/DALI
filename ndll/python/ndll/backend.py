@@ -5,5 +5,5 @@ from ndll.ndll_backend import *
 
 initialized = False
 if not initialized:
-    Init(OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
+    Init(OpSpec("CPUAllocator"), OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
     initialized = True

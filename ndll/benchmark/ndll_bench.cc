@@ -9,7 +9,9 @@
 #include "ndll/pipeline/op_spec.h"
 
 int main(int argc, char **argv) {
-  ndll::NDLLInit(ndll::OpSpec("PinnedCPUAllocator"), ndll::OpSpec("GPUAllocator"));
+  ndll::NDLLInit(ndll::OpSpec("CPUAllocator"),
+      ndll::OpSpec("PinnedCPUAllocator"),
+      ndll::OpSpec("GPUAllocator"));
   ::benchmark::Initialize(&argc, argv);
   ::benchmark::RunSpecifiedBenchmarks();
 }

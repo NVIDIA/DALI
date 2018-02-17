@@ -3,7 +3,8 @@
 
 namespace ndll {
 
-NDLL_DEFINE_OPTYPE_REGISTRY(CPUOperator, Operator<CPUBackend>);
-NDLL_DEFINE_OPTYPE_REGISTRY(GPUOperator, Operator<GPUBackend>);
+NDLL_DEFINE_OPTYPE_REGISTRY(CPUOperator, Operator);
+NDLL_DEFINE_OPTYPE_REGISTRY(GPUOperator, Operator);
+NDLL_DEFINE_OPTYPE_REGISTRY(MixedOperator, Operator);
 
 }  // namespace ndll

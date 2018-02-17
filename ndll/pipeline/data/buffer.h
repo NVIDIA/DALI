@@ -56,7 +56,12 @@ class Buffer {
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr), size_(0), shares_data_(false), num_bytes_(0) {}
+  inline Buffer() : data_(nullptr),
+                    size_(0),
+                    shares_data_(false),
+                    num_bytes_(0),
+                    pinned_(true)
+    {}
 
   virtual ~Buffer() = default;
 
@@ -145,6 +150,15 @@ class Buffer {
   }
 
   /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for
+   * CPU buffers
+   */
+  inline void set_pinned(const bool pinned) {
+    NDLL_ENFORCE(!data_, "Can only set allocation mode before first allocation");
+    pinned_ = pinned;
+  }
+
+  /**
    * @brief Sets the type of the buffer. If the buffer has not been
    * allocated because it does not yet have a type, the calling type
    * is taken to be the type of the data and the memory is allocated.
@@ -173,7 +187,8 @@ class Buffer {
 
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
-      data_.reset(Backend::New(new_num_bytes), std::bind(
+      new_num_bytes *= alloc_mult;
+      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
               type_, size_));
@@ -194,7 +209,7 @@ class Buffer {
   // shared pointers
   void DeleterHelper(void *ptr, TypeInfo type, Index size) {
     type.template Destruct<Backend>(ptr, size);
-    Backend::Delete(ptr, size*type.size());
+    Backend::Delete(ptr, size*type.size(), pinned_);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
@@ -221,7 +236,8 @@ class Buffer {
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
-      data_.reset(Backend::New(new_num_bytes), std::bind(
+      new_num_bytes *= alloc_mult;
+      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
               type_, new_size));
@@ -237,6 +253,8 @@ class Buffer {
     size_ = new_size;
   }
 
+  const double alloc_mult = 1.5;
+
   Backend backend_;
 
   TypeInfo type_;  // Data type of underlying storage
@@ -247,6 +265,8 @@ class Buffer {
   // To keep track of the true size
   // of the underlying allocation
   size_t num_bytes_;
+
+  bool pinned_;  // Whether the allocation uses pinned memory
 };
 
 // Macro so we don't have to list these in all

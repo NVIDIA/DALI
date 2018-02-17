@@ -4,8 +4,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(Water, Water<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(Water, Water<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Water, Water<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(Water, Water<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Water)
     .DocStr("Foo")

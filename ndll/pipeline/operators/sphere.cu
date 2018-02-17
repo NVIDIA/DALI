@@ -4,8 +4,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(Sphere, Sphere<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(Sphere, Sphere<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Sphere, Sphere<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(Sphere, Sphere<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Sphere)
     .DocStr("Foo")

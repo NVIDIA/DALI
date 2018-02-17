@@ -3,8 +3,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>);
+NDLL_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")

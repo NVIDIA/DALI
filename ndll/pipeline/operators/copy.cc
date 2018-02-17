@@ -3,8 +3,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(Copy, Copy<CPUBackend>);
-NDLL_REGISTER_GPU_OPERATOR(Copy, Copy<GPUBackend>);
+NDLL_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(Copy, Copy<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Copy)
   .DocStr("Foo")

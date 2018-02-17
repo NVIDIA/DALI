@@ -11,36 +11,27 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/internal_op.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
 
-template <typename T>
-using OpPtr = unique_ptr<Operator<T>>;
+using OpPtr = unique_ptr<Operator>;
 
 typedef int64 NodeID;
 
 struct OpNode {
   inline OpNode() {}
   virtual ~OpNode() = default;
+  OpNode& operator=(const OpNode&) = delete;
 
+  OpNode(OpNode &&) = default;
+  OpNode& operator=(OpNode &&) = default;
+
+  OpPtr op;
   NodeID id;
   OpSpec spec;
   std::unordered_set<NodeID> parents, children;
   std::string instance_name;
-};
-
-struct CPUOpNode : public OpNode {
-  OpPtr<CPUBackend> op;
-};
-
-struct GPUOpNode : public OpNode {
-  OpPtr<GPUBackend> op;
-};
-
-struct InternalOpNode : public OpNode {
-  unique_ptr<internal::InternalOp> op;
 };
 
 // Stores meta-data about a tensor and how it
@@ -58,7 +49,7 @@ struct TensorMeta {
  *
  * Operators in the graph have a global NodeID that is assigned in
  * the order ops are added to the graph. Operators also have an
- * index within the set of ops of its type (cpu, internal, gpu).
+ * index within the set of ops of its type (cpu, mixed, gpu).
  * This enables us to iterate over select portions of the graph, or
  * the entire graph.
  *
@@ -89,7 +80,7 @@ class OpGraph {
    * @brief Returns the total number of ops in the graph.
    */
   inline Index NumOp() const {
-    return NumCPUOp() + NumGPUOp() + NumInternalOp();
+    return NumCPUOp() + NumGPUOp() + NumMixedOp();
   }
 
   /**
@@ -103,15 +94,15 @@ class OpGraph {
   inline Index NumGPUOp() const { return gpu_nodes_.size(); }
 
   /**
-   * @brief Returns the number of internal ops in the graph.
+   * @brief Returns the number of mixed ops in the graph.
    */
-  inline Index NumInternalOp() const { return internal_nodes_.size(); }
+  inline Index NumMixedOp() const { return mixed_nodes_.size(); }
 
   /**
    * @brief Returns a reference to the `idx`-th cpu op that was
    * added to the graph.
    */
-  inline Operator<CPUBackend>& cpu_op(Index idx) {
+  inline Operator& cpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return *cpu_nodes_[idx].op;
   }
@@ -120,7 +111,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th cpu op that
    * was added to the graph.
    */
-  inline CPUOpNode& cpu_node(Index idx) {
+  inline OpNode& cpu_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx];
   }
@@ -129,7 +120,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline Operator<GPUBackend>& gpu_op(Index idx) {
+  inline Operator& gpu_op(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return *gpu_nodes_[idx].op;
   }
@@ -138,27 +129,27 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline GPUOpNode& gpu_node(Index idx) {
+  inline OpNode& gpu_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return gpu_nodes_[idx];
   }
 
   /**
-   * @brief Returns a reference to the `idx`-th internal op
+   * @brief Returns a reference to the `idx`-th mixed op
    * that was added to the graph.
    */
-  inline internal::InternalOp& internal_op(Index idx) {
-    NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
-    return *internal_nodes_[idx].op;
+  inline Operator& mixed_op(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
+    return *mixed_nodes_[idx].op;
   }
 
   /**
-   * @brief Returns the node object for the `idx`-th internal op that
+   * @brief Returns the node object for the `idx`-th mixed op that
    * was added to the graph.
    */
-  inline InternalOpNode& internal_node(Index idx) {
-    NDLL_ENFORCE_VALID_INDEX(idx, (Index)internal_nodes_.size());
-    return internal_nodes_[idx];
+  inline OpNode& mixed_node(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
+    return mixed_nodes_[idx];
   }
 
   /**
@@ -175,7 +166,7 @@ class OpGraph {
   OpNode& node(NodeID id);
 
   /**
-   * @brief Returns the type (cpu, gpu, internal) of the node
+   * @brief Returns the type (cpu, gpu, mixed) of the node
    * at the given index.
    */
   inline NDLLOpType NodeType(NodeID id) const {
@@ -243,9 +234,9 @@ class OpGraph {
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
  private:
-  vector<CPUOpNode> cpu_nodes_;
-  vector<GPUOpNode> gpu_nodes_;
-  vector<InternalOpNode> internal_nodes_;
+  vector<OpNode> cpu_nodes_;
+  vector<OpNode> gpu_nodes_;
+  vector<OpNode> mixed_nodes_;
 
   // Stores a mapping from NodeIDs to a pair where the first
   // element indicates what type of node it is,  and the second

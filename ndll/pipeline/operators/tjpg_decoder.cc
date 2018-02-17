@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_CPU_OPERATOR(TJPGDecoder, TJPGDecoder<CPUBackend>);
+NDLL_REGISTER_OPERATOR(TJPGDecoder, TJPGDecoder<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(TJPGDecoder)
   .DocStr("Foo")

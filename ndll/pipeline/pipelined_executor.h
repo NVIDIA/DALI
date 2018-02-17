@@ -19,7 +19,7 @@ namespace ndll {
  * are already queued by the Executor), and increasing the queue
  * depth to 3. Because we have more, and deeper queues, this
  * executor requires more memory than the normal Executor, but can
- * see large performance benefits from pipelining the cpu, internal,
+ * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
 class PipelinedExecutor : public Executor {
@@ -63,23 +63,23 @@ class PipelinedExecutor : public Executor {
     vector<vector<shared_ptr<Tensor<Backend>>>> tvs_;
   };
 
-  // Note: Pipelining the cpu, internal, and gpu execution
+  // Note: Pipelining the cpu, mixed, and gpu execution
   // can be viewed as prefetching each stage w.r.t. the
   // other stages. Thus, we need to queue the outputs of
   // each stage to avoid overwriting data that could still
   // be in use. To do this, we find all outputs of the
-  // cpu & internal stages of the pipeline that aren't
+  // cpu & mixed stages of the pipeline that aren't
   // outptus requested by the user and setup `queue_depth`
   // extra buffers that we will rotate between. Note that
-  // we do not worry about CPU outputs of the internal
+  // we do not worry about CPU outputs of the mixed
   // stage, as these will only be created as outputs
   // requested by the user.
   vector<TensorVectorPool<CPUBackend>> cpu_stage_outputs_;
-  vector<TensorListPool<CPUBackend>> internal_stage_cpu_outputs_;
-  vector<TensorListPool<GPUBackend>> internal_stage_gpu_outputs_;
+  vector<TensorListPool<CPUBackend>> mixed_stage_cpu_outputs_;
+  vector<TensorListPool<GPUBackend>> mixed_stage_gpu_outputs_;
   vector<OutputInfo> cpu_stage_output_info_;
-  vector<OutputInfo> internal_stage_cpu_output_info_;
-  vector<OutputInfo> internal_stage_gpu_output_info_;
+  vector<OutputInfo> mixed_stage_cpu_output_info_;
+  vector<OutputInfo> mixed_stage_gpu_output_info_;
 
   USE_EXECUTOR_MEMBERS();
 };

@@ -47,7 +47,7 @@ class DummyDataReader : public DataReader<Backend> {
   const int max_count = 100;
 };
 
-NDLL_REGISTER_CPU_OPERATOR(DummyDataReader, DummyDataReader<CPUBackend>);
+NDLL_REGISTER_OPERATOR(DummyDataReader, DummyDataReader<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(DummyDataReader)
   .DocStr("Dummy")

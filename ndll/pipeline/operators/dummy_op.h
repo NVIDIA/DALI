@@ -7,10 +7,10 @@
 namespace ndll {
 
 template <typename Backend>
-class DummyOp : public Operator<Backend> {
+class DummyOp : public Operator {
  public:
   inline explicit DummyOp(const OpSpec &spec) :
-    Operator<Backend>(spec) {}
+    Operator(spec) {}
 
   virtual inline ~DummyOp() = default;
 
