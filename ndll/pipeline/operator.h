@@ -137,16 +137,6 @@ class Operator {
   using Operator::num_threads_;        \
   using Operator::batch_size_
 
-#define USE_CPU_OPERATOR_MEMBERS()                 \
-  using Operator<CPUBackend>::spec_;               \
-  using Operator<CPUBackend>::num_threads_;        \
-  using Operator<CPUBackend>::batch_size_
-
-#define USE_GPU_OPERATOR_MEMBERS()                 \
-  using Operator<GPUBackend>::spec_;               \
-  using Operator<GPUBackend>::num_threads_;        \
-  using Operator<GPUBackend>::batch_size_
-
 // Create registries for CPU & GPU Operators
 NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
 NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
