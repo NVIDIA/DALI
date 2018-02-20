@@ -90,16 +90,49 @@ inline void NDLLProfilerStop() {
 
 // Basic timerange for profiling
 struct TimeRange {
-TimeRange(std::string name) {
+  static const uint32_t kRed     = 0xFF0000;
+  static const uint32_t kGreen   = 0x00FF00;
+  static const uint32_t kBlue    = 0x0000FF;
+  static const uint32_t kYellow  = 0xB58900;
+  static const uint32_t kOrange  = 0xCB4B16;
+  static const uint32_t kRed1    = 0xDC322F;
+  static const uint32_t kMagenta = 0xD33682;
+  static const uint32_t kViolet  = 0x6C71C4;
+  static const uint32_t kBlue1   = 0x268BD2;
+  static const uint32_t kCyan    = 0x2AA198;
+  static const uint32_t kGreen1  = 0x859900;
+
+  TimeRange(std::string name, const uint32_t rgb = kBlue) { // NOLINT
 #ifdef NDLL_USE_NVTX
-  nvtxRangePushA(name.c_str());
+    nvtxEventAttributes_t att;
+    att.version = NVTX_VERSION;
+    att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+    att.colorType = NVTX_COLOR_ARGB;
+    att.color = rgb | 0xff000000;
+    att.messageType = NVTX_MESSAGE_TYPE_ASCII;
+    att.message.ascii = name.c_str();
+
+    nvtxRangePushEx(&att);
+    started = true;
+
 #endif
-}
-~TimeRange() {
+  }
+
+  ~TimeRange() {
+    stop();
+  }
+
+  void stop() {
 #ifdef NDLL_USE_NVTX
-  nvtxRangePop();
+    if (started) {
+      started = false;
+      nvtxRangePop();
+    }
 #endif
-}
+  }
+
+ private:
+    bool started = false;
 };
 
 using std::to_string;
