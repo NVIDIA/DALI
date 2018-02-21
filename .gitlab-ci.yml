@@ -295,3 +295,11 @@ L0_rn50_python-benchmarks--V100_R384_4GPU:
 L0_rn50_python-benchmarks--py2--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
+
+L0_jupyter--py2--P100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *P100_R384_4GPU
+
+L0_jupyter--py2--V100_R384_4GPU:
+  <<: *L0_TEST
+  <<: *V100_R384_4GPU
