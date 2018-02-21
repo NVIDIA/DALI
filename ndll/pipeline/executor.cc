@@ -225,8 +225,8 @@ void Executor::PruneUnusedGraphNodes() {
       // If this node has children, don't prune it
       if (!node.children.empty()) continue;
 
-      // Note: this is technically a very innefficient
-      // way to find the insertsection of the node outputs
+      // Note: this is technically a very inefficient
+      // way to find the intersection of the node outputs
       // and the outputs of the graph. The number of outputs
       // is usually 1-2, so it shouldn't matter
       bool found_match = false;

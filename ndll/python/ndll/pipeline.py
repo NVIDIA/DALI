@@ -62,7 +62,9 @@ class Pipeline(object):
         tensors = deque(outputs)
         ops = []
         while tensors:
+            print "Tensors: {}".format([t.name for t in tensors])
             current_tensor = tensors.popleft()
+            print "Adding {}".format(current_tensor.name)
             source_op = current_tensor.source
             if source_op is None:
                 raise RuntimeError(
@@ -77,8 +79,6 @@ class Pipeline(object):
             if source_op.id not in op_ids:
                 op_ids.add(source_op.id)
                 ops.append(source_op)
-                for tensor in source_op.inputs:
-                    tensors.append(tensor)
             else:
                 # If the op was already added, we need to
                 # change its position to the top of the list.
@@ -86,10 +86,14 @@ class Pipeline(object):
                 # when adding to the backend pipeline
                 ops.remove(source_op)
                 ops.append(source_op)
+            for tensor in source_op.inputs:
+                tensors.append(tensor)
+            print [op.name for op in ops]
 
         # Add the ops to the graph and build the backend
         while ops:
             op = ops.pop()
+            print "Adding {}".format(op.name)
             self._pipe.AddOperator(op.spec, op.name)
         self._prepared = True
         self._names_and_devices = [(t.name, t.device) for t in outputs]
