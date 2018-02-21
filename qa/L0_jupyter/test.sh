@@ -11,7 +11,6 @@ ls *.ipynb | xargs -i jupyter nbconvert \
                    --to notebook --execute \
                    --ExecutePreprocessor.kernel_name=python2 \
                    --ExecutePreprocessor.timeout=300 \
-                   --output output.ipynb {}
+                   --output /dev/null {}
 
-rm output.ipynb
 rm -r /opt/ndll/idx_files
