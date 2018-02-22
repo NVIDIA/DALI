@@ -147,7 +147,6 @@ void PipelinedExecutor::SetStageOutputsForIter(
       } else {
           NDLL_FAIL("Internal error - found non-CPU/mixed consumer");
       }
-
     }
   }
 
