@@ -23,9 +23,9 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 
   // Validate op device
   string device = spec.GetArgument<string>("device", "cpu");
-  NDLL_ENFORCE(device == "cpu" || device == "gpu", "Invalid "
+  NDLL_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed", "Invalid "
       "device argument \"" + device + "\". Valid options are "
-      "\"cpu\" or \"gpu\"");
+      "\"cpu\", \"gpu\" or \"mixed\"");
 
   int old_device;
   CUDA_CALL(cudaGetDevice(&old_device));
@@ -50,11 +50,15 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     // gpu / cpu / gpu -> error, data not in specified location
     // gpu / gpu / cpu -> need to insert copy to device
     // gpu / gpu / gpu -> everything is fine
+    // mixed / cpu / cpu -> everything is fine
+    // mixed / cpu / gpu -> error, data does not exist on cpu
+    // mixed / gpu / cpu -> error, mixed op not allowed to have gpu inputs
+    // mixed / gpu / gpu -> both of above errors
     string error_str = "(op: '" + spec.name() + "', input: '" +
       input_name + "')";
 
-    if (device == "cpu") {
-      NDLL_ENFORCE(input_device == "cpu", "cpu ops can only take cpu "
+    if (device == "cpu" || device == "mixed") {
+      NDLL_ENFORCE(input_device == "cpu", "cpu/mixed ops can only take cpu "
           "inputs. " + error_str);
       NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. " + error_str);

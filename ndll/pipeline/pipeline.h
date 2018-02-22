@@ -298,9 +298,12 @@ class Pipeline {
       edge.has_cpu = true;
     } else if (device == "gpu") {
       edge.has_gpu = true;
+    } else if (device == "mixed") {
+      edge.has_gpu = true;
+      edge.has_contiguous = true;
     } else {
       NDLL_FAIL("Invalid device argument \"" + device + "\". "
-          "Valid options are \"cpu\" or \"gpu\"");
+          "Valid options are \"cpu\", \"gpu\" or \"mixed\"");
     }
     return edge;
   }
