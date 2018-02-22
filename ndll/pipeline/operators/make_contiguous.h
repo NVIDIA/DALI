@@ -8,7 +8,7 @@
 #include "ndll/common.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
-#define COALESCE_TRESHOLD 8112
+#define COALESCE_TRESHOLD 8192
 
 namespace ndll {
 
@@ -17,7 +17,6 @@ class MakeContiguous : public Operator {
   inline explicit MakeContiguous(const OpSpec &spec) :
     Operator(spec),
     coalesced(true)
-    // coalesced(spec.GetArgument<bool>("coalesced", false))
     {}
 
   virtual inline ~MakeContiguous() = default;
@@ -80,6 +79,7 @@ class MakeContiguous : public Operator {
         }
       }
     }
+    coalesced = true;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
