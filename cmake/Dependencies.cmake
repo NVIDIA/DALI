@@ -14,6 +14,10 @@ if (BUILD_NVTX)
   add_definitions(-DNDLL_USE_NVTX)
 endif()
 
+find_package(NVJPEG REQUIRED)
+include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
+list(APPEND NDLL_LIBS ${NVJPEG_LIBRARY})
+
 # Google C++ testing framework
 if (BUILD_TEST)
   set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")
