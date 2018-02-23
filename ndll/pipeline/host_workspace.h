@@ -84,6 +84,13 @@ class HostWorkspace {
   void AddInput(vector<shared_ptr<Tensor<Backend>>> input);
 
   /**
+   * @brief Sets the input at the specified index to the input
+   * vector of Tensors.
+   */
+  template <typename Backend>
+  void SetInput(int idx, vector<shared_ptr<Tensor<Backend>>> input);
+
+  /**
    * @brief Returns the Tensor at index `data_idx` in the output
    * Tensors at index `idx`.
    *
@@ -123,6 +130,7 @@ class HostWorkspace {
 
   // Maps from a TensorVector position in its typed vector
   // to its absolute position in the workspaces outputs
+  vector<int> cpu_inputs_index_, gpu_inputs_index_;
   vector<int> cpu_outputs_index_, gpu_outputs_index_;
 
   // Used to map input/output tensor indices (0, 1, ... , num_input-1)

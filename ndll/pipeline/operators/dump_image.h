@@ -43,8 +43,8 @@ class DumpImage : public Operator {
   }
 
   inline void RunBatchedGPU(DeviceWorkspace *ws, int idx) override {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
+    auto &input = ws->Input<GPUBackend>(idx);
+    auto output = ws->Output<GPUBackend>(idx);
 
     WriteHWCBatch(input, suffix_ + "-" + std::to_string(idx));
 

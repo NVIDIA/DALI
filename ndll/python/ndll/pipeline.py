@@ -77,8 +77,6 @@ class Pipeline(object):
             if source_op.id not in op_ids:
                 op_ids.add(source_op.id)
                 ops.append(source_op)
-                for tensor in source_op.inputs:
-                    tensors.append(tensor)
             else:
                 # If the op was already added, we need to
                 # change its position to the top of the list.
@@ -86,6 +84,8 @@ class Pipeline(object):
                 # when adding to the backend pipeline
                 ops.remove(source_op)
                 ops.append(source_op)
+            for tensor in source_op.inputs:
+                tensors.append(tensor)
 
         # Add the ops to the graph and build the backend
         while ops:

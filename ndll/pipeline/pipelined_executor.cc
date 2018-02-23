@@ -38,25 +38,22 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
 
       vector<TensorMeta> consumer_meta =
         graph_->TensorConsumerMeta(tensor_name);
-      bool has_info_object = false;
+      bool found_stage_boundary = false;
       for (auto &meta : consumer_meta) {
         if (graph_->NodeType(meta.node) != NDLL_CPU) {
           // We've located a tensor that is an output of
-          // the stage. Save the index of this cpu node,
-          // the index of this tensor in its workspace,
-          // the index of all non-cpu node consumers,
-          // and the index of this tensor in the consumer
-          // workspaces.
-          if (!has_info_object) {
-            OutputInfo info;
-            info.prod_and_idx = std::make_pair(node.id, j);
-            cpu_stage_output_info_.push_back(info);
-            cpu_stage_outputs_.push_back(
-                TensorVectorPool<CPUBackend>(
-                    queue_depth_, batch_size_, bytes_per_sample_hint_));
-            has_info_object = true;
-          }
-
+          // the stage.
+          found_stage_boundary = true;
+        }
+      }
+      if (found_stage_boundary) {
+        OutputInfo info;
+        info.prod_and_idx = std::make_pair(node.id, j);
+        cpu_stage_output_info_.push_back(info);
+        cpu_stage_outputs_.push_back(
+            TensorVectorPool<CPUBackend>(
+                queue_depth_, batch_size_, bytes_per_sample_hint_));
+        for (auto &meta : consumer_meta) {
           OutputInfo &info = cpu_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
           info.con_and_idx.push_back(tmp);
@@ -137,12 +134,19 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
-      NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_MIXED);
-
-      int mixed_op_id = graph_->NodeIdx(node_id);
-      int input_idx = info.con_and_idx[j].second;
-      wsb->mixed_op_data[mixed_op_id].SetInput(
+      if (graph_->NodeType(node_id) == NDLL_MIXED) {
+        int mixed_op_id = graph_->NodeIdx(node_id);
+        int input_idx = info.con_and_idx[j].second;
+        wsb->mixed_op_data[mixed_op_id].SetInput(
           input_idx, tvp.GetTV(queue_idx));
+      } else if (graph_->NodeType(node_id) == NDLL_CPU) {
+        int cpu_op_id = graph_->NodeIdx(node_id);
+        int input_idx = info.con_and_idx[j].second;
+        wsb->cpu_op_data[cpu_op_id].SetInput(
+          input_idx, tvp.GetTV(queue_idx));
+      } else {
+          NDLL_FAIL("Internal error - found non-CPU/mixed consumer");
+      }
     }
   }
 

@@ -109,31 +109,25 @@ inline string BuildErrorString(string statement, string file, int line) {
 //////////////////////////////////////////////////////
 
 // For calling CUDA library functions
-#define CUDA_CALL(code)                                   \
-  do {                                                    \
-    cudaError_t status = code;                            \
-    if (status != cudaSuccess) {                          \
-      ndll::string file = __FILE__;                       \
-      ndll::string line = std::to_string(__LINE__);       \
-      ndll::string error = "[" + file + ":" + line +      \
-        "]: CUDA error \"" +                              \
-        cudaGetErrorString(status) + "\"";                \
-      throw std::runtime_error(error);                    \
-    }                                                     \
+#define CUDA_CALL(code)                                    \
+  do {                                                     \
+    cudaError_t status = code;                             \
+    if (status != cudaSuccess) {                           \
+      ndll::string error = ndll::string("CUDA error \"") + \
+        cudaGetErrorString(status) + "\"";                 \
+      NDLL_FAIL(error);                                    \
+    }                                                      \
   } while (0)
 
 // For calling NVML library functions
-#define NVML_CALL(code)                                   \
-  do {                                                    \
-    nvmlReturn_t status = code;                           \
-    if (status != NVML_SUCCESS) {                         \
-      ndll::string file = __FILE__;                       \
-      ndll::string line = std::to_string(__LINE__);       \
-      ndll::string error = "[" + file + ":" + line +      \
-        "]: NVML error \"" +                              \
-        nvmlErrorString(status) + "\"";                   \
-      throw std::runtime_error(error);                    \
-    }                                                     \
+#define NVML_CALL(code)                                    \
+  do {                                                     \
+    nvmlReturn_t status = code;                            \
+    if (status != NVML_SUCCESS) {                          \
+      ndll::string error = ndll::string("NVML error \"") + \
+        nvmlErrorString(status) + "\"";                    \
+      NDLL_FAIL(error);                                    \
+    }                                                      \
   } while (0)
 
 // For calling NDLL library functions
@@ -141,10 +135,8 @@ inline string BuildErrorString(string statement, string file, int line) {
   do {                                                          \
     NDLLError_t status = code;                                  \
     if (status != NDLLSuccess) {                                \
-      ndll::string file = __FILE__;                             \
-      ndll::string line = std::to_string(__LINE__);             \
       ndll::string error = NDLLGetLastError();                  \
-      throw std::runtime_error(error);                          \
+      NDLL_FAIL(error);                                         \
     }                                                           \
   } while (0)
 
@@ -152,18 +144,18 @@ inline string BuildErrorString(string statement, string file, int line) {
 #define ENFRC_1(code)                                                         \
   do {                                                                        \
     if (!(code)) {                                                            \
-      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
-      throw std::runtime_error(error);                                        \
+      ndll::string error = ndll::string("Assert on \"") + #code +"\" failed"; \
+      NDLL_FAIL(error);                                                       \
     }                                                                         \
   } while (0)
 
 #define ENFRC_2(code, str)                                                    \
   do {                                                                        \
     if (!(code)) {                                                            \
-      ndll::string error = ndll::BuildErrorString(#code, __FILE__, __LINE__); \
+      ndll::string error = ndll::string("Assert on \"") + #code +"\" failed"; \
       ndll::string usr_str = str;                                             \
       error += ": " + usr_str;                                                \
-      throw std::runtime_error(error);                                        \
+      NDLL_FAIL(error);                                                       \
     }                                                                         \
   } while (0)
 
@@ -244,7 +236,7 @@ inline ndll::string GetStacktrace() {
     ndll::string file = __FILE__;                                   \
     ndll::string line = std::to_string(__LINE__);                   \
     ndll::string error_str = "[" + file + ":" + line + "] " + str;  \
-    error_str += ndll::GetStacktrace();                                        \
+    error_str += ndll::GetStacktrace();                             \
     throw std::runtime_error(error_str);                            \
   } while (0)
 
