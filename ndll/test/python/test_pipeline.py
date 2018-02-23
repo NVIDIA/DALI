@@ -6,7 +6,7 @@ import numpy as np
 from timeit import default_timer as timer
 import numpy as np
 
-def test_tensor_multiple_uses:
+def test_tensor_multiple_uses():
     db_folder = "/data/imagenet/train-lmdb-256x256"
     batch_size = 128
     class HybridPipe(Pipeline):
