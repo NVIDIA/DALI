@@ -5,13 +5,19 @@
 #include <vector>
 
 #include "ndll/pipeline/operator.h"
+#include "ndll/common.h"
+
+// Found by benchmarking coalesced vs non coalesced on diff size images
+#define COALESCE_TRESHOLD 8192
 
 namespace ndll {
 
 class MakeContiguous : public Operator {
  public:
   inline explicit MakeContiguous(const OpSpec &spec) :
-    Operator(spec) {}
+    Operator(spec),
+    coalesced(true)
+    {}
 
   virtual inline ~MakeContiguous() = default;
 
@@ -21,6 +27,8 @@ class MakeContiguous : public Operator {
     for (int i = 0; i < batch_size_; ++i) {
       auto &input = ws->Input<CPUBackend>(0, i);
       output_shape[i] = input.shape();
+      if (coalesced && input.nbytes() > COALESCE_TRESHOLD)
+        coalesced = false;
       NDLL_ENFORCE(type == input.type(), "Inconsistent types in "
           "input batch. Cannot copy to contiguous device buffer.");
     }
@@ -44,22 +52,42 @@ class MakeContiguous : public Operator {
       output->Resize(output_shape);
       output->set_type(type);
 
-      for (int i = 0; i < batch_size_; ++i) {
-        auto &input = ws->Input<CPUBackend>(0, i);
+      if (coalesced) {
+        TimeRange tm("coalesced", TimeRange::kBlue);
+        cpu_output_buff.ResizeLike(*output);
+        cpu_output_buff.set_type(type);
+        for (int i = 0; i < batch_size_; ++i) {
+          auto &input = ws->Input<CPUBackend>(0, i);
+          memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());
+        }
         CUDA_CALL(cudaMemcpyAsync(
-                output->raw_mutable_tensor(i),
-                input.raw_data(),
-                input.nbytes(),
-                cudaMemcpyHostToDevice,
-                ws->stream()));
+              output->raw_mutable_data(),
+              cpu_output_buff.raw_mutable_data(),
+              cpu_output_buff.nbytes(),
+              cudaMemcpyHostToDevice,
+              ws->stream()));
+      } else {
+        TimeRange tm("non coalesced", TimeRange::kGreen);
+        for (int i = 0; i < batch_size_; ++i) {
+          auto &input = ws->Input<CPUBackend>(0, i);
+          CUDA_CALL(cudaMemcpyAsync(
+                  output->raw_mutable_tensor(i),
+                  input.raw_data(),
+                  input.nbytes(),
+                  cudaMemcpyHostToDevice,
+                  ws->stream()));
+        }
       }
     }
+    coalesced = true;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
 
  protected:
   USE_OPERATOR_MEMBERS();
+  TensorList<CPUBackend> cpu_output_buff;
+  bool coalesced;
 };
 
 }  // namespace ndll
