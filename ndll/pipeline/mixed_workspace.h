@@ -11,8 +11,14 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
+#include "ndll/pipeline/workspace/workspace.h"
 
 namespace ndll {
+
+template <typename Backend>
+using MixedInputType = vector<shared_ptr<Tensor<Backend>>>;
+template <typename Backend>
+using MixedOutputType = shared_ptr<TensorList<Backend>>;
 
 class SampleWorkspace;
 
@@ -21,40 +27,17 @@ class SampleWorkspace;
  * MixedWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class MixedWorkspace {
+class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
  public:
   inline MixedWorkspace() : stream_(0) {}
   inline ~MixedWorkspace() = default;
 
-  /**
-   * @brief Returns the number of inputs.
-   */
-  inline int NumInput() const { return input_index_map_.size(); }
 
   /**
    * @brief Returns the number of Tensors in the input set of
    * tensors at the given index.
    */
   int NumInputAtIdx(int idx) const;
-
-  /**
-   * @brief Returns the number of outputs.
-   */
-  inline int NumOutput() const { return output_index_map_.size(); }
-
-  /**
-   * Returns true if the set of input Tensor at the given
-   * index has the calling Backend type.
-   */
-  template <typename Backend>
-  bool InputIsType(int idx) const;
-
-  /**
-   * Returns true if the output TensorList at the given index
-   * has the calling Backend type.
-   */
-  template <typename Backend>
-  bool OutputIsType(int idx) const;
 
   /**
    * @brief Returns the input Tensor at index `data_idx` in the input
@@ -154,26 +137,6 @@ class MixedWorkspace {
   }
 
  private:
-  template <typename T>
-  using TensorPtr = shared_ptr<Tensor<T>>;
-  vector<vector<TensorPtr<CPUBackend>>> cpu_inputs_;
-  vector<vector<TensorPtr<GPUBackend>>> gpu_inputs_;
-
-  template <typename T>
-  using TensorListPtr = shared_ptr<TensorList<T>>;
-  vector<TensorListPtr<CPUBackend>> cpu_outputs_;
-  vector<TensorListPtr<GPUBackend>> gpu_outputs_;
-
-  // Maps from a TensorLists position in its typed vector
-  // to its absolute position in the workspaces outputs
-  vector<int> cpu_inputs_index_, gpu_inputs_index_;
-  vector<int> cpu_outputs_index_, gpu_outputs_index_;
-
-  // Used to map input/output tensor indices (0, 1, ... , num_input-1)
-  // to actual tensor objects. The first element indicates if the
-  // Tensor is stored on cpu, and the second element is the index of
-  // that tensor in the {cpu, gpu}_inputs_ vector.
-  vector<std::pair<bool, int>> input_index_map_, output_index_map_;
 
   bool has_stream_ = false, has_event_ = false;
   cudaStream_t stream_;
