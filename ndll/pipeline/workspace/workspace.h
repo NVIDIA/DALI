@@ -54,7 +54,109 @@ class Workspace {
   return output_index_map_[idx].first != std::is_same<Backend, GPUBackend>::value;
   }
 
+  /**
+   * @brief Adds new CPU input.
+   */
+  void AddInput(InputType<CPUBackend> input) {
+    AddInputHelper(input, cpu_inputs_, cpu_inputs_index_);
+  }
+
+  /**
+   * @brief Adds new GPU input.
+   */
+  void AddInput(InputType<GPUBackend> input) {
+    AddInputHelper(input, gpu_inputs_, gpu_inputs_index_);
+  }
+
+  /**
+   * @brief Sets the CPU input at the specified index to the given input argument
+   */
+  void SetInput(int idx, InputType<CPUBackend> input) {
+    SetInputHelper(idx, input, cpu_inputs_, cpu_inputs_index_ );
+  }
+
+  /**
+   * @brief Sets the GPU input at the specified index to the given input argument
+   */
+  void SetInput(int idx, InputType<GPUBackend> input) {
+    SetInputHelper(idx, input, gpu_inputs_, gpu_inputs_index_ );
+  }
+
+  /**
+   * @brief Returns reference to internal CPU output object at index `idx`.
+   *
+   * @throws runtime_error if the calling type does not match the
+   * type of the tensor at the given index
+   */
+  OutputType<CPUBackend> SharedCPUOutput(int idx) {
+    NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+    auto tensor_meta = output_index_map_[idx];
+    NDLL_ENFORCE(tensor_meta.first, "Output with given "
+        "index does not have the calling backend type (CPUBackend)");
+    return cpu_outputs_[tensor_meta.second];
+  }
+
+  /**
+   * @brief Returns reference to internal GPU output object at index `idx`.
+   *
+   * @throws runtime_error if the calling type does not match the
+   * type of the tensor at the given index
+   */
+  OutputType<GPUBackend> SharedGPUOutput(int idx) {
+    NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+    auto tensor_meta = output_index_map_[idx];
+    NDLL_ENFORCE(!tensor_meta.first, "Output with given "
+        "index does not have the calling backend type (GPUBackend)");
+    return gpu_outputs_[tensor_meta.second];
+  }
+
  protected:
+
+  template <typename Backend>
+  void AddInputHelper(InputType<Backend> input,
+                      vector<InputType<Backend>>& inputs,
+                      vector<int>& inputs_index) {
+    // Save the vector of tensors
+    inputs.push_back(input);
+
+    // Update the input index map
+    input_index_map_.push_back(std::make_pair(true, inputs.size()-1));
+    inputs_index.push_back(input_index_map_.size()-1);
+  }
+
+  template <typename Backend>
+  void SetInputHelper(int idx,
+                      InputType<Backend> input,
+                      vector<InputType<Backend>>& inputs,
+                      vector<int>& inputs_index) {
+    NDLL_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
+
+    // To remove the old input at `idx`, we need to remove it
+    // from its typed vector and update the input_index_map
+    // entry for all the elements in the vector following it.
+    auto tensor_meta = input_index_map_[idx];
+    if (tensor_meta.first) {
+      for (size_t i = tensor_meta.second; i < cpu_inputs_.size(); ++i) {
+        int &input_idx = input_index_map_[cpu_inputs_index_[i]].second;
+        --input_idx;
+      }
+      cpu_inputs_.erase(cpu_inputs_.begin() + tensor_meta.second);
+      cpu_inputs_index_.erase(cpu_inputs_index_.begin() + tensor_meta.second);
+    } else {
+      for (size_t i = tensor_meta.second; i < gpu_inputs_.size(); ++i) {
+        int &input_idx = input_index_map_[gpu_inputs_index_[i]].second;
+        --input_idx;
+      }
+      gpu_inputs_.erase(gpu_inputs_.begin() + tensor_meta.second);
+      gpu_inputs_index_.erase(gpu_inputs_index_.begin() + tensor_meta.second);
+    }
+
+    // Now we insert the new input and update its meta data
+    inputs.push_back(input);
+    inputs_index.push_back(idx);
+    input_index_map_[idx] = std::make_pair(true, inputs.size()-1);
+  }
+
 
   vector<InputType<CPUBackend>> cpu_inputs_;
   vector<OutputType<CPUBackend>> cpu_outputs_;

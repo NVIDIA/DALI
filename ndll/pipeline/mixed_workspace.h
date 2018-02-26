@@ -50,19 +50,6 @@ class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
   const Tensor<Backend>& Input(int idx, int data_idx) const;
 
   /**
-   * @brief Adds the input vector of Tensors as an input
-   */
-  template <typename Backend>
-  void AddInput(vector<shared_ptr<Tensor<Backend>>> input);
-
-  /**
-   * @brief Sets the input at the specified index to the input
-   * vector of Tensors.
-   */
-  template <typename Backend>
-  void SetInput(int idx, vector<shared_ptr<Tensor<Backend>>> input);
-
-  /**
    * @brief Returns the output TensorList at index `idx`.
    *
    * @throws runtime_error If calling type does not match the type of
@@ -70,16 +57,6 @@ class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
    */
   template <typename Backend>
   TensorList<Backend>* Output(int idx);
-
-  /**
-   * @brief Returns the internal shared_ptr to the TensorList at index
-   * `idx`.
-   *
-   * @throws runtime_error If calling type does not match the type of
-   * the output at the given index.
-   */
-  template <typename Backend>
-  shared_ptr<TensorList<Backend>> SharedOutput(int idx);
 
   /**
    * @brief Adds the input TensorList as an output
