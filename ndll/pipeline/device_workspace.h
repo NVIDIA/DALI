@@ -127,7 +127,6 @@ class DeviceWorkspace : public Workspace<DeviceInputType, DeviceOutputType> {
   inline vector<cudaEvent_t> ParentEvents() const { return parent_events_; }
 
  private:
-
   bool has_stream_ = false, has_event_ = false;
   cudaStream_t stream_;
   cudaEvent_t event_;

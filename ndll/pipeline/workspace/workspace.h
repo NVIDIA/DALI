@@ -1,7 +1,9 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_WORKSPACE_WORKSPACE_H_
 #define NDLL_PIPELINE_WORKSPACE_WORKSPACE_H_
 
 #include <vector>
+#include <utility>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/backend.h"
@@ -58,14 +60,14 @@ class Workspace {
    * @brief Adds new CPU input.
    */
   void AddInput(InputType<CPUBackend> input) {
-    AddHelper(input, cpu_inputs_, cpu_inputs_index_, input_index_map_, true);
+    AddHelper(input, &cpu_inputs_, &cpu_inputs_index_, &input_index_map_, true);
   }
 
   /**
    * @brief Adds new GPU input.
    */
   void AddInput(InputType<GPUBackend> input) {
-    AddHelper(input, gpu_inputs_, gpu_inputs_index_, input_index_map_, false);
+    AddHelper(input, &gpu_inputs_, &gpu_inputs_index_, &input_index_map_, false);
   }
 
   /**
@@ -74,13 +76,13 @@ class Workspace {
   void SetInput(int idx, InputType<CPUBackend> input) {
     SetHelper<InputType, CPUBackend>(idx,
                                      input,
-                                     cpu_inputs_,
-                                     cpu_inputs_index_,
-                                     input_index_map_,
-                                     cpu_inputs_,
-                                     cpu_inputs_index_,
-                                     gpu_inputs_,
-                                     gpu_inputs_index_,
+                                     &cpu_inputs_,
+                                     &cpu_inputs_index_,
+                                     &input_index_map_,
+                                     &cpu_inputs_,
+                                     &cpu_inputs_index_,
+                                     &gpu_inputs_,
+                                     &gpu_inputs_index_,
                                      true);
   }
 
@@ -90,13 +92,13 @@ class Workspace {
   void SetInput(int idx, InputType<GPUBackend> input) {
     SetHelper<InputType, GPUBackend>(idx,
                                      input,
-                                     gpu_inputs_,
-                                     gpu_inputs_index_,
-                                     input_index_map_,
-                                     cpu_inputs_,
-                                     cpu_inputs_index_,
-                                     gpu_inputs_,
-                                     gpu_inputs_index_,
+                                     &gpu_inputs_,
+                                     &gpu_inputs_index_,
+                                     &input_index_map_,
+                                     &cpu_inputs_,
+                                     &cpu_inputs_index_,
+                                     &gpu_inputs_,
+                                     &gpu_inputs_index_,
                                      false);
   }
 
@@ -104,14 +106,14 @@ class Workspace {
    * @brief Adds new CPU output
    */
   void AddOutput(OutputType<CPUBackend> output) {
-    AddHelper(output, cpu_outputs_, cpu_outputs_index_, output_index_map_, true);
+    AddHelper(output, &cpu_outputs_, &cpu_outputs_index_, &output_index_map_, true);
   }
 
   /**
    * @brief Adds new GPU output
    */
   void AddOutput(OutputType<GPUBackend> output) {
-    AddHelper(output, gpu_outputs_, gpu_outputs_index_, output_index_map_, false);
+    AddHelper(output, &gpu_outputs_, &gpu_outputs_index_, &output_index_map_, false);
   }
 
   /**
@@ -120,13 +122,13 @@ class Workspace {
   void SetOutput(int idx, OutputType<CPUBackend> output) {
     SetHelper<OutputType, CPUBackend>(idx,
                                       output,
-                                      cpu_outputs_,
-                                      cpu_outputs_index_,
-                                      output_index_map_,
-                                      cpu_outputs_,
-                                      cpu_outputs_index_,
-                                      gpu_outputs_,
-                                      gpu_outputs_index_,
+                                      &cpu_outputs_,
+                                      &cpu_outputs_index_,
+                                      &output_index_map_,
+                                      &cpu_outputs_,
+                                      &cpu_outputs_index_,
+                                      &gpu_outputs_,
+                                      &gpu_outputs_index_,
                                       true);
   }
 
@@ -136,13 +138,13 @@ class Workspace {
   void SetOutput(int idx, OutputType<GPUBackend> output) {
     SetHelper<OutputType, GPUBackend>(idx,
                                       output,
-                                      gpu_outputs_,
-                                      gpu_outputs_index_,
-                                      output_index_map_,
-                                      cpu_outputs_,
-                                      cpu_outputs_index_,
-                                      gpu_outputs_,
-                                      gpu_outputs_index_,
+                                      &gpu_outputs_,
+                                      &gpu_outputs_index_,
+                                      &output_index_map_,
+                                      &cpu_outputs_,
+                                      &cpu_outputs_index_,
+                                      &gpu_outputs_,
+                                      &gpu_outputs_index_,
                                       false);
   }
 
@@ -175,59 +177,58 @@ class Workspace {
   }
 
  protected:
-
   template <typename T>
   void AddHelper(T entry,
-                 vector<T>& vec,
-                 vector<int>& index,
-                 vector<std::pair<bool, int>>& index_map,
-                 bool on_cpu) {
+                 vector<T>* vec,
+                 vector<int>* index,
+                 vector<std::pair<bool, int>>* index_map,
+                 const bool on_cpu) {
     // Save the vector of tensors
-    vec.push_back(entry);
+    vec->push_back(entry);
 
     // Update the input index map
-    index_map.push_back(std::make_pair(on_cpu, vec.size()-1));
-    index.push_back(index_map.size()-1);
+    index_map->push_back(std::make_pair(on_cpu, vec->size()-1));
+    index->push_back(index_map->size()-1);
   }
 
   template <template<typename> class T, typename Backend>
   void SetHelper(int idx,
                  T<Backend> entry,
-                 vector<T<Backend>>& vec,
-                 vector<int>& index,
-                 vector<std::pair<bool, int>>& index_map,
-                 vector<T<CPUBackend>>& cpu_vec,
-                 vector<int>& cpu_index,
-                 vector<T<GPUBackend>>& gpu_vec,
-                 vector<int>& gpu_index,
+                 vector<T<Backend>>* vec,
+                 vector<int>* index,
+                 vector<std::pair<bool, int>>* index_map,
+                 vector<T<CPUBackend>>* cpu_vec,
+                 vector<int>* cpu_index,
+                 vector<T<GPUBackend>>* gpu_vec,
+                 vector<int>* gpu_index,
                  bool on_cpu
                  ) {
-    NDLL_ENFORCE_VALID_INDEX(idx, index_map.size());
+    NDLL_ENFORCE_VALID_INDEX(idx, index_map->size());
 
     // To remove the old input at `idx`, we need to remove it
     // from its typed vector and update the index_map
     // entry for all the elements in the vector following it.
-    auto tensor_meta = index_map[idx];
+    auto tensor_meta = (*index_map)[idx];
     if (tensor_meta.first) {
-      for (size_t i = tensor_meta.second; i < cpu_vec.size(); ++i) {
-        int &input_idx = index_map[cpu_index[i]].second;
+      for (size_t i = tensor_meta.second; i < cpu_vec->size(); ++i) {
+        int &input_idx = (*index_map)[(*cpu_index)[i]].second;
         --input_idx;
       }
-      cpu_vec.erase(cpu_vec.begin() + tensor_meta.second);
-      cpu_index.erase(cpu_index.begin() + tensor_meta.second);
+      cpu_vec->erase(cpu_vec->begin() + tensor_meta.second);
+      cpu_index->erase(cpu_index->begin() + tensor_meta.second);
     } else {
-      for (size_t i = tensor_meta.second; i < gpu_vec.size(); ++i) {
-        int &input_idx = index_map[gpu_index[i]].second;
+      for (size_t i = tensor_meta.second; i < gpu_vec->size(); ++i) {
+        int &input_idx = (*index_map)[(*gpu_index)[i]].second;
         --input_idx;
       }
-      gpu_vec.erase(gpu_vec.begin() + tensor_meta.second);
-      gpu_index.erase(gpu_index.begin() + tensor_meta.second);
+      gpu_vec->erase(gpu_vec->begin() + tensor_meta.second);
+      gpu_index->erase(gpu_index->begin() + tensor_meta.second);
     }
 
     // Now we insert the new input and update its meta data
-    vec.push_back(entry);
-    index.push_back(idx);
-    index_map[idx] = std::make_pair(on_cpu, vec.size()-1);
+    vec->push_back(entry);
+    index->push_back(idx);
+    (*index_map)[idx] = std::make_pair(on_cpu, vec->size()-1);
   }
 
 

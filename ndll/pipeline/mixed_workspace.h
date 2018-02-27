@@ -101,7 +101,6 @@ class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
   }
 
  private:
-
   bool has_stream_ = false, has_event_ = false;
   cudaStream_t stream_;
   cudaEvent_t event_;
