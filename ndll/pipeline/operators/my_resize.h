@@ -112,26 +112,27 @@ typedef struct ResizeMappingTable {
 } ResizeMappingTable;
 
 
-#define RESIZE_N_PREAMBLE(H, W, C)    RESIZE_PREPARE()
+#define RESIZE_N_PREAMBLE(H, W, C)                              \
+    RESIZE_PREPARE()                                            \
+    const ResizeMapping *pResizePix;                            \
+    const PixMapping *pPixMap;
 
-#define RESIZE_N_CORE(C)                                                \
-    const uint32_t nX = x * sx1;                                        \
-    const uint32_t nY = y * sy1;                                        \
-    const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                    \
-    const uint32_t idx[2] =    {nX % sx0, nY % sy0};                    \
-    ResizeMapping *pResizePix = pResizeMapping + idx[1] * sy0 + idx[0]; \
-    PixMapping *pPixMap = pPixMapping + pResizePix->intersectInfoAddr;  \
-    const uint8 *pBase = in + ((begIdx[1] * W0) + begIdx[0]) * C;       \
-    uint32_t pixColor[3] = {0, 0, 0};                                   \
-    for (uint16_t i = pResizePix->nPixels; i--;) {                      \
-        const uint8 *pPix = pBase + (pPixMap + i)->pixAddr;             \
-        const uint32_t pixArea = (pPixMap + i)->pixArea;                \
-        pixColor[0] += *pPix * pixArea;                                 \
-        if (C > 1) {                                                    \
-            pixColor[1] += *(pPix + 1) * pixArea;                       \
-            pixColor[2] += *(pPix + 2) * pixArea;                       \
-        }                                                               \
-    }                                                                   \
+#define RESIZE_N_CORE(C)                                        \
+    const uint32_t nX = x * sx1;                                \
+    const uint32_t nY = y * sy1;                                \
+    pResizePix = pResizeMapping + (nY % sy0) * sy0 + nX % sx0;  \
+    pPixMap = pPixMapping + pResizePix->intersectInfoAddr;      \
+    const uint8 *pBase = in + ((nY / sy0 * W0) + nX / sx0) * C; \
+    uint32_t pixColor[3] = {0, 0, 0};                           \
+    for (uint16_t i = pResizePix->nPixels; i--;) {              \
+        const uint8 *pPix = pBase + (pPixMap + i)->pixAddr;     \
+        const uint32_t pixArea = (pPixMap + i)->pixArea;        \
+        pixColor[0] += *pPix * pixArea;                         \
+        if (C > 1) {                                            \
+            pixColor[1] += *(pPix + 1) * pixArea;               \
+            pixColor[2] += *(pPix + 2) * pixArea;               \
+        }                                                       \
+    }                                                           \
     SET_PIXEL_COLOR();
 
 NDLLError_t BatchedResize(const uint8 *in_batch, int N,
@@ -179,50 +180,10 @@ class MyResize : public Resize<Backend> {
         CreateResizeGrid(input_size, out_size, C, resizeParam);
 
         if (USE_FAST_RESIZE) {
-            ResizeMapping *pResizeMapping = pResizeMappingTable->pResizeMapping;
-            PixMapping *pPixMapping = pResizeMappingTable->pPixMapping;
+            const ResizeMapping *pResizeMapping = pResizeMappingTable->pResizeMapping;
+            const PixMapping *pPixMapping = pResizeMappingTable->pPixMapping;
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8*>(output->raw_mutable_data()), RESIZE_N)
-/*            int startH = 0;
-            int startW = 0;
-            int stepH = 1;
-            int stepW = 1;
-            RESIZE_PREPARE();
-            const uint32_t offset = nYoffset(W1, C);                 \
-            const uint32_t strideOut = H1 * offset * 0;         \
-            const uint32_t strideIn = H0 *nYoffset(W0, C) * 0; \
-            const uint32_t shift = 1 * offset;                  \
-            const uint8 *in = input.template data<uint8>() + strideIn;
-            uint8 * img_out = static_cast<uint8*>(output->raw_mutable_data()); \
-            uint8 *out = img_out + strideOut + startH * offset - shift;\
-
-            for (int y = startH; y < H1; y += stepH) {               \
-                out += shift;                                       \
-                for (int x = startW; x < W1; x += stepW) {           \
-
-                    const uint32_t nX = x * sx1;                                    \
-                    const uint32_t nY = y * sy1;                                    \
-                    const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                \
-                    const uint32_t idx[2] =    {nX % sx0, nY % sy0};                \
-                    ResizeMapping *pResizePix = pResizeMapping + idx[1] * sy0 + idx[0]; \
-                    PixMapping *pPixMap = pPixMapping + pResizePix->intersectInfoAddr; \
-                    const uint8 *pBase = in + ((begIdx[1] * W0) + begIdx[0]) * C;   \
-                    uint32_t pixColor[3];                                           \
-                    pixColor[0] = pixColor[1] = pixColor[2] = 0;                    \
-                    for (uint16_t i = pResizePix->nPixels; i--;) {                  \
-                        const uint8 *pPix = pBase + (pPixMap + i)->pixAddr;         \
-                        const uint32_t pixArea = (pPixMap + i)->pixArea;            \
-                        pixColor[0] += *pPix * pixArea;                             \
-                        if (C > 1) {                                                \
-                            pixColor[1] += *(pPix + 1) * pixArea;                   \
-                            pixColor[2] += *(pPix + 2) * pixArea;                   \
-                        }                                                           \
-                    }
-
-                    SET_PIXEL_COLOR();
-                }                                                   \
-            }
-*/
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE);
