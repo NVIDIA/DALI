@@ -33,7 +33,7 @@ const Tensor<GPUBackend>& SampleWorkspace::Input(int idx) const {
 
 template <>
 Tensor<CPUBackend>* SampleWorkspace::Output(int idx) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+  NDLL_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
 
   auto tensor_meta = output_index_map_[idx];
   NDLL_ENFORCE(tensor_meta.first, "Output Tensor with given "
@@ -43,7 +43,7 @@ Tensor<CPUBackend>* SampleWorkspace::Output(int idx) {
 
 template <>
 Tensor<GPUBackend>* SampleWorkspace::Output(int idx) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)idx, output_index_map_.size());
+  NDLL_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
 
   auto tensor_meta = output_index_map_[idx];
   NDLL_ENFORCE(!tensor_meta.first, "Output Tensor with given "

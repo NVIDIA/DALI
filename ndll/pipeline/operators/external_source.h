@@ -64,7 +64,7 @@ class ExternalSource : public Operator {
     if (data_in_tl_) {
       output->ShareData(&tl_data_, ws->data_idx());
     } else {
-      NDLL_ENFORCE_VALID_INDEX((size_t)ws->data_idx(), t_data_.size());
+      NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), t_data_.size());
       auto &data = t_data_[ws->data_idx()];
       output->ShareData(&data);
     }
