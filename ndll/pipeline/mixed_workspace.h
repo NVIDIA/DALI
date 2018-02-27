@@ -59,19 +59,6 @@ class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
   TensorList<Backend>* Output(int idx);
 
   /**
-   * @brief Adds the input TensorList as an output
-   */
-  template <typename Backend>
-  void AddOutput(shared_ptr<TensorList<Backend>> output);
-
-  /**
-   * @brief Sets the output at the specified index to the input
-   * TensorList
-   */
-  template <typename Backend>
-  void SetOutput(int idx, shared_ptr<TensorList<Backend>> output);
-
-  /**
    * @brief Sets the stream for this workspace.
    */
   inline void set_stream(cudaStream_t stream) {
