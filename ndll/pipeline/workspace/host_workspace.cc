@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#include "ndll/pipeline/host_workspace.h"
+#include "ndll/pipeline/workspace/host_workspace.h"
 
-#include "ndll/pipeline/sample_workspace.h"
+#include "ndll/pipeline/workspace/sample_workspace.h"
 
 namespace ndll {
 

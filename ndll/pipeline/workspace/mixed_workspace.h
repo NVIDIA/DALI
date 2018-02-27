@@ -1,15 +1,14 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_DEVICE_WORKSPACE_H_
-#define NDLL_PIPELINE_DEVICE_WORKSPACE_H_
+#ifndef NDLL_PIPELINE_WORKSPACE_MIXED_WORKSPACE_H_
+#define NDLL_PIPELINE_WORKSPACE_MIXED_WORKSPACE_H_
 
-#include <cuda_runtime_api.h>
-
-#include <utility>
 #include <vector>
+#include <utility>
 #include <memory>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
 #include "ndll/pipeline/workspace/workspace.h"
@@ -17,52 +16,38 @@
 namespace ndll {
 
 template <typename Backend>
-using DeviceInputType = shared_ptr<TensorList<Backend>>;
+using MixedInputType = vector<shared_ptr<Tensor<Backend>>>;
 template <typename Backend>
-using DeviceOutputType = shared_ptr<TensorList<Backend>>;
+using MixedOutputType = shared_ptr<TensorList<Backend>>;
 
 class SampleWorkspace;
 
 /**
- * @brief DeviceWorkspace stores all data that a gpu operator operates on,
- * including its input and output TensorLists, parameter tensors and
- * meta-data about execution.
+ * @brief MixedWorkspace stores all data that an mixed op operates on.
+ * MixedWorkspace differs from BatchWorkspace in that the input data
+ * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class DeviceWorkspace : public Workspace<DeviceInputType, DeviceOutputType> {
+class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
  public:
-  DeviceWorkspace() : stream_(0) {}
-  ~DeviceWorkspace() = default;
+  inline MixedWorkspace() : stream_(0) {}
+  inline ~MixedWorkspace() = default;
+
 
   /**
-   * @brief Clears the contents of the workspaces, reseting it
-   * to a default state.
+   * @brief Returns the number of Tensors in the input set of
+   * tensors at the given index.
    */
-  inline void Clear() {
-    has_stream_ = false;
-    has_event_ = false;
-    stream_ = 0;
-    parent_events_.clear();
-
-    cpu_inputs_.clear();
-    gpu_inputs_.clear();
-    cpu_outputs_.clear();
-    gpu_outputs_.clear();
-    input_index_map_.clear();
-    output_index_map_.clear();
-    cpu_inputs_index_.clear();
-    gpu_inputs_index_.clear();
-    cpu_outputs_index_.clear();
-    gpu_outputs_index_.clear();
-  }
+  int NumInputAtIdx(int idx) const;
 
   /**
-   * @brief Returns the input TensorList at index `idx`.
+   * @brief Returns the input Tensor at index `data_idx` in the input
+   * set of Tensors at index `idx`.
    *
    * @throws runtime_error If calling type does not match the type of
    * the output at the given index.
    */
   template <typename Backend>
-  const TensorList<Backend>& Input(int idx) const;
+  const Tensor<Backend>& Input(int idx, int data_idx) const;
 
   /**
    * @brief Returns the output TensorList at index `idx`.
@@ -115,24 +100,12 @@ class DeviceWorkspace : public Workspace<DeviceInputType, DeviceOutputType> {
     return event_;
   }
 
-  /**
-   * @brief Adds a parent event that will signal this
-   * work is allowed to execute.
-   */
-  inline void AddParentEvent(cudaEvent_t event) { parent_events_.push_back(event); }
-
-  /**
-   * @brief Returns the set of parent events this workspace stores.
-   */
-  inline vector<cudaEvent_t> ParentEvents() const { return parent_events_; }
-
  private:
   bool has_stream_ = false, has_event_ = false;
   cudaStream_t stream_;
   cudaEvent_t event_;
-  vector<cudaEvent_t> parent_events_;
 };
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_DEVICE_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_WORKSPACE_MIXED_WORKSPACE_H_

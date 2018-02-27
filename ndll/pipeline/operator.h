@@ -6,13 +6,13 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/device_workspace.h"
+#include "ndll/pipeline/workspace/device_workspace.h"
 #include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/operator_factory.h"
 #include "ndll/pipeline/op_schema.h"
 #include "ndll/pipeline/op_spec.h"
-#include "ndll/pipeline/sample_workspace.h"
+#include "ndll/pipeline/workspace/sample_workspace.h"
 
 namespace ndll {
 

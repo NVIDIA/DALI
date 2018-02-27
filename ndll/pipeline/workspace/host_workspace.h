@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_HOST_WORKSPACE_H_
-#define NDLL_PIPELINE_HOST_WORKSPACE_H_
+#ifndef NDLL_PIPELINE_WORKSPACE_HOST_WORKSPACE_H_
+#define NDLL_PIPELINE_WORKSPACE_HOST_WORKSPACE_H_
 
 #include <utility>
 #include <vector>
@@ -72,4 +72,4 @@ class HostWorkspace : public Workspace<HostInputType, HostOutputType> {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_HOST_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_WORKSPACE_HOST_WORKSPACE_H_

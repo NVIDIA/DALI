@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
-#define NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
+#ifndef NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_
+#define NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_
 
 #include <cuda_runtime_api.h>
 
@@ -10,11 +10,11 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/device_workspace.h"
+#include "ndll/pipeline/workspace/device_workspace.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
-#include "ndll/pipeline/host_workspace.h"
-#include "ndll/pipeline/mixed_workspace.h"
+#include "ndll/pipeline/workspace/host_workspace.h"
+#include "ndll/pipeline/workspace/mixed_workspace.h"
 
 namespace ndll {
 
@@ -163,4 +163,4 @@ class SampleWorkspace {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_

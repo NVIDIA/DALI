@@ -11,9 +11,9 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/device_workspace.h"
-#include "ndll/pipeline/host_workspace.h"
-#include "ndll/pipeline/mixed_workspace.h"
+#include "ndll/pipeline/workspace/device_workspace.h"
+#include "ndll/pipeline/workspace/host_workspace.h"
+#include "ndll/pipeline/workspace/mixed_workspace.h"
 #include "ndll/pipeline/op_graph.h"
 #include "ndll/pipeline/util/event_pool.h"
 #include "ndll/pipeline/util/stream_pool.h"
