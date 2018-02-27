@@ -196,37 +196,27 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
         }                                                   \
     }
 
-#define AUGMENT_RESIZE(H, W, C, img_in, img_out,            \
-            AUGMENT_PREAMBLE, AUGMENT_CORE,                 \
-            stepW, stepH, startW, startH, imgIdx, ...)      \
-    AUGMENT_PREAMBLE(H, W, C);                              \
-    const uint32_t offset = nYoffset(W, C);                 \
-    const uint32_t strideOut = H * offset * imgIdx;         \
-    const uint32_t strideIn = H0 *nYoffset(W0, C) * imgIdx; \
-    const uint32_t shift = stepH * offset;                  \
-    const uint8 *in = img_in + strideIn;                    \
-    uint8 *out = img_out + strideOut + startH * offset - shift;\
-    for (int y = startH; y < H; y += stepH) {               \
-        out += shift;                                       \
-        for (int x = startW; x < W; x += stepW) {           \
-            AUGMENT_CORE(C);                                \
-        }                                                   \
+#define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
+            AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
+            stepW, stepH, startW, startH, imgIdx, ...)              \
+    AUGMENT_PREAMBLE(H, W, C);                                      \
+    const uint32_t offset = nYoffset(W, C);                         \
+    const uint32_t shift = stepH * offset;                          \
+    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
+    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
+    for (int y = startH; y < H; y += stepH) {                       \
+        out += shift;                                               \
+        for (int x = startW; x < W; x += stepW) {                   \
+            AUGMENT_CORE(C);                                        \
+        }                                                           \
     }
 
-/*
-int d = x * C;                          \
-            const uint8 *p = in + ((y * W0) + x) * C;     \
-            *(out + d) = *p;                        \
-            *(out + d + 1) = *(p + 1);              \
-            *(out + d + 2) = *(p + 2);              \
-            continue;                               \
-*/
-#define AUGMENT_RESIZE_CPU(H, W, C, img_in, img_out, KIND) \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
+#define AUGMENT_RESIZE_CPU(H, W, C, img_in, img_out, KIND)          \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
         KIND ## _CORE, 1, 1, 0, 0, 0)
 
-#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND) \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
+#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND)          \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
         KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
 
 #define AUGMENT_TRANSFORM_N(H, W, C, img_in, img_out,       \

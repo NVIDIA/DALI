@@ -101,104 +101,41 @@ void CollectPointersForExecution(size_t batch_size,
 }
 
 __constant__ ResizeGridParam resizeParam[2];
-
+__constant__ ResizeMapping *pResizeMapping = NULL;
+__constant__ PixMapping *pPixMapping = NULL;
 
 __global__ void BatchedResizeKernel(const uint8 *img_in, int H0, int W0,
                                    int H, int W, int C, uint8 *img_out) {
-    AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, RESIZE);
-/*
-    const int stepW  = blockDim.x;
-    const int stepH = blockDim.y;
-    const int startW = threadIdx.x;
-    const int startH = threadIdx.y;
-    const int imgIdx = blockIdx.x;
+    if (pResizeMapping && pPixMapping) {
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, RESIZE_N);
+    } else {
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, RESIZE);
+    }
+}
 
-    RESIZE_PREAMBLE(H, W, C);
-
-    const uint32_t offset = nYoffset(W, C);                 \
-    const uint32_t strideOut = H * offset * imgIdx;         \
-    const uint32_t strideIn = H0 *nYoffset(W0, C) * imgIdx; \
-    const uint32_t shift = stepH * offset;                  \
-    const uint8 *in = img_in + strideIn;                    \
-    uint8 *out = img_out + strideOut + startH * offset - shift;\
-
-    for (int y = startH; y < H; y += stepH) {               \
-        out += shift;                                       \
-        for (int x = startW; x < W; x += stepW) {
-//            RESIZE_CORE(C);
-
-            const uint32_t nX = x * sx1;
-            const uint32_t nY = y * sy1;
-            // The indices of the top-left pixel of the initial image, intersecting with PIX
-            const uint32_t begIdx[2] = {nX / sx0, nY / sy0};
-
-            // The indices of the bottom-right pixel of the initial image, intersecting with PIX
-            const uint32_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};
-
-            // Intersection of the right (bottom) pixels with the PIX (could be equal to 0)
-            const uint32_t extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};
-
-            // Length of the left (top) pixels intersecting with the PIX
-            const uint32_t lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};
-            uint32_t rowMult = lenFirst[1];
-
-            pixColor[0] = pixColor[1] = pixColor[2] = 0;
-            size_t y0 = begIdx[1];
-
-            while (true) {
-                uint32_t x0 = endIdx[0];
-
-                // Last pixel in row y0, intersecting with PIX
-                const uint8 *pPix = in + ((y0 * W0) + x0) * C;
-
-                uint32_t len = extra[0];
-                extraColor[0] = len * *pPix;
-                if (C > 1) {
-                    extraColor[1] = len * *(pPix + 1);
-                    extraColor[2] = len * *(pPix + 2);
-                }
-
-                sumColor[0] = sumColor[1] = sumColor[2] = 0;
-                while (--x0 > begIdx[0]) {
-                    sumColor[0] += *(pPix -= C);
-                    if (C > 1) {
-                        sumColor[1] += *(pPix + 1);
-                        sumColor[2] += *(pPix + 2);
-                    }
-                }
-
-                len = lenFirst[0];
-
-                pixColor[0] += rowMult * (sumColor[0] * sx0 + len * *(pPix -= C) + extraColor[0]);
-                if (C > 1) {
-                    pixColor[1] += rowMult * (sumColor[1] * sx0 + len * *(pPix + 1) + extraColor[1]);
-                    pixColor[2] += rowMult * (sumColor[2] * sx0 + len * *(pPix + 2) + extraColor[2]);
-                }
-
-                if (++y0  < endIdx[1])
-                    rowMult = sy0;
-                else {
-                    if (y0 > endIdx[1] || !(rowMult = extra[1]))
-                        break;
-                }
-            }
-
-            const int to = x * C;
-            out[to] = (pixColor[0] + (area >> 1)) / area;
-            if (C > 1) {
-                out[to + 1] = (pixColor[1] + (area >> 1)) / area;
-                out[to + 2] = (pixColor[2] + (area >> 1)) / area;
-            }
-        }
-    } */
+void releaseCudaResizeMapingTable() {
+    cudaFree(&pResizeMapping);
+    cudaFree(&pPixMapping);
 }
 
 NDLLError_t BatchedResize(const uint8 *in_batch, int N,
                           const NDLLSize &inImg, const NDLLSize &outImg, int C,
                           uint8 *out_batch, const dim3 &gridDim, cudaStream_t stream,
-                          ResizeGridParam *pResizeParam) {
-     // Copying the descriptor of operation into __constant__ memory
-    cudaMemcpyToSymbol(resizeParam, pResizeParam, sizeof(resizeParam));
+                          const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
+    if (pResizeParam) {
+        // Copying the descriptor of operation into __constant__ memory
+        cudaMemcpyToSymbol(resizeParam, pResizeParam, sizeof(resizeParam));
+    }
+
+    if (pTbl) {
+        releaseCudaResizeMapingTable();
+
+        const uint32_t lenTable = sizeof(ResizeMapping) * pTbl->getMappingTableLength();
+        cudaMalloc(reinterpret_cast<void**>(&pResizeMapping), lenTable);
+        cudaMemcpy(&pResizeMapping, pTbl, lenTable, cudaMemcpyHostToDevice);
+        cudaMalloc(reinterpret_cast<void**>(&pPixMapping), pTbl->pixMappingLen);
+        cudaMemcpy(&pPixMapping, pTbl, pTbl->pixMappingLen, cudaMemcpyHostToDevice);
+    }
 
     BatchedResizeKernel<<<N, gridDim, 0, stream>>>
                      (in_batch, inImg.height, inImg.width, outImg.height, outImg.width, C, out_batch);
@@ -231,112 +168,79 @@ int lcm (int a, int b) {
     return a / gcf (a, b) * b;
 }
 
-void defineColor(int W0, int C, const uint8 *img_in, size_t x, size_t y, size_t sx0, size_t sx1, size_t sy0, size_t sy1, uint8 *pix_out)
+ResizeMappingTable::ResizeMappingTable(int H0, int W0, int H1, int W1, int C,
+             uint16_t xSize, uint16_t ySize) {
+    io_size[0].width = W0;
+    io_size[0].height = H0;
+    io_size[1].width = W1;
+    io_size[1].height = H1;
+    C_ = C;
+
+    size[coord_X] = xSize;
+    size[coord_Y] = ySize;
+    uint32_t len = xSize * ySize;
+    pResizeMapping = new ResizeMapping [len];
+    memset(pResizeMapping, 0, len * sizeof(pResizeMapping[0]));
+    pPixMapping = NULL;
+}
+
+ResizeMappingTable::~ResizeMappingTable() {
+    delete [] pPixMapping;
+    delete [] pResizeMapping;
+}
+
+bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1) const {
+    if (!pPixMapping || !pResizeMapping)
+        return false;
+
+    return io_size[0].height == H0 && io_size[0].width == W0 &&
+           io_size[1].height == H1 && io_size[1].width == W1;
+}
+
+class PixMappingHelper {
+ public:
+    PixMappingHelper(uint32_t len, ResizeMapping *pMapping);
+    void AddPixel(uint32_t addr, uint32_t area);
+    inline void UpdateMapping()                 { (++pMapping_)->intersectInfoAddr = numUsed(); }
+    inline PixMapping *getPixMapping() const    { return pPixMapping_; }
+    inline uint32_t numUsed() const             { return numPixMapUsed_; }
+ private:
+    uint32_t numPixMapMax_;  // length of the allocated PixMapping array
+    uint32_t numPixMapUsed_; // number of already used elements of pPixMapping
+    PixMapping *pPixMapping_ = new PixMapping[numPixMapMax_];
+    ResizeMapping *pMapping_;
+};
+
+PixMappingHelper::PixMappingHelper(uint32_t len, ResizeMapping *pMapping) {
+    numPixMapUsed_ = 0;
+    pPixMapping_ = new PixMapping[numPixMapMax_ = len];
+    pMapping_ = pMapping - 1;
+}
+
+void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area) {
+    if (numPixMapUsed_ == numPixMapMax_) {
+        // Previously allocated array needs to be extended
+        PixMapping *pPixMappingNew = new PixMapping[numPixMapMax_ <<= 1];
+        memcpy(pPixMappingNew, pPixMapping_, numPixMapUsed_ * sizeof(pPixMappingNew[0]));
+        pPixMapping_ = pPixMappingNew;
+    }
+
+    assert(area != 0);
+    pMapping_->nPixels++;
+    pPixMapping_[numPixMapUsed_++].Init(addr, area);
+}
+
+#define RUN_CHECK_1     0
+
+ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C)
 {
-    // Resising from (H0, W0) to (H1, W1)
+    // The table, which contains the information about correspondence of pixels of the initial
+    // image to the pixels of the resized one.
+
+    // Resizing from (H0, W0) to (H1, W1)
     // Main equations are:
     // H0 * sy0 = H1 * sy1
     // W0 * sx0 = W1 * sx1
-    //
-    // (x, y) pixel coordinate of PIX in resized image
-    // 0 <= x < W1;  0 <= y < H1
-    const size_t nX = x * sx1;
-    const size_t nY = y * sy1;
-    // The indices of the top-left pixel of the initial image, intersecting with PIX
-    const size_t begIdx[2] = { nX / sx0, nY / sy0 };
-
-    // The indices of the bottom-right pixel of the initial image, intersecting with PIX
-    size_t endIdx[2] = { (nX + sx1) / sx0, (nY + sy1) / sy0 };
-
-    // Intersection of the right (bottom) pixels with the PIX (could be equal to 0)
-    const size_t extra[2] = { (nX + sx1) % sx0, (nY + sy1) % sy0 };
-
-    // Length of the left (top) pixels intersecting with the PIX
-    const size_t lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
-
-#define RUN_CHECK   0
-#define MAKE_OUTPUT 0
-#if RUN_CHECK
-
-    size_t check = 0;
-#if MAKE_OUTPUT
-    FILE *file = x == 0? fopen("aaa.txt", y == 0? "w" : "a") : NULL;
-    if (file) {
-        fprintf(file, "(x, y) = (%3ld %3ld), sx = (%3ld %3ld),  sy = (%3ld %3ld)\n", x, y, sx0, sx1, sy0, sy1);
-        fprintf(file, "begIdx = (%3ld, %3ld)  endIdx = (%3ld, %3ld)\n", begIdx[0], begIdx[1], endIdx[0], endIdx[1]);
-        fprintf(file, "extra = (%3ld, %3ld)  lenFirst = (%3ld, %3ld)\n", extra[0], extra[1], lenFirst[0], lenFirst[1]);
-    }
-#endif
-#endif
-
-    size_t sumColor[3], extraColor[3], pixColor[3];
-    size_t rowMult =  lenFirst[1];
-
-    pixColor[0] = pixColor[1] = pixColor[2] = 0;
-    size_t y0 = begIdx[1];
-    while (true) {
-        size_t x0 = endIdx[0];
-
-        // Last pixel in row y0, intersecting with PIX
-        const uint8 *pPix = img_in + ((y0 * W0) + x0) * C;
-
-        size_t len = extra[0];
-        extraColor[0] = len * *pPix;
-        if (C > 1) {
-            extraColor[1] = len * *(pPix + 1);
-            extraColor[2] = len * *(pPix + 2);
-        }
-
-        sumColor[0] = sumColor[1] = sumColor[2] = 0;
-        while (--x0 > begIdx[0]) {
-            sumColor[0] += *(pPix -= C);
-            if (C > 1) {
-                sumColor[1] += *(pPix + 1);
-                sumColor[2] += *(pPix + 2);
-            }
-        }
-
-        len = lenFirst[0];
-        pixColor[0] += rowMult * (sumColor[0] * sx0 + len * *(pPix -= C) + extraColor[0]);
-        if (C > 1) {
-            pixColor[1] += rowMult * (sumColor[1] * sx0 + len * *(pPix + 1) + extraColor[1]);
-            pixColor[2] += rowMult * (sumColor[2] * sx0 + len * *(pPix + 2) + extraColor[2]);
-        }
-
-#if RUN_CHECK
-            check += rowMult * (sx0 * (endIdx[0] - begIdx[0] - 1) + len + extra[0]);
-#if MAKE_OUTPUT
-        if (file)
-            fprintf(file, "check = %ld ==> %ld * (%ld * (%ld - %ld - 1) + %ld - %ld)\n", check, rowMult, sx0, endIdx[0], begIdx[0], len, extra[0]);
-#endif
-#endif
-
-            if (++y0  < endIdx[1])
-                rowMult = sy0;
-            else {
-                if (y0 > endIdx[1] || !(rowMult = extra[1]))
-                    break;
-            }
-        }
-
-#if RUN_CHECK
-        #if MAKE_OUTPUT
-    if (file)
-        fclose(file);
-#endif
-    assert(check == sx1 * sy1);
-#endif
-
-    const size_t area = sx1 * sy1;
-    pix_out[0] = (pixColor[0] + (area >> 1)) / area;
-    if (C > 1) {
-        pix_out[1] = (pixColor[1] + (area >> 1)) / area;
-        pix_out[2] = (pixColor[2] + (area >> 1)) / area;
-    }
-}
-
-void resize(int H0, int W0, int H1, int W1, int C, const uint8 *img_in, uint8 *img_out)
-{
     const size_t lcmH = lcm(H0, H1);
     const size_t lcmW = lcm(W0, W1);
 
@@ -344,28 +248,87 @@ void resize(int H0, int W0, int H1, int W1, int C, const uint8 *img_in, uint8 *i
     const size_t sy1 = lcmH / H1;
     const size_t sx0 = lcmW / W0;
     const size_t sx1 = lcmW / W1;
-    uint8 color[3];
-    for (int y = 0; y < H1; ++y) {
-        for (int x = 0; x < W1; ++x) {
-            defineColor(W0, C, img_in, x, y, sx0, sx1, sy0, sy1, color);
+
+    ResizeMappingTable *pTable = new ResizeMappingTable(H0, W0, H1, W1, C, sx0, sy0);
+    PixMappingHelper helper(2 * sx0 * sy0, pTable->pResizeMapping);
+
+    // (x, y) pixel coordinate of PIX in resized image
+    // 0 <= x < W1;  0 <= y < H1
+
+    for (size_t y = 0; y < sy0/*H1*/; ++y) {
+        for (size_t x = 0; x < sx0/*W1*/; ++x) {
+
+            const size_t nX = x * sx1;
+            const size_t nY = y * sy1;
+            // The indices of the top-left pixel of the initial image, intersecting with PIX
+            const size_t begIdx[2] = { nX / sx0, nY / sy0 };
+
+            // The indices of the bottom-right pixel of the initial image, intersecting with PIX
+            size_t endIdx[2] = { (nX + sx1) / sx0, (nY + sy1) / sy0 };
+
+            // Intersection of the right (bottom) pixels with the PIX (could be equal to 0)
+            const size_t extra[2] = { (nX + sx1) % sx0, (nY + sy1) % sy0 };
+
+            // Length of the left (top) pixels intersecting with the PIX
+            const size_t lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
+
+            // Relative address to the first intersecting pixels
+            helper.UpdateMapping();
+
+#if RUN_CHECK_1
+            size_t check = 0;
+#endif
+
+            FILE *file = NULL;//(x == 0 && y == 0)? fopen("aaa.txt", "a") : NULL;
+            size_t aY = 0;
+            size_t rowMult = lenFirst[1];
+            size_t y0 = begIdx[1];
+            while (true) {
+                size_t x0 = endIdx[0];
+
+                // Relative address of the last pixel in row y0, intersecting with PIX
+                uint32_t pixAddr = ((aY * W0) + x0 - begIdx[0]) * C;
+                if (file) {
+                    fprintf(file, "pixAddr = %d  extra[0] = %ld  rowMult = %ld   (%ld) \n", pixAddr, extra[0], rowMult,
+                            rowMult * extra[0]);
+                }
+                if (extra[0])
+                    helper.AddPixel(pixAddr, extra[0] * rowMult);
+
+                while (--x0 > begIdx[0]) {
+                   if (file)
+                       fprintf(file, "pixAddr = %d  sx0 = %ld  rowMult = %ld   (%ld) \n", pixAddr, sx0, rowMult,
+                               rowMult * extra[0]);
+                   helper.AddPixel(pixAddr -= C, sx0 * rowMult);
+                }
+
+                if (file)
+                    fprintf(file, "pixAddr = %d  sx0 = %ld  rowMult = %ld   (%ld) \n", pixAddr, sx0, rowMult,
+                            rowMult * extra[0]);
+                helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult);
+
+#if RUN_CHECK_1
+                check += rowMult * (sx0 * (endIdx[0] - begIdx[0] - 1) + lenFirst[0] + extra[0]);
+#endif
+
+                aY++;
+                if (++y0  < endIdx[1])
+                    rowMult = sy0;
+                else {
+                    if (y0 > endIdx[1] || !(rowMult = extra[1]))
+                        break;
+                }
+            }
+
+#if RUN_CHECK_1
+            assert(check == sx1 * sy1);
+#endif
         }
     }
-}
 
-void resize_test()
-{
-//    const int H0 = 480, W0 = 360; //240; 270;
-//    const int H1 = 240, W1 = 180; //120;  130
-    const int H0 = 224, W0 = 224; //240; 270;
-    const int H1 = 220, W1 = 224; //120;  130
-    const int C = 1;
-
-    const size_t len = H0 * W0;
-    uint8 *img_in = new uint8[len];
-    memset(img_in, 1, len);
-
-    resize(H0, W0, H1, W1, C, img_in, NULL);
-    delete[] img_in;
+    pTable->pPixMapping = helper.getPixMapping();
+    pTable->pixMappingLen = helper.numUsed() * sizeof(pTable->pPixMapping[0]);
+    return pTable;
 }
 
 }  // namespace ndll
