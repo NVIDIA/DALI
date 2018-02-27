@@ -49,6 +49,13 @@
 #ifndef NV_JPEG_HEADER
 #define NV_JPEG_HEADER
 
+#define NVJPEGAPI
+
+#if defined(__cplusplus)
+  extern "C" {
+#endif
+
+
 /**
  * \file nvJPEG.h
  * Type definitions and macros for nvJPEG library.
@@ -74,12 +81,13 @@
  *
  * \return
  */
+NVJPEGAPI
 int
 nvjpegGetImageInfo(const unsigned char * pData, unsigned int nLength,
-				   int & nComponent,
-				   int & nWidthY,  int & nHeightY,
-				   int & nWidthCb, int & nHeightCb,
-				   int & nWidthCr, int & nHeightCr);
+				   int * nComponent,
+				   int * nWidthY,  int * nHeightY,
+				   int * nWidthCb, int * nHeightCb,
+				   int * nWidthCr, int * nHeightCr);
 
 /**
  * Decoder path for a single image.
@@ -98,6 +106,7 @@ nvjpegGetImageInfo(const unsigned char * pData, unsigned int nLength,
  *
  * \return 0 if successful, non-0 otherwise.
  */
+NVJPEGAPI
 int
 nvjpegDecode(const unsigned char * pData, unsigned int nLength,
 	         unsigned char * pY,  int nStepY,
@@ -105,5 +114,9 @@ nvjpegDecode(const unsigned char * pData, unsigned int nLength,
 	         unsigned char * pCr, int nStepCr);
 
 /*@}*/
+
+#if defined(__cplusplus)
+  }
+#endif
 
 #endif /* NV_JPEG_HEADER */

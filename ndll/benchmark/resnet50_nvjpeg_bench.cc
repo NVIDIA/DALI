@@ -17,8 +17,8 @@ BENCHMARK_DEFINE_F(nvJPEGRN50, Pipe)(benchmark::State& st) { // NOLINT
   int num_thread = st.range(3);
   NDLLImageType img_type = NDLL_RGB;
 
-  bool pipelined = false; // executor > 0;
-  bool async = false; // executor > 1;
+  bool pipelined = executor > 0;
+  bool async = executor > 1;
 
   // Create the pipeline
   Pipeline pipe(
@@ -47,7 +47,6 @@ BENCHMARK_DEFINE_F(nvJPEGRN50, Pipe)(benchmark::State& st) { // NOLINT
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
-#if 0
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
@@ -68,8 +67,7 @@ BENCHMARK_DEFINE_F(nvJPEGRN50, Pipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  WriteCHWBatch<uint8_t>(*ws.Output<GPUBackend>(0), 0, 1, "img");
-#endif
+  WriteHWCBatch<uint8_t>(*ws.Output<GPUBackend>(0), 0, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);

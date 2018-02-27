@@ -69,13 +69,17 @@ class _OperatorInstance(object):
                     TensorReference. Received input type {}"""
                     .format(type(inp).__name__))
 
-
     def generate_outputs(self):
         # Add outputs
         num_output = self._op.schema.CalculateOutputs(self._spec)
+        if self._op.device == 'mixed':
+            output_device = 'gpu'
+        else:
+            output_device = self._op.device
+
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = TensorReference(t_name, self._op.device, self)
+            t = TensorReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             self.append_output(t)
 
@@ -171,7 +175,7 @@ def python_op_factory(name):
 
 # TODO(tgale): Do this for all cpu/gpu ops. Figure
 # out how we want to expose what devices are supported
-_all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps()))
+_all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps())).union(set(b.RegisteredMixedOps()))
 for op_name in _all_ops:
     setattr(sys.modules[__name__], op_name,
             python_op_factory(op_name))
