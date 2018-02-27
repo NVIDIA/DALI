@@ -373,10 +373,10 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
         if (node.spec.InputDevice(j) == "cpu") {
           // Note: This path should currently never occur, as we
           // do not allow gpu ops to produce cpu data outputs.
-          const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+          const auto input = src_ws.SharedCPUOutput(input_src_idx);
           ws.AddInput(input);
         } else if (node.spec.InputDevice(j) == "gpu") {
-          const auto input = src_ws.SharedOutput<GPUBackend>(input_src_idx);
+          const auto input = src_ws.SharedGPUOutput(input_src_idx);
           ws.AddInput(input);
         } else {
           NDLL_FAIL("Executor encountered gpu op with non-cpu/gpu input.");
