@@ -334,7 +334,7 @@ void OpGraph::RemoveOp(NodeID id) {
 }
 
 OpNode& OpGraph::node(NodeID id) {
-  NDLL_ENFORCE_VALID_INDEX((size_t)id, id_to_node_map_.size());
+  NDLL_ENFORCE_VALID_INDEX(id, id_to_node_map_.size());
   auto idx_pair = id_to_node_map_[id];
 
   switch (idx_pair.first) {
