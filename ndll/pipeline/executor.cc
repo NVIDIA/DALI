@@ -293,7 +293,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
       HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
-      const auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+      const auto input = src_ws.SharedCPUOutput(input_src_idx);
       ws.AddInput(input);
     }
 
@@ -326,7 +326,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
       HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
-      auto input = src_ws.SharedOutput<CPUBackend>(input_src_idx);
+      auto input = src_ws.SharedCPUOutput(input_src_idx);
       for (auto t : input) {
         t->set_pinned(true);
       }
