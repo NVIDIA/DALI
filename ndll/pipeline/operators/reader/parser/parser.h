@@ -2,7 +2,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
 #define NDLL_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
 
-#include "ndll/pipeline/sample_workspace.h"
+#include "ndll/pipeline/workspace/sample_workspace.h"
 
 namespace ndll {
 

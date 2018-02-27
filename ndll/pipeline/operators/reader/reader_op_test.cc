@@ -11,7 +11,7 @@
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/op_spec.h"
-#include "ndll/pipeline/sample_workspace.h"
+#include "ndll/pipeline/workspace/sample_workspace.h"
 #include "ndll/test/ndll_test.h"
 #include "ndll/pipeline/operators/reader/reader_op.h"
 

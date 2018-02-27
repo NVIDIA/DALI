@@ -2,6 +2,7 @@
 add_subdirectory(data)
 add_subdirectory(operators)
 add_subdirectory(util)
+add_subdirectory(workspace)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc)

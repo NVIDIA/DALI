@@ -162,18 +162,18 @@ inline string BuildErrorString(string statement, string file, int line) {
 #define NDLL_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
 
 // Enforces that the value of 'var' is in the range [lower, upper)
-#define NDLL_ENFORCE_IN_RANGE(var, lower, upper)                                \
-  do {                                                                          \
-    if (((var) < (lower)) || ((var) >= (upper))) {                              \
-      ndll::string error = "Index " + std::to_string(var) + " out of range [" + \
-        std::to_string(lower) + ", " + std::to_string(upper) + ").";            \
-      NDLL_FAIL(error);                                                         \
-    }                                                                           \
+#define NDLL_ENFORCE_IN_RANGE(var, lower, upper)                                         \
+  do {                                                                                   \
+    if (((var) < (lower)) || (static_cast<size_t>(var) >= static_cast<size_t>(upper))) { \
+      ndll::string error = "Index " + std::to_string(var) + " out of range [" +          \
+        std::to_string(lower) + ", " + std::to_string(upper) + ").";                     \
+      NDLL_FAIL(error);                                                                  \
+    }                                                                                    \
   } while (0)
 
 // Enforces that the input var is in the range [0, upper)
 #define NDLL_ENFORCE_VALID_INDEX(var, upper) \
-  NDLL_ENFORCE_IN_RANGE(var, static_cast<int>(0), upper)
+  NDLL_ENFORCE_IN_RANGE(var, 0, upper)
 
 #if NDLL_USE_STACKTRACE && NDLL_DEBUG
 inline void ltrim(std::string *s) {

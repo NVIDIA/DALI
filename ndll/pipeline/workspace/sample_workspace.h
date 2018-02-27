@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
-#define NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
+#ifndef NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_
+#define NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_
 
 #include <cuda_runtime_api.h>
 
@@ -10,19 +10,24 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/device_workspace.h"
+#include "ndll/pipeline/workspace/device_workspace.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
-#include "ndll/pipeline/host_workspace.h"
-#include "ndll/pipeline/mixed_workspace.h"
+#include "ndll/pipeline/workspace/host_workspace.h"
+#include "ndll/pipeline/workspace/mixed_workspace.h"
 
 namespace ndll {
+
+template <typename Backend>
+using SampleInputType = shared_ptr<Tensor<Backend>>;
+template <typename Backend>
+using SampleOutputType = shared_ptr<Tensor<Backend>>;
 
 /**
  * @brief SampleWorkspace stores all data required for an operator to
  * perform its computation on a single sample.
  */
-class SampleWorkspace {
+class SampleWorkspace : public Workspace<SampleInputType, SampleOutputType> {
  public:
   SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
@@ -47,30 +52,6 @@ class SampleWorkspace {
   }
 
   /**
-   * @brief Returns the number of input CPU tensors
-   */
-  inline int NumInput() { return input_index_map_.size(); }
-
-  /**
-   * @brief Returns the number of input GPU tensors
-   */
-  inline int NumOutput() { return output_index_map_.size(); }
-
-  /**
-   * Returns true if the input TensorList at the given index has the calling
-   * Backend type.
-   */
-  template <typename Backend>
-  bool InputIsType(int idx);
-
-  /**
-   * Returns true if the output TensorList at the given index has the calling
-   * Backend type.
-   */
-  template <typename Backend>
-  bool OutputIsType(int idx);
-
-  /**
    * @brief Returns Tensor with index = data_idx() from the input
    * TensorList at index = `idx`.
    */
@@ -78,23 +59,11 @@ class SampleWorkspace {
   const Tensor<Backend>& Input(int idx) const;
 
   /**
-   * @brief Adds the input Tensor as an input.
-   */
-  template <typename Backend>
-  void AddInput(shared_ptr<Tensor<Backend>> input);
-
-  /**
    * @brief Returns Tensor with index = data_idx() from the output
    * TensorList at index = `idx`.
    */
   template <typename Backend>
   Tensor<Backend>* Output(int idx);
-
-  /**
-   * @brief Adds the input Tensor as an output.
-   */
-  template <typename Backend>
-  void AddOutput(shared_ptr<Tensor<Backend>> output);
 
   /**
    * @brief Returns the index of the sample that this workspace stores
@@ -145,17 +114,6 @@ class SampleWorkspace {
   }
 
  private:
-  template <typename T>
-  using TensorPtr = shared_ptr<Tensor<T>>;
-  vector<TensorPtr<CPUBackend>> cpu_inputs_, cpu_outputs_;
-  vector<TensorPtr<GPUBackend>> gpu_inputs_, gpu_outputs_;
-
-  // Used to map input/output tensor indices (0, 1, ... , num_input-1)
-  // to actual tensor objects. The first element indicates if the
-  // Tensor is stored on cpu, and the second element is the index of
-  // that tensor in the {cpu, gpu}_inputs_ vector.
-  vector<std::pair<bool, int>> input_index_map_, output_index_map_;
-
   int data_idx_, thread_idx_;
   cudaStream_t stream_;
   bool has_stream_;
@@ -163,4 +121,4 @@ class SampleWorkspace {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_SAMPLE_WORKSPACE_H_
+#endif  // NDLL_PIPELINE_WORKSPACE_SAMPLE_WORKSPACE_H_
