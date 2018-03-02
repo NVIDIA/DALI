@@ -73,7 +73,8 @@ class nvJPEGDecoder : public Operator {
     Cb_{max_streams_},
     Cr_{max_streams_},
     output_shape_(batch_size_),
-    output_sampling_(batch_size_) {}
+    output_sampling_(batch_size_),
+    output_info_(batch_size_) {}
 
   void Run(MixedWorkspace *ws) override {
     // Get dimensions
@@ -94,8 +95,18 @@ class nvJPEGDecoder : public Operator {
                                            nWidthCb, nHeightCb,
                                            nWidthCr, nHeightCr);
 
+      ImageInfo info;
+      info.c = c;
+      info.nWidthY = nWidthY;
+      info.nHeightY = nHeightY;
+      info.nWidthCb = nWidthCb;
+      info.nHeightCb = nHeightCb;
+      info.nWidthCr = nWidthCr;
+      info.nHeightCr = nHeightCr;
+
       output_shape_[i] = Dims({nHeightY, nWidthY, c});
       output_sampling_[i] = sampling;
+      output_info_[i] = info;
       // printf("output shape: %d %d %d\n", nHeightY, nWidthY, c);
 
 
@@ -118,25 +129,19 @@ class nvJPEGDecoder : public Operator {
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
-      int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
-      auto err = nvjpegGetImageInfo(data, in_size,
-                                   &c,
-                                   &nWidthY, &nHeightY,
-                                   &nWidthCb, &nHeightCb,
-                                   &nWidthCr, &nHeightCr);
-
+      auto info = output_info_[i];
 
       // temp buffers for decode output (later)
       const int stream_idx = i % max_streams_;
-      Y_[stream_idx].Resize({nWidthY * nHeightY});
-      Cb_[stream_idx].Resize({nWidthCb * nHeightCb});
-      Cr_[stream_idx].Resize({nWidthCr * nHeightCr});
+      Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
+      Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
+      Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
 
       // perform decode
       nvjpegDecode(data, in_size,
-                   Y_[stream_idx].mutable_data<unsigned char>(), nWidthY,
-                   Cb_[stream_idx].mutable_data<unsigned char>(), nWidthCb,
-                   Cr_[stream_idx].mutable_data<unsigned char>(), nWidthCr);
+                   Y_[stream_idx].mutable_data<unsigned char>(), info.nWidthY,
+                   Cb_[stream_idx].mutable_data<unsigned char>(), info.nWidthCb,
+                   Cr_[stream_idx].mutable_data<unsigned char>(), info.nWidthCr);
 
       // copy & convert from YCbCr -> RGB
 
@@ -144,10 +149,10 @@ class nvJPEGDecoder : public Operator {
       convertToRGB(array<const Npp8u*, 3>{(const Npp8u*)Y_[stream_idx].raw_data(),
                                           (const Npp8u*)Cb_[stream_idx].raw_data(),
                                           (const Npp8u*)Cr_[stream_idx].raw_data()}, // YCbCr data pointers
-                   array<Npp32s, 3>{nWidthY, nWidthCb, nWidthCr}, // steps
-                   3 * nWidthY, // RGB step
+                   array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr}, // steps
+                   3 * info.nWidthY, // RGB step
                    out_ptr, // output
-                   nHeightY, nWidthY, // output H, W
+                   info.nHeightY, info.nWidthY, // output H, W
                    output_sampling_[i]); // sampling type
 
 
@@ -166,9 +171,13 @@ class nvJPEGDecoder : public Operator {
   vector<Tensor<GPUBackend>> Cb_;
   vector<Tensor<GPUBackend>> Cr_;
 
+  struct ImageInfo {
+    int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
+  };
 
   vector<Dims> output_shape_;
   vector<Sampling> output_sampling_;
+  vector<ImageInfo> output_info_;
 
   Sampling getSamplingRatio(int components,
                             int yWidth, int yHeight,
