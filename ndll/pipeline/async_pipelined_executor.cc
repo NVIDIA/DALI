@@ -4,6 +4,7 @@
 namespace ndll {
 
 void AsyncPipelinedExecutor::RunCPU() {
+  CheckForErrors();
   std::unique_lock<std::mutex> lock(cpu_mutex_);
   ++cpu_work_counter_;
   lock.unlock();
@@ -17,9 +18,14 @@ void AsyncPipelinedExecutor::RunCPU() {
         --cpu_work_counter_;
         lock.unlock();
 
-        // cout << "got cpu work" << endl;
+        if (exec_error_) {
+          mixed_work_cv_.notify_all();
+          return;
+        }
+
+        // std::cout << "got cpu work" << endl;
         PipelinedExecutor::RunCPU();
-        // cout << "finished cpu work" << endl;
+        // std::cout << "finished cpu work" << endl;
 
         // Mark that there is now mixed work to do
         // and signal to any threads that are waiting
@@ -30,14 +36,19 @@ void AsyncPipelinedExecutor::RunCPU() {
 }
 
 void AsyncPipelinedExecutor::RunMixed() {
+  CheckForErrors();
   mixed_thread_.DoWork([this]() {
         // Block until there is mixed work to do
         std::unique_lock<std::mutex> lock(mixed_mutex_);
-        while (mixed_work_counter_ == 0) {
+        while (mixed_work_counter_ == 0 && !exec_error_) {
           mixed_work_cv_.wait(lock);
         }
         --mixed_work_counter_;
         lock.unlock();
+        if (exec_error_) {
+          gpu_work_cv_.notify_all();
+          return;
+        }
 
         PipelinedExecutor::RunMixed();
 
@@ -51,18 +62,19 @@ void AsyncPipelinedExecutor::RunMixed() {
 }
 
 void AsyncPipelinedExecutor::RunGPU() {
+  CheckForErrors();
   gpu_thread_.DoWork([this]() {
         // Block until there is gpu work to do
         std::unique_lock<std::mutex> lock(gpu_mutex_);
-        while (gpu_work_counter_ == 0) {
+        while (gpu_work_counter_ == 0 && !exec_error_) {
           gpu_work_cv_.wait(lock);
         }
         --gpu_work_counter_;
         lock.unlock();
+        if (exec_error_)
+          return;
 
-        // cout << "got gpu work" << endl;
         PipelinedExecutor::RunGPU();
-        // cout << "Finished gpu issue" << endl;
 
         // All the work for this batch has now been issued,
         // but has not necessarilly finished. The base-class

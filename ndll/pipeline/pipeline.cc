@@ -172,7 +172,15 @@ void Pipeline::RunGPU() {
 void Pipeline::Outputs(DeviceWorkspace *ws) {
   NDLL_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  executor_->Outputs(ws);
+    try {
+      executor_->Outputs(ws);
+    } catch (std::runtime_error &e) {
+      throw std::runtime_error("Critical error in pipeline: "
+          + std::string(e.what())
+          + "\nCurrent pipeline object is no longer valid.");
+    } catch (...) {
+      throw std::runtime_error("Unknown Critical error in pipeline");
+    }
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,

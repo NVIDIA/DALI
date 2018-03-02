@@ -46,8 +46,11 @@ void Executor::RunCPU() {
   TimeRange tr("[Executor] RunCPU");
   // Block until there is a free buffer to use
   std::unique_lock<std::mutex> lock(free_mutex_);
-  while (free_queue_.empty()) {
+  while (free_queue_.empty() && !exec_error_) {
     free_cond_.wait(lock);
+  }
+  if (exec_error_) {
+    return;
   }
   int queue_idx = free_queue_.front();
   free_queue_.pop();
@@ -67,8 +70,15 @@ void Executor::RunCPU() {
               }
             }, i, std::placeholders::_1));
   }
-  thread_pool_.WaitForWork();
-
+  try {
+    thread_pool_.WaitForWork();
+  }
+  catch (std::runtime_error &e) {
+    exec_error_ = true;
+    ready_cond_.notify_all();
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back(e.what());
+  }
   // Pass the work to the mixed stage
   std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
   mixed_work_queue_.push(queue_idx);
@@ -169,7 +179,6 @@ void Executor::RunGPU() {
 void Executor::Outputs(DeviceWorkspace *ws) {
   NDLL_ENFORCE(ws != nullptr, "Workspace is nullptr");
   ws->Clear();
-
   // Mark the last in-use buffer as free and signal
   // to waiting threads
   if (!in_use_queue_.empty()) {
@@ -185,6 +194,11 @@ void Executor::Outputs(DeviceWorkspace *ws) {
   std::unique_lock<std::mutex> lock(ready_mutex_);
   while (ready_queue_.empty()) {
     ready_cond_.wait(lock);
+    if (exec_error_) {
+      std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+      std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+      throw std::runtime_error(error);
+    }
   }
   int output_idx = ready_queue_.front();
   ready_queue_.pop();

@@ -36,7 +36,8 @@ class Executor {
     bytes_per_sample_hint_(bytes_per_sample_hint),
     queue_depth_(2),
     stream_pool_(max_num_stream, true), event_pool_(max_num_stream),
-    thread_pool_(num_thread, device_id, set_affinity) {
+    thread_pool_(num_thread, device_id, set_affinity),
+    exec_error_(false) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     NDLL_ENFORCE(device_id >= 0, "Device id must be non-negative.");
   }
@@ -44,6 +45,8 @@ class Executor {
   virtual ~Executor() = default;
 
   virtual void Build(OpGraph *graph, vector<string> output_names);
+
+  virtual void Init() {}
 
   virtual void RunCPU();
 
@@ -165,6 +168,9 @@ class Executor {
   StreamPool stream_pool_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
+  std::vector<std::string> errors_;
+  std::mutex errors_mutex_;
+  bool exec_error_;
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \

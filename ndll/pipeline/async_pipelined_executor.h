@@ -2,6 +2,7 @@
 #ifndef NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_
 #define NDLL_PIPELINE_ASYNC_PIPELINED_EXECUTOR_H_
 
+#include <string>
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/pipelined_executor.h"
@@ -25,9 +26,22 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
         bytes_per_sample_hint, set_affinity, max_num_stream),
     cpu_thread_(device_id, set_affinity),
     mixed_thread_(device_id, set_affinity),
-    gpu_thread_(device_id, set_affinity) {}
+    gpu_thread_(device_id, set_affinity),
+    device_id_(device_id) {}
 
   virtual ~AsyncPipelinedExecutor() = default;
+
+  void Init() override {
+      if (!cpu_thread_.WaitForInit()
+          || !mixed_thread_.WaitForInit()
+          || !gpu_thread_.WaitForInit()) {
+        cpu_thread_.ForceStop();
+        mixed_thread_.ForceStop();
+        gpu_thread_.ForceStop();
+        std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
+        throw std::runtime_error(error);
+      }
+  }
 
   void RunCPU() override;
 
@@ -37,7 +51,16 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
 
   void Outputs(DeviceWorkspace *ws) override {
     CheckForErrors();
-    PipelinedExecutor::Outputs(ws);
+    try {
+      PipelinedExecutor::Outputs(ws);
+    } catch (std::runtime_error &e) {
+      exec_error_ = true;
+      mixed_work_cv_.notify_all();
+      gpu_work_cv_.notify_all();
+      throw std::runtime_error(std::string(e.what()));
+    } catch (...) {
+      throw std::runtime_error("Unknown critical error in pipeline");
+    }
   }
 
  protected:
@@ -51,6 +74,7 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
   int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
   std::mutex cpu_mutex_, mixed_mutex_, gpu_mutex_;
   std::condition_variable mixed_work_cv_, gpu_work_cv_;
+  int device_id_;
 };
 
 }  // namespace ndll

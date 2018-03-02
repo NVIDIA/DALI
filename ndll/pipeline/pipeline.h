@@ -78,6 +78,7 @@ class Pipeline {
               batch_size, num_threads,
               device_id, bytes_per_sample_hint,
               set_affinity, max_num_stream));
+      executor_->Init();
     } else if (pipelined_execution) {
       executor_.reset(new PipelinedExecutor(
               batch_size, num_threads,

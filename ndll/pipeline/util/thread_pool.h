@@ -39,7 +39,7 @@ class ThreadPool {
 
   inline ~ThreadPool() {
     // Wait for work to find errors
-    WaitForWork();
+    WaitForWork(false);
 
     std::unique_lock<std::mutex> lock(mutex_);
     running_ = false;
@@ -64,18 +64,20 @@ class ThreadPool {
   }
 
   // Blocks until all work issued to the thread pool is complete
-  inline void WaitForWork() {
+  inline void WaitForWork(bool checkForErrors = true) {
     std::unique_lock<std::mutex> lock(mutex_);
     completed_.wait(lock, [this] { return this->work_complete_; });
 
-    // Check for errors
-    for (size_t i = 0; i < threads_.size(); ++i) {
-      if (!tl_errors_[i].empty()) {
-        // Throw the first error that occured
-        string error = "Error in thread " +
-          std::to_string(i) + ": " + tl_errors_[i].front();
-        tl_errors_[i].pop();
-        throw std::runtime_error(error);
+    if (checkForErrors) {
+      // Check for errors
+      for (size_t i = 0; i < threads_.size(); ++i) {
+        if (!tl_errors_[i].empty()) {
+          // Throw the first error that occured
+          string error = "Error in thread " +
+            std::to_string(i) + ": " + tl_errors_[i].front();
+          tl_errors_[i].pop();
+          throw std::runtime_error(error);
+        }
       }
     }
   }
@@ -88,9 +90,15 @@ class ThreadPool {
 
  private:
   inline void ThreadMain(int thread_id, int device_id, bool set_affinity) {
+    try {
     CUDA_CALL(cudaSetDevice(device_id));
-    if (set_affinity) {
-      nvml::SetCPUAffinity();
+      if (set_affinity) {
+        nvml::SetCPUAffinity();
+      }
+    } catch(std::runtime_error &e) {
+      tl_errors_[thread_id].push(e.what());
+    } catch(...) {
+      tl_errors_[thread_id].push("Caught unknown exception");
     }
 
     while (running_) {
