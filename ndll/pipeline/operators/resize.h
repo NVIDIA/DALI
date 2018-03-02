@@ -27,26 +27,41 @@ class ResizeAttr {
             random_resize_(spec.GetArgument<bool>("random_resize", false)),
             warp_resize_(spec.GetArgument<bool>("warp_resize", false)),
             image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
-            color_(IsColor(image_type_)), C_(color_ ? 3 : 1) {
+            color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
+            random_crop_(spec.GetArgument<bool>("random_crop", false)),
+            crop_h_(spec.GetArgument<int>("crop_h", -1)),
+            crop_w_(spec.GetArgument<int>("crop_w", -1)),
+            mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)) {
         resize_.first = spec.GetArgument<int>("resize_a", -1);
         resize_.second = spec.GetArgument<int>("resize_b", -1);
 
         // Validate input parameters
         NDLL_ENFORCE(resize_.first > 0 && resize_.second > 0);
         NDLL_ENFORCE(resize_.first <= resize_.second);
+        NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
     }
 
     void SetSize(NDLLSize &in_size, const vector<Index> &shape,
                  const resize_t &rand, NDLLSize &out_size);
 
-    vector<NDLLSize> &sizes(io_type type)           { return sizes_[type]; }
-    NDLLSize &size(io_type type, size_t idx)        { return sizes(type)[idx]; }
-    const resize_t &newSizes(size_t idx) const      { return per_sample_rand_[idx]; }
+    inline vector<NDLLSize> &sizes(io_type type)        { return sizes_[type]; }
+    inline NDLLSize &size(io_type type, size_t idx)     { return sizes(type)[idx]; }
+    inline const resize_t &newSizes(size_t idx) const   { return per_sample_rand_[idx]; }
+    inline int randomUniform(int max, int min = 0)      {
+                return std::uniform_int_distribution<>(min, max)(rand_gen_);
+            }
 
-protected:
-    vector<const uint8*> *inputImages()             { return &input_ptrs_; }
-    vector<uint8 *> *outputImages()                 { return &output_ptrs_; }
-    const resize_t &resize() const                  { return resize_; };
+    void DefineCrop(NDLLSize &out_size, uint32_t *pCropY, uint32_t *pCropX);
+
+    bool CropNeeded(const NDLLSize &out_size) const {
+        return 0 < crop_h_ && crop_h_ <= out_size.height &&
+               0 < crop_w_ && crop_w_ <= out_size.width;
+    }
+
+ protected:
+    inline vector<const uint8*> *inputImages()          { return &input_ptrs_; }
+    inline vector<uint8 *> *outputImages()              { return &output_ptrs_; }
+    inline const resize_t &resize() const               { return resize_; };
 
     std::mt19937 rand_gen_;
 
@@ -59,6 +74,10 @@ protected:
     NDLLImageType image_type_;
     bool color_;
     int C_;
+
+    bool random_crop_;
+    int crop_h_, crop_w_;
+    float mirror_prob_;
 
     // store per-thread data for same resize on multiple data
     std::vector<resize_t> per_sample_rand_;
@@ -92,8 +111,8 @@ class Resize : public Operator, public ResizeAttr {
     const int resize_a = resize_.first;
     const int resize_b = resize_.second;
     for (int i = 0; i < batch_size_; ++i) {
-      auto rand_a = std::uniform_int_distribution<>(resize_a, resize_b)(rand_gen_);
-      auto rand_b = std::uniform_int_distribution<>(resize_a, resize_b)(rand_gen_);
+      auto rand_a = randomUniform(resize_b, resize_a);
+      auto rand_b = randomUniform(resize_b, resize_a);
 
       per_sample_rand_[i] = std::make_pair(rand_a, rand_b);
     }

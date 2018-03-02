@@ -6,12 +6,14 @@
 #include <random>
 #include <ctgmath>
 #include <vector>
+#include <npp.h>
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/resize.h"
 
 namespace ndll {
 
-#define USE_FAST_RESIZE   1
+#define USE_FAST_RESIZE   0
+
 
 struct ResizeGridParam {
     uint32_t nX;
@@ -20,12 +22,12 @@ struct ResizeGridParam {
 };
 
 #define RESIZE_PREPARE()                        \
-    const ResizeGridParam &w0 = resizeParam[0]; \
-    const ResizeGridParam &w1 = resizeParam[1]; \
-    const uint32_t sy0 = w0.nY;                 \
-    const uint32_t sy1 = w1.nY;                 \
-    const uint32_t sx0 = w0.nX;                 \
-    const uint32_t sx1 = w1.nX;                 \
+    const uint32_t sx0 = resizeParam[0].nX;     \
+    const uint32_t sy0 = resizeParam[0].nY;     \
+    const uint32_t sx1 = resizeParam[1].nX;     \
+    const uint32_t sy1 = resizeParam[1].nY;     \
+    const uint32_t cropX = resizeParam[2].nX;   \
+    const uint32_t cropY = resizeParam[2].nY;   \
     const uint32_t area = sx1 * sy1;
 
 #define SET_PIXEL_COLOR()                                           \
@@ -42,8 +44,8 @@ struct ResizeGridParam {
     uint32_t sumColor[3], pixColor[3];
 
 #define RESIZE_CORE(C)                                                  \
-    const uint32_t nX = x * sx1;                                        \
-    const uint32_t nY = y * sy1;                                        \
+    const uint32_t nX = (x + cropX) * sx1;                              \
+    const uint32_t nY = (y + cropY) * sy1;                              \
     const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                    \
     const uint32_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};    \
     const uint32_t extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};     \
@@ -118,13 +120,13 @@ typedef struct ResizeMappingTable {
     const PixMapping *pPixMap;
 
 #define RESIZE_N_CORE(C)                                        \
-    const uint32_t nX = x * sx1;                                \
-    const uint32_t nY = y * sy1;                                \
-    pResizePix = pResizeMapping + (nY % sy0) * sy0 + nX % sx0;  \
+    const uint32_t nX = (x + cropX) * sx1;                      \
+    const uint32_t nY = (y + cropY) * sy1;                      \
+    pResizePix = pResizeMapping + (nY % sy0) * sx0 + nX % sx0;  \
     pPixMap = pPixMapping + pResizePix->intersectInfoAddr;      \
     const uint8 *pBase = in + ((nY / sy0 * W0) + nX / sx0) * C; \
     uint32_t pixColor[3] = {0, 0, 0};                           \
-    for (uint16_t i = pResizePix->nPixels; i--;) {              \
+    for (int i = pResizePix->nPixels; i--;) {                   \
         const uint8 *pPix = pBase + (pPixMap + i)->pixAddr;     \
         const uint32_t pixArea = (pPixMap + i)->pixArea;        \
         pixColor[0] += *pPix * pixArea;                         \
@@ -134,6 +136,7 @@ typedef struct ResizeMappingTable {
         }                                                       \
     }                                                           \
     SET_PIXEL_COLOR();
+
 
 NDLLError_t BatchedResize(const uint8 *in_batch, int N,
                           const NDLLSize &sizeIn, const NDLLSize &outImgSise, int C,
@@ -147,9 +150,10 @@ template <typename Backend>
 class MyResize : public Resize<Backend> {
  public:
     inline explicit MyResize(const OpSpec &spec) : Resize<Backend>(spec) {
+
         pResizeMappingTable = NULL;
-        for (int i = 0; i < 2; i++)
-            resizeParam_[i].Init(0, 0);
+        for (int i = 0; i < sizeof(resizeParam)/sizeof(resizeParam[0]); i++)
+            resizeParam[i].Init(0, 0);
     }
 
     virtual inline ~MyResize()          {
@@ -167,23 +171,23 @@ class MyResize : public Resize<Backend> {
         NDLLSize out_size, input_size;
         ResizeAttr::SetSize(input_size, input_shape, ResizeAttr::resize(), out_size);
 
+        const vector<Index> &shape = input.shape();
+        const int C = shape[2];
+
+        PrepareCropAndResize(input_size, out_size, C);
+
         const int H0 = input_size.height;
         const int W0 = input_size.width;
         const int H1 = out_size.height;
         const int W1 = out_size.width;
 
-        const vector<Index> &shape = input.shape();
         DataDependentSetupCPU(input, output, "MyResize", NULL, NULL, NULL, &out_size);
-
-        const int C = shape[2];
-        ResizeGridParam resizeParam[2];
-        CreateResizeGrid(input_size, out_size, C, resizeParam);
 
         if (USE_FAST_RESIZE) {
             const ResizeMapping *pResizeMapping = pResizeMappingTable->pResizeMapping;
             const PixMapping *pPixMapping = pResizeMappingTable->pPixMapping;
-            AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
-                               static_cast<uint8*>(output->raw_mutable_data()), RESIZE_N)
+             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
+                               static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE);
@@ -192,27 +196,43 @@ class MyResize : public Resize<Backend> {
 
     void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
         const auto &input = ws->Input<GPUBackend>(idx);
-        auto output = ws->Output<GPUBackend>(idx);
+        const auto output = ws->Output<GPUBackend>(idx);
 
+        NDLLSize out_size;
         DataDependentSetupGPU(input, output, batch_size_, false,
-                              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this);
+                              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this, &out_size);
 
         const auto &shape = input.shape();
+        const int C = shape[0][2];
 
         const NDLLSize &sizeIn = ResizeAttr::size(input_t, 0);
         const NDLLSize &sizeOut = ResizeAttr::size(output_t, 0);
-        const int C = shape[0][2];
-        const bool newMapping = CreateResizeGrid(sizeIn, sizeOut, C, resizeParam_);
+
+        const bool newMapping = PrepareCropAndResize(sizeIn, out_size, C);
         NDLL_CALL(BatchedResize(
                 input.template data<uint8>(),
                 batch_size_, sizeIn, sizeOut, C,
                 static_cast<uint8*>(output->raw_mutable_data()),
-                dim3(32, 32), ws->stream(), newMapping? resizeParam_ : NULL,
+                dim3(32, 32), ws->stream(), newMapping? resizeParam : NULL,
                 newMapping? pResizeMappingTable : NULL));
     }
 
-    bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
-                          ResizeGridParam *resizeParam) {
+ private:
+    bool PrepareCropAndResize(const NDLLSize &input_size, NDLLSize &out_size, int C) {
+        NDLLSize out_resize(out_size);
+        uint32_t cropY, cropX;
+        const bool doingCrop = ResizeAttr::CropNeeded(out_size);
+        if (doingCrop) {
+            ResizeAttr::DefineCrop(out_size, &cropY, &cropX);
+        } else
+            cropY = cropX = 0;
+
+        resizeParam[2] = {cropX, cropY};
+
+        return CreateResizeGrid(input_size, out_resize, C);
+    }
+
+    bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C) {
         const int H0 = input_size.height;
         const int H1 = out_size.height;
         const int W0 = input_size.width;
@@ -222,12 +242,8 @@ class MyResize : public Resize<Backend> {
         const size_t lcmH = lcm(H0, H1);
         const size_t lcmW = lcm(W0, W1);
 
-        bool newResize;
-        if (resizeParam == resizeParam_) {
-            newResize = resizeParam_[0].nX != lcmW / W0 || resizeParam_[0].nY != lcmH / H0 ||
-                        resizeParam_[1].nX != lcmW / W1 || resizeParam_[1].nY != lcmH / H1;
-        } else
-            newResize = true;
+        bool newResize = resizeParam[0].nX != lcmW / W0 || resizeParam[0].nY != lcmH / H0 ||
+                         resizeParam[1].nX != lcmW / W1 || resizeParam[1].nY != lcmH / H1;
 
         if (newResize) {
             resizeParam[0].Init(lcmW / W0, lcmH / H0);
@@ -249,9 +265,8 @@ class MyResize : public Resize<Backend> {
         return newResize;
     }
 
-private:
     const ResizeMappingTable *pResizeMappingTable;
-    ResizeGridParam resizeParam_[2];
+    ResizeGridParam resizeParam[3];
     USE_OPERATOR_MEMBERS();
 };
 

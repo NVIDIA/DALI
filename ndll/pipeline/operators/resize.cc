@@ -24,20 +24,35 @@ void ResizeAttr::SetSize(NDLLSize &in_size, const vector<Index> &shape,
     in_size.height = shape[0];
     in_size.width = shape[1];
 
-    out_size.height = rand.first;
+    const resize_t &resize = random_resize_? rand : resize_;
     if (warp_resize_) {
-        out_size.width = rand.second;
+        out_size.height = resize.first;
+        out_size.width = resize.second;
         return;
     }
 
-    if (in_size.width < in_size.height) {
-        out_size.width = out_size.height;
-        out_size.height =
-                static_cast<float>(in_size.height) / in_size.width * out_size.width;
+    const float prop = static_cast<float>(in_size.height) / in_size.width;
+    if (prop > 1.) {
+        out_size.width = resize.first;
+        out_size.height = prop * out_size.width;
     } else {
-        out_size.width =
-                static_cast<float>(in_size.width) / in_size.height * out_size.height;
+        out_size.height = resize.first;
+        out_size.width = out_size.height / prop;
     }
+}
+
+void ResizeAttr::DefineCrop(NDLLSize &out_size, uint32_t *pCropY, uint32_t *pCropX) {
+    // Set crop parameters
+    if (random_crop_) {
+        *pCropY = randomUniform(out_size.height - crop_h_);
+        *pCropX = randomUniform(out_size.width - crop_w_);
+    } else {
+        *pCropY = (out_size.height - crop_h_) / 2;
+        *pCropX = (out_size.width - crop_w_) / 2;
+    }
+
+    out_size.height = crop_h_;
+    out_size.width = crop_w_;
 }
 
 }  // namespace ndll

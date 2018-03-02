@@ -162,7 +162,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
   void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
               size_t batch_size, bool reshapeBatch = false,
               vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
-              vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL);
+              vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL, NDLLSize *pResize = NULL);
   void CollectPointersForExecution(size_t batch_size,
               const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
               TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
@@ -219,6 +219,31 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
         AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
         KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
 
+
+#define AUGMENT_RESIZE_CROP(H, W, C, img_in, img_out,               \
+            AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
+            stepW, stepH, startW, startH, imgIdx, ...)              \
+    AUGMENT_PREAMBLE(H, W, C);                                      \
+    const uint32_t offset = nYoffset(W, C);                         \
+    const uint32_t shift = stepH * offset;                          \
+    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
+    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
+    for (int y = startH; y < H; y += stepH) {                       \
+        out += shift;                                               \
+        for (int x = startW; x < W; x += stepW) {                   \
+            AUGMENT_CORE(C);                                        \
+        }                                                           \
+    }
+
+#define AUGMENT_RESIZE__CROP_CPU(H, W, C, img_in, img_out, KIND)    \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
+        KIND ## _CORE, 1, 1, 0, 0, 0)
+
+#define AUGMENT_RESIZE_CROP_GPU(H, W, C, img_in, img_out, KIND)     \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
+        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
+
+
 #define AUGMENT_TRANSFORM_N(H, W, C, img_in, img_out,       \
             AUGMENT_PREAMBLE, AUGMENT_CORE, AUGMENT_DEF,    \
             stepW, stepH, startW, startH, imgIdx, ...)      \
@@ -227,10 +252,10 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
     const uint32_t stride = H * offset * imgIdx;            \
     const uint32_t shift = stepH * offset;                  \
     const uint8 *in = img_in + stride;                      \
-    int startY = startH; while (startY< H/2) startY +=stepH;\
-    int startX = startW; while (startX< W/2) startX +=stepW;\
-    const bool useVer = (H & 1) == 0;                       \
-    const bool useHor = (W & 1) == 0;                       \
+    const int startY = START_COORD(startH, H >> 1, stepH);  \
+    const int startX = START_COORD(startW, W >> 1, stepW);  \
+    bool useVertSymmetry = !(H & 1) || 2 * startY > H;      \
+    const bool useHor = !(W & 1) || 2 * startX > W;         \
     const int adjY = H * offset;                            \
     const int adjXto = offset - C;                          \
     const int stepAdj = 2 * stepH * offset;                 \
@@ -241,8 +266,8 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
         out += shift;                                       \
         /* VertSymmetry could be used only when */          \
         /* y is not in the middle               */          \
-        bool useVertSymmetry = useVer || y != (H << 1);     \
         adjYto -= stepAdj;                                  \
+        bool useHorSymmetry = useHor;                       \
         for (int x = startX; x < W; x += stepW) {           \
             AUGMENT_CORE(H, W, C, __VA_ARGS__);             \
             /* The order of points 1,2,3,4 is clockwise  */ \
@@ -268,7 +293,6 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
                 out[to1 + 2] = in[from1 + 2];               \
             }                                               \
                                                             \
-            bool useHorSymmetry = useHor || x != (W << 1);  \
             if (!useHorSymmetry) {                          \
                 if (useVertSymmetry) {                      \
                     /* Only point #4 should be set. */      \
@@ -280,6 +304,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
                         out[to1 + 2] = in[from4 + 2];       \
                     }                                       \
                 }                                           \
+                useHorSymmetry = true;                      \
                 continue;                                   \
             }                                               \
                                                             \
@@ -308,6 +333,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
                 out[to1 + 2] = in[from4 + 2];               \
             }                                               \
         }                                                   \
+        useVertSymmetry = true;                             \
     }
 
 #define DEF_CORE(x, y, W, C)       (y * W + x) * C      // identical
@@ -333,9 +359,10 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
 
 #define DEF_PREAMBLE(H, W, C)                           // empty macro
 
-#define nYoffset(W, C)  ((W) * (C))
-#define LRINT(x)        lrint(x)
-#define PI              3.14159265359
+#define START_COORD(a, b, s)    (s == 1)? (b) : (a >= (b)? a : a + ((b) - a + s - 1) / (s) * (s))
+#define nYoffset(W, C)          ((W) * (C))
+#define LRINT(x)                lrint(x)
+#define PI                      3.14159265359
 
 typedef enum {
     coord_X,

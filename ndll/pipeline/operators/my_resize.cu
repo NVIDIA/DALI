@@ -3,6 +3,7 @@
 #include <nppdefs.h>
 #include <npp.h>
 #include "ndll/pipeline/operators/my_resize.h"
+#include "../../common.h"
 
 namespace ndll {
 
@@ -42,7 +43,8 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
 
 void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
-                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pntr) {
+                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pntr,
+                           NDLLSize *pOutResize) {
     NDLL_ENFORCE(IsType<uint8>(input.type()),
                  "Expected input data stored in uint8.");
 
@@ -62,6 +64,16 @@ void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
             NDLLSize &out_size = pntr->size(output_t, i);
             pntr->SetSize(pntr->size(input_t, i), input_shape,
                           pntr->newSizes(i), out_size);
+
+            if (pOutResize) {
+                *pOutResize = out_size;
+                pOutResize = NULL;
+            }
+
+            uint32_t cropY, cropX;
+            const bool doingCrop = pntr->CropNeeded(out_size);
+            if (doingCrop)
+                pntr->DefineCrop(out_size, &cropY, &cropX);
 
             // Collect the output shapes
             output_shape[i] = {out_size.height, out_size.width, input_shape[2]};
@@ -100,9 +112,10 @@ void CollectPointersForExecution(size_t batch_size,
     }
 }
 
-__constant__ ResizeGridParam resizeParam[2];
+__constant__ ResizeGridParam resizeParam[3];
 __constant__ ResizeMapping *pResizeMapping = NULL;
 __constant__ PixMapping *pPixMapping = NULL;
+__constant__ int cropX, cropY;
 
 __global__ void BatchedResizeKernel(const uint8 *img_in, int H0, int W0,
                                    int H, int W, int C, uint8 *img_out) {
@@ -201,20 +214,23 @@ class PixMappingHelper {
  public:
     PixMappingHelper(uint32_t len, ResizeMapping *pMapping);
     void AddPixel(uint32_t addr, uint32_t area);
-    inline void UpdateMapping()                 { (++pMapping_)->intersectInfoAddr = numUsed(); }
+    inline void UpdateMapping(int shift) {
+           (pMapping_ = pMappingBase_ + shift)->intersectInfoAddr = numUsed();
+        }
     inline PixMapping *getPixMapping() const    { return pPixMapping_; }
     inline uint32_t numUsed() const             { return numPixMapUsed_; }
  private:
     uint32_t numPixMapMax_;  // length of the allocated PixMapping array
     uint32_t numPixMapUsed_; // number of already used elements of pPixMapping
     PixMapping *pPixMapping_ = new PixMapping[numPixMapMax_];
+    ResizeMapping *pMappingBase_;
     ResizeMapping *pMapping_;
 };
 
 PixMappingHelper::PixMappingHelper(uint32_t len, ResizeMapping *pMapping) {
     numPixMapUsed_ = 0;
     pPixMapping_ = new PixMapping[numPixMapMax_ = len];
-    pMapping_ = pMapping - 1;
+    pMappingBase_ = pMapping;
 }
 
 void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area) {
@@ -255,8 +271,8 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
 
-    for (size_t y = 0; y < sy0/*H1*/; ++y) {
-        for (size_t x = 0; x < sx0/*W1*/; ++x) {
+    for (size_t y = 0; y < sy0; ++y) {
+        for (size_t x = 0; x < sx0; ++x) {
 
             const size_t nX = x * sx1;
             const size_t nY = y * sy1;
@@ -272,14 +288,16 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
             // Length of the left (top) pixels intersecting with the PIX
             const size_t lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
 
+            // Doubled (x,y) coordinates of the pixel's center
+            const size_t lenX = endIdx[0] + begIdx[0] - (extra[0] ? 0 : 1);
+            const size_t lenY = endIdx[1] + begIdx[1] - (extra[1] ? 0 : 1);
+
             // Relative address to the first intersecting pixels
-            helper.UpdateMapping();
+            helper.UpdateMapping(((y * sy1) % sy0) * sx0 + (x * sx1) % sx0);
 
 #if RUN_CHECK_1
             size_t check = 0;
 #endif
-
-            FILE *file = NULL;//(x == 0 && y == 0)? fopen("aaa.txt", "a") : NULL;
             size_t aY = 0;
             size_t rowMult = lenFirst[1];
             size_t y0 = begIdx[1];
@@ -288,23 +306,13 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
 
                 // Relative address of the last pixel in row y0, intersecting with PIX
                 uint32_t pixAddr = ((aY * W0) + x0 - begIdx[0]) * C;
-                if (file) {
-                    fprintf(file, "pixAddr = %d  extra[0] = %ld  rowMult = %ld   (%ld) \n", pixAddr, extra[0], rowMult,
-                            rowMult * extra[0]);
-                }
                 if (extra[0])
                     helper.AddPixel(pixAddr, extra[0] * rowMult);
 
                 while (--x0 > begIdx[0]) {
-                   if (file)
-                       fprintf(file, "pixAddr = %d  sx0 = %ld  rowMult = %ld   (%ld) \n", pixAddr, sx0, rowMult,
-                               rowMult * extra[0]);
                    helper.AddPixel(pixAddr -= C, sx0 * rowMult);
                 }
 
-                if (file)
-                    fprintf(file, "pixAddr = %d  sx0 = %ld  rowMult = %ld   (%ld) \n", pixAddr, sx0, rowMult,
-                            rowMult * extra[0]);
                 helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult);
 
 #if RUN_CHECK_1
