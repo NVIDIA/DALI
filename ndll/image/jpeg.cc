@@ -143,6 +143,8 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     }
   }
 
+  tjDestroy(handle);
+
   return NDLLSuccess;
 }
 

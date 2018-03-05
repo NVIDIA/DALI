@@ -8,3 +8,4 @@ latex
 .ycm_extra_conf.py
 **/imgui.ini
 .*.swp
+valgrind-out.txt

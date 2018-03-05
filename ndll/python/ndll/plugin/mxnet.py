@@ -91,4 +91,4 @@ class NDLLIterator:
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
-            raise RuntimeWarning("NDLL iterator does not support resetting while epoch is not finish. Ignoring...")
+            raise RuntimeWarning("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")

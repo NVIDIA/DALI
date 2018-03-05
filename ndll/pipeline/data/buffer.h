@@ -142,6 +142,13 @@ class Buffer {
   }
 
   /**
+   * @brief Returns the real size of the allocation
+   */
+  inline size_t capacity() const {
+    return num_bytes_;
+  }
+
+  /**
    * @brief Returns the TypeInfo object that keeps track of the
    * datatype of the underlying storage.
    */
