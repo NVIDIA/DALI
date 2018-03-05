@@ -78,7 +78,8 @@ class HuffmanDecoder : public Operator {
     // Limits # of very expensive pinned alloc / free pairs
     size_t min_coeff_size = initial_dct_coeff_size_byte_ / sizeof(int16);
     // Force large allocation
-    dct_coeff->Resize({static_cast<Index>(total_size < min_coeff_size ? min_coeff_size : total_size)});
+    dct_coeff->Resize({static_cast<Index>(total_size < min_coeff_size ? min_coeff_size :
+                                                                        total_size)});
     dct_coeff->template mutable_data<int16>();
     // Correct sizing
     dct_coeff->Resize({total_size});
