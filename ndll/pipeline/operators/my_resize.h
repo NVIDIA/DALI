@@ -12,23 +12,23 @@
 
 namespace ndll {
 
-#define USE_FAST_RESIZE   0
+#define USE_FAST_RESIZE   1
 
 
 struct ResizeGridParam {
-    uint32_t nX;
-    uint32_t nY;
-    void Init(uint32_t sx = 0, uint32_t sy = 0) { nX = sx; nY = sy; }
+    int nX;
+    int nY;
+    void Init(int sx = 0, int sy = 0) { nX = sx; nY = sy; }
 };
 
-#define RESIZE_PREPARE()                        \
-    const uint32_t sx0 = resizeParam[0].nX;     \
-    const uint32_t sy0 = resizeParam[0].nY;     \
-    const uint32_t sx1 = resizeParam[1].nX;     \
-    const uint32_t sy1 = resizeParam[1].nY;     \
-    const uint32_t cropX = resizeParam[2].nX;   \
-    const uint32_t cropY = resizeParam[2].nY;   \
-    const uint32_t area = sx1 * sy1;
+#define RESIZE_PREPARE()                   \
+    const int sx0 = resizeParam[0].nX;     \
+    const int sy0 = resizeParam[0].nY;     \
+    const int sx1 = resizeParam[1].nX;     \
+    const int sy1 = resizeParam[1].nY;     \
+    const int cropX = resizeParam[2].nX;   \
+    const int cropY = resizeParam[2].nY;   \
+    const int area = sx1 * sy1;
 
 #define SET_PIXEL_COLOR()                                           \
     const uint32_t to = x * C;                                      \
@@ -143,16 +143,18 @@ NDLLError_t BatchedResize(const uint8 *in_batch, int N,
                           uint8 *out_batch, const dim3 &gridDim, cudaStream_t stream,
                           const ResizeGridParam *resizeParam, const ResizeMappingTable *pTbl);
 
-ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C);
+ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool closest = false);
 void releaseCudaResizeMapingTable();
 
+#define SAME_SIZES(size1, size2)    (size1.height == size2.height && \
+                                     size1.width == size2.width)
 template <typename Backend>
 class MyResize : public Resize<Backend> {
  public:
     inline explicit MyResize(const OpSpec &spec) : Resize<Backend>(spec) {
-
+        resizeDescr_.resize(batch_size_);
         pResizeMappingTable = NULL;
-        for (int i = 0; i < sizeof(resizeParam)/sizeof(resizeParam[0]); i++)
+        for (size_t i = 0; i < sizeof(resizeParam)/sizeof(resizeParam[0]); i++)
             resizeParam[i].Init(0, 0);
     }
 
@@ -182,7 +184,12 @@ class MyResize : public Resize<Backend> {
         const int W1 = out_size.width;
 
         DataDependentSetupCPU(input, output, "MyResize", NULL, NULL, NULL, &out_size);
-
+/*
+        static int cntr;
+        FILE *file = fopen("ccc1.txt", cntr++? "a" : "w");
+        fprintf(file,"H0 = %3ld,  W0 = %3ld,  H1 = %3d  W1 = %3d  cropXY = (%3d %3d)\n",input_shape[0], input_shape[1], H1, W1, resizeParam[2].nY, resizeParam[2].nX);
+        fclose(file);
+*/
         if (USE_FAST_RESIZE) {
             const ResizeMapping *pResizeMapping = pResizeMappingTable->pResizeMapping;
             const PixMapping *pPixMapping = pResizeMappingTable->pPixMapping;
@@ -198,9 +205,8 @@ class MyResize : public Resize<Backend> {
         const auto &input = ws->Input<GPUBackend>(idx);
         const auto output = ws->Output<GPUBackend>(idx);
 
-        NDLLSize out_size;
         DataDependentSetupGPU(input, output, batch_size_, false,
-                              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this, &out_size);
+                              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this, &resizeDescr_);
 
         const auto &shape = input.shape();
         const int C = shape[0][2];
@@ -208,22 +214,25 @@ class MyResize : public Resize<Backend> {
         const NDLLSize &sizeIn = ResizeAttr::size(input_t, 0);
         const NDLLSize &sizeOut = ResizeAttr::size(output_t, 0);
 
-        const bool newMapping = PrepareCropAndResize(sizeIn, out_size, C);
-        NDLL_CALL(BatchedResize(
-                input.template data<uint8>(),
-                batch_size_, sizeIn, sizeOut, C,
-                static_cast<uint8*>(output->raw_mutable_data()),
-                dim3(32, 32), ws->stream(), newMapping? resizeParam : NULL,
-                newMapping? pResizeMappingTable : NULL));
+        if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
+            NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
+            const bool newMapping = PrepareCropAndResize(sizeIn, out_size, C);
+            NDLL_CALL(BatchedResize(
+                    input.template data<uint8>(),
+                    batch_size_, sizeIn, sizeOut, C,
+                    static_cast<uint8 *>(output->raw_mutable_data()),
+                    dim3(32, 32), ws->stream(), newMapping ? resizeParam : NULL,
+                    newMapping ? pResizeMappingTable : NULL));
+        }
     }
 
  private:
     bool PrepareCropAndResize(const NDLLSize &input_size, NDLLSize &out_size, int C) {
         NDLLSize out_resize(out_size);
-        uint32_t cropY, cropX;
+        int cropY, cropX;
         const bool doingCrop = ResizeAttr::CropNeeded(out_size);
         if (doingCrop) {
-            ResizeAttr::DefineCrop(out_size, &cropY, &cropX);
+            ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
         } else
             cropY = cropX = 0;
 
@@ -238,9 +247,10 @@ class MyResize : public Resize<Backend> {
         const int W0 = input_size.width;
         const int W1 = out_size.width;
 
+
         int lcm(int a, int b);
-        const size_t lcmH = lcm(H0, H1);
-        const size_t lcmW = lcm(W0, W1);
+        const int lcmH = lcm(H0, H1);
+        const int lcmW = lcm(W0, W1);
 
         bool newResize = resizeParam[0].nX != lcmW / W0 || resizeParam[0].nY != lcmH / H0 ||
                          resizeParam[1].nX != lcmW / W1 || resizeParam[1].nY != lcmH / H1;
@@ -257,7 +267,8 @@ class MyResize : public Resize<Backend> {
             }
 
             if (!pResizeMappingTable) {
-                pResizeMappingTable = createResizeMappingTable(H0, W0, H1, W1, C);
+                pResizeMappingTable = createResizeMappingTable(H0, W0, H1, W1, C,
+                                                               ResizeAttr::type_ == NDLL_INTERP_NN);
                 newResize = true;
             }
         }
@@ -265,8 +276,33 @@ class MyResize : public Resize<Backend> {
         return newResize;
     }
 
+    bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
+        // Check if all input sizes are the same
+        const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
+
+        const auto pImages = *ResizeAttr::outputImages();
+        const auto pFirstBatchImage = pImages[0];
+
+        int i = batch_size_;
+        while (--i > 0) {
+            const NDLLSize &inSize = ResizeAttr::size(input_t, i);
+            if (!SAME_SIZES(inSize, sizeIn))
+                break;
+
+            const NDLLSize &outSize = ResizeAttr::size(output_t, i);
+            if (!SAME_SIZES(outSize, sizeOut))
+                break;
+
+            if (pImages[i] != pFirstBatchImage + i * imageSize)
+                break;
+        }
+
+        return i == 0;
+    }
+
     const ResizeMappingTable *pResizeMappingTable;
     ResizeGridParam resizeParam[3];
+    vector<NppiRect> resizeDescr_;
     USE_OPERATOR_MEMBERS();
 };
 

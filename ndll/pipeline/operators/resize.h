@@ -31,7 +31,8 @@ class ResizeAttr {
             random_crop_(spec.GetArgument<bool>("random_crop", false)),
             crop_h_(spec.GetArgument<int>("crop_h", -1)),
             crop_w_(spec.GetArgument<int>("crop_w", -1)),
-            mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)) {
+            mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)),
+            type_(spec.GetArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
         resize_.first = spec.GetArgument<int>("resize_a", -1);
         resize_.second = spec.GetArgument<int>("resize_b", -1);
 
@@ -51,7 +52,7 @@ class ResizeAttr {
                 return std::uniform_int_distribution<>(min, max)(rand_gen_);
             }
 
-    void DefineCrop(NDLLSize &out_size, uint32_t *pCropY, uint32_t *pCropX);
+    void DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY);
 
     bool CropNeeded(const NDLLSize &out_size) const {
         return 0 < crop_h_ && crop_h_ <= out_size.height &&
@@ -79,6 +80,9 @@ class ResizeAttr {
     int crop_h_, crop_w_;
     float mirror_prob_;
 
+    // Interpolation type
+    NDLLInterpType type_;
+
     // store per-thread data for same resize on multiple data
     std::vector<resize_t> per_sample_rand_;
 
@@ -92,8 +96,7 @@ template <typename Backend>
 class Resize : public Operator, public ResizeAttr {
  public:
   explicit inline Resize(const OpSpec &spec) :
-    Operator(spec), ResizeAttr(spec),
-    type_(spec.GetArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
+    Operator(spec), ResizeAttr(spec) {
       // Resize per-image data
       input_ptrs_.resize(batch_size_);
       output_ptrs_.resize(batch_size_);
@@ -149,9 +152,6 @@ class Resize : public Operator, public ResizeAttr {
         type_);
     nppSetStream(old_stream);
   }
-
-  // Interpolation type
-  NDLLInterpType type_;
 
   USE_OPERATOR_MEMBERS();
 };

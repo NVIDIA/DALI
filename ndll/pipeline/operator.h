@@ -160,9 +160,9 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
               vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
               vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
   void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
-              size_t batch_size, bool reshapeBatch = false,
-              vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
-              vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL, NDLLSize *pResize = NULL);
+              size_t batch_size, bool reshapeBatch = false, vector<const uint8 *> *iPtrs = NULL,
+              vector<uint8 *> *oPtrs = NULL, vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
+              vector<NppiRect> *pOutResize = NULL);
   void CollectPointersForExecution(size_t batch_size,
               const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
               TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);

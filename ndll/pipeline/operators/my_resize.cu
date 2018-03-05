@@ -4,6 +4,7 @@
 #include <npp.h>
 #include "ndll/pipeline/operators/my_resize.h"
 #include "../../common.h"
+#include "../../../../../../../usr/local/cuda-9.0/include/npp.h"
 
 namespace ndll {
 
@@ -43,8 +44,8 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
 
 void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
-                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pntr,
-                           NDLLSize *pOutResize) {
+                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pResize,
+                           vector<NppiRect>  *pOutResize) {
     NDLL_ENFORCE(IsType<uint8>(input.type()),
                  "Expected input data stored in uint8.");
 
@@ -59,24 +60,28 @@ void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
                      "Not valid color type argument (1 or 3)");
 
         // Collect the output shapes
-        if (pntr) {
+        if (pResize) {
             // We are resizing
-            NDLLSize &out_size = pntr->size(output_t, i);
-            pntr->SetSize(pntr->size(input_t, i), input_shape,
-                          pntr->newSizes(i), out_size);
+            NDLLSize &out_size = pResize->size(output_t, i);
+            pResize->SetSize(pResize->size(input_t, i), input_shape,
+                pResize->newSizes(i), out_size);
 
-            if (pOutResize) {
-                *pOutResize = out_size;
-                pOutResize = NULL;
-            }
+            NppiRect &outResize = (*pOutResize)[i];
+            outResize.height = out_size.height;
+            outResize.width = out_size.width;
 
-            uint32_t cropY, cropX;
-            const bool doingCrop = pntr->CropNeeded(out_size);
+            const bool doingCrop = pResize->CropNeeded(out_size);
             if (doingCrop)
-                pntr->DefineCrop(out_size, &cropY, &cropX);
+                pResize->DefineCrop(out_size, &outResize.x, &outResize.y);
 
             // Collect the output shapes
             output_shape[i] = {out_size.height, out_size.width, input_shape[2]};
+            /*
+            static int cntr;
+            FILE *file = fopen("ccc2.txt", cntr++? "a" : "w");
+            fprintf(file,"H0 = %3ld,  W0 = %3ld,  H1 = %3d  W1 = %3d  cropXY = (%3d %3d)\n",input_shape[0], input_shape[1],
+                    outResize.height, outResize.width, outResize.y, outResize.x);
+            fclose(file); */
         } else
             output_shape[i] = input_shape;
 
@@ -212,28 +217,33 @@ bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1) const {
 
 class PixMappingHelper {
  public:
-    PixMappingHelper(uint32_t len, ResizeMapping *pMapping);
-    void AddPixel(uint32_t addr, uint32_t area);
-    inline void UpdateMapping(int shift) {
-           (pMapping_ = pMappingBase_ + shift)->intersectInfoAddr = numUsed();
-        }
+    PixMappingHelper(uint32_t len, ResizeMapping *pMapping, bool useClosest = false);
+    void AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
+    void UpdateMapping(int shift, int centerX, int centerY);
     inline PixMapping *getPixMapping() const    { return pPixMapping_; }
     inline uint32_t numUsed() const             { return numPixMapUsed_; }
  private:
+    inline size_t distance(int x, int y) const  { return x * x + y * y; }
     uint32_t numPixMapMax_;  // length of the allocated PixMapping array
     uint32_t numPixMapUsed_; // number of already used elements of pPixMapping
     PixMapping *pPixMapping_ = new PixMapping[numPixMapMax_];
     ResizeMapping *pMappingBase_;
     ResizeMapping *pMapping_;
+
+    const uint32_t area_;
+    const bool useClosest_;
+    size_t closestDist_;
+    int centerX_, centerY_;
 };
 
-PixMappingHelper::PixMappingHelper(uint32_t len, ResizeMapping *pMapping) {
+PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, bool useClosest) :
+        area_(area), useClosest_(useClosest) {
     numPixMapUsed_ = 0;
-    pPixMapping_ = new PixMapping[numPixMapMax_ = len];
+    pPixMapping_ = new PixMapping[numPixMapMax_ = 2 * area];
     pMappingBase_ = pMapping;
 }
 
-void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area) {
+void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY) {
     if (numPixMapUsed_ == numPixMapMax_) {
         // Previously allocated array needs to be extended
         PixMapping *pPixMappingNew = new PixMapping[numPixMapMax_ <<= 1];
@@ -241,14 +251,36 @@ void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area) {
         pPixMapping_ = pPixMappingNew;
     }
 
+
     assert(area != 0);
-    pMapping_->nPixels++;
-    pPixMapping_[numPixMapUsed_++].Init(addr, area);
+
+    if (!useClosest_) {
+        pMapping_->nPixels++;
+        pPixMapping_[numPixMapUsed_++].Init(addr, area);
+    } else {
+       const size_t newDist = distance(crdX - centerX_, crdY - centerY_);
+       if (closestDist_ == (size_t)-1) {
+           pMapping_->nPixels++;
+           pPixMapping_[numPixMapUsed_++].Init(addr, area_);
+           closestDist_ = newDist;
+       } else
+       if (closestDist_ > newDist) {
+           closestDist_ = newDist;
+           pPixMapping_[numPixMapUsed_ - 1].Init(addr, area_);
+       }
+    }
+}
+
+void PixMappingHelper::UpdateMapping(int shift, int centerX, int centerY) {
+    (pMapping_ = pMappingBase_ + shift)->intersectInfoAddr = numUsed();
+    centerX_ = centerX;
+    centerY_ = centerY;
+    closestDist_ = (size_t)-1;
 }
 
 #define RUN_CHECK_1     0
 
-ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C)
+ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool useClosest)
 {
     // The table, which contains the information about correspondence of pixels of the initial
     // image to the pixels of the resized one.
@@ -260,66 +292,66 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
     const size_t lcmH = lcm(H0, H1);
     const size_t lcmW = lcm(W0, W1);
 
-    const size_t sy0 = lcmH / H0;
-    const size_t sy1 = lcmH / H1;
-    const size_t sx0 = lcmW / W0;
-    const size_t sx1 = lcmW / W1;
+    const int sy0 = lcmH / H0;
+    const int sy1 = lcmH / H1;
+    const int sx0 = lcmW / W0;
+    const int sx1 = lcmW / W1;
 
     ResizeMappingTable *pTable = new ResizeMappingTable(H0, W0, H1, W1, C, sx0, sy0);
-    PixMappingHelper helper(2 * sx0 * sy0, pTable->pResizeMapping);
+    PixMappingHelper helper(sx0 * sy0, pTable->pResizeMapping, useClosest);
 
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
 
-    for (size_t y = 0; y < sy0; ++y) {
-        for (size_t x = 0; x < sx0; ++x) {
+    for (int y = 0; y < sy0; ++y) {
+        for (int x = 0; x < sx0; ++x) {
 
-            const size_t nX = x * sx1;
-            const size_t nY = y * sy1;
+            const int nX = x * sx1;
+            const int nY = y * sy1;
             // The indices of the top-left pixel of the initial image, intersecting with PIX
-            const size_t begIdx[2] = { nX / sx0, nY / sy0 };
+            const int begIdx[2] = { nX / sx0, nY / sy0 };
 
             // The indices of the bottom-right pixel of the initial image, intersecting with PIX
-            size_t endIdx[2] = { (nX + sx1) / sx0, (nY + sy1) / sy0 };
+            int endIdx[2] = { (nX + sx1) / sx0, (nY + sy1) / sy0 };
 
             // Intersection of the right (bottom) pixels with the PIX (could be equal to 0)
-            const size_t extra[2] = { (nX + sx1) % sx0, (nY + sy1) % sy0 };
+            const int extra[2] = { (nX + sx1) % sx0, (nY + sy1) % sy0 };
 
             // Length of the left (top) pixels intersecting with the PIX
-            const size_t lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
+            const int lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
 
             // Doubled (x,y) coordinates of the pixel's center
-            const size_t lenX = endIdx[0] + begIdx[0] - (extra[0] ? 0 : 1);
-            const size_t lenY = endIdx[1] + begIdx[1] - (extra[1] ? 0 : 1);
+            const int lenX = endIdx[0] + begIdx[0] - (extra[0] ? 0 : 1);
+            const int lenY = endIdx[1] + begIdx[1] - (extra[1] ? 0 : 1);
 
             // Relative address to the first intersecting pixels
-            helper.UpdateMapping(((y * sy1) % sy0) * sx0 + (x * sx1) % sx0);
+            helper.UpdateMapping(((y * sy1) % sy0) * sx0 + (x * sx1) % sx0, lenX, lenY);
 
+            endIdx[0] -= begIdx[0];
+            endIdx[1] -= begIdx[1];
 #if RUN_CHECK_1
             size_t check = 0;
 #endif
-            size_t aY = 0;
             size_t rowMult = lenFirst[1];
-            size_t y0 = begIdx[1];
+            int y0 = 0;
             while (true) {
-                size_t x0 = endIdx[0];
+                int x0 = endIdx[0];
 
                 // Relative address of the last pixel in row y0, intersecting with PIX
-                uint32_t pixAddr = ((aY * W0) + x0 - begIdx[0]) * C;
+                uint32_t pixAddr = ((y0 * W0) + x0) * C;
                 if (extra[0])
-                    helper.AddPixel(pixAddr, extra[0] * rowMult);
+                    helper.AddPixel(pixAddr, extra[0] * rowMult, x0, y0);
 
-                while (--x0 > begIdx[0]) {
-                   helper.AddPixel(pixAddr -= C, sx0 * rowMult);
+                while (--x0 > 0) {
+                   helper.AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
                 }
 
-                helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult);
+                helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult, x0, y0);
 
 #if RUN_CHECK_1
                 check += rowMult * (sx0 * (endIdx[0] - begIdx[0] - 1) + lenFirst[0] + extra[0]);
 #endif
 
-                aY++;
                 if (++y0  < endIdx[1])
                     rowMult = sy0;
                 else {
