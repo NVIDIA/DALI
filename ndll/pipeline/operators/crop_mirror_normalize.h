@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
-#define NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
+#ifndef NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_H_
+#define NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_H_
 
 #include <cstring>
 #include <utility>
@@ -17,9 +17,9 @@ namespace ndll {
 NDLL_REGISTER_TYPE(const uint8*, NDLL_INTERNAL_C_UINT8_P);
 
 template <typename Backend>
-class CropMirrorNormalizePermute : public Operator {
+class CropMirrorNormalize : public Operator {
  public:
-  explicit inline CropMirrorNormalizePermute(const OpSpec &spec) :
+  explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator(spec), rand_gen_(time(nullptr)),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
@@ -60,7 +60,7 @@ class CropMirrorNormalizePermute : public Operator {
     per_sample_crop_.resize(batch_size_);
   }
 
-  virtual inline ~CropMirrorNormalizePermute() = default;
+  virtual inline ~CropMirrorNormalize() = default;
 
  protected:
   inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
@@ -209,4 +209,4 @@ class CropMirrorNormalizePermute : public Operator {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_PERMUTE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_CROP_MIRROR_NORMALIZE_H_
