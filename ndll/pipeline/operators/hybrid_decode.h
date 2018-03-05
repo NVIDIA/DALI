@@ -28,7 +28,7 @@ class HuffmanDecoder : public Operator {
  public:
   explicit inline HuffmanDecoder(const OpSpec &spec) :
     Operator(spec),
-    initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint", 10*1048576)) {
+    initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint", 4*1048576)) {
     // Resize per-image & per-thread data
     tl_parser_state_.resize(num_threads_);
     tl_huffman_state_.resize(num_threads_);
@@ -65,7 +65,7 @@ class HuffmanDecoder : public Operator {
     // Tensors cannot be jagged, so we pack all the DCT
     // coefficients and pass the needed meta-data to the
     // DCTQuantInv op through the jpeg_meta output
-    int total_size = 0;
+    size_t total_size = 0;
     vector<int> offsets(jpeg->components, 0);
     for (int i = 0; i < jpeg->components; ++i) {
       offsets[i] = total_size;
@@ -76,9 +76,9 @@ class HuffmanDecoder : public Operator {
     // Take a minimum size (empirical) and make allocate that amount,
     // before resizing (non-destructive) to the correct size.
     // Limits # of very expensive pinned alloc / free pairs
-    size_t min_coeff_size = initial_dct_coeff_size_byte_;
+    size_t min_coeff_size = initial_dct_coeff_size_byte_ / sizeof(int16);
     // Force large allocation
-    dct_coeff->Resize({total_size < min_coeff_size ? min_coeff_size : total_size});
+    dct_coeff->Resize({static_cast<Index>(total_size < min_coeff_size ? min_coeff_size : total_size)});
     dct_coeff->template mutable_data<int16>();
     // Correct sizing
     dct_coeff->Resize({total_size});

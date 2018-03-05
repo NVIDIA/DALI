@@ -22,14 +22,29 @@ class Loader {
  public:
   explicit Loader(const OpSpec& options)
     : initial_buffer_fill_(options.GetArgument<int>("initial_fill", 1024)),
+      initial_empty_size_(2 * options.GetArgument<int>("batch_size", -1)),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes", 1048576)),
       shard_id_(options.GetArgument<int>("shard_id", 0)),
       num_shards_(options.GetArgument<int>("num_shards", 1)) {
+    NDLL_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, 1048576);
   }
-  virtual ~Loader() {}
+
+  virtual ~Loader() {
+    // delete all the temporary tensors
+    while (!sample_buffer_.empty()) {
+      Tensor<Backend> * t = sample_buffer_.back();
+      delete t;
+      sample_buffer_.pop_back();
+    }
+    while (!empty_tensors_.empty()) {
+      Tensor<Backend> * t = empty_tensors_.back();
+      delete t;
+      empty_tensors_.pop_back();
+    }
+  }
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
@@ -43,7 +58,6 @@ class Loader {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
         tensor->set_pinned(false);
         // Initialize tensors to a set size to limit expensive reallocations
-        // using cudaMallocHost (and paired cudaFreeHost calls)
         tensor->Resize({tensor_init_bytes_});
         tensor->template mutable_data<uint8_t>();
 
@@ -112,8 +126,8 @@ class Loader {
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
-  const int initial_buffer_fill_ = 1024;
-  const int initial_empty_size_ = 1024;
+  const int initial_buffer_fill_;
+  const int initial_empty_size_;
   const int tensor_init_bytes_;
   bool initial_buffer_filled_ = false;
 
