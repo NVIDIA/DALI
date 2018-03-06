@@ -6,13 +6,14 @@ import numpy as np
 from timeit import default_timer as timer
 import numpy as np
 
+caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
+
 def test_tensor_multiple_uses():
-    db_folder = "/data/imagenet/train-lmdb-256x256"
     batch_size = 128
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
-            self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
@@ -45,3 +46,54 @@ def test_tensor_multiple_uses():
         t_cpu = a_cpu.at(i)
         t_gpu = a_gpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_gpu)) == 0)
+
+def test_cropmirrornormalize_layout():
+    batch_size = 128
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
+            self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
+                                                     output_type = types.FLOAT,
+                                                     output_layout = types.NHWC,
+                                                     random_crop = False,
+                                                     crop = (224, 224),
+                                                     image_type = types.RGB,
+                                                     mean = [128., 128., 128.],
+                                                     std = [1., 1., 1.],
+                                                     mirror_prob = 0.0)
+            self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
+                                                     output_type = types.FLOAT,
+                                                     output_layout = types.NCHW,
+                                                     random_crop = False,
+                                                     crop = (224, 224),
+                                                     image_type = types.RGB,
+                                                     mean = [128., 128., 128.],
+                                                     std = [1., 1., 1.],
+                                                     mirror_prob = 0.0)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            output_nhwc = cmnp_nhwc(images)
+            output_nchw = cmnp_nchw(images)
+            return (output_nchw, output_nhwc)
+
+        def iter_setup(self):
+            pass
+
+    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+    pipe.build()
+    out = pipe.run()
+    assert(out[0].is_dense_tensor())
+    assert(out[1].is_dense_tensor())
+    assert(out[0].as_tensor().shape() == out[1].as_tensor().shape())
+    a_nchw = out[0].asCPU()
+    a_nhwc = out[1].asCPU()
+    for i in range(batch_size):
+        t_nchw = a_nchw.at(i)
+        t_nhwc = a_nhwc.at(i)
+        assert(t_nchw.shape == (3,224,224))
+        assert(t_nhwc.shape == (224,224,3))
+        assert(np.sum(np.abs(np.transpose(t_nchw, (1,2,0)) - t_nhwc)) == 0)

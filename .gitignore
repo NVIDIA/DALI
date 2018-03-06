@@ -9,3 +9,4 @@ latex
 **/imgui.ini
 .*.swp
 valgrind-out.txt
+**/.ipynb_checkpoints
