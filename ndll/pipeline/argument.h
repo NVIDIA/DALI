@@ -140,7 +140,8 @@ template<typename T>
 T Argument::Get() {
   ArgumentInst<T> * self = dynamic_cast<ArgumentInst<T>*>(this);
   if (self == nullptr) {
-    NDLL_FAIL("Invalid type of argument \"" + this->get_name() + "\". Expected " + typeid(T).name());
+    NDLL_FAIL("Invalid type of argument \"" + this->get_name() +
+        "\". Expected " + typeid(T).name());
   }
   return self->Get();
 }

@@ -92,9 +92,9 @@ NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
  * NCHW output batch
  * @param stream cuda stream to operate in
  */
-template <NDLLTensorLayout L,typename OUT>
+template <NDLLTensorLayout L, typename OUT>
 NDLLError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
-    const int *in_strides, int N, int H, int W, int C, const bool *mirror,
+    const int *in_strides, int N, int H, int W, int C, bool pad, const bool *mirror,
     const float *mean, const float *inv_std, OUT *out_batch, cudaStream_t stream);
 
 /**

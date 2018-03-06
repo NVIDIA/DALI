@@ -31,7 +31,6 @@ class CropMirrorNormalize : public Operator {
     C_(color_ ? 3 : 1),
     mean_vec_(spec.GetRepeatedArgument<float>("mean")),
     inv_std_vec_(spec.GetRepeatedArgument<float>("std")) {
-
     vector<int> temp_crop;
     try {
       temp_crop = spec.GetRepeatedArgument<int>("crop", {-1, -1});
@@ -47,7 +46,8 @@ class CropMirrorNormalize : public Operator {
       }
     }
 
-    NDLL_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, " + to_string(temp_crop.size()) + " given.");
+    NDLL_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
+        + to_string(temp_crop.size()) + " given.");
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
 
@@ -150,11 +150,14 @@ class CropMirrorNormalize : public Operator {
       mirror_.template mutable_data<bool>()[i] =
         std::bernoulli_distribution(mirror_prob_)(rand_gen_);
 
+      // Pad to 4 channels
+      int pad_C = pad_ ? 4 : C_;
+
       // Save the output shape of this image
       if (output_layout_ == NDLL_NCHW) {
-        output_shape[i] = {C_, crop_h_, crop_w_};
+        output_shape[i] = {pad_C, crop_h_, crop_w_};
       } else {
-        output_shape[i] = {crop_h_, crop_w_, C_};
+        output_shape[i] = {crop_h_, crop_w_, pad_C};
       }
     }
 
@@ -189,7 +192,7 @@ class CropMirrorNormalize : public Operator {
       NDLL_CALL((BatchedCropMirrorNormalizePermute<NDLL_NCHW, OUT>(
               input_ptrs_gpu_.template data<const uint8*>(),
               input_strides_gpu_.template data<int>(),
-              batch_size_, crop_h_, crop_w_, C_,
+              batch_size_, crop_h_, crop_w_, C_, pad_,
               mirror_gpu_.template data<bool>(),
               mean_.template data<float>(),
               inv_std_.template data<float>(),
@@ -199,7 +202,7 @@ class CropMirrorNormalize : public Operator {
       NDLL_CALL((BatchedCropMirrorNormalizePermute<NDLL_NHWC, OUT>(
               input_ptrs_gpu_.template data<const uint8*>(),
               input_strides_gpu_.template data<int>(),
-              batch_size_, crop_h_, crop_w_, C_,
+              batch_size_, crop_h_, crop_w_, C_, pad_,
               mirror_gpu_.template data<bool>(),
               mean_.template data<float>(),
               inv_std_.template data<float>(),

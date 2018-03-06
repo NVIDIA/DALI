@@ -599,6 +599,7 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           crop_h,
           crop_w,
           this->c_,
+          false,
           gpu_mirror,
           gpu_mean,
           gpu_inv_std,
