@@ -76,8 +76,8 @@ def test_cropmirrornormalize_layout():
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
-            output_nhwc = cmnp_nhwc(images)
-            output_nchw = cmnp_nchw(images)
+            output_nhwc = self.cmnp_nhwc(images)
+            output_nchw = self.cmnp_nchw(images)
             return (output_nchw, output_nhwc)
 
         def iter_setup(self):

@@ -23,6 +23,7 @@ class CropMirrorNormalize : public Operator {
     Operator(spec), rand_gen_(time(nullptr)),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
     output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout", NDLL_NCHW)),
+    pad_(spec.GetArgument<bool>("pad_output", false)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
     mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)),
     image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
@@ -226,6 +227,9 @@ class CropMirrorNormalize : public Operator {
 
   // Output data layout
   NDLLTensorLayout output_layout_;
+
+  // Whether to pad output to 4 channels
+  bool pad_;
 
   // Crop meta-data
   bool random_crop_;
