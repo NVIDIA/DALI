@@ -22,16 +22,39 @@ class CropMirrorNormalize : public Operator {
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator(spec), rand_gen_(time(nullptr)),
     output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
+    output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout", NDLL_NCHW)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
-    crop_h_(spec.GetArgument<int>("crop_h", -1)),
-    crop_w_(spec.GetArgument<int>("crop_w", -1)),
     mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)),
     image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1),
     mean_vec_(spec.GetRepeatedArgument<float>("mean")),
     inv_std_vec_(spec.GetRepeatedArgument<float>("std")) {
+
+    vector<int> temp_crop;
+    try {
+      temp_crop = spec.GetRepeatedArgument<int>("crop", {-1, -1});
+      if (temp_crop.size() == 1) {
+        temp_crop.push_back(temp_crop.back());
+      }
+    } catch (std::runtime_error e) {
+      try {
+        int temp = spec.GetArgument<int>("crop", -1);
+        temp_crop = {temp, temp};
+      } catch (std::runtime_error e) {
+        NDLL_FAIL("Invalid type of argument \"crop\". Expected int or list of int");
+      }
+    }
+
+    NDLL_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, " + to_string(temp_crop.size()) + " given.");
+    crop_h_ = temp_crop[0];
+    crop_w_ = temp_crop[1];
+
     // Validate input parameters
+    NDLL_ENFORCE(output_layout_ == NDLL_NCHW ||
+                 output_layout_ == NDLL_NHWC,
+                 "Unsupported output layout."
+                 "Expected NCHW or NHWC.");
     NDLL_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
     NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
 
@@ -85,12 +108,16 @@ class CropMirrorNormalize : public Operator {
       vector<Index> input_shape = input.tensor_shape(i);
       NDLL_ENFORCE(input_shape.size() == 3,
           "Expects 3-dimensional image input.");
-      NDLL_ENFORCE(input_shape[2] == C_,
-          "Input channel dimension does not match "
-          "the output channel argument.");
 
       int H = input_shape[0];
       int W = input_shape[1];
+      int C = input_shape[2];
+
+      NDLL_ENFORCE(C == C_,
+          "Input channel dimension does not match "
+          "the output image type. Expected input with "
+          + to_string(C_) + " channels, got " + to_string(C) + ".");
+
 
       NDLL_ENFORCE(H >= crop_h_);
       NDLL_ENFORCE(W >= crop_w_);
@@ -123,7 +150,11 @@ class CropMirrorNormalize : public Operator {
         std::bernoulli_distribution(mirror_prob_)(rand_gen_);
 
       // Save the output shape of this image
-      output_shape[i] = {C_, crop_h_, crop_w_};
+      if (output_layout_ == NDLL_NCHW) {
+        output_shape[i] = {C_, crop_h_, crop_w_};
+      } else {
+        output_shape[i] = {crop_h_, crop_w_, C_};
+      }
     }
 
     // Resize the output data
@@ -153,15 +184,27 @@ class CropMirrorNormalize : public Operator {
   template <typename OUT>
   inline void RunHelper(DeviceWorkspace *ws, const int idx) {
     auto output = ws->Output<GPUBackend>(idx);
-    NDLL_CALL(BatchedCropMirrorNormalizePermute(
-            input_ptrs_gpu_.template data<const uint8*>(),
-            input_strides_gpu_.template data<int>(),
-            batch_size_, crop_h_, crop_w_, C_,
-            mirror_gpu_.template data<bool>(),
-            mean_.template data<float>(),
-            inv_std_.template data<float>(),
-            output->template mutable_data<OUT>(),
-            ws->stream()));
+    if (output_layout_ == NDLL_NCHW) {
+      NDLL_CALL((BatchedCropMirrorNormalizePermute<NDLL_NCHW, OUT>(
+              input_ptrs_gpu_.template data<const uint8*>(),
+              input_strides_gpu_.template data<int>(),
+              batch_size_, crop_h_, crop_w_, C_,
+              mirror_gpu_.template data<bool>(),
+              mean_.template data<float>(),
+              inv_std_.template data<float>(),
+              output->template mutable_data<OUT>(),
+              ws->stream())));
+    } else {
+      NDLL_CALL((BatchedCropMirrorNormalizePermute<NDLL_NHWC, OUT>(
+              input_ptrs_gpu_.template data<const uint8*>(),
+              input_strides_gpu_.template data<int>(),
+              batch_size_, crop_h_, crop_w_, C_,
+              mirror_gpu_.template data<bool>(),
+              mean_.template data<float>(),
+              inv_std_.template data<float>(),
+              output->template mutable_data<OUT>(),
+              ws->stream())));
+    }
   }
 
   template <typename OUT>
@@ -181,9 +224,13 @@ class CropMirrorNormalize : public Operator {
   // Output data type
   NDLLDataType output_type_;
 
+  // Output data layout
+  NDLLTensorLayout output_layout_;
+
   // Crop meta-data
   bool random_crop_;
-  int crop_h_, crop_w_;
+  int crop_h_;
+  int crop_w_;
 
   // Mirror meta-data
   float mirror_prob_;
