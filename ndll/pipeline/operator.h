@@ -171,31 +171,6 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
 
 // Macros for  creation of the CPU/GPU augmentation methods:
 
-#define AUGMENT_TRANSFORM(H, W, C, img_in, img_out,         \
-            AUGMENT_PREAMBLE, AUGMENT_CORE, AUGMENT_DEF,    \
-            stepW, stepH, startW, startH, imgIdx, ...)      \
-    AUGMENT_PREAMBLE(H, W, C, __VA_ARGS__);                 \
-    const uint32_t offset = nYoffset(W, C);                 \
-    const uint32_t stride = H * offset * imgIdx;            \
-    const uint32_t shift = stepH * offset;                  \
-    const uint8 *in = img_in + stride;                      \
-    uint8 *out = img_out + stride + startH * offset - shift;\
-    int newX, newY, useNew, from;                           \
-    for (int y = startH; y < H; y += stepH) {               \
-        out += shift;                                       \
-        for (int x = startW; x < W; x += stepW) {           \
-            AUGMENT_CORE(H, W, C, __VA_ARGS__);             \
-            from = useNew?  newX * C + newY * offset :      \
-                            AUGMENT_DEF(x, y, W, C);        \
-            const int to = x * C;                           \
-            out[to] = in[from];                             \
-            if (C > 1) {                                    \
-                out[to + 1] = in[from + 1];                 \
-                out[to + 2] = in[from + 2];                 \
-            }                                               \
-        }                                                   \
-    }
-
 #define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
             AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
             stepW, stepH, startW, startH, imgIdx, ...)              \
@@ -215,158 +190,16 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
         AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
         KIND ## _CORE, 1, 1, 0, 0, 0)
 
-#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND)          \
+#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, imgID)   \
         AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
+        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, imgID)
 
+#define AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, KIND)   \
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, blockIdx.x)
 
-#define AUGMENT_RESIZE_CROP(H, W, C, img_in, img_out,               \
-            AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
-            stepW, stepH, startW, startH, imgIdx, ...)              \
-    AUGMENT_PREAMBLE(H, W, C);                                      \
-    const uint32_t offset = nYoffset(W, C);                         \
-    const uint32_t shift = stepH * offset;                          \
-    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
-    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
-    for (int y = startH; y < H; y += stepH) {                       \
-        out += shift;                                               \
-        for (int x = startW; x < W; x += stepW) {                   \
-            AUGMENT_CORE(C);                                        \
-        }                                                           \
-    }
+#define AUGMENT_RESIZE_GPU_GENERIC(H, W, C, img_in, img_out, KIND)  \
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, 0)
 
-#define AUGMENT_RESIZE__CROP_CPU(H, W, C, img_in, img_out, KIND)    \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, 1, 1, 0, 0, 0)
-
-#define AUGMENT_RESIZE_CROP_GPU(H, W, C, img_in, img_out, KIND)     \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, blockIdx.x)
-
-
-#define AUGMENT_TRANSFORM_N(H, W, C, img_in, img_out,       \
-            AUGMENT_PREAMBLE, AUGMENT_CORE, AUGMENT_DEF,    \
-            stepW, stepH, startW, startH, imgIdx, ...)      \
-    AUGMENT_PREAMBLE(H, W, C, __VA_ARGS__);                 \
-    const uint32_t offset = nYoffset(W, C);                 \
-    const uint32_t stride = H * offset * imgIdx;            \
-    const uint32_t shift = stepH * offset;                  \
-    const uint8 *in = img_in + stride;                      \
-    const int startY = START_COORD(startH, H >> 1, stepH);  \
-    const int startX = START_COORD(startW, W >> 1, stepW);  \
-    bool useVertSymmetry = !(H & 1) || 2 * startY > H;      \
-    const bool useHor = !(W & 1) || 2 * startX > W;         \
-    const int adjY = H * offset;                            \
-    const int adjXto = offset - C;                          \
-    const int stepAdj = 2 * stepH * offset;                 \
-    int adjYto = adjY - (2 * startY + 1) * offset + stepAdj;\
-    uint8 *out = img_out + stride + startY * offset - shift;\
-    int newX, newY, useNew, from1, from2, from3, from4;     \
-    for (int y = startY; y < H; y += stepH) {               \
-        out += shift;                                       \
-        /* VertSymmetry could be used only when */          \
-        /* y is not in the middle               */          \
-        adjYto -= stepAdj;                                  \
-        bool useHorSymmetry = useHor;                       \
-        for (int x = startX; x < W; x += stepW) {           \
-            AUGMENT_CORE(H, W, C, __VA_ARGS__);             \
-            /* The order of points 1,2,3,4 is clockwise  */ \
-            /* starting from point 1, which is (x,y)     */ \
-            if (useNew) {                                   \
-                newX *= C;                                  \
-                newY *= offset;                             \
-                from1 = newX + newY;                        \
-                from2 = offset - newX + newY;               \
-                from3 = offset - newX + adjY - newY;        \
-                from4 = newX + adjY - newY;                 \
-            } else {                                        \
-                from1 = DEF_ZERO(x, y, W, C);               \
-                from2 = DEF_ZERO(W - x, y, W, C);           \
-                from3 = DEF_ZERO(W - x, H - y, W, C);       \
-                from4 = DEF_ZERO(x, H - y, W, C);           \
-            }                                               \
-                                                            \
-            int to1 = x * C;                                \
-            out[to1] = in[from1];                           \
-            if (C > 1) {                                    \
-                out[to1 + 1] = in[from1 + 1];               \
-                out[to1 + 2] = in[from1 + 2];               \
-            }                                               \
-                                                            \
-            if (!useHorSymmetry) {                          \
-                if (useVertSymmetry) {                      \
-                    /* Only point #4 should be set. */      \
-                    /* Because to4 = to1 + adjYto;  */      \
-                    /* we will use t1 instead of t4 */      \
-                    out[to1 += adjYto] = in[from4];         \
-                    if (C > 1) {                            \
-                        out[to1 + 1] = in[from4 + 1];       \
-                        out[to1 + 2] = in[from4 + 2];       \
-                    }                                       \
-                }                                           \
-                useHorSymmetry = true;                      \
-                continue;                                   \
-            }                                               \
-                                                            \
-            const int to2 = adjXto - to1;                   \
-            if (!useVertSymmetry) {                         \
-                /* Only point #2 should be set */           \
-                out[to2] = in[from2];                       \
-                if (C > 1) {                                \
-                    out[to2 + 1] = in[from2 + 1];           \
-                    out[to2 + 2] = in[from2 + 2];           \
-                }                                           \
-                continue;                                   \
-            }                                               \
-                                                            \
-            /* Points # 2, 3 and 4 should be set */         \
-            const int to3 = to2 + adjYto;                   \
-            out[to2] = in[from2];                           \
-            out[to3] = in[from3];                           \
-            out[to1 += to3 - to2] = in[from4];              \
-            if (C > 1) {                                    \
-                out[to2 + 1] = in[from2 + 1];               \
-                out[to2 + 2] = in[from2 + 2];               \
-                out[to3 + 1] = in[from3 + 1];               \
-                out[to3 + 2] = in[from3 + 2];               \
-                out[to1 + 1] = in[from4 + 1];               \
-                out[to1 + 2] = in[from4 + 2];               \
-            }                                               \
-        }                                                   \
-        useVertSymmetry = true;                             \
-    }
-
-#define DEF_CORE(x, y, W, C)       (y * W + x) * C      // identical
-#define DEF_ZERO(x, y, W, C)        0                   // zero idx
-
-#define AUGMENT_TRANSFORM_CPU(H, W, C, img_in, img_out, KIND, def, ...) \
-        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, def, 1, 1, 0, 0, 0, __VA_ARGS__)
-
-#define AUGMENT_TRANSFORM_GPU(H, W, C, img_in, img_out, KIND, def, ...) \
-        AUGMENT_TRANSFORM(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, def, blockDim.x, blockDim.y,                     \
-        threadIdx.x, threadIdx.y, blockIdx.x, __VA_ARGS__)
-
-#define AUGMENT_TRANSFORM_CPU_N(H, W, C, img_in, img_out, KIND, def, ...) \
-        AUGMENT_TRANSFORM_N(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, def, 1, 1, 0, 0, 0, __VA_ARGS__)
-
-#define AUGMENT_TRANSFORM_GPU_N(H, W, C, img_in, img_out, KIND, def, ...) \
-        AUGMENT_TRANSFORM_N(H, W, C, img_in, img_out, KIND ## _PREAMBLE,  \
-        KIND ## _CORE, def, blockDim.x, blockDim.y,                       \
-        threadIdx.x, threadIdx.y, blockIdx.x, __VA_ARGS__)
-
-#define DEF_PREAMBLE(H, W, C)                           // empty macro
-
-#define START_COORD(a, b, s)    (s == 1)? (b) : (a >= (b)? a : a + ((b) - a + s - 1) / (s) * (s))
 #define nYoffset(W, C)          ((W) * (C))
-#define LRINT(x)                lrint(x)
-#define PI                      3.14159265359
-
-typedef enum {
-    coord_X,
-    coord_Y
-} coordID;
 
 #endif  // NDLL_PIPELINE_OPERATOR_H_
