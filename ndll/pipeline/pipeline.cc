@@ -206,7 +206,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
-    if (graph_.TensorExists(OpSpec::TensorName(it->first, "gpu"))) return;
+  if (graph_.TensorExists(OpSpec::TensorName(it->first, "gpu"))) return;
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
     .AddArg("device", "mixed")
