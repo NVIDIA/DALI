@@ -74,6 +74,7 @@ class RecordIOParser : public Parser {
         if (cflag != 3) {
           size_t s = o_image->nbytes();
           o_image->Resize({static_cast<int64_t>(s + sizeof(kMagic))});
+          data = o_image->mutable_data<uint8_t>();
           memcpy(data + s, &kMagic, sizeof(kMagic));
         } else {
           break;
@@ -84,6 +85,7 @@ class RecordIOParser : public Parser {
         clength = DecodeLength(length_flag);
         size_t s = o_image->nbytes();
         o_image->Resize({static_cast<int64_t>(s + clength)});
+        data = o_image->mutable_data<uint8_t>();
         memcpy(data + s, input, clength);
         input += clength;
       }
