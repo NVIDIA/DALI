@@ -73,11 +73,11 @@ void Executor::RunCPU() {
   try {
     thread_pool_.WaitForWork();
   }
-  catch (std::runtime_error &e) {
+  catch (std::runtime_error& e) {
     exec_error_ = true;
-    ready_cond_.notify_all();
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
+    ready_cond_.notify_all();
   }
   // Pass the work to the mixed stage
   std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
@@ -95,13 +95,22 @@ void Executor::RunMixed() {
   lock.unlock();
 
   WorkspaceBlob &wsb = wss_[queue_idx];
-  for (int i = 0; i < graph_->NumMixedOp(); ++i) {
-    Operator &op = graph_->mixed_op(i);
-    MixedWorkspace &ws = wsb.mixed_op_data[i];
-    op.Run(&ws);
-    if (ws.has_stream() && ws.has_event()) {
-      CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+
+  try {
+    for (int i = 0; i < graph_->NumMixedOp(); ++i) {
+      Operator &op = graph_->mixed_op(i);
+      MixedWorkspace &ws = wsb.mixed_op_data[i];
+      op.Run(&ws);
+      if (ws.has_stream() && ws.has_event()) {
+        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      }
     }
+  } catch (std::runtime_error &e) {
+    exec_error_ = true;
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back(e.what());
+    ready_cond_.notify_all();
+    free_cond_.notify_all();
   }
 
   // Pass the work to the gpu stage
@@ -129,39 +138,47 @@ void Executor::RunGPU() {
     }
   }
 
-  WorkspaceBlob &wsb = wss_[queue_idx];
-  for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-    Operator &op = graph_->gpu_op(i);
-    DeviceWorkspace &ws = wsb.gpu_op_data[i];
-    auto parent_events = ws.ParentEvents();
+  try {
+    WorkspaceBlob &wsb = wss_[queue_idx];
+    for (int i = 0; i < graph_->NumGPUOp(); ++i) {
+      Operator &op = graph_->gpu_op(i);
+      DeviceWorkspace &ws = wsb.gpu_op_data[i];
+      auto parent_events = ws.ParentEvents();
 
-    for (auto &event : parent_events) {
-      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
+      for (auto &event : parent_events) {
+        CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
+      }
+      op.Run(&ws);
+      if (ws.has_event()) {
+        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      }
     }
-    op.Run(&ws);
-    if (ws.has_event()) {
-      CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+
+    for (size_t i = 0; i < output_names_.size(); ++i) {
+      if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
+      NodeID src_id = graph_->TensorSourceID(output_names_[i]);
+      int src_idx = graph_->NodeIdx(src_id);
+
+      // Record events for each output requested by the user
+      cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
+      if (graph_->NodeType(src_id) == NDLL_MIXED) {
+        auto &ws = wsb.mixed_op_data[src_idx];
+        CUDA_CALL(cudaEventRecord(event, ws.stream()));
+      } else if (graph_->NodeType(src_id) == NDLL_GPU) {
+        auto &ws = wsb.gpu_op_data[src_idx];
+        CUDA_CALL(cudaEventRecord(event, ws.stream()));
+      } else {
+        NDLL_FAIL("Internal error. Output node is not gpu/mixed");
+      }
     }
+  } catch (std::runtime_error &e) {
+    exec_error_ = true;
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back(e.what());
+    ready_cond_.notify_all();
+    free_cond_.notify_all();
+    return;
   }
-
-  for (size_t i = 0; i < output_names_.size(); ++i) {
-    if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
-    NodeID src_id = graph_->TensorSourceID(output_names_[i]);
-    int src_idx = graph_->NodeIdx(src_id);
-
-    // Record events for each output requested by the user
-    cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
-    if (graph_->NodeType(src_id) == NDLL_MIXED) {
-      auto &ws = wsb.mixed_op_data[src_idx];
-      CUDA_CALL(cudaEventRecord(event, ws.stream()));
-    } else if (graph_->NodeType(src_id) == NDLL_GPU) {
-      auto &ws = wsb.gpu_op_data[src_idx];
-      CUDA_CALL(cudaEventRecord(event, ws.stream()));
-    } else {
-      NDLL_FAIL("Internal error. Output node is not gpu/mixed");
-    }
-  }
-
   // Update the ready queue to signal that all the work
   // in the `queue_idx` set of output buffers has been
   // issued. Notify any waiting threads.
