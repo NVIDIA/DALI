@@ -99,3 +99,66 @@ def test_cropmirrornormalize_layout():
         assert(t_nchw.shape == (3,224,224))
         assert(t_nhwc.shape == (224,224,3))
         assert(np.sum(np.abs(np.transpose(t_nchw, (1,2,0)) - t_nhwc)) == 0)
+
+def test_cropmirrornormalize_pad():
+    batch_size = 128
+    class HybridPipe(Pipeline):
+        def __init__(self, layout, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
+            self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
+                                                     output_type = types.FLOAT,
+                                                     output_layout = layout,
+                                                     random_crop = False,
+                                                     crop = (224, 224),
+                                                     image_type = types.RGB,
+                                                     mean = [128., 128., 128.],
+                                                     std = [1., 1., 1.],
+                                                     mirror_prob = 0.0,
+                                                     pad_output = True)
+            self.cmnp      = ops.CropMirrorNormalize(device = "gpu",
+                                                     output_type = types.FLOAT,
+                                                     output_layout = layout,
+                                                     random_crop = False,
+                                                     crop = (224, 224),
+                                                     image_type = types.RGB,
+                                                     mean = [128., 128., 128.],
+                                                     std = [1., 1., 1.],
+                                                     mirror_prob = 0.0,
+                                                     pad_output = False)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            output_pad = self.cmnp_pad(images.gpu())
+            output = self.cmnp(images.gpu())
+            return (output, output_pad)
+
+        def iter_setup(self):
+            pass
+
+    for layout in [types.NCHW, types.NHWC]:
+        pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+        pipe.build()
+        out = pipe.run()
+        assert(out[0].is_dense_tensor())
+        assert(out[1].is_dense_tensor())
+        shape     = out[0].as_tensor().shape()
+        shape_pad = out[1].as_tensor().shape()
+        assert(shape[0] == shape_pad[0])
+        a = out[0].asCPU()
+        a_pad = out[1].asCPU()
+        for i in range(batch_size):
+            t     = a.at(i)
+            t_pad = a_pad.at(i)
+            if (layout == types.NCHW):
+                assert(t.shape == (3,224,224))
+                assert(t_pad.shape == (4,224,224))
+                assert(np.sum(np.abs(t - t_pad[:3,:,:])) == 0)
+                assert(np.sum(np.abs(t_pad[3,:,:])) == 0)
+            else:
+                assert(t.shape == (224,224,3))
+                assert(t_pad.shape == (224,224,4))
+                assert(np.sum(np.abs(t - t_pad[:,:,:3])) == 0)
+                assert(np.sum(np.abs(t_pad[:,:,3])) == 0)
