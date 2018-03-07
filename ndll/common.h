@@ -60,6 +60,14 @@ enum NDLLImageType {
   NDLL_GRAY = 2
 };
 
+/**
+ * @brief Supported tensor layouts
+ */
+enum NDLLTensorLayout {
+  NDLL_NCHW = 0,
+  NDLL_NHWC = 1
+};
+
 inline bool IsColor(NDLLImageType type) {
   if ((type == NDLL_RGB) || (type == NDLL_BGR)) {
     return true;

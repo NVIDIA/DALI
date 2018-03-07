@@ -298,8 +298,12 @@ PYBIND11_MODULE(ndll_backend, m) {
   // NDLL Init function
   m.def("Init", &NDLLInit);
 
+  // Types
+  py::module types_m = m.def_submodule("types");
+  types_m.doc() = "Datatypes and options used by NDLL";
+
   // NDLLDataType
-  py::enum_<NDLLDataType>(m, "NDLLDataType", "Data type of image")
+  py::enum_<NDLLDataType>(types_m, "NDLLDataType", "Data type of image")
     .value("NO_TYPE", NDLL_NO_TYPE)
     .value("UINT8", NDLL_UINT8)
     .value("FLOAT16", NDLL_FLOAT16)
@@ -310,17 +314,23 @@ PYBIND11_MODULE(ndll_backend, m) {
     .export_values();
 
   // NDLLImageType
-  py::enum_<NDLLImageType>(m, "NDLLImageType", "Image type")
+  py::enum_<NDLLImageType>(types_m, "NDLLImageType", "Image type")
     .value("RGB", NDLL_RGB)
     .value("BGR", NDLL_BGR)
     .value("GRAY", NDLL_GRAY)
     .export_values();
 
   // NDLLInterpType
-  py::enum_<NDLLInterpType>(m, "NDLLInterpType", "Interpolation mode")
+  py::enum_<NDLLInterpType>(types_m, "NDLLInterpType", "Interpolation mode")
     .value("INTERP_NN", NDLL_INTERP_NN)
     .value("INTERP_LINEAR", NDLL_INTERP_LINEAR)
     .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
+    .export_values();
+
+  // NDLLTensorLayout
+  py::enum_<NDLLTensorLayout>(types_m, "NDLLTensorLayout", "Tensor layout")
+    .value("NCHW", NDLL_NCHW)
+    .value("NHWC", NDLL_NHWC)
     .export_values();
 
   // Operator node

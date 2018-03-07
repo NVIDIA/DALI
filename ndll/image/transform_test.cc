@@ -172,13 +172,10 @@ struct OutputTestTypes {
 
 typedef ::testing::Types<OutputTestTypes<RGB, float16>,
                          OutputTestTypes<RGB, float>,
-                         OutputTestTypes<RGB, double>,
                          OutputTestTypes<BGR, float16>,
                          OutputTestTypes<BGR, float>,
-                         OutputTestTypes<BGR, double>,
                          OutputTestTypes<Gray, float16>,
-                         OutputTestTypes<Gray, float>,
-                         OutputTestTypes<Gray, double>> OutputTypes;
+                         OutputTestTypes<Gray, float>> OutputTypes;
 
 TYPED_TEST_CASE(OutputTransformTest, OutputTypes);
 
@@ -595,18 +592,19 @@ TYPED_TEST(OutputTransformTest, TestBatchedCropMirrorNormalizePermute) {
           this->c_*sizeof(float), cudaMemcpyHostToDevice));
 
   // Run the kernel
-  NDLL_CALL(BatchedCropMirrorNormalizePermute(
+  NDLL_CALL((BatchedCropMirrorNormalizePermute<NDLL_NCHW, T>(
           gpu_in_ptrs,
           gpu_in_strides,
           batch_size,
           crop_h,
           crop_w,
           this->c_,
+          false,
           gpu_mirror,
           gpu_mean,
           gpu_inv_std,
           out_batch,
-          stream));
+          stream)));
 
 
   for (int i = 0; i < batch_size; ++i) {

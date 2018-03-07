@@ -137,14 +137,13 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
 
   // CropMirrorNormalizePermute + crop multiple sets of images
   pipe.AddOperator(
-      OpSpec("CropMirrorNormalizePermute")
+      OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
       .AddInput("images", "gpu")
       .AddOutput("cropped1", "gpu")
       .AddInput("images2", "gpu")
       .AddOutput("cropped2", "gpu")
-      .AddArg("crop_h", 64)
-      .AddArg("crop_w", 64)
+      .AddArg("crop", vector<int>{64, 64})
       .AddArg("mean", mean_vec)
       .AddArg("std", mean_vec)
       .AddArg("image_type", this->img_type_)

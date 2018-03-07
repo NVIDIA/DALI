@@ -185,12 +185,11 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
-      OpSpec("CropMirrorNormalizePermute")
+      OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
       .AddArg("output_type", NDLL_FLOAT16)
       .AddArg("random_crop", true)
-      .AddArg("crop_h", 224)
-      .AddArg("crop_w", 224)
+      .AddArg("crop", vector<int>{224, 224})
       .AddArg("mirror_prob", 0.5f)
       .AddArg("image_type", img_type)
       .AddArg("mean", vector<float>{128, 128, 128})

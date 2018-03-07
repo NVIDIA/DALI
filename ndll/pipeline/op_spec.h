@@ -32,6 +32,14 @@ class OpSpec {
   inline OpSpec() {}
 
   /**
+   * @brief Returns a full tensor name
+   * given its name and device
+   */
+  static std::string TensorName(std::string name, std::string device) {
+    return name + "_" + device;
+  }
+
+  /**
    * @brief Constructs a specification for an op with the given name.
    */
   explicit inline OpSpec(const string &name)
@@ -126,7 +134,7 @@ class OpSpec {
 
   inline string Input(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
-    return inputs_[idx].first + "_" + inputs_[idx].second;
+    return TensorName(inputs_[idx].first, inputs_[idx].second);
   }
 
   inline string InputName(int idx) const {
@@ -148,7 +156,7 @@ class OpSpec {
 
   inline string Output(int idx) const {
     NDLL_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return outputs_[idx].first + "_" + outputs_[idx].second;
+    return TensorName(outputs_[idx].first, outputs_[idx].second);
   }
 
   inline string OutputName(int idx) const {
@@ -338,6 +346,7 @@ INSTANTIATE_ARGUMENT_AS_INT64(uint64_t);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLImageType);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLDataType);
 INSTANTIATE_ARGUMENT_AS_INT64(NDLLInterpType);
+INSTANTIATE_ARGUMENT_AS_INT64(NDLLTensorLayout);
 }  // namespace ndll
 
 #endif  // NDLL_PIPELINE_OP_SPEC_H_

@@ -64,14 +64,13 @@ class HybridPipe(Pipeline):
                                  resize_a = 256, resize_b = 480,
                                  image_type = types.RGB,
                                  interp_type = types.INTERP_LINEAR)
-        self.cmnp = ops.CropMirrorNormalizePermute(device = "gpu",
-                                                   output_type = types.FLOAT16,
-                                                   random_crop = True,
-                                                   crop_h = 224,
-                                                   crop_w = 224,
-                                                   image_type = types.RGB,
-                                                   mean = [128., 128., 128.],
-                                                   std = [1., 1., 1.])
+        self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                            output_type = types.FLOAT16,
+                                            random_crop = True,
+                                            crop = (224, 224),
+                                            image_type = types.RGB,
+                                            mean = [128., 128., 128.],
+                                            std = [1., 1., 1.])
         self.iter = 0
 
     def define_graph(self):
