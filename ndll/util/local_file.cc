@@ -39,9 +39,9 @@ void LocalFileStream::Seek(int64 pos) {
 #endif
 }
 
-void LocalFileStream::Read(uint8_t * buffer, size_t n_bytes) {
+size_t LocalFileStream::Read(uint8_t * buffer, size_t n_bytes) {
   size_t n_read = std::fread(buffer, 1, n_bytes, fp_);
-  NDLL_ENFORCE(n_read == n_bytes, "Error reading from a file");
+  return n_read;
 }
 
 size_t LocalFileStream::Size() const {

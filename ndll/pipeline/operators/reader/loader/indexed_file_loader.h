@@ -15,22 +15,12 @@ namespace ndll {
 
 class IndexedFileLoader : public Loader<CPUBackend> {
  public:
-  explicit IndexedFileLoader(const OpSpec& options)
+  explicit IndexedFileLoader(const OpSpec& options, bool init = true)
     : Loader(options),
       current_file_(nullptr) {
-      uris_ =
-        options.GetRepeatedArgument<std::string>("path");
-      NDLL_ENFORCE(!uris_.empty(),
-          "No files specified.");
-      std::vector<std::string> index_uris =
-        options.GetRepeatedArgument<std::string>("index_path");
-      ReadIndexFile(index_uris);
-      size_t num_indices = indices_.size();
-      current_index_ = num_indices/num_shards_ * shard_id_;
-      int64 seek_pos, size;
-      std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
-      current_file_ = FileStream::Open(uris_[current_file_index_]);
-      current_file_->Seek(seek_pos);
+      // trick for https://stackoverflow.com/questions/962132/calling-virtual-functions-inside-constructors
+      if (init)
+        Init(options);
     }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
@@ -48,8 +38,9 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     tensor->Resize({size});
     tensor->mutable_data<uint8_t>();
 
-    current_file_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()),
+    int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()),
                         size);
+    NDLL_ENFORCE(n_read == size, "Error reading from a file");
     ++current_index_;
     return;
   }
@@ -79,6 +70,22 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   }
 
  protected:
+  void Init(const OpSpec& options) {
+    uris_ =
+      options.GetRepeatedArgument<std::string>("path");
+    NDLL_ENFORCE(!uris_.empty(),
+        "No files specified.");
+    std::vector<std::string> index_uris =
+      options.GetRepeatedArgument<std::string>("index_path");
+    ReadIndexFile(index_uris);
+    size_t num_indices = indices_.size();
+    current_index_ = num_indices/num_shards_ * shard_id_;
+    int64 seek_pos, size;
+    std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
+    current_file_ = FileStream::Open(uris_[current_file_index_]);
+    current_file_->Seek(seek_pos);
+  }
+
   void Reset() {
     current_index_ = 0;
     int64 seek_pos, size;
