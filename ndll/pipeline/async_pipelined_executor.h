@@ -29,18 +29,22 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
     gpu_thread_(device_id, set_affinity),
     device_id_(device_id) {}
 
-  virtual ~AsyncPipelinedExecutor() = default;
+  virtual ~AsyncPipelinedExecutor() {
+    cpu_thread_.ForceStop();
+    mixed_thread_.ForceStop();
+    gpu_thread_.ForceStop();
+  }
 
   void Init() override {
-      if (!cpu_thread_.WaitForInit()
-          || !mixed_thread_.WaitForInit()
-          || !gpu_thread_.WaitForInit()) {
-        cpu_thread_.ForceStop();
-        mixed_thread_.ForceStop();
-        gpu_thread_.ForceStop();
-        std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
-        throw std::runtime_error(error);
-      }
+    if (!cpu_thread_.WaitForInit()
+        || !mixed_thread_.WaitForInit()
+        || !gpu_thread_.WaitForInit()) {
+      cpu_thread_.ForceStop();
+      mixed_thread_.ForceStop();
+      gpu_thread_.ForceStop();
+      std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
+      throw std::runtime_error(error);
+    }
   }
 
   void RunCPU() override;
