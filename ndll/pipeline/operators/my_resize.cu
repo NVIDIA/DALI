@@ -118,12 +118,9 @@ void CollectPointersForExecution(size_t batch_size,
 }
 
 __constant__ ResizeGridParam resizeParam[3];
-__constant__ ResizeMapping *pResizeMapping = NULL;
-__constant__ PixMapping *pPixMapping = NULL;
-__constant__ int cropX, cropY;
 
 __global__ void BatchedResizeKernel(const uint8 *img_in, int H0, int W0,
-                                   int H, int W, int C, uint8 *img_out) {
+                                   int H, int W, int C, uint8 *img_out, const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping) {
     if (pResizeMapping && pPixMapping) {
         AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, RESIZE_N);
     } else {
@@ -131,9 +128,12 @@ __global__ void BatchedResizeKernel(const uint8 *img_in, int H0, int W0,
     }
 }
 
+ResizeMapping *pResizeMapping = NULL;
+PixMapping *pPixMapping = NULL;
+
 void releaseCudaResizeMapingTable() {
-    cudaFree(&pResizeMapping);
-    cudaFree(&pPixMapping);
+    cudaFree(pResizeMapping);
+    cudaFree(pPixMapping);
 }
 
 NDLLError_t BatchedResize(const uint8 *in_batch, int N,
@@ -142,24 +142,25 @@ NDLLError_t BatchedResize(const uint8 *in_batch, int N,
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
     if (pResizeParam) {
         // Copying the descriptor of operation into __constant__ memory
-        cudaMemcpyToSymbol(resizeParam, pResizeParam, sizeof(resizeParam));
+        CUDA_CALL(cudaMemcpyToSymbol(resizeParam, pResizeParam, sizeof(resizeParam)));
     }
 
     if (pTbl) {
         releaseCudaResizeMapingTable();
 
-        const uint32_t lenTable = sizeof(ResizeMapping) * pTbl->getMappingTableLength();
-        cudaMalloc(reinterpret_cast<void**>(&pResizeMapping), lenTable);
-        cudaMemcpy(&pResizeMapping, pTbl, lenTable, cudaMemcpyHostToDevice);
-        cudaMalloc(reinterpret_cast<void**>(&pPixMapping), pTbl->pixMappingLen);
-        cudaMemcpy(&pPixMapping, pTbl, pTbl->pixMappingLen, cudaMemcpyHostToDevice);
+        const size_t lenTable = pTbl->getMappingTableLength();
+        CUDA_MALLOC(pResizeMapping, lenTable);
+        CUDA_MEMCPY(pResizeMapping, pTbl->pResizeMapping, lenTable);
+        CUDA_MALLOC(pPixMapping, pTbl->pixMappingLen);
+        CUDA_MEMCPY(pPixMapping, pTbl->pPixMapping, pTbl->pixMappingLen);
     }
 
     BatchedResizeKernel<<<N, gridDim, 0, stream>>>
-                     (in_batch, inImg.height, inImg.width, outImg.height, outImg.width, C, out_batch);
+                     (in_batch, inImg.height, inImg.width, outImg.height, outImg.width, C, out_batch,
+                             pResizeMapping, pPixMapping);
+
     return NDLLSuccess;
 }
-
 
 //  Greatest Common Factor
 int gcf (int a, int b) {
@@ -194,11 +195,9 @@ ResizeMappingTable::ResizeMappingTable(int H0, int W0, int H1, int W1, int C,
     io_size[1].height = H1;
     C_ = C;
 
-    size[coord_X] = xSize;
-    size[coord_Y] = ySize;
-    uint32_t len = xSize * ySize;
-    pResizeMapping = new ResizeMapping [len];
-    memset(pResizeMapping, 0, len * sizeof(pResizeMapping[0]));
+    pResizeMapping = new ResizeMapping [xSize * ySize];
+    tableLength = xSize * ySize * sizeof(pResizeMapping[0]);
+    memset(pResizeMapping, 0, tableLength);
     pPixMapping = NULL;
 }
 
@@ -223,7 +222,7 @@ class PixMappingHelper {
     inline PixMapping *getPixMapping() const    { return pPixMapping_; }
     inline uint32_t numUsed() const             { return numPixMapUsed_; }
  private:
-    inline size_t distance(int x, int y) const  { return x * x + y * y; }
+    inline float distance(float x, float y) const  { return x * x + y * y; }
     uint32_t numPixMapMax_;  // length of the allocated PixMapping array
     uint32_t numPixMapUsed_; // number of already used elements of pPixMapping
     PixMapping *pPixMapping_ = new PixMapping[numPixMapMax_];
@@ -232,8 +231,8 @@ class PixMappingHelper {
 
     const uint32_t area_;
     const bool useClosest_;
-    size_t closestDist_;
-    int centerX_, centerY_;
+    float closestDist_;
+    float centerX_, centerY_;
 };
 
 PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, bool useClosest) :
@@ -251,15 +250,14 @@ void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY
         pPixMapping_ = pPixMappingNew;
     }
 
-
     assert(area != 0);
 
     if (!useClosest_) {
         pMapping_->nPixels++;
         pPixMapping_[numPixMapUsed_++].Init(addr, area);
     } else {
-       const size_t newDist = distance(crdX - centerX_, crdY - centerY_);
-       if (closestDist_ == (size_t)-1) {
+       const float newDist = distance((crdX << 1) - centerX_, (crdY << 1) - centerY_);
+       if (closestDist_ < 0) {
            pMapping_->nPixels++;
            pPixMapping_[numPixMapUsed_++].Init(addr, area_);
            closestDist_ = newDist;
@@ -275,7 +273,7 @@ void PixMappingHelper::UpdateMapping(int shift, int centerX, int centerY) {
     (pMapping_ = pMappingBase_ + shift)->intersectInfoAddr = numUsed();
     centerX_ = centerX;
     centerY_ = centerY;
-    closestDist_ = (size_t)-1;
+    closestDist_ = -1;
 }
 
 #define RUN_CHECK_1     0
@@ -318,7 +316,7 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
             const int extra[2] = { (nX + sx1) % sx0, (nY + sy1) % sy0 };
 
             // Length of the left (top) pixels intersecting with the PIX
-            const int lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0)};
+            const int lenFirst[2] = { (sx0 - nX % sx0),   (sy0 - nY % sy0) };
 
             // Doubled (x,y) coordinates of the pixel's center
             const int lenX = endIdx[0] + begIdx[0] - (extra[0] ? 0 : 1);
@@ -343,15 +341,14 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
                     helper.AddPixel(pixAddr, extra[0] * rowMult, x0, y0);
 
                 while (--x0 > 0) {
-                   helper.AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
+                    helper.AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
                 }
 
                 helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult, x0, y0);
 
 #if RUN_CHECK_1
-                check += rowMult * (sx0 * (endIdx[0] - begIdx[0] - 1) + lenFirst[0] + extra[0]);
+                check += rowMult * (sx0 * (endIdx[0] - 1) + lenFirst[0] + extra[0]);
 #endif
-
                 if (++y0  < endIdx[1])
                     rowMult = sy0;
                 else {

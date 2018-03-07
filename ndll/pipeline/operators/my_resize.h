@@ -14,6 +14,9 @@ namespace ndll {
 
 #define USE_FAST_RESIZE   1
 
+#define CUDA_MALLOC(x, len)     CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&x), len))
+#define CUDA_FREE(x)            CUDA_CALL(cudaFree(x))
+#define CUDA_MEMCPY(x, y, len)  CUDA_CALL(cudaMemcpy(x, y, len, cudaMemcpyHostToDevice))
 
 struct ResizeGridParam {
     int nX;
@@ -103,13 +106,13 @@ typedef struct {
 typedef struct ResizeMappingTable {
     NDLLSize io_size[2];
     int C_;
-    uint16_t size[2];                   // (x, y) sizes of the ResizeMapping
+    uint32_t tableLength;               // sizes of the ResizeMapping
     ResizeMapping *pResizeMapping;      // pointer to the ResizeMapping table
     PixMapping *pPixMapping;            // pointer to the PixMapping array
-    uint16_t pixMappingLen;             // length of array pPixMapping in bites
+    uint32_t pixMappingLen;             // length of array pPixMapping in bytes
     ResizeMappingTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
     ~ResizeMappingTable();
-    inline uint32_t getMappingTableLength() const   { return size[0] * size[1]; }
+    inline uint32_t getMappingTableLength() const   { return tableLength; }
     bool IsValid(int H0, int W0, int H1, int W1) const;
 } ResizeMappingTable;
 
@@ -184,16 +187,12 @@ class MyResize : public Resize<Backend> {
         const int W1 = out_size.width;
 
         DataDependentSetupCPU(input, output, "MyResize", NULL, NULL, NULL, &out_size);
-/*
-        static int cntr;
-        FILE *file = fopen("ccc1.txt", cntr++? "a" : "w");
-        fprintf(file,"H0 = %3ld,  W0 = %3ld,  H1 = %3d  W1 = %3d  cropXY = (%3d %3d)\n",input_shape[0], input_shape[1], H1, W1, resizeParam[2].nY, resizeParam[2].nX);
-        fclose(file);
-*/
+
         if (USE_FAST_RESIZE) {
             const ResizeMapping *pResizeMapping = pResizeMappingTable->pResizeMapping;
             const PixMapping *pPixMapping = pResizeMappingTable->pPixMapping;
-             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
+
+            AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
