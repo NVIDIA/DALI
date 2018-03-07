@@ -190,8 +190,16 @@ class OpGraph {
   inline TensorMeta TensorSourceMeta(const string &name) const {
     auto it = tensor_producers_.find(name);
     NDLL_ENFORCE(it != tensor_producers_.end(), "Tensor with name \"" +
-        name + "\" has no know source.");
+        name + "\" has no known source.");
     return it->second;
+  }
+
+  /**
+   * @brief Checks if given Tensor already exists in the graph
+   */
+  inline bool TensorExists(const string &name) {
+    auto it = tensor_producers_.find(name);
+    return it != tensor_producers_.end();
   }
 
   /**
