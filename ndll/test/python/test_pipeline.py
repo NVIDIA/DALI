@@ -88,7 +88,9 @@ def test_cropmirrornormalize_layout():
     out = pipe.run()
     assert(out[0].is_dense_tensor())
     assert(out[1].is_dense_tensor())
-    assert(out[0].as_tensor().shape() == out[1].as_tensor().shape())
+    shape_nchw = out[0].as_tensor().shape()
+    shape_nhwc = out[1].as_tensor().shape()
+    assert(shape_nchw[0] == shape_nhwc[0])
     a_nchw = out[0].asCPU()
     a_nhwc = out[1].asCPU()
     for i in range(batch_size):
