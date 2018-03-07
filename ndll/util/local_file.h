@@ -14,9 +14,13 @@ class LocalFileStream : public FileStream {
  public:
   explicit LocalFileStream(const std::string& path);
   void Close() override;
-  void Read(uint8_t * buffer, size_t n_bytes) override;
+  size_t Read(uint8_t * buffer, size_t n_bytes) override;
   void Seek(int64 pos) override;
   size_t Size() const override;
+
+  ~LocalFileStream() override {
+    Close();
+  }
 
  private:
   FILE * fp_;

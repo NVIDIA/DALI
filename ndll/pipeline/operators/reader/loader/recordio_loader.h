@@ -2,9 +2,10 @@
 #ifndef NDLL_PIPELINE_OPERATORS_READER_LOADER_RECORDIO_LOADER_H_
 #define NDLL_PIPELINE_OPERATORS_READER_LOADER_RECORDIO_LOADER_H_
 
-#include <vector>
-#include <string>
 #include <algorithm>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "ndll/pipeline/operators/reader/loader/indexed_file_loader.h"
 #include "ndll/common.h"
@@ -15,8 +16,11 @@ namespace ndll {
 class RecordIOLoader : public IndexedFileLoader {
  public:
   explicit RecordIOLoader(const OpSpec& options)
-    : IndexedFileLoader(options)
-    {}
+    : IndexedFileLoader(options, false) {
+    Init(options);
+    current_file_index_ = 0;
+    filestream_.reset(FileStream::Open(uris_[0]));
+  }
   ~RecordIOLoader() {}
 
   void ReadIndexFile(const std::vector<std::string>& index_uris) override {
@@ -24,7 +28,7 @@ class RecordIOLoader : public IndexedFileLoader {
     file_offsets.push_back(0);
     for (std::string& path : uris_) {
       FileStream * tmp = FileStream::Open(path);
-      file_offsets.push_back(tmp->Size() - file_offsets.back());
+      file_offsets.push_back(tmp->Size() + file_offsets.back());
       tmp->Close();
     }
     NDLL_ENFORCE(index_uris.size() == 1,
@@ -53,8 +57,31 @@ class RecordIOLoader : public IndexedFileLoader {
   }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    NDLL_FAIL("Not implemented yet!");
+    if (current_index_ == static_cast<size_t>(Size())) {
+      current_index_ = 0;
+      current_file_index_ = 0;
+      filestream_.reset(FileStream::Open(uris_[current_file_index_]));
+    }
+
+    int64 seek_pos, size;
+    size_t file_index;
+    std::tie(seek_pos, size, file_index) = indices_[current_index_];
+
+    int64 n_read = 0;
+    while (n_read < size) {
+      n_read += filestream_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()) + n_read,
+                     size - n_read);
+      if (n_read < size) {
+        NDLL_ENFORCE(current_file_index_ + 1 < uris_.size(),
+            "Incomplete or corrupted record files");
+        filestream_.reset(FileStream::Open(uris_[++current_file_index_]));
+      }
+    }
+    ++current_index_;
   }
+
+ protected:
+  std::unique_ptr<FileStream> filestream_;
 };
 
 }  // namespace ndll

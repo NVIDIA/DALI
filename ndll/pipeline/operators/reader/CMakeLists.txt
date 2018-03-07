@@ -13,6 +13,8 @@ if (BUILD_PROTO3)
   list(APPEND NDLL_SRCS ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/tfrecord_reader_op.cc")
 endif()
 
+list(APPEND NDLL_SRCS ${NDLL_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/mxnet_reader_op.cc")
+
 set(NDLL_SRCS ${NDLL_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
