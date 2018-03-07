@@ -28,14 +28,46 @@ class _OperatorInstance(object):
         else:
             self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
-        for inp in inputs:
-            if not isinstance(inp, TensorReference):
+        if inputs:
+            if isinstance(inputs[0], TensorReference):
+                for inp in inputs:
+                    if not isinstance(inp, TensorReference):
+                        raise TypeError(
+                            """Expected inputs of type
+                            TensorReference. Received
+                            input type {}"""
+                            .format(type(inp).__name__))
+                    self._spec.AddInput(inp.name, inp.device)
+            elif isinstance(inputs[0], list):
+                length = len(inputs[0])
+                for i in range(length):
+                    for inp in inputs:
+                        if not isinstance(inp, list):
+                            raise TypeError(
+                                """Expected inputs of type list of
+                                TensorReference. Received
+                                input type {}"""
+                                .format(type(inp).__name__))
+                        if len(inp) != length:
+                            raise RuntimeError(
+                                    """Expected input lists
+                                    to have the same length
+                                    ({}). Received list of
+                                    length {}"""
+                                    .format(length, len(inp)))
+                        if not isinstance(inp[i], TensorReference):
+                            raise TypeError(
+                                """Expected inputs of type
+                                TensorReference. Received
+                                input type {}"""
+                                .format(type(inp[i]).__name__))
+                        self._spec.AddInput(inp[i].name, inp[i].device)
+            else:
                 raise TypeError(
-                    """Expected inputs of type
-                    TensorReference. Received
-                    input type {}"""
+                    """Expected inputs of type TensorReference or list of
+                    TensorReference. Received input type {}"""
                     .format(type(inp).__name__))
-            self._spec.AddInput(inp.name, inp.device)
+
 
     def generate_outputs(self):
         # Add outputs
