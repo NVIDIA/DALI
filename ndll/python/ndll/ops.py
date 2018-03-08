@@ -72,6 +72,8 @@ class _OperatorInstance(object):
     def generate_outputs(self):
         # Add outputs
         num_output = self._op.schema.CalculateOutputs(self._spec)
+        print self._spec
+        print num_output
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
             t = TensorReference(t_name, self._op.device, self)

@@ -10,13 +10,8 @@ OpSpec& OpSpec::AddInput(const string &name, const string &device) {
       "specifier \"" + device + "\" for input \"" + name + "\". "
       "Valid options are \"cpu\" or \"gpu\"");
   StrPair name_device_pair = std::make_pair(name, device);
-  NDLL_ENFORCE(input_name_idx_.count(name_device_pair) == 0,
-      "Input '" + name + "' with device '" + device + "' "
-      "already added to OpSpec");
 
   inputs_.push_back(std::make_pair(name, device));
-  auto ret = input_name_idx_.insert({name_device_pair, inputs_.size()-1});
-  NDLL_ENFORCE(ret.second, "Input name/device insertion failed.");
   return *this;
 }
 
