@@ -65,7 +65,6 @@ class StreamPool {
 
   int max_size_, idx_ = 0;
   bool non_blocking_;
-
 };
 
 }  // namespace ndll
