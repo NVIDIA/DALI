@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "ndll/pipeline/argument.h"
+#include "ndll/pipeline/util/device_guard.h"
 
 namespace ndll {
 
@@ -27,9 +28,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       "device argument \"" + device + "\". Valid options are "
       "\"cpu\", \"gpu\" or \"mixed\"");
 
-  int old_device;
-  CUDA_CALL(cudaGetDevice(&old_device));
-  CUDA_CALL(cudaSetDevice(device_id_));
+  DeviceGuard g(device_id_);
 
   // Verify the inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
@@ -100,15 +99,11 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   // Add the operator to the graph
   PrepareOpSpec(&spec);
   graph_.AddOp(spec, inst_name);
-
-  // Restore the original device
-  CUDA_CALL(cudaSetDevice(old_device));
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
-  int old_device;
-  CUDA_CALL(cudaGetDevice(&old_device));
-  CUDA_CALL(cudaSetDevice(device_id_));
+  DeviceGuard g(device_id_);
+
   output_names_ = output_names;
   NDLL_ENFORCE(!built_, "\"Build()\" can only be called once.");
   NDLL_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
@@ -159,9 +154,6 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
   built_ = true;
-
-  // Restore the original device
-  CUDA_CALL(cudaSetDevice(old_device));
 }
 
 void Pipeline::RunCPU() {

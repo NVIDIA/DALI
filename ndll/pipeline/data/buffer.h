@@ -15,6 +15,8 @@
 
 namespace ndll {
 
+class GPUBackend;
+
 // Helper function to get product of dims
 inline Index Product(const vector<Index> &shape) {
   if (shape.size() == 0) return 0;
@@ -195,6 +197,11 @@ class Buffer {
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
+
+      // re-allocating: get the device
+      if (std::is_same<Backend, GPUBackend>::value) {
+        CUDA_CALL(cudaGetDevice(&device_));
+      }
       data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
@@ -215,8 +222,20 @@ class Buffer {
   // has to be public so that we can bind it into the deleter of our
   // shared pointers
   void DeleterHelper(void *ptr, TypeInfo type, Index size) {
+    // change to correct device for deletion
+    // Note: Can't use device guard due to potentially not GPUBackend.
+    int current_device = 0;
+    if (std::is_same<Backend, GPUBackend>::value) {
+      CUDA_CALL(cudaGetDevice(&current_device));
+      CUDA_CALL(cudaSetDevice(device_));
+    }
     type.template Destruct<Backend>(ptr, size);
     Backend::Delete(ptr, size*type.size(), pinned_);
+
+    // reset to original calling device for consistency
+    if (std::is_same<Backend, GPUBackend>::value) {
+      CUDA_CALL(cudaSetDevice(current_device));
+    }
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
@@ -244,6 +263,10 @@ class Buffer {
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
+      // re-allocating: get the device
+      if (std::is_same<Backend, GPUBackend>::value) {
+        CUDA_CALL(cudaGetDevice(&device_));
+      }
       data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
@@ -274,6 +297,9 @@ class Buffer {
   size_t num_bytes_;
 
   bool pinned_;  // Whether the allocation uses pinned memory
+
+  // device the buffer was allocated on
+  int device_;
 };
 
 // Macro so we don't have to list these in all
