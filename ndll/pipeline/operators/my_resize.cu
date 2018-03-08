@@ -132,7 +132,7 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
 }
 
 //  Greatest Common Factor
-int gcf (int a, int b) {
+int __host__ __device__ gcf (int a, int b) {
     int t;
     if (b > a) {
         t = a;
@@ -152,95 +152,40 @@ int gcf (int a, int b) {
 #include <assert.h>
 
 // Least Common Multiplier
-int lcm (int a, int b) {
+int __host__ __device__ lcm (int a, int b) {
     return a / gcf (a, b) * b;
 }
 
 __global__ void BatchedResizeKernel(int C, const NppiRect *resizeDescr,
                                     const NDLLSize *in_sizes, const uint8 *const imgs_in[],
                                     const NDLLSize *out_sizes, uint8 *const imgs_out[]) {
-    /*
-    const int id = blockIdx.x;
-    const uint8 *img_in = imgs_in[id];
-    uint8 *img_out = imgs_out[id];
-    const int H0 = in_sizes[id].height;
-    const int W0 = in_sizes[id].width;
-    const int H1 = resizeDescr[id].height;
-    const int W1 = resizeDescr[id].width;
-    const int H = out_sizes[id].height;
-    const int W = out_sizes[id].width; */
-/*
-    ResizeGridParam resizeParam[3];
+    const int H0 = in_sizes[blockIdx.x].height;
+    const int W0 = in_sizes[blockIdx.x].width;
+
+    const int H1 = resizeDescr[blockIdx.x].height;
+    const int W1 = resizeDescr[blockIdx.x].width;
+    const int H = out_sizes[blockIdx.x].height;
+    const int W = out_sizes[blockIdx.x].width;
+
     const int lcmH = lcm(H0, H1);
     const int lcmW = lcm(W0, W1);
-    resizeParam[0].Init(lcmW / W0, lcmH / H0);
-    resizeParam[1].Init(lcmW / W1, lcmH / H1);
-    resizeParam[2].Init(resizeDescr[id].x, resizeDescr[id].y); */
- /*
+    ResizeGridParam resizeParam[3] = {
+            {lcmW / W0, lcmH / H0},
+            {lcmW / W1, lcmH / H1},
+            {resizeDescr[blockIdx.x].x, resizeDescr[blockIdx.x].y}
+    };
 
-
-    const int sx0 = resizeParam[0].nX;     \
-    const int sy0 = resizeParam[0].nY;     \
-    const int sx1 = resizeParam[1].nX;     \
-    const int sy1 = resizeParam[1].nY;     \
-    const int cropX = resizeParam[2].nX;   \
-    const int cropY = resizeParam[2].nY;   \
-    const int area = sx1 * sy1;
-    */
-//    AUGMENT_RESIZE_GPU_GENERIC(H, W, C, img_in, img_out, RESIZE);
-/*
-    RESIZE_PREAMBLE(H, W, C);
-    const int stepH = blockDim.y;
-    const int startH = threadIdx.y;
-    const int startW = threadIdx.x;
-    const int stepW = blockDim.x;
-    const int imgIdx = 0;
-    const uint32_t offset = nYoffset(W, C);                         \
-    const uint32_t shift = stepH * offset;                          \
-    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
-    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
-    for (int y = startH; y < H; y += stepH) {                       \
-        out += shift;                                               \
-        for (int x = startW; x < W; x += stepW) {                   \
-            ;//RESIZE_CORE(C);
-        }                                                           \
-    } */
+    AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[blockIdx.x], imgs_out[blockIdx.x], RESIZE);
 }
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          const vector<NDLLSize> &inImg, const vector<const uint8 *> *in_batch,
-                          const vector<NDLLSize> &outImg, vector<uint8 *> *out_batch,
-                          const vector<NppiRect> &resizeDescr) {
-/*
-    static int cntr;
-    const NDLLSize *in_sizes = inImg.data();
-    const NDLLSize *out_sizes = outImg.data();
-    const NppiRect *resizeDescrData = resizeDescr.data();
-    FILE *file = fopen("ccc1A.txt", cntr++? "a" : "w");
-    for (int i = 0; i < N; i++) {
-        const int id = i;
-        const int H0 = in_sizes[id].height;
-        const int W0 = in_sizes[id].width;
-        const int H1 = resizeDescrData[id].height;
-        const int W1 = resizeDescrData[id].width;
-        const int H = out_sizes[id].height;
-        const int W = out_sizes[id].width;
+                          const NppiRect *resizeDescr,
+                          const NDLLSize * const sizes[], uint8 ** const raster[]) {
+    const uint8 * const* in = raster[input_t];
+    uint8 * const *out = raster[output_t];
 
-        ResizeGridParam resizeParam[3];
-        const int lcmH = lcm(H0, H1);
-        const int lcmW = lcm(W0, W1);
-        resizeParam[0].Init(lcmW / W0, lcmH / H0);
-        resizeParam[1].Init(lcmW / W1, lcmH / H1);
-        resizeParam[2].Init(resizeDescrData[id].x, resizeDescrData[id].y);
-
-        fprintf(file, "H0 = %3d,  W0 = %3d,  H1 = %3d  W1 = %3d  H = %2d  W = %3d cropXY = (%3d %3d)\n", H0,
-                W0, H1, W1, H, W, resizeParam[2].nX, resizeParam[2].nY);
-    }
-
-    fclose(file);
-*/
-    BatchedResizeKernel<<<N, gridDim, 0, stream>>>(C, resizeDescr.data(), inImg.data(), in_batch->data(),
-            outImg.data(), out_batch->data());
+    BatchedResizeKernel<<<N, gridDim, 0, stream>>>(C, resizeDescr,
+            sizes[input_t], in, sizes[output_t], out);
 
     return NDLLSuccess;
 }
