@@ -3,10 +3,12 @@
 #define NDLL_PIPELINE_UTIL_STREAM_POOL_H_
 
 #include <cuda_runtime_api.h>
+#include <map>
 #include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/util/device_guard.h"
 
 namespace ndll {
 
@@ -26,6 +28,9 @@ class StreamPool {
 
   inline ~StreamPool() {
     for (auto &stream : streams_) {
+      int device = stream_devices_[stream];
+      DeviceGuard g(device);
+
       CUDA_CALL(cudaStreamSynchronize(stream));
       CUDA_CALL(cudaStreamDestroy(stream));
     }
@@ -38,11 +43,14 @@ class StreamPool {
   cudaStream_t GetStream() {
     if (max_size_ < 0 || (Index)streams_.size() < max_size_) {
       cudaStream_t new_stream;
+      // Note: Why is device tracked? Is StreamPool intended to be used across devices?
       int dev;
       cudaGetDevice(&dev);
+
       CUDA_CALL(cudaStreamCreateWithFlags(&new_stream,
               non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault));
       streams_.push_back(new_stream);
+      stream_devices_[new_stream] = dev;
       return new_stream;
     }
     cudaStream_t stream = streams_[idx_];
@@ -52,8 +60,12 @@ class StreamPool {
 
  private:
   vector<cudaStream_t> streams_;
+  // track which streams are on which devices
+  std::map<cudaStream_t, int> stream_devices_;
+
   int max_size_, idx_ = 0;
   bool non_blocking_;
+
 };
 
 }  // namespace ndll

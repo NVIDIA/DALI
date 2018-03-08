@@ -3,20 +3,22 @@
 #define NDLL_PIPELINE_UTIL_EVENT_POOL_H_
 
 #include <cuda_runtime_api.h>
+#include <map>
 #include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
+#include "ndll/pipeline/util/device_guard.h"
 
 namespace ndll {
 
 /**
- * @brief Manages the lifetimes and allocations of cuda events. 
+ * @brief Manages the lifetimes and allocations of cuda events.
  */
 class EventPool {
  public:
   /**
-   * @brief Creates a pool with the given max size. If the input 
+   * @brief Creates a pool with the given max size. If the input
    * size is < 0, the pool has no size limit.
    */
   explicit inline EventPool(int max_size) : max_size_(max_size) {
@@ -25,6 +27,7 @@ class EventPool {
 
   inline ~EventPool() {
     for (auto &event : events_) {
+      DeviceGuard g(event_devices_[event]);
       CUDA_CALL(cudaEventSynchronize(event));
       CUDA_CALL(cudaEventDestroy(event));
     }
@@ -39,6 +42,11 @@ class EventPool {
       cudaEvent_t new_event;
       CUDA_CALL(cudaEventCreateWithFlags(&new_event, cudaEventDisableTiming));
       events_.push_back(new_event);
+
+      int dev;
+      CUDA_CALL(cudaGetDevice(&dev));
+      event_devices_[new_event] = dev;
+
       return new_event;
     }
     cudaEvent_t event = events_[idx_];
@@ -48,6 +56,7 @@ class EventPool {
 
  private:
   vector<cudaEvent_t> events_;
+  std::map<cudaEvent_t, int> event_devices_;
   int max_size_, idx_ = 0;
 };
 
