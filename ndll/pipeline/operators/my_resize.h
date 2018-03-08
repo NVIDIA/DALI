@@ -12,7 +12,7 @@
 
 namespace ndll {
 
-#define USE_FAST_RESIZE   1
+#define USE_FAST_RESIZE   0
 
 #define CUDA_MALLOC(x, len)     CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&x), len))
 #define CUDA_FREE(x)            CUDA_CALL(cudaFree(x)); x = NULL
@@ -111,9 +111,6 @@ typedef struct ResizeMappingTable {
     PixMapping *pPixMapping[2];         // pointer to the PixMapping arrays  for CPU/GPU
     uint32_t pixMappingLen;             // length of array pPixMapping in bytes
 
-    // Device Memory:
-//    PixMapping *pPixMappingGPU_;
-
     ResizeMappingTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
     ~ResizeMappingTable();
     inline uint32_t getMappingTableLength() const   { return tableLength; }
@@ -174,12 +171,16 @@ class MyResize : public Resize<Backend> {
         for (size_t i = 0; i < sizeof(resizeParam)/sizeof(resizeParam[0]); i++)
             resizeParam[i].Init(0, 0);
 
- //       resizeParamGPU_ = NULL;
+        resizeParamGPU_ = NULL;
         in_sizesGPU_ = out_sizesGPU_ = NULL;
         resizeDescrGPU_ = NULL;
     }
 
-    virtual inline ~MyResize()          { delete pResizeTbl_; }
+    virtual inline ~MyResize()          {
+            delete pResizeTbl_;
+            releaseCudaResizeParameter();
+            CUDA_FREE(resizeDescrGPU_);
+        }
 
  protected:
 
@@ -230,13 +231,21 @@ class MyResize : public Resize<Backend> {
         if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
             NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
             const bool newMapping = PrepareCropAndResize(sizeIn, out_size, C);
-            if (newMapping && pResizeTbl_)
-                pResizeTbl_->CopyCongenericResizeParam();
+            if (newMapping) {
+                if (!resizeParamGPU_)
+                    CUDA_MALLOC(resizeParamGPU_, sizeof(resizeParam));
+
+                // Copying the descriptor of operation into __constant__ memory
+                CUDA_MEMCPY(resizeParamGPU_, resizeParam, sizeof(resizeParam));
+
+                if (pResizeTbl_)
+                    pResizeTbl_->CopyCongenericResizeParam();
+            }
 
             NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), ws->stream(), C,
                         sizeIn, input.template data<uint8>(),
                         sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
-                        newMapping? resizeParam : NULL, pResizeTbl_));
+                        resizeParamGPU_, pResizeTbl_));
         } else {
             NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), ws->stream(), C,
                                     ResizeAttr::sizes(input_t), ResizeAttr::inputImages(),
@@ -287,7 +296,7 @@ class MyResize : public Resize<Backend> {
 
             if (!pResizeTbl_) {
                 pResizeTbl_ = createResizeMappingTable(H0, W0, H1, W1, C,
-                                                          ResizeAttr::type_ == NDLL_INTERP_NN);
+                                                       ResizeAttr::type_ == NDLL_INTERP_NN);
                 newResize = true;
             }
         }
@@ -328,8 +337,9 @@ class MyResize : public Resize<Backend> {
 
     ResizeMappingTable *pResizeTbl_;
     ResizeGridParam resizeParam[3];
-    vector<NppiRect> resizeDescr_;
+    ResizeGridParam *resizeParamGPU_;
 
+    vector<NppiRect> resizeDescr_;
     NDLLSize *in_sizesGPU_;
     NDLLSize *out_sizesGPU_;
     NppiRect *resizeDescrGPU_;

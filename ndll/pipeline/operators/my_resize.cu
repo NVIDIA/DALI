@@ -3,8 +3,6 @@
 #include <nppdefs.h>
 #include <npp.h>
 #include "ndll/pipeline/operators/my_resize.h"
-#include "../../common.h"
-#include "../../../../../../../usr/local/cuda-9.0/include/npp.h"
 
 namespace ndll {
 
@@ -111,11 +109,10 @@ void CollectPointersForExecution(size_t batch_size,
     }
 }
 
-__constant__ ResizeGridParam resizeParam[3];
-
 __global__ void BatchedCongenericResizeKernel(
                     int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out,
-                    int C, const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping) {
+                    int C, const ResizeGridParam *resizeParam,
+                    const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping) {
     if (pResizeMapping && pPixMapping) {
         AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, RESIZE_N);
     } else {
@@ -127,14 +124,9 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const NDLLSize &sizeIn, const uint8 *in_batch,
                           const NDLLSize &sizeOut, uint8 *out_batch,
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
-    if (pResizeParam) {
-        // Copying the descriptor of operation into __constant__ memory
-        CUDA_CALL(cudaMemcpyToSymbol(resizeParam, pResizeParam, sizeof(resizeParam)));
-    }
-
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
-           pTbl? pTbl->pResizeMapping[1] : NULL, pTbl? pTbl->pPixMapping[1] : NULL);
+           pResizeParam, pTbl? pTbl->pResizeMapping[1] : NULL, pTbl? pTbl->pPixMapping[1] : NULL);
 
     return NDLLSuccess;
 }
@@ -252,13 +244,6 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
 
     return NDLLSuccess;
 }
-/*
-void releaseCudaResizeMapingTable() {
-    CUDA_FREE(pResizeMappingGPU_);
-    CUDA_FREE(pPixMappingGPU_);
-//    CUDA_FREE(resizeParamGPU_);
-}
- */
 
 #include <assert.h>
 
@@ -291,13 +276,6 @@ bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1) const {
 }
 
 void ResizeMappingTable::CopyCongenericResizeParam() {
-    // Copying the descriptor of operation into __constant__ memory
-    /*
-    if (!resizeParamGPU_)
-        CUDA_MALLOC(resizeParamGPU_, sizeof(resizeParam));
-
-    CUDA_MEMCPY(resizeParamGPU_, resizeParam, sizeof(resizeParam));
-*/
     releaseCudaResizeMapingTable();
     CUDA_MALLOC(pResizeMapping[1], getMappingTableLength());
     CUDA_MEMCPY(pResizeMapping[1], pResizeMapping[0], getMappingTableLength());
