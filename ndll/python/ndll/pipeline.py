@@ -87,7 +87,11 @@ class Pipeline(object):
                 ops.remove(source_op)
                 ops.append(source_op)
             for tensor in source_op.inputs:
-                tensors.append(tensor)
+                if isinstance(tensor, list):
+                    for t in tensor:
+                        tensors.append(t)
+                else:
+                    tensors.append(tensor)
 
         # Add the ops to the graph and build the backend
         while ops:

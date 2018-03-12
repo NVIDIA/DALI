@@ -9,8 +9,9 @@ NDLL_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Jitter)
     .DocStr("Foo")
-    .NumInput(1, INT_MAX)
-    .NumOutput(1, INT_MAX)
+    .NumInput(1)
+    .NumOutput(1)
+    .AllowMultipleInputSets()
     .AddOptionalArg("nDegree", "Foo", 2);
 
 }  // namespace ndll

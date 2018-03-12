@@ -472,6 +472,7 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
 }
 
 void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
+  std::cout << "SetupStreams" <<std::endl;
   for (int i = 0; i < graph_->NumMixedOp(); ++i) {
     // For mixed ops, we assign unique streams to each
     // op. This ensures (assuming the stream pool does not
@@ -482,6 +483,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     ws.set_stream(stream_pool_.GetStream());
     ws.set_event(event_pool_.GetEvent());
   }
+  std::cout << "SetupStreams2" <<std::endl;
 
   // Note: Basic stream assignment algorithm -
   // Each node can reuse its parents stream as
@@ -528,11 +530,13 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
       NDLL_ENFORCE(processed_nodes.insert(node.id).second);
     }
   }
+  std::cout << "SetupStreams3" <<std::endl;
 
   std::unordered_map<NodeID, cudaStream_t> node_streams;
   while (!node_queue.empty()) {
     const OpNode &current_node = graph_->node(node_queue.front());
     int current_op_idx = graph_->NodeIdx(current_node.id);
+    std::cout << current_node.instance_name << std::endl;
     DeviceWorkspace &ws = wsb->gpu_op_data[current_op_idx];
     node_queue.pop();
 
@@ -541,6 +545,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     for (; it != current_node.parents.end(); ++it) {
       NodeID parent_id = *it;
       int parent_op_idx = graph_->NodeIdx(parent_id);
+      std::cout << "Parent " << graph_->node(parent_id).instance_name << std::endl;
 
       if (graph_->NodeType(parent_id) == NDLL_MIXED) {
         // We will not re-use mixed op streams, but
@@ -552,6 +557,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
         // If a parent stream is still available, take it
         auto it = node_streams.find(parent_id);
         if (it != node_streams.end()) {
+          std::cout << "FOUND" << std::endl;
           // Add the stream to this ops workspace
           cudaStream_t stream = it->second;
           ws.set_stream(stream);
@@ -564,6 +570,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
           found_stream = true;
           break;
         }
+        std::cout << "Not found" << std::endl;
 
         // If we don't use this parent's stream, we'll need to block
         // on its event to ensure the dependency is respected.

@@ -500,8 +500,6 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("Dox", &OpSchema::Dox)
     .def("MaxNumInput", &OpSchema::MaxNumInput)
     .def("MinNumInput", &OpSchema::MinNumInput)
-    .def("MaxNumOutput", &OpSchema::MaxNumOutput)
-    .def("MinNumOutput", &OpSchema::MinNumOutput)
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace)

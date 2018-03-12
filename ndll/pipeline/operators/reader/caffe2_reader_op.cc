@@ -9,7 +9,6 @@ NDLL_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 NDLL_OPERATOR_SCHEMA(Caffe2Reader)
   .DocStr("Read sample data from a Caffe2 LMDB")
   .NumInput(0)
-  .NumOutput(1, INT_MAX)
   .OutputFn([](const OpSpec& spec) {
       auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
 
