@@ -2,6 +2,7 @@
 set(NDLL_SRCS)
 set(NDLL_TEST_SRCS)
 set(NDLL_BENCHMARK_SRCS)
+set(NDLL_TF_SRCS)
 
 # Build the library
 add_subdirectory(image)
@@ -67,4 +68,14 @@ endif()
 if (BUILD_PYTHON)
   # Get all python srcs
   add_subdirectory(python)
+endif()
+
+# Build the TensorFlow op
+if (BUILD_TENSORFLOW)
+  execute_process(COMMAND python -c "import tensorflow as tf; print(tf.sysconfig.get_include())" OUTPUT_VARIABLE TF_INC)
+  execute_process(COMMAND python -c "import tensorflow as tf; print(tf.sysconfig.get_lib())" OUTPUT_VARIABLE TF_LIB)
+  add_subdirectory(tensorflow)
+
+  set(customop_lib "ndllop.so")
+  cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS} OPTIONS -I${TF_INC} -I${TF_INC}/external/nsync/public -L${TF_LIB} -ltensorflow_framework)
 endif()

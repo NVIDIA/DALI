@@ -9,6 +9,7 @@ option(BUILD_BENCHMARK "Build benchmark suite" ON)
 option(USE_NVTX "Build with NVTX profiling enabled" ON)
 option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
+option(BUILD_TENSORFLOW "Build TensorFlow CustomOp" OFF)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
