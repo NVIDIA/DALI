@@ -4,6 +4,7 @@ from __future__ import print_function
 from ndll.pipeline import Pipeline
 import mxnet as mx
 import ctypes
+import logging
 
 # MXNet currently does not expose WaitToWrite C API call
 # in Python API
@@ -91,4 +92,4 @@ class NDLLIterator:
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
-            raise RuntimeWarning("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")
+            logging.warn("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")
