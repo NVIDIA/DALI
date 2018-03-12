@@ -4,10 +4,10 @@
 
 namespace ndll {
 
-NDLL_REGISTER_OPERATOR(MyResize, MyResize<CPUBackend>, CPU);
-NDLL_REGISTER_OPERATOR(MyResize, MyResize<GPUBackend>, GPU);
+NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
 
-NDLL_OPERATOR_SCHEMA(MyResize)
+NDLL_OPERATOR_SCHEMA(NewResize)
     .DocStr("Foo")
     .NumInput(1, INT_MAX)
     .NumOutput(1, INT_MAX);

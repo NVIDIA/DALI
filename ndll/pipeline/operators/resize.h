@@ -43,16 +43,16 @@ class ResizeAttr {
     }
 
     void SetSize(NDLLSize &in_size, const vector<Index> &shape,
-                 const resize_t &rand, NDLLSize &out_size);
+                 const resize_t &rand, NDLLSize &out_size) const;
 
-    inline vector<NDLLSize> &sizes(io_type type)        { return sizes_[type]; }
-    inline NDLLSize &size(io_type type, size_t idx)     { return sizes(type)[idx]; }
-    inline const resize_t &newSizes(size_t idx) const   { return per_sample_rand_[idx]; }
-    inline int randomUniform(int max, int min = 0)      {
+    inline vector<NDLLSize> &sizes(io_type type)            { return sizes_[type]; }
+    inline NDLLSize &size(io_type type, size_t idx)         { return sizes(type)[idx]; }
+    inline const resize_t &newSizes(size_t idx) const       { return per_sample_rand_[idx]; }
+    inline int randomUniform(int max, int min = 0) const    {
                 return std::uniform_int_distribution<>(min, max)(rand_gen_);
             }
 
-    void DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY);
+    void DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY) const;
 
     bool CropNeeded(const NDLLSize &out_size) const {
         return 0 < crop_h_ && crop_h_ <= out_size.height &&
@@ -60,11 +60,11 @@ class ResizeAttr {
     }
 
  protected:
-    inline vector<const uint8*> *inputImages()          { return &input_ptrs_; }
-    inline vector<uint8 *> *outputImages()              { return &output_ptrs_; }
-    inline const resize_t &resize() const               { return resize_; };
+    inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
+    inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
+    inline const resize_t &resize() const                   { return resize_; };
 
-    std::mt19937 rand_gen_;
+    mutable std::mt19937 rand_gen_;
 
     // Resize meta-data
     bool random_resize_;

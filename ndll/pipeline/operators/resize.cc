@@ -20,7 +20,7 @@ NDLL_OPERATOR_SCHEMA(Resize)
 
 
 void ResizeAttr::SetSize(NDLLSize &in_size, const vector<Index> &shape,
-                         const resize_t &rand, NDLLSize &out_size) {
+                         const resize_t &rand, NDLLSize &out_size) const {
     in_size.height = shape[0];
     in_size.width = shape[1];
 
@@ -41,7 +41,7 @@ void ResizeAttr::SetSize(NDLLSize &in_size, const vector<Index> &shape,
     }
 }
 
-void ResizeAttr::DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY) {
+void ResizeAttr::DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY) const {
     // Set crop parameters
     if (random_crop_) {
         *pCropX = randomUniform(out_size.width - crop_w_);
