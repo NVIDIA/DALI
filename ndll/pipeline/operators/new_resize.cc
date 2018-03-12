@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#include "ndll/pipeline/operators/my_resize.h"
+#include "ndll/pipeline/operators/new_resize.h"
 
 namespace ndll {
 

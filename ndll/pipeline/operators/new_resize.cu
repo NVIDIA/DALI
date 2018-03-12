@@ -3,7 +3,7 @@
 #include <float.h>
 #include <nppdefs.h>
 #include <npp.h>
-#include "ndll/pipeline/operators/my_resize.h"
+#include "ndll/pipeline/operators/new_resize.h"
 
 namespace ndll {
 
