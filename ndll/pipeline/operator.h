@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATOR_H_
 
 #include <string>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -154,18 +155,18 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       device##Operator, ndll::Operator)
 
-  class ResizeAttr;
-  void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
-              const char *pOpName = NULL,
-              vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
-              vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
-  void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
-              size_t batch_size, bool reshapeBatch = false, vector<const uint8 *> *iPtrs = NULL,
-              vector<uint8 *> *oPtrs = NULL, vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
-              vector<NppiRect> *pOutResize = NULL);
-  void CollectPointersForExecution(size_t batch_size,
-              const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-              TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
+class ResizeAttr;
+void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
+        const char *pOpName = NULL,
+        vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
+        vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
+void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
+        size_t batch_size, bool reshapeBatch = false, vector<const uint8 *> *iPtrs = NULL,
+        vector<uint8 *> *oPtrs = NULL, vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
+        vector<NppiRect> *pOutResize = NULL);
+void CollectPointersForExecution(size_t batch_size,
+        const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
+        TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 }  // namespace ndll
 
 

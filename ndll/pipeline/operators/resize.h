@@ -22,7 +22,7 @@ typedef std::pair<int, int> resize_t;
 
 class ResizeAttr {
  public:
-    ResizeAttr(const OpSpec &spec) :
+    explicit inline ResizeAttr(const OpSpec &spec) :
             rand_gen_(time(nullptr)),
             random_resize_(spec.GetArgument<bool>("random_resize", false)),
             warp_resize_(spec.GetArgument<bool>("warp_resize", false)),
@@ -42,17 +42,17 @@ class ResizeAttr {
         NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
     }
 
-    void SetSize(NDLLSize &in_size, const vector<Index> &shape,
-                 const resize_t &rand, NDLLSize &out_size) const;
+    void SetSize(NDLLSize *in_size, const vector<Index> &shape,
+                 const resize_t &rand, NDLLSize *out_size) const;
 
     inline vector<NDLLSize> &sizes(io_type type)            { return sizes_[type]; }
-    inline NDLLSize &size(io_type type, size_t idx)         { return sizes(type)[idx]; }
+    inline NDLLSize *size(io_type type, size_t idx)         { return sizes(type).data() + idx; }
     inline const resize_t &newSizes(size_t idx) const       { return per_sample_rand_[idx]; }
     inline int randomUniform(int max, int min = 0) const    {
                 return std::uniform_int_distribution<>(min, max)(rand_gen_);
             }
 
-    void DefineCrop(NDLLSize &out_size, int *pCropX, int *pCropY) const;
+    void DefineCrop(NDLLSize *out_size, int *pCropX, int *pCropY) const;
 
     bool CropNeeded(const NDLLSize &out_size) const {
         return 0 < crop_h_ && crop_h_ <= out_size.height &&
@@ -62,7 +62,7 @@ class ResizeAttr {
  protected:
     inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
     inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
-    inline const resize_t &resize() const                   { return resize_; };
+    inline const resize_t &resize() const                   { return resize_; }
 
     mutable std::mt19937 rand_gen_;
 
@@ -126,11 +126,11 @@ class Resize : public Operator, public ResizeAttr {
         auto output = ws->Output<CPUBackend>(idx);
 
         const vector <Index> &input_shape = input.shape();
-        NDLLSize &out_size = size(output_t, 0);
+        NDLLSize *out_size = size(output_t, 0);
         SetSize(size(input_t, 0), input_shape, resize(), out_size);
 
         DataDependentSetupCPU(input, output, "Resize", &input_ptrs_,
-                              &output_ptrs_, NULL, &out_size);
+                              &output_ptrs_, NULL, out_size);
         NDLL_CALL(BatchedResize((const uint8 **) input_ptrs_.data(), 1, C_, sizes(input_t).data(),
                                     output_ptrs_.data(), sizes(output_t).data(), type_));
   }

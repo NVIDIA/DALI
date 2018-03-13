@@ -1,12 +1,13 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#ifndef NDLL_PIPELINE_OPERATORS_MY_RESIZE_H_
-#define NDLL_PIPELINE_OPERATORS_MY_RESIZE_H_
+#ifndef NDLL_PIPELINE_OPERATORS_NEW_RESIZE_H_
+#define NDLL_PIPELINE_OPERATORS_NEW_RESIZE_H_
 
+#include <npp.h>
 #include <random>
 #include <ctgmath>
 #include <vector>
-#include <npp.h>
+
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/resize.h"
 
@@ -82,11 +83,11 @@ struct ResizeGridParam {
             pixColor[2] += rowMult * (sumColor[2] * sx0 + len * *(pPix + 2) + extraColor[2]); \
         }                                                           \
                                                                     \
-        if (++y0  < endIdx[1])                                      \
-            rowMult = sy0;                                          \
-        else {                                                      \
+        if (++y0  >= endIdx[1]) {                                   \
             if (y0 > endIdx[1] || !(rowMult = extra[1]))            \
                 break;                                              \
+        } else {                                                    \
+            rowMult = sy0;                                          \
         }                                                           \
     }                                                               \
     SET_PIXEL_COLOR()
@@ -165,8 +166,8 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
 
 ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool closest);
 
-#define SAME_SIZES(size1, size2)    (size1.height == size2.height && \
-                                     size1.width == size2.width)
+#define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
+                                     size1->width == size2->width)
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
@@ -185,21 +186,20 @@ class NewResize : public Resize<Backend> {
     virtual inline ~NewResize()             { releaseCudaResizeParameter(); }
 
  protected:
-
     void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
         const auto &input = ws->Input<CPUBackend>(idx);
         const auto output = ws->Output<CPUBackend>(idx);
 
         const vector <Index> &input_shape = input.shape();
         NDLLSize out_size, input_size;
-        ResizeAttr::SetSize(input_size, input_shape, ResizeAttr::resize(), out_size);
+        ResizeAttr::SetSize(&input_size, input_shape, ResizeAttr::resize(), &out_size);
 
         const vector<Index> &shape = input.shape();
         const int C = shape[2];
 
         ResizeGridParam resizeParam[N_GRID_PARAMS] = {};
         ResizeMappingTable *pResizeTbl = NULL;
-        PrepareCropAndResize(input_size, out_size, C, resizeParam, &pResizeTbl);
+        PrepareCropAndResize(&input_size, &out_size, C, resizeParam, &pResizeTbl);
 
         const int H0 = input_size.height;
         const int W0 = input_size.width;
@@ -229,14 +229,14 @@ class NewResize : public Resize<Backend> {
         const auto &shape = input.shape();
         const int C = shape[0][2];
 
-        const NDLLSize &sizeIn = ResizeAttr::size(input_t, 0);
-        const NDLLSize &sizeOut = ResizeAttr::size(output_t, 0);
+        const NDLLSize *sizeIn = ResizeAttr::size(input_t, 0);
+        const NDLLSize *sizeOut = ResizeAttr::size(output_t, 0);
 
         if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
             NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
             ResizeGridParam resizeParam[N_GRID_PARAMS];
             ResizeMappingTable *pResizeTbl = NULL;
-            const bool newMapping = PrepareCropAndResize(sizeIn, out_size, C,
+            const bool newMapping = PrepareCropAndResize(sizeIn, &out_size, C,
                                                          resizeParam, &pResizeTbl);
             if (newMapping) {
                 if (!resizeParamGPU_)
@@ -250,8 +250,8 @@ class NewResize : public Resize<Backend> {
             }
 
             NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), ws->stream(), C,
-                        sizeIn, input.template data<uint8>(),
-                        sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
+                        *sizeIn, input.template data<uint8>(),
+                        *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                         resizeParamGPU_, pResizeTbl));
 
             delete pResizeTbl;
@@ -270,7 +270,8 @@ class NewResize : public Resize<Backend> {
                 setBatchSizeMax(batch_size_);
             }
 
-            vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()), ResizeAttr::outputImages()};
+            vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
+                                         ResizeAttr::outputImages()};
 
             for (int i = input_t; i <= output_t; i++) {
                 const vector<NDLLSize> &sizes =  ResizeAttr::sizes(static_cast<io_type >(i));
@@ -286,20 +287,20 @@ class NewResize : public Resize<Backend> {
     }
 
  private:
-    bool PrepareCropAndResize(const NDLLSize &input_size, NDLLSize &out_size, int C,
+    bool PrepareCropAndResize(const NDLLSize *input_size, NDLLSize *out_size, int C,
                               ResizeGridParam resizeParam[],
                               ResizeMappingTable **ppResizeTbl = NULL) const {
-        NDLLSize out_resize(out_size);
+        NDLLSize out_resize(*out_size);
         int cropY, cropX;
-        const bool doingCrop = ResizeAttr::CropNeeded(out_size);
-        if (doingCrop) {
+        const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
+        if (doingCrop)
             ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
-        } else
+        else
             cropY = cropX = 0;
 
         resizeParam[2] = {cropX, cropY};
 
-        return CreateResizeGrid(input_size, out_resize, C, resizeParam, ppResizeTbl);
+        return CreateResizeGrid(*input_size, out_resize, C, resizeParam, ppResizeTbl);
     }
 
     bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
@@ -310,7 +311,6 @@ class NewResize : public Resize<Backend> {
         const int H1 = out_size.height;
         const int W0 = input_size.width;
         const int W1 = out_size.width;
-
 
         int lcm(int a, int b);
         const int lcmH = lcm(H0, H1);
@@ -341,20 +341,20 @@ class NewResize : public Resize<Backend> {
         return newResize;
     }
 
-    bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
+    bool BatchIsCongeneric(const NDLLSize *sizeIn, const NDLLSize *sizeOut, int C) {
         // Check if all input sizes are the same
-        const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
+        const uint32_t imageSize = sizeOut->width * sizeOut->height * C;
 
         const auto pImages = *ResizeAttr::outputImages();
         const auto pFirstBatchImage = pImages[0];
 
         int i = batch_size_;
         while (--i > 0) {
-            const NDLLSize &inSize = ResizeAttr::size(input_t, i);
+            const NDLLSize *inSize = ResizeAttr::size(input_t, i);
             if (!SAME_SIZES(inSize, sizeIn))
                 break;
 
-            const NDLLSize &outSize = ResizeAttr::size(output_t, i);
+            const NDLLSize *outSize = ResizeAttr::size(output_t, i);
             if (!SAME_SIZES(outSize, sizeOut))
                 break;
 
@@ -390,4 +390,4 @@ class NewResize : public Resize<Backend> {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_OPERATORS_MY_RESIZE_H_
+#endif  // NDLL_PIPELINE_OPERATORS_NEW_RESIZE_H_

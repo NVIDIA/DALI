@@ -1,6 +1,9 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
+#include <string>
+#include <vector>
 #include <float.h>
+#include <assert.h>
 #include <nppdefs.h>
 #include <npp.h>
 #include "ndll/pipeline/operators/new_resize.h"
@@ -11,35 +14,34 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                             Tensor<CPUBackend> *output, const char *pOpName,
                             vector<const uint8 *> *inPtrs, vector<uint8 *> *outPtrs,
                             vector<NDLLSize> *pSizes, const NDLLSize *out_size) {
-     NDLL_ENFORCE(input.ndim() == 3);
-     NDLL_ENFORCE(IsType<uint8>(input.type()),
-                  "Expects input data in uint8.");
+    NDLL_ENFORCE(input.ndim() == 3);
+    NDLL_ENFORCE(IsType<uint8>(input.type()),"Expects input data in uint8.");
 
-     const vector <Index> &shape = input.shape();
-     const int C = shape[2];
-     NDLL_ENFORCE(C == 1 || C == 3,
-                  string(pOpName? pOpName : "Operation") +
-                  " supports only hwc rgb & grayscale inputs.");
+    const vector <Index> &shape = input.shape();
+    const int C = shape[2];
+    NDLL_ENFORCE(C == 1 || C == 3,
+              string(pOpName? pOpName : "Operation") +
+              " supports only hwc rgb & grayscale inputs.");
 
-     if (out_size)
-         output->Resize({out_size->height, out_size->width, C});
-     else
-         output->Resize(shape);
+    if (out_size)
+        output->Resize({out_size->height, out_size->width, C});
+    else
+        output->Resize(shape);
 
-     output->set_type(input.type());
+    output->set_type(input.type());
 
-     if (!inPtrs)
-         return;
+    if (!inPtrs)
+        return;
 
-     (*inPtrs)[0] = input.template data<uint8>();
-     if (outPtrs)
-         (*outPtrs)[0] = static_cast<uint8*>(output->raw_mutable_data());
+    (*inPtrs)[0] = input.template data<uint8>();
+    if (outPtrs)
+        (*outPtrs)[0] = static_cast<uint8*>(output->raw_mutable_data());
 
-     if (pSizes) {
-         (*pSizes)[0].height = shape[0];
-         (*pSizes)[0].width = shape[1];
-     }
- }
+    if (pSizes) {
+        (*pSizes)[0].height = shape[0];
+        (*pSizes)[0].width = shape[1];
+    }
+}
 
 void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
@@ -61,24 +63,25 @@ void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
         // Collect the output shapes
         if (pResize) {
             // We are resizing
-            NDLLSize &out_size = pResize->size(output_t, i);
+            NDLLSize *out_size = pResize->size(output_t, i);
             pResize->SetSize(pResize->size(input_t, i), input_shape,
                 pResize->newSizes(i), out_size);
 
             if (pOutResize) {
                 NppiRect &outResize = (*pOutResize)[i];
-                outResize.height = out_size.height;
-                outResize.width = out_size.width;
+                outResize.height = out_size->height;
+                outResize.width = out_size->width;
 
-                const bool doingCrop = pResize->CropNeeded(out_size);
+                const bool doingCrop = pResize->CropNeeded(*out_size);
                 if (doingCrop)
                     pResize->DefineCrop(out_size, &outResize.x, &outResize.y);
             }
 
             // Collect the output shapes
-            output_shape[i] = {out_size.height, out_size.width, input_shape[2]};
-        } else
+            output_shape[i] = {out_size->height, out_size->width, input_shape[2]};
+        } else {
             output_shape[i] = input_shape;
+        }
 
         if (pSizes) {
             (*pSizes)[i].height = input_shape[0];
@@ -135,7 +138,7 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
 }
 
 //  Greatest Common Factor
-int __host__ __device__ gcf (int a, int b) {
+int __host__ __device__ gcf(int a, int b) {
     int t;
     if (b > a) {
         t = a;
@@ -152,10 +155,8 @@ int __host__ __device__ gcf (int a, int b) {
     return a;
 }
 
-#include <assert.h>
-
 // Least Common Multiplier
-int __host__ __device__ lcm (int a, int b) {
+int __host__ __device__ lcm(int a, int b) {
     return a / gcf (a, b) * b;
 }
 
@@ -193,15 +194,13 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
     return NDLLSuccess;
 }
 
-#include <assert.h>
-
 ResizeMappingTable::ResizeMappingTable(int H0, int W0, int H1, int W1, int C,
              uint16_t xSize, uint16_t ySize) {
     io_size[0] = {W0, H0};
     io_size[1] = {W1, H1};
     C_ = C;
 
-    pResizeMapping[0] = new ResizeMapping [xSize * ySize];
+    pResizeMapping[0] = new ResizeMapping[xSize * ySize];
     pResizeMapping[1] = NULL;
 
     tableLength = xSize * ySize * sizeof(pResizeMapping[0][0]);
@@ -247,8 +246,8 @@ class PixMappingHelper {
     inline uint32_t numUsed() const                 { return numPixMapUsed_; }
  private:
     inline float distance(float x, float y) const   { return x * x + y * y; }
-    uint32_t numPixMapMax_;  // length of the allocated PixMapping array
-    uint32_t numPixMapUsed_; // number of already used elements of pPixMapping
+    uint32_t numPixMapMax_;     // length of the allocated PixMapping array
+    uint32_t numPixMapUsed_;    // number of already used elements of pPixMapping
     PixMapping *pPixMapping_;
     ResizeMapping *pMappingBase_;
     ResizeMapping *pMapping_;
@@ -299,8 +298,7 @@ void PixMappingHelper::UpdateMapping(int shift, int centerX, int centerY) {
 
 #define RUN_CHECK_1     0
 
-ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool use_NN)
-{
+ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool use_NN) {
     // The table, which contains the information about correspondence of pixels of the initial
     // image to the pixels of the resized one.
 
@@ -324,7 +322,6 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
 
     for (int y = 0; y < sy0; ++y) {
         for (int x = 0; x < sx0; ++x) {
-
             const int nX = x * sx1;
             const int nY = y * sy1;
             // The indices of the top-left pixel of the initial image, intersecting with PIX
@@ -370,11 +367,12 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
 #if RUN_CHECK_1
                 check += rowMult * (sx0 * (endIdx[0] - 1) + lenFirst[0] + extra[0]);
 #endif
-                if (++y0  < endIdx[1])
-                    rowMult = sy0;
-                else {
+                if (++y0  >= endIdx[1]) {
                     if (y0 > endIdx[1] || !(rowMult = extra[1]))
                         break;
+                }
+                else {
+                    rowMult = sy0;
                 }
             }
 
