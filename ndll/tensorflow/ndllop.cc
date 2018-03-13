@@ -13,19 +13,19 @@ REGISTER_OP("Ndll")
   .Attr("batch_size: int = 128")
   .Attr("num_threads: int = 2")
   .Attr("device_id: int = 0")
-  .Output("batch: int32")
+  .Output("batch: int32");
   // ignoring shape for now
   // maybe this one
   // .SetShapeFn(shape_inference::RandomShape);
   // or this one
-  .SetShapeFn(shape_inference::UnknownShape);
+//.SetShapeFn(shape_inference::UnknownShape);
 /*  .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
     c->set_output(0, ??)
     return Status::OK();
   })*/
 
 
-class NdllOp : Public OpKernel {
+class NdllOp : public OpKernel {
  public:
   explicit NdllOp(OpKernelConstruction* context)
     : OpKernel(context),
@@ -41,7 +41,7 @@ class NdllOp : Public OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
 
-    pipeline_.reset(new Pipeline(serialized_pipeline,
+    pipeline_.reset(new ndll::Pipeline(serialized_pipeline,
                                  batch_size,
                                  num_threads,
                                  device_id));
@@ -53,25 +53,27 @@ class NdllOp : Public OpKernel {
     pipeline_->RunCPU();
     pipeline_->RunGPU();
 
-    DeviceWorkspace ws;
+    ndll::DeviceWorkspace ws;
     pipeline_->Outputs(&ws);
 
-    for (int i = 0; i < ws.NumOutput(); ++i) {
-      if (ws.OutputIsType<CPUBackend>(i)) {
-        ws.Output<CPUBackend>(i);
-      } else {
-        ws.Output<GPUBackend>(i);
-      }
+    if (out_shape_ == nullptr) {
+      // TODO(spanev) infer shape
     }
 
-    //TODO(spanev) copy ws->Outputs to output_tensor
-
-    // TODO(spanev) find how to allocate_output: cudamemcpy ndll tensor to tf
     Tensor* output_tensor = NULL;
-    OP_REQUIRES_OK(context, context->allocate_output(0, );
+    OP_REQUIRES_OK(context, context->allocate_output(0, *out_shape_.get(), &output_tensor));
+
+    for (int i = 0; i < ws.NumOutput(); ++i) {
+      if (ws.OutputIsType<ndll::CPUBackend>(i)) {
+        ws.Output<ndll::CPUBackend>(i);
+      } else {
+        ws.Output<ndll::GPUBackend>(i);
+      }
+    }
   }
  private:
-  std::unique_ptr<Pipeline> pipeline_;
+  std::unique_ptr<ndll::Pipeline> pipeline_;
+  std::unique_ptr<TensorShape> out_shape_;
   bool first_iter;
 };
 

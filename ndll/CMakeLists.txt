@@ -72,10 +72,19 @@ endif()
 
 # Build the TensorFlow op
 if (BUILD_TENSORFLOW)
-  execute_process(COMMAND python -c "import tensorflow as tf; print(tf.sysconfig.get_include())" OUTPUT_VARIABLE TF_INC)
-  execute_process(COMMAND python -c "import tensorflow as tf; print(tf.sysconfig.get_lib())" OUTPUT_VARIABLE TF_LIB)
+  execute_process(
+    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_include(), end='')"
+    OUTPUT_VARIABLE TF_INC)
+  execute_process(
+    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_lib(), end='')"
+    OUTPUT_VARIABLE TF_LIB)
+
+  message(STATUS "TF_INC location: " ${TF_INC})
+  message(STATUS "TF_LIB location: " ${TF_LIB})
+
   add_subdirectory(tensorflow)
 
-  set(customop_lib "ndllop.so")
-  cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS} OPTIONS -I${TF_INC} -I${TF_INC}/external/nsync/public -L${TF_LIB} -ltensorflow_framework)
+  set(customop_lib "ndllop")
+  cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS})
+  target_compile_options(${customop_lib} PRIVATE -I${TF_INC} -I${TF_INC}/external/nsync/public -L${TF_LIB} -ltensorflow_framework)
 endif()
