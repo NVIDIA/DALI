@@ -182,7 +182,9 @@ void CollectPointersForExecution(size_t batch_size,
     uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
     for (int y = startH; y < H; y += stepH) {                       \
         out += shift;                                               \
+        const int nY = (y + cropY) * sy1;                           \
         for (int x = startW; x < W; x += stepW) {                   \
+            const int nX = (x + cropX) * sx1;                       \
             AUGMENT_CORE(C);                                        \
         }                                                           \
     }

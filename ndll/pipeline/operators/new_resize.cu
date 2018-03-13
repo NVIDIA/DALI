@@ -1,12 +1,12 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#include <string>
-#include <vector>
+#include "ndll/pipeline/operators/new_resize.h"
 #include <float.h>
 #include <assert.h>
+#include <string>
+#include <vector>
 #include <nppdefs.h>
 #include <npp.h>
-#include "ndll/pipeline/operators/new_resize.h"
 
 namespace ndll {
 
@@ -15,7 +15,7 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                             vector<const uint8 *> *inPtrs, vector<uint8 *> *outPtrs,
                             vector<NDLLSize> *pSizes, const NDLLSize *out_size) {
     NDLL_ENFORCE(input.ndim() == 3);
-    NDLL_ENFORCE(IsType<uint8>(input.type()),"Expects input data in uint8.");
+    NDLL_ENFORCE(IsType<uint8>(input.type()), "Expects input data in uint8.");
 
     const vector <Index> &shape = input.shape();
     const int C = shape[2];
@@ -358,9 +358,8 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
                 if (extra[0])
                     helper.AddPixel(pixAddr, extra[0] * rowMult, x0, y0);
 
-                while (--x0 > 0) {
+                while (--x0 > 0)
                     helper.AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
-                }
 
                 helper.AddPixel(pixAddr -= C, lenFirst[0] * rowMult, x0, y0);
 
@@ -370,8 +369,7 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
                 if (++y0  >= endIdx[1]) {
                     if (y0 > endIdx[1] || !(rowMult = extra[1]))
                         break;
-                }
-                else {
+                } else {
                     rowMult = sy0;
                 }
             }

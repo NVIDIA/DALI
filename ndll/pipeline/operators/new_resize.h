@@ -46,20 +46,18 @@ struct ResizeGridParam {
     uint32_t extraColor[3] = {0, 0, 0};         \
     uint32_t sumColor[3], pixColor[3];
 
-#define RESIZE_CORE(C)                                                  \
-    const uint32_t nX = (x + cropX) * sx1;                              \
-    const uint32_t nY = (y + cropY) * sy1;                              \
-    const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                    \
-    const uint32_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};    \
-    const uint32_t extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};     \
-    const uint32_t lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};  \
-    uint32_t rowMult = lenFirst[1];                                     \
-    pixColor[0] = pixColor[1] = pixColor[2] = 0;                        \
-    uint32_t y0 = begIdx[1];                                            \
+#define RESIZE_CORE(C)                                              \
+    const int begIdx[2] = {nX / sx0, nY / sy0};                     \
+    const int endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};     \
+    const int extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};      \
+    const int lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};   \
+    int rowMult = lenFirst[1];                                      \
+    pixColor[0] = pixColor[1] = pixColor[2] = 0;                    \
+    int y0 = begIdx[1];                                             \
     while (true) {                                                  \
-        size_t x0 = endIdx[0];                                      \
+        int x0 = endIdx[0];                                         \
         const uint8 *pPix = in + ((y0 * W0) + x0) * C;              \
-        uint32_t len = extra[0];                                    \
+        int len = extra[0];                                         \
         extraColor[0] = len * *pPix;                                \
         if (C > 1) {                                                \
             extraColor[1] = len * *(pPix + 1);                      \
@@ -128,8 +126,6 @@ typedef struct ResizeMappingTable {
 
 
 #define RESIZE_N_CORE(C)                                                \
-    const int nX = (x + cropX) * sx1;                                   \
-    const int nY = (y + cropY) * sy1;                                   \
     pResizePix = pResizeMapping + (nY % sy0) * sx0 + nX % sx0;          \
     const uint8 *pBase = in + ((nY / sy0 * W0) + nX / sx0) * C;         \
     if (pPixMapping) {                                                  \
@@ -306,7 +302,6 @@ class NewResize : public Resize<Backend> {
     bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
                           ResizeGridParam resizeParam[],
                           ResizeMappingTable **ppResizeTbl = NULL) const {
-
         const int H0 = input_size.height;
         const int H1 = out_size.height;
         const int W0 = input_size.width;
