@@ -185,7 +185,7 @@ __global__ void BatchedResizeKernel(int C, const NppiRect *resizeDescr,
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const NppiRect *resizeDescr,
-                          const MemoryHandle sizes[], const MemoryHandle raster[]) {
+                          const ClassHandle sizes[], const ClassHandle raster[]) {
     const uint8 * const* in = IMG_RASTERS(raster[input_t]);
     uint8 * const *out = IMG_RASTERS(raster[output_t]);
 
@@ -195,8 +195,8 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
     return NDLLSuccess;
 }
 
-ResizeMappingTable::ResizeMappingTable(int H0, int W0, int H1, int W1, int C,
-             uint16_t xSize, uint16_t ySize) {
+void ResizeMappingTable::initTable(int H0, int W0, int H1, int W1, int C,
+                                   uint16_t xSize, uint16_t ySize) {
     io_size[0] = {W0, H0};
     io_size[1] = {W1, H1};
     C_ = C;
@@ -279,7 +279,7 @@ void PixMappingHelper::UpdateMapping(int shift, int centerX, int centerY) {
 
 #define RUN_CHECK_1     0
 
-ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool use_NN) {
+void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, bool use_NN) {
     // The table, which contains the information about correspondence of pixels of the initial
     // image to the pixels of the resized one.
 
@@ -295,8 +295,8 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
     const int sx0 = lcmW / W0;
     const int sx1 = lcmW / W1;
 
-    ResizeMappingTable *pTable = new ResizeMappingTable(H0, W0, H1, W1, C, sx0, sy0);
-    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING(pTable->pResizeMapping[0]), use_NN? sx1 * sy1 : 0);
+    initTable(H0, W0, H1, W1, C, sx0, sy0);
+    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING(pResizeMapping[0]), use_NN? sx1 * sy1 : 0);
 
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
@@ -360,9 +360,7 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
         }
     }
 
-    pTable->pPixMapping[0].setMemory(helper.getPixMapping(),
-                                     helper.numUsed() * sizeof(PixMapping));
-    return pTable;
+    pPixMapping[0].setMemory(helper.getPixMapping(), helper.numUsed() * sizeof(PixMapping));
 }
 
 }  // namespace ndll

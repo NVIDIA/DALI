@@ -13,13 +13,24 @@
 
 namespace ndll {
 
-#define CUDA_MALLOC(x, len)         x.pntr = Backend::New(x.length = len, true)
-#define CUDA_FREE(x)                { if (x.pntr) \
-                                        Backend::Delete(x.pntr, x.length, true); x.reset(); }
+#define USE_CPU_MEMORY_ALLOCATION   1
+#define PINNED                      false
+
+#define BACKEND_MALLOC(x, len)      x.pntr = Backend::New(x.length = len, PINNED)
+#define BACKEND_FREE(x)             { if (x.pntr) \
+                                        Backend::Delete(x.pntr, x.length, PINNED); x.reset(); }
+
+#if USE_CPU_MEMORY_ALLOCATION
+#define CPU_BACKEND_FREE(x)         { if (x.pntr)     \
+                                        CPUBackend::Delete(x.pntr, x.length, PINNED); x.reset(); }
+#else
+#define CPU_BACKEND_FREE(x)         delete (ResizeMappingTable *)x.pntr
+#endif
+
 #define CUDA_MEMCPY(x, y, len)      CUDA_CALL(cudaMemcpy(x.pntr, y, len, cudaMemcpyHostToDevice))
 #define CUDA_COPY_ELEMENTS(x, y, n) CUDA_MEMCPY(x, y, n * sizeof(y[0]))
 
-#define CUDA_COPY(x, y, len)        if (y) { CUDA_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length); }
+#define CUDA_COPY(x, y, len)        if (y) { BACKEND_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length); }
 #define COPY_TO_DEVICE(x, y)        CUDA_COPY(x, y.pntr, y.length);
 
 struct ResizeGridParam {
@@ -27,10 +38,10 @@ struct ResizeGridParam {
     int nY;
 };
 
-struct MemoryHandle {
+struct ClassHandle {
     void *pntr;
     size_t length;
-    MemoryHandle()                                                    { reset(); }
+    ClassHandle()                                                     { reset(); }
     inline void reset()                                               { setMemory(NULL, 0); }
     inline void setMemory(void *p, size_t len, bool initMem = false)  { length = len;
                                                                         if ((pntr = p) && initMem)
@@ -38,7 +49,8 @@ struct MemoryHandle {
                                                                      }
 };
 
-#define POINTER_OF_TYPE(type, x)    static_cast<type *>(x.pntr)
+#define POINTER_OF_TYPE(type, x)    static_cast<type *>((x).pntr)
+#define MAPPING_TABLE(x)            POINTER_OF_TYPE(ResizeMappingTable, x)
 #define RESIZE_MAPPING(x)           POINTER_OF_TYPE(ResizeMapping, x)
 #define PIX_MAPPING(x)              POINTER_OF_TYPE(PixMapping, x)
 #define RESIZE_PARAM(x)             POINTER_OF_TYPE(ResizeGridParam, x)
@@ -130,12 +142,15 @@ class ResizeMappingTable {
  public:
     NDLLSize io_size[2];
     int C_;
-    MemoryHandle pResizeMapping[2];   // pointer to the ResizeMapping table for CPU/GPU
-    MemoryHandle pPixMapping[2];      // pointer to the PixMapping arrays  for CPU/GPU
+    ClassHandle pResizeMapping[2];   // pointer to the ResizeMapping table for CPU/GPU
+    ClassHandle pPixMapping[2];      // pointer to the PixMapping arrays  for CPU/GPU
 
-    ResizeMappingTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
+    ResizeMappingTable()            {}
     ~ResizeMappingTable();
     bool IsValid(int H0, int W0, int H1, int W1) const;
+    void constructTable(int H0, int W0, int H1, int W1, int C, bool use_NN);
+ private:
+    void initTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
 };
 
 
@@ -181,10 +196,8 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl);
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          const NppiRect *resizeDescr, const MemoryHandle sizes[],
-                          const MemoryHandle imgRasterGPU[]);
-
-ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool closest);
+                          const NppiRect *resizeDescr, const ClassHandle sizes[],
+                          const ClassHandle imgRasterGPU[]);
 
 // Macros for  creation of the CPU/GPU augmentation methods:
 #define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
@@ -247,8 +260,8 @@ class NewResize : public Resize<Backend> {
         const int C = shape[2];
 
         ResizeGridParam resizeParam[N_GRID_PARAMS] = {};
-        ResizeMappingTable *pResizeTbl = NULL;
-        PrepareCropAndResize(&input_size, &out_size, C, resizeParam, &pResizeTbl);
+        ClassHandle resizeTbl;
+        PrepareCropAndResize(&input_size, &out_size, C, resizeParam, &resizeTbl);
 
         const int H0 = input_size.height;
         const int W0 = input_size.width;
@@ -257,13 +270,14 @@ class NewResize : public Resize<Backend> {
 
         DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
 
+        const ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
         if (pResizeTbl) {
             const ResizeMapping *pResizeMapping = RESIZE_MAPPING(pResizeTbl->pResizeMapping[0]);
             const PixMapping *pPixMapping = PIX_MAPPING(pResizeTbl->pPixMapping[0]);
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
 
-            delete pResizeTbl;
+            CPU_BACKEND_FREE(resizeTbl);
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE);
@@ -286,9 +300,11 @@ class NewResize : public Resize<Backend> {
         if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
             NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
             ResizeGridParam resizeParam[N_GRID_PARAMS], *pResize = resizeParam;
-            ResizeMappingTable *pResizeTbl = NULL;
+            ClassHandle resizeTbl;
             const bool newMapping = PrepareCropAndResize(sizeIn, &out_size, C,
-                                                         resizeParam, &pResizeTbl);
+                                                         resizeParam, &resizeTbl);
+
+            ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
             if (newMapping) {
                 // Copying the descriptor of operation into __constant__ memory
                 CUDA_COPY(resizeParamGPU_, pResize, sizeof(resizeParam));
@@ -301,16 +317,16 @@ class NewResize : public Resize<Backend> {
                         *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                         RESIZE_PARAM(resizeParamGPU_), pResizeTbl));
 
-            delete pResizeTbl;
+            CPU_BACKEND_FREE(resizeTbl);
         } else {
             if (BatchSizeMax() < batch_size_) {
                 releaseCudaResizeParameter();
                 for (int i = input_t; i <= output_t; i++) {
-                    CUDA_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
-                    CUDA_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
+                    BACKEND_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
+                    BACKEND_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
                 }
 
-                CUDA_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
+                BACKEND_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
                 setBatchSizeMax(batch_size_);
             }
 
@@ -332,8 +348,7 @@ class NewResize : public Resize<Backend> {
 
  private:
     bool PrepareCropAndResize(const NDLLSize *input_size, NDLLSize *out_size, int C,
-                              ResizeGridParam resizeParam[],
-                              ResizeMappingTable **ppResizeTbl = NULL) const {
+                              ResizeGridParam resizeParam[], ClassHandle *ppResizeTbl) const {
         NDLLSize out_resize(*out_size);
         int cropY, cropX;
         const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
@@ -348,8 +363,7 @@ class NewResize : public Resize<Backend> {
     }
 
     bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
-                          ResizeGridParam resizeParam[],
-                          ResizeMappingTable **ppResizeTbl = NULL) const {
+                          ResizeGridParam resizeParam[], ClassHandle *ppResizeTbl) const {
         const int H0 = input_size.height;
         const int H1 = out_size.height;
         const int W0 = input_size.width;
@@ -368,15 +382,22 @@ class NewResize : public Resize<Backend> {
         }
 
         if (ppResizeTbl) {
-            ResizeMappingTable *pResizeTbl = *ppResizeTbl;
+            ResizeMappingTable *pResizeTbl = MAPPING_TABLE(*ppResizeTbl);
             if (pResizeTbl && !pResizeTbl->IsValid(H0, W0, H1, W1)) {
                 delete pResizeTbl;
                 pResizeTbl = NULL;
             }
 
             if (!pResizeTbl) {
-                *ppResizeTbl = createResizeMappingTable(H0, W0, H1, W1, C,
-                                                       ResizeAttr::type_ == NDLL_INTERP_NN);
+                const size_t lenClass = sizeof(ResizeMappingTable);
+#if USE_CPU_MEMORY_ALLOCATION
+                ppResizeTbl->setMemory(new ResizeMappingTable(), lenClass);
+#else
+                ppResizeTbl->setMemory(CPUBackend::New(lenClass, false), lenClass);
+#endif
+                pResizeTbl = MAPPING_TABLE(*ppResizeTbl);
+                pResizeTbl->constructTable(H0, W0, H1, W1, C,
+                                           ResizeAttr::type_ == NDLL_INTERP_NN);
                 newResize = true;
             }
         }
@@ -418,26 +439,26 @@ class NewResize : public Resize<Backend> {
     }
 
     void releaseCudaResizeMapingTable(ResizeMappingTable *pResizeTbl) {
-        CUDA_FREE(pResizeTbl->pResizeMapping[1]);
-        CUDA_FREE(pResizeTbl->pPixMapping[1]);
+        BACKEND_FREE(pResizeTbl->pResizeMapping[1]);
+        BACKEND_FREE(pResizeTbl->pPixMapping[1]);
     }
 
     void releaseCudaResizeParameter() {
         for (int i = input_t; i <= output_t; i++) {
-            CUDA_FREE(sizesGPU_[i]);
-            CUDA_FREE(imgsGPU_[i]);
+            BACKEND_FREE(sizesGPU_[i]);
+            BACKEND_FREE(imgsGPU_[i]);
         }
 
-        CUDA_FREE(resizeDescrGPU_);
+        BACKEND_FREE(resizeDescrGPU_);
         setBatchSizeMax(0);
     }
 
     // Members used in RunBatchedGPU;
     vector<NppiRect> resizeDescr_;
-    MemoryHandle resizeParamGPU_;
-    MemoryHandle sizesGPU_[2];
-    MemoryHandle imgsGPU_[2];
-    MemoryHandle resizeDescrGPU_;
+    ClassHandle resizeParamGPU_;
+    ClassHandle sizesGPU_[2];
+    ClassHandle imgsGPU_[2];
+    ClassHandle resizeDescrGPU_;
     int nBatchSizeMax_;
 
     USE_OPERATOR_MEMBERS();
