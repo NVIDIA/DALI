@@ -13,14 +13,38 @@
 
 namespace ndll {
 
-#define CUDA_MALLOC(x, len)     CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&x), len))
-#define CUDA_FREE(x)            { CUDA_CALL(cudaFree(x)); x = NULL; }
-#define CUDA_MEMCPY(x, y, len)  CUDA_CALL(cudaMemcpy(x, y, len, cudaMemcpyHostToDevice))
+#define CUDA_MALLOC(x, len)         x.pntr = Backend::New(x.length = len, true)
+#define CUDA_FREE(x)                { if (x.pntr) \
+                                        Backend::Delete(x.pntr, x.length, true); x.reset(); }
+#define CUDA_MEMCPY(x, y, len)      CUDA_CALL(cudaMemcpy(x.pntr, y, len, cudaMemcpyHostToDevice))
+#define CUDA_COPY_ELEMENTS(x, y, n) CUDA_MEMCPY(x, y, n * sizeof(y[0]))
+
+#define CUDA_COPY(x, y, len)        if (y) { CUDA_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length); }
+#define COPY_TO_DEVICE(x, y)        CUDA_COPY(x, y.pntr, y.length);
 
 struct ResizeGridParam {
     int nX;
     int nY;
 };
+
+struct MemoryHandle {
+    void *pntr;
+    size_t length;
+    MemoryHandle()                                                    { reset(); }
+    inline void reset()                                               { setMemory(NULL, 0); }
+    inline void setMemory(void *p, size_t len, bool initMem = false)  { length = len;
+                                                                        if ((pntr = p) && initMem)
+                                                                            memset(pntr, 0, len);
+                                                                     }
+};
+
+#define POINTER_OF_TYPE(type, x)    static_cast<type *>(x.pntr)
+#define RESIZE_MAPPING(x)           POINTER_OF_TYPE(ResizeMapping, x)
+#define PIX_MAPPING(x)              POINTER_OF_TYPE(PixMapping, x)
+#define RESIZE_PARAM(x)             POINTER_OF_TYPE(ResizeGridParam, x)
+#define CROP_PARAMS(x)              POINTER_OF_TYPE(NppiRect, x)
+#define IMG_SIZES(x)                POINTER_OF_TYPE(NDLLSize, x)
+#define IMG_RASTERS(x)              POINTER_OF_TYPE(uint8 *, x)
 
 #define N_GRID_PARAMS       3
 
@@ -101,22 +125,18 @@ typedef struct {
     void Init(uint32_t addr, uint32_t area) { pixAddr = addr; pixArea = area; }
 } PixMapping;
 
-typedef struct ResizeMappingTable {
+
+class ResizeMappingTable {
+ public:
     NDLLSize io_size[2];
     int C_;
-    uint32_t tableLength;               // sizes of the ResizeMapping
-    ResizeMapping *pResizeMapping[2];   // pointer to the ResizeMapping table for CPU/GPU
-    PixMapping *pPixMapping[2];         // pointer to the PixMapping arrays  for CPU/GPU
-    uint32_t pixMappingLen;             // length of array pPixMapping in bytes
+    MemoryHandle pResizeMapping[2];   // pointer to the ResizeMapping table for CPU/GPU
+    MemoryHandle pPixMapping[2];      // pointer to the PixMapping arrays  for CPU/GPU
 
     ResizeMappingTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
     ~ResizeMappingTable();
-    inline uint32_t getMappingTableLength() const   { return tableLength; }
     bool IsValid(int H0, int W0, int H1, int W1) const;
-    void CopyCongenericResizeParam();
- private:
-    void releaseCudaResizeMapingTable();
-} ResizeMappingTable;
+};
 
 
 #define RESIZE_N_PREAMBLE(H, W, C)                                      \
@@ -151,31 +171,64 @@ typedef struct ResizeMappingTable {
         }                                                               \
     }
 
+void CollectPointersForExecution(size_t batch_size,
+                                 const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
+                                 TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
+
 NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const NDLLSize &sizeIn, const uint8 *in_batch,
                           const NDLLSize &sizeOut, uint8 *out_batch,
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl);
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          const NppiRect *resizeDescr,
-                          const NDLLSize * const sizes[], uint8 ** const imgRasterGPU[]);
+                          const NppiRect *resizeDescr, const MemoryHandle sizes[],
+                          const MemoryHandle imgRasterGPU[]);
 
 ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int C, bool closest);
 
+// Macros for  creation of the CPU/GPU augmentation methods:
+#define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
+            AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
+            stepW, stepH, startW, startH, imgIdx, ...)              \
+    AUGMENT_PREAMBLE(H, W, C);                                      \
+    const uint32_t offset = nYoffset(W, C);                         \
+    const uint32_t shift = stepH * offset;                          \
+    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
+    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
+    for (int y = startH; y < H; y += stepH) {                       \
+        out += shift;                                               \
+        const int nY = (y + cropY) * sy1;                           \
+        for (int x = startW; x < W; x += stepW) {                   \
+            const int nX = (x + cropX) * sx1;                       \
+            AUGMENT_CORE(C);                                        \
+        }                                                           \
+    }
+
+#define AUGMENT_RESIZE_CPU(H, W, C, img_in, img_out, KIND)          \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
+        KIND ## _CORE, 1, 1, 0, 0, 0)
+
+#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, imgID)   \
+        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
+        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, imgID)
+
+#define AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, KIND)   \
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, blockIdx.x)
+
+#define AUGMENT_RESIZE_GPU_GENERIC(H, W, C, img_in, img_out, KIND)  \
+        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, 0)
+
+#define nYoffset(W, C)          ((W) * (C))
+
+
 #define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
                                      size1->width == size2->width)
+
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
     inline explicit NewResize(const OpSpec &spec) : Resize<Backend>(spec) {
         resizeDescr_.resize(batch_size_);
-        resizeParamGPU_ = NULL;
-        for (int i = 0; i < 2; i++) {
-            sizesGPU_[i] = NULL;
-            imgsGPU_[i] = NULL;
-        }
-
-        resizeDescrGPU_ = NULL;
         setBatchSizeMax(0);
     }
 
@@ -205,10 +258,12 @@ class NewResize : public Resize<Backend> {
         DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
 
         if (pResizeTbl) {
-            const ResizeMapping *pResizeMapping = pResizeTbl->pResizeMapping[0];
-            const PixMapping *pPixMapping = pResizeTbl->pPixMapping[0];
+            const ResizeMapping *pResizeMapping = RESIZE_MAPPING(pResizeTbl->pResizeMapping[0]);
+            const PixMapping *pPixMapping = PIX_MAPPING(pResizeTbl->pPixMapping[0]);
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
+
+            delete pResizeTbl;
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE);
@@ -230,39 +285,32 @@ class NewResize : public Resize<Backend> {
 
         if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
             NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
-            ResizeGridParam resizeParam[N_GRID_PARAMS];
+            ResizeGridParam resizeParam[N_GRID_PARAMS], *pResize = resizeParam;
             ResizeMappingTable *pResizeTbl = NULL;
             const bool newMapping = PrepareCropAndResize(sizeIn, &out_size, C,
                                                          resizeParam, &pResizeTbl);
             if (newMapping) {
-                if (!resizeParamGPU_)
-                    CUDA_MALLOC(resizeParamGPU_, sizeof(resizeParam));
-
                 // Copying the descriptor of operation into __constant__ memory
-                CUDA_MEMCPY(resizeParamGPU_, resizeParam, sizeof(resizeParam));
-
+                CUDA_COPY(resizeParamGPU_, pResize, sizeof(resizeParam));
                 if (pResizeTbl)
-                    pResizeTbl->CopyCongenericResizeParam();
+                    CopyCongenericResizeParam(pResizeTbl);
             }
 
             NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), ws->stream(), C,
                         *sizeIn, input.template data<uint8>(),
                         *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
-                        resizeParamGPU_, pResizeTbl));
+                        RESIZE_PARAM(resizeParamGPU_), pResizeTbl));
 
             delete pResizeTbl;
         } else {
-            const size_t len1 = batch_size_ * sizeof(sizesGPU_[0][0]);
-            const size_t len2 = batch_size_ * sizeof(imgsGPU_[0][0]);
-            const size_t len3 = batch_size_ * sizeof(resizeDescrGPU_[0]);
             if (BatchSizeMax() < batch_size_) {
                 releaseCudaResizeParameter();
                 for (int i = input_t; i <= output_t; i++) {
-                    CUDA_MALLOC(sizesGPU_[i], len1);
-                    CUDA_MALLOC(imgsGPU_[i], len2);
+                    CUDA_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
+                    CUDA_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
                 }
 
-                CUDA_MALLOC(resizeDescrGPU_, len3);
+                CUDA_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
                 setBatchSizeMax(batch_size_);
             }
 
@@ -271,14 +319,14 @@ class NewResize : public Resize<Backend> {
 
             for (int i = input_t; i <= output_t; i++) {
                 const vector<NDLLSize> &sizes =  ResizeAttr::sizes(static_cast<io_type >(i));
-                CUDA_MEMCPY(sizesGPU_[i], sizes.data(), len1);
-                CUDA_MEMCPY(imgsGPU_[i], raster[i]->data(), len2);
+                CUDA_COPY_ELEMENTS(sizesGPU_[i], sizes.data(), batch_size_);
+                CUDA_COPY_ELEMENTS(imgsGPU_[i], raster[i]->data(), batch_size_);
             }
 
-            CUDA_MEMCPY(resizeDescrGPU_, resizeDescr_.data(), len3);
+            CUDA_COPY_ELEMENTS(resizeDescrGPU_, resizeDescr_.data(), batch_size_);
 
-            NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), ws->stream(),
-                                    C, resizeDescrGPU_, sizesGPU_, imgsGPU_));
+            NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), ws->stream(), C,
+                                    CROP_PARAMS(resizeDescrGPU_), sizesGPU_, imgsGPU_));
         }
     }
 
@@ -362,6 +410,18 @@ class NewResize : public Resize<Backend> {
 
     inline void setBatchSizeMax(int value)      { nBatchSizeMax_ = value; }
     inline int BatchSizeMax() const             { return nBatchSizeMax_; }
+
+    void CopyCongenericResizeParam(ResizeMappingTable *pResizeTbl) {
+        releaseCudaResizeMapingTable(pResizeTbl);
+        COPY_TO_DEVICE(pResizeTbl->pResizeMapping[1], pResizeTbl->pResizeMapping[0]);
+        COPY_TO_DEVICE(pResizeTbl->pPixMapping[1], pResizeTbl->pPixMapping[0]);
+    }
+
+    void releaseCudaResizeMapingTable(ResizeMappingTable *pResizeTbl) {
+        CUDA_FREE(pResizeTbl->pResizeMapping[1]);
+        CUDA_FREE(pResizeTbl->pPixMapping[1]);
+    }
+
     void releaseCudaResizeParameter() {
         for (int i = input_t; i <= output_t; i++) {
             CUDA_FREE(sizesGPU_[i]);
@@ -373,11 +433,11 @@ class NewResize : public Resize<Backend> {
     }
 
     // Members used in RunBatchedGPU;
-    ResizeGridParam *resizeParamGPU_;
     vector<NppiRect> resizeDescr_;
-    NDLLSize *sizesGPU_[2];
-    uint8 ** imgsGPU_[2];
-    NppiRect *resizeDescrGPU_;
+    MemoryHandle resizeParamGPU_;
+    MemoryHandle sizesGPU_[2];
+    MemoryHandle imgsGPU_[2];
+    MemoryHandle resizeDescrGPU_;
     int nBatchSizeMax_;
 
     USE_OPERATOR_MEMBERS();

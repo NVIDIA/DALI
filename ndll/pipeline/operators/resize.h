@@ -20,6 +20,17 @@ typedef enum {
 
 typedef std::pair<int, int> resize_t;
 
+class ResizeAttr;
+void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
+                           const char *pOpName = NULL,
+                           vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
+                           vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
+void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
+                           size_t batch_size, bool reshapeBatch = false,
+                           vector<const uint8 *> *iPtrs = NULL,
+                           vector<uint8 *> *oPtrs = NULL, vector<NDLLSize> *pSizes = NULL,
+                           ResizeAttr *pntr = NULL, vector<NppiRect> *pOutResize = NULL);
+
 class ResizeAttr {
  public:
     explicit inline ResizeAttr(const OpSpec &spec) :

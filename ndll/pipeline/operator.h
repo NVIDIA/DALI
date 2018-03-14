@@ -155,54 +155,6 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
       device##Operator, ndll::Operator)
 
-class ResizeAttr;
-void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
-        const char *pOpName = NULL,
-        vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
-        vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
-void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
-        size_t batch_size, bool reshapeBatch = false, vector<const uint8 *> *iPtrs = NULL,
-        vector<uint8 *> *oPtrs = NULL, vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
-        vector<NppiRect> *pOutResize = NULL);
-void CollectPointersForExecution(size_t batch_size,
-        const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-        TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 }  // namespace ndll
-
-
-// Macros for  creation of the CPU/GPU augmentation methods:
-
-#define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
-            AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
-            stepW, stepH, startW, startH, imgIdx, ...)              \
-    AUGMENT_PREAMBLE(H, W, C);                                      \
-    const uint32_t offset = nYoffset(W, C);                         \
-    const uint32_t shift = stepH * offset;                          \
-    const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
-    uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
-    for (int y = startH; y < H; y += stepH) {                       \
-        out += shift;                                               \
-        const int nY = (y + cropY) * sy1;                           \
-        for (int x = startW; x < W; x += stepW) {                   \
-            const int nX = (x + cropX) * sx1;                       \
-            AUGMENT_CORE(C);                                        \
-        }                                                           \
-    }
-
-#define AUGMENT_RESIZE_CPU(H, W, C, img_in, img_out, KIND)          \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, 1, 1, 0, 0, 0)
-
-#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, imgID)   \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, imgID)
-
-#define AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, KIND)   \
-        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, blockIdx.x)
-
-#define AUGMENT_RESIZE_GPU_GENERIC(H, W, C, img_in, img_out, KIND)  \
-        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, 0)
-
-#define nYoffset(W, C)          ((W) * (C))
 
 #endif  // NDLL_PIPELINE_OPERATOR_H_

@@ -132,7 +132,8 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
-           pResizeParam, pTbl? pTbl->pResizeMapping[1] : NULL, pTbl? pTbl->pPixMapping[1] : NULL);
+           pResizeParam, pTbl? RESIZE_MAPPING(pTbl->pResizeMapping[1]) : NULL,
+                  pTbl? PIX_MAPPING(pTbl->pPixMapping[1]) : NULL);
 
     return NDLLSuccess;
 }
@@ -184,12 +185,12 @@ __global__ void BatchedResizeKernel(int C, const NppiRect *resizeDescr,
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const NppiRect *resizeDescr,
-                          const NDLLSize * const sizes[], uint8 ** const raster[]) {
-    const uint8 * const* in = raster[input_t];
-    uint8 * const *out = raster[output_t];
+                          const MemoryHandle sizes[], const MemoryHandle raster[]) {
+    const uint8 * const* in = IMG_RASTERS(raster[input_t]);
+    uint8 * const *out = IMG_RASTERS(raster[output_t]);
 
     BatchedResizeKernel<<<N, gridDim, 0, stream>>>(C, resizeDescr,
-            sizes[input_t], in, sizes[output_t], out);
+            IMG_SIZES(sizes[input_t]), in, IMG_SIZES(sizes[output_t]), out);
 
     return NDLLSuccess;
 }
@@ -200,41 +201,21 @@ ResizeMappingTable::ResizeMappingTable(int H0, int W0, int H1, int W1, int C,
     io_size[1] = {W1, H1};
     C_ = C;
 
-    pResizeMapping[0] = new ResizeMapping[xSize * ySize];
-    pResizeMapping[1] = NULL;
-
-    tableLength = xSize * ySize * sizeof(pResizeMapping[0][0]);
-    memset(pResizeMapping[0], 0, tableLength);
-    pPixMapping[0] = pPixMapping[1] = NULL;
+    const int nElem = xSize * ySize;
+    pResizeMapping[0].setMemory(new ResizeMapping[nElem], nElem * sizeof(ResizeMapping), true);
 }
 
 ResizeMappingTable::~ResizeMappingTable() {
-    delete [] pPixMapping[0];
-    delete [] pResizeMapping[0];
-    releaseCudaResizeMapingTable();
+    delete [] RESIZE_MAPPING(pPixMapping[0]);
+    delete [] PIX_MAPPING(pResizeMapping[0]);
 }
 
 bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1) const {
-    if (!pResizeMapping[0])
+    if (!RESIZE_MAPPING(pResizeMapping[0]))
         return false;
 
     return io_size[0].height == H0 && io_size[0].width == W0 &&
            io_size[1].height == H1 && io_size[1].width == W1;
-}
-
-void ResizeMappingTable::CopyCongenericResizeParam() {
-    releaseCudaResizeMapingTable();
-    CUDA_MALLOC(pResizeMapping[1], getMappingTableLength());
-    CUDA_MEMCPY(pResizeMapping[1], pResizeMapping[0], getMappingTableLength());
-    if (pPixMapping[0]) {
-        CUDA_MALLOC(pPixMapping[1], pixMappingLen);
-        CUDA_MEMCPY(pPixMapping[1], pPixMapping[0], pixMappingLen);
-    }
-}
-
-void ResizeMappingTable::releaseCudaResizeMapingTable() {
-    CUDA_FREE(pResizeMapping[1]);
-    CUDA_FREE(pPixMapping[1]);
 }
 
 class PixMappingHelper {
@@ -315,11 +296,10 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
     const int sx1 = lcmW / W1;
 
     ResizeMappingTable *pTable = new ResizeMappingTable(H0, W0, H1, W1, C, sx0, sy0);
-    PixMappingHelper helper(sx0 * sy0, pTable->pResizeMapping[0], use_NN? sx1 * sy1 : 0);
+    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING(pTable->pResizeMapping[0]), use_NN? sx1 * sy1 : 0);
 
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
-
     for (int y = 0; y < sy0; ++y) {
         for (int x = 0; x < sx0; ++x) {
             const int nX = x * sx1;
@@ -380,8 +360,8 @@ ResizeMappingTable *createResizeMappingTable(int H0, int W0, int H1, int W1, int
         }
     }
 
-    pTable->pPixMapping[0] = helper.getPixMapping();
-    pTable->pixMappingLen = helper.numUsed() * sizeof(pTable->pPixMapping[0][0]);
+    pTable->pPixMapping[0].setMemory(helper.getPixMapping(),
+                                     helper.numUsed() * sizeof(PixMapping));
     return pTable;
 }
 
