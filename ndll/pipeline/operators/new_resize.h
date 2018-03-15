@@ -13,29 +13,31 @@
 
 namespace ndll {
 
-#define USE_CPU_MEMORY_ALLOCATION   1
+#define USE_CPU_BACKEND_MALLOC      1
 #define PINNED                      false
 
 #define BACKEND_MALLOC(x, len)      x.pntr = Backend::New(x.length = len, PINNED)
 #define BACKEND_FREE(x)             { if (x.pntr)       \
                                         Backend::Delete(x.pntr, x.length, PINNED); x.reset(); }
 
-#if USE_CPU_MEMORY_ALLOCATION
+#if USE_CPU_BACKEND_MALLOC
 #define CPU_BACKEND_MALLOC(x, len, reset, type)             \
                                     (x).setMemory(CPUBackend::New(len, PINNED), len, reset);
-#define CPU_BACKEND_FREE(x, type)   { if ((x).pntr)         \
-                                        CPUBackend::Delete((x).pntr, (x).length, PINNED); (x).reset(); }
+#define CPU_BACKEND_FREE(x, type)   \
+            { if ((x).pntr) {CPUBackend::Delete((x).pntr, (x).length, PINNED); (x).reset(); } }
 #else
 #define CPU_BACKEND_MALLOC(x, len, reset, type)             \
                                     (x).setMemory(new type[len/sizeof(type)], len, reset)
 #define CPU_BACKEND_FREE(x, type)   { delete [] POINTER_OF_TYPE(type, x); (x).reset(); }
 #endif
 
-#define CUDA_MEMCPY(x, y, len)      CUDA_CALL(cudaMemcpy(x.pntr, y, len, cudaMemcpyHostToDevice))
-#define CUDA_COPY_ELEMENTS(x, y, n) CUDA_MEMCPY(x, y, n * sizeof(y[0]))
+#define CUDA_MEMCPY(x, y, len, s)  \
+            CUDA_CALL(cudaMemcpyAsync(x.pntr, y, len, cudaMemcpyHostToDevice, s));
 
-#define CUDA_COPY(x, y, len)        if (y) { BACKEND_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length); }
-#define COPY_TO_DEVICE(x, y)        CUDA_COPY(x, y.pntr, y.length);
+#define CUDA_COPY_ELEMENTS(x, y, n, s)  CUDA_MEMCPY(x, y, n * sizeof(y[0]), s)
+
+#define CUDA_COPY(x, y, len, s) if (y) { BACKEND_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length, s); }
+#define COPY_TO_DEVICE(x, y, s) CUDA_COPY(x, y.pntr, y.length, s);
 
 struct ResizeGridParam {
     int nX;
@@ -45,7 +47,7 @@ struct ResizeGridParam {
 struct ClassHandle {
     void *pntr;
     size_t length;
-    ClassHandle()                                                     { reset(); }
+    inline ClassHandle()                                              { reset(); }
     inline void reset()                                               { setMemory(NULL, 0); }
     inline void setMemory(void *p, size_t len, bool initMem = false)  { length = len;
                                                                         if ((pntr = p) && initMem)
@@ -81,9 +83,9 @@ struct ClassHandle {
         out[to + 2] = (pixColor[2] + (area >> 1)) / area;           \
     }                                                               \
 
-#define RESIZE_PREAMBLE(H, W, C)                \
-    RESIZE_PREPARE()                            \
-    uint32_t extraColor[3] = {0, 0, 0};         \
+#define RESIZE_PREAMBLE(H, W, C)                                    \
+    RESIZE_PREPARE()                                                \
+    uint32_t extraColor[3] = {0, 0, 0};                             \
     uint32_t sumColor[3], pixColor[3];
 
 #define RESIZE_CORE(C)                                              \
@@ -255,7 +257,7 @@ class NewResize : public Resize<Backend> {
  protected:
     void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
         const auto &input = ws->Input<CPUBackend>(idx);
-        const auto output = ws->Output<CPUBackend>(idx);
+        const auto &output = ws->Output<CPUBackend>(idx);
 
         const vector <Index> &input_shape = input.shape();
         NDLLSize out_size, input_size;
@@ -292,7 +294,7 @@ class NewResize : public Resize<Backend> {
 
     void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
         const auto &input = ws->Input<GPUBackend>(idx);
-        const auto output = ws->Output<GPUBackend>(idx);
+        const auto &output = ws->Output<GPUBackend>(idx);
 
         DataDependentSetupGPU(input, output, batch_size_, false,
               ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this, &resizeDescr_);
@@ -302,6 +304,7 @@ class NewResize : public Resize<Backend> {
 
         const NDLLSize *sizeIn = ResizeAttr::size(input_t, 0);
         const NDLLSize *sizeOut = ResizeAttr::size(output_t, 0);
+        cudaStream_t s = ws->stream();
 
         if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
             NDLLSize out_size = {resizeDescr_[0].width, resizeDescr_[0].height};
@@ -313,12 +316,12 @@ class NewResize : public Resize<Backend> {
             ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
             if (newMapping) {
                 // Copying the descriptor of operation into __constant__ memory
-                CUDA_COPY(resizeParamGPU_, pResize, sizeof(resizeParam));
+                CUDA_COPY(resizeParamGPU_, pResize, sizeof(resizeParam), s);
                 if (pResizeTbl)
-                    CopyCongenericResizeParam(pResizeTbl);
+                    CopyCongenericResizeParam(pResizeTbl, s);
             }
 
-            NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), ws->stream(), C,
+            NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
                         *sizeIn, input.template data<uint8>(),
                         *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                         RESIZE_PARAM(resizeParamGPU_), pResizeTbl));
@@ -342,13 +345,13 @@ class NewResize : public Resize<Backend> {
 
             for (int i = input_t; i <= output_t; i++) {
                 const vector<NDLLSize> &sizes =  ResizeAttr::sizes(static_cast<io_type >(i));
-                CUDA_COPY_ELEMENTS(sizesGPU_[i], sizes.data(), batch_size_);
-                CUDA_COPY_ELEMENTS(imgsGPU_[i], raster[i]->data(), batch_size_);
+                CUDA_COPY_ELEMENTS(sizesGPU_[i], sizes.data(), batch_size_, s);
+                CUDA_COPY_ELEMENTS(imgsGPU_[i], raster[i]->data(), batch_size_, s);
             }
 
-            CUDA_COPY_ELEMENTS(resizeDescrGPU_, resizeDescr_.data(), batch_size_);
+            CUDA_COPY_ELEMENTS(resizeDescrGPU_, resizeDescr_.data(), batch_size_, s);
 
-            NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), ws->stream(), C,
+            NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C,
                                     CROP_PARAMS(resizeDescrGPU_), sizesGPU_, imgsGPU_));
         }
     }
@@ -435,10 +438,10 @@ class NewResize : public Resize<Backend> {
     inline void setBatchSizeMax(int value)      { nBatchSizeMax_ = value; }
     inline int BatchSizeMax() const             { return nBatchSizeMax_; }
 
-    void CopyCongenericResizeParam(ResizeMappingTable *pResizeTbl) {
+    void CopyCongenericResizeParam(ResizeMappingTable *pResizeTbl, cudaStream_t s) {
         releaseCudaResizeMapingTable(pResizeTbl);
-        COPY_TO_DEVICE(pResizeTbl->pResizeMapping[1], pResizeTbl->pResizeMapping[0]);
-        COPY_TO_DEVICE(pResizeTbl->pPixMapping[1], pResizeTbl->pPixMapping[0]);
+        COPY_TO_DEVICE(pResizeTbl->pResizeMapping[1], pResizeTbl->pResizeMapping[0], s);
+        COPY_TO_DEVICE(pResizeTbl->pPixMapping[1], pResizeTbl->pPixMapping[0], s);
     }
 
     void releaseCudaResizeMapingTable(ResizeMappingTable *pResizeTbl) {
