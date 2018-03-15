@@ -17,14 +17,18 @@ namespace ndll {
 #define PINNED                      false
 
 #define BACKEND_MALLOC(x, len)      x.pntr = Backend::New(x.length = len, PINNED)
-#define BACKEND_FREE(x)             { if (x.pntr) \
+#define BACKEND_FREE(x)             { if (x.pntr)       \
                                         Backend::Delete(x.pntr, x.length, PINNED); x.reset(); }
 
 #if USE_CPU_MEMORY_ALLOCATION
-#define CPU_BACKEND_FREE(x)         { if (x.pntr)     \
-                                        CPUBackend::Delete(x.pntr, x.length, PINNED); x.reset(); }
+#define CPU_BACKEND_MALLOC(x, len, reset, type)             \
+                                    (x).setMemory(CPUBackend::New(len, PINNED), len, reset);
+#define CPU_BACKEND_FREE(x, type)   { if ((x).pntr)         \
+                                        CPUBackend::Delete((x).pntr, (x).length, PINNED); (x).reset(); }
 #else
-#define CPU_BACKEND_FREE(x)         delete (ResizeMappingTable *)x.pntr
+#define CPU_BACKEND_MALLOC(x, len, reset, type)             \
+                                    (x).setMemory(new type[len/sizeof(type)], len, reset)
+#define CPU_BACKEND_FREE(x, type)   { delete [] POINTER_OF_TYPE(type, x); (x).reset(); }
 #endif
 
 #define CUDA_MEMCPY(x, y, len)      CUDA_CALL(cudaMemcpy(x.pntr, y, len, cudaMemcpyHostToDevice))
@@ -46,7 +50,7 @@ struct ClassHandle {
     inline void setMemory(void *p, size_t len, bool initMem = false)  { length = len;
                                                                         if ((pntr = p) && initMem)
                                                                             memset(pntr, 0, len);
-                                                                     }
+                                                                      }
 };
 
 #define POINTER_OF_TYPE(type, x)    static_cast<type *>((x).pntr)
@@ -146,9 +150,10 @@ class ResizeMappingTable {
     ClassHandle pPixMapping[2];      // pointer to the PixMapping arrays  for CPU/GPU
 
     ResizeMappingTable()            {}
-    ~ResizeMappingTable();
+    ~ResizeMappingTable()           { closeTable(); }
     bool IsValid(int H0, int W0, int H1, int W1) const;
     void constructTable(int H0, int W0, int H1, int W1, int C, bool use_NN);
+    void closeTable();
  private:
     void initTable(int H0, int W0, int H1, int W1, int C, uint16_t xSize, uint16_t ySize);
 };
@@ -270,14 +275,15 @@ class NewResize : public Resize<Backend> {
 
         DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
 
-        const ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
+        ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
         if (pResizeTbl) {
             const ResizeMapping *pResizeMapping = RESIZE_MAPPING(pResizeTbl->pResizeMapping[0]);
             const PixMapping *pPixMapping = PIX_MAPPING(pResizeTbl->pPixMapping[0]);
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
 
-            CPU_BACKEND_FREE(resizeTbl);
+            pResizeTbl->closeTable();
+            CPU_BACKEND_FREE(resizeTbl, ResizeMappingTable);
         } else {
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE);
@@ -317,7 +323,8 @@ class NewResize : public Resize<Backend> {
                         *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                         RESIZE_PARAM(resizeParamGPU_), pResizeTbl));
 
-            CPU_BACKEND_FREE(resizeTbl);
+            pResizeTbl->closeTable();
+            CPU_BACKEND_FREE(resizeTbl, ResizeMappingTable);
         } else {
             if (BatchSizeMax() < batch_size_) {
                 releaseCudaResizeParameter();
@@ -390,11 +397,7 @@ class NewResize : public Resize<Backend> {
 
             if (!pResizeTbl) {
                 const size_t lenClass = sizeof(ResizeMappingTable);
-#if USE_CPU_MEMORY_ALLOCATION
-                ppResizeTbl->setMemory(new ResizeMappingTable(), lenClass);
-#else
-                ppResizeTbl->setMemory(CPUBackend::New(lenClass, false), lenClass);
-#endif
+                CPU_BACKEND_MALLOC(*ppResizeTbl, lenClass, true, ResizeMappingTable);
                 pResizeTbl = MAPPING_TABLE(*ppResizeTbl);
                 pResizeTbl->constructTable(H0, W0, H1, W1, C,
                                            ResizeAttr::type_ == NDLL_INTERP_NN);
