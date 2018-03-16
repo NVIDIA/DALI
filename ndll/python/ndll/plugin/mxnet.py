@@ -28,7 +28,8 @@ class NDLLIterator:
                  pipelines,
                  size = -1,
                  data_name='data',
-                 label_name='softmax_label'):
+                 label_name='softmax_label',
+                 data_layout='NCHW'):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -50,7 +51,7 @@ class NDLLIterator:
         data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
         label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
 
-        self.provide_data = [mx.io.DataDesc(data_name, data_shape, data.dtype)]
+        self.provide_data = [mx.io.DataDesc(data_name, data_shape, data.dtype, layout=data_layout)]
         self.provide_label = [mx.io.DataDesc(label_name, label_shape, label.dtype)]
 
     def __next__(self):
