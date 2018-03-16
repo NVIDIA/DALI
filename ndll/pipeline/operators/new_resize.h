@@ -31,13 +31,16 @@ namespace ndll {
 #define CPU_BACKEND_FREE(x, type)   { delete [] POINTER_OF_TYPE(type, x); (x).reset(); }
 #endif
 
-#define CUDA_MEMCPY(x, y, len, s)  \
-            CUDA_CALL(cudaMemcpyAsync(x.pntr, y, len, cudaMemcpyHostToDevice, s));
+#define CUDA_MEMCPY(x, y, len, s)       \
+            CUDA_CALL(cudaMemcpyAsync(x, y, len, cudaMemcpyHostToDevice, s));
 
-#define CUDA_COPY_ELEMENTS(x, y, n, s)  CUDA_MEMCPY(x, y, n * sizeof(y[0]), s)
+#define CUDA_COPY_ELEMENTS(x, y, n, s)  CUDA_MEMCPY(x.pntr, y, n * sizeof(y[0]), s)
 
-#define CUDA_COPY(x, y, len, s) if (y) { BACKEND_MALLOC(x, len); CUDA_MEMCPY(x, y, x.length, s); }
+#define CUDA_COPY(x, y, len, s) if (y)  \
+            { BACKEND_MALLOC(x, len); CUDA_MEMCPY(x.pntr, y, x.length, s); }
+
 #define COPY_TO_DEVICE(x, y, s) CUDA_COPY(x, y.pntr, y.length, s);
+
 
 struct ResizeGridParam {
     int nX;
@@ -249,7 +252,13 @@ class NewResize : public Resize<Backend> {
  public:
     inline explicit NewResize(const OpSpec &spec) : Resize<Backend>(spec) {
         resizeDescr_.resize(batch_size_);
-        setBatchSizeMax(0);
+
+        for (int i = input_t; i <= output_t; i++) {
+            BACKEND_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
+            BACKEND_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
+        }
+
+        BACKEND_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
     }
 
     virtual inline ~NewResize()             { releaseCudaResizeParameter(); }
@@ -329,17 +338,6 @@ class NewResize : public Resize<Backend> {
             pResizeTbl->closeTable();
             CPU_BACKEND_FREE(resizeTbl, ResizeMappingTable);
         } else {
-            if (BatchSizeMax() < batch_size_) {
-                releaseCudaResizeParameter();
-                for (int i = input_t; i <= output_t; i++) {
-                    BACKEND_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
-                    BACKEND_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
-                }
-
-                BACKEND_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
-                setBatchSizeMax(batch_size_);
-            }
-
             vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
                                          ResizeAttr::outputImages()};
 
@@ -435,9 +433,6 @@ class NewResize : public Resize<Backend> {
         return i == 0;
     }
 
-    inline void setBatchSizeMax(int value)      { nBatchSizeMax_ = value; }
-    inline int BatchSizeMax() const             { return nBatchSizeMax_; }
-
     void CopyCongenericResizeParam(ResizeMappingTable *pResizeTbl, cudaStream_t s) {
         releaseCudaResizeMapingTable(pResizeTbl);
         COPY_TO_DEVICE(pResizeTbl->pResizeMapping[1], pResizeTbl->pResizeMapping[0], s);
@@ -456,16 +451,16 @@ class NewResize : public Resize<Backend> {
         }
 
         BACKEND_FREE(resizeDescrGPU_);
-        setBatchSizeMax(0);
     }
 
     // Members used in RunBatchedGPU;
     vector<NppiRect> resizeDescr_;
     ClassHandle resizeParamGPU_;
+
     ClassHandle sizesGPU_[2];
     ClassHandle imgsGPU_[2];
+
     ClassHandle resizeDescrGPU_;
-    int nBatchSizeMax_;
 
     USE_OPERATOR_MEMBERS();
 };
