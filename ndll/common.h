@@ -168,6 +168,9 @@ std::string to_string(const std::vector<T>& v) {
   return ret;
 }
 
+#define LOG_LINE \
+  std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+
 }  // namespace ndll
 
 #endif  // NDLL_COMMON_H_

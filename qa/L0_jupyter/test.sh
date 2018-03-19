@@ -3,7 +3,7 @@ set -e
 
 cd /opt/ndll/examples
 
-pip install jupyter matplotlib
+pip install jupyter matplotlib tensorflow-gpu
 
 mkdir -p /opt/ndll/idx_files
 

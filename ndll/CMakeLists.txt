@@ -72,19 +72,45 @@ endif()
 
 # Build the TensorFlow op
 if (BUILD_TENSORFLOW)
-  execute_process(
-    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_include(), end='')"
-    OUTPUT_VARIABLE TF_INC)
-  execute_process(
-    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_lib(), end='')"
-    OUTPUT_VARIABLE TF_LIB)
 
-  message(STATUS "TF_INC location: " ${TF_INC})
-  message(STATUS "TF_LIB location: " ${TF_LIB})
+  # TF <= 1.3
+  # execute_process(
+  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_include(), end='')"
+  #  OUTPUT_VARIABLE TF_INC)
+  # execute_process(
+  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_lib(), end='')"
+  #  OUTPUT_VARIABLE TF_LIB)
+
+  execute_process(
+    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_compile_flags()), end=\"\")"
+    OUTPUT_VARIABLE TF_CFLAGS)
+
+  execute_process(
+    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_link_flags()), end=\"\")"
+    OUTPUT_VARIABLE TF_LFLAGS)
+
+  # TF <= 1.3
+  # message(STATUS "TF_INC location: " ${TF_INC})
+  # message(STATUS "TF_LIB location: " ${TF_LIB})
+
+  message(STATUS "TF_CFLAGS location: " ${TF_CFLAGS})
+  message(STATUS "TF_LFLAGS location: " ${TF_LFLAGS})
 
   add_subdirectory(tensorflow)
 
   set(customop_lib "ndllop")
   cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS})
-  target_compile_options(${customop_lib} PRIVATE -I${TF_INC} -I${TF_INC}/external/nsync/public -L${TF_LIB} -ltensorflow_framework)
+
+  # TF <= 1.3
+  # target_compile_options(${customop_lib} PRIVATE -D_GLIBCXX_USE_CXX11_ABI=0 -I${TF_INC} -I${TF_INC}/external/nsync/public -lcudart -L /usr/local/cuda/lib64 -L${TF_LIB} -ltensorflow_framework)
+
+  separate_arguments(TF_CFLAGS UNIX_COMMAND "${TF_CFLAGS}")
+  separate_arguments(TF_LFLAGS UNIX_COMMAND "${TF_LFLAGS}")
+  target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS} -D_GLIBCXX_USE_CXX11_ABI=0)
+
+  add_dependencies(${customop_lib} ${ndll_lib})
+
+  target_link_libraries(${customop_lib} -L/usr/local/lib/python2.7/dist-packages/tensorflow)
+  target_link_libraries(${customop_lib} -ltensorflow_framework)
+  target_link_libraries(${customop_lib} ${NDLL_LIBS} ${ndll_lib})
 endif()
