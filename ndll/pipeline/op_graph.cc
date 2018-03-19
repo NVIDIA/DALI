@@ -72,7 +72,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     // Create the operator
     OpPtr tmp(
-        CPUOperatorRegistry::Registry().Create(spec.name(), spec));
+        CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));
 
     cpu_nodes_.resize(cpu_nodes_.size()+1);
     OpNode &cpu_node = cpu_nodes_.back();
@@ -86,7 +86,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     // Create the operator
     OpPtr tmp(
-        GPUOperatorRegistry::Registry().Create(spec.name(), spec));
+        GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));
 
     gpu_nodes_.resize(gpu_nodes_.size()+1);
     OpNode &gpu_node = gpu_nodes_.back();
@@ -100,7 +100,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     // Create the operator
     OpPtr tmp(
-        MixedOperatorRegistry::Registry().Create(spec.name(), spec));
+        MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device));
 
     mixed_nodes_.resize(mixed_nodes_.size()+1);
     OpNode &mixed_node = mixed_nodes_.back();

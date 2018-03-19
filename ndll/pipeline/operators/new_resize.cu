@@ -12,7 +12,7 @@ namespace ndll {
 
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                             Tensor<CPUBackend> *output, const char *pOpName,
-                            vector<const uint8 *> *inPtrs, vector<uint8 *> *outPtrs,
+                           const uint8 **ppInRaster, uint8 **ppOutRaster,
                             vector<NDLLSize> *pSizes, const NDLLSize *out_size) {
     NDLL_ENFORCE(input.ndim() == 3);
     NDLL_ENFORCE(IsType<uint8>(input.type()), "Expects input data in uint8.");
@@ -30,12 +30,12 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
 
     output->set_type(input.type());
 
-    if (!inPtrs)
+    if (!ppInRaster)
         return;
 
-    (*inPtrs)[0] = input.template data<uint8>();
-    if (outPtrs)
-        (*outPtrs)[0] = static_cast<uint8*>(output->raw_mutable_data());
+    *ppInRaster = input.template data<uint8>();
+    if (ppOutRaster)
+        *ppOutRaster = static_cast<uint8*>(output->raw_mutable_data());
 
     if (pSizes) {
         (*pSizes)[0].height = shape[0];

@@ -31,11 +31,11 @@ class OperatorRegistry {
   }
 
   std::unique_ptr<OpType> Create(
-      const std::string &name, const OpSpec &spec) {
+      const std::string &name, const OpSpec &spec, const std::string *device_name = NULL) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto creator_it = registry_.find(name);
     NDLL_ENFORCE(creator_it != registry_.end(),
-        "Operator \"" + name + "\" not registered.");
+        "Operator \"" + name + "\" not registered" + (device_name? (" for " + *device_name) : "") + ".");
     return registry_[name](spec);
   }
 

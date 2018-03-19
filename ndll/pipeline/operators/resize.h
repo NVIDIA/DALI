@@ -23,7 +23,7 @@ typedef std::pair<int, int> resize_t;
 class ResizeAttr;
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
                            const char *pOpName = NULL,
-                           vector<const uint8 *> *inPtrs = NULL, vector<uint8 *> *outPtrs = NULL,
+                           const uint8 **pInRaster = NULL, uint8 **ppOutRaster = NULL,
                            vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
 void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch = false,
@@ -133,17 +133,19 @@ class Resize : public Operator, public ResizeAttr {
   }
 
   void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+
         const auto &input = ws->Input<CPUBackend>(idx);
         auto output = ws->Output<CPUBackend>(idx);
 
         const vector <Index> &input_shape = input.shape();
-        NDLLSize *out_size = size(output_t, 0);
-        SetSize(size(input_t, 0), input_shape, resize(), out_size);
+        NDLLSize input_size, out_size;
+        SetSize(&input_size, input_shape, resize(), &out_size);
 
-        DataDependentSetupCPU(input, output, "Resize", &input_ptrs_,
-                              &output_ptrs_, NULL, out_size);
-        NDLL_CALL(BatchedResize((const uint8 **) input_ptrs_.data(), 1, C_, sizes(input_t).data(),
-                                    output_ptrs_.data(), sizes(output_t).data(), type_));
+        const uint8 *pInRaster;
+        uint8 *pOutRaster;
+        DataDependentSetupCPU(input, output, "Resize", &pInRaster, &pOutRaster, NULL, &out_size);
+        NDLL_CALL(BatchedResize(&pInRaster, 1, C_, &input_size,
+                                    &pOutRaster, &out_size, type_));
   }
 
   inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
