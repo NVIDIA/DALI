@@ -133,7 +133,6 @@ class Resize : public Operator, public ResizeAttr {
   }
 
   void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
-
         const auto &input = ws->Input<CPUBackend>(idx);
         auto output = ws->Output<CPUBackend>(idx);
 
