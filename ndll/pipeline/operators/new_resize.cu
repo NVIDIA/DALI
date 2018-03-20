@@ -185,7 +185,7 @@ __global__ void BatchedResizeKernel(int C, const NppiRect *resizeDescr,
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const NppiRect *resizeDescr,
-                          const ClassHandle sizes[], const ClassHandle raster[]) {
+                          const ImgSizeDescr sizes[], const ImgRasterDescr raster[]) {
     const uint8 * const* in = IMG_RASTERS(raster[input_t]);
     uint8 * const *out = IMG_RASTERS(raster[output_t]);
 

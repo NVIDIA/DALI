@@ -58,14 +58,21 @@ struct ClassHandle {
                                                                       }
 };
 
+typedef Tensor<GPUBackend> ResizeDescr;
+typedef Tensor<GPUBackend> ImgSizeDescr;
+typedef Tensor<GPUBackend> ImgRasterDescr;
+
+#define GPU_BACKEND_PARAMS(x, type) x.template data<type>()
+#define CROP_PARAMS(x)              GPU_BACKEND_PARAMS(x, NppiRect)
+#define IMG_SIZES(x)                GPU_BACKEND_PARAMS(x, NDLLSize)
+#define IMG_RASTERS(x)              GPU_BACKEND_PARAMS(x, uint8 *)
+
 #define POINTER_OF_TYPE(type, x)    static_cast<type *>((x).pntr)
 #define MAPPING_TABLE(x)            POINTER_OF_TYPE(ResizeMappingTable, x)
 #define RESIZE_MAPPING(x)           POINTER_OF_TYPE(ResizeMapping, x)
 #define PIX_MAPPING(x)              POINTER_OF_TYPE(PixMapping, x)
 #define RESIZE_PARAM(x)             POINTER_OF_TYPE(ResizeGridParam, x)
-#define CROP_PARAMS(x)              POINTER_OF_TYPE(NppiRect, x)
-#define IMG_SIZES(x)                POINTER_OF_TYPE(NDLLSize, x)
-#define IMG_RASTERS(x)              POINTER_OF_TYPE(uint8 *, x)
+
 
 #define N_GRID_PARAMS       3
 
@@ -206,8 +213,8 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl);
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          const NppiRect *resizeDescr, const ClassHandle sizes[],
-                          const ClassHandle imgRasterGPU[]);
+                          const NppiRect *resizeDescr, const ImgSizeDescr sizes[],
+                          const ImgRasterDescr imgRasterGPU[]);
 
 // Macros for  creation of the CPU/GPU augmentation methods:
 #define AUGMENT_RESIZE(H, W, C, img_in, img_out,                    \
@@ -247,21 +254,15 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
 #define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
                                      size1->width == size2->width)
 
+
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
     inline explicit NewResize(const OpSpec &spec) : Resize<Backend>(spec) {
         resizeDescr_.resize(batch_size_);
-
-        for (int i = input_t; i <= output_t; i++) {
-            BACKEND_MALLOC(sizesGPU_[i], batch_size_ * sizeof(NDLLSize));
-            BACKEND_MALLOC(imgsGPU_[i], batch_size_ * sizeof(uint8 *));
-        }
-
-        BACKEND_MALLOC(resizeDescrGPU_, batch_size_ * sizeof(NppiRect));
     }
 
-    virtual inline ~NewResize()             { releaseCudaResizeParameter(); }
+    virtual inline ~NewResize() = default;
 
  protected:
     void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
@@ -338,19 +339,23 @@ class NewResize : public Resize<Backend> {
             pResizeTbl->closeTable();
             CPU_BACKEND_FREE(resizeTbl, ResizeMappingTable);
         } else {
+
+            ImgSizeDescr sizesGPU[2];          // Input/Output image sizes
+            ImgRasterDescr rastersGPU[2];      // Input/Output image rasters
+            ResizeDescr resizeDescrGPU;        // Descriptions of the image crops
+
             vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
                                          ResizeAttr::outputImages()};
 
             for (int i = input_t; i <= output_t; i++) {
-                const vector<NDLLSize> &sizes =  ResizeAttr::sizes(static_cast<io_type >(i));
-                CUDA_COPY_ELEMENTS(sizesGPU_[i], sizes.data(), batch_size_, s);
-                CUDA_COPY_ELEMENTS(imgsGPU_[i], raster[i]->data(), batch_size_, s);
+                sizesGPU[i].Copy(ResizeAttr::sizes(static_cast<io_type >(i)), s);
+                rastersGPU[i].Copy(*(raster[i]), s);
             }
 
-            CUDA_COPY_ELEMENTS(resizeDescrGPU_, resizeDescr_.data(), batch_size_, s);
+            resizeDescrGPU.Copy(resizeDescr_, s);
 
             NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C,
-                                    CROP_PARAMS(resizeDescrGPU_), sizesGPU_, imgsGPU_));
+                                    CROP_PARAMS(resizeDescrGPU), sizesGPU, rastersGPU));
         }
     }
 
@@ -444,23 +449,9 @@ class NewResize : public Resize<Backend> {
         BACKEND_FREE(pResizeTbl->pPixMapping[1]);
     }
 
-    void releaseCudaResizeParameter() {
-        for (int i = input_t; i <= output_t; i++) {
-            BACKEND_FREE(sizesGPU_[i]);
-            BACKEND_FREE(imgsGPU_[i]);
-        }
-
-        BACKEND_FREE(resizeDescrGPU_);
-    }
-
     // Members used in RunBatchedGPU;
     vector<NppiRect> resizeDescr_;
     ClassHandle resizeParamGPU_;
-
-    ClassHandle sizesGPU_[2];
-    ClassHandle imgsGPU_[2];
-
-    ClassHandle resizeDescrGPU_;
 
     USE_OPERATOR_MEMBERS();
 };
