@@ -169,7 +169,7 @@ std::string to_string(const std::vector<T>& v) {
 }
 
 #define LOG_LINE \
-  std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+  std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 }  // namespace ndll
 

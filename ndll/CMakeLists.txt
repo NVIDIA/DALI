@@ -113,4 +113,6 @@ if (BUILD_TENSORFLOW)
   target_link_libraries(${customop_lib} -L/usr/local/lib/python2.7/dist-packages/tensorflow)
   target_link_libraries(${customop_lib} -ltensorflow_framework)
   target_link_libraries(${customop_lib} ${NDLL_LIBS} ${ndll_lib})
+
+  install(TARGETS ${customop_lib} DESTINATION lib)
 endif()
