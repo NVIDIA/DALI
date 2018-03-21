@@ -132,7 +132,7 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
-           pResizeParam, pTbl? RESIZE_MAPPING(pTbl->pResizeMapping[1]) : NULL,
+           pResizeParam, pTbl? RESIZE_MAPPING(pTbl->resizeMappingGPU) : NULL,
                   pTbl? PIX_MAPPING(pTbl->pPixMapping[1]) : NULL);
 
     return NDLLSuccess;
@@ -193,29 +193,6 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
             IMG_SIZES(sizes[input_t]), in, IMG_SIZES(sizes[output_t]), out);
 
     return NDLLSuccess;
-}
-
-void ResizeMappingTable::initTable(int H0, int W0, int H1, int W1, int C,
-                                   uint16_t xSize, uint16_t ySize) {
-    io_size[0] = {W0, H0};
-    io_size[1] = {W1, H1};
-    C_ = C;
-
-    const int len = xSize * ySize * sizeof(ResizeMapping);
-    CPU_BACKEND_MALLOC(pResizeMapping[0], len, true, ResizeMapping);
-}
-
-void ResizeMappingTable::closeTable() {
-    CPU_BACKEND_FREE(pResizeMapping[0], ResizeMapping);
-    CPU_BACKEND_FREE(pPixMapping[0], PixMapping);
-}
-
-bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1) const {
-    if (!RESIZE_MAPPING(pResizeMapping[0]))
-        return false;
-
-    return io_size[0].height == H0 && io_size[0].width == W0 &&
-           io_size[1].height == H1 && io_size[1].width == W1;
 }
 
 class PixMappingHelper {
@@ -304,8 +281,9 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, b
     const int sx0 = lcmW / W0;
     const int sx1 = lcmW / W1;
 
-    initTable(H0, W0, H1, W1, C, sx0, sy0);
-    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING(pResizeMapping[0]),
+    resizeMappingCPU.Resize({sx0 * sy0});
+
+    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_PNTR(resizeMappingCPU),
                             pPixMapping, use_NN? sx1 * sy1 : 0);
 
     // (x, y) pixel coordinate of PIX in resized image
