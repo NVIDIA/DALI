@@ -106,7 +106,7 @@ if (BUILD_TENSORFLOW)
 
   separate_arguments(TF_CFLAGS UNIX_COMMAND "${TF_CFLAGS}")
   separate_arguments(TF_LFLAGS UNIX_COMMAND "${TF_LFLAGS}")
-  target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS} -D_GLIBCXX_USE_CXX11_ABI=0)
+  target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
 
   add_dependencies(${customop_lib} ${ndll_lib})
 
