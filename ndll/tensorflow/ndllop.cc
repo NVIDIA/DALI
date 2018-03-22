@@ -21,29 +21,20 @@ tf::TensorShape NdllToShape(std::vector<ndll::Index> ns) {
 REGISTER_OP("Ndll")
   .Attr("serialized_pipeline: string")
   .Attr("batch_size: int = 128")
+  .Attr("height: int = 0")
+  .Attr("width: int = 0")
   .Attr("num_threads: int = 2")
   .Attr("device_id: int = 0")
   .Output("batch: float")
   .Output("label: float")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
-    std::string serialized_pipeline;
-    TF_RETURN_IF_ERROR(c->GetAttr("serialized_pipeline", &serialized_pipeline));
-    // TODO(spanev) tmp solution: get static shape from pipeline
-   /* {
-      PipelineHandle pipe_handle;
-      std::vector<ndll::Index> data_tensor_shape = ShapeAt(&pipe_handle, 0);
-      std::vector<ndll::Index> label_tensor_shape = ShapeAt(&pipe_handle, 1);
-      tf::TensorShape data_shape = NdllToShape(data_tensor_shape);
-      tf::TensorShape label_shape = NdllToShape(label_tensor_shape);
-      tf::shape_inference::ShapeHandle data_s;
-      tf::shape_inference::ShapeHandle label_s;
-      TF_RETURN_IF_ERROR(c->MakeShapeFromTensorShape(data_shape, &data_s));
-      TF_RETURN_IF_ERROR(c->MakeShapeFromTensorShape(label_shape, &label_s));
-      c->set_output(0, data_s);
-      c->set_output(1, label_s);
-      delete(&pipe_handle);
-    }
-    */
+    int batch_size;
+    int height;
+    int width;
+    TF_RETURN_IF_ERROR(c->GetAttr("batch_size", &batch_size));
+    TF_RETURN_IF_ERROR(c->GetAttr("height", &height));
+    TF_RETURN_IF_ERROR(c->GetAttr("width", &width));
+    c->set_output(0, c->MakeShape({batch_size, 3, height, width}));
     return tf::Status::OK();
   });
 

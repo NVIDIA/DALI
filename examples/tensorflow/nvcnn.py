@@ -51,6 +51,12 @@ from builtins import range
 
 __version__ = "1.4"
 
+import ndll.plugin.tf as ndll_tf
+from ndll.pipeline import Pipeline
+import ndll.ops as ops
+import ndll.types as types
+import ndll.tfrecord as tfrec
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import data_flow_ops
@@ -68,12 +74,6 @@ import time
 import math
 from collections import defaultdict
 import argparse
-
-import ndll.tfop as tfop
-from ndll.pipeline import Pipeline
-import ndll.ops as ops
-import ndll.types as types
-import ndll.tfrecord as tfrec
 
 def tensorflow_version_tuple():
     v = tf.__version__
@@ -524,8 +524,11 @@ class NdllPreprocessor(object):
         self.batch = batch_size
 	pipe = HybridPipe(batch_size=self.batch, num_threads=2, device_id = 0, num_gpus = 1, pipelined = True, async = True)
 	serialized_pipe = pipe.serialize()
-        ndllop = tfop.ndllTFOp()
-	self.images, self.labels = ndllop(serialized_pipeline = serialized_pipe, batch_size = batch_size)
+        ndllop = ndll_tf.NDLLIterator()
+	self.images, self.labels = ndllop(serialized_pipeline = serialized_pipe,
+                batch_size = batch_size,
+                height = 224,
+                width = 224)
     def get_device_minibatch(self):
 	return self.images, self.labels
 
@@ -1450,7 +1453,7 @@ def main():
         net = GPUNetworkBuilder(
             True, dtype=model_dtype, use_xla=FLAGS.xla)
         # Tmp: need to implem shape in the NdllOp
-        images.set_shape((FLAGS.batch_size, 3, height, width))
+        #images.set_shape((FLAGS.batch_size, 3, height, width))
         print(images.shape)
         output = model_func(net, images)
         # Add final FC layer to produce nclass outputs
@@ -1459,7 +1462,8 @@ def main():
             logits = tf.cast(logits, tf.float32)
         if labels.dtype != tf.int32:
             labels = tf.cast(labels, tf.int32)
-            print(labels)
+        print("LABELS")
+        print(labels)
         loss = tf.losses.sparse_softmax_cross_entropy(
             logits=logits, labels=labels)
         # Add weight decay

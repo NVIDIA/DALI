@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def ndllTFOp():
+def NDLLIterator():
     try:
         libndllop = 'libndllop.so'
         ndllop_module = tf.load_op_library(libndllop)
