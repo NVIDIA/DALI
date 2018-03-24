@@ -444,6 +444,10 @@ PYBIND11_MODULE(ndll_backend, m) {
           string s = p->SerializeToProtobuf();
           return s;
           }, py::return_value_policy::take_ownership)
+    .def("SaveGraphToDotFile",
+        [](Pipeline *p, const string &filename) {
+          p->SaveGraphToDotFile(filename);
+        })
     .def("epoch_size", &Pipeline::EpochSize)
     .def("epoch_size",
         [](Pipeline* p, const std::string& op_name) {

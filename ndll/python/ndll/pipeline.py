@@ -168,6 +168,9 @@ class Pipeline(object):
         self._pipe.Build()
         self._built = True
 
+    def save_graph_to_dot_file(self, filename):
+        self._pipe.SaveGraphToDotFile(filename)
+
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
     # trace back to add them to the graph

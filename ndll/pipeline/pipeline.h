@@ -258,6 +258,12 @@ class Pipeline {
   string SerializeToProtobuf() const;
 
   /**
+   * @brief Save graph in DOT direct graph format
+   * in filename.
+   */
+  void SaveGraphToDotFile(const std::string filename);
+
+  /**
    * @brief Returns the batch size that will be produced by the pipeline.
    */
   inline int batch_size() const { return batch_size_; }

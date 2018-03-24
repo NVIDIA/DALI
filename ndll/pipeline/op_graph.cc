@@ -122,7 +122,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
   // Add node meta-data and add to the list of nodes
   new_node->id = NumOp()-1;
   new_node->spec = spec;
-  new_node->instance_name = name;
+  new_node->instance_name = std::to_string(new_node->id) + name;
 
   // Setup references between nodes. We require that the
   // ops are added to the graph in a topological ordering.
