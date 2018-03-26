@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_TFPIPELINE_H_
-#define NDLL_PIPELINE_TFPIPELINE_H_
+#ifndef NDLL_PIPELINE_C_API_H_
+#define NDLL_PIPELINE_C_API_H_
 
 #include <vector>
 #include <string>
@@ -12,7 +12,7 @@
 extern "C" {
   struct PipelineHandle {
     void* pipe;
-    ndll::DeviceWorkspace* ws;
+    void* ws;
   };
 
   void CreatePipeline(PipelineHandle* pipe_handle,
@@ -29,4 +29,4 @@ extern "C" {
   void DeletePipeline(PipelineHandle* pipe_handle);
 }
 
-#endif  // NDLL_PIPELINE_TFPIPELINE_H_
+#endif  // NDLL_PIPELINE_C_API_H_

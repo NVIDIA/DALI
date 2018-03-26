@@ -243,6 +243,9 @@ inline ndll::string GetStacktrace() {
 void NDLLReportFatalProblem(const char *file, int line, const char *pComment);
 #define REPORT_FATAL_PROBLEM(comment) NDLLReportFatalProblem(__FILE__, __LINE__, comment)
 
+#define LOG_LINE \
+  0 && std::cout << __FILE__ << ":" << __LINE__ << ": "
+
 }  // namespace ndll
 
 #endif  // NDLL_ERROR_HANDLING_H_

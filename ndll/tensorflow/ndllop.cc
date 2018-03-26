@@ -5,7 +5,7 @@
 
 #include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/pipeline.h"
-#include "ndll/pipeline/tfpipeline.h"
+#include "ndll/pipeline/c_api.h"
 #include "ndll/common.h"
 
 namespace tf = tensorflow;
@@ -54,6 +54,7 @@ class NdllOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     LOG_LINE << "Initializing...\n";
 
+    // TODO(spanev) Use TF allocator
     CreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
@@ -77,7 +78,6 @@ class NdllOp : public tf::OpKernel {
     Output(&pipe_handle_);
 
     LOG_LINE << "After output...\n";
-    ndll::DeviceWorkspace* ws = pipe_handle_.ws;
 
     // Classification
     std::vector<ndll::Index> data_tensor_shape = ShapeAt(&pipe_handle_, 0);

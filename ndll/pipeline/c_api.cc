@@ -2,7 +2,7 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/pipeline.h"
-#include "ndll/pipeline/tfpipeline.h"
+#include "ndll/pipeline/c_api.h"
 #include "ndll/plugin/copy.h"
 
 void CreatePipeline(PipelineHandle* pipe_handle,
@@ -31,49 +31,56 @@ void Run(PipelineHandle* pipe_handle) {
 
 void Output(PipelineHandle* pipe_handle) {
   ndll::Pipeline* pipeline = reinterpret_cast<ndll::Pipeline*>(pipe_handle->pipe);
-  pipeline->Outputs(pipe_handle->ws);
+  ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  pipeline->Outputs(ws);
 }
 
 void* TensorAt(PipelineHandle* pipe_handle, int n) {
-  if (pipe_handle->ws->OutputIsType<ndll::CPUBackend>(n)) {
+  ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<ndll::CPUBackend>(n)) {
     ndll::Tensor<ndll::CPUBackend> *t = new ndll::Tensor<ndll::CPUBackend>();
-    t->ShareData(pipe_handle->ws->Output<ndll::CPUBackend>(n));
+    t->ShareData(ws->Output<ndll::CPUBackend>(n));
     return t;
   } else {
     ndll::Tensor<ndll::GPUBackend> *t = new ndll::Tensor<ndll::GPUBackend>();
-    t->ShareData(pipe_handle->ws->Output<ndll::GPUBackend>(n));
+    t->ShareData(ws->Output<ndll::GPUBackend>(n));
     return t;
   }
 }
 
 std::vector<ndll::Index> ShapeAt(PipelineHandle* pipe_handle, int n) {
-  if (pipe_handle->ws->OutputIsType<ndll::CPUBackend>(n)) {
+  ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<ndll::CPUBackend>(n)) {
     ndll::Tensor<ndll::CPUBackend> t;
-    t.ShareData(pipe_handle->ws->Output<ndll::CPUBackend>(n));
+    t.ShareData(ws->Output<ndll::CPUBackend>(n));
     return t.shape();
   } else {
     ndll::Tensor<ndll::GPUBackend> t;
-    t.ShareData(pipe_handle->ws->Output<ndll::GPUBackend>(n));
+    t.ShareData(ws->Output<ndll::GPUBackend>(n));
     return t.shape();
   }
 }
 
 void CopyTensorNTo(PipelineHandle* pipe_handle, void* dst, int n) {
-  if (pipe_handle->ws->OutputIsType<ndll::CPUBackend>(n)) {
+  ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<ndll::CPUBackend>(n)) {
     ndll::Tensor<ndll::CPUBackend> t;
-    t.ShareData(pipe_handle->ws->Output<ndll::CPUBackend>(n));
+    t.ShareData(ws->Output<ndll::CPUBackend>(n));
     ndll::CopyToExternalTensor(t, dst);
   } else {
     ndll::Tensor<ndll::GPUBackend> t;
-    t.ShareData(pipe_handle->ws->Output<ndll::GPUBackend>(n));
+    t.ShareData(ws->Output<ndll::GPUBackend>(n));
     ndll::CopyToExternalTensor(t, dst);
   }
 }
 
 void DeletePipeline(PipelineHandle* pipe_handle) {
   ndll::Pipeline* pipeline = reinterpret_cast<ndll::Pipeline*>(pipe_handle->pipe);
-  ndll::DeviceWorkspace* ws = pipe_handle->ws;
+  ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  NDLL_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
   delete ws;
   delete pipeline;
+  pipe_handle->ws = nullptr;
+  pipe_handle->pipe = nullptr;
 }
 

@@ -1,4 +1,4 @@
-FROM nvdl.githost.io:4678/dgx/tensorflow:18.04-py2-devel
+FROM nvdl.githost.io:4678/dgx/cuda:9.0-cudnn7.1-devel-ubuntu16.04--18.04
 
 ARG PYVER=2.7
 
@@ -12,9 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python$PYVER \
       python$PYVER-dev \
       python$PYVER-numpy \
-      libc6-dbg \
-      gdb \
-      valgrind
+      && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
 
@@ -28,7 +26,7 @@ RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
-RUN pip install future numpy setuptools jupyter matplotlib
+RUN pip install future numpy setuptools
 
 RUN OPENCV_VERSION=3.1.0 && \
     wget -q -O - https://github.com/Itseez/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
@@ -70,5 +68,3 @@ RUN mkdir build && cd build && \
     ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
-
-CMD jupyter notebook --no-browser --ip 0.0.0.0 --port 8888 / --allow-root

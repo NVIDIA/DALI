@@ -2,12 +2,12 @@ import tensorflow as tf
 
 def NDLLIterator():
     try:
-        libndllop = 'libndllop.so'
-        ndllop_module = tf.load_op_library(libndllop)
-        ndllop = ndllop_module.ndll
+        libndll_tf = 'libndll_tf.so'
+        ndll_tf_module = tf.load_op_library(libndll_tf)
+        ndll_tf = ndll_tf_module.ndll
     except Exception:
-        print(libndllop + " not found: add /usr/local/lib/ to LD_LIBRARY_PATH")
-        libndllop = '/opt/ndll/build/ndll/libndllop.so'
-        ndllop_module = tf.load_op_library(libndllop)
-        ndllop = ndllop_module.ndll
-    return ndllop
+        print(libndll_tf + " not found: add /usr/local/lib/ to LD_LIBRARY_PATH")
+        libndll_tf = '/opt/ndll/build/ndll/libndll_tf.so'
+        ndll_tf_module = tf.load_op_library(libndll_tf)
+        ndll_tf = ndll_tf_module.ndll
+    return ndll_tf

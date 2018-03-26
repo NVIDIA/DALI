@@ -72,15 +72,7 @@ endif()
 
 # Build the TensorFlow op
 if (BUILD_TENSORFLOW)
-
-  # TF <= 1.3
-  # execute_process(
-  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_include(), end='')"
-  #  OUTPUT_VARIABLE TF_INC)
-  # execute_process(
-  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(tf.sysconfig.get_lib(), end='')"
-  #  OUTPUT_VARIABLE TF_LIB)
-
+  # Get the TF compile et linking flags
   execute_process(
     COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_compile_flags()), end=\"\")"
     OUTPUT_VARIABLE TF_CFLAGS)
@@ -89,16 +81,9 @@ if (BUILD_TENSORFLOW)
     COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_link_flags()), end=\"\")"
     OUTPUT_VARIABLE TF_LFLAGS)
 
-  # TF <= 1.3
-  # message(STATUS "TF_INC location: " ${TF_INC})
-  # message(STATUS "TF_LIB location: " ${TF_LIB})
-
-  message(STATUS "TF_CFLAGS location: " ${TF_CFLAGS})
-  message(STATUS "TF_LFLAGS location: " ${TF_LFLAGS})
-
   add_subdirectory(tensorflow)
 
-  set(customop_lib "ndllop")
+  set(customop_lib "ndll_tf")
   cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS})
 
   # TF <= 1.3
