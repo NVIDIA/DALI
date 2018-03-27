@@ -62,6 +62,7 @@ class _OperatorInstance(object):
                                 input type {}"""
                                 .format(type(inp[i]).__name__))
                         self._spec.AddInput(inp[i].name, inp[i].device)
+                self._spec.AddArg("num_input_sets", length)
             else:
                 raise TypeError(
                     """Expected inputs of type TensorReference or list of
