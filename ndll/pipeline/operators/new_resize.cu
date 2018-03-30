@@ -310,7 +310,6 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, b
 
     for (size_t y = 0; y < sy0; ++y) {
         for (size_t x = 0; x < sx0; ++x) {
-
             const size_t nX = x * sx1;
             const size_t nY = y * sy1;
             // The indices of the top-left pixel of the initial image, intersecting with PIX

@@ -165,9 +165,9 @@ class ResizeMappingTable {
     NDLLSize io_size[2];
     int C_;
 
-    ResizeMappingTableCPU resizeMappingCPU; // pointer to the ResizeMapping table for CPU
-    ResizeMappingTableGPU resizeMappingGPU; // pointer to the ResizeMapping table for GPU
-    ResizeMappingPixDescr pPixMapping[2];   // pointer to the PixMapping arrays  for CPU/GPU
+    ResizeMappingTableCPU resizeMappingCPU;     // pointer to the ResizeMapping table for CPU
+    ResizeMappingTableGPU resizeMappingGPU;     // pointer to the ResizeMapping table for GPU
+    ResizeMappingPixDescr pPixMapping[2];       // pointer to the PixMapping arrays  for CPU/GPU
 
     ~ResizeMappingTable()                   { CPU_BACKEND_FREE(pPixMapping[0], PixMapping); }
     bool IsValid(int H0, int W0, int H1, int W1, int C) const;
@@ -330,9 +330,8 @@ class NewResize : public Resize<Backend> {
                                                          resizeParam_, &resizeTbl_);
             if (newMapping) {
                 // Copying the descriptor of operation into GPU
-                vector<ResizeGridParam> resizeParamVector(resizeParam_,
-                                                          resizeParam_ + sizeof(resizeParam_) / sizeof(resizeParam_[0]));
-                resizeParamGPU_.Copy(resizeParamVector, s);
+                resizeParamGPU_.Copy(vector<ResizeGridParam>(resizeParam_,
+                         resizeParam_ + sizeof(resizeParam_) / sizeof(resizeParam_[0])), s);
 
                 BACKEND_FREE(resizeTbl_.pPixMapping[1]);
 
