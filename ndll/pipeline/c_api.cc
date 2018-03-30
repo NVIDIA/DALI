@@ -1,6 +1,5 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#include "ndll/common.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/c_api.h"
 #include "ndll/plugin/copy.h"
@@ -48,17 +47,27 @@ void* TensorAt(PipelineHandle* pipe_handle, int n) {
   }
 }
 
-std::vector<ndll::Index> ShapeAt(PipelineHandle* pipe_handle, int n) {
+int64_t* ShapeAt(PipelineHandle* pipe_handle, int n) {
   ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
+  int64_t* c_shape = nullptr;
   if (ws->OutputIsType<ndll::CPUBackend>(n)) {
     ndll::Tensor<ndll::CPUBackend> t;
     t.ShareData(ws->Output<ndll::CPUBackend>(n));
-    return t.shape();
+
+    std::vector<ndll::Index> shape = t.shape();
+    c_shape = new int64_t[shape.size() + 1];
+    c_shape[shape.size()] = 0;
+    memcpy(c_shape, &shape[0], shape.size() * sizeof (int64_t));
   } else {
     ndll::Tensor<ndll::GPUBackend> t;
     t.ShareData(ws->Output<ndll::GPUBackend>(n));
-    return t.shape();
+
+    std::vector<ndll::Index> shape = t.shape();
+    c_shape = new int64_t[shape.size() + 1];
+    c_shape[shape.size()] = 0;
+    memcpy(c_shape, &shape[0], shape.size() * sizeof (int64_t));
   }
+  return c_shape;
 }
 
 void CopyTensorNTo(PipelineHandle* pipe_handle, void* dst, int n) {

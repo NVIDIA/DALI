@@ -10,11 +10,11 @@
 
 namespace tf = tensorflow;
 
-tf::TensorShape NdllToShape(std::vector<ndll::Index> ns) {
+tf::TensorShape NdllToShape(int64_t* ns) {
   tf::TensorShape ts;
-  for (int i = 0; i < static_cast<int>(ns.size()); ++i) {
+  for (int i = 0; ns[i] != 0; ++i)
     ts.InsertDim(i, ns[i]);
-  }
+  delete ns;
   return ts;
 }
 
@@ -80,8 +80,8 @@ class NdllOp : public tf::OpKernel {
     LOG_LINE << "After output...\n";
 
     // Classification
-    std::vector<ndll::Index> data_tensor_shape = ShapeAt(&pipe_handle_, 0);
-    std::vector<ndll::Index> label_tensor_shape = ShapeAt(&pipe_handle_, 1);
+    int64_t* data_tensor_shape = ShapeAt(&pipe_handle_, 0);
+    int64_t* label_tensor_shape = ShapeAt(&pipe_handle_, 1);
 
     tf::Tensor* data_output_tensor = NULL;
     tf::Tensor* label_output_tensor = NULL;

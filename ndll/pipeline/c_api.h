@@ -5,7 +5,6 @@
 #include <vector>
 #include <string>
 
-#include "ndll/common.h"
 #include "ndll/pipeline/pipeline.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
@@ -24,7 +23,7 @@ extern "C" {
   void Run(PipelineHandle* pipe_handle);
   void Output(PipelineHandle* pipe_handle);
   void* TensorAt(PipelineHandle* pipe_handle, int n);
-  std::vector<ndll::Index> ShapeAt(PipelineHandle* pipe_handle, int n);
+  int64_t* ShapeAt(PipelineHandle* pipe_handle, int n);
   void CopyTensorNTo(PipelineHandle* pipe_handle, void* dst, int n);
   void DeletePipeline(PipelineHandle* pipe_handle);
 }
