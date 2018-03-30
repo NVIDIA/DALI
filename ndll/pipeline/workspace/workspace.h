@@ -50,10 +50,10 @@ class Workspace {
    */
   template <typename Backend>
   bool OutputIsType(int idx) const {
-  NDLL_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-  // input_index_map_.first is true if the input is stored on CPU
-  // so we do XOR of it with the Backend being GPUBackend
-  return output_index_map_[idx].first != std::is_same<Backend, GPUBackend>::value;
+    NDLL_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
+    // input_index_map_.first is true if the input is stored on CPU
+    // so we do XOR of it with the Backend being GPUBackend
+    return output_index_map_[idx].first != std::is_same<Backend, GPUBackend>::value;
   }
 
   /**

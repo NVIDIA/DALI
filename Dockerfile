@@ -12,7 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python$PYVER \
       python$PYVER-dev \
       python$PYVER-numpy \
-  && rm -rf /var/lib/apt/lists/*
+      && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 8888
+
+WORKDIR /
 
 # symlink so `python` works as expected everywhere
 RUN ln -sf /usr/bin/python$PYVER /usr/bin/python
@@ -64,4 +68,3 @@ RUN mkdir build && cd build && \
     ldconfig
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
-
