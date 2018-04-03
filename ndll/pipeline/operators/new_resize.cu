@@ -132,7 +132,7 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                           const ResizeGridParam *pResizeParam, const ResizeMappingTable *pTbl) {
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
-           pResizeParam, pTbl? RESIZE_MAPPING(pTbl->resizeMappingGPU) : NULL,
+           pResizeParam, pTbl? RESIZE_MAPPING_GPU(pTbl->resizeMappingGPU) : NULL,
                   pTbl? PIX_MAPPING(pTbl->pPixMapping[1]) : NULL);
 
     return NDLLSuccess;
@@ -201,11 +201,11 @@ void ResizeMappingTable::initTable(int H0, int W0, int H1, int W1, int C,
     io_size[1] = {W1, H1};
     C_ = C;
 
-    resizeMappingCPU.Resize({xSize * ySize});
+    resizeMappingCPU.resize({xSize * ySize});
 }
 
 bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1, int C) const {
-    if (!RESIZE_MAPPING(resizeMappingCPU) || C_ != C)
+    if (!RESIZE_MAPPING_CPU(resizeMappingCPU) || C_ != C)
         return false;
 
     return io_size[0].height == H0 && io_size[0].width == W0 &&
@@ -302,7 +302,7 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, b
 
     initTable(H0, W0, H1, W1, C, sx0, sy0);
 
-    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_PNTR(resizeMappingCPU),
+    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_CPU(resizeMappingCPU),
                             pPixMapping, use_NN? sx1 * sy1 : 0);
 
     // (x, y) pixel coordinate of PIX in resized image

@@ -69,14 +69,13 @@ typedef NppiPoint ResizeGridParam;
 #define ResizeDescr             ClassHandle
 #define ResizeMappingPixDescr   ClassHandle
 
-#define ResizeMappingTableCPU   Tensor<CPUBackend>
+#define ResizeMappingTableCPU   vector<ResizeMapping>
 #define ResizeMappingTableGPU   Tensor<GPUBackend>
 #define ResizeGridDescr         Tensor<GPUBackend>
 #define ResizeMappingDescr      ResizeMappingTable
 #define MAPPING_TABLE(x)        &x
-#define RESIZE_MAPPING(x)       GPU_BACKEND_PARAMS(x, ResizeMapping)
-#define MAPPING_PNTR(x, type)       (x).template mutable_data<type>()
-#define RESIZE_MAPPING_PNTR(x)  MAPPING_PNTR(x, ResizeMapping)
+#define RESIZE_MAPPING_GPU(x)   GPU_BACKEND_PARAMS(x, ResizeMapping)
+#define RESIZE_MAPPING_CPU(x)   x.data()
 #define RESIZE_PARAM(x)         GPU_BACKEND_PARAMS(x, ResizeGridParam)
 
 #define N_GRID_PARAMS       3
@@ -296,7 +295,7 @@ class NewResize : public Resize<Backend> {
         DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
         ResizeMappingTable *pResizeTbl = MAPPING_TABLE(resizeTbl);
         if (pResizeTbl) {
-            const ResizeMapping *pResizeMapping = RESIZE_MAPPING(pResizeTbl->resizeMappingCPU);
+            const ResizeMapping *pResizeMapping = RESIZE_MAPPING_CPU(pResizeTbl->resizeMappingCPU);
             const PixMapping *pPixMapping = PIX_MAPPING(pResizeTbl->pPixMapping[0]);
             AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                                static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
