@@ -133,7 +133,7 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
            pResizeParam, pTbl? RESIZE_MAPPING_GPU(pTbl->resizeMappingGPU) : NULL,
-                  pTbl? PIX_MAPPING(pTbl->pPixMapping[1]) : NULL);
+                  pTbl? PIX_MAPPING_GPU(pTbl->pixMappingGPU) : NULL);
 
     return NDLLSuccess;
 }
@@ -214,18 +214,18 @@ bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1, int C) const {
 
 class PixMappingHelper {
  public:
-    PixMappingHelper(uint32_t len, ResizeMapping *pMapping, ResizeMappingPixDescr *pPixMapping,
+    PixMappingHelper(uint32_t len, ResizeMapping *pMapping, ResizeMappingPixDescrCPU *pPixMapping,
                      uint32_t resizedArea = 0);
     void AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
     void UpdateMapping(int shift, int centerX, int centerY);
 
-    inline ClassHandle &getPixMapping()             { return *pPixMapping_; }
-    inline uint32_t numUsed() const                 { return numPixMapUsed_; }
+    inline ResizeMappingPixDescrCPU &getPixMapping()    { return *pPixMapping_; }
+    inline uint32_t numUsed() const                     { return numPixMapUsed_; }
  private:
-    inline float distance(float x, float y) const   { return x * x + y * y; }
+    inline float distance(float x, float y) const       { return x * x + y * y; }
     uint32_t numPixMapMax_;     // length of the allocated PixMapping array
     uint32_t numPixMapUsed_;    // number of already used elements of pPixMapping
-    ResizeMappingPixDescr *pPixMapping_;
+    ResizeMappingPixDescrCPU *pPixMapping_;
     ResizeMapping *pMappingBase_;
     ResizeMapping *pMapping_;
 
@@ -236,35 +236,29 @@ class PixMappingHelper {
 };
 
 PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping,
-                                   ResizeMappingPixDescr *pPixMapping, uint32_t resizedArea) :
+                                   ResizeMappingPixDescrCPU *pPixMapping, uint32_t resizedArea) :
         area_(area), resizedArea_(resizedArea) {
     numPixMapMax_ = 1;
     numPixMapUsed_ = 0;
     pMappingBase_ = pMapping;
     pPixMapping_ = pPixMapping;
 
-    if (resizedArea == 0) {
-        const size_t len = (numPixMapMax_ = 2 * area) * sizeof(PixMapping);
-        CPU_BACKEND_MALLOC(getPixMapping(), len, false, PixMapping);
-    }
+    if (resizedArea == 0)
+        pPixMapping_->resize(numPixMapMax_ = 2 * area);
 }
 
 void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY) {
     assert(area != 0);
+
     if (numPixMapUsed_ == numPixMapMax_) {
         // Previously allocated array needs to be extended
-
-        ClassHandle pPixMappingNew;
-        const size_t len = (numPixMapMax_ <<= 1) * sizeof(PixMapping);
-        CPU_BACKEND_MALLOC(pPixMappingNew, len, false, PixMapping);
-        memcpy(pPixMappingNew.pntr, getPixMapping().pntr, numPixMapUsed_ * sizeof(PixMapping));
-        CPU_BACKEND_FREE(getPixMapping(),  PixMapping);
-        *pPixMapping_ = pPixMappingNew;
+        pPixMapping_->resize(numPixMapMax_ <<= 1);
     }
+
 
     if (resizedArea_ == 0) {
         pMapping_->nPixels++;
-        PIX_MAPPING(getPixMapping())[numPixMapUsed_++].Init(addr, area);
+        PIX_MAPPING_CPU(getPixMapping())[numPixMapUsed_++].Init(addr, area);
     } else {
        const float newDist = distance((crdX << 1) - centerX_, (crdY << 1) - centerY_);
        if (closestDist_ > newDist) {
@@ -303,7 +297,7 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, b
     initTable(H0, W0, H1, W1, C, sx0, sy0);
 
     PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_CPU(resizeMappingCPU),
-                            pPixMapping, use_NN? sx1 * sy1 : 0);
+                            &pixMappingCPU, use_NN? sx1 * sy1 : 0);
 
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
@@ -367,6 +361,8 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, b
 #endif
         }
     }
+
+    pixMappingCPU.resize(helper.numUsed());
 }
 
 }  // namespace ndll

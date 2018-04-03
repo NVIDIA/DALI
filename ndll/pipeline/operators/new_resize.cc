@@ -13,5 +13,6 @@ NDLL_OPERATOR_SCHEMA(NewResize)
     .NumOutput(1, INT_MAX);
 
 NDLL_REGISTER_TYPE(ResizeMapping, NDLL_RESIZE_MAPPING);
+NDLL_REGISTER_TYPE(PixMapping, NDLL_PIX_MAPPING);
 }  // namespace ndll
 
