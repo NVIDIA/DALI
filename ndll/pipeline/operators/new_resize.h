@@ -120,10 +120,6 @@ typedef Tensor<GPUBackend> ResizeDescr, ImgSizeDescr, ImgRasterDescr, ResizeMapp
 typedef vector<ResizeMapping> ResizeMappingTableCPU;
 typedef vector<PixMapping> ResizeMappingPixDescrCPU;
 
-template <typename T>
-    inline T* RESIZE_MAPPING(vector<T>& x) { return x.data(); }
-
-
 class ResizeMappingTable {
  public:
     NDLLSize io_size[2];
