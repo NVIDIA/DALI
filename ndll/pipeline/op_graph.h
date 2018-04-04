@@ -261,7 +261,7 @@ class OpGraph {
   }
 
   // Helper for GraphTraversal
-  std::string GetGoodLabel(const std::string& name) {
+  std::string GetDisplayLabel(const std::string& name) {
     std::size_t pos = name.find("__");
     NDLL_ENFORCE(pos != std::string::npos && pos + 2 < name.length());
     return name.substr(pos + 2);
@@ -270,12 +270,12 @@ class OpGraph {
   void GraphTraversal(const OpNode& current_node, std::ofstream& ofs) {
     if (current_node.children.empty()
         || visited_nodes_.find(current_node.id) != visited_nodes_.end()) {
-      ofs << GetGoodLabel(current_node.instance_name) << "\n";
+      ofs << GetDisplayLabel(current_node.instance_name) << "\n";
       return;
     }
     visited_nodes_.insert(current_node.id);
     for (auto node_id: current_node.children) {
-        ofs << GetGoodLabel(current_node.instance_name);
+        ofs << GetDisplayLabel(current_node.instance_name);
         ofs << " -> ";
         OpNode& child_node = node(node_id);
         GraphTraversal(child_node, ofs);
