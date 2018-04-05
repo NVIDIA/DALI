@@ -105,6 +105,22 @@ class NDLLTest : public ::testing::Test {
     }
   }
 
+  inline void MakeJPEGBatch(vector<Tensor<CPUBackend>> *t, int n) {
+    NDLL_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
+
+    t->resize(n);
+    for (int i = 0; i < n; ++i) {
+      auto& ti = t->at(i);
+      ti = Tensor<CPUBackend>{};
+      ti.Resize({jpeg_sizes_[i % jpegs_.size()]});
+      ti.template mutable_data<uint8>();
+
+      std::memcpy(ti.raw_mutable_data(),
+                  jpegs_[i % jpegs_.size()],
+                  jpeg_sizes_[i % jpegs_.size()]);
+    }
+  }
+
   inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl) {
     NDLL_ENFORCE(images_.size() > 0, "Images must be decoded to create batches");
     vector<Dims> shape(n);

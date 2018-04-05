@@ -10,6 +10,9 @@
 
 namespace ndll {
 
+template <typename Backend>
+class Tensor;
+
 typedef vector<Index> Dims;
 
 /**
@@ -45,6 +48,27 @@ class TensorList : public Buffer<Backend> {
     ResizeLike(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
+  }
+
+  template <typename SrcBackend>
+  inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
+    auto type = other[0].type();
+
+    vector<Dims> new_shape(other.size());
+    for (size_t i = 0; i < other.size(); ++i) {
+      assert(type == other[i].type());
+      new_shape[i] = other[i].shape();
+    }
+
+    this->Resize(new_shape);
+    this->set_type(type);
+
+    for (size_t i = 0; i < other.size(); ++i) {
+      type.Copy<SrcBackend, Backend>(
+          raw_mutable_tensor(i),
+          other[i].raw_data(),
+          other[i].size(), 0);
+    }
   }
 
   /**
