@@ -6,27 +6,32 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "ndll/pipeline/pipeline.h"
 
 namespace ndll {
 
-namespace {
+namespace images {
 
 const vector<string> jpeg_test_images = {
-   image_folder + "/420.jpg",
-   image_folder + "/422.jpg",
-   image_folder + "/440.jpg",
-   image_folder + "/444.jpg",
-   image_folder + "/gray.jpg",
-   image_folder + "/411.jpg",
-   image_folder + "/411-non-multiple-4-width.jpg",
-   image_folder + "/420-odd-height.jpg",
-   image_folder + "/420-odd-width.jpg",
-   image_folder + "/420-odd-both.jpg",
-   image_folder + "/422-odd-width.jpg"
+  image_folder + "/420.jpg",
+  image_folder + "/422.jpg",
+  image_folder + "/440.jpg",
+  image_folder + "/444.jpg",
+  image_folder + "/gray.jpg",
+  image_folder + "/411.jpg",
+  image_folder + "/411-non-multiple-4-width.jpg",
+  image_folder + "/420-odd-height.jpg",
+  image_folder + "/420-odd-width.jpg",
+  image_folder + "/420-odd-both.jpg",
+  image_folder + "/422-odd-width.jpg"
 };
 
-}
+}  // namespace images
 
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
@@ -44,7 +49,7 @@ class NDLLSingleOpTest : public NDLLTest {
     NDLLTest::SetUp();
 
     // encoded in jpegs_
-    LoadJPEGS(jpeg_test_images, &jpegs_, &jpeg_sizes_);
+    LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
     // decoded in images_
     DecodeJPEGS(NDLL_RGB);
 
@@ -138,10 +143,9 @@ class NDLLSingleOpTest : public NDLLTest {
   }
 
  private:
-
   // use a Get mean, std-dev of difference
   template <typename T>
-  void CheckBuffers(int N, const T *a, const T *b, double eps=1e-4) {
+  void CheckBuffers(int N, const T *a, const T *b, double eps = 1e-4) {
     double diff_sum = 0;
 
     vector<double> diff(N);

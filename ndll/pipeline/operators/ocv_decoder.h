@@ -1,12 +1,12 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
-#define NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
+#ifndef NDLL_PIPELINE_OPERATORS_OCV_DECODER_H_
+#define NDLL_PIPELINE_OPERATORS_OCV_DECODER_H_
+
+#include <opencv2/opencv.hpp>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/operator.h"
-
-#include <opencv2/opencv.hpp>
 
 namespace ndll {
 
@@ -60,4 +60,4 @@ class OCVDecoder : public Operator {
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_OPERATORS_TJPG_DECODER_H_
+#endif  // NDLL_PIPELINE_OPERATORS_OCV_DECODER_H_

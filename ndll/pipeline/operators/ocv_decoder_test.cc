@@ -1,17 +1,11 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/test/ndll_test_single_op.h"
 
 namespace ndll {
 
 class OCVDecodeTest : public NDLLSingleOpTest {
  public:
-#if 1
-   USING_NDLL_SINGLE_OP_TEST();
-#else
-  using NDLLSingleOpTest::AddSingleOp;
-  using NDLLSingleOpTest::SetExternalInputs;
-  using NDLLSingleOpTest::EncodedData;
-  using NDLLSingleOpTest::DecodedData;
-#endif
+  USING_NDLL_SINGLE_OP_TEST();
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs) {
