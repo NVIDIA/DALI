@@ -49,8 +49,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
       .AddArg("resize_a", 256)
       .AddArg("resize_b", 256)
       .AddArg("random_crop", true)
-      .AddArg("crop_h", 224)
-      .AddArg("crop_w", 224)
+      .AddArg("crop", vector<int>{224, 224})
       .AddArg("mirror_prob", 0.5f)
       .AddInput("images", "cpu")
       .AddOutput("resized", "cpu"));

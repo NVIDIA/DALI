@@ -30,8 +30,7 @@ class C2Pipe(Pipeline):
                                             resize_a = 256,
                                             resize_b = 480,
                                             random_crop = True,
-                                            crop_h = 224,
-                                            crop_w = 224)
+                                            crop = [224, 224])
         self.np = ops.NormalizePermute(device = "gpu",
                                        output_type = types.FLOAT16,
                                        mean = [128., 128., 128.],
