@@ -17,25 +17,33 @@
 
 namespace ndll {
 
-#define LOADER_SCHEMA_ARGS \
-  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling", 1024)                \
-  .AddOptionalArg("num_shards", "Partition the data into this many parts", 1)                \
-  .AddOptionalArg("shard_id", "Id of the part to read", 0)                                   \
+#define LOADER_SCHEMA_ARGS                                                                         \
+  .AddOptionalArg("random_shuffle", "Whether to shuffle data", false)                              \
+  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling", 1024)                   \
+  .AddOptionalArg("num_shards", "Partition the data into this many parts", 1)                      \
+  .AddOptionalArg("shard_id", "Id of the part to read", 0)                                         \
   .AddOptionalArg("tensor_init_bytes", "Hint for how much memory to allocate per image", 1048576)
 
 template <class Backend>
 class Loader {
  public:
   explicit Loader(const OpSpec& options)
-    : initial_buffer_fill_(options.GetArgument<int>("initial_fill")),
+    : shuffle_(options.GetArgument<bool>("random_shuffle")),
+      initial_buffer_fill_(options.GetArgument<int>("initial_fill")),
       initial_empty_size_(2 * options.GetArgument<int>("batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
+      seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")) {
     NDLL_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
+    if (!shuffle_) {
+      initial_buffer_fill_ = 1;
+    }
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);
+    std::seed_seq seq({seed_});
+    e_ = std::default_random_engine(seq);
   }
 
   virtual ~Loader() {
@@ -54,10 +62,10 @@ class Loader {
 
   // Get a random read sample
   Tensor<Backend>* ReadOne() {
-    TimeRange tr("[Loader] ReadOne");
+    TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
-      TimeRange tr("[Loader] Filling initial buffer");
+      TimeRange tr("[Loader] Filling initial buffer", TimeRange::kBlue1);
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
@@ -71,7 +79,7 @@ class Loader {
         sample_buffer_.push_back(tensor);
       }
 
-      TimeRange tr2("[Loader] Filling empty list");
+      TimeRange tr2("[Loader] Filling empty list", TimeRange::kOrange);
       // need some entries in the empty_tensors_ list
       for (int i = 0; i < initial_empty_size_; ++i) {
         Tensor<Backend>* tensor = new Tensor<CPUBackend>();
@@ -86,7 +94,7 @@ class Loader {
       initial_buffer_filled_ = true;
     }
     // choose the random index
-    int idx = dis(e_) % sample_buffer_.size();
+    int idx = shuffle_ ? dis(e_) % sample_buffer_.size() : 0;
     Tensor<Backend>* elem = sample_buffer_[idx];
 
     // swap end and idx, return the tensor to empties
@@ -132,6 +140,7 @@ class Loader {
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
+  bool shuffle_;
   const int initial_buffer_fill_;
   const int initial_empty_size_;
   const int tensor_init_bytes_;
@@ -140,6 +149,7 @@ class Loader {
   // rng
   std::default_random_engine e_;
   std::uniform_int_distribution<> dis;
+  Index seed_;
 
   // control return of tensors
   std::mutex return_mutex_;
