@@ -88,6 +88,7 @@ def python_op_factory(name):
                 self._device = "cpu"
 
             # Store the specified arguments
+            self._schema.CheckArgs(kwargs.keys())
             for key, value in kwargs.items():
                 if isinstance(value, list):
                     if not value:

@@ -9,6 +9,12 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets();
+  .AllowMultipleInputSets()
+  .AddOptionalArg("random_resize", "Whether to randomly resize images")
+  .AddOptionalArg("warp_resize", "Foo")
+  .AddArg("resize_a", "Lower bound for resize")
+  .AddArg("resize_b", "Upper bound for resize")
+  .AddOptionalArg("image_type", "Output image type")
+  .AddOptionalArg("interp_type", "Type of interpolation used");
 
 }  // namespace ndll

@@ -17,6 +17,12 @@
 
 namespace ndll {
 
+#define LOADER_SCHEMA_ARGS \
+  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling")                \
+  .AddOptionalArg("num_shards", "Partition the data into this many parts")                \
+  .AddOptionalArg("shard_id", "Id of the part to read")                                   \
+  .AddOptionalArg("tensor_init_bytes", "Hint for how much memory to allocate per image")
+
 template <class Backend>
 class Loader {
  public:

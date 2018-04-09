@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <set>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -94,6 +95,30 @@ class OpSchema {
   }
 
   /**
+   * @brief Adds a required argument to op
+   */
+  inline OpSchema& AddArg(std::string s, std::string doc) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    arguments_[s] = doc;
+    return *this;
+  }
+
+  /**
+   * @brief Adds an optional argument to op
+   */
+  inline OpSchema& AddOptionalArg(std::string s, std::string doc) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    optional_arguments_[s] = doc;
+    return *this;
+  }
+
+  /**
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
    */
@@ -103,7 +128,16 @@ class OpSchema {
   }
 
   inline string Dox() const {
-    return dox_;
+    std::string ret = dox_;
+    ret += "\n\nParameters\n----------\n";
+    for (auto arg_pair : arguments_) {
+      ret += arg_pair.first + " : " + arg_pair.second + "\n";
+    }
+    ret += "\n\nOptional Parameters\n-------------------\n";
+    for (auto arg_pair : optional_arguments_) {
+      ret += arg_pair.first + " : " + arg_pair.second + "\n";
+    }
+    return ret;
   }
 
   inline int MaxNumInput() const {
@@ -143,6 +177,32 @@ class OpSchema {
     return in_place_fn_(spec);
   }
 
+  inline void CheckArgs(std::vector<std::string> vec) const {
+    std::set<std::string> req_arguments_left;
+    for (auto& arg_pair : arguments_) {
+      req_arguments_left.insert(arg_pair.first);
+    }
+    for (std::string s : vec) {
+      NDLL_ENFORCE(arguments_.find(s) != arguments_.end() ||
+          optional_arguments_.find(s) != optional_arguments_.end() ||
+          s == "device",
+          "Got an unexpected argument \"" + s + "\"");
+      std::set<std::string>::iterator it = req_arguments_left.find(s);
+      if (it != req_arguments_left.end()) {
+        req_arguments_left.erase(it);
+      }
+    }
+    if (!req_arguments_left.empty()) {
+      std::string ret = "Not all required arguments were specified. Please specify values for arguments: ";
+      for (auto& str : req_arguments_left) {
+        ret += "\"" + str + "\", ";
+      }
+      ret.erase(ret.size()-2);
+      ret += ".";
+      NDLL_FAIL(ret);
+    }
+  }
+
  private:
   string dox_;
   SpecFunc output_fn_, in_place_fn_;
@@ -151,6 +211,9 @@ class OpSchema {
   int min_num_output_ = 0, max_num_output_ = 0;
 
   bool allow_multiple_input_sets_;
+
+  std::map<std::string, std::string> arguments_;
+  std::map<std::string, std::string> optional_arguments_;
 };
 
 class SchemaRegistry {

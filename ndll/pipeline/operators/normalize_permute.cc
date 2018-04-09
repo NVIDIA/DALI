@@ -13,6 +13,12 @@ NDLL_OPERATOR_SCHEMA(NormalizePermute)
       auto input_sets = spec.GetArgument<int>("num_input_sets", 1);
       NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
       return spec.NumInput();
-  });
+  })
+  .AddOptionalArg("output_type", "Output data type")
+  .AddArg("height", "Height of the input image")
+  .AddArg("width", "Width of the input image")
+  .AddArg("channels", "Number of channels of input image")
+  .AddArg("mean", "Mean values of pixels for image normalizations")
+  .AddArg("std", "Standard deviation for image normalization");
 
 }  // namespace ndll
