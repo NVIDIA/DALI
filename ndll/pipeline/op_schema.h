@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <set>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -193,7 +194,8 @@ class OpSchema {
       }
     }
     if (!req_arguments_left.empty()) {
-      std::string ret = "Not all required arguments were specified. Please specify values for arguments: ";
+      std::string ret = "Not all required arguments were specified. "
+        "Please specify values for arguments: ";
       for (auto& str : req_arguments_left) {
         ret += "\"" + str + "\", ";
       }

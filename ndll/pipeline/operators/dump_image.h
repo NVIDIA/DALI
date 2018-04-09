@@ -17,7 +17,8 @@ class DumpImage : public Operator {
   explicit inline DumpImage(const OpSpec &spec) :
     Operator(spec),
     suffix_(spec.GetArgument<string>("suffix", "")) {
-    NDLL_ENFORCE(spec.GetArgument<NDLLTensorLayout>("input_layout", NDLL_NHWC) == NDLL_NHWC, "CHW not supported yet.");
+    NDLL_ENFORCE(spec.GetArgument<NDLLTensorLayout>("input_layout", NDLL_NHWC) == NDLL_NHWC,
+        "CHW not supported yet.");
   }
 
   virtual inline ~DumpImage() = default;
