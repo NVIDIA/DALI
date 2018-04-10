@@ -1,15 +1,36 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
 #include "ndll/pipeline/operators/new_resize.h"
-#include "new_resize.h"
 #include <float.h>
 #include <assert.h>
-#include <nppdefs.h>
 #include <npp.h>
 #include <string>
 #include <vector>
 
 namespace ndll {
+
+//  Greatest Common Factor
+int gcf(int a, int b) {
+    int t;
+    if (b > a) {
+        t = a;
+        a = b;
+        b = t;
+    }
+
+    while (b) {
+        t = a % b;
+        a = b;
+        b = t;
+    }
+
+    return a;
+}
+
+// Least Common Multiplier
+int lcm(int a, int b) {
+    return a / gcf (a, b) * b;
+}
 
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                             Tensor<CPUBackend> *output, const char *pOpName,
@@ -44,13 +65,14 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
     }
 }
 
-void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
+bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
                            vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pResize,
-                           vector<NppiRect>  *pOutResize) {
+                           NppiPoint *pResizeParam) {
     NDLL_ENFORCE(IsType<uint8>(input.type()),
                  "Expected input data stored in uint8.");
 
+    bool newResize = false;
     vector<Dims> output_shape(batch_size);
     for (size_t i = 0; i < batch_size; ++i) {
         // Verify the inputs
@@ -64,18 +86,38 @@ void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
         // Collect the output shapes
         if (pResize) {
             // We are resizing
-            auto out_size = pResize->size(output_t, i);
-            pResize->SetSize(pResize->size(input_t, i), input_shape,
-                pResize->newSizes(i), out_size);
+            const auto input_size = pResize->size(input_t, i);
+            const auto out_size = pResize->size(output_t, i);
+            pResize->SetSize(input_size, input_shape, pResize->newSizes(i), out_size);
 
-            if (pOutResize) {
-                NppiRect &outResize = (*pOutResize)[i];
-                outResize.height = out_size->height;
-                outResize.width = out_size->width;
+            if (pResizeParam) {
+                const int H0 = input_size->height;
+                const int W0 = input_size->width;
+                const int H1 = out_size->height;
+                const int W1 = out_size->width;
 
+                int cropY, cropX;
                 const bool doingCrop = pResize->CropNeeded(*out_size);
                 if (doingCrop)
-                    pResize->DefineCrop(out_size, &outResize.x, &outResize.y);
+                    pResize->DefineCrop(out_size, &cropX, &cropY);
+                else
+                    cropY = cropX = 0;
+
+                auto resizeParam = pResizeParam + i * N_GRID_PARAMS;
+                const int lcmH = lcm(H0, H1);
+                const int lcmW = lcm(W0, W1);
+
+                if (!newResize) {
+                    newResize = resizeParam[0].x != lcmW / W0 || resizeParam[0].y != lcmH / H0 ||
+                                resizeParam[1].x != lcmW / W1 || resizeParam[1].y != lcmH / H1 ||
+                                resizeParam[2].x != cropX || resizeParam[2].y != cropY;
+                }
+
+                if (newResize) {
+                    resizeParam[0] = {lcmW / W0, lcmH / H0};
+                    resizeParam[1] = {lcmW / W1, lcmH / H1};
+                    resizeParam[2] = {cropX, cropY};
+                }
             }
 
             // Collect the output shapes
@@ -100,8 +142,8 @@ void DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
     output->set_type(input.type());
 
     CollectPointersForExecution(reshapeBatch? 1 : batch_size, input, inPtrs, output, outPtrs);
+    return newResize;
 }
-
 
 void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
@@ -138,53 +180,41 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
     return NDLLSuccess;
 }
 
-//  Greatest Common Factor
-int CC gcf(int a, int b) {
-    int t;
-    if (b > a) {
-        t = a;
-        a = b;
-        b = t;
-    }
-
-    while (b) {
-        t = a % b;
-        a = b;
-        b = t;
-    }
-
-    return a;
-}
-
-// Least Common Multiplier
-int CC lcm(int a, int b) {
-    return a / gcf (a, b) * b;
-}
-
 typedef void (*allocMemoryFunction)(ResizeMappingPixDescrCPU *pntr, size_t nElem);
+typedef void (*assignElemFunction)(ResizeMappingPixDescrCPU *pntr, size_t nElem,
+                                   uint32_t addr, uint32_t area);
 
-void resizeVector(ResizeMappingPixDescrCPU *pntr, size_t nElem) {
+static void resizeVector(ResizeMappingPixDescrCPU *pntr, size_t nElem) {
     pntr->resize(nElem);
+}
+
+static void assignVectorElement(ResizeMappingPixDescrCPU *pntr, size_t elemIdx,
+                                uint32_t addr, uint32_t area) {
+    PixMapping &elem = PIX_MAPPING_CPU(*pntr)[elemIdx];
+    elem.pixAddr = addr;
+    elem.pixArea = area;
 }
 
 class PixMappingHelper {
 public:
-    PixMappingHelper(uint32_t len, ResizeMapping *pMapping, uint32_t resizedArea,
+    CC PixMappingHelper(uint32_t len, ResizeMapping *pMapping, uint32_t resizedArea,
                         ResizeMappingPixDescrCPU *pPixMapping = NULL,
-                        allocMemoryFunction allocMemFunc = NULL);
-    void constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1);
-    inline uint32_t numUsed() const                  { return numPixMapUsed_; }
+                        allocMemoryFunction allocMemFunc = NULL,
+                        assignElemFunction assignFunc = NULL);
+    void CC constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1);
+    inline uint32_t CC numUsed() const                  { return numPixMapUsed_; }
 private:
-    void AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
-    void UpdateMapping(int shift, int centerX, int centerY);
+    void CC AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
+    void CC UpdateMapping(int shift, int centerX, int centerY);
 
-    inline float distance(float x, float y) const    { return x * x + y * y; }
+    inline float CC distance(float x, float y) const    { return x * x + y * y; }
     uint32_t numPixMapMax_;     // length of the allocated PixMapping array
     uint32_t numPixMapUsed_;    // number of already used elements of pPixMapping
     ResizeMappingPixDescrCPU *pPixMapping_;
     ResizeMapping *pMappingBase_;
     ResizeMapping *pMapping_;
-    allocMemoryFunction allocMemFunc_;
+    const allocMemoryFunction allocMemFunc_;
+    const assignElemFunction assignFunc_;
 
     const uint32_t area_;
     const uint32_t resizedArea_;
@@ -202,59 +232,76 @@ private:
 
 #define RESIZE_GPU_N_CORE(C)                RESIZE_N_CORE(C)
 
-__global__ void BatchedResizeKernel(int C, int resizeType, const NppiRect *resizeDescr,
+__global__ void ConstructResizeTables(int C, const NppiPoint *resizeDescr, const NDLLSize *in_sizes,
+                                     ResizeMapping *pResizeMapping[]) {
+    const int imagIdx = blockIdx.x;
+    auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
+    const int W0 = in_sizes[imagIdx].width;
+    SET_RESIZE_PARAM();
+
+    const uint32_t area0 = sx0 * sy0;
+    pResizeMapping[imagIdx] = static_cast<ResizeMapping *>(
+                    malloc(area0 * sizeof(ResizeMapping)));
+    PixMappingHelper helper(area0, pResizeMapping[imagIdx], area);
+    helper.constructTable(C, W0, sx0, sy0, sx1, sy1);
+}
+
+__global__ void ReleaseResizeTables(ResizeMapping *pResizeMapping[]) {
+    free(pResizeMapping[blockIdx.x]);
+}
+
+__global__ void BatchedResizeKernel(int C, const NppiPoint *resizeDescr, ResizeMapping *pMapping[],
                                     const NDLLSize *in_sizes, const uint8 *const imgs_in[],
                                     const NDLLSize *out_sizes, uint8 *const imgs_out[]) {
-    const int H0 = in_sizes[blockIdx.x].height;
-    const int W0 = in_sizes[blockIdx.x].width;
+    const int imagIdx = blockIdx.x;
+    auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
+    const int W0 = in_sizes[imagIdx].width;
+    const int H0 = in_sizes[imagIdx].height;
+    const int W = out_sizes[imagIdx].width;
+    const int H = out_sizes[imagIdx].height;
 
-    const int H1 = resizeDescr[blockIdx.x].height;
-    const int W1 = resizeDescr[blockIdx.x].width;
-    const int H = out_sizes[blockIdx.x].height;
-    const int W = out_sizes[blockIdx.x].width;
-
-    const int lcmH = lcm(H0, H1);
-    const int lcmW = lcm(W0, W1);
-    const uint32_t sx0 = lcmW / W0;
-    const uint32_t sy0 = lcmH / H0;
-    const uint32_t sx1 = lcmW / W1;
-    const uint32_t sy1 = lcmH / H1;
-    const uint32_t cropX = resizeDescr[blockIdx.x].x;
-    const uint32_t cropY = resizeDescr[blockIdx.x].y;
-    const uint32_t area = sx1 * sy1;
-    const uint32_t area0 = sx0 * sy0;
-
-    if (resizeType == NDLL_INTERP_NN && area0 < 1600 && lcmH < 0) {
-        ResizeMapping RM[1600], *pResizeMapping = RM;
+    RESIZE_PREPARE();
+    if (pMapping) {
+        const ResizeMapping *pResizeMapping = pMapping[imagIdx];
         const PixMapping *pPixMapping = NULL;
-//        PixMappingHelper helper(area0, pResizeMapping, area);
-//        helper.constructTable(C, W0, sx0, sy0, sx1, sy1);
-        AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[blockIdx.x], imgs_out[blockIdx.x], RESIZE_GPU_N);
+        AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[imagIdx], imgs_out[imagIdx], RESIZE_GPU_N);
     } else {
-        AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[blockIdx.x], imgs_out[blockIdx.x], RESIZE_GPU);
+        AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[imagIdx], imgs_out[imagIdx], RESIZE_GPU);
     }
 }
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          int resizeType, const NppiRect *resizeDescr,
+                          const NppiPoint *resizeDescr, ResizeMapping *pResizeMapping[],
                           const ImgSizeDescr sizes[], const ImgRasterDescr raster[]) {
+    auto in_sizes = IMG_SIZES(sizes[input_t]);
+    auto out_sizes = IMG_SIZES(sizes[output_t]);
+    if (pResizeMapping) {
+
+        ConstructResizeTables << < N, 1 >> > (C, resizeDescr, in_sizes, pResizeMapping);
+        cudaDeviceSynchronize();
+    }
+
     const uint8 * const* in = IMG_RASTERS(raster[input_t]);
     uint8 * const *out = IMG_RASTERS(raster[output_t]);
 
-    BatchedResizeKernel<<<N, gridDim, 0, stream>>>(C, resizeType, resizeDescr,
-            IMG_SIZES(sizes[input_t]), in, IMG_SIZES(sizes[output_t]), out);
+    BatchedResizeKernel<<<N, gridDim, 0, stream>>>
+           (C, resizeDescr, pResizeMapping, in_sizes, in, out_sizes, out);
+
+    if (pResizeMapping)
+        ReleaseResizeTables << < N, 1 >> > (pResizeMapping);
 
     return NDLLSuccess;
 }
 
 PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, uint32_t resizedArea,
-        ResizeMappingPixDescrCPU *pPixMapping, allocMemoryFunction allocMemFunc) :
-        area_(area), resizedArea_(resizedArea), allocMemFunc_(allocMemFunc) {
+        ResizeMappingPixDescrCPU *pPixMapping, allocMemoryFunction allocMemFunc,
+        assignElemFunction assignFunc) : area_(area), resizedArea_(resizedArea),
+        allocMemFunc_(allocMemFunc), assignFunc_(assignFunc) {
     numPixMapMax_ = 1;
     numPixMapUsed_ = 0;
     pMappingBase_ = pMapping;
 
-    if (resizedArea == 0)
+    if (resizedArea == 0 && allocMemFunc_)
         (*allocMemFunc_)(pPixMapping_ = pPixMapping, numPixMapMax_ = 2 * area);
     else
         pPixMapping_ = NULL;
@@ -269,7 +316,7 @@ void PixMappingHelper::AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY
         }
 
         pMapping_->nPixels++;
-        PIX_MAPPING_CPU(*pPixMapping_)[numPixMapUsed_++].Init(addr, area);
+        (*assignFunc_)(pPixMapping_, numPixMapUsed_++, addr, area);
     } else {
        const float newDist = distance((crdX << 1) - centerX_, (crdY << 1) - centerY_);
        if (closestDist_ > newDist) {
@@ -392,7 +439,7 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, i
     const bool use_NN = resizeType == NDLL_INTERP_NN;
     const size_t area1 = use_NN? sx1 * sy1 : 0;
     PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_CPU(resizeMappingCPU),
-                            area1, &pixMappingCPU, resizeVector);
+                            area1, &pixMappingCPU, resizeVector, assignVectorElement);
 
     helper.constructTable(C, W0, sx0, sy0, sx1, sy1);
     if (use_NN)
