@@ -14,10 +14,10 @@ class NormalizePermute : public Operator {
  public:
   explicit inline NormalizePermute(const OpSpec &spec) :
     Operator(spec),
-    output_type_(spec.GetArgument<NDLLDataType>("output_dtype", NDLL_FLOAT)),
-    H_(spec.GetArgument<int>("height", -1)),
-    W_(spec.GetArgument<int>("width", -1)),
-    C_(spec.GetArgument<int>("channels", -1)) {
+    output_type_(spec.GetArgument<NDLLDataType>("output_dtype")),
+    H_(spec.GetArgument<int>("height")),
+    W_(spec.GetArgument<int>("width")),
+    C_(spec.GetArgument<int>("channels")) {
     NDLL_ENFORCE(H_ > 0);
     NDLL_ENFORCE(W_ > 0);
     NDLL_ENFORCE(C_ == 3 || C_ == 1);

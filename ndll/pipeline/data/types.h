@@ -66,6 +66,8 @@ inline std::string to_string(const NDLLDataType& dtype) {
     case NDLL_INTERNAL_TEST_TYPE_2:
       return "<internal>";
   }
+
+  NDLL_FAIL("Unknown datatype");
 };
 
 // Dummy type to represent the invalid default state of ndll types.

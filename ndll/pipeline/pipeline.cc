@@ -23,7 +23,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_.push_back(make_pair(inst_name, spec));
 
   // Validate op device
-  string device = spec.GetArgument<string>("device", "cpu");
+  string device = spec.GetArgument<string>("device");
   NDLL_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed", "Invalid "
       "device argument \"" + device + "\". Valid options are "
       "\"cpu\", \"gpu\" or \"mixed\"");

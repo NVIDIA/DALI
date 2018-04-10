@@ -11,12 +11,12 @@ NDLL_OPERATOR_SCHEMA(Caffe2Reader)
   .NumInput(0)
   .NumOutput(1, INT_MAX)
   .OutputFn([](const OpSpec& spec) {
-      auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type", 0));
+      auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
 
       int num_label_outputs = (label_type == MULTI_LABEL_SPARSE ||
                                label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 2 : 1;
-      int additional_inputs = spec.GetArgument<int>("additional_inputs", 0);
-      int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox", false));
+      int additional_inputs = spec.GetArgument<int>("additional_inputs");
+      int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path", "Path to Caffe2 LMDB directory")

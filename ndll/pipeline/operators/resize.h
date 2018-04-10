@@ -19,13 +19,13 @@ class Resize : public Operator {
   explicit inline Resize(const OpSpec &spec) :
     Operator(spec),
     rand_gen_(time(nullptr)),
-    random_resize_(spec.GetArgument<bool>("random_resize", false)),
-    warp_resize_(spec.GetArgument<bool>("warp_resize", false)),
-    resize_a_(spec.GetArgument<int>("resize_a", -1)),
-    resize_b_(spec.GetArgument<int>("resize_b", -1)),
-    image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
+    random_resize_(spec.GetArgument<bool>("random_resize")),
+    warp_resize_(spec.GetArgument<bool>("warp_resize")),
+    resize_a_(spec.GetArgument<int>("resize_a")),
+    resize_b_(spec.GetArgument<int>("resize_b")),
+    image_type_(spec.GetArgument<NDLLImageType>("image_type")),
     color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
-    type_(spec.GetArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
+    type_(spec.GetArgument<NDLLInterpType>("interp_type")) {
     // Validate input parameters
     NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
     NDLL_ENFORCE(resize_a_ <= resize_b_);

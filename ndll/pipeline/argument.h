@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "ndll/common.h"
+#include "ndll/pipeline/data/types.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/proto/ndll_proto_utils.h"
 
@@ -17,7 +18,7 @@ class Value {
   public:
     virtual std::string ToString() const = 0;
     template <typename T>
-    static Value * construct(const T& val);
+    static inline Value * construct(const T& val);
 };
 
 template <typename T>
@@ -40,9 +41,23 @@ class ValueInst : public Value {
 };
 
 template <typename T>
-Value * Value::construct(const T& val) {
+inline Value * Value::construct(const T& val) {
   return new ValueInst<T>(val);
 }
+
+#define INSTANTIATE_VALUE_AS_INT64(T)             \
+  template<>                                      \
+  inline Value * Value::construct(const T& val) { \
+    return new ValueInst<Index>(val);             \
+  }
+
+INSTANTIATE_VALUE_AS_INT64(int);
+INSTANTIATE_VALUE_AS_INT64(unsigned int);
+INSTANTIATE_VALUE_AS_INT64(uint64_t);
+INSTANTIATE_VALUE_AS_INT64(NDLLImageType);
+INSTANTIATE_VALUE_AS_INT64(NDLLDataType);
+INSTANTIATE_VALUE_AS_INT64(NDLLInterpType);
+INSTANTIATE_VALUE_AS_INT64(NDLLTensorLayout);
 
 /**
  * @brief Stores a single argument.

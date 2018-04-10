@@ -10,7 +10,7 @@ NDLL_OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
   .OutputFn([](const OpSpec &spec) {
-      auto input_sets = spec.GetArgument<int>("num_input_sets", 1);
+      auto input_sets = spec.GetArgument<int>("num_input_sets");
       NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
       return spec.NumInput();
   })

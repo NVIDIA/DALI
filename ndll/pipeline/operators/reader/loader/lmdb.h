@@ -52,7 +52,7 @@ class LMDBReader : public Loader<CPUBackend> {
  public:
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
-      db_path_(options.GetArgument<string>("path", "")) {
+      db_path_(options.GetArgument<string>("path")) {
 
     // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));

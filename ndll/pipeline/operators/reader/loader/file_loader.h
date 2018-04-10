@@ -67,9 +67,9 @@ class FileLoader : public Loader<CPUBackend> {
  public:
   explicit FileLoader(const OpSpec& spec)
     : Loader<CPUBackend>(spec),
-      file_root_(spec.GetArgument<string>("file_root", "")),
+      file_root_(spec.GetArgument<string>("file_root")),
       current_index_(0) {
-    file_list_ = spec.GetArgument<string>("file_list", "");
+    file_list_ = spec.GetArgument<string>("file_list");
     if (file_list_ == "") {
       image_label_pairs_ = filesystem::traverse_directories(file_root_);
     } else {
