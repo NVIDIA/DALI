@@ -18,10 +18,10 @@
 namespace ndll {
 
 #define LOADER_SCHEMA_ARGS \
-  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling")                \
-  .AddOptionalArg("num_shards", "Partition the data into this many parts")                \
-  .AddOptionalArg("shard_id", "Id of the part to read")                                   \
-  .AddOptionalArg("tensor_init_bytes", "Hint for how much memory to allocate per image")
+  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling", 1024)                \
+  .AddOptionalArg("num_shards", "Partition the data into this many parts", 1)                \
+  .AddOptionalArg("shard_id", "Id of the part to read", 0)                                   \
+  .AddOptionalArg("tensor_init_bytes", "Hint for how much memory to allocate per image", 1048576)
 
 template <class Backend>
 class Loader {
@@ -35,7 +35,7 @@ class Loader {
     NDLL_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
-    dis = std::uniform_int_distribution<>(0, 1048576);
+    dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);
   }
 
   virtual ~Loader() {

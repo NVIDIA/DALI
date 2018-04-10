@@ -11,6 +11,7 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/argument.h"
 
 namespace ndll {
 
@@ -108,14 +109,33 @@ class OpSchema {
   }
 
   /**
-   * @brief Adds an optional argument to op
+   * @brief Adds an optional non-vector argument to op
    */
-  inline OpSchema& AddOptionalArg(std::string s, std::string doc) {
+  template <typename T>
+  inline typename std::enable_if<
+    !is_vector<T>::value && !is_array<T>::value,
+    OpSchema&>::type
+  AddOptionalArg(std::string s, std::string doc, T default_value) {
     NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
         "\" already added to the schema");
     NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
         "\" already added to the schema");
-    optional_arguments_[s] = doc;
+    Value * to_store = Value::construct(default_value);
+    optional_arguments_[s] = std::make_pair(doc, to_store);
+    return *this;
+  }
+
+  /**
+   * @brief Adds an optional vector argument to op
+   */
+  template <typename T>
+  inline OpSchema& AddOptionalArg(std::string s, std::string doc, std::vector<T> default_value) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    Value * to_store = Value::construct(std::vector<T>(default_value));
+    optional_arguments_[s] = std::make_pair(doc, to_store);
     return *this;
   }
 
@@ -136,7 +156,8 @@ class OpSchema {
     }
     ret += "\n\nOptional Parameters\n-------------------\n";
     for (auto arg_pair : optional_arguments_) {
-      ret += arg_pair.first + " : " + arg_pair.second + "\n";
+      ret += arg_pair.first + " : " + arg_pair.second.first +
+        " (default value: " + arg_pair.second.second->ToString() + ")\n";
     }
     return ret;
   }
@@ -215,7 +236,7 @@ class OpSchema {
   bool allow_multiple_input_sets_;
 
   std::map<std::string, std::string> arguments_;
-  std::map<std::string, std::string> optional_arguments_;
+  std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
 };
 
 class SchemaRegistry {

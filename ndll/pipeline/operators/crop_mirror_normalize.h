@@ -21,7 +21,7 @@ class CropMirrorNormalize : public Operator {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator(spec), rand_gen_(time(nullptr)),
-    output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
+    output_type_(spec.GetArgument<NDLLDataType>("output_dtype", NDLL_FLOAT)),
     output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout", NDLL_NCHW)),
     pad_(spec.GetArgument<bool>("pad_output", false)),
     random_crop_(spec.GetArgument<bool>("random_crop", false)),
@@ -68,9 +68,6 @@ class CropMirrorNormalize : public Operator {
       inv_std_vec_[i] = 1.f / inv_std_vec_[i];
     }
 
-    // TODO(tgale): We don't really want to do this in
-    // the default stream, we should make at least some
-    // stream available for constructors of ops.
     mean_.Copy(mean_vec_, 0);
     inv_std_.Copy(inv_std_vec_, 0);
 

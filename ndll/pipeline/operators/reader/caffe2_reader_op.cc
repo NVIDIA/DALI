@@ -20,10 +20,10 @@ NDLL_OPERATOR_SCHEMA(Caffe2Reader)
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path", "Path to Caffe2 LMDB directory")
-  .AddOptionalArg("num_labels", "Foo")
-  .AddOptionalArg("label_type", "Foo")
-  .AddOptionalArg("additional_inputs", "Foo")
-  .AddOptionalArg("bbox", "Foo")
+  .AddOptionalArg("num_labels", "Foo", 1)
+  .AddOptionalArg("label_type", "Foo", 0)
+  .AddOptionalArg("additional_inputs", "Foo", 0)
+  .AddOptionalArg("bbox", "Foo", false)
   LOADER_SCHEMA_ARGS;
 
 }  // namespace ndll

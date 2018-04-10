@@ -10,7 +10,7 @@ NDLL_OPERATOR_SCHEMA(DumpImage)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("suffix", "Suffix to be added to output file names")
-  .AddOptionalArg("input_layout", "Layout of input images");
+  .AddOptionalArg("suffix", "Suffix to be added to output file names", "")
+  .AddOptionalArg("input_layout", "Layout of input images", NDLL_NHWC);
 
 }  // namespace ndll

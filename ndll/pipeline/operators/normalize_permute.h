@@ -14,7 +14,7 @@ class NormalizePermute : public Operator {
  public:
   explicit inline NormalizePermute(const OpSpec &spec) :
     Operator(spec),
-    output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
+    output_type_(spec.GetArgument<NDLLDataType>("output_dtype", NDLL_FLOAT)),
     H_(spec.GetArgument<int>("height", -1)),
     W_(spec.GetArgument<int>("width", -1)),
     C_(spec.GetArgument<int>("channels", -1)) {

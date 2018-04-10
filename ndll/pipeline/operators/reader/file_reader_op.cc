@@ -10,7 +10,9 @@ NDLL_OPERATOR_SCHEMA(FileReader)
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root", "Path to directory containing data files")
-  .AddOptionalArg("file_list", "Path to the file with a list of pairs \"file label\"")
+  .AddOptionalArg("file_list", "Path to the file with a list of pairs \"file label\""
+      "(leave empty to traverse the `file_root` directory to obtain files and labels)",
+      std::string())
   LOADER_SCHEMA_ARGS;
 
 }  // namespace ndll

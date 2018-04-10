@@ -14,7 +14,7 @@ NDLL_OPERATOR_SCHEMA(NormalizePermute)
       NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
       return spec.NumInput();
   })
-  .AddOptionalArg("output_type", "Output data type")
+  .AddOptionalArg("output_dtype", "Output data type", NDLL_FLOAT)
   .AddArg("height", "Height of the input image")
   .AddArg("width", "Width of the input image")
   .AddArg("channels", "Number of channels of input image")
