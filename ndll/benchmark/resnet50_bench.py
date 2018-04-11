@@ -32,7 +32,7 @@ class C2Pipe(Pipeline):
                                             random_crop = True,
                                             crop = [224, 224])
         self.np = ops.NormalizePermute(device = "gpu",
-                                       output_type = types.FLOAT16,
+                                       output_dtype = types.FLOAT16,
                                        mean = [128., 128., 128.],
                                        std = [1., 1., 1.],
                                        height = 224,
@@ -64,7 +64,7 @@ class HybridPipe(Pipeline):
                                  image_type = types.RGB,
                                  interp_type = types.INTERP_LINEAR)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                            output_type = types.FLOAT16,
+                                            output_dtype = types.FLOAT16,
                                             random_crop = True,
                                             crop = (224, 224),
                                             image_type = types.RGB,

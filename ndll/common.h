@@ -154,7 +154,7 @@ inline std::string to_string(const bool& b) {
 }
 
 inline std::string to_string(const NDLLInterpType& interpolation) {
-  switch(interpolation) {
+  switch (interpolation) {
     case NDLL_INTERP_NN:
       return "INTERP_NN";
     case NDLL_INTERP_LINEAR:
@@ -167,7 +167,7 @@ inline std::string to_string(const NDLLInterpType& interpolation) {
 }
 
 inline std::string to_string(const NDLLImageType& im_type) {
-  switch(im_type) {
+  switch (im_type) {
     case NDLL_RGB:
       return "RGB";
     case NDLL_BGR:
@@ -180,7 +180,7 @@ inline std::string to_string(const NDLLImageType& im_type) {
 }
 
 inline std::string to_string(const NDLLTensorLayout& layout) {
-  switch(layout) {
+  switch (layout) {
     case NDLL_NCHW:
       return "NCHW";
     case NDLL_NHWC:

@@ -15,29 +15,29 @@
 namespace ndll {
 
 class Value {
-  public:
-    virtual std::string ToString() const = 0;
-    template <typename T>
-    static inline Value * construct(const T& val);
+ public:
+  virtual std::string ToString() const = 0;
+  template <typename T>
+  static inline Value * construct(const T& val);
 };
 
 template <typename T>
 class ValueInst : public Value {
-  public:
-    ValueInst(const T& val) {
-      this->val = val;
-    }
+ public:
+  explicit ValueInst(const T& val) {
+    this->val = val;
+  }
 
-    std::string ToString() const override {
-      return to_string(val);
-    }
+  std::string ToString() const override {
+    return to_string(val);
+  }
 
-    T Get() const {
-      return val;
-    }
+  T Get() const {
+    return val;
+  }
 
-  private:
-    T val;
+ private:
+  T val;
 };
 
 template <typename T>

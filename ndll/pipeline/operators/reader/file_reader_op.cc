@@ -1,4 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#include <string>
+
 #include "ndll/pipeline/operators/reader/file_reader_op.h"
 
 namespace ndll {

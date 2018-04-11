@@ -9,7 +9,8 @@ NDLL_OPERATOR_SCHEMA(HuffmanDecoder)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(2)
-  .AddOptionalArg("dct_bytes_hint", "Hint for memory used to preallocate space per image", 4 * 1048576);
+  .AddOptionalArg("dct_bytes_hint", "Hint for memory used to preallocate space per image",
+      4 * 1048576);
 
 NDLL_REGISTER_OPERATOR(DCTQuantInv, DCTQuantInv<GPUBackend>, GPU);
 
@@ -18,6 +19,7 @@ NDLL_OPERATOR_SCHEMA(DCTQuantInv)
   .NumInput(2)
   .NumOutput(1)
   .AddOptionalArg("output_type", "Output image type", NDLL_RGB)
-  .AddOptionalArg("bytes_per_sample_hint", "Hint for memory used to preallocate space per image", 0);
+  .AddOptionalArg("bytes_per_sample_hint", "Hint for memory used to preallocate space per image",
+      0);
 
 }  // namespace ndll

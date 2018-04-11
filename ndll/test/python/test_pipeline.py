@@ -55,7 +55,7 @@ def test_cropmirrornormalize_layout():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_type = types.FLOAT,
+                                                     output_dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
                                                      random_crop = False,
                                                      crop = (224, 224),
@@ -108,7 +108,7 @@ def test_cropmirrornormalize_pad():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_type = types.FLOAT,
+                                                     output_dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      random_crop = False,
                                                      crop = (224, 224),

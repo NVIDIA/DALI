@@ -7,6 +7,7 @@
 #include <string>
 #include <set>
 #include <vector>
+#include <utility>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -25,10 +26,14 @@ class OpSchema {
     // Fill internal arguments
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
         Value::construct(-1));
-    internal_arguments_["batch_size"] = std::make_pair("Batch size", Value::construct(-1));
-    internal_arguments_["num_input_sets"] = std::make_pair("Number of input sets given to an Op", Value::construct(1));
-    internal_arguments_["device"] = std::make_pair("Device on which the Op is run", Value::construct(std::string("cpu")));
-    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", Value::construct(false));
+    internal_arguments_["batch_size"] = std::make_pair("Batch size",
+        Value::construct(-1));
+    internal_arguments_["num_input_sets"] = std::make_pair("Number of input sets given to an Op",
+        Value::construct(1));
+    internal_arguments_["device"] = std::make_pair("Device on which the Op is run",
+        Value::construct(std::string("cpu")));
+    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place",
+        Value::construct(false));
   }
 
   inline ~OpSchema() = default;

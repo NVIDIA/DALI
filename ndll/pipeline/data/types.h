@@ -40,7 +40,7 @@ enum NDLLDataType {
 };
 
 inline std::string to_string(const NDLLDataType& dtype) {
-  switch(dtype) {
+  switch (dtype) {
     case NDLL_NO_TYPE:
       return "NO TYPE";
     case NDLL_UINT8:
@@ -68,7 +68,7 @@ inline std::string to_string(const NDLLDataType& dtype) {
   }
 
   NDLL_FAIL("Unknown datatype");
-};
+}
 
 // Dummy type to represent the invalid default state of ndll types.
 struct NoType {};
