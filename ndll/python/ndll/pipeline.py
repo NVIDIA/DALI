@@ -4,18 +4,20 @@ import ndll.backend as b
 import ndll.tensor as nt
 
 class Pipeline(object):
-    def __init__(self, batch_size, num_threads, device_id,
+    def __init__(self, batch_size, num_threads, device_id, seed = -1,
                  exec_pipelined=False, exec_async=False,
                  bytes_per_sample=0, set_affinity=False,
                  max_streams=-1):
         self._pipe = b.Pipeline(batch_size,
                                 num_threads,
                                 device_id,
+                                seed,
                                 exec_pipelined,
                                 exec_async,
                                 bytes_per_sample,
                                 set_affinity,
                                 max_streams)
+        self.seed = seed
         self._exec_pipelined = exec_pipelined
         self._built = False
         self._first_iter = True
@@ -151,6 +153,7 @@ class Pipeline(object):
                               self.batch_size,
                               self.num_threads,
                               self.device_id,
+                              self.seed,
                               self._exec_pipelined,
                               self._exec_async,
                               self._bytes_per_sample,

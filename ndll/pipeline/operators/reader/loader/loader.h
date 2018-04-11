@@ -29,16 +29,13 @@ class Loader {
  public:
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
-      initial_buffer_fill_(options.GetArgument<int>("initial_fill")),
+      initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
       initial_empty_size_(2 * options.GetArgument<int>("batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")) {
     NDLL_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
-    if (!shuffle_) {
-      initial_buffer_fill_ = 1;
-    }
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);

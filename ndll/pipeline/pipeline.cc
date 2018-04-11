@@ -219,7 +219,9 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
-    .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_);
+    .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_)
+    .AddArg("seed", seed_[current_seed]);
+  current_seed = (current_seed+1) % MAX_SEEDS;
 }
 
 string Pipeline::SerializeToProtobuf() const {

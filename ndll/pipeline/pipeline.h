@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <random>
+#include <ctime>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/async_pipelined_executor.h"
@@ -65,13 +67,22 @@ class Pipeline {
    * @param max_num_stream set an upper limit on the number of cudaStreams
    * that can be allocated by the pipeline.
    */
-  inline Pipeline(int batch_size, int num_threads, int device_id,
+  inline Pipeline(int batch_size, int num_threads, int device_id, int seed = -1,
       bool pipelined_execution = false, bool async_execution = false,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
     device_id_(device_id), bytes_per_sample_hint_(bytes_per_sample_hint) {
     NDLL_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+    seed_.resize(MAX_SEEDS);
+    current_seed = 0;
+    if (seed != -1) {
+      std::seed_seq ss = std::seed_seq({seed});
+      ss.generate(seed_.begin(), seed_.end());
+    } else {
+      std::seed_seq ss = std::seed_seq({time(0)});
+      ss.generate(seed_.begin(), seed_.end());
+    }
 
     if (pipelined_execution && async_execution) {
       executor_.reset(new AsyncPipelinedExecutor(
@@ -100,12 +111,13 @@ class Pipeline {
     // these specfic allocations to go our way without messing with everything
     // else.
   }
+
   inline Pipeline(const string &serialized_pipe,
-      int batch_size, int num_threads, int device_id,
+      int batch_size, int num_threads, int device_id, int seed = -1,
       bool pipelined_execution = false, bool async_execution = false,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
-    Pipeline(batch_size, num_threads, device_id, pipelined_execution,
+    Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
              async_execution, bytes_per_sample_hint, set_affinity,
              max_num_stream) {
     ndll_proto::PipelineDef def;
@@ -312,9 +324,13 @@ class Pipeline {
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);
 
+  const int MAX_SEEDS = 1024;
+
   bool built_;
   int batch_size_, num_threads_, device_id_;
   size_t bytes_per_sample_hint_;
+  std::vector<int> seed_;
+  size_t current_seed;
 
   OpGraph graph_;
   std::unique_ptr<Executor> executor_;
