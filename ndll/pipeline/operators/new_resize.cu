@@ -131,7 +131,7 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
                         *pTotalSize += sx0 * sy0;
                     } else {
                         *pTotalSize = 0;
-                        pTotalSize= NULL;
+                        pTotalSize = NULL;
                     }
                 }
             }
@@ -212,15 +212,16 @@ static void assignVectorElement(ResizeMappingPixDescrCPU *pntr, size_t elemIdx,
 }
 
 class PixMappingHelper {
-public:
-    CC PixMappingHelper(uint32_t len, void *pMapping, uint32_t resizedArea,
-                        ResizeMappingPixDescrCPU *pPixMapping = NULL,
+ public:
+    CC PixMappingHelper(uint32_t len, ResizeMapping *pMapping, MappingInfo *pMapInfo,
+                        uint32_t resizedArea, ResizeMappingPixDescrCPU *pPixMapping = NULL,
                         allocMemoryFunction allocMemFunc = NULL,
                         assignElemFunction assignFunc = NULL);
     void CC constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1,
                            int stepW = 1, int stepH = 1, int startW = 0, int startH = 0);
     inline uint32_t CC numUsed() const                  { return numPixMapUsed_; }
-private:
+
+ private:
     void CC AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
     void CC UpdateMapping(int shift, int centerX, int centerY);
 
@@ -228,10 +229,10 @@ private:
     uint32_t numPixMapMax_;     // length of the allocated PixMapping array
     uint32_t numPixMapUsed_;    // number of already used elements of pPixMapping
     ResizeMappingPixDescrCPU *pPixMapping_;
-    ResizeMapping *pMappingBase_;
+    ResizeMapping *const pMappingBase_;
     ResizeMapping *pMapping_;
-    uint32_t *pMappingClosestBase_;
-    uint32_t *pMappingClosest_;
+    MappingInfo *const pMappingClosestBase_;
+    MappingInfo *pMappingClosest_;
 
     const allocMemoryFunction allocMemFunc_;
     const assignElemFunction assignFunc_;
@@ -272,7 +273,7 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
         pResizeMapping[imagIdx] = static_cast<MappingInfo *>(
                     malloc(area0 * sizeof(MappingInfo)));
 
-    PixMappingHelper helper(area0, pResizeMapping[imagIdx], area);
+    PixMappingHelper helper(area0, NULL, pResizeMapping[imagIdx], area);
     helper.constructTable(C, W0, sx0, sy0, sx1, sy1,
                           blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
@@ -281,9 +282,10 @@ __global__ void ReleaseResizeTables(MappingInfo *pResizeMapping[]) {
     free(pResizeMapping[blockIdx.x]);
 }
 
-__global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr, MappingInfo *ppMapping[],
-                                    const NDLLSize *in_sizes, const uint8 *const imgs_in[],
-                                    const NDLLSize *out_sizes, uint8 *const imgs_out[]) {
+__global__ void BatchedResizeKernel(
+                        int C, const ResizeGridParam *resizeDescr, MappingInfo *ppMapping[],
+                        const NDLLSize *in_sizes, const uint8 *const imgs_in[],
+                        const NDLLSize *out_sizes, uint8 *const imgs_out[]) {
     const int imagIdx = blockIdx.x;
     auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
     const int W0 = in_sizes[imagIdx].width;
@@ -331,14 +333,13 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
     return NDLLSuccess;
 }
 
-PixMappingHelper::PixMappingHelper(uint32_t area, void *pMapping, uint32_t resizedArea,
-        ResizeMappingPixDescrCPU *pPixMapping, allocMemoryFunction allocMemFunc,
-        assignElemFunction assignFunc) : area_(area), resizedArea_(resizedArea),
-        allocMemFunc_(allocMemFunc), assignFunc_(assignFunc) {
+PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, MappingInfo *pMapInfo,
+        uint32_t resizedArea, ResizeMappingPixDescrCPU *pPixMapping,
+        allocMemoryFunction allocMemFunc, assignElemFunction assignFunc) : area_(area),
+        resizedArea_(resizedArea), allocMemFunc_(allocMemFunc), assignFunc_(assignFunc),
+            pMappingBase_(pMapping), pMappingClosestBase_(pMapInfo) {
     numPixMapMax_ = 1;
     numPixMapUsed_ = 0;
-    pMappingBase_ = (ResizeMapping *)pMapping;
-    pMappingClosestBase_ = (uint32_t *)pMapping;
 
     if (resizedArea == 0 && allocMemFunc_)
         (*allocMemFunc_)(pPixMapping_ = pPixMapping, numPixMapMax_ = 2 * area);
@@ -483,10 +484,9 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, i
     const bool use_NN = resizeType == NDLL_INTERP_NN;
     initTable(H0, W0, H1, W1, C, sx0, sy0, use_NN);
 
-    void *pMapping = use_NN? (void *)RESIZE_MAPPING_CPU(resizeMappingSimpleCPU) :
-                             (void *)RESIZE_MAPPING_CPU(resizeMappingCPU);
-    PixMappingHelper helper(sx0 * sy0, pMapping, use_NN? sx1 * sy1 : 0,
-                            &pixMappingCPU, resizeVector, assignVectorElement);
+    PixMappingHelper helper(sx0 * sy0, RESIZE_MAPPING_CPU(resizeMappingCPU),
+            RESIZE_MAPPING_CPU(resizeMappingSimpleCPU), use_NN? sx1 * sy1 : 0,
+            &pixMappingCPU, resizeVector, assignVectorElement);
 
     helper.constructTable(C, W0, sx0, sy0, sx1, sy1);
     if (use_NN)

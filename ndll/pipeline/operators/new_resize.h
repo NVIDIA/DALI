@@ -237,6 +237,7 @@ template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
     inline explicit NewResize(const OpSpec &spec) : Resize<Backend>(spec) {
+        resizeParam_.resize(N_GRID_PARAMS * batch_size_);
         mappingPntr_ = NULL;
         mappingMem_ = NULL;
         resizeMemory_ = 0;
@@ -280,13 +281,10 @@ class NewResize : public Resize<Backend> {
         const auto &output = ws->Output<GPUBackend>(idx);
         const bool use_NN = ResizeAttr::type_ == NDLL_INTERP_NN;
 
-#if !KEEP_RESIZE_TABLE
-        ResizeGridParam resizeParam_[N_GRID_PARAMS * batch_size_];
-#endif
         size_t resizeMemory = 0;
         const bool newMapping = DataDependentSetupGPU(input, output, batch_size_, false,
               ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this,
-              resizeParam_, use_NN && RESIZE_TABLE_ALLOC? &resizeMemory : NULL);
+              resizeParam_.data(), use_NN && RESIZE_TABLE_ALLOC? &resizeMemory : NULL);
 
         const auto &shape = input.shape();
         const int C = shape[0][2];
@@ -305,7 +303,7 @@ class NewResize : public Resize<Backend> {
 
                 // Copying the descriptor of operation into GPU
                 resizeParamGPU_.Copy(vector<ResizeGridParam>(
-                        resizeParam_, resizeParam_ + N_GRID_PARAMS), s);
+                        resizeParam_.begin(), resizeParam_.begin() + N_GRID_PARAMS), s);
 
                 resizeTbl_.copyToGPU(s, !use_NN);
             }
@@ -318,8 +316,7 @@ class NewResize : public Resize<Backend> {
                         *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                         RESIZE_PARAM(resizeParamGPU_), pMapping, pResizeMapping, pPixMapping));
         } else {
-            resizeParamGPU_.Copy(vector<ResizeGridParam>(
-                    resizeParam_, resizeParam_ + N_GRID_PARAMS * batch_size_), s);
+            resizeParamGPU_.Copy(resizeParam_, s);
 
             vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
                                          ResizeAttr::outputImages()};
@@ -329,9 +326,6 @@ class NewResize : public Resize<Backend> {
                 TENSOR_COPY_SIZES(sizesGPU_[i], sizes, s);
                 TENSOR_COPY_RASTERS(imgsGPU_[i], *(raster[i]), s);
             }
-
-            resizeParamGPU_.Copy(vector<ResizeGridParam>(
-                    resizeParam_, resizeParam_ + N_GRID_PARAMS * batch_size_), s);
 
             MappingInfo **mapPntr = NULL;
             if (use_NN && (!RESIZE_TABLE_ALLOC || resizeMemory)) {
@@ -431,8 +425,8 @@ class NewResize : public Resize<Backend> {
     // Members used in RunBatchedGPU;
 #if KEEP_RESIZE_TABLE
     ResizeMappingTable resizeTbl_;
-    ResizeGridParam resizeParam_[N_GRID_PARAMS];
 #endif
+    vector<ResizeGridParam>resizeParam_;
     ResizeGridDescr resizeParamGPU_;
     ImgSizeDescr sizesGPU_[2];     // Input/Output images sizes on GPU
     ImgRasterDescr imgsGPU_[2];    // Input/Output images rasters on GPU
