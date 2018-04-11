@@ -31,6 +31,20 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422-odd-width.jpg"
 };
 
+const vector<string> png_test_images = {
+  image_folder + "/png/000000000139.png",
+  image_folder + "/png/000000000285.png",
+  image_folder + "/png/000000000632.png",
+  image_folder + "/png/000000000724.png",
+  image_folder + "/png/000000000776.png",
+  image_folder + "/png/000000000785.png",
+  image_folder + "/png/000000000802.png",
+  image_folder + "/png/000000000872.png",
+  image_folder + "/png/000000000885.png",
+  image_folder + "/png/000000001000.png",
+  image_folder + "/png/000000001268.png"
+};
+
 }  // namespace images
 
 // Define a virtual base class for single operator tests,
@@ -50,13 +64,31 @@ class NDLLSingleOpTest : public NDLLTest {
 
     // encoded in jpegs_
     LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
+    LoadImages(images::png_test_images, &png_, &png_sizes_);
+
     // decoded in images_
-    DecodeJPEGS(NDLL_RGB);
+    DecodeImages(NDLL_RGB, jpegs_, jpeg_sizes_, &jpeg_decoded_, &jpeg_dims_);
+    DecodeImages(NDLL_RGB, png_, png_sizes_, &png_decoded_, &png_dims_);
+
+    //set the pipeline batch size
+    batch_size_ = 32;
 
     InitPipeline();
   }
   inline void TearDown() override {
     NDLLTest::TearDown();
+  }
+
+  inline void SetBatchSize(int b) {
+    batch_size_ = b;
+  }
+
+  inline void SetNumThreads(int t) {
+    num_threads_ = t;
+  }
+
+  inline void SetEps(double e) {
+    eps_ = e;
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -131,21 +163,25 @@ class NDLLSingleOpTest : public NDLLTest {
    * Provide some encoded data
    * TODO(slayton): Add different encodings
    */
-  void EncodedData(TensorList<CPUBackend>* t) {
-    NDLLTest::MakeJPEGBatch(t, 32);
+  void EncodedJPEGData(TensorList<CPUBackend>* t, int n) {
+    NDLLTest::MakeJPEGBatch(t, n);
+  }
+
+  void EncodedPNGData(TensorList<CPUBackend>* t, int n) {
+    NDLLTest::MakeEncodedBatch(t, n, png_, png_sizes_);
   }
 
   /**
    * Provide decoded (i.e. decoded JPEG) data
    */
-  void DecodedData(TensorList<CPUBackend>* t) {
-    NDLLTest::MakeImageBatch(32, t);
+  void DecodedData(TensorList<CPUBackend>* t, int n) {
+    NDLLTest::MakeImageBatch(n, t);
   }
 
  private:
   // use a Get mean, std-dev of difference
   template <typename T>
-  void CheckBuffers(int N, const T *a, const T *b, double eps = 1e-4) {
+  void CheckBuffers(int N, const T *a, const T *b) {
     double diff_sum = 0;
 
     vector<double> diff(N);
@@ -157,7 +193,7 @@ class NDLLSingleOpTest : public NDLLTest {
     }
     MeanStdDev<double>(diff, &mean, &std);
 
-    ASSERT_LE(abs(mean), eps);
+    ASSERT_LE(fabs(mean), eps_);
   }
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
@@ -169,11 +205,11 @@ class NDLLSingleOpTest : public NDLLTest {
     ASSERT_EQ(t1->size(), t2->size());
 
     if (IsType<float>(t1->type())) {
-      CheckBuffers<float>(t1->ntensor(),
+      CheckBuffers<float>(t1->size(),
                           t1->data<float>(),
                           t2->data<float>());
     } else if (IsType<unsigned char>(t1->type())) {
-      CheckBuffers<unsigned char>(t1->ntensor(),
+      CheckBuffers<unsigned char>(t1->size(),
                                   t1->data<unsigned char>(),
                                   t2->data<unsigned char>());
     }
@@ -181,19 +217,30 @@ class NDLLSingleOpTest : public NDLLTest {
 
   void InitPipeline() {
     if (!pipeline_.get()) {
-      pipeline_.reset(new Pipeline(32, 1, 0));
+      pipeline_.reset(new Pipeline(batch_size_, num_threads_, 0));
     }
   }
   vector<std::pair<string, TensorList<CPUBackend>*>> inputs_;
   vector<TensorList<CPUBackend>*> input_data_;
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
+
+  vector<uint8*> png_;
+  vector<int> png_sizes_;
+
+  vector<uint8*> jpeg_decoded_, png_decoded_;
+  vector<DimPair> jpeg_dims_, png_dims_;
+
+ protected:
+  int batch_size_ = 32;
+  int num_threads_ = 2;
+  double eps_ = 1e-4;
 };
 
 #define USING_NDLL_SINGLE_OP_TEST() \
   using NDLLSingleOpTest::AddSingleOp; \
   using NDLLSingleOpTest::SetExternalInputs; \
-  using NDLLSingleOpTest::EncodedData; \
+  using NDLLSingleOpTest::EncodedJPEGData; \
   using NDLLSingleOpTest::DecodedData;
 
 }  // namespace ndll
