@@ -217,7 +217,8 @@ public:
                         ResizeMappingPixDescrCPU *pPixMapping = NULL,
                         allocMemoryFunction allocMemFunc = NULL,
                         assignElemFunction assignFunc = NULL);
-    void CC constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1);
+    void CC constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1,
+                           int stepW = 1, int stepH = 1, int startW = 0, int startH = 0);
     inline uint32_t CC numUsed() const                  { return numPixMapUsed_; }
 private:
     void CC AddPixel(uint32_t addr, uint32_t area, int crdX, int crdY);
@@ -272,7 +273,8 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
                     malloc(area0 * sizeof(MappingInfo)));
 
     PixMappingHelper helper(area0, pResizeMapping[imagIdx], area);
-    helper.constructTable(C, W0, sx0, sy0, sx1, sy1);
+    helper.constructTable(C, W0, sx0, sy0, sx1, sy1,
+                          blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
 
 __global__ void ReleaseResizeTables(MappingInfo *pResizeMapping[]) {
@@ -308,9 +310,10 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
     auto out_sizes = IMG_SIZES(sizes[output_t]);
     if (pResizeMapping) {
         if (mappingMem)
-            InitiateResizeTabls<<<1, 1>>>(N, resizeDescr, pResizeMapping, mappingMem);
+            InitiateResizeTabls<<<1, 1, 0, stream >>>(N, resizeDescr, pResizeMapping, mappingMem);
 
-        ConstructResizeTables <<< N, 1 >>> (C, resizeDescr, in_sizes, pResizeMapping, RESIZE_TABLE_ALLOC == 0);
+        ConstructResizeTables <<< N, gridDim, 0, stream >>>
+                (C, resizeDescr, in_sizes, pResizeMapping, mappingMem == NULL);
 #if !RESIZE_TABLE_ALLOC
         cudaDeviceSynchronize();
 #endif
@@ -375,12 +378,13 @@ void PixMappingHelper::UpdateMapping(int shift, int centerX, int centerY) {
 
 #define RUN_CHECK_1     0
 
-void PixMappingHelper::constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1) {
+void PixMappingHelper::constructTable(int C, int W0, size_t sx0, size_t sy0, size_t sx1, size_t sy1,
+                                      int stepW, int stepH, int startW, int startH) {
     // (x, y) pixel coordinate of PIX in resized image
     // 0 <= x < W1;  0 <= y < H1
 
-    for (size_t y = 0; y < sy0; ++y) {
-        for (size_t x = 0; x < sx0; ++x) {
+    for (size_t y = startH; y < sy0; y += stepH) {
+        for (size_t x = startW; x < sx0; x += stepW) {
             const size_t nX = x * sx1;
             const size_t nY = y * sy1;
             // The indices of the top-left pixel of the initial image, intersecting with PIX
