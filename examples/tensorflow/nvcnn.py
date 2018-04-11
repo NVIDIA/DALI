@@ -485,10 +485,14 @@ class ImagePreprocessor(object):
 
 class HybridPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
-        super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
-	base = '/opt/ndll/examples/recordio/'
-	idx_files = [base + "val.idx"]
-	rec_files = [base + "val.rec"]
+        super(HybridPipe, self).__init__(batch_size,
+                                         num_threads,
+                                         device_id,
+                                         exec_pipelined=pipelined,
+                                         exec_async=async)
+        base = '/opt/ndll/examples/recordio/'
+        idx_files = [base + "val.idx"]
+        rec_files = [base + "val.rec"]
         self.input = ops.MXNetReader(path = rec_files, index_path = idx_files, shard_id = device_id, num_shards = num_gpus)
 
         self.huffman = ops.HuffmanDecoder()
@@ -522,15 +526,15 @@ class NdllPreprocessor(object):
         self.height = height
         self.width  = width
         self.batch = batch_size
-	pipe = HybridPipe(batch_size=self.batch, num_threads=2, device_id = 0, num_gpus = 1, pipelined = True, async = True)
-	serialized_pipe = pipe.serialize()
+        pipe = HybridPipe(batch_size=self.batch, num_threads=2, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+        serialized_pipe = pipe.serialize()
         ndllop = ndll_tf.NDLLIterator()
-	self.images, self.labels = ndllop(serialized_pipeline = serialized_pipe,
+        self.images, self.labels = ndllop(serialized_pipeline = serialized_pipe,
                 batch_size = batch_size,
                 height = 224,
                 width = 224)
     def get_device_minibatch(self):
-	return self.images, self.labels
+        return self.images, self.labels
 
 def stage(tensors):
     """Stages the given tensors in a StagingArea for asynchronous put/get.
@@ -647,18 +651,18 @@ class FeedForwardTrainer(object):
         tower_top5s    = []
         if type(self.image_preprocessor) is not DummyPreprocessor:
             if type(self.image_preprocessor) is NdllPreprocessor:
-		dev_images, dev_labels = self.image_preprocessor.get_device_minibatch()
-	    else:
-            	with tf.device('/cpu:0'):
+                dev_images, dev_labels = self.image_preprocessor.get_device_minibatch()
+            else:
+                with tf.device('/cpu:0'):
                     dev_images, dev_labels = self.image_preprocessor.device_minibatches(
-                    	total_batch_size)
+                        total_batch_size)
         # Each device has its own copy of the model, referred to as a tower
         for device_num, device in enumerate(devices):
             if type(self.image_preprocessor) is not DummyPreprocessor:
-		if type(self.image_preprocessor) is NdllPreprocessor:
-		    images, labels = dev_images, dev_labels
+                if type(self.image_preprocessor) is NdllPreprocessor:
+                    images, labels = dev_images, dev_labels
                     #labels.set_shape((FLAGS.batch_size));
-		else:
+                else:
                     images, labels = dev_images[device_num], dev_labels[device_num]
                     with tf.device('/cpu:0'):
                         # Stage images on the host
@@ -670,7 +674,7 @@ class FeedForwardTrainer(object):
                     gpucopy_op, (images, labels) = stage([images, labels])
                     gpucopy_ops.append(gpucopy_op)
                 elif type(self.image_preprocessor) is DummyPreprocessor:
-                    input_shape = [self.image_preprocessor.batch, 
+                    input_shape = [self.image_preprocessor.batch,
                                    self.image_preprocessor.height,
                                    self.image_preprocessor.width,
                                    3]
@@ -1012,7 +1016,7 @@ def resnet_bottleneck_v1(net, input_layer, depth, depth_bottleneck, stride,
         with net.jit_scope():
             x = net.activate(x + shortcut)
         return x
-    
+
 def resnext_split_branch(net, input_layer, stride):
     x = input_layer
     with tf.name_scope('resnext_split_branch'):
@@ -1087,7 +1091,7 @@ def inference_resnet_v1(net, input_layer, nlayer):
     elif nlayer == 152: return inference_resnet_v1_impl(net, input_layer, [3,8,36,3])
     else: raise ValueError("Invalid nlayer (%i); must be one of: 18,34,50,101,152" %
                            nlayer)
-        
+
 def inference_resnext_v1(net, input_layer, nlayer):
     """Aggregated  Residual Networks family of models
     https://arxiv.org/abs/1611.05431
@@ -1097,7 +1101,7 @@ def inference_resnext_v1(net, input_layer, nlayer):
     net.shortcut_type = 'B'
     assert net.cardinality in cardinality_to_bottleneck_width.keys(), \
     "Invalid  cardinality (%i); must be one of: 1,2,4,8,32" % net.cardinality
-    net.bottleneck_width = cardinality_to_bottleneck_width[net.cardinality]  
+    net.bottleneck_width = cardinality_to_bottleneck_width[net.cardinality]
     if nlayer ==  50: return inference_resnext_v1_impl(net, input_layer, [3,4, 6,3])
     elif nlayer == 101: return inference_resnext_v1_impl(net, input_layer, [3,4,23,3])
     elif nlayer == 152: return inference_resnext_v1_impl(net, input_layer, [3,8,36,3])
@@ -1442,7 +1446,7 @@ def main():
         raise ValueError("Invalid model type: %s" % model_name)
 
     if FLAGS.ndll:
-	preprocessor = NdllPreprocessor(height, width, FLAGS.batch_size)
+        preprocessor = NdllPreprocessor(height, width, FLAGS.batch_size)
     elif FLAGS.data_dir is None:
         preprocessor = DummyPreprocessor(height, width, total_batch_size//len(devices), nclass)
     else:

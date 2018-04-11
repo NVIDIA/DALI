@@ -23,7 +23,11 @@ def make_batch(size):
 
 class C2Pipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
-        super(C2Pipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+        super(C2Pipe, self).__init__(batch_size,
+                                     num_threads,
+                                     device_id,
+                                     exec_pipelined=pipelined,
+                                     exec_async=async)
         self.input = ops.ExternalSource()
         self.decode = ops.TJPGDecoder(output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(random_resize = True,
@@ -55,7 +59,11 @@ class C2Pipe(Pipeline):
 
 class HybridPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
-        super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+        super(HybridPipe, self).__init__(batch_size,
+                                         num_threads,
+                                         device_id,
+                                         exec_pipelined=pipelined,
+                                         exec_async=async)
         self.input = ops.ExternalSource()
         self.huffman = ops.HuffmanDecoder()
         self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)

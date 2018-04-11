@@ -12,7 +12,11 @@ def test_tensor_multiple_uses():
     batch_size = 128
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
-            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             exec_pipelined=pipelined,
+                                             exec_async=async)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
@@ -51,7 +55,11 @@ def test_cropmirrornormalize_layout():
     batch_size = 128
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
-            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             exec_pipelined=pipelined,
+                                             exec_async=async)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
@@ -104,7 +112,11 @@ def test_cropmirrornormalize_pad():
     batch_size = 128
     class HybridPipe(Pipeline):
         def __init__(self, layout, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
-            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, pipelined, async)
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             exec_pipelined=pipelined,
+                                             exec_async=async)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
@@ -162,3 +174,48 @@ def test_cropmirrornormalize_pad():
                 assert(t_pad.shape == (224,224,4))
                 assert(np.sum(np.abs(t - t_pad[:,:,:3])) == 0)
                 assert(np.sum(np.abs(t_pad[:,:,3])) == 0)
+
+def test_seed():
+    batch_size = 64
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             seed = 12,
+                                             exec_pipelined=pipelined,
+                                             exec_async=async)
+            self.input = ops.CaffeReader(path = db_folder, random_shuffle = True)
+            self.huffman = ops.HuffmanDecoder()
+            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                                output_dtype = types.FLOAT,
+                                                random_crop = True,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+            self.copy = ops.Copy(device="gpu")
+            self.iter = 0
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
+            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            output = self.cmnp(images)
+            return (output, self.labels)
+
+        def iter_setup(self):
+            pass
+    n = 100
+    for i in range(50):
+        pipe = HybridPipe(batch_size=128,
+                          num_threads=2,
+                          device_id = 0,
+                          pipelined = True,
+                          async = True)
+        pipe.build()
+        pipe_out = pipe.run()
+        pipe_out_cpu = pipe_out[0].asCPU()
+        img_chw_test = pipe_out_cpu.at(n)
+        assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
