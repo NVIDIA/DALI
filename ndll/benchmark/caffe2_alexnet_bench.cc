@@ -24,7 +24,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, pipelined,
+      0, -1, pipelined,
       async);
 
   ndll::string path(std::getenv("NDLL_TEST_CAFFE2_LMDB_PATH"));
@@ -130,7 +130,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, pipelined,
+      0, -1, pipelined,
       async);
 
   pipe.AddOperator(

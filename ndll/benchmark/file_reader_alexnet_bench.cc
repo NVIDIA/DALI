@@ -24,7 +24,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, pipelined,
+      0, -1, pipelined,
       async);
 
   ndll::string list_root(std::getenv("NDLL_TEST_FILE_READER_LIST_ROOT"));

@@ -15,6 +15,7 @@ void CreatePipeline(PipelineHandle* pipe_handle,
                               batch_size,
                               num_threads,
                               device_id,
+                              -1,
                               true,
                               true);
   pipe->Build();
