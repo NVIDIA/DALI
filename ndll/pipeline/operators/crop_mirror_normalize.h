@@ -20,7 +20,7 @@ template <typename Backend>
 class CropMirrorNormalize : public Operator {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
-    Operator(spec), 
+    Operator(spec),
     rand_gen_(spec.GetArgument<int>("seed")),
     output_type_(spec.GetArgument<NDLLDataType>("output_dtype")),
     output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout")),

@@ -185,7 +185,7 @@ def test_seed():
                                              seed = 12,
                                              exec_pipelined=pipelined,
                                              exec_async=async)
-            self.input = ops.CaffeReader(path = db_folder, random_shuffle = True)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.huffman = ops.HuffmanDecoder()
             self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -209,7 +209,7 @@ def test_seed():
             pass
     n = 100
     for i in range(50):
-        pipe = HybridPipe(batch_size=128,
+        pipe = HybridPipe(batch_size=batch_size,
                           num_threads=2,
                           device_id = 0,
                           pipelined = True,
