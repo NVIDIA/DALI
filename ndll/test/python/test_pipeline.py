@@ -17,7 +17,7 @@ def test_tensor_multiple_uses():
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
-            
+
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
@@ -64,7 +64,7 @@ def test_cropmirrornormalize_layout():
                                                      std = [1., 1., 1.],
                                                      mirror_prob = 0.0)
             self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_type = types.FLOAT,
+                                                     output_dtype = types.FLOAT,
                                                      output_layout = types.NCHW,
                                                      random_crop = False,
                                                      crop = (224, 224),
@@ -118,7 +118,7 @@ def test_cropmirrornormalize_pad():
                                                      mirror_prob = 0.0,
                                                      pad_output = True)
             self.cmnp      = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_type = types.FLOAT,
+                                                     output_dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      random_crop = False,
                                                      crop = (224, 224),
