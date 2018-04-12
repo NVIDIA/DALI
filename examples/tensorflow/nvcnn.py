@@ -484,12 +484,10 @@ class ImagePreprocessor(object):
         return images, labels
 
 class HybridPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+    def __init__(self, batch_size, num_threads, device_id, num_gpus):
         super(HybridPipe, self).__init__(batch_size,
                                          num_threads,
-                                         device_id,
-                                         exec_pipelined=pipelined,
-                                         exec_async=async)
+                                         device_id)
         base = '/opt/ndll/examples/recordio/'
         idx_files = [base + "val.idx"]
         rec_files = [base + "val.rec"]
@@ -526,7 +524,7 @@ class NdllPreprocessor(object):
         self.height = height
         self.width  = width
         self.batch = batch_size
-        pipe = HybridPipe(batch_size=self.batch, num_threads=2, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+        pipe = HybridPipe(batch_size=self.batch, num_threads=2, device_id = 0, num_gpus = 1)
         serialized_pipe = pipe.serialize()
         ndllop = ndll_tf.NDLLIterator()
         self.images, self.labels = ndllop(serialized_pipeline = serialized_pipe,

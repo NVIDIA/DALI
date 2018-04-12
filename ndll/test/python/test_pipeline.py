@@ -11,12 +11,10 @@ caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
 def test_tensor_multiple_uses():
     batch_size = 128
     class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
-                                             device_id,
-                                             exec_pipelined=pipelined,
-                                             exec_async=async)
+                                             device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
@@ -32,7 +30,7 @@ def test_tensor_multiple_uses():
         def iter_setup(self):
             pass
 
-    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
     out = pipe.run()
     assert(out[0].is_dense_tensor())
@@ -54,12 +52,10 @@ def test_tensor_multiple_uses():
 def test_cropmirrornormalize_layout():
     batch_size = 128
     class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
-                                             device_id,
-                                             exec_pipelined=pipelined,
-                                             exec_async=async)
+                                             device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
@@ -91,7 +87,7 @@ def test_cropmirrornormalize_layout():
         def iter_setup(self):
             pass
 
-    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
     out = pipe.run()
     assert(out[0].is_dense_tensor())
@@ -111,12 +107,10 @@ def test_cropmirrornormalize_layout():
 def test_cropmirrornormalize_pad():
     batch_size = 128
     class HybridPipe(Pipeline):
-        def __init__(self, layout, batch_size, num_threads, device_id, num_gpus, pipelined = True, async = True):
+        def __init__(self, layout, batch_size, num_threads, device_id, num_gpus):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
-                                             device_id,
-                                             exec_pipelined=pipelined,
-                                             exec_async=async)
+                                             device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
@@ -151,7 +145,7 @@ def test_cropmirrornormalize_pad():
             pass
 
     for layout in [types.NCHW, types.NHWC]:
-        pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, pipelined = True, async = True)
+        pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
         pipe.build()
         out = pipe.run()
         assert(out[0].is_dense_tensor())
@@ -178,13 +172,11 @@ def test_cropmirrornormalize_pad():
 def test_seed():
     batch_size = 64
     class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+        def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id,
-                                             seed = 12,
-                                             exec_pipelined=pipelined,
-                                             exec_async=async)
+                                             seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.huffman = ops.HuffmanDecoder()
             self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
@@ -211,9 +203,7 @@ def test_seed():
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
                           num_threads=2,
-                          device_id = 0,
-                          pipelined = True,
-                          async = True)
+                          device_id = 0)
         pipe.build()
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].asCPU()

@@ -13,13 +13,13 @@ template <typename Backend>
 class TensorListTest : public NDLLTest {
  public:
   vector<Dims> GetRandShape() {
-    int num_tensor = this->RandInt(1, 128);
+    int num_tensor = this->RandInt(1, 64);
     vector<Dims> shape(num_tensor);
     for (int i = 0; i < num_tensor; ++i) {
       int dims = this->RandInt(1, 3);
       vector<Index> tensor_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
-        tensor_shape[j] = this->RandInt(1, 512);
+        tensor_shape[j] = this->RandInt(1, 200);
       }
       shape[i] = tensor_shape;
     }
