@@ -11,6 +11,7 @@ NDLL_OPERATOR_SCHEMA(Cast)
   .DocStr("Cast tensor to a different type")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets();
+  .AllowMultipleInputSets()
+  .AddArg("dtype", "Output data type");
 
 }  // namespace ndll

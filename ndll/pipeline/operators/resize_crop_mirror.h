@@ -36,14 +36,31 @@ class ResizeCropMirror : public Operator {
   explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator(spec),
     rand_gen_(time(nullptr)),
-    random_resize_(spec.GetArgument<bool>("random_resize", false)),
-    warp_resize_(spec.GetArgument<bool>("warp_resize", false)),
-    resize_a_(spec.GetArgument<int>("resize_a", -1)),
-    resize_b_(spec.GetArgument<int>("resize_b", -1)),
-    random_crop_(spec.GetArgument<bool>("random_crop", false)),
-    crop_h_(spec.GetArgument<int>("crop_h", -1)),
-    crop_w_(spec.GetArgument<int>("crop_w", -1)),
-    mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)) {
+    random_resize_(spec.GetArgument<bool>("random_resize")),
+    warp_resize_(spec.GetArgument<bool>("warp_resize")),
+    resize_a_(spec.GetArgument<int>("resize_a")),
+    resize_b_(spec.GetArgument<int>("resize_b")),
+    random_crop_(spec.GetArgument<bool>("random_crop")),
+    mirror_prob_(spec.GetArgument<float>("mirror_prob")) {
+    vector<int> temp_crop;
+    try {
+      temp_crop = spec.GetRepeatedArgument<int>("crop");
+      if (temp_crop.size() == 1) {
+        temp_crop.push_back(temp_crop.back());
+      }
+    } catch (std::runtime_error e) {
+      try {
+        int temp = spec.GetArgument<int>("crop");
+        temp_crop = {temp, temp};
+      } catch (std::runtime_error e) {
+        NDLL_FAIL("Invalid type of argument \"crop\". Expected int or list of int");
+      }
+    }
+
+    NDLL_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
+        + to_string(temp_crop.size()) + " given.");
+    crop_h_ = temp_crop[0];
+    crop_w_ = temp_crop[1];
     // Validate input parameters
     NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
     NDLL_ENFORCE(resize_a_ <= resize_b_);

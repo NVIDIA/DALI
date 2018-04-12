@@ -14,8 +14,8 @@ namespace ndll {
 class JitterAugment {
  public:
   explicit JitterAugment(const OpSpec& spec) :
-        nDegree_(spec.GetArgument<int>("nDegree", 2)),
-        rnd_(spec.GetArgument<int>("seed", 1234), 128*256) {}
+        nDegree_(spec.GetArgument<int>("nDegree")),
+        rnd_(spec.GetArgument<int>("seed"), 128*256) {}
 
   __host__ __device__
   Index operator()(int y, int x, int c, int H, int W, int C) {

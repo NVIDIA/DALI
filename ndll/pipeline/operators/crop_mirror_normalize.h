@@ -21,25 +21,25 @@ class CropMirrorNormalize : public Operator {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator(spec), rand_gen_(time(nullptr)),
-    output_type_(spec.GetArgument<NDLLDataType>("output_type", NDLL_FLOAT)),
-    output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout", NDLL_NCHW)),
-    pad_(spec.GetArgument<bool>("pad_output", false)),
-    random_crop_(spec.GetArgument<bool>("random_crop", false)),
-    mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)),
-    image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
+    output_type_(spec.GetArgument<NDLLDataType>("output_dtype")),
+    output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout")),
+    pad_(spec.GetArgument<bool>("pad_output")),
+    random_crop_(spec.GetArgument<bool>("random_crop")),
+    mirror_prob_(spec.GetArgument<float>("mirror_prob")),
+    image_type_(spec.GetArgument<NDLLImageType>("image_type")),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1),
     mean_vec_(spec.GetRepeatedArgument<float>("mean")),
     inv_std_vec_(spec.GetRepeatedArgument<float>("std")) {
     vector<int> temp_crop;
     try {
-      temp_crop = spec.GetRepeatedArgument<int>("crop", {-1, -1});
+      temp_crop = spec.GetRepeatedArgument<int>("crop");
       if (temp_crop.size() == 1) {
         temp_crop.push_back(temp_crop.back());
       }
     } catch (std::runtime_error e) {
       try {
-        int temp = spec.GetArgument<int>("crop", -1);
+        int temp = spec.GetArgument<int>("crop");
         temp_crop = {temp, temp};
       } catch (std::runtime_error e) {
         NDLL_FAIL("Invalid type of argument \"crop\". Expected int or list of int");
@@ -68,9 +68,6 @@ class CropMirrorNormalize : public Operator {
       inv_std_vec_[i] = 1.f / inv_std_vec_[i];
     }
 
-    // TODO(tgale): We don't really want to do this in
-    // the default stream, we should make at least some
-    // stream available for constructors of ops.
     mean_.Copy(mean_vec_, 0);
     inv_std_.Copy(inv_std_vec_, 0);
 

@@ -8,10 +8,56 @@
 #include <utility>
 
 #include "ndll/common.h"
+#include "ndll/pipeline/data/types.h"
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/proto/ndll_proto_utils.h"
 
 namespace ndll {
+
+class Value {
+ public:
+  virtual std::string ToString() const = 0;
+  template <typename T>
+  static inline Value * construct(const T& val);
+};
+
+template <typename T>
+class ValueInst : public Value {
+ public:
+  explicit ValueInst(const T& val) {
+    this->val = val;
+  }
+
+  std::string ToString() const override {
+    return to_string(val);
+  }
+
+  T Get() const {
+    return val;
+  }
+
+ private:
+  T val;
+};
+
+template <typename T>
+inline Value * Value::construct(const T& val) {
+  return new ValueInst<T>(val);
+}
+
+#define INSTANTIATE_VALUE_AS_INT64(T)             \
+  template<>                                      \
+  inline Value * Value::construct(const T& val) { \
+    return new ValueInst<Index>(val);             \
+  }
+
+INSTANTIATE_VALUE_AS_INT64(int);
+INSTANTIATE_VALUE_AS_INT64(unsigned int);
+INSTANTIATE_VALUE_AS_INT64(uint64_t);
+INSTANTIATE_VALUE_AS_INT64(NDLLImageType);
+INSTANTIATE_VALUE_AS_INT64(NDLLDataType);
+INSTANTIATE_VALUE_AS_INT64(NDLLInterpType);
+INSTANTIATE_VALUE_AS_INT64(NDLLTensorLayout);
 
 /**
  * @brief Stores a single argument.
@@ -28,7 +74,6 @@ namespace ndll {
  * INSTANTIATE_ARGUMENT_AS_INT64 macro
  * in pipeline/op_spec.h instead.
  */
-
 class Argument {
  public:
   // Setters & getters for name
@@ -82,22 +127,22 @@ class ArgumentInst : public Argument {
     val(v)
     {}
 
-  T Get() { return val; }
+  T Get() { return val.Get(); }
 
   std::string ToString() const override {
     string ret = Argument::ToString();
     ret += ": ";
-    ret += to_string(val);
+    ret += val.ToString();
     return ret;
   }
 
   void SerializeToProtobuf(ndll_proto::Argument *arg) override {
     arg->set_name(Argument::ToString());
-    ndll::SerializeToProtobuf(val, arg);
+    ndll::SerializeToProtobuf(val.Get(), arg);
   }
 
  private:
-  T val;
+  ValueInst<T> val;
 };
 
 template<typename T>
@@ -108,30 +153,31 @@ class ArgumentInst<std::vector<T>> : public Argument {
     val(v)
     {}
 
-  std::vector<T> Get() { return val; }
+  std::vector<T> Get() { return val.Get(); }
 
   std::string ToString() const override {
     string ret = Argument::ToString();
     ret += ": ";
-    ret += to_string(val);
+    ret += val.ToString();
     return ret;
   }
 
   void SerializeToProtobuf(ndll_proto::Argument *arg) override {
-    NDLL_ENFORCE(val.size() > 0, "List arguments need to have at least 1 element.");
+    const std::vector<T>& vec = val.Get();
+    NDLL_ENFORCE(vec.size() > 0, "List arguments need to have at least 1 element.");
     arg->set_name(Argument::ToString());
-    arg->set_type(ndll::serialize_type(val[0]));
+    arg->set_type(ndll::serialize_type(vec[0]));
     arg->set_is_vector(true);
-    for (size_t i = 0; i < val.size(); ++i) {
+    for (size_t i = 0; i < vec.size(); ++i) {
       ArgumentInst<T> tmp("element " + to_string(i),
-                          val[i]);
+                          vec[i]);
       auto* extra_arg = arg->add_extra_args();
       tmp.SerializeToProtobuf(extra_arg);
     }
   }
 
  private:
-  std::vector<T> val;
+  ValueInst<std::vector<T> > val;
 };
 
 Argument *DeserializeProtobuf(const ndll_proto::Argument& arg);

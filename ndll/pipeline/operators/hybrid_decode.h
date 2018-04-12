@@ -28,7 +28,7 @@ class HuffmanDecoder : public Operator {
  public:
   explicit inline HuffmanDecoder(const OpSpec &spec) :
     Operator(spec),
-    initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint", 4*1048576)) {
+    initial_dct_coeff_size_byte_(spec.GetArgument<int>("dct_bytes_hint")) {
     // Resize per-image & per-thread data
     tl_parser_state_.resize(num_threads_);
     tl_huffman_state_.resize(num_threads_);
@@ -130,7 +130,7 @@ class DCTQuantInv : public Operator {
  public:
   explicit inline DCTQuantInv(const OpSpec &spec) :
     Operator(spec),
-    output_type_(spec.GetArgument<NDLLImageType>("output_type", NDLL_RGB)),
+    output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     color_(IsColor(output_type_)), C_(color_ ? 3 : 1) {
     // Resize per-thread & per-image data
     num_component_ = batch_size_*C_;
@@ -146,7 +146,7 @@ class DCTQuantInv : public Operator {
     }
 
     // Pre-size our buffers based on the user passed in hint
-    size_t pixels_per_image = spec.GetArgument<size_t>("bytes_per_sample_hint", 0);
+    size_t pixels_per_image = spec.GetArgument<size_t>("bytes_per_sample_hint");
     yuv_data_.Resize({(Index)pixels_per_image * batch_size_});
     if (color_) strided_imgs_.Resize({(Index)pixels_per_image * batch_size_});
 

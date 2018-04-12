@@ -14,6 +14,7 @@
 #include "ndll/pipeline/argument.h"
 #include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/tensor.h"
+#include "ndll/pipeline/op_schema.h"
 
 namespace ndll {
 
@@ -195,15 +196,14 @@ class OpSpec {
    * not exist.
    */
   template <typename T>
-  inline T GetArgument(const string &name, const T &default_value) const;
+  inline T GetArgument(const string &name) const;
 
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  inline vector<T> GetRepeatedArgument(const string &name,
-      const vector<T> &default_value = {}) const;
+  inline vector<T> GetRepeatedArgument(const string &name) const;
 
   inline StrPair* mutable_input(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
@@ -277,25 +277,26 @@ class OpSpec {
 };
 
 template <typename T>
-inline T OpSpec::GetArgument(const string &name, const T &default_value) const {
+inline T OpSpec::GetArgument(const string &name) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
 
   if (arg_it == arguments_.end()) {
-    return default_value;
+    OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    return schema.GetDefaultValueForOptionalArgument<T>(name);
   }
 
   return arg_it->second->template Get<T>();
 }
 
 template <typename T>
-inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
-    const vector<T> &default_value) const {
+inline vector<T> OpSpec::GetRepeatedArgument(const string &name) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
 
   if (arg_it == arguments_.end()) {
-    return default_value;
+    OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    return schema.GetDefaultValueForOptionalArgument<vector<T>>(name);
   }
 
   return arg_it->second->template Get<vector<T>>();
@@ -320,19 +321,14 @@ inline vector<T> OpSpec::GetRepeatedArgument(const string &name,
     return *this;                                                                     \
   }                                                                                   \
   template<>                                                                          \
-  inline T OpSpec::GetArgument(const string& name, const T& default_value) const {    \
-    int64 tmp = this->GetArgument<int64>(name, static_cast<int64>(default_value));    \
+  inline T OpSpec::GetArgument(const string& name) const {    \
+    int64 tmp = this->GetArgument<int64>(name);    \
     return static_cast<T>(tmp);                                                       \
   }                                                                                   \
   template<>                                                                          \
   inline std::vector<T> OpSpec::GetRepeatedArgument(                                  \
-      const string& name,                                                             \
-      const std::vector<T>& default_value) const {                                    \
-    auto arg_it = arguments_.find(name);                                              \
-    if (arg_it == arguments_.end()) {                                                 \
-      return default_value;                                                           \
-    }                                                                                 \
-    vector<int64> tmp = arg_it->second->template Get<vector<int64>>();                \
+      const string& name) const {                                    \
+    vector<int64> tmp = this->GetRepeatedArgument<int64>(name);                \
     vector<T> ret;                                                                    \
     for (auto t : tmp) {                                                               \
       ret.push_back(static_cast<T>(t));                                               \

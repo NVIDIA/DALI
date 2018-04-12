@@ -163,9 +163,9 @@ class Caffe2Parser : public Parser {
  public:
   explicit Caffe2Parser(const OpSpec& spec)
     : Parser(spec),
-      additional_inputs_(spec.GetArgument<int>("additional_inputs", 0)),
-      label_type_(static_cast<LabelType>(spec.GetArgument<int>("label_type", 0))),
-      num_labels_(spec.GetArgument<int>("num_labels", 1)) {}
+      additional_inputs_(spec.GetArgument<int>("additional_inputs")),
+      label_type_(static_cast<LabelType>(spec.GetArgument<int>("label_type"))),
+      num_labels_(spec.GetArgument<int>("num_labels")) {}
 
   void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
     caffe2::TensorProtos protos;

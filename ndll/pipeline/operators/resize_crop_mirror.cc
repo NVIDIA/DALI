@@ -9,7 +9,14 @@ NDLL_OPERATOR_SCHEMA(ResizeCropMirror)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets();
+  .AllowMultipleInputSets()
+  .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
+  .AddOptionalArg("warp_resize", "Foo", false)
+  .AddArg("resize_a", "Lower bound for resize")
+  .AddArg("resize_b", "Upper bound for resize")
+  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+  .AddArg("crop", "Size of the cropped image")
+  .AddOptionalArg("mirror_prob", "Probablity of random flipping of the image", 0.5f);
 
 NDLL_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
@@ -17,6 +24,13 @@ NDLL_OPERATOR_SCHEMA(FastResizeCropMirror)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets();
+  .AllowMultipleInputSets()
+  .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
+  .AddOptionalArg("warp_resize", "Foo", false)
+  .AddArg("resize_a", "Lower bound for resize")
+  .AddArg("resize_b", "Upper bound for resize")
+  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+  .AddArg("crop", "Size of the cropped image")
+  .AddOptionalArg("mirror_prob", "Probablity of random flipping of the image", 0.5f);
 
 }  // namespace ndll

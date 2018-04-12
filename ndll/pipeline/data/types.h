@@ -38,6 +38,38 @@ enum NDLLDataType {
   NDLL_INTERNAL_TEST_TYPE = 1003,
   NDLL_INTERNAL_TEST_TYPE_2 = 1004,
 };
+
+inline std::string to_string(const NDLLDataType& dtype) {
+  switch (dtype) {
+    case NDLL_NO_TYPE:
+      return "NO TYPE";
+    case NDLL_UINT8:
+      return "UINT8";
+    case NDLL_INT16:
+      return "INT16";
+    case NDLL_INT32:
+      return "INT32";
+    case NDLL_INT64:
+      return "INT64";
+    case NDLL_FLOAT16:
+      return "FLOAT16";
+    case NDLL_FLOAT:
+      return "FLOAT";
+    case NDLL_FLOAT64:
+      return "FLOAT64";
+    case NDLL_BOOL:
+      return "BOOL";
+    case NDLL_INTERNAL_C_UINT8_P:
+    case NDLL_INTERNAL_PARSEDJPEG:
+    case NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM:
+    case NDLL_INTERNAL_TEST_TYPE:
+    case NDLL_INTERNAL_TEST_TYPE_2:
+      return "<internal>";
+  }
+
+  NDLL_FAIL("Unknown datatype");
+}
+
 // Dummy type to represent the invalid default state of ndll types.
 struct NoType {};
 

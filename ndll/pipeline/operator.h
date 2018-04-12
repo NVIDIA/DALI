@@ -37,9 +37,9 @@ enum NDLLOpType {
 class Operator {
  public:
   inline explicit Operator(const OpSpec &spec) :
-    spec_(spec), num_threads_(spec.GetArgument<int>("num_threads", -1)),
-    batch_size_(spec.GetArgument<int>("batch_size", -1)),
-    input_sets_(spec.GetArgument<int>("num_input_sets", 1)) {
+    spec_(spec), num_threads_(spec.GetArgument<int>("num_threads")),
+    batch_size_(spec.GetArgument<int>("batch_size")),
+    input_sets_(spec.GetArgument<int>("num_input_sets")) {
     NDLL_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }

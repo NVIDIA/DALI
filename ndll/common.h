@@ -145,6 +145,51 @@ struct TimeRange {
 
 using std::to_string;
 
+inline std::string to_string(const bool& b) {
+  if (b) {
+    return "True";
+  } else {
+    return "False";
+  }
+}
+
+inline std::string to_string(const NDLLInterpType& interpolation) {
+  switch (interpolation) {
+    case NDLL_INTERP_NN:
+      return "INTERP_NN";
+    case NDLL_INTERP_LINEAR:
+      return "INTERP_LINEAR";
+    case NDLL_INTERP_CUBIC:
+      return "INTERP_CUBIC";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline std::string to_string(const NDLLImageType& im_type) {
+  switch (im_type) {
+    case NDLL_RGB:
+      return "RGB";
+    case NDLL_BGR:
+      return "BGR";
+    case NDLL_GRAY:
+      return "GRAY";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline std::string to_string(const NDLLTensorLayout& layout) {
+  switch (layout) {
+    case NDLL_NCHW:
+      return "NCHW";
+    case NDLL_NHWC:
+      return "NHWC";
+    default:
+      return "<unknown>";
+  }
+}
+
 template<typename T>
 auto to_string(const T& v)
   -> decltype(std::string(v)) {
@@ -167,6 +212,18 @@ std::string to_string(const std::vector<T>& v) {
   ret += "]";
   return ret;
 }
+
+template <typename T>
+struct is_vector: std::false_type {};
+
+template <typename T, typename A>
+struct is_vector<std::vector<T, A> >: std::true_type {};
+
+template <typename T>
+struct is_array: std::false_type {};
+
+template <typename T, size_t A>
+struct is_array<std::array<T, A> >: std::true_type {};
 
 }  // namespace ndll
 

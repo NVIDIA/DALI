@@ -10,7 +10,13 @@ NDLL_REGISTER_OPERATOR(Water, Water<GPUBackend>, GPU);
 NDLL_OPERATOR_SCHEMA(Water)
     .DocStr("Foo")
     .NumInput(1)
-    .NumOutput(1);
+    .NumOutput(1)
+    .AddOptionalArg("ampl_x", "Foo", 10)
+    .AddOptionalArg("ampl_y", "Foo", 10)
+    .AddOptionalArg("freq_x", "Foo", 2.0 * 3.1415 / 128)
+    .AddOptionalArg("freq_y", "Foo", 2.0 * 3.1415 / 128)
+    .AddOptionalArg("phase_x", "Foo", 0)
+    .AddOptionalArg("phase_y", "Foo", 0);
 
 #if 0
 __constant__ WaveDescr waterOpGPU[2];

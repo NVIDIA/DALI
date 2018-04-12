@@ -44,11 +44,11 @@ void CheckOpConstraints(const OpSpec &spec) {
 
       NDLL_ENFORCE(num_input_sets == num_output_sets, "Inconsistent number of inputs / outputs");
     } else {
-      num_input_sets = spec.GetArgument<int>("num_input_sets", 1);
+      num_input_sets = spec.GetArgument<int>("num_input_sets");
     }
   }
 
-  NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace", false),
+  NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
       "Op '" + spec.name() + "' does not support in-place execution.");
   NDLL_ENFORCE(spec.NumInput() <= num_input_sets * schema.MaxNumInput(),
       "Operator '" + spec.name() +
@@ -74,7 +74,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
-  string device = spec.GetArgument<string>("device", "cpu");
+  string device = spec.GetArgument<string>("device");
   OpNode *new_node;
   if (device == "cpu") {
     // Enforce graph constraints

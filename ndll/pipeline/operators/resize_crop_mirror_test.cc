@@ -125,8 +125,7 @@ class ResizeCropMirrorTest : public NDLLTest {
         .AddOutput("resized2", "cpu")
         .AddArg("resize_a", 128)
         .AddArg("resize_b", 128)
-        .AddArg("crop_h", 24)
-        .AddArg("crop_w", 24)
+        .AddArg("crop", vector<int>{24, 24})
         .AddArg("num_input_sets", 2));
 
     return pipe;

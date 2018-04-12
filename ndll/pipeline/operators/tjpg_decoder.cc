@@ -8,6 +8,7 @@ NDLL_REGISTER_OPERATOR(TJPGDecoder, TJPGDecoder<CPUBackend>, CPU);
 NDLL_OPERATOR_SCHEMA(TJPGDecoder)
   .DocStr("Foo")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddOptionalArg("output_type", "Output image type", NDLL_RGB);
 
 }  // namespace ndll

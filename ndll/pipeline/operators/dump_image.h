@@ -16,9 +16,9 @@ class DumpImage : public Operator {
  public:
   explicit inline DumpImage(const OpSpec &spec) :
     Operator(spec),
-    suffix_(spec.GetArgument<string>("suffix", "")),
-    hwc_(spec.GetArgument<bool>("hwc_format", true)) {
-    NDLL_ENFORCE(hwc_, "CHW not supported yet.");
+    suffix_(spec.GetArgument<string>("suffix")) {
+    NDLL_ENFORCE(spec.GetArgument<NDLLTensorLayout>("input_layout") == NDLL_NHWC,
+        "CHW not supported yet.");
   }
 
   virtual inline ~DumpImage() = default;
@@ -53,7 +53,6 @@ class DumpImage : public Operator {
   }
 
   const string suffix_;
-  bool hwc_;
 };
 }  // namespace ndll
 

@@ -502,7 +502,8 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def("MinNumOutput", &OpSchema::MinNumOutput)
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
-    .def("SupportsInPlace", &OpSchema::SupportsInPlace);
+    .def("SupportsInPlace", &OpSchema::SupportsInPlace)
+    .def("CheckArgs", &OpSchema::CheckArgs);
 
   ExposeTensor(m);
   ExposeTensorList(m);

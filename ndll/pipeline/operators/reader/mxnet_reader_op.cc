@@ -9,6 +9,10 @@ NDLL_REGISTER_OPERATOR(MXNetReader, MXNetReader, CPU);
 NDLL_OPERATOR_SCHEMA(MXNetReader)
   .DocStr("Read sample data from a MXNet RecordIO")
   .NumInput(0)
-  .NumOutput(2);
+  .NumOutput(2)
+  .AddArg("path", "List of paths to RecordIO files")
+  .AddArg("index_path", "List of paths to index files")
+  LOADER_SCHEMA_ARGS;
+
 }  // namespace ndll
 

@@ -15,7 +15,12 @@ NDLL_OPERATOR_SCHEMA(_TFRecordReader)
   // TODO(ptredak): check if MaxNumOutputs is used for anything important
   // and if not, remove this limit
   .NumOutput(1, 10)
-  .NumInput(0);
+  .NumInput(0)
+  .AddArg("path", "List of paths to TFRecord files")
+  .AddArg("index_path", "List of paths to index files")
+  .AddArg("feature_names", "Names of the features in TFRecord")
+  .AddArg("features", "List of features")
+  LOADER_SCHEMA_ARGS;
 
 }  // namespace ndll
 

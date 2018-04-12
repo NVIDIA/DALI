@@ -5,19 +5,37 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <set>
+#include <vector>
+#include <utility>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/argument.h"
 
 namespace ndll {
+
+class OpSpec;
 
 class OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
   inline OpSchema()
-    : allow_multiple_input_sets_(false) {}
+    : allow_multiple_input_sets_(false) {
+    // Fill internal arguments
+    internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
+        Value::construct(-1));
+    internal_arguments_["batch_size"] = std::make_pair("Batch size",
+        Value::construct(-1));
+    internal_arguments_["num_input_sets"] = std::make_pair("Number of input sets given to an Op",
+        Value::construct(1));
+    internal_arguments_["device"] = std::make_pair("Device on which the Op is run",
+        Value::construct(std::string("cpu")));
+    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place",
+        Value::construct(false));
+  }
+
   inline ~OpSchema() = default;
 
   /**
@@ -94,6 +112,57 @@ class OpSchema {
   }
 
   /**
+   * @brief Adds a required argument to op
+   */
+  inline OpSchema& AddArg(std::string s, std::string doc) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
+        "\" is reserved for internal use");
+    arguments_[s] = doc;
+    return *this;
+  }
+
+  /**
+   * @brief Adds an optional non-vector argument to op
+   */
+  template <typename T>
+  inline typename std::enable_if<
+    !is_vector<T>::value && !is_array<T>::value,
+    OpSchema&>::type
+  AddOptionalArg(std::string s, std::string doc, T default_value) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
+        "\" is reserved for internal use");
+    std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
+    Value * to_store = Value::construct(default_value);
+    optional_arguments_[s] = std::make_pair(stored_doc, to_store);
+    return *this;
+  }
+
+  /**
+   * @brief Adds an optional vector argument to op
+   */
+  template <typename T>
+  inline OpSchema& AddOptionalArg(std::string s, std::string doc, std::vector<T> default_value) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
+        "\" already added to the schema");
+    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
+        "\" is reserved for internal use");
+    std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
+    Value * to_store = Value::construct(std::vector<T>(default_value));
+    optional_arguments_[s] = std::make_pair(stored_doc, to_store);
+    return *this;
+  }
+
+  /**
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
    */
@@ -103,7 +172,16 @@ class OpSchema {
   }
 
   inline string Dox() const {
-    return dox_;
+    std::string ret = dox_;
+    ret += "\n\nParameters\n----------\n";
+    for (auto arg_pair : arguments_) {
+      ret += arg_pair.first + " : " + arg_pair.second + "\n";
+    }
+    ret += "\n\nOptional Parameters\n-------------------\n";
+    for (auto arg_pair : optional_arguments_) {
+      ret += arg_pair.first + " : " + arg_pair.second.first + "\n";
+    }
+    return ret;
   }
 
   inline int MaxNumInput() const {
@@ -143,6 +221,51 @@ class OpSchema {
     return in_place_fn_(spec);
   }
 
+  inline void CheckArgs(std::vector<std::string> vec) const {
+    std::set<std::string> req_arguments_left;
+    for (auto& arg_pair : arguments_) {
+      req_arguments_left.insert(arg_pair.first);
+    }
+    for (std::string s : vec) {
+      NDLL_ENFORCE(arguments_.find(s) != arguments_.end() ||
+          optional_arguments_.find(s) != optional_arguments_.end() ||
+          s == "device",
+          "Got an unexpected argument \"" + s + "\"");
+      std::set<std::string>::iterator it = req_arguments_left.find(s);
+      if (it != req_arguments_left.end()) {
+        req_arguments_left.erase(it);
+      }
+    }
+    if (!req_arguments_left.empty()) {
+      std::string ret = "Not all required arguments were specified. "
+        "Please specify values for arguments: ";
+      for (auto& str : req_arguments_left) {
+        ret += "\"" + str + "\", ";
+      }
+      ret.erase(ret.size()-2);
+      ret += ".";
+      NDLL_FAIL(ret);
+    }
+  }
+
+  template<typename T>
+  inline T GetDefaultValueForOptionalArgument(std::string s) const {
+    NDLL_ENFORCE(optional_arguments_.find(s) != optional_arguments_.end() ||
+        internal_arguments_.find(s) != internal_arguments_.end(),
+        "Default value does not exist for argument \"" + s + "\"");
+    Value * v;
+    if (optional_arguments_.find(s) != optional_arguments_.end()) {
+      auto arg_pair = *optional_arguments_.find(s);
+      v = arg_pair.second.second;
+    } else {
+      auto arg_pair = *internal_arguments_.find(s);
+      v = arg_pair.second.second;
+    }
+    ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
+    NDLL_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
+    return vT->Get();
+  }
+
  private:
   string dox_;
   SpecFunc output_fn_, in_place_fn_;
@@ -151,6 +274,10 @@ class OpSchema {
   int min_num_output_ = 0, max_num_output_ = 0;
 
   bool allow_multiple_input_sets_;
+
+  std::map<std::string, std::string> arguments_;
+  std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
+  std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
 };
 
 class SchemaRegistry {

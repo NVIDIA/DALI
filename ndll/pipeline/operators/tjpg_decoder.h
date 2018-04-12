@@ -14,7 +14,7 @@ class TJPGDecoder : public Operator {
  public:
   explicit inline TJPGDecoder(const OpSpec &spec) :
     Operator(spec),
-    output_type_(spec.GetArgument<NDLLImageType>("output_type", NDLL_RGB)),
+    output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     c_(IsColor(output_type_) ? 3 : 1) {}
 
   virtual inline ~TJPGDecoder() = default;

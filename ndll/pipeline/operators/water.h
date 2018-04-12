@@ -16,9 +16,9 @@ class WaterAugment {
   class WaveDescr {
    public:
     WaveDescr(const OpSpec &spec, const char *direction)
-      : ampl(spec.GetArgument<float>(string("ampl") + direction, 10)),
-        freq(spec.GetArgument<float>(string("freq") + direction, 2.0 * 3.1415 / 128)),
-        phase(spec.GetArgument<float>(string("phase") + direction, 0)) {}
+      : ampl(spec.GetArgument<float>(string("ampl") + direction)),
+        freq(spec.GetArgument<float>(string("freq") + direction)),
+        phase(spec.GetArgument<float>(string("phase") + direction)) {}
 
     float ampl;
     float freq;

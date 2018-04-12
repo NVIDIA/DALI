@@ -11,7 +11,7 @@ class Cast : public Operator {
  public:
   explicit inline Cast(const OpSpec &spec) :
     Operator(spec),
-    output_type_(spec.GetArgument<NDLLDataType>("dtype", NDLL_FLOAT))
+    output_type_(spec.GetArgument<NDLLDataType>("dtype"))
     {}
 
   virtual inline ~Cast() = default;
