@@ -218,4 +218,6 @@ def test_seed():
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].asCPU()
         img_chw_test = pipe_out_cpu.at(n)
+        if i == 0:
+            img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
