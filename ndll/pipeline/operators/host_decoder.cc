@@ -11,7 +11,8 @@ NDLL_OPERATOR_SCHEMA(HostDecoder)
           "Input(0): Encoded image stream"
           "Output(0): Decoded image in HWC ordering")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddOptionalArg("output_type", "Output color format", NDLL_RGB);
 
 }  // namespace ndll
 
