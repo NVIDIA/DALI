@@ -36,6 +36,7 @@ class HostDecodeTest : public NDLLSingleOpTest {
     outputs[0]->Copy(out, 0);
     return outputs;
   }
+
  protected:
   const NDLLImageType img_type_ = ImgType::type;
 };

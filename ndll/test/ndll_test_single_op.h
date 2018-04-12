@@ -70,7 +70,7 @@ class NDLLSingleOpTest : public NDLLTest {
     DecodeImages(NDLL_RGB, jpegs_, jpeg_sizes_, &jpeg_decoded_, &jpeg_dims_);
     DecodeImages(NDLL_RGB, png_, png_sizes_, &png_decoded_, &png_dims_);
 
-    //set the pipeline batch size
+    // Set the pipeline batch size
     batch_size_ = 32;
 
     InitPipeline();
