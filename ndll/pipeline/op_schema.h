@@ -34,6 +34,8 @@ class OpSchema {
         Value::construct(std::string("cpu")));
     internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place",
         Value::construct(false));
+    internal_arguments_["seed"] = std::make_pair("Random seed",
+        Value::construct(1234));
   }
 
   inline ~OpSchema() = default;

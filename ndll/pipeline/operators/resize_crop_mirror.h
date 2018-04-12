@@ -35,7 +35,7 @@ class ResizeCropMirror : public Operator {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator(spec),
-    rand_gen_(time(nullptr)),
+    rand_gen_(spec.GetArgument<int>("seed")),
     random_resize_(spec.GetArgument<bool>("random_resize")),
     warp_resize_(spec.GetArgument<bool>("warp_resize")),
     resize_a_(spec.GetArgument<int>("resize_a")),
