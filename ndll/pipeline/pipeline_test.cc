@@ -352,7 +352,7 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   pipe.SetExternalInput("data", batch);
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("device", "cpu")
       .AddInput("data", "cpu")
       .AddOutput("decoded", "cpu"));

@@ -118,13 +118,13 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
 
   // Decode the images
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("output_type", this->img_type_)
       .AddInput("jpegs", "cpu")
       .AddOutput("images", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("output_type", this->img_type_)
       .AddInput("jpegs", "cpu")
       .AddOutput("images2", "cpu"));

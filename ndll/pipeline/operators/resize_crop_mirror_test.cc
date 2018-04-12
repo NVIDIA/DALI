@@ -103,12 +103,12 @@ class ResizeCropMirrorTest : public NDLLTest {
 
     // Decode the images
     pipe->AddOperator(
-        OpSpec("TJPGDecoder")
+        OpSpec("HostDecoder")
         .AddInput("jpegs", "cpu")
         .AddOutput("images", "cpu"));
 
     pipe->AddOperator(
-        OpSpec("TJPGDecoder")
+        OpSpec("HostDecoder")
         .AddInput("jpegs", "cpu")
         .AddOutput("images2", "cpu"));
 

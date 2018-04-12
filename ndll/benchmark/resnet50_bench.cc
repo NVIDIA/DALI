@@ -33,7 +33,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
