@@ -348,7 +348,7 @@ PYBIND11_MODULE(ndll_backend, m) {
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
             [](int batch_size, int num_threads, int device_id, int seed = -1,
-                bool pipelined_execution = false, bool async_execution = false,
+                bool pipelined_execution = true, bool async_execution = true,
                 size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                 int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
@@ -369,7 +369,7 @@ PYBIND11_MODULE(ndll_backend, m) {
     .def(py::init(
           [](string serialized_pipe,
              int batch_size, int num_threads, int device_id, int seed = -1,
-             bool pipelined_execution = false, bool async_execution = false,
+             bool pipelined_execution = true, bool async_execution = true,
              size_t bytes_per_sample_hint = 0, bool set_affinity = false,
              int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(

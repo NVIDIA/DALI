@@ -68,7 +68,7 @@ class Pipeline {
    * that can be allocated by the pipeline.
    */
   inline Pipeline(int batch_size, int num_threads, int device_id, int seed = -1,
-      bool pipelined_execution = false, bool async_execution = false,
+      bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
@@ -114,7 +114,7 @@ class Pipeline {
 
   inline Pipeline(const string &serialized_pipe,
       int batch_size, int num_threads, int device_id, int seed = -1,
-      bool pipelined_execution = false, bool async_execution = false,
+      bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
