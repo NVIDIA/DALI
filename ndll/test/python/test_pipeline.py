@@ -207,7 +207,7 @@ def test_seed():
 
         def iter_setup(self):
             pass
-    n = 100
+    n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
                           num_threads=2,
