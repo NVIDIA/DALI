@@ -373,12 +373,6 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   pipe.Build(outputs);
   loaded_pipe.Build(outputs);
 
-  pipe.RunCPU();
-  pipe.RunGPU();
-
-  loaded_pipe.RunCPU();
-  loaded_pipe.RunGPU();
-
   OpGraph &original_graph = this->GetGraph(&pipe);
   OpGraph &loaded_graph = this->GetGraph(&loaded_pipe);
 
