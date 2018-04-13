@@ -7,7 +7,7 @@
 #include <random>
 #include <ctgmath>
 #include <vector>
-#include <nppdefs.h>
+#include <npps.h>
 
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/resize.h"
@@ -15,6 +15,9 @@
 namespace ndll {
 
 #define BATCH_SLICE_NUMB            32      // The number of slices composing the whole batch
+#define USE_RESIZE_TABLE_GPU         0      // Use (1) or not (0) the resize tables on GPU
+                                            // NOTE: As of 04/13/2018, the performance with
+                                            // these tables is better on CPU, but not on GPU
 
 #define GPU_BACKEND_PARAMS(x, type)         (x).template data<type>()
 #define IMG_SIZES(x)                        GPU_BACKEND_PARAMS(x, NDLLSize)
@@ -128,21 +131,34 @@ class ResizeMappingTable {
     int C_;
                                                 // Pointers to:
     ResizeMappingTableCPU resizeMappingCPU;     //      ResizeMapping table on CPU
-    ResizeMappingTableGPU resizeMappingGPU;     //      ResizeMapping table on GPU
-    ResizeMappingCPU resizeMappingSimpleCPU;    //      simplified ResizeMapping table on CPU
     ResizeMappingPixDescrCPU pixMappingCPU;     //      PixMapping arrays for CPU
+    ResizeMappingCPU resizeMappingSimpleCPU;    //      simplified ResizeMapping table on CPU
+
+#if USE_RESIZE_TABLE_GPU
+    ResizeMappingTableGPU resizeMappingGPU;     //      ResizeMapping table on GPU
     ResizeMappingPixDescrGPU pPixMappingGPU;    //      PixMapping arrays for GPU
 
-    bool IsValid(int H0, int W0, int H1, int W1, int C) const;
-    void constructTable(int H0, int W0, int H1, int W1, int C, int resizeType);
-    inline void copyToGPU(cudaStream_t s) {
+    ResizeMappingTable() {
         resizeMappingGPU.mutable_data<ResizeMapping>();
-        resizeMappingGPU.Copy(resizeMappingCPU, s);
         pPixMappingGPU.mutable_data<PixMapping>();
-        TENSOR_COPY(pPixMappingGPU, pixMappingCPU, s);
     }
 
- private:
+    bool IsValid(const NDLLSize &in, const NDLLSize &out, int C) const {
+        if (!RESIZE_MAPPING_CPU(resizeMappingCPU) || C_ != C)
+            return false;
+
+        return SAME_SIZES(io_size[0], in) && SAME_SIZES(io_size[1], out);
+    }
+
+    inline void copyToGPU(cudaStream_t s) {
+        TENSOR_COPY(resizeMappingGPU, resizeMappingCPU, s);
+        TENSOR_COPY(pPixMappingGPU, pixMappingCPU, s);
+    }
+#endif
+
+    void constructTable(int H0, int W0, int H1, int W1, int C, int resizeType);
+
+    private:
     void initTable(int H0, int W0, int H1, int W1, int C,
                    uint16_t xSize, uint16_t ySize, bool use_NN);
 };
@@ -179,7 +195,7 @@ class ResizeMappingTable {
 NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
        const NDLLSize &sizeIn, const uint8 *in_batch, const NDLLSize &sizeOut, uint8 *out_batch,
        const ResizeGridParam *pResizeParam, MappingInfo *pMapping[], MappingInfo **mapMem,
-       const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping = NULL);
+       const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping, bool newMapping);
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const ResizeGridParam *pResizeParam,
@@ -221,8 +237,8 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
 #define nYoffset(W, C)          ((W) * (C))
 
 
-#define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
-                                     size1->width == size2->width)
+#define SAME_SIZES(size1, size2)    (size1.height == size2.height && \
+                                     size1.width == size2.width)
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
@@ -282,36 +298,53 @@ class NewResize : public Resize<Backend> {
               ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this,
               resizeParam_.data(), use_NN? resizeMemory : NULL, BATCH_SLICE_NUMB);
 
-        const auto &shape = input.shape();
-        const int C = shape[0][2];
+        const int C = input.shape()[0][2];
 
-        const auto sizeIn = ResizeAttr::size(input_t, 0);
-        const auto sizeOut = ResizeAttr::size(output_t, 0);
+        const auto sizeIn = *ResizeAttr::size(input_t, 0);
+        const auto sizeOut = *ResizeAttr::size(output_t, 0);
         cudaStream_t s = ws->stream();
+
+        const bool congenericBatch = BatchIsCongeneric(sizeIn, sizeOut, C);
         MappingInfo **mapPntr = NULL;
-
-        if (BatchIsCongeneric(sizeIn, sizeOut, C)) {
+        if (use_NN) {
             if (newMapping) {
-                if (!use_NN) {
-                    resizeTbl_.constructTable(sizeIn->height, sizeIn->width,
-                                              sizeOut->height, sizeOut->width, C, ResizeAttr::type_);
-                    resizeTbl_.copyToGPU(s);
-                }
+                if (congenericBatch)
+                    mapPntr = CopyResizeTableToGPU(resizeMemory, s);
+                else
+                    mapPntr = CopyResizeTableToGPU(resizeMemory, s, batch_size_, BATCH_SLICE_NUMB);
+            } else {
+                mapPntr = mappingPntr_;
+            }
+        }
 
+        if (congenericBatch) {
+
+            if (newMapping) {
                 // Copying the descriptor of operation into GPU
                 resizeParamGPU_.Copy(vector<ResizeGridParam>(
                         resizeParam_.begin(), resizeParam_.begin() + N_GRID_PARAMS), s);
             }
 
-            auto pResizeMapping = use_NN? NULL : RESIZE_MAPPING_GPU(resizeTbl_.resizeMappingGPU);
-            auto pPixMapping = use_NN? NULL : PIX_MAPPING_GPU(resizeTbl_.pPixMappingGPU);
-            if (use_NN)
-                mapPntr = CopyResizeTableToGPU(resizeMemory, s);
+            const ResizeMapping *pResizeMapping = NULL;
+            const PixMapping *pPixMapping = NULL;
+#if USE_RESIZE_TABLE_GPU
+            if (!use_NN) {
+                if (newMapping || !resizeTbl_.IsValid(sizeIn, sizeOut, C)) {
+                    resizeTbl_.constructTable(sizeIn.height, sizeIn.width,
+                                    sizeOut.height, sizeOut.width, C, ResizeAttr::type_);
+                    resizeTbl_.copyToGPU(s);
+                }
+
+                pResizeMapping = RESIZE_MAPPING_GPU(resizeTbl_.resizeMappingGPU);
+                pPixMapping = PIX_MAPPING_GPU(resizeTbl_.pPixMappingGPU);
+             }
+#endif
 
             NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
-                        *sizeIn, input.template data<uint8>(),
-                        *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
-                        RESIZE_PARAM(resizeParamGPU_), mapPntr, mapMemGPU_, pResizeMapping, pPixMapping));
+                        sizeIn, input.template data<uint8>(),
+                        sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
+                        RESIZE_PARAM(resizeParamGPU_), mapPntr, mapMemGPU_,
+                        pResizeMapping, pPixMapping, newMapping));
         } else {
             resizeParamGPU_.Copy(resizeParam_, s);
 
@@ -323,9 +356,6 @@ class NewResize : public Resize<Backend> {
                 TENSOR_COPY(sizesGPU_[i], sizes, s);
                 TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
             }
-
-            if (use_NN)
-                mapPntr = CopyResizeTableToGPU(resizeMemory, s, batch_size_, BATCH_SLICE_NUMB);
 
             NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
                                     sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
@@ -409,20 +439,20 @@ class NewResize : public Resize<Backend> {
         return newResize;
     }
 
-    bool BatchIsCongeneric(const NDLLSize *sizeIn, const NDLLSize *sizeOut, int C) {
+    bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
         // Check if all input sizes are the same
-        const uint32_t imageSize = sizeOut->width * sizeOut->height * C;
+        const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
 
         const auto pImages = *ResizeAttr::outputImages();
         const auto pFirstBatchImage = pImages[0];
 
         int i = batch_size_;
         while (--i > 0) {
-            const auto inSize = ResizeAttr::size(input_t, i);
+            const auto inSize = *ResizeAttr::size(input_t, i);
             if (!SAME_SIZES(inSize, sizeIn))
                 break;
 
-            const auto outSize = ResizeAttr::size(output_t, i);
+            const auto outSize = *ResizeAttr::size(output_t, i);
             if (!SAME_SIZES(outSize, sizeOut))
                 break;
 

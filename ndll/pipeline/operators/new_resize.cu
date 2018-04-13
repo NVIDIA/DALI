@@ -225,7 +225,7 @@ class PixMappingHelper {
 };
 
 __global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDescr,
-                                     MappingInfo *mapPntr[], MappingInfo **mappingMem, size_t step) {
+                          MappingInfo *mapPntr[], MappingInfo **mappingMem, size_t step) {
     size_t idx = blockIdx.x;
     mapPntr[idx] = mappingMem[idx];
     if (mapPntr[idx]) {
@@ -240,7 +240,7 @@ __global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDe
 }
 
 __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
-                                      const NDLLSize *in_sizes, int W0, MappingInfo *pResizeMapping[]) {
+                         const NDLLSize *in_sizes, int W0, MappingInfo *pResizeMapping[]) {
     const int imagIdx = blockIdx.x;
     auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
     if (in_sizes)
@@ -279,8 +279,8 @@ __global__ void BatchedCongenericResizeKernel(
 NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
        const NDLLSize &sizeIn, const uint8 *in_batch, const NDLLSize &sizeOut, uint8 *out_batch,
        const ResizeGridParam *resizeDescr, MappingInfo *ppMapping[], MappingInfo **mapMem,
-       const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping) {
-    if (ppMapping) {
+       const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping, bool newMapping) {
+    if (ppMapping && newMapping) {
         InitiateResizeTables<<<1, 1, 0, stream >>>
                             (1, resizeDescr, ppMapping, mapMem, 1);
 
@@ -462,14 +462,6 @@ void ResizeMappingTable::initTable(int H0, int W0, int H1, int W1, int C,
         resizeMappingSimpleCPU.resize({xSize * ySize});
     else
         resizeMappingCPU.resize({xSize * ySize});
-}
-
-bool ResizeMappingTable::IsValid(int H0, int W0, int H1, int W1, int C) const {
-    if (!RESIZE_MAPPING_CPU(resizeMappingCPU) || C_ != C)
-        return false;
-
-    return io_size[0].height == H0 && io_size[0].width == W0 &&
-           io_size[1].height == H1 && io_size[1].width == W1;
 }
 
 void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, int resizeType) {
