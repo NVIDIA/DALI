@@ -39,6 +39,32 @@ class TensorListTest : public NDLLTest {
     }
     return shape;
   }
+
+  /**
+   * Initialize & check a TensorList based on an input shape
+   */
+  void SetupTensorList(TensorList<Backend> *tensor_list,
+                       const vector<Dims>& shape,
+                       vector<Index> *offsets) {
+    const int num_tensor = shape.size();
+
+    Index offset = 0;
+    for (auto &tmp : shape) {
+      offsets->push_back(offset);
+      offset += Product(tmp);
+    }
+
+    // Resize the buffer
+    tensor_list->Resize(shape);
+
+    // Check the internals
+    ASSERT_NE(tensor_list->template mutable_data<float>(), nullptr);
+    ASSERT_EQ(tensor_list->ntensor(), num_tensor);
+    for (int i = 0; i < num_tensor; ++i) {
+      ASSERT_EQ(tensor_list->tensor_shape(i), shape[i]);
+      ASSERT_EQ(tensor_list->tensor_offset(i), (*offsets)[i]);
+    }
+  }
 };
 
 typedef ::testing::Types<CPUBackend,
@@ -133,7 +159,7 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
-  for (auto &tmp : shape) {
+  for (auto& tmp : shape) {
     offsets.push_back(size);
     size += Product(tmp);
   }
@@ -332,24 +358,10 @@ TYPED_TEST(TensorListTest, TestResize) {
 
   // Setup shape and offsets
   vector<Dims> shape = this->GetRandShape();
-  int num_tensor = shape.size();
   vector<Index> offsets;
-  Index offset = 0;
-  for (auto &tmp : shape) {
-    offsets.push_back(offset);
-    offset += Product(tmp);
-  }
 
-  // Resize the buffer
-  tensor_list.Resize(shape);
-
-  // Check the internals
-  ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
-  }
+  // resize + check called in SetupTensorList
+  this->SetupTensorList(&tensor_list, shape, &offsets);
 }
 
 TYPED_TEST(TensorListTest, TestMultipleResize) {
@@ -384,29 +396,14 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   }
 }
 
-TYPED_TEST(TensorListTest, TestTypeChange) {
+TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
   vector<Dims> shape = this->GetRandShape();
-  int num_tensor = shape.size();
   vector<Index> offsets;
-  Index offset = 0;
-  for (auto &tmp : shape) {
-    offsets.push_back(offset);
-    offset += Product(tmp);
-  }
 
-  // Resize the buffer
-  tensor_list.Resize(shape);
-
-  // Check the internals
-  ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
-  }
+  this->SetupTensorList(&tensor_list, shape, &offsets);
 
   // Save the pointer
   const void *ptr = tensor_list.raw_data();
@@ -416,8 +413,8 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   tensor_list.template mutable_data<int>();
 
   // Check the internals
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
+  ASSERT_EQ(tensor_list.ntensor(), shape.size());
+  for (int i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -425,13 +422,27 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   // No memory allocation should have occured
   ASSERT_EQ(ptr, tensor_list.raw_data());
   ASSERT_EQ(nbytes, tensor_list.nbytes());
+}
+
+TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
+  TensorList<TypeParam> tensor_list;
+
+  // Setup shape and offsets
+  vector<Dims> shape = this->GetRandShape();
+  vector<Index> offsets;
+
+  this->SetupTensorList(&tensor_list, shape, &offsets);
+
+  // Save the pointer
+  const void *ptr = tensor_list.raw_data();
+  size_t nbytes = tensor_list.nbytes();
 
   // Change the data type to something smaller
   tensor_list.template mutable_data<uint8>();
 
   // Check the internals
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
+  ASSERT_EQ(tensor_list.ntensor(), shape.size());
+  for (int i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -441,13 +452,27 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
 
   // nbytes should have reduced by a factor of 4
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor_list.nbytes());
+}
 
-  // Change the data type to something smaller
+TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
+  TensorList<TypeParam> tensor_list;
+
+  // Setup shape and offsets
+  vector<Dims> shape = this->GetRandShape();
+  vector<Index> offsets;
+
+  this->SetupTensorList(&tensor_list, shape, &offsets);
+
+  // Save the pointer
+  const void *ptr = tensor_list.raw_data();
+  size_t nbytes = tensor_list.nbytes();
+
+  // Change the data type to something larger
   tensor_list.template mutable_data<double>();
 
   // Check the internals
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
+  ASSERT_EQ(tensor_list.ntensor(), shape.size());
+  for (int i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -455,7 +480,7 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   // Size doubled, memory allocation should have occured
   ASSERT_NE(ptr, tensor_list.raw_data());
 
-  // nbytes should have reduced by a factor of 4
+  // nbytes should have increased by a factor of 2
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
 }
 
@@ -464,24 +489,9 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Setup shape and offsets
   vector<Dims> shape = this->GetRandShape();
-  int num_tensor = shape.size();
   vector<Index> offsets;
-  Index offset = 0;
-  for (auto &tmp : shape) {
-    offsets.push_back(offset);
-    offset += Product(tmp);
-  }
 
-  // Resize the buffer
-  tensor_list.Resize(shape);
-
-  // Check the internals
-  ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
-  }
+  this->SetupTensorList(&tensor_list, shape, &offsets);
 
   // Create a new tensor_list w/ a smaller data type
   TensorList<TypeParam> tensor_list2;
@@ -505,9 +515,9 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_TRUE(tensor_list2.shares_data());
   ASSERT_EQ(tensor_list2.raw_data(), tensor_list.raw_data());
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(uint8));
-  ASSERT_EQ(tensor_list2.ntensor(), num_tensor);
+  ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
-  for (int i = 0; i < num_tensor; ++i) {
+  for (int i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
@@ -519,8 +529,8 @@ TYPED_TEST(TensorListTest, TestShareData) {
   // Check the internals
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(double));
-  ASSERT_EQ(tensor_list2.ntensor(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
+  ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
+  for (int i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
