@@ -193,22 +193,7 @@ class OpSchema {
     return static_cast<bool>(output_fn_);
   }
 
-  inline int CalculateOutputs(const OpSpec &spec) const {
-    int num_input_sets = 1;
-    if (allow_multiple_input_sets_) {
-      if (MinNumInput() == MaxNumInput()) {
-        num_input_sets = spec.NumInput() / MinNumInput();
-      } else {
-        num_input_sets = spec.GetArgument<int>("num_input_sets", 1);
-      }
-    }
-
-    if (!output_fn_) {
-      return num_input_sets * num_output_;
-    } else {
-      return num_input_sets * output_fn_(spec);
-    }
-  }
+  int CalculateOutputs(const OpSpec &spec) const;
 
   inline bool SupportsInPlace(const OpSpec &spec) const {
     if (!in_place_fn_) return false;

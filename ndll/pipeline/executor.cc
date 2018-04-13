@@ -145,20 +145,21 @@ void Executor::RunGPU() {
       DeviceWorkspace &ws = wsb.gpu_op_data[i];
       auto parent_events = ws.ParentEvents();
 
-    for (auto &event : parent_events) {
-      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
-    }
+      for (auto &event : parent_events) {
+        CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
+      }
 
-    OpNode& curr_node = graph_->gpu_node(i);
-    std::cout << "Running " << curr_node.instance_name << std::endl
-      << "\t" << op.GetInputsSet() << " inputs" << std::endl
-      << "\t" << curr_node.parents.size() << " parents" << std::endl
-      << "\t" << curr_node.children.size() << " children" << std::endl
-      << std::endl;
+      OpNode& curr_node = graph_->gpu_node(i);
+      std::cout << "Running " << curr_node.instance_name << std::endl
+        << "\t" << op.GetInputsSet() << " inputs" << std::endl
+        << "\t" << curr_node.parents.size() << " parents" << std::endl
+        << "\t" << curr_node.children.size() << " children" << std::endl
+        << std::endl;
 
-    op.Run(&ws);
-    if (ws.has_event()) {
-      CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      op.Run(&ws);
+      if (ws.has_event()) {
+        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      }
     }
 
     for (size_t i = 0; i < output_names_.size(); ++i) {
