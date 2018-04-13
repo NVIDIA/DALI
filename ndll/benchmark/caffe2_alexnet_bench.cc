@@ -36,7 +36,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
       .AddOutput("labels", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("compressed_images", "cpu")

@@ -56,20 +56,21 @@ class NDLLTest : public ::testing::Test {
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
-  inline void DecodeJPEGS(NDLLImageType type) {
-    images_.resize(jpegs_.size());
-    image_dims_.resize(jpegs_.size());
-    for (size_t i = 0; i < jpegs_.size(); ++i) {
+  inline void DecodeImages(NDLLImageType type, const vector<uint8*>& encoded,
+                           const vector<int>& encoded_sizes,
+                           vector<uint8*> *images, vector<DimPair> *image_dims) {
+    images->resize(encoded.size());
+    image_dims->resize(encoded.size());
+    for (size_t i = 0; i < encoded.size(); ++i) {
       cv::Mat img;
-      cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[i], CV_8UC1, jpegs_[i]);
+      cv::Mat encode = cv::Mat(1, encoded_sizes[i], CV_8UC1, encoded[i]);
 
-      ASSERT_TRUE(CheckIsJPEG(jpegs_[i], jpeg_sizes_[i]));
       int flag = IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
-      cv::imdecode(jpeg, flag, &img);
+      cv::imdecode(encode, flag, &img);
 
       int h = img.rows;
       int w = img.cols;
-      cv::Mat out_img(h, w, IsColor(type) ? CV_8UC3 : CV_8UC2);
+      cv::Mat out_img(h, w, IsColor(type) ? CV_8UC3 : CV_8UC1);
       if (type == NDLL_RGB) {
         // Convert from BGR to RGB for verification
         cv::cvtColor(img, out_img, CV_BGR2RGB);
@@ -80,38 +81,50 @@ class NDLLTest : public ::testing::Test {
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
       c_ = IsColor(type) ? 3 : 1;
-      images_[i] = new uint8[h*w*c_];
-      std::memcpy(images_[i], out_img.ptr(), h*w*c_);
+      (*images)[i] = new uint8[h*w*c_];
+      std::memcpy((*images)[i], out_img.ptr(), h*w*c_);
 
-      image_dims_[i].h = h;
-      image_dims_[i].w = w;
+      (*image_dims)[i].h = h;
+      (*image_dims)[i].w = w;
     }
   }
 
-  inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
-    NDLL_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
+  inline void DecodeJPEGS(NDLLImageType type) {
+    DecodeImages(type, jpegs_, jpeg_sizes_, &images_, &image_dims_);
+  }
+
+  inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,
+                               const vector<uint8*> &images,
+                               const vector<DimPair> &image_dims,
+                               const int c) {
+    NDLL_ENFORCE(images.size() > 0, "Images must be populated to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {jpeg_sizes_[i % jpegs_.size()]};
+      shape[i] = {image_dims[i % images.size()].h,
+                  image_dims[i % images.size()].w,
+                  c};
     }
-
     tl->template mutable_data<uint8>();
     tl->Resize(shape);
-
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-          jpegs_[i % jpegs_.size()],
-          jpeg_sizes_[i % jpegs_.size()]);
+                  images[i % images.size()],
+                  Product(tl->tensor_shape(i)));
     }
   }
 
   inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl) {
-    NDLL_ENFORCE(images_.size() > 0, "Images must be decoded to create batches");
+    MakeDecodedBatch(n, tl, images_, image_dims_, c_);
+  }
+
+  // Make a batch (in TensorList) of arbitrary raw data
+  inline void MakeEncodedBatch(TensorList<CPUBackend> *tl, int n,
+                        const vector<uint8*> &data,
+                        const vector<int> &data_sizes) {
+    NDLL_ENFORCE(data.size() > 0, "data must be populated to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {image_dims_[i % images_.size()].h,
-                  image_dims_[i % images_.size()].w,
-                  c_};
+      shape[i] = {data_sizes[i % data.size()]};
     }
 
     tl->template mutable_data<uint8>();
@@ -119,9 +132,37 @@ class NDLLTest : public ::testing::Test {
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-          images_[i % images_.size()],
-          Product(tl->tensor_shape(i)));
+          data[i % data.size()],
+          data_sizes[i % data.size()]);
     }
+  }
+
+  // Make a batch (of vector<Tensor>) of arbitrary raw data
+  inline void MakeEncodedBatch(vector<Tensor<CPUBackend>> *t, int n,
+                            const vector<uint8*> &data,
+                            const vector<int> &data_sizes) {
+    NDLL_ENFORCE(data.size() > 0, "data must be populated to create batches");
+
+    t->resize(n);
+    for (int i = 0; i < n; ++i) {
+      auto& ti = t->at(i);
+      ti = Tensor<CPUBackend>{};
+      ti.Resize({data_sizes[i % data.size()]});
+      ti.template mutable_data<uint8>();
+
+      std::memcpy(ti.raw_mutable_data(),
+                  data[i % data.size()],
+                  data_sizes[i % data.size()]);
+    }
+  }
+
+
+  inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
+    MakeEncodedBatch(tl, n, jpegs_, jpeg_sizes_);
+  }
+
+  inline void MakeJPEGBatch(vector<Tensor<CPUBackend>> *t, int n) {
+    MakeEncodedBatch(t, n, jpegs_, jpeg_sizes_);
   }
 
   template <typename T>

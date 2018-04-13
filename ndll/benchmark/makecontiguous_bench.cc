@@ -31,7 +31,7 @@ BENCHMARK_DEFINE_F(MakeContiguousBench, CoalescedMemcpy)(benchmark::State& st) {
   pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", NDLL_RGB)
       .AddInput("raw_jpegs", "cpu")

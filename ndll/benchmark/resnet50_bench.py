@@ -29,7 +29,7 @@ class C2Pipe(Pipeline):
                                      exec_pipelined=pipelined,
                                      exec_async=async)
         self.input = ops.ExternalSource()
-        self.decode = ops.TJPGDecoder(output_type = types.RGB)
+        self.decode = ops.HostDecoder(output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(random_resize = True,
                                             resize_a = 256,
                                             resize_b = 480,
@@ -130,7 +130,7 @@ def main():
     pipe_types = [C2Pipe, HybridPipe]
     for PipeType in pipe_types:
         run_benchmarks(PipeType, args)
-                        
+
 if __name__ == '__main__':
     main()
-    
+

@@ -3,8 +3,8 @@
 
 namespace ndll {
 
-void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes) {
+void LoadImages(const string image_folder, vector<string> *image_names,
+    vector<uint8*> *images, vector<int> *image_sizes) {
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
   NDLL_ENFORCE(file.is_open());
@@ -12,10 +12,10 @@ void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
   string img;
   while (file >> img) {
     NDLL_ENFORCE(img.size());
-    jpeg_names->push_back(image_folder + "/" + img);
+    image_names->push_back(image_folder + "/" + img);
   }
 
-  for (auto img_name : *jpeg_names) {
+  for (auto img_name : *image_names) {
     std::ifstream img_file(img_name);
     NDLL_ENFORCE(img_file.is_open());
 
@@ -23,26 +23,36 @@ void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
     int img_size = static_cast<int>(img_file.tellg());
     img_file.seekg(0, std::ios::beg);
 
-    jpegs->push_back(new uint8[img_size]);
-    jpeg_sizes->push_back(img_size);
-    img_file.read(reinterpret_cast<char*>((*jpegs)[jpegs->size()-1]), img_size);
+    images->push_back(new uint8[img_size]);
+    image_sizes->push_back(img_size);
+    img_file.read(reinterpret_cast<char*>((*images)[images->size()-1]), img_size);
   }
+}
+
+void LoadImages(const vector<string> &image_names,
+    vector<uint8*> *images, vector<int> *image_sizes) {
+  for (auto img_name : image_names) {
+    std::ifstream img_file(img_name);
+    NDLL_ENFORCE(img_file.is_open());
+
+    img_file.seekg(0, std::ios::end);
+    int img_size = static_cast<int>(img_file.tellg());
+    img_file.seekg(0, std::ios::beg);
+
+    images->push_back(new uint8[img_size]);
+    image_sizes->push_back(img_size);
+    img_file.read(reinterpret_cast<char*>((*images)[images->size()-1]), img_size);
+  }
+}
+
+void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
+    vector<uint8*> *jpegs, vector<int> *jpeg_sizes) {
+  LoadImages(image_folder, jpeg_names, jpegs, jpeg_sizes);
 }
 
 void LoadJPEGS(const vector<string> &jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes) {
-  for (auto img_name : jpeg_names) {
-    std::ifstream img_file(img_name);
-    NDLL_ENFORCE(img_file.is_open());
-
-    img_file.seekg(0, std::ios::end);
-    int img_size = static_cast<int>(img_file.tellg());
-    img_file.seekg(0, std::ios::beg);
-
-    jpegs->push_back(new uint8[img_size]);
-    jpeg_sizes->push_back(img_size);
-    img_file.read(reinterpret_cast<char*>((*jpegs)[jpegs->size()-1]), img_size);
-  }
+  LoadImages(jpeg_names, jpegs, jpeg_sizes);
 }
 
 void LoadFromFile(string file_name, uint8 **image, int *h, int *w, int *c) {

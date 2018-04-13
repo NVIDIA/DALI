@@ -16,7 +16,7 @@ def test_tensor_multiple_uses():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
@@ -57,7 +57,7 @@ def test_cropmirrornormalize_layout():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
@@ -112,7 +112,7 @@ def test_cropmirrornormalize_pad():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.TJPGDecoder(device = "cpu", output_type = types.RGB)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = layout,
