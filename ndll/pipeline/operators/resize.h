@@ -30,7 +30,7 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
           size_t batch_size, bool reshapeBatch = false,
           vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
           vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
-          NppiPoint *pOutResize = NULL, size_t *pTotalSize = NULL);
+          NppiPoint *pOutResize = NULL, size_t pTotalSize[] = NULL, size_t batchSliceNumb = 0);
 void CollectPointersForExecution(size_t batch_size,
           const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
           TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
