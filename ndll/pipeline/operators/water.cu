@@ -2,6 +2,10 @@
 
 #include "ndll/pipeline/operators/water.h"
 
+#ifndef M_PI
+const float M_PI =  3.14159265358979323846;
+#endif
+
 namespace ndll {
 
 NDLL_REGISTER_OPERATOR(Water, Water<CPUBackend>, CPU);
@@ -12,11 +16,11 @@ NDLL_OPERATOR_SCHEMA(Water)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddOptionalArg("ampl_x", "Foo", 10)
-    .AddOptionalArg("ampl_y", "Foo", 10)
-    .AddOptionalArg("freq_x", "Foo", 2.0 * 3.1415 / 128)
-    .AddOptionalArg("freq_y", "Foo", 2.0 * 3.1415 / 128)
-    .AddOptionalArg("phase_x", "Foo", 0)
-    .AddOptionalArg("phase_y", "Foo", 0);
+    .AddOptionalArg("ampl_x", "Foo", 10.f)
+    .AddOptionalArg("ampl_y", "Foo", 10.f)
+    .AddOptionalArg("freq_x", "Foo", (float)(2.0 * M_PI / 128))
+    .AddOptionalArg("freq_y", "Foo", (float)(2.0 * M_PI / 128))
+    .AddOptionalArg("phase_x", "Foo", 0.f)
+    .AddOptionalArg("phase_y", "Foo", 0.f);
 
 }  // namespace ndll

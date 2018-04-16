@@ -80,6 +80,7 @@ class CropMirrorNormalize : public Operator {
 
     // Reset per-set-of-samples random numbers
     per_sample_crop_.resize(batch_size_);
+    per_sample_dimensions_.resize(batch_size_);
   }
 
   virtual inline ~CropMirrorNormalize() = default;
@@ -96,6 +97,49 @@ class CropMirrorNormalize : public Operator {
     }
   }
 
+  inline void SetupSharedSampleParams(DeviceWorkspace *ws) {
+    for (int i = 0; i < batch_size_; ++i) {
+      auto &input = ws->Input<GPUBackend>(0);
+      NDLL_ENFORCE(IsType<uint8>(input.type()),
+          "Expected input data as uint8.");
+      vector<Index> input_shape = input.tensor_shape(i);
+      NDLL_ENFORCE(input_shape.size() == 3,
+          "Expects 3-dimensional image input.");
+
+      int H = input_shape[0];
+      int W = input_shape[1];
+
+      per_sample_dimensions_[i] = std::make_pair(H, W);
+
+      int C = input_shape[2];
+
+      NDLL_ENFORCE(C == C_,
+          "Input channel dimension does not match "
+          "the output image type. Expected input with "
+          + to_string(C_) + " channels, got " + to_string(C) + ".");
+
+
+      // Random crop
+      NDLL_ENFORCE(H >= crop_h_);
+      NDLL_ENFORCE(W >= crop_w_);
+
+      int crop_x, crop_y;
+      if (random_crop_) {
+        crop_y = std::uniform_int_distribution<>(0, H - crop_h_)(rand_gen_);
+        crop_x = std::uniform_int_distribution<>(0, W - crop_w_)(rand_gen_);
+      } else {
+        crop_y = (H - crop_h_) / 2;
+        crop_x = (W - crop_w_) / 2;
+      }
+      per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
+
+      // Set mirror parameters
+      mirror_.template mutable_data<bool>()[i] =
+        std::bernoulli_distribution(mirror_prob_)(rand_gen_);
+    }
+    mirror_gpu_.Copy(mirror_, ws->stream());
+  }
+
   inline void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     auto &input = ws->Input<GPUBackend>(idx);
     auto output = ws->Output<GPUBackend>(idx);
@@ -110,6 +154,11 @@ class CropMirrorNormalize : public Operator {
 
       int H = input_shape[0];
       int W = input_shape[1];
+
+      NDLL_ENFORCE(H == per_sample_dimensions_[i].first &&
+          W == per_sample_dimensions_[i].second,
+          "Corresponding images in different input sets need to have the same height and width");
+
       int C = input_shape[2];
 
       NDLL_ENFORCE(C == C_,
@@ -117,36 +166,13 @@ class CropMirrorNormalize : public Operator {
           "the output image type. Expected input with "
           + to_string(C_) + " channels, got " + to_string(C) + ".");
 
-
-      NDLL_ENFORCE(H >= crop_h_);
-      NDLL_ENFORCE(W >= crop_w_);
-
-      // Set crop parameters
-      int crop_y, crop_x;
-      if (idx == 0) {
-        // First set of samples determines the crop offsets to be used
-        // for all sets of samples and stores.
-        if (random_crop_) {
-          crop_y = std::uniform_int_distribution<>(0, H - crop_h_)(rand_gen_);
-          crop_x = std::uniform_int_distribution<>(0, W - crop_w_)(rand_gen_);
-        } else {
-          crop_y = (H - crop_h_) / 2;
-          crop_x = (W - crop_w_) / 2;
-        }
-        per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
-      } else {
-        // retrieve already determined offsets
-        crop_y = per_sample_crop_[i].first;
-        crop_x = per_sample_crop_[i].second;
-      }
+      // retrieve already determined crop parameters
+      int crop_y = per_sample_crop_[i].first;
+      int crop_x = per_sample_crop_[i].second;
 
       // Save image stride & crop offset
       input_strides_.template mutable_data<int>()[i] = W*C_;
       crop_offsets_[i] = crop_y*W*C_ + crop_x*C_;
-
-      // Set mirror parameters
-      mirror_.template mutable_data<bool>()[i] =
-        std::bernoulli_distribution(mirror_prob_)(rand_gen_);
 
       // Pad to 4 channels
       int pad_C = pad_ ? 4 : C_;
@@ -164,7 +190,6 @@ class CropMirrorNormalize : public Operator {
 
     // Copy strides and mirror data to gpu
     input_strides_gpu_.Copy(input_strides_, ws->stream());
-    mirror_gpu_.Copy(mirror_, ws->stream());
 
     // Calculate input pointers and copy to gpu
     for (int i = 0; i < batch_size_; ++i) {
@@ -255,6 +280,7 @@ class CropMirrorNormalize : public Operator {
 
   // store per-thread crop offsets for same resize on multiple data
   std::vector<std::pair<int, int>> per_sample_crop_;
+  std::vector<std::pair<int, int>> per_sample_dimensions_;
 
   USE_OPERATOR_MEMBERS();
 };
