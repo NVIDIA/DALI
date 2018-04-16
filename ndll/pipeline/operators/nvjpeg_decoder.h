@@ -9,39 +9,38 @@
 
 namespace ndll {
 
-/*
- * nvJPEG API copy
- *
-int
-nvjpegGetImageInfo(const unsigned char * pData, unsigned int nLength,
-				   int & nComponent,
-				   int & nWidthY,  int & nHeightY,
-				   int & nWidthCb, int & nHeightCb,
-				   int & nWidthCr, int & nHeightCr);
+#define NVJPEG_CALL(code)                                    \
+  do {                                                       \
+    nvjpegStatus_t status = code;                            \
+    if (status != NVJPEG_STATUS_SUCCESS) {                   \
+      ndll::string error = ndll::string("NVJPEG error \"") + \
+        std::to_string((int)status) + "\"";                  \
+      NDLL_FAIL(error);                                      \
+    }                                                        \
+  } while(0)
 
-int
-nvjpegDecode(const unsigned char * pData, unsigned int nLength,
-	         unsigned char * pY,  int nStepY,
-	         unsigned char * pCb, int nStepCb,
-	         unsigned char * pCr, int nStepCr);
- */
+namespace memory {
 
-enum Sampling {
-  YCbCr_444 = 0,
-  YCbCr_440 = 1,
-  YCbCr_422 = 2,
-  YCbCr_420 = 3,
-  YCbCr_411 = 4,
-  YCbCr_410 = 5,
-  YCbCr_UNKNOWN = 6
-};
+int DeviceNew(void **ptr, size_t size) {
+  *ptr = GPUBackend::New(size, false);
+
+  return 0;
+}
+
+int DeviceDelete(void *ptr) {
+  GPUBackend::Delete(ptr, 0, false);
+
+  return 0;
+}
+
+}  // namespace memory
 
 void convertToRGB(array<const Npp8u*, 3> YCbCr,
                   array<Npp32s, 3> steps,
                   int rgb_step,
                   Npp8u* out,
                   int outH, int outW,
-                  Sampling sampling) {
+                  nvjpegChromaSubsampling sampling) {
   NppiSize s;
   s.width = outW;
   s.height = outH;
@@ -49,19 +48,19 @@ void convertToRGB(array<const Npp8u*, 3> YCbCr,
   if (outW & 1) s.width++;
 
   switch(sampling) {
-   case YCbCr_444:
+   case NVJPEG_CSS_444:
      //printf("444\n");
     nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, 3*outW, s);
     break;
-   case YCbCr_422:
+   case NVJPEG_CSS_422:
      //printf("422\n");
     nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, 3*outW, s);
-   case YCbCr_420:
+   case NVJPEG_CSS_420:
      //printf("420\n");
     nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, 3*outW, s);
     break;
    default:
-    printf("boooo\n");
+    NDLL_FAIL("boooo");
   }
 }
 
@@ -69,12 +68,24 @@ class nvJPEGDecoder : public Operator {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator(spec),
-    Y_{max_streams_},
-    Cb_{max_streams_},
-    Cr_{max_streams_},
+    Y_{num_streams_},
+    Cb_{num_streams_},
+    Cr_{num_streams_},
     output_shape_(batch_size_),
     output_sampling_(batch_size_),
-    output_info_(batch_size_) {}
+    output_info_(batch_size_) {
+      // Setup the allocator struct to use our internal allocator
+      nvjpegDevAllocator allocator;
+      allocator.dev_malloc = &memory::DeviceNew;
+      allocator.dev_free = &memory::DeviceDelete;
+
+      // create the handle
+      NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_HYBRID, &allocator, &handle_));
+    }
+
+  ~nvJPEGDecoder() {
+    NVJPEG_CALL(nvjpegDestroy(handle_));
+  }
 
   void Run(MixedWorkspace *ws) override {
     // Get dimensions
@@ -84,16 +95,16 @@ class nvJPEGDecoder : public Operator {
       const auto *data = in.data<uint8_t>();
 
       int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
-      auto err = nvjpegGetImageInfo(data, in_size,
-                                   &c,
-                                   &nWidthY, &nHeightY,
-                                   &nWidthCb, &nHeightCb,
-                                   &nWidthCr, &nHeightCr);
+      nvjpegChromaSubsampling subsampling;
 
-      Sampling sampling = getSamplingRatio(c,
-                                           nWidthY, nHeightY,
-                                           nWidthCb, nHeightCb,
-                                           nWidthCr, nHeightCr);
+      // Get necessary image information
+      NVJPEG_CALL(nvjpegGetImageInfo(handle_,
+                                     data, in_size,
+                                     &c,
+                                     &nWidthY, &nHeightY,
+                                     &nWidthCb, &nHeightCb,
+                                     &nWidthCr, &nHeightCr,
+                                     &subsampling));
 
       ImageInfo info;
       info.c = c;
@@ -104,20 +115,21 @@ class nvJPEGDecoder : public Operator {
       info.nWidthCr = nWidthCr;
       info.nHeightCr = nHeightCr;
 
+      // Huffman Decode
+      NVJPEG_CALL(nvjpegDecodePlanarCPU(handle_,
+                                        data,
+                                        in_size));
+
       output_shape_[i] = Dims({nHeightY, nWidthY, c});
-      output_sampling_[i] = sampling;
+      output_sampling_[i] = subsampling;
       output_info_[i] = info;
-      // printf("output shape: %d %d %d\n", nHeightY, nWidthY, c);
 
-
-#if 0
-      printf("%d %d %d %d %d %d\n", nWidthY, nHeightY,
-                                    nWidthCb, nHeightCb,
-                                    nWidthCr, nHeightCr);
-#endif
+      // Memcpy of Huffman co-efficients to device
+      NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle_,
+                                           ws->stream()));
     }
 
-    // Resize the output
+    // Resize the output (contiguous)
     auto *output = ws->Output<GPUBackend>(0);
     output->Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
@@ -125,26 +137,32 @@ class nvJPEGDecoder : public Operator {
 
     // Now loop over all images again and decode
     for (int i = 0; i < batch_size_; ++i) {
+      const int stream_idx = i % num_streams_;
       auto& in = ws->Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
       auto info = output_info_[i];
 
-      // temp buffers for decode output (later)
-      const int stream_idx = i % max_streams_;
       Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
       Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
       Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
 
       // perform decode
-      nvjpegDecode(data, in_size,
-                   Y_[stream_idx].mutable_data<unsigned char>(), info.nWidthY,
-                   Cb_[stream_idx].mutable_data<unsigned char>(), info.nWidthCb,
-                   Cr_[stream_idx].mutable_data<unsigned char>(), info.nWidthCr);
+      nvjpegImageOutputPlanar image_desc;
+      image_desc.p1 = Y_[stream_idx].mutable_data<uint8>();
+      image_desc.pitch1 = info.nWidthY;
+      image_desc.p2 = Cb_[stream_idx].mutable_data<uint8>();
+      image_desc.pitch2 = info.nWidthCb;
+      image_desc.p3 = Cr_[stream_idx].mutable_data<uint8>();
+      image_desc.pitch3 = info.nWidthCr;
+
+      NVJPEG_CALL(nvjpegDecodePlanarGPU(handle_,
+                                        image_desc,
+                                        NVJPEG_OUTPUT_YUV,
+                                        ws->stream()));
 
       // copy & convert from YCbCr -> RGB
-
       Npp8u *out_ptr = (Npp8u*)output->raw_mutable_tensor(i);
       convertToRGB(array<const Npp8u*, 3>{(const Npp8u*)Y_[stream_idx].raw_data(),
                                           (const Npp8u*)Cb_[stream_idx].raw_data(),
@@ -164,8 +182,10 @@ class nvJPEGDecoder : public Operator {
  protected:
   USE_OPERATOR_MEMBERS();
 
+  nvjpegHandle_t handle_;
+
   // maximum number of streams to use to decode + convert
-  const int max_streams_ = num_threads_;
+  const int num_streams_ = num_threads_;
 
   vector<Tensor<GPUBackend>> Y_;
   vector<Tensor<GPUBackend>> Cb_;
@@ -176,54 +196,8 @@ class nvJPEGDecoder : public Operator {
   };
 
   vector<Dims> output_shape_;
-  vector<Sampling> output_sampling_;
+  vector<nvjpegChromaSubsampling> output_sampling_;
   vector<ImageInfo> output_info_;
-
-  Sampling getSamplingRatio(int components,
-                            int yWidth, int yHeight,
-                            int cbWidth, int cbHeight,
-                            int crWidth, int crHeight) {
-    if (components == 1) {
-      return YCbCr_444;
-    } else {
-      Sampling eComponentSampling;
-      // examine input sampling factor
-      //
-      // TODO(Trevor): Copied this code from ICE, why does this
-      // always check if the different is less than 3?
-      if(yWidth == cbWidth) {
-          if (yHeight == cbHeight) {
-              // cout << "selected 444" << endl;
-              eComponentSampling = YCbCr_444;
-          } else if (abs(static_cast<float>(yHeight - 2 * cbHeight)) < 3) {
-              // cout << "selected 440" << endl;
-              eComponentSampling = YCbCr_440;
-          }
-      }
-      else if (abs(static_cast<float>(yWidth - 2 * cbWidth)) < 3) {
-          if (yHeight == cbHeight) {
-              // cout << "selected 422" << endl;
-              eComponentSampling = YCbCr_422;
-          } else if (abs(static_cast<float>(yHeight - 2 * cbHeight)) < 3) {
-              // cout << "selected 420" << endl;
-              eComponentSampling = YCbCr_420;
-          }
-      }
-      else if (abs(static_cast<float>(yWidth - 4 * cbWidth)) < 4) {
-          if (yHeight == cbHeight) {
-              // cout << "selected 411" << endl;
-              eComponentSampling = YCbCr_411;
-          } else if (abs(static_cast<float>(yHeight - 2 * cbHeight)) < 3) {
-              // cout << "selected 410" << endl;
-              eComponentSampling = YCbCr_410;
-          }
-      }
-
-      NDLL_ENFORCE(eComponentSampling != YCbCr_UNKNOWN, "Unknown subsampling ratio");
-
-      return eComponentSampling;
-    }
-  }
 };
 
 }  // namespace ndll
