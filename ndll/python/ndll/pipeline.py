@@ -47,7 +47,8 @@ class Pipeline(object):
 
     def _prepare_graph(self):
         outputs = self.define_graph()
-        if not isinstance(outputs, tuple):
+        if (not isinstance(outputs, tuple) and
+            not isinstance(outputs, list)):
             outputs = (outputs,)
 
         for output in outputs:
