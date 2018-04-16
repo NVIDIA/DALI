@@ -9,11 +9,8 @@ NDLL_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>, GPU);
 NDLL_OPERATOR_SCHEMA(NormalizePermute)
   .DocStr("Foo")
   .NumInput(1)
-  .OutputFn([](const OpSpec &spec) {
-      auto input_sets = spec.GetArgument<int>("num_input_sets");
-      NDLL_ENFORCE(spec.NumInput() % input_sets == 0);
-      return spec.NumInput();
-  })
+  .NumOutput(1)
+  .AllowMultipleInputSets()
   .AddOptionalArg("output_dtype", "Output data type", NDLL_FLOAT)
   .AddArg("height", "Height of the input image")
   .AddArg("width", "Width of the input image")

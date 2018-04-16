@@ -14,11 +14,7 @@ std::map<string, OpSchema>& SchemaRegistry::registry() {
 int OpSchema::CalculateOutputs(const OpSpec &spec) const {
   int num_input_sets = 1;
   if (allow_multiple_input_sets_) {
-    if (MinNumInput() == MaxNumInput()) {
-      num_input_sets = spec.NumInput() / MinNumInput();
-    } else {
-      num_input_sets = spec.GetArgument<int>("num_input_sets");
-    }
+    num_input_sets = spec.GetArgument<int>("num_input_sets");
   }
 
   if (!output_fn_) {

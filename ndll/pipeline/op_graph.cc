@@ -35,16 +35,10 @@ void CheckOpConstraints(const OpSpec &spec) {
 
   int num_input_sets = 1;
   if (allows_multiple_inputs) {
-    // If Min/Max Inputs are the same, we can infer the number
-    // of input sets, otherwise get from a user-passed argument
-    if (schema.MinNumInput() == schema.MaxNumInput()) {
-      num_input_sets = spec.NumInput() / schema.MinNumInput();
-      int num_output_sets = spec.NumOutput() / schema.NumOutput();
-
-      NDLL_ENFORCE(num_input_sets == num_output_sets, "Inconsistent number of inputs / outputs");
-    } else {
-      num_input_sets = spec.GetArgument<int>("num_input_sets");
-    }
+    num_input_sets = spec.GetArgument<int>("num_input_sets");
+  } else {
+    NDLL_ENFORCE(spec.GetArgument<int>("num_input_sets") == 1,
+        "Op '" + spec.name() + "' does not support multiple input sets.");
   }
 
   NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
