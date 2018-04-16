@@ -36,7 +36,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       .AddOutput("labels", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("TJPGDecoder")
+      OpSpec("HostDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("compressed_images", "cpu")

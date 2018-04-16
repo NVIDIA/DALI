@@ -22,6 +22,21 @@
 namespace ndll {
 
 /**
+ * Load all images from a list of image names. Assumes names contain
+ * full path
+ */
+void LoadImages(const vector<string> &image_names,
+    vector<uint8*> *images, vector<int> *image_sizes);
+
+/**
+ * Loads images from a specified image folder. Assumes the folder contains
+ * a file 'image_list.txt' that lists all the different images in the
+ * folder
+ */
+void LoadImages(string image_folder, vector<string> *jpeg_names,
+    vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
+
+/**
  * Loads jpegs from a specified image folder. Assumes the folder contains
  * a file 'image_list.txt' that lists all the different images in the
  * folder

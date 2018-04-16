@@ -395,7 +395,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("TJPGDecoder")
+          OpSpec("HostDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -441,7 +441,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("TJPGDecoder")
+          OpSpec("HostDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
