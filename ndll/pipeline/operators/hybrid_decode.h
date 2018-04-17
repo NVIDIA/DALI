@@ -82,7 +82,7 @@ class HuffmanDecoder : public Operator {
                                                                         total_size)});
     dct_coeff->template mutable_data<int16>();
     // Correct sizing
-    dct_coeff->Resize({total_size});
+    dct_coeff->Resize({static_cast<Index>(total_size)});
 
     vector<int16*> dct_ptrs(jpeg->components);
     HuffmanDecoderState &state =

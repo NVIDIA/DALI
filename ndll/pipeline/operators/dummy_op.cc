@@ -11,8 +11,8 @@ NDLL_REGISTER_OPERATOR(DummyOp, DummyOp<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(DummyOp)
   .DocStr("Foo")
-  .OutputFn([](const OpSpec &spec) { return 2; })
+  .OutputFn([](const OpSpec &spec) { return spec.GetArgument<int>("num_outputs"); })
   .NumInput(0, 10)
-  .NumOutput(0, 10);
+  .AddOptionalArg("num_outputs", "Number of outputs", 2);
 
 }  // namespace ndll

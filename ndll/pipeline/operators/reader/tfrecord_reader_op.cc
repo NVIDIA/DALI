@@ -2,6 +2,9 @@
 
 #ifdef NDLL_BUILD_PROTO3
 
+#include <vector>
+#include <string>
+
 #include "ndll/pipeline/operators/reader/tfrecord_reader_op.h"
 
 namespace ndll {
@@ -10,11 +13,9 @@ NDLL_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 
 NDLL_OPERATOR_SCHEMA(_TFRecordReader)
   .OutputFn([](const OpSpec &spec) {
-      return spec.NumOutput();
+      std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
+      return v.size();
     })
-  // TODO(ptredak): check if MaxNumOutputs is used for anything important
-  // and if not, remove this limit
-  .NumOutput(1, 10)
   .NumInput(0)
   .AddArg("path", "List of paths to TFRecord files")
   .AddArg("index_path", "List of paths to index files")

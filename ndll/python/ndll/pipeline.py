@@ -47,7 +47,8 @@ class Pipeline(object):
 
     def _prepare_graph(self):
         outputs = self.define_graph()
-        if not isinstance(outputs, tuple):
+        if (not isinstance(outputs, tuple) and
+            not isinstance(outputs, list)):
             outputs = (outputs,)
 
         for output in outputs:
@@ -87,7 +88,11 @@ class Pipeline(object):
                 ops.remove(source_op)
                 ops.append(source_op)
             for tensor in source_op.inputs:
-                tensors.append(tensor)
+                if isinstance(tensor, list):
+                    for t in tensor:
+                        tensors.append(t)
+                else:
+                    tensors.append(tensor)
 
         # Add the ops to the graph and build the backend
         while ops:
@@ -163,6 +168,9 @@ class Pipeline(object):
         self._prepared = True
         self._pipe.Build()
         self._built = True
+
+    def save_graph_to_dot_file(self, filename):
+        self._pipe.SaveGraphToDotFile(filename)
 
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can

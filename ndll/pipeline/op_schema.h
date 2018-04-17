@@ -88,20 +88,7 @@ class OpSchema {
    */
   inline OpSchema& NumOutput(int n) {
     NDLL_ENFORCE(n >= 0);
-    max_num_output_ = n;
-    min_num_output_ = n;
-    return *this;
-  }
-
-  /**
-   * @brief Sets the min and max number of outputs the op can receive.
-   */
-  inline OpSchema& NumOutput(int min, int max) {
-    NDLL_ENFORCE(min <= max);
-    NDLL_ENFORCE(min >= 0);
-    NDLL_ENFORCE(max >= 0);
-    min_num_output_ = min;
-    max_num_output_ = max;
+    num_output_ = n;
     return *this;
   }
 
@@ -194,12 +181,8 @@ class OpSchema {
     return min_num_input_;
   }
 
-  inline int MaxNumOutput() const {
-    return max_num_output_;
-  }
-
-  inline int MinNumOutput() const {
-    return min_num_output_;
+  inline int NumOutput() const {
+    return num_output_;
   }
 
   inline bool AllowsMultipleInputSets() const {
@@ -210,13 +193,7 @@ class OpSchema {
     return static_cast<bool>(output_fn_);
   }
 
-  inline int CalculateOutputs(const OpSpec &spec) const {
-    if (!output_fn_) {
-      return max_num_output_;
-    } else {
-      return output_fn_(spec);
-    }
-  }
+  int CalculateOutputs(const OpSpec &spec) const;
 
   inline bool SupportsInPlace(const OpSpec &spec) const {
     if (!in_place_fn_) return false;
@@ -273,7 +250,7 @@ class OpSchema {
   SpecFunc output_fn_, in_place_fn_;
 
   int min_num_input_ = 0, max_num_input_ = 0;
-  int min_num_output_ = 0, max_num_output_ = 0;
+  int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
 

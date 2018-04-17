@@ -288,4 +288,8 @@ std::map<std::string, Index> Pipeline::EpochSize() {
   return ret;
 }
 
+void Pipeline::SaveGraphToDotFile(const std::string filename) {
+  graph_.SaveToDotFile(filename);
+}
+
 }  // namespace ndll

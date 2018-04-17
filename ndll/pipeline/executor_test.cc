@@ -127,6 +127,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data3", "cpu")), "");
 
@@ -139,6 +140,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data4", "cpu")), "");
 
@@ -203,12 +205,14 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data3", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data4", "cpu")), "");
 
@@ -252,6 +256,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
@@ -263,12 +268,14 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data2", "cpu")
           .AddOutput("data3", "cpu")), "");
 
@@ -311,17 +318,20 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data2", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data2", "cpu")
           .AddOutput("data3", "cpu")), "");
 
@@ -349,6 +359,7 @@ TEST_F(ExecutorTest, TestDataSetup) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "gpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data2", "gpu")
           .AddOutput("data3", "gpu")), "");
 

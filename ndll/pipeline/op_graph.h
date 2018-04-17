@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <fstream>
+#include <set>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -30,7 +32,7 @@ struct OpNode {
   OpPtr op;
   NodeID id;
   OpSpec spec;
-  std::unordered_set<NodeID> parents, children;
+  std::set<NodeID> parents, children;
   std::string instance_name;
 };
 
@@ -239,6 +241,57 @@ class OpGraph {
     return it->second;
   }
 
+
+  /**
+   * @brief Returns the OpNode at idx from the id to node
+   * map.
+   */
+  const OpNode& GetNodeForIdx(int idx) const {
+    NDLLOpType type = id_to_node_map_[idx].first;
+    Index index = id_to_node_map_[idx].second;
+    switch (type) {
+    case NDLL_CPU:
+      return cpu_nodes_[index];
+    case NDLL_GPU:
+      return gpu_nodes_[index];
+    case NDLL_MIXED:
+      return mixed_nodes_[index];
+    }
+    string str_error = "No Node for index " + idx;
+    NDLL_FAIL(str_error);
+  }
+
+  /**
+   * @brief Helper function for saving graph to DOT file
+   */
+  void GenerateDOTFromGraph(const OpNode& current_node, std::ofstream& ofs) {
+    if (current_node.children.empty()
+        || visited_nodes_.find(current_node.id) != visited_nodes_.end()) {
+      ofs << current_node.instance_name << "\n";
+      return;
+    }
+    visited_nodes_.insert(current_node.id);
+    for (auto node_id : current_node.children) {
+        ofs << current_node.instance_name;
+        ofs << " -> ";
+        OpNode& child_node = node(node_id);
+        GenerateDOTFromGraph(child_node, ofs);
+    }
+  }
+
+  /**
+   * @brief Save graph in DOT directed graph format
+   * in filename.
+   */
+  void SaveToDotFile(const string filename) {
+    std::ofstream ofs = std::ofstream(filename);
+    ofs << "digraph graphname {\n";
+    const OpNode& current_node = GetNodeForIdx(0);
+    GenerateDOTFromGraph(current_node, ofs);
+    ofs << "}\n";
+    visited_nodes_.clear();
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
  private:
@@ -253,6 +306,9 @@ class OpGraph {
 
   std::map<string, TensorMeta> tensor_producers_;
   std::map<string, vector<TensorMeta>> tensor_consumers_;
+
+  // For the graph traversal
+  std::unordered_set<NodeID> visited_nodes_;
 };
 
 }  // namespace ndll
