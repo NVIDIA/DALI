@@ -12,16 +12,20 @@
 
 namespace ndll {
 
-template <typename T, class Displacement, class Color>
+template <typename T, bool per_channel_transform, class Displacement, class Color>
 __global__
 void DisplacementKernel(const T *in, T* out,
-                        const int N, const int H, const int W, const int C,
+                        const int N, const Index * shapes, const Index pitch,
                         Displacement displace, Color color) {
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
+    const int H = shapes[n * pitch + 0];
+    const int W = shapes[n * pitch + 1];
+    const int C = shapes[n * pitch + 2];
+    const Index offset = shapes[n * pitch + 3];
     // thread per pixel
-    const T *image_in = in + n * H * W * C;
-    T *image_out = out + n * H * W * C;
+    const T *image_in = in + offset;
+    T *image_out = out + offset;
     for (int out_idx = threadIdx.x; out_idx < H * W * C; out_idx += blockDim.x) {
       const int c = out_idx % C;
       const int w = (out_idx / C) % W;
@@ -31,6 +35,97 @@ void DisplacementKernel(const T *in, T* out,
       auto in_idx = displace(h, w, c, H, W, C);
 
       image_out[out_idx] = color(image_in[in_idx], h, w, c, H, W, C);
+    }
+  }
+}
+
+template <bool per_channel_transform, int nThreads, class Displacement, class Color>
+__global__
+void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
+                        const int N, const Index * shapes, const Index pitch,
+                        Displacement displace, Color color) {
+  __shared__ uint8_t scratch[nThreads * 12];
+  // block per image
+  for (int n = blockIdx.x; n < N; n += gridDim.x) {
+    const int H = shapes[n * pitch + 0];
+    const int W = shapes[n * pitch + 1];
+    const int C = 3;
+    const Index offset = shapes[n * pitch + 3];
+    // thread per pixel
+    const uint8_t * const image_in = in + offset;
+    uint32_t * const image_out = reinterpret_cast<uint32_t*>(out + offset);
+    const int nElements = (H * W) >> 2;
+    const int loopCount = nElements / nThreads;
+    uint8_t * const my_scratch = scratch + threadIdx.x * 12;
+    uint32_t * const scratch_32 = reinterpret_cast<uint32_t*>(scratch);
+
+    for (int lidx = 0; lidx < loopCount; ++lidx) {
+      const int hw0 = (lidx * nThreads + threadIdx.x) * 4;
+      uint32_t * const current_image_out = image_out + lidx * nThreads * 3;
+      if (per_channel_transform) {
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+          const int hw = hw0 + j;
+          const int w = hw % W;
+          const int h = hw / W;
+#pragma unroll
+          for (int c = 0; c < 3; ++c) {
+            auto tmp_idx = displace(h, w, c, H, W, C);
+            my_scratch[j * 3 + c] = color(image_in[tmp_idx], h, w, c, H, W, C);
+          }
+        }
+      } else {
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+          const int hw = hw0 + j;
+          const int w = hw % W;
+          const int h = hw / W;
+          auto tmp_idx = displace(h, w, 0, H, W, C);
+          my_scratch[j * 3 + 0] = color(image_in[tmp_idx + 0], h, w, 0, H, W, C);
+          my_scratch[j * 3 + 1] = color(image_in[tmp_idx + 1], h, w, 1, H, W, C);
+          my_scratch[j * 3 + 2] = color(image_in[tmp_idx + 2], h, w, 2, H, W, C);
+        }
+      }
+      __syncthreads();
+
+#pragma unroll
+      for (int i = 0; i < 3; ++i) {
+        current_image_out[threadIdx.x + i * nThreads] = scratch_32[threadIdx.x + i * nThreads];
+      }
+    }
+
+    // The rest, that was not aligned to block boundary
+    const int myId = threadIdx.x + loopCount * nThreads;
+    if (myId < nElements) {
+      const int hw0 = myId * 4;
+      if (per_channel_transform) {
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+          const int hw = hw0 + j;
+          const int w = hw % W;
+          const int h = hw / W;
+#pragma unroll
+          for (int c = 0; c < 3; ++c) {
+            auto tmp_idx = displace(h, w, c, H, W, C);
+            out[offset + h * W * C + w * C + c] =
+              color(image_in[tmp_idx], h, w, c, H, W, C);
+          }
+        }
+      } else {
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+          const int hw = hw0 + j;
+          const int w = hw % W;
+          const int h = hw / W;
+          auto tmp_idx = displace(h, w, 0, H, W, C);
+          out[offset + h * W * C + w * C + 0] =
+            color(image_in[tmp_idx + 0], h, w, 0, H, W, C);
+          out[offset + h * W * C + w * C + 1] =
+            color(image_in[tmp_idx + 1], h, w, 1, H, W, C);
+          out[offset + h * W * C + w * C + 2] =
+            color(image_in[tmp_idx + 2], h, w, 2, H, W, C);
+        }
+      }
     }
   }
 }
@@ -166,21 +261,99 @@ class DisplacementFilter : public Operator {
     return true;
   }
 
+  static const int nDims = 3;
+
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
     auto &input = ws->Input<GPUBackend>(idx);
     auto *output = ws->Output<GPUBackend>(idx);
 
     const auto N = input.ntensor();
-    auto shape = input.tensor_shape(0);
+    const int pitch = nDims + 1;  // shape and offset
+
+    meta_cpu.Resize({N, pitch});
+    Index * meta = meta_cpu.template mutable_data<Index>();
+    meta_gpu.ResizeLike(meta_cpu);
+    meta_gpu.template mutable_data<Index>();
+
+    Index offset = 0;
+    for (int i = 0; i < N; ++i) {
+      const auto& shape = input.tensor_shape(i);
+      NDLL_ENFORCE(shape.size() == nDims,
+          "All augmented tensors need to have the same number of dimensions");
+      Index current_size = nDims != 0 ? 1 : 0;
+      for (int j = 0; j < nDims; ++j) {
+        meta[i * pitch + j] = shape[j];
+        current_size *= shape[j];
+      }
+      meta[i * pitch + nDims] = offset;
+      offset += current_size;
+    }
 
     output->ResizeLike(input);
 
-    DisplacementKernel<T, Displacement><<<N, 256, 0, ws->stream()>>>(
-        input.template data<T>(), output->template mutable_data<T>(),
-        input.ntensor(), shape[0], shape[1], shape[2],
-        displace_, augment_);
+    NDLL_ENFORCE(pitch == 4,
+            "DisplacementKernel requires pitch to be 4.");
+
+    meta_gpu.Copy(meta_cpu, ws->stream());
+    // Find if C is the same for all images and
+    // what is the maximum power of 2 dividing
+    // all H*W
+    int C = meta[nDims - 1];  // First element
+    uint64_t maxPower2 = (uint64_t)-1;
+    for (int i = 0; i < N; ++i) {
+      if (C != meta[i * pitch + nDims - 1]) {
+        C = -1;  // Not all C are the same
+      }
+      uint64_t HW = 1;
+      for (int j = 0; j < nDims - 1; ++j) {
+        HW *= meta[i * pitch + j];
+      }
+      uint64_t power2 = HW & (-HW);
+      maxPower2 = maxPower2 > power2 ? power2 : maxPower2;
+    }
+
+    DisplacementKernelLauncher(ws, input.template data<T>(),
+                               output->template mutable_data<T>(),
+                               input.ntensor(), pitch, C, maxPower2);
     return true;
+  }
+
+  template <typename U>
+  void DisplacementKernelLauncher(DeviceWorkspace * ws,
+                                  const U* in, U* out,
+                                  const int N, const int pitch,
+                                  const int C, const uint64_t maxPower2) {
+    DisplacementKernel<U,
+                       per_channel_transform,
+                       Displacement>
+                      <<<N, 256, 0, ws->stream()>>>(
+        in, out, N, meta_gpu.template mutable_data<Index>(),
+        pitch, displace_, augment_);
+  }
+
+  void DisplacementKernelLauncher(DeviceWorkspace * ws,
+                                  const uint8_t* in, uint8_t* out,
+                                  const int N, const int pitch,
+                                  const int C, const uint64_t maxPower2) {
+    if (C == 3 && maxPower2 >= 4) {
+      DisplacementKernel_C3u8_a4<per_channel_transform,
+                                 256,
+                                 Displacement,
+                                 Augment>
+                                <<<N, 256, 0, ws->stream()>>>(
+                                    in, out, N,
+                                    meta_gpu.template mutable_data<Index>(),
+                                    pitch, displace_, augment_);
+    } else {
+      DisplacementKernel<uint8_t,
+                         per_channel_transform,
+                         Displacement>
+                        <<<N, 256, 0, ws->stream()>>>(
+                            in, out, N,
+                            meta_gpu.template mutable_data<Index>(),
+                            pitch, displace_, augment_);
+    }
   }
 
   USE_OPERATOR_MEMBERS();
@@ -188,6 +361,9 @@ class DisplacementFilter : public Operator {
  private:
   Displacement displace_;
   Augment augment_;
+
+  Tensor<CPUBackend> meta_cpu;
+  Tensor<GPUBackend> meta_gpu;
 };
 
 }  // namespace ndll
