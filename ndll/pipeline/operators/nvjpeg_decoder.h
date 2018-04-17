@@ -5,7 +5,9 @@
 
 #include <array>
 
+#include <opencv2/opencv.hpp>
 #include "ndll/pipeline/operator.h"
+#include "ndll/util/image.h"
 
 namespace ndll {
 
@@ -37,30 +39,92 @@ int DeviceDelete(void *ptr) {
 
 void convertToRGB(array<const Npp8u*, 3> YCbCr,
                   array<Npp32s, 3> steps,
-                  int rgb_step,
+                  int c, int rgb_step,
                   Npp8u* out,
                   int outH, int outW,
-                  nvjpegChromaSubsampling sampling) {
+                  nvjpegChromaSubsampling sampling,
+                  cudaStream_t stream) {
+  NppiSize s;
+  s.width = outW;
+  s.height = outH;
+
+  // if (outW & 1) s.width++;
+
+  cudaStream_t old_stream = nppGetStream();
+  nppSetStream(stream);
+  switch(sampling) {
+   case NVJPEG_CSS_444:
+    nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
+    break;
+   case NVJPEG_CSS_422:
+    nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+    break;
+   case NVJPEG_CSS_420:
+    nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+    break;
+   case NVJPEG_CSS_411:
+    nppiYCbCr411ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
+    break;
+   case NVJPEG_CSS_440:
+   case NVJPEG_CSS_410:
+   case NVJPEG_CSS_GRAY:
+   case NVJPEG_CSS_UNKNOWN:
+   default:
+    NDLL_FAIL("Unsupported subsampling format");
+  }
+
+  // set the old stream for NPP
+  nppSetStream(old_stream);
+}
+
+void convertToBGR(array<const Npp8u*, 3> YCbCr,
+                  array<Npp32s, 3> steps,
+                  int c, int rgb_step,
+                  Npp8u* out,
+                  int outH, int outW,
+                  nvjpegChromaSubsampling sampling,
+                  cudaStream_t stream) {
   NppiSize s;
   s.width = outW;
   s.height = outH;
 
   if (outW & 1) s.width++;
 
+  cudaStream_t old_stream = nppGetStream();
+  nppSetStream(stream);
   switch(sampling) {
    case NVJPEG_CSS_444:
-     //printf("444\n");
-    nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, 3*outW, s);
+    nppiYCbCr444ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
     break;
    case NVJPEG_CSS_422:
-     //printf("422\n");
-    nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, 3*outW, s);
-   case NVJPEG_CSS_420:
-     //printf("420\n");
-    nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, 3*outW, s);
+    nppiYCbCr422ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
     break;
+   case NVJPEG_CSS_420:
+    nppiYCbCr420ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+    break;
+   case NVJPEG_CSS_411:
+    nppiYCbCr411ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
+    break;
+   case NVJPEG_CSS_440:
+   case NVJPEG_CSS_410:
+   case NVJPEG_CSS_GRAY:
+   case NVJPEG_CSS_UNKNOWN:
    default:
-    NDLL_FAIL("boooo");
+    NDLL_FAIL("Unsupported subsampling format");
+  }
+
+  // set the old stream for NPP
+  nppSetStream(old_stream);
+}
+
+bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
+  switch (subsampling) {
+   case NVJPEG_CSS_444:
+   case NVJPEG_CSS_422:
+   case NVJPEG_CSS_420:
+     return true;
+   default:
+     return false;
   }
 }
 
@@ -68,9 +132,10 @@ class nvJPEGDecoder : public Operator {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator(spec),
-    Y_{num_streams_},
-    Cb_{num_streams_},
-    Cr_{num_streams_},
+    output_type_(spec.GetArgument<NDLLImageType>("output_type")),
+    Y_{max_streams_},
+    Cb_{max_streams_},
+    Cr_{max_streams_},
     output_shape_(batch_size_),
     output_sampling_(batch_size_),
     output_info_(batch_size_) {
@@ -80,8 +145,8 @@ class nvJPEGDecoder : public Operator {
       allocator.dev_free = &memory::DeviceDelete;
 
       // create the handle
-      NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_HYBRID, &allocator, &handle_));
-    }
+      NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
+  }
 
   ~nvJPEGDecoder() {
     NVJPEG_CALL(nvjpegDestroy(handle_));
@@ -99,7 +164,7 @@ class nvJPEGDecoder : public Operator {
 
       // Get necessary image information
       NVJPEG_CALL(nvjpegGetImageInfo(handle_,
-                                     data, in_size,
+                                     static_cast<const unsigned char*>(data), in_size,
                                      &c,
                                      &nWidthY, &nHeightY,
                                      &nWidthCb, &nHeightCb,
@@ -115,18 +180,15 @@ class nvJPEGDecoder : public Operator {
       info.nWidthCr = nWidthCr;
       info.nHeightCr = nHeightCr;
 
-      // Huffman Decode
-      NVJPEG_CALL(nvjpegDecodePlanarCPU(handle_,
-                                        data,
-                                        in_size));
-
-      output_shape_[i] = Dims({nHeightY, nWidthY, c});
+      const int image_depth = (output_type_ == NDLL_GRAY) ? 1 : 3;
+      output_shape_[i] = Dims({nHeightY, nWidthY, image_depth});
       output_sampling_[i] = subsampling;
       output_info_[i] = info;
 
-      // Memcpy of Huffman co-efficients to device
-      NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle_,
-                                           ws->stream()));
+      // note if we can't use nvjpeg for this image
+      if (!SupportedSubsampling(subsampling)) {
+        ocv_fallback_indices_[i] = true;
+      }
     }
 
     // Resize the output (contiguous)
@@ -135,12 +197,25 @@ class nvJPEGDecoder : public Operator {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output->set_type(type);
 
-    // Now loop over all images again and decode
     for (int i = 0; i < batch_size_; ++i) {
-      const int stream_idx = i % num_streams_;
       auto& in = ws->Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
+
+      if (ocv_fallback_indices_.count(i)) {
+        OCVFallback(i, data, in_size, output->mutable_tensor<uint8_t>(i), ws->stream());
+        continue;
+      }
+      // Huffman Decode
+      NVJPEG_CALL(nvjpegDecodePlanarCPU(handle_,
+                                        data,
+                                        in_size));
+
+      // Memcpy of Huffman co-efficients to device
+      NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle_,
+                                           ws->stream()));
+
+      const int stream_idx = i % max_streams_;
 
       auto info = output_info_[i];
 
@@ -168,12 +243,15 @@ class nvJPEGDecoder : public Operator {
                                           (const Npp8u*)Cb_[stream_idx].raw_data(),
                                           (const Npp8u*)Cr_[stream_idx].raw_data()}, // YCbCr data pointers
                    array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr}, // steps
-                   3 * info.nWidthY, // RGB step
+                   info.c,
+                   info.c * info.nWidthY, // RGB step
                    out_ptr, // output
                    info.nHeightY, info.nWidthY, // output H, W
-                   output_sampling_[i]); // sampling type
+                   output_sampling_[i],  // sampling type
+                   ws->stream());
 
-
+      // WriteHWCImage(out_ptr, info.nHeightY, info.nWidthY, info.c, "tmp_new");
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     }
 
   }
@@ -182,10 +260,30 @@ class nvJPEGDecoder : public Operator {
  protected:
   USE_OPERATOR_MEMBERS();
 
+  /**
+   * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
+   */
+  void OCVFallback(int i, const uint8_t* data, int size, uint8_t *decoded_device_data, cudaStream_t s) {
+    const int c = (output_type_ == NDLL_GRAY) ? 1 : 3;
+    auto decode_type = (output_type_ == NDLL_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR;
+    cv::Mat input(1, size, CV_8UC1, reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
+    cv::Mat tmp = cv::imdecode(input, decode_type);
+
+    // Transpose BGR -> RGB if needed
+    if (output_type_ == NDLL_RGB) {
+      cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB);
+    }
+
+    CUDA_CALL(cudaMemcpyAsync(decoded_device_data, tmp.ptr(), tmp.rows * tmp.cols * c, cudaMemcpyHostToDevice, s));
+  }
+
   nvjpegHandle_t handle_;
 
+  // output colour format
+  NDLLImageType output_type_;
+
   // maximum number of streams to use to decode + convert
-  const int num_streams_ = num_threads_;
+  const int max_streams_ = num_threads_;
 
   vector<Tensor<GPUBackend>> Y_;
   vector<Tensor<GPUBackend>> Cb_;
@@ -195,9 +293,13 @@ class nvJPEGDecoder : public Operator {
     int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
   };
 
+  // Storage for per-image info
   vector<Dims> output_shape_;
   vector<nvjpegChromaSubsampling> output_sampling_;
   vector<ImageInfo> output_info_;
+
+  // Images that nvjpeg can't handle
+  std::map<int, bool> ocv_fallback_indices_;
 };
 
 }  // namespace ndll
