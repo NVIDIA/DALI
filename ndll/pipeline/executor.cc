@@ -149,13 +149,6 @@ void Executor::RunGPU() {
         CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
       }
 
-      OpNode& curr_node = graph_->gpu_node(i);
-      std::cout << "Running " << curr_node.instance_name << std::endl
-        << "\t" << op.GetInputsSet() << " inputs" << std::endl
-        << "\t" << curr_node.parents.size() << " parents" << std::endl
-        << "\t" << curr_node.children.size() << " children" << std::endl
-        << std::endl;
-
       op.Run(&ws);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
