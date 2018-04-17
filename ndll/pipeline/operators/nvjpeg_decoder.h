@@ -1,13 +1,19 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #ifndef NDLL_PIPELINE_OPERATORS_NVJPEG_DECODER_H_
 #define NDLL_PIPELINE_OPERATORS_NVJPEG_DECODER_H_
 
+
+
 #include <nvJPEG.h>
 
-#include <array>
-
 #include <opencv2/opencv.hpp>
+#include <array>
+#include <map>
+#include <vector>
+
 #include "ndll/pipeline/operator.h"
 #include "ndll/util/image.h"
+
 
 namespace ndll {
 
@@ -16,10 +22,10 @@ namespace ndll {
     nvjpegStatus_t status = code;                            \
     if (status != NVJPEG_STATUS_SUCCESS) {                   \
       ndll::string error = ndll::string("NVJPEG error \"") + \
-        std::to_string((int)status) + "\"";                  \
+        std::to_string(static_cast<int>(status)) + "\"";     \
       NDLL_FAIL(error);                                      \
     }                                                        \
-  } while(0)
+  } while (0)
 
 namespace memory {
 
@@ -48,29 +54,27 @@ void convertToRGB(array<const Npp8u*, 3> YCbCr,
   s.width = outW;
   s.height = outH;
 
-  // if (outW & 1) s.width++;
-
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(stream);
-  switch(sampling) {
-   case NVJPEG_CSS_444:
-    nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
-    break;
-   case NVJPEG_CSS_422:
-    nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-    break;
-   case NVJPEG_CSS_420:
-    nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-    break;
-   case NVJPEG_CSS_411:
-    nppiYCbCr411ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
-    break;
-   case NVJPEG_CSS_440:
-   case NVJPEG_CSS_410:
-   case NVJPEG_CSS_GRAY:
-   case NVJPEG_CSS_UNKNOWN:
-   default:
-    NDLL_FAIL("Unsupported subsampling format");
+  switch (sampling) {
+    case NVJPEG_CSS_444:
+      nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
+      break;
+    case NVJPEG_CSS_422:
+      nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+      break;
+    case NVJPEG_CSS_420:
+      nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+      break;
+    case NVJPEG_CSS_411:
+      nppiYCbCr411ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
+      break;
+    case NVJPEG_CSS_440:
+    case NVJPEG_CSS_410:
+    case NVJPEG_CSS_GRAY:
+    case NVJPEG_CSS_UNKNOWN:
+    default:
+      NDLL_FAIL("Unsupported subsampling format");
   }
 
   // set the old stream for NPP
@@ -88,29 +92,27 @@ void convertToBGR(array<const Npp8u*, 3> YCbCr,
   s.width = outW;
   s.height = outH;
 
-  if (outW & 1) s.width++;
-
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(stream);
-  switch(sampling) {
-   case NVJPEG_CSS_444:
-    nppiYCbCr444ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
-    break;
-   case NVJPEG_CSS_422:
-    nppiYCbCr422ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-    break;
-   case NVJPEG_CSS_420:
-    nppiYCbCr420ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-    break;
-   case NVJPEG_CSS_411:
-    nppiYCbCr411ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
-    break;
-   case NVJPEG_CSS_440:
-   case NVJPEG_CSS_410:
-   case NVJPEG_CSS_GRAY:
-   case NVJPEG_CSS_UNKNOWN:
-   default:
-    NDLL_FAIL("Unsupported subsampling format");
+  switch (sampling) {
+    case NVJPEG_CSS_444:
+      nppiYCbCr444ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
+      break;
+    case NVJPEG_CSS_422:
+      nppiYCbCr422ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+      break;
+    case NVJPEG_CSS_420:
+      nppiYCbCr420ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
+      break;
+    case NVJPEG_CSS_411:
+      nppiYCbCr411ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
+      break;
+    case NVJPEG_CSS_440:
+    case NVJPEG_CSS_410:
+    case NVJPEG_CSS_GRAY:
+    case NVJPEG_CSS_UNKNOWN:
+    default:
+      NDLL_FAIL("Unsupported subsampling format");
   }
 
   // set the old stream for NPP
@@ -119,12 +121,12 @@ void convertToBGR(array<const Npp8u*, 3> YCbCr,
 
 bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
   switch (subsampling) {
-   case NVJPEG_CSS_444:
-   case NVJPEG_CSS_422:
-   case NVJPEG_CSS_420:
-     return true;
-   default:
-     return false;
+    case NVJPEG_CSS_444:
+    case NVJPEG_CSS_422:
+    case NVJPEG_CSS_420:
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -238,22 +240,22 @@ class nvJPEGDecoder : public Operator {
                                         ws->stream()));
 
       // copy & convert from YCbCr -> RGB
-      Npp8u *out_ptr = (Npp8u*)output->raw_mutable_tensor(i);
-      convertToRGB(array<const Npp8u*, 3>{(const Npp8u*)Y_[stream_idx].raw_data(),
-                                          (const Npp8u*)Cb_[stream_idx].raw_data(),
-                                          (const Npp8u*)Cr_[stream_idx].raw_data()}, // YCbCr data pointers
-                   array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr}, // steps
-                   info.c,
-                   info.c * info.nWidthY, // RGB step
-                   out_ptr, // output
-                   info.nHeightY, info.nWidthY, // output H, W
-                   output_sampling_[i],  // sampling type
-                   ws->stream());
+      Npp8u *out_ptr = reinterpret_cast<Npp8u*>(output->raw_mutable_tensor(i));
+      convertToRGB(
+          array<const Npp8u*, 3>{reinterpret_cast<const Npp8u*>(Y_[stream_idx].raw_data()),
+                                 reinterpret_cast<const Npp8u*>(Cb_[stream_idx].raw_data()),
+                                 reinterpret_cast<const Npp8u*>(Cr_[stream_idx].raw_data())},
+          array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr},  // steps
+          info.c,
+          info.c * info.nWidthY,  // RGB step
+          out_ptr,  // output
+          info.nHeightY, info.nWidthY,  // output H, W
+          output_sampling_[i],   // sampling type
+          ws->stream());
 
       // WriteHWCImage(out_ptr, info.nHeightY, info.nWidthY, info.c, "tmp_new");
       CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     }
-
   }
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
@@ -263,10 +265,15 @@ class nvJPEGDecoder : public Operator {
   /**
    * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
    */
-  void OCVFallback(int i, const uint8_t* data, int size, uint8_t *decoded_device_data, cudaStream_t s) {
+  void OCVFallback(int i, const uint8_t* data, int size,
+                   uint8_t *decoded_device_data, cudaStream_t s) {
     const int c = (output_type_ == NDLL_GRAY) ? 1 : 3;
-    auto decode_type = (output_type_ == NDLL_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR;
-    cv::Mat input(1, size, CV_8UC1, reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
+    auto decode_type = (output_type_ == NDLL_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE \
+                                                   : CV_LOAD_IMAGE_COLOR;
+    cv::Mat input(1,
+                  size,
+                  CV_8UC1,
+                  reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
     cv::Mat tmp = cv::imdecode(input, decode_type);
 
     // Transpose BGR -> RGB if needed
@@ -274,7 +281,10 @@ class nvJPEGDecoder : public Operator {
       cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB);
     }
 
-    CUDA_CALL(cudaMemcpyAsync(decoded_device_data, tmp.ptr(), tmp.rows * tmp.cols * c, cudaMemcpyHostToDevice, s));
+    CUDA_CALL(cudaMemcpyAsync(decoded_device_data,
+                              tmp.ptr(),
+                              tmp.rows * tmp.cols * c,
+                              cudaMemcpyHostToDevice, s));
   }
 
   nvjpegHandle_t handle_;
