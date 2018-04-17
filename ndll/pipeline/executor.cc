@@ -480,154 +480,37 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
 }
 
 void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
-  std::cout << "SetupStreams" <<std::endl;
+  auto mixed_op_stream = stream_pool_.GetStream();
   for (int i = 0; i < graph_->NumMixedOp(); ++i) {
-    // For mixed ops, we assign unique streams to each
-    // op. This ensures (assuming the stream pool does not
-    // have a limit) that we won't have false dependencies
+    // We assign unique stream to mixed ops.
+    // This ensures that we won't have false dependencies
     // between mixed ops and the previous iterations
     // gpu ops.
     MixedWorkspace &ws = wsb->mixed_op_data[i];
-    ws.set_stream(stream_pool_.GetStream());
+    ws.set_stream(mixed_op_stream);
     ws.set_event(event_pool_.GetEvent());
   }
-  std::cout << "SetupStreams2" <<std::endl;
 
-  // Note: Basic stream assignment algorithm -
-  // Each node can reuse its parents stream as
-  // long as no other node in the same front
-  // has already claimed it. Each op is associated
-  // with an event, which is inserted into its
-  // stream after it is executed. Its child ops
-  // that are not in the same stream will make
-  // their stream block on the parent event prior
-  // to executing anything in their stream.
-  //
-  // TODO(tgale): We could do better than this
-  // in terms of event assignment. We currently
-  // allocate new events for all ops that will
-  // need them, but we could apply the same
-  // algorithm we do for streams to events.
-
-  // We will traverse the graph breadth-first,
-  // initialize queue with the ids of our gpu
-  // root nodes.
-  std::unordered_set<NodeID> processed_nodes;
-  std::queue<NodeID> node_queue;
+  // I/O pipeline is always going to be launched alongside
+  // some other GPU work (like DL training).
+  // Therefore it is not necessary to use more than
+  // 1 stream for GPU ops, even though we may not fill
+  // the whole GPU with just I/O pipeline kernels
+  // by doing so.
+  auto gpu_op_stream = stream_pool_.GetStream();
   for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-    // An op is a root if it has no gpu inputs
-    OpNode &node = graph_->gpu_node(i);
-    bool is_root = true;
-    for (auto &parent_id : node.parents) {
-      if (graph_->NodeType(parent_id) == NDLL_GPU) {
-        is_root = false;
-        break;
-      }
-    }
-
-    // If this op has more than a single child node,
-    // we will need an event to synchronize the child
-    // that does not get the parents stream
-    if (node.children.size() > 1) {
-      DeviceWorkspace &ws = wsb->gpu_op_data[graph_->NodeIdx(i)];
-      ws.set_event(event_pool_.GetEvent());
-    }
-
-    if (is_root) {
-      node_queue.push(node.id);
-      NDLL_ENFORCE(processed_nodes.insert(node.id).second);
-    }
-  }
-  std::cout << "SetupStreams3" <<std::endl;
-
-  std::unordered_map<NodeID, cudaStream_t> node_streams;
-  while (!node_queue.empty()) {
-    const OpNode &current_node = graph_->node(node_queue.front());
-    int current_op_idx = graph_->NodeIdx(current_node.id);
-    std::cout << current_node.instance_name << std::endl;
-    DeviceWorkspace &ws = wsb->gpu_op_data[current_op_idx];
-    node_queue.pop();
-
-    bool found_stream = false;
-    auto it = current_node.parents.begin();
-    for (; it != current_node.parents.end(); ++it) {
-      NodeID parent_id = *it;
-      int parent_op_idx = graph_->NodeIdx(parent_id);
-      std::cout << "Parent " << graph_->node(parent_id).instance_name << std::endl;
-
-      if (graph_->NodeType(parent_id) == NDLL_MIXED) {
-        // We will not re-use mixed op streams, but
-        // we will need to block on this ops event to
+    DeviceWorkspace &ws = wsb->gpu_op_data[i];
+    ws.set_stream(gpu_op_stream);
+    const OpNode& node = graph_->gpu_node(i);
+    //const NodeID id = node.id;
+    //const int current_op_idx = graph_->NodeIdx(id);
+    for (const auto& p : node.parents) {
+      if (graph_->NodeType(p) == NDLL_MIXED) {
+        // We need to block on this op's event to
         // make sure that we respect the dependency
+        int parent_op_idx = graph_->NodeIdx(p);
         MixedWorkspace parent_ws = wsb->mixed_op_data[parent_op_idx];
         ws.AddParentEvent(parent_ws.event());
-      } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
-        // If a parent stream is still available, take it
-        auto it = node_streams.find(parent_id);
-        if (it != node_streams.end()) {
-          std::cout << "FOUND" << std::endl;
-          // Add the stream to this ops workspace
-          cudaStream_t stream = it->second;
-          ws.set_stream(stream);
-
-          // Remove this stream from the parents entry
-          // and add it to the entry for this op
-          node_streams.erase(it);
-          NDLL_ENFORCE(node_streams.insert({current_node.id, stream}).second);
-
-          found_stream = true;
-          break;
-        }
-        std::cout << "Not found" << std::endl;
-
-        // If we don't use this parent's stream, we'll need to block
-        // on its event to ensure the dependency is respected.
-        DeviceWorkspace parent_ws = wsb->gpu_op_data[parent_op_idx];
-        ws.AddParentEvent(parent_ws.event());
-      } else {
-        NDLL_FAIL("Executor encountered gpu op with non-gpu/mixed parent.");
-      }
-    }
-
-    // Note: We want to finish iterating over the parents,
-    // but we do not want to repeat a node. If the earlier
-    // loop terminated because it reached the end, do not
-    // increment the iterator to the next parent or it will
-    // be out of the valid range
-    if (it != current_node.parents.end()) ++it;
-
-    // Make sure we finish adding all parents events
-    // if we exited the prevous loop early
-    for (; it != current_node.parents.end(); ++it) {
-      NodeID parent_id = *it;
-      int parent_op_idx = graph_->NodeIdx(parent_id);
-
-      if (graph_->NodeType(parent_id) == NDLL_MIXED) {
-        MixedWorkspace parent_ws = wsb->mixed_op_data[parent_op_idx];
-        ws.AddParentEvent(parent_ws.event());
-      } else if (graph_->NodeType(parent_id) == NDLL_GPU) {
-        DeviceWorkspace parent_ws = wsb->gpu_op_data[parent_op_idx];
-        ws.AddParentEvent(parent_ws.event());
-      } else {
-        NDLL_FAIL("Executor encountered gpu op with non-gpu/mixed parent.");
-      }
-    }
-
-    if (!found_stream) {
-      // Couldn't reuse any parent streams, request
-      // a new stream from the stream pool
-      cudaStream_t stream = stream_pool_.GetStream();
-      ws.set_stream(stream);
-      NDLL_ENFORCE(node_streams.insert({current_node.id, stream}).second,
-          "Internal error, GPU op stream insertion failed.");
-    }
-
-    // Now add this ops un-processed children to the queue
-    for (const auto &child_id : current_node.children) {
-      auto it = processed_nodes.find(child_id);
-      if (it == processed_nodes.end()) {
-        node_queue.push(child_id);
-        NDLL_ENFORCE(processed_nodes.insert(child_id).second);
       }
     }
   }
