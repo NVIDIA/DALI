@@ -9,6 +9,7 @@
 #include <string>
 #include <memory>
 #include <fstream>
+#include <set>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
@@ -260,25 +261,21 @@ class OpGraph {
     NDLL_FAIL(str_error);
   }
 
-  // Helper for GraphTraversal
-  std::string GetDisplayLabel(const std::string& name) {
-    std::size_t pos = name.find("__");
-    NDLL_ENFORCE(pos != std::string::npos && pos + 2 < name.length());
-    return name.substr(pos + 2);
-  }
-
-  void GraphTraversal(const OpNode& current_node, std::ofstream& ofs) {
+  /**
+   * @brief Helper function for saving graph to DOT file
+   */
+  void GenerateDOTFromGraph(const OpNode& current_node, std::ofstream& ofs) {
     if (current_node.children.empty()
         || visited_nodes_.find(current_node.id) != visited_nodes_.end()) {
-      ofs << GetDisplayLabel(current_node.instance_name) << "\n";
+      ofs << current_node.instance_name << "\n";
       return;
     }
     visited_nodes_.insert(current_node.id);
-    for (auto node_id: current_node.children) {
-        ofs << GetDisplayLabel(current_node.instance_name);
+    for (auto node_id : current_node.children) {
+        ofs << current_node.instance_name;
         ofs << " -> ";
         OpNode& child_node = node(node_id);
-        GraphTraversal(child_node, ofs);
+        GenerateDOTFromGraph(child_node, ofs);
     }
   }
 
@@ -290,7 +287,7 @@ class OpGraph {
     std::ofstream ofs = std::ofstream(filename);
     ofs << "digraph graphname {\n";
     const OpNode& current_node = GetNodeForIdx(0);
-    GraphTraversal(current_node, ofs);
+    GenerateDOTFromGraph(current_node, ofs);
     ofs << "}\n";
     visited_nodes_.clear();
   }

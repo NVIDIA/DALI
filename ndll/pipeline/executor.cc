@@ -495,8 +495,6 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     DeviceWorkspace &ws = wsb->gpu_op_data[i];
     ws.set_stream(gpu_op_stream);
     const OpNode& node = graph_->gpu_node(i);
-    //const NodeID id = node.id;
-    //const int current_op_idx = graph_->NodeIdx(id);
     for (const auto& p : node.parents) {
       if (graph_->NodeType(p) == NDLL_MIXED) {
         // We need to block on this op's event to

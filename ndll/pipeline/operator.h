@@ -97,8 +97,8 @@ class Operator {
     return -1;
   }
 
-  int GetInputsSet() const {
-   return input_sets_;
+  int GetNumInputSets() const {
+    return input_sets_;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Operator);
