@@ -276,6 +276,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data_2", "cpu")
           .AddInput("data_1", "cpu")
           .AddOutput("dummy_out", "cpu")), "");
@@ -283,6 +284,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
+          .AddArg("num_outputs", 1)
           .AddInput("data_1", "cpu")
           .AddOutput("dummy_out_two", "cpu")), "");
 
