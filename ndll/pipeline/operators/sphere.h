@@ -20,7 +20,7 @@ class SphereAugment {
     const int mid_x = W / 2;
     const int mid_y = H / 2;
     const int d = mid_x > mid_y ? mid_x : mid_y;
-    const int nYoffset = (W * C + 1) / 2 * 2;
+    const int nYoffset = W * C;
 
     // SPHERE_CORE
     const int trueY = h - mid_y;
