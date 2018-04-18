@@ -39,30 +39,29 @@ void DisplacementKernel(const T *in, T* out,
   }
 }
 
-template <typename T, bool per_channel_transform, int nThreads, class Displacement, class Color>
+template <typename T, int C, bool per_channel_transform, int nThreads, class Displacement, class Color>
 __global__
-void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
+void DisplacementKernel_aligned32bit(const T *in, T* out,
                         const int N, const Index * shapes, const Index pitch,
                         Displacement displace, Color color) {
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
-  __shared__ T scratch[nThreads * 3 * nPixelsPerThread];
+  __shared__ T scratch[nThreads * C * nPixelsPerThread];
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
     const int W = shapes[n * pitch + 1];
-    const int C = 3;
     const Index offset = shapes[n * pitch + 3];
     // thread per pixel
     const T * const image_in = in + offset;
     uint32_t * const image_out = reinterpret_cast<uint32_t*>(out + offset);
     const int nElements = (H * W) / nPixelsPerThread;
     const int loopCount = nElements / nThreads;
-    T * const my_scratch = scratch + threadIdx.x * 3 * nPixelsPerThread;
+    T * const my_scratch = scratch + threadIdx.x * C * nPixelsPerThread;
     uint32_t * const scratch_32 = reinterpret_cast<uint32_t*>(scratch);
 
     for (int lidx = 0; lidx < loopCount; ++lidx) {
       const int hw0 = (lidx * nThreads + threadIdx.x) * nPixelsPerThread;
-      uint32_t * const current_image_out = image_out + lidx * nThreads * 3;
+      uint32_t * const current_image_out = image_out + lidx * nThreads * C;
       if (per_channel_transform) {
 #pragma unroll
         for (int j = 0; j < nPixelsPerThread; ++j) {
@@ -70,9 +69,9 @@ void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
           const int w = hw % W;
           const int h = hw / W;
 #pragma unroll
-          for (int c = 0; c < 3; ++c) {
+          for (int c = 0; c < C; ++c) {
             auto tmp_idx = displace(h, w, c, H, W, C);
-            my_scratch[j * 3 + c] = color(image_in[tmp_idx], h, w, c, H, W, C);
+            my_scratch[j * C + c] = color(image_in[tmp_idx], h, w, c, H, W, C);
           }
         }
       } else {
@@ -82,15 +81,15 @@ void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
           const int w = hw % W;
           const int h = hw / W;
           auto tmp_idx = displace(h, w, 0, H, W, C);
-          for (int c = 0; c < 3; ++c) {
-            my_scratch[j * 3 + c] = color(image_in[tmp_idx + c], h, w, c, H, W, C);
+          for (int c = 0; c < C; ++c) {
+            my_scratch[j * C + c] = color(image_in[tmp_idx + c], h, w, c, H, W, C);
           }
         }
       }
       __syncthreads();
 
 #pragma unroll
-      for (int i = 0; i < 3; ++i) {
+      for (int i = 0; i < C; ++i) {
         current_image_out[threadIdx.x + i * nThreads] = scratch_32[threadIdx.x + i * nThreads];
       }
     }
@@ -106,7 +105,7 @@ void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
           const int w = hw % W;
           const int h = hw / W;
 #pragma unroll
-          for (int c = 0; c < 3; ++c) {
+          for (int c = 0; c < C; ++c) {
             auto tmp_idx = displace(h, w, c, H, W, C);
             out[offset + h * W * C + w * C + c] =
               color(image_in[tmp_idx], h, w, c, H, W, C);
@@ -120,7 +119,7 @@ void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
           const int h = hw / W;
           auto tmp_idx = displace(h, w, 0, H, W, C);
 #pragma unroll
-          for (int c = 0; c < 3; ++c) {
+          for (int c = 0; c < C; ++c) {
           out[offset + h * W * C + w * C + c] =
             color(image_in[tmp_idx + c], h, w, c, H, W, C);
           }
@@ -324,25 +323,33 @@ class DisplacementFilter : public Operator {
                                   const U* in, U* out,
                                   const int N, const int pitch,
                                   const int C, const uint64_t maxPower2) {
-    if (C == 3 && maxPower2 >= sizeof(uint32_t)/sizeof(U)) {
-      DisplacementKernel_C3_aligned32bit<U,
-                                 per_channel_transform,
-                                 256,
-                                 Displacement,
-                                 Augment>
-                                <<<N, 256, 0, ws->stream()>>>(
-                                    in, out, N,
-                                    meta_gpu.template mutable_data<Index>(),
-                                    pitch, displace_, augment_);
-    } else {
-      DisplacementKernel<U,
-                         per_channel_transform,
-                         Displacement>
-                        <<<N, 256, 0, ws->stream()>>>(
-                            in, out, N,
-                            meta_gpu.template mutable_data<Index>(),
-                            pitch, displace_, augment_);
+    if (maxPower2 >= sizeof(uint32_t)/sizeof(U)) {
+      switch (C) {
+        case 1:
+          DisplacementKernel_aligned32bit<U, 1, per_channel_transform,
+            256, Displacement, Augment>
+              <<<N, 256, 0, ws->stream()>>>(
+                  in, out, N,
+                  meta_gpu.template mutable_data<Index>(),
+                  pitch, displace_, augment_);
+          return;
+        case 3:
+          DisplacementKernel_aligned32bit<U, 3, per_channel_transform,
+            256, Displacement, Augment>
+              <<<N, 256, 0, ws->stream()>>>(
+                  in, out, N,
+                  meta_gpu.template mutable_data<Index>(),
+                  pitch, displace_, augment_);
+          return;
+        default:
+          break;
+      }
     }
+    DisplacementKernel<U, per_channel_transform, Displacement>
+      <<<N, 256, 0, ws->stream()>>>(
+          in, out, N,
+          meta_gpu.template mutable_data<Index>(),
+          pitch, displace_, augment_);
   }
 
   USE_OPERATOR_MEMBERS();
