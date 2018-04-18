@@ -39,7 +39,8 @@ void DisplacementKernel(const T *in, T* out,
   }
 }
 
-template <typename T, int C, bool per_channel_transform, int nThreads, class Displacement, class Color>
+template <typename T, int C, bool per_channel_transform,
+          int nThreads, class Displacement, class Color>
 __global__
 void DisplacementKernel_aligned32bit(const T *in, T* out,
                         const int N, const Index * shapes, const Index pitch,
