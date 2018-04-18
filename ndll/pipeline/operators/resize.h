@@ -35,6 +35,21 @@ void CollectPointersForExecution(size_t batch_size,
           const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
           TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 
+template <typename T>
+void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char *argName, T defVal, bool doubleArg = true) {
+    try {
+        *arg = spec.GetRepeatedArgument<T>(argName);
+    } catch (std::runtime_error e) {
+        try {
+            *arg = {spec.GetArgument<T>(argName, defVal)};
+        } catch (std::runtime_error e) {
+            NDLL_FAIL("Invalid type of argument \"" + argName + "\"");
+        }
+    }
+
+    if (doubleArg && arg->size() == 1)
+        arg->push_back(arg->back());
+}
 
 class ResizeAttr {
  public:
@@ -47,15 +62,21 @@ class ResizeAttr {
             random_crop_(spec.GetArgument<bool>("random_crop", false)),
             crop_h_(spec.GetArgument<int>("crop_h", -1)),
             crop_w_(spec.GetArgument<int>("crop_w", -1)),
-            mirror_prob_(spec.GetArgument<float>("mirror_prob", 0.5f)),
             type_(spec.GetArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
         resize_.first = spec.GetArgument<int>("resize_a", -1);
         resize_.second = spec.GetArgument<int>("resize_b", -1);
 
+        GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", 0.f, false);
+
         // Validate input parameters
         NDLL_ENFORCE(resize_.first > 0 && resize_.second > 0);
         NDLL_ENFORCE(resize_.first <= resize_.second);
-        NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
+
+        size_t i = mirror_prob_.size();
+        NDLL_ENFORCE(i <= 2, "Argument \"mirror_prob\" expects a list of at most 2 elements, "
+                     + to_string(i) + " given.");
+        while (i--)
+            NDLL_ENFORCE(mirror_prob_[i] <= 1.f && mirror_prob_[i] >= 0.f);
     }
 
     void SetSize(NDLLSize *in_size, const vector<Index> &shape,
@@ -75,7 +96,23 @@ class ResizeAttr {
                0 < crop_w_ && crop_w_ <= out_size.width;
     }
 
- protected:
+    void MirrorNeeded(NppiPoint *pntr) const {
+        MirrorNeeded(reinterpret_cast<bool *>(&pntr->x), reinterpret_cast<bool *>(&pntr->y));
+    }
+
+protected:
+    void MirrorNeeded(bool *pHorMirror, bool *pVertMirror = NULL) const {
+        if (pHorMirror) {
+            *pHorMirror = mirror_prob_.empty()? false :
+                          std::bernoulli_distribution(mirror_prob_[0])(rand_gen_);
+        }
+
+        if (pVertMirror) {
+            *pVertMirror = mirror_prob_.size() <= 1? false :
+                           std::bernoulli_distribution(mirror_prob_[1])(rand_gen_);
+        }
+    }
+
     inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
     inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
     inline const resize_t &resize() const                   { return resize_; }
@@ -94,7 +131,7 @@ class ResizeAttr {
 
     bool random_crop_;
     int crop_h_, crop_w_;
-    float mirror_prob_;
+    vector<float> mirror_prob_;
 
     // Interpolation type
     NDLLInterpType type_;

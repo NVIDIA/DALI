@@ -25,6 +25,7 @@ namespace ndll {
 #define PIX_MAPPING_GPU(x)                  GPU_BACKEND_PARAMS(x, PixMapping)
 #define RESIZE_MAPPING_GPU(x)               GPU_BACKEND_PARAMS(x, ResizeMapping)
 #define RESIZE_PARAM(x)                     GPU_BACKEND_PARAMS(x, ResizeGridParam)
+#define MIRRORING_PARAM(x)                  GPU_BACKEND_PARAMS(x, MirroringInfo)
 
 #define TENSOR_COPY(x, y, s)                (x).Copy(y, s)
 
@@ -48,7 +49,6 @@ namespace ndll {
 
 
 #define SET_PIXEL_COLOR()                                           \
-    const uint32_t to = x * C;                                      \
     out[to] = (pixColor[0] + (area >> 1)) / area;                   \
     if (C > 1) {                                                    \
         out[to + 1] = (pixColor[1] + (area >> 1)) / area;           \
@@ -116,10 +116,10 @@ typedef struct {
     uint32_t pixArea;               // area of its intersection with the resulting pixels
 } PixMapping;
 
-typedef NppiPoint ResizeGridParam;
+typedef NppiPoint ResizeGridParam, MirroringInfo;
 typedef uint32_t MappingInfo;
 
-typedef Tensor<GPUBackend> ImgSizeDescr, ImgRasterDescr, ResizeMappingPixDescrGPU,
+typedef Tensor<GPUBackend> ImgSizeDescr, ImgRasterDescr, ResizeMappingPixDescrGPU, MirroringDescr,
             ResizeMappingTableGPU, ResizeGridDescr, ResizeMappingPntrGPU, ResizeMappingGPU;
 typedef vector<ResizeMapping> ResizeMappingTableCPU;
 typedef vector<MappingInfo> ResizeMappingCPU;
@@ -183,7 +183,6 @@ class ResizeMappingTable {
         }                                                               \
         SET_PIXEL_COLOR();                                              \
     } else {                                                            \
-        const uint32_t to = x * C;                                      \
         auto pPix = pBase + pMapping[(nY % sy0) * sx0 + nX % sx0];      \
         out[to] = *pPix;                                                \
         if (C > 1) {                                                    \
@@ -194,8 +193,9 @@ class ResizeMappingTable {
 
 NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
        const NDLLSize &sizeIn, const uint8 *in_batch, const NDLLSize &sizeOut, uint8 *out_batch,
-       const ResizeGridParam *pResizeParam, MappingInfo *pMapping[], MappingInfo **mapMem,
-       const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping, bool newMapping);
+       const ResizeGridParam *pResizeParam, const MirroringInfo *pMirrorParam,
+       MappingInfo * pMapping[], MappingInfo **mapMem, const ResizeMapping *pResizeMapping,
+       const PixMapping *pPixMapping, bool newMapping);
 
 NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                           const ResizeGridParam *pResizeParam,
@@ -207,15 +207,21 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
             AUGMENT_PREAMBLE, AUGMENT_CORE,                         \
             stepW, stepH, startW, startH, imgIdx, ...)              \
     AUGMENT_PREAMBLE();                                             \
+    int outStep = C;                                                \
     const uint32_t offset = nYoffset(W, C);                         \
-    const uint32_t shift = stepH * offset;                          \
+    int32_t shift = stepH * offset;                                 \
     const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
     uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
+    if (mirrorVert)                                                 \
+        out += (H - 2 * startH - 1) * offset - 2 * (shift *= -1);   \
+    if (mirrorHor)                                                  \
+        out += offset + (outStep = -C);                             \
     for (int y = startH; y < H; y += stepH) {                       \
         out += shift;                                               \
         const uint32_t nY = (y + cropY) * sy1;                      \
         for (int x = startW; x < W; x += stepW) {                   \
             const uint32_t nX = (x + cropX) * sx1;                  \
+            const int32_t to = x * outStep;                         \
             AUGMENT_CORE(C);                                        \
         }                                                           \
     }
@@ -243,7 +249,8 @@ template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
     inline explicit NewResize(const OpSpec &spec) : Resize<Backend>(spec) {
-        resizeParam_.resize(N_GRID_PARAMS * batch_size_);
+        mirrorParamGPU_.mutable_data<MirroringInfo>();
+        resizeParam_.resize((N_GRID_PARAMS + 1) * batch_size_);
         mappingPntr_ = NULL;
         mapMemGPU_ = NULL;
         for (size_t i = 0; i < _countof(mapMem_); ++i) {
@@ -279,6 +286,8 @@ class NewResize : public Resize<Backend> {
         const int W0 = input_size.width;
         const int H1 = out_size.height;
         const int W1 = out_size.width;
+        bool mirrorHor, mirrorVert;
+        ResizeAttr::MirrorNeeded(&mirrorHor, &mirrorVert);
 
         DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
         const auto pResizeMapping = RESIZE_MAPPING_CPU(resizeTbl.resizeMappingCPU);
@@ -325,6 +334,9 @@ class NewResize : public Resize<Backend> {
                         resizeParam_.begin(), resizeParam_.begin() + N_GRID_PARAMS), s);
             }
 
+            mirrorParamGPU_.Copy(vector<ResizeGridParam>(
+                    resizeParam_.begin() + N_GRID_PARAMS * batch_size_, resizeParam_.end()), s);
+
             const ResizeMapping *pResizeMapping = NULL;
             const PixMapping *pPixMapping = NULL;
 #if USE_RESIZE_TABLE_GPU
@@ -343,8 +355,8 @@ class NewResize : public Resize<Backend> {
             NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
                         sizeIn, input.template data<uint8>(),
                         sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
-                        RESIZE_PARAM(resizeParamGPU_), mapPntr, mapMemGPU_,
-                        pResizeMapping, pPixMapping, newMapping));
+                        RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
+                        mapPntr, mapMemGPU_, pResizeMapping, pPixMapping, newMapping));
         } else {
             resizeParamGPU_.Copy(resizeParam_, s);
 
@@ -465,9 +477,10 @@ class NewResize : public Resize<Backend> {
 
     // Members used in RunBatchedGPU;
     ResizeMappingTable resizeTbl_;
-    vector<ResizeGridParam>resizeParam_;
-    ResizeGridDescr resizeParamGPU_;
                                              // Memory allocated for:
+    vector<ResizeGridParam>resizeParam_;     //     Resizing grid AND mirroring parameters on CPU
+    ResizeGridDescr resizeParamGPU_;         //                                            on GPU
+    MirroringDescr mirrorParamGPU_;
     ImgSizeDescr sizesGPU_[2];               //     Input/Output images sizes on GPU
     ImgRasterDescr imgsGPU_[2];              //     Input/Output images rasters on GPU
     size_t resizeMemory_[BATCH_SLICE_NUMB];  //     total length of simplified resize tables

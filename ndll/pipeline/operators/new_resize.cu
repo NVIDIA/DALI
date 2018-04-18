@@ -76,6 +76,8 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
     if (pTotalSize)
         memset(pTotalSize, 0, nBatchSlice * sizeof(pTotalSize[0]));
 
+    NppiPoint *pMirroringParam = pResizeParam? pResizeParam + batch_size * N_GRID_PARAMS : NULL;
+
     bool newResize = false;
     vector<Dims> output_shape(batch_size);
     for (size_t i = 0; i < batch_size; ++i) {
@@ -137,6 +139,9 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
                     else
                         pTotalSize[idx] = UINT_MAX;
                 }
+
+                if (pMirroringParam)
+                    pResize->MirrorNeeded(pMirroringParam + i);
             }
 
             // Collect the output shapes
@@ -264,9 +269,13 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
 #define RESIZE_GPU_N_CORE(C)          RESIZE_N_CORE(C)
 
 __global__ void BatchedCongenericResizeKernel(
-                    int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out, int C,
-                    const ResizeGridParam *resizeParam, MappingInfo *ppMapping[],
-                    const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping) {
+         int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out, int C,
+         const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
+         MappingInfo * const ppMapping[], const ResizeMapping *pResizeMapping,
+         const PixMapping *pPixMapping) {
+    const int imagIdx = blockIdx.x;
+    const bool mirrorHor = pMirrorInfo && (pMirrorInfo+imagIdx)->x != 0;
+    const bool mirrorVert = pMirrorInfo && (pMirrorInfo+imagIdx)->y != 0;
     RESIZE_PREPARE();
     if (ppMapping || pResizeMapping) {
         const MappingInfo *pMapping = ppMapping? ppMapping[0] : NULL;
@@ -278,7 +287,8 @@ __global__ void BatchedCongenericResizeKernel(
 
 NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
        const NDLLSize &sizeIn, const uint8 *in_batch, const NDLLSize &sizeOut, uint8 *out_batch,
-       const ResizeGridParam *resizeDescr, MappingInfo *ppMapping[], MappingInfo **mapMem,
+       const ResizeGridParam *resizeDescr, const MirroringInfo *pMirrorInfo,
+       MappingInfo *ppMapping[], MappingInfo **mapMem,
        const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping, bool newMapping) {
     if (ppMapping && newMapping) {
         InitiateResizeTables<<<1, 1, 0, stream >>>
@@ -290,13 +300,13 @@ NDLLError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
 
     BatchedCongenericResizeKernel<<<N, gridDim, 0, stream>>>
           (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
-          resizeDescr, ppMapping, pResizeMapping, pPixMapping);
+          resizeDescr, pMirrorInfo, ppMapping, pResizeMapping, pPixMapping);
 
     return NDLLSuccess;
 }
 
-__global__ void BatchedResizeKernel(
-                        int C, const ResizeGridParam *resizeDescr, MappingInfo *ppMapping[],
+__global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
+                        MappingInfo * const ppMapping[], const MirroringInfo *pMirrorInfo,
                         const NDLLSize *in_sizes, const uint8 *const imgs_in[],
                         const NDLLSize *out_sizes, uint8 *const imgs_out[]) {
     const int imagIdx = blockIdx.x;
@@ -305,6 +315,8 @@ __global__ void BatchedResizeKernel(
     const int H0 = in_sizes[imagIdx].height;
     const int W = out_sizes[imagIdx].width;
     const int H = out_sizes[imagIdx].height;
+    const bool mirrorHor = pMirrorInfo && (pMirrorInfo+imagIdx)->x != 0;
+    const bool mirrorVert = pMirrorInfo && (pMirrorInfo+imagIdx)->y != 0;
 
     RESIZE_PREPARE();
     if (ppMapping) {
@@ -334,8 +346,9 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
     const uint8 * const *in = IMG_RASTERS(raster[input_t]);
     uint8 * const *out = IMG_RASTERS(raster[output_t]);
 
+    const MirroringInfo *pMirrorInfo = resizeDescr + N_GRID_PARAMS * N;
     BatchedResizeKernel<<<N, gridDim, 0, stream>>>
-           (C, resizeDescr, ppMapping, in_sizes, in, out_sizes, out);
+           (C, resizeDescr, ppMapping, pMirrorInfo, in_sizes, in, out_sizes, out);
 
     return NDLLSuccess;
 }
