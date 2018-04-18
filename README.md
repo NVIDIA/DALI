@@ -18,7 +18,7 @@ NDLL is a collection of highly optimized building blocks and an execution engine
 - [OpenCV](https://github.com/opencv/opencv) - we recommend version 3 or higher
 - [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo)
 Note: In Ubuntu repositories libjpeg-turbo is distributed as 2 packages: `libjpeg-turbo` and `libturbojpeg`. In order to use NDLL one needs to install `libturbojpeg` package, but to compile NDLL both of them are required.
-- Protobuf - in order to read TensorFlow's TFRecord format version 3 is required
+- [Protobuf](https://github.com/google/protobuf) - in order to read TensorFlow's TFRecord format version 3 is required
 Note: Ubuntu 16.04 repository contains only version 2 of Protobuf. Ubuntu 18.04 repositories contain Protobuf version 3.
 - libLMDB (optional: to read Caffe and Caffe2 LMDB formats)
 
@@ -79,9 +79,9 @@ Dockerfile is supplied. To build:
 docker build -t ndll -f Dockerfile
 ```
 
-# Examples
+# Getting started
 
-`examples` directory contains series of examples of different features of NDLL. It also contains examples of how to use NDLL to interface with DL frameworks.
+[`examples`](examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of NDLL. It also contains examples of how to use NDLL to interface with DL frameworks.
 
 
 # OLD
