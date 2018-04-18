@@ -47,7 +47,7 @@ class TFRecordParser : public Parser {
           "Error in parsing - invalid TFRecord file!");
     } catch(std::exception& e) {
       std::string str = "Error while parsing TFRecord: " + std::string(e.what());
-      throw std::runtime_error(str);
+      NDLL_FAIL(str);
     }
 
     for (size_t i = 0; i < features_.size(); ++i) {
