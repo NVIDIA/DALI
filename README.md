@@ -1,6 +1,6 @@
 # NDLL (we should have a logo!)
 
-NDLL is a collection of highly optimized building blocks and an execution engine to accelerate computer vision deep learning applications. The goal of DALI is to provide both performance and flexibility, as a single library, that can be easily integrated into DL training and inference applications.
+NDLL is a collection of highly optimized building blocks and an execution engine to accelerate computer vision deep learning applications. The goal of NDLL is to provide both performance and flexibility, as a single library, that can be easily integrated into DL training and inference applications.
 
 ## Key features
 
