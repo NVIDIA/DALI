@@ -39,12 +39,13 @@ void DisplacementKernel(const T *in, T* out,
   }
 }
 
-template <bool per_channel_transform, int nThreads, class Displacement, class Color>
+template <typename T, bool per_channel_transform, int nThreads, class Displacement, class Color>
 __global__
-void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
+void DisplacementKernel_C3_aligned32bit(const T *in, T* out,
                         const int N, const Index * shapes, const Index pitch,
                         Displacement displace, Color color) {
-  __shared__ uint8_t scratch[nThreads * 12];
+  constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
+  __shared__ T scratch[nThreads * 3 * nPixelsPerThread];
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
@@ -52,19 +53,19 @@ void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
     const int C = 3;
     const Index offset = shapes[n * pitch + 3];
     // thread per pixel
-    const uint8_t * const image_in = in + offset;
+    const T * const image_in = in + offset;
     uint32_t * const image_out = reinterpret_cast<uint32_t*>(out + offset);
-    const int nElements = (H * W) >> 2;
+    const int nElements = (H * W) / nPixelsPerThread;
     const int loopCount = nElements / nThreads;
-    uint8_t * const my_scratch = scratch + threadIdx.x * 12;
+    T * const my_scratch = scratch + threadIdx.x * 3 * nPixelsPerThread;
     uint32_t * const scratch_32 = reinterpret_cast<uint32_t*>(scratch);
 
     for (int lidx = 0; lidx < loopCount; ++lidx) {
-      const int hw0 = (lidx * nThreads + threadIdx.x) * 4;
+      const int hw0 = (lidx * nThreads + threadIdx.x) * nPixelsPerThread;
       uint32_t * const current_image_out = image_out + lidx * nThreads * 3;
       if (per_channel_transform) {
 #pragma unroll
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < nPixelsPerThread; ++j) {
           const int hw = hw0 + j;
           const int w = hw % W;
           const int h = hw / W;
@@ -76,14 +77,14 @@ void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
         }
       } else {
 #pragma unroll
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < nPixelsPerThread; ++j) {
           const int hw = hw0 + j;
           const int w = hw % W;
           const int h = hw / W;
           auto tmp_idx = displace(h, w, 0, H, W, C);
-          my_scratch[j * 3 + 0] = color(image_in[tmp_idx + 0], h, w, 0, H, W, C);
-          my_scratch[j * 3 + 1] = color(image_in[tmp_idx + 1], h, w, 1, H, W, C);
-          my_scratch[j * 3 + 2] = color(image_in[tmp_idx + 2], h, w, 2, H, W, C);
+          for (int c = 0; c < 3; ++c) {
+            my_scratch[j * 3 + c] = color(image_in[tmp_idx + c], h, w, c, H, W, C);
+          }
         }
       }
       __syncthreads();
@@ -97,10 +98,10 @@ void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
     // The rest, that was not aligned to block boundary
     const int myId = threadIdx.x + loopCount * nThreads;
     if (myId < nElements) {
-      const int hw0 = myId * 4;
+      const int hw0 = myId * nPixelsPerThread;
       if (per_channel_transform) {
 #pragma unroll
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < nPixelsPerThread; ++j) {
           const int hw = hw0 + j;
           const int w = hw % W;
           const int h = hw / W;
@@ -113,17 +114,16 @@ void DisplacementKernel_C3u8_a4(const uint8_t *in, uint8_t* out,
         }
       } else {
 #pragma unroll
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < nPixelsPerThread; ++j) {
           const int hw = hw0 + j;
           const int w = hw % W;
           const int h = hw / W;
           auto tmp_idx = displace(h, w, 0, H, W, C);
-          out[offset + h * W * C + w * C + 0] =
-            color(image_in[tmp_idx + 0], h, w, 0, H, W, C);
-          out[offset + h * W * C + w * C + 1] =
-            color(image_in[tmp_idx + 1], h, w, 1, H, W, C);
-          out[offset + h * W * C + w * C + 2] =
-            color(image_in[tmp_idx + 2], h, w, 2, H, W, C);
+#pragma unroll
+          for (int c = 0; c < 3; ++c) {
+          out[offset + h * W * C + w * C + c] =
+            color(image_in[tmp_idx + c], h, w, c, H, W, C);
+          }
         }
       }
     }
@@ -324,20 +324,9 @@ class DisplacementFilter : public Operator {
                                   const U* in, U* out,
                                   const int N, const int pitch,
                                   const int C, const uint64_t maxPower2) {
-    DisplacementKernel<U,
-                       per_channel_transform,
-                       Displacement>
-                      <<<N, 256, 0, ws->stream()>>>(
-        in, out, N, meta_gpu.template mutable_data<Index>(),
-        pitch, displace_, augment_);
-  }
-
-  void DisplacementKernelLauncher(DeviceWorkspace * ws,
-                                  const uint8_t* in, uint8_t* out,
-                                  const int N, const int pitch,
-                                  const int C, const uint64_t maxPower2) {
-    if (C == 3 && maxPower2 >= 4) {
-      DisplacementKernel_C3u8_a4<per_channel_transform,
+    if (C == 3 && maxPower2 >= sizeof(uint32_t)/sizeof(U)) {
+      DisplacementKernel_C3_aligned32bit<U,
+                                 per_channel_transform,
                                  256,
                                  Displacement,
                                  Augment>
@@ -346,7 +335,7 @@ class DisplacementFilter : public Operator {
                                     meta_gpu.template mutable_data<Index>(),
                                     pitch, displace_, augment_);
     } else {
-      DisplacementKernel<uint8_t,
+      DisplacementKernel<U,
                          per_channel_transform,
                          Displacement>
                         <<<N, 256, 0, ws->stream()>>>(
