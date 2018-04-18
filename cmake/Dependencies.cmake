@@ -8,7 +8,7 @@ find_cuda_helper_libs(nppig)
 list(APPEND NDLL_LIBS ${CUDA_nppig_LIBRARY})
 
 # NVTX for profiling
-if (USE_NVTX)
+if (BUILD_NVTX)
   find_cuda_helper_libs(nvToolsExt)
   list(APPEND NDLL_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DNDLL_USE_NVTX)

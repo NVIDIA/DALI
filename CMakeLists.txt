@@ -6,7 +6,7 @@ project(NDLL CXX)
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
-option(USE_NVTX "Build with NVTX profiling enabled" ON)
+option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
 option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
