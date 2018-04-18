@@ -22,7 +22,7 @@ class JitterAugment {
     // JITTER_PREAMBLE
     const uint16_t degr = nDegree_;
     const uint16_t nHalf = degr/2;
-    const int nYoffset = (W * C + 1) / 2 * 2;
+    const int nYoffset = W * C;
 
 
     // JITTER_CORE
