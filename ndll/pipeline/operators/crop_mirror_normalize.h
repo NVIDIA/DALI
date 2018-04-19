@@ -14,8 +14,6 @@
 
 namespace ndll {
 
-NDLL_REGISTER_TYPE(const uint8*, NDLL_INTERNAL_C_UINT8_P);
-
 template <typename Backend>
 class CropMirrorNormalize : public Operator {
  public:
@@ -282,6 +280,7 @@ class CropMirrorNormalize : public Operator {
   std::vector<std::pair<int, int>> per_sample_crop_;
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
+  using Operator::SetupSharedSampleParams;
   USE_OPERATOR_MEMBERS();
 };
 
