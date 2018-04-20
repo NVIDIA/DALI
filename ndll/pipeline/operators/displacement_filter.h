@@ -10,6 +10,14 @@
  * such as flip, jitter, water, swirl, etc.
  */
 
+#ifndef DISPLACEMENT_IMPL
+#ifdef __CUDA_ARCH__
+#define DISPLACEMENT_IMPL __host__ __device__
+#else
+#define DISPLACEMENT_IMPL
+#endif
+#endif
+
 namespace ndll {
 
 class ColorIdentity {
@@ -17,7 +25,7 @@ class ColorIdentity {
   explicit ColorIdentity(const OpSpec& spec) {}
 
   template <typename T>
-  __host__ __device__
+  DISPLACEMENT_IMPL
   T operator()(const T in, const Index h, const Index w, const Index c,
                const Index H, const Index W, const Index C) {
     // identity
@@ -31,7 +39,7 @@ class DisplacementIdentity {
  public:
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
-  __host__ __device__
+  DISPLACEMENT_IMPL
   Index operator()(const Index h, const Index w, const Index c,
                    const Index H, const Index W, const Index C) {
     // identity
@@ -48,9 +56,5 @@ template <typename Backend,
 class DisplacementFilter : public Operator<Backend> {};
 
 }  // namespace ndll
-
-#include "ndll/pipeline/operators/displacement_filter_impl_gpu.cuh"
-#include "ndll/pipeline/operators/displacement_filter_impl_cpu.h"
-
 
 #endif  // NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_H_

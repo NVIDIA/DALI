@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#ifndef NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_CUH_
-#define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_CUH_
+#ifndef NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_H_
+#define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_H_
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operator.h"
@@ -14,13 +14,13 @@ class DisplacementFilter<CPUBackend, Displacement,
                          Augment, per_channel_transform> : public Operator<CPUBackend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
-   Operator(spec),
-   displace_(spec),
-   augment_(spec) {}
+    Operator(spec),
+    displace_(spec),
+    augment_(spec) {}
 
   virtual ~DisplacementFilter() {
-   displace_.Cleanup();
-   augment_.Cleanup();
+    displace_.Cleanup();
+    augment_.Cleanup();
   }
 
   void RunImpl(SampleWorkspace* ws, const int idx) override {
@@ -98,4 +98,4 @@ class DisplacementFilter<CPUBackend, Displacement,
 
 }  // namespace ndll
 
-#endif  // NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_CUH_
+#endif  // NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_H_

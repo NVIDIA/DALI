@@ -92,7 +92,6 @@ class OperatorBase {
   DISABLE_COPY_MOVE_ASSIGN(OperatorBase);
 
  protected:
-
   OpSpec spec_;
   int num_threads_;
   int batch_size_;

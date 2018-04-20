@@ -1,7 +1,11 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#include "ndll/pipeline/operators/resize.h"
+
 #include <cuda_runtime_api.h>
 
-#include "ndll/pipeline/operators/resize.h"
+#include <utility>
+#include <vector>
+
 #include "ndll/util/npp.h"
 
 namespace ndll {
@@ -53,7 +57,7 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
   return NDLLSuccess;
 }
 
-}  // namespace ndll
+}  // namespace
 
 template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {

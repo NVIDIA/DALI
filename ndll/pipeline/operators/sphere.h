@@ -14,7 +14,7 @@ class SphereAugment {
  public:
   explicit SphereAugment(const OpSpec& spec) {}
 
-  __host__ __device__
+  DISPLACEMENT_IMPL
   Index operator()(int h, int w, int c, int H, int W, int C) {
     // SPHERE_PREAMBLE
     const int mid_x = W / 2;

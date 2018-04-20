@@ -11,13 +11,16 @@
 
 namespace ndll {
 
+template <typename Backend>
 class JitterAugment {
  public:
   explicit JitterAugment(const OpSpec& spec) :
         nDegree_(spec.GetArgument<int>("nDegree")),
         rnd_(spec.GetArgument<int>("seed"), 128*256) {}
 
+#ifdef __CUDA_ARCH__
   __host__ __device__
+#endif
   Index operator()(int y, int x, int c, int H, int W, int C) {
     // JITTER_PREAMBLE
     const uint16_t degr = nDegree_;
@@ -44,15 +47,15 @@ class JitterAugment {
   }
 
  private:
-  Randomizer rnd_;
+  Randomizer<Backend> rnd_;
   const size_t nDegree_;
 };
 
 template <typename Backend>
-class Jitter : public DisplacementFilter<Backend, JitterAugment, ColorIdentity> {
+class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>, ColorIdentity> {
  public:
     inline explicit Jitter(const OpSpec &spec)
-      : DisplacementFilter<Backend, JitterAugment>(spec) {}
+      : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
 
     virtual ~Jitter() = default;
 };

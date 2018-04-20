@@ -29,7 +29,8 @@ namespace ndll {
 
 template<>
 template <typename OUT>
-void NormalizePermute<CPUBackend>::CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output) {
+void NormalizePermute<CPUBackend>::CPURunHelper(const Tensor<CPUBackend> &input,
+                                                Tensor<CPUBackend> *output) {
   const uint8 *in = input.template data<uint8>();
   OUT *out = output->template mutable_data<OUT>();
   float *mean = mean_.template mutable_data<float>();

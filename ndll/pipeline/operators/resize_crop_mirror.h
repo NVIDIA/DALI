@@ -31,7 +31,7 @@ namespace ndll {
  */
 
 template <typename Backend>
-class ResizeCropMirror : public Operator {
+class ResizeCropMirror : public Operator<CPUBackend> {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator(spec),
@@ -95,7 +95,7 @@ class ResizeCropMirror : public Operator {
     per_thread_meta_[ws->thread_idx()] = GetTransformMeta(input.shape());
   }
 
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+  inline void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
     NDLL_ENFORCE(input.ndim() == 3);
@@ -206,7 +206,7 @@ class FastResizeCropMirror : public ResizeCropMirror<Backend> {
   virtual inline ~FastResizeCropMirror() = default;
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+  inline void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
     NDLL_ENFORCE(input.ndim() == 3);
