@@ -20,14 +20,12 @@ using MixedInputType = vector<shared_ptr<Tensor<Backend>>>;
 template <typename Backend>
 using MixedOutputType = shared_ptr<TensorList<Backend>>;
 
-class SampleWorkspace;
-
 /**
  * @brief MixedWorkspace stores all data that an mixed op operates on.
  * MixedWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class MixedWorkspace : public Workspace<MixedInputType, MixedOutputType> {
+class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
  public:
   inline MixedWorkspace() : stream_(0) {}
   inline ~MixedWorkspace() = default;

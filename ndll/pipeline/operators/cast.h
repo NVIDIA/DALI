@@ -7,10 +7,10 @@
 namespace ndll {
 
 template <typename Backend>
-class Cast : public Operator {
+class Cast : public Operator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec) :
-    Operator(spec),
+    Operator<Backend>(spec),
     output_type_(spec.GetArgument<NDLLDataType>("dtype"))
     {}
 
@@ -19,23 +19,7 @@ class Cast : public Operator {
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto *output = ws->Output<CPUBackend>(idx);
-
-    NDLLDataType itype = input.type().id();
-
-    NDLL_TYPE_SWITCH(output_type_, OType,
-      output->mutable_data<OType>();
-      output->ResizeLike(input);
-      NDLL_TYPE_SWITCH(itype, IType,
-        CPUHelper<IType, OType>(
-          output->mutable_data<OType>(),
-          input.data<IType>(),
-          input.size());););
-  };
-
-void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws, int idx) override;
 
  private:
   template <typename IType, typename OType>

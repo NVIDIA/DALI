@@ -4,15 +4,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);
-
-NDLL_OPERATOR_SCHEMA(Jitter)
-    .DocStr("Foo")
-    .NumInput(1)
-    .NumOutput(1)
-    .AllowMultipleInputSets()
-    .AddOptionalArg("nDegree", "Foo", 2);
 
 }  // namespace ndll
 

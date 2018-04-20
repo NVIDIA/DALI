@@ -16,7 +16,7 @@ class FileReader : public DataReader<CPUBackend> {
 
   DEFAULT_READER_DESTRUCTOR(FileReader, CPUBackend);
 
-  void RunPerSampleCPU(SampleWorkspace *ws, const int i) override {
+  void RunImpl(SampleWorkspace *ws, const int i) override {
     const int idx = ws->data_idx();
 
     auto* raw_data = prefetched_batch_[idx];

@@ -27,7 +27,7 @@ using SampleOutputType = shared_ptr<Tensor<Backend>>;
  * @brief SampleWorkspace stores all data required for an operator to
  * perform its computation on a single sample.
  */
-class SampleWorkspace : public Workspace<SampleInputType, SampleOutputType> {
+class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
  public:
   SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 

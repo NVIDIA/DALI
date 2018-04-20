@@ -11,16 +11,16 @@
 namespace ndll {
 
 /**
- * @brief Workspace is a base class of objects
+ * @brief WorkspaceBase is a base class of objects
  * storing all data required by an operator,
  * including its input and output, parameter tensors and
  * meta-data about execution.
  */
 template <template<typename> class InputType, template<typename> class OutputType>
-class Workspace {
+class WorkspaceBase {
  public:
-  Workspace() {}
-  virtual ~Workspace() = default;
+  WorkspaceBase() {}
+  virtual ~WorkspaceBase() = default;
 
   /**
    * @brief Returns the number of inputs.

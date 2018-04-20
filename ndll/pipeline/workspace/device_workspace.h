@@ -28,7 +28,7 @@ class SampleWorkspace;
  * including its input and output TensorLists, parameter tensors and
  * meta-data about execution.
  */
-class DeviceWorkspace : public Workspace<DeviceInputType, DeviceOutputType> {
+class DeviceWorkspace : public WorkspaceBase<DeviceInputType, DeviceOutputType> {
  public:
   DeviceWorkspace() : stream_(0) {}
   ~DeviceWorkspace() = default;

@@ -13,6 +13,7 @@
 #include "ndll/pipeline/op_schema.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/workspace/sample_workspace.h"
+#include "ndll/pipeline/util/backend2workspace_map.h"
 
 namespace ndll {
 
@@ -25,7 +26,7 @@ enum NDLLOpType {
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline.
  *
- * Operator defines the API used by the pipeline to execute operations.
+ * OperatorBase defines the API used by the pipeline to execute operations.
  * To create a custom operator, derive from this class, implement the
  * RunPerSampleCPU / RunBatchedGPU methods as desired, and register
  * the operator using the macros NDLL_REGISTER_{CPU,GPU}_OPERATOR.
@@ -34,9 +35,9 @@ enum NDLLOpType {
  * macro. The op can then be added to a pipeline through its registered
  * name (the first arg to the registration macros).
  */
-class Operator {
+class OperatorBase {
  public:
-  inline explicit Operator(const OpSpec &spec) :
+  inline explicit OperatorBase(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads")),
     batch_size_(spec.GetArgument<int>("batch_size")),
     input_sets_(spec.GetArgument<int>("num_input_sets")) {
@@ -44,40 +45,27 @@ class Operator {
     NDLL_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
 
-  virtual inline ~Operator() = default;
+  virtual inline ~OperatorBase() = default;
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
    */
-  inline virtual void Run(SampleWorkspace *ws) {
-#ifndef NDEBUG
-    NDLL_ENFORCE_VALID_INDEX(ws->thread_idx(), num_threads_);
-    NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), batch_size_);
-#endif
-
-    SetupSharedSampleParams(ws);
-
-    for (int i = 0; i < input_sets_; ++i) {
-      RunPerSampleCPU(ws, i);
-    }
+  virtual void Run(SampleWorkspace *ws) {
+    NDLL_FAIL("CPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  inline virtual void Run(DeviceWorkspace *ws) {
-    SetupSharedSampleParams(ws);
-
-    for (int i = 0; i < input_sets_; ++i) {
-      RunBatchedGPU(ws, i);
-    }
+  virtual void Run(DeviceWorkspace *ws) {
+    NDLL_FAIL("GPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by operators interfacing with both CPU and GPU.
    */
   virtual void Run(MixedWorkspace *ws) {
-    NDLL_FAIL("Run using mixed workspace is not implemented for this operator!");
+    NDLL_FAIL("Mixed execution is not implemented for this operator!");
   }
 
   /**
@@ -101,34 +89,9 @@ class Operator {
     return input_sets_;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Operator);
+  DISABLE_COPY_MOVE_ASSIGN(OperatorBase);
 
  protected:
-  /**
-   * @brief Per image CPU computation of the operator to be
-   * implemented by derived ops.
-   */
-  virtual inline void RunPerSampleCPU(SampleWorkspace *ws, int idx = 0) {
-    NDLL_FAIL("RunPerSampleCPU not implemented");
-  }
-
-  /**
-   * @brief Batched GPU computation of the operator to be
-   * implemented by derived ops.
-   */
-  virtual inline void RunBatchedGPU(DeviceWorkspace *ws, int idx = 0) {
-    NDLL_FAIL("RunBatchedGPU not implemented");
-  }
-
-  /**
-   * @brief Shared param setup for CPU computation
-   */
-  virtual inline void SetupSharedSampleParams(SampleWorkspace *ws) {}
-
-  /**
-   * @brief Shared param setup for GPU computation
-   */
-  virtual inline void SetupSharedSampleParams(DeviceWorkspace *ws) {}
 
   OpSpec spec_;
   int num_threads_;
@@ -137,14 +100,58 @@ class Operator {
 };
 
 #define USE_OPERATOR_MEMBERS()                  \
-  using Operator::spec_;               \
-  using Operator::num_threads_;        \
-  using Operator::batch_size_
+  using OperatorBase::spec_;               \
+  using OperatorBase::num_threads_;        \
+  using OperatorBase::batch_size_
+
+template <typename Backend>
+class Operator : public OperatorBase {
+ public:
+  inline explicit Operator(const OpSpec &spec) :
+    OperatorBase(spec)
+  {}
+
+  virtual inline ~Operator() = default;
+
+  using OperatorBase::Run;
+  void Run(Workspace<Backend> *ws) override {
+    SetupSharedSampleParams(ws);
+
+    for (int i = 0; i < input_sets_; ++i) {
+      RunImpl(ws, i);
+    }
+  }
+
+ protected:
+  /**
+   * @brief Shared param setup for CPU computation
+   */
+  virtual void SetupSharedSampleParams(Workspace<Backend> *ws) {}
+
+  /**
+   * @brief Implementation of the operator - to be
+   * implemented by derived ops.
+   */
+  virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
+};
+
+template<>
+class Operator<Mixed> : public OperatorBase {
+ public:
+  inline explicit Operator(const OpSpec &spec) :
+    OperatorBase(spec)
+  {}
+
+  virtual inline ~Operator() = default;
+
+  using OperatorBase::Run;
+  void Run(MixedWorkspace *ws) override = 0;
+};
 
 // Create registries for CPU & GPU Operators
-NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, Operator);
-NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, Operator);
-NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
+NDLL_DECLARE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
+NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
+NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
 #define NDLL_REGISTER_OPERATOR(OpName, OpType, device)        \
@@ -152,7 +159,7 @@ NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, Operator);
   static int ANONYMIZE_VARIABLE(OpName) =                 \
     NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
   NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
-      device##Operator, ndll::Operator)
+      device##Operator, ndll::OperatorBase)
 
 }  // namespace ndll
 

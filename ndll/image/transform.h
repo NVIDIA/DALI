@@ -66,58 +66,6 @@ NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
     OUT *out_batch, cudaStream_t stream);
 
 /**
- * @brief Takes in a jagged batch of images and crops, (optional) mirrors,
- * performs mean subtraction & stddev division per channel, cast to output
- * type, and NHWC->NCHW permutation
- *
- * The crop is performed by offsetting the ptrs in 'in_batch' to the beginning
- * of the crop region, and then passing in the stride of each image so that
- * the kernel can correctly process the crop region.
- *
- * @param in_batch device pointer to pointer to the beginning of the crop
- * region for each image
- * @param in_strides device pointer to `N` ints whose value is the stride
- * of each input image
- * @param mirror device pointer to `N` bools whose values indicate whether
- * the image should be mirrored or not
- * @param N number of elements in the batch
- * @param H output height for all images in the batch
- * @param W output width for all images in the batch
- * @param C number of channels of images in the batch
- * @param mean device pointer of length `C` to the mean to subtract for
- * each image channel
- * @param std device pointer of length `C` to the inverse std dev. to multiply by
- * for each image channel
- * @param out_batch pointer of size `N*C*H*W` to store the dense, cropped,
- * NCHW output batch
- * @param stream cuda stream to operate in
- */
-template <NDLLTensorLayout L, typename OUT>
-NDLLError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
-    const int *in_strides, int N, int H, int W, int C, bool pad, const bool *mirror,
-    const float *mean, const float *inv_std, OUT *out_batch, cudaStream_t stream);
-
-/**
- * @brief Validates the parameters for 'BatchedCropMirrorNormalizePermute'
- * on host
- *
- * All parameters are host-side versions of the arguments to
- * 'BatchedCropMirrorNormalizePermute'. This method exists so that
- * the user can efficiently manage memory copies to the GPU, but stil
- * have a method for validating input arguments before calling the
- * batched function.
- *
- * Checks that...
- * - in_batch device pointers are not nullptr
- * - in_strides values are >= W*C
- * - N > 0, H > 0, W > 0, C == 1 || C == 3
- */
-template <typename OUT>
-NDLLError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
-    const int *in_strides, int N, int H, int W, int C, const bool *mirror,
-    const float *mean, const float *inv_std, OUT *out_batch);
-
-/**
  * @brief Resizes an input batch of images.
  *
  * Note: This API is subject to change. It currently launches a kernel
