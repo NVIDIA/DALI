@@ -116,7 +116,7 @@ typedef struct {
     uint32_t pixArea;               // area of its intersection with the resulting pixels
 } PixMapping;
 
-typedef NppiPoint ResizeGridParam, MirroringInfo;
+typedef NppiPoint ResizeGridParam;
 typedef uint32_t MappingInfo;
 
 typedef Tensor<GPUBackend> ImgSizeDescr, ImgRasterDescr, ResizeMappingPixDescrGPU, MirroringDescr,
@@ -303,9 +303,13 @@ class NewResize : public Resize<Backend> {
         const bool use_NN = ResizeAttr::type_ == NDLL_INTERP_NN;
 
         size_t resizeMemory[BATCH_SLICE_NUMB];
+        ResizeGridParam *pResizeGrid = resizeParam_.data();
+        MirroringInfo *pMirror = pResizeGrid + N_GRID_PARAMS * batch_size_;
+        ResizeParamDescr resizeDescr(this, pResizeGrid, pMirror,
+                                     use_NN? resizeMemory : NULL, BATCH_SLICE_NUMB);
+
         const bool newMapping = DataDependentSetupGPU(input, output, batch_size_, false,
-              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, this,
-              resizeParam_.data(), use_NN? resizeMemory : NULL, BATCH_SLICE_NUMB);
+              ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL, &resizeDescr);
 
         const int C = input.shape()[0][2];
 

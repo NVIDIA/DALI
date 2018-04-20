@@ -1,6 +1,7 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
 #include "ndll/pipeline/operators/new_resize.h"
+#include "resize.h"
 #include <float.h>
 #include <assert.h>
 #include <npp.h>
@@ -67,16 +68,19 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
 
 bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
-                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes, ResizeAttr *pResize,
-                           NppiPoint *pResizeParam, size_t pTotalSize[], size_t nBatchSlice) {
+                           vector<uint8 *> *outPtrs, vector<NDLLSize> *pSizes,
+                           ResizeParamDescr *pResizeDescr) {
     NDLL_ENFORCE(IsType<uint8>(input.type()),
                  "Expected input data stored in uint8.");
 
+    auto pResize = pResizeDescr? pResizeDescr->pResize_ : NULL;
+    auto pResizeParam = pResizeDescr? pResizeDescr->pResizeParam_ : NULL;
+    auto pMirroring = pResizeDescr? pResizeDescr->pMirroring_ : NULL;
+    auto pTotalSize = pResizeDescr? pResizeDescr->pTotalSize_ : NULL;
+
     // Set all elements to 0, if we will use them
     if (pTotalSize)
-        memset(pTotalSize, 0, nBatchSlice * sizeof(pTotalSize[0]));
-
-    NppiPoint *pMirroringParam = pResizeParam? pResizeParam + batch_size * N_GRID_PARAMS : NULL;
+        memset(pTotalSize, 0,  pResizeDescr->nBatchSlice_ * sizeof(pTotalSize[0]));
 
     bool newResize = false;
     vector<Dims> output_shape(batch_size);
@@ -110,38 +114,42 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
                 else
                     cropY = cropX = 0;
 
-                auto resizeParam = pResizeParam + i * N_GRID_PARAMS;
-                const int lcmH = lcm(H0, H1);
-                const int lcmW = lcm(W0, W1);
+                auto resizeParam = pResizeParam + i * (pMirroring? N_GRID_PARAMS : 1);
+                if (pMirroring) {
+                    const int lcmH = lcm(H0, H1);
+                    const int lcmW = lcm(W0, W1);
 
-                const int sy0 = lcmH / H0;
-                const int sy1 = lcmH / H1;
-                const int sx0 = lcmW / W0;
-                const int sx1 = lcmW / W1;
+                    const int sy0 = lcmH / H0;
+                    const int sy1 = lcmH / H1;
+                    const int sx0 = lcmW / W0;
+                    const int sx1 = lcmW / W1;
 
-                if (!newResize) {
-                    newResize = resizeParam[0].x != sx0 || resizeParam[0].y != sy0 ||
-                                resizeParam[1].x != sx1 || resizeParam[1].y != sy1 ||
-                                resizeParam[2].x != cropX || resizeParam[2].y != cropY;
+                    if (!newResize) {
+                        newResize = resizeParam[0].x != sx0 || resizeParam[0].y != sy0 ||
+                                    resizeParam[1].x != sx1 || resizeParam[1].y != sy1 ||
+                                    resizeParam[2].x != cropX || resizeParam[2].y != cropY;
+                    }
+
+                    if (newResize) {
+                        resizeParam[0] = {sx0, sy0};
+                        resizeParam[1] = {sx1, sy1};
+                        resizeParam[2] = {cropX, cropY};
+                    }
+
+                    if (pTotalSize) {
+                        // We need to check for overflow
+                        const size_t idx = i %  pResizeDescr->nBatchSlice_;
+                        if (pTotalSize[idx] < UINT_MAX - sx0 * sy0)
+                            pTotalSize[idx] += sx0 * sy0;
+                        else
+                            pTotalSize[idx] = UINT_MAX;
+                    }
+
+                    if (pMirroring)
+                        pResize->MirrorNeeded(pMirroring + i);
+                } else {
+                    resizeParam[0] = {W1, H1};
                 }
-
-                if (newResize) {
-                    resizeParam[0] = {sx0, sy0};
-                    resizeParam[1] = {sx1, sy1};
-                    resizeParam[2] = {cropX, cropY};
-                }
-
-                if (pTotalSize) {
-                    // We need to check for overflow
-                    const size_t idx = i % nBatchSlice;
-                    if (pTotalSize[idx] < UINT_MAX - sx0 * sy0)
-                        pTotalSize[idx] += sx0 * sy0;
-                    else
-                        pTotalSize[idx] = UINT_MAX;
-                }
-
-                if (pMirroringParam)
-                    pResize->MirrorNeeded(pMirroringParam + i);
             }
 
             // Collect the output shapes

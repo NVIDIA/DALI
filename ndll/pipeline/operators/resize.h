@@ -21,6 +21,20 @@ typedef enum {
 typedef std::pair<int, int> resize_t;
 
 class ResizeAttr;
+typedef NppiPoint MirroringInfo;
+
+class ResizeParamDescr {
+public:
+    ResizeParamDescr(ResizeAttr *pntr, NppiPoint *pOutResize = NULL, MirroringInfo *pMirror = NULL,
+                        size_t pTotalSize[] = NULL, size_t batchSliceNumb = 0) :
+                        pResize_(pntr), pResizeParam_(pOutResize), pMirroring_(pMirror),
+                        pTotalSize_(pTotalSize), nBatchSlice_(batchSliceNumb) {}
+    ResizeAttr *pResize_;
+    NppiPoint *pResizeParam_;
+    MirroringInfo *pMirroring_;
+    size_t *pTotalSize_;
+    size_t nBatchSlice_;
+};
 
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
                            const char *pOpName = NULL,
@@ -29,8 +43,7 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *
 bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
           size_t batch_size, bool reshapeBatch = false,
           vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
-          vector<NDLLSize> *pSizes = NULL, ResizeAttr *pntr = NULL,
-          NppiPoint *pOutResize = NULL, size_t pTotalSize[] = NULL, size_t batchSliceNumb = 0);
+          vector<NDLLSize> *pSizes = NULL, ResizeParamDescr *pResizeParam = NULL);
 void CollectPointersForExecution(size_t batch_size,
           const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
           TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
@@ -150,6 +163,7 @@ class Resize : public Operator, public ResizeAttr {
  public:
   explicit inline Resize(const OpSpec &spec) :
     Operator(spec), ResizeAttr(spec) {
+      resizeParam_.resize(batch_size_);
       // Resize per-image data
       input_ptrs_.resize(batch_size_);
       output_ptrs_.resize(batch_size_);
@@ -193,8 +207,9 @@ class Resize : public Operator, public ResizeAttr {
     const auto &input = ws->Input<GPUBackend>(idx);
     auto output = ws->Output<GPUBackend>(idx);
 
+    ResizeParamDescr resizeDescr(this, resizeParam_.data());
     DataDependentSetupGPU(input, output, batch_size_, false,
-                            inputImages(), outputImages(), NULL, this);
+                            inputImages(), outputImages(), NULL, &resizeDescr);
 
     // Run the kernel
     cudaStream_t old_stream = nppGetStream();
@@ -203,11 +218,12 @@ class Resize : public Operator, public ResizeAttr {
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, sizes(input_t).data(),
         output_ptrs_.data(), sizes(output_t).data(),
-        type_);
+        type_, resizeParam_.data());
     nppSetStream(old_stream);
   }
 
-  USE_OPERATOR_MEMBERS();
+    vector<NppiPoint>resizeParam_;
+    USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace ndll
