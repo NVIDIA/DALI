@@ -1,12 +1,15 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef NDLL_PIPELINE_OPERATORS_RANDOMIZER_IMPL_GPU_CUH_
+#define NDLL_PIPELINE_OPERATORS_RANDOMIZER_IMPL_GPU_CUH_
 
 #include "ndll/pipeline/operators/randomizer.h"
 
 #include <curand.h>
 #include <curand_kernel.h>
 
-namespace ndll {
+#include "ndll/pipeline/operators/displacement_filter.h"
 
+namespace ndll {
 
 __global__
 void initializeStates(const int N, unsigned int seed, curandState *states) {
@@ -37,3 +40,4 @@ void Randomizer<GPUBackend>::Cleanup() {
 
 }  // namespace ndll
 
+#endif  // NDLL_PIPELINE_OPERATORS_RANDOMIZER_IMPL_GPU_CUH_

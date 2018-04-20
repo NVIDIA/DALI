@@ -131,15 +131,15 @@ template <class Displacement,
 class DisplacementFilter<GPUBackend, Displacement,
                          Augment, per_channel_transform> : public Operator<GPUBackend> {
  public:
-   explicit DisplacementFilter(const OpSpec &spec) :
+  explicit DisplacementFilter(const OpSpec &spec) :
      Operator(spec),
      displace_(spec),
      augment_(spec) {}
 
-   virtual ~DisplacementFilter() {
+  virtual ~DisplacementFilter() {
      displace_.Cleanup();
      augment_.Cleanup();
-   }
+  }
 
   void RunImpl(DeviceWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
@@ -162,7 +162,6 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
  private:
-
   static const int nDims = 3;
 
   template <typename T>

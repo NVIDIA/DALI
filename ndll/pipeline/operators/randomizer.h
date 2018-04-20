@@ -4,6 +4,7 @@
 #define NDLL_PIPELINE_OPERATORS_RANDOMIZER_H_
 
 #include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/operators/displacement_filter.h"
 
 namespace ndll {
 
@@ -12,6 +13,9 @@ class Randomizer {
  public:
   explicit Randomizer(int seed = 1234, size_t len = 128*32*32);
 
+#if __CUDA_ARCH__
+  __device__
+#endif
   int rand(int idx);
 
   void Cleanup();
