@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_OPERATOR(HuffmanDecoder, HuffmanDecoder<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(HuffmanDecoder, HuffmanDecoder, CPU);
 
 NDLL_OPERATOR_SCHEMA(HuffmanDecoder)
   .DocStr("Foo")
@@ -11,8 +11,6 @@ NDLL_OPERATOR_SCHEMA(HuffmanDecoder)
   .NumOutput(2)
   .AddOptionalArg("dct_bytes_hint", "Hint for memory used to preallocate space per image",
       4 * 1048576);
-
-NDLL_REGISTER_OPERATOR(DCTQuantInv, DCTQuantInv<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(DCTQuantInv)
   .DocStr("Foo")

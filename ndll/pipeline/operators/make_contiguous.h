@@ -12,16 +12,16 @@
 
 namespace ndll {
 
-class MakeContiguous : public Operator {
+class MakeContiguous : public Operator<Mixed> {
  public:
   inline explicit MakeContiguous(const OpSpec &spec) :
-    Operator(spec),
+    Operator<Mixed>(spec),
     coalesced(true)
     {}
 
   virtual inline ~MakeContiguous() = default;
 
-  inline void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
     for (int i = 0; i < batch_size_; ++i) {

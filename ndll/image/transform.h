@@ -52,32 +52,6 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     bool mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
-/**
- * @brief Performs mean subtraction & stddev division per channel, cast
- * to output type, and NHWC->NCHW permutation.
- *
- * 'mean' and 'inv_std' are assumed to point to device memory of size `c`.
- * Input data is assumed to be stored in NHWC layout in memory. Output
- * data will be stored in NCHW.
- */
-template <typename OUT>
-NDLLError_t BatchedNormalizePermute(const uint8 *in_batch,
-    int N, int H, int W, int C,  float *mean, float *inv_std,
-    OUT *out_batch, cudaStream_t stream);
-
-/**
- * @brief Resizes an input batch of images.
- *
- * Note: This API is subject to change. It currently launches a kernel
- * for every image in the batch, but if we move to a fully batched kernel
- * we will likely need more meta-data setup beforehand
- *
- * This method currently uses an npp kernel, to set the stream for this
- * kernel, call 'nppSetStream()' prior to calling.
- */
-NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *in_sizes,
-    uint8 **out_batch, const NDLLSize *out_sizes, NDLLInterpType type = NDLL_INTERP_LINEAR);
-
 }  // namespace ndll
 
 #endif  // NDLL_IMAGE_TRANSFORM_H_

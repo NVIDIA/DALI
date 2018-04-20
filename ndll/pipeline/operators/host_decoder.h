@@ -12,11 +12,10 @@
 
 namespace ndll {
 
-template <typename Backend>
-class HostDecoder : public Operator {
+class HostDecoder : public Operator<CPUBackend> {
  public:
   explicit inline HostDecoder(const OpSpec &spec) :
-    Operator(spec),
+    Operator<CPUBackend>(spec),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     c_(IsColor(output_type_) ? 3 : 1) {}
 
@@ -24,7 +23,7 @@ class HostDecoder : public Operator {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+  void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
 
