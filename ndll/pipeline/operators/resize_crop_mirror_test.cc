@@ -96,6 +96,7 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
     outputs[0]->Copy(out, 0);
     return outputs;
   }
+
  protected:
   OpSpec DefaultSchema(bool fast_resize = false) {
     const char *op = (fast_resize) ? "FastResizeCropMirror"
