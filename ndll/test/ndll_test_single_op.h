@@ -92,6 +92,7 @@ class NDLLSingleOpTest : public NDLLTest {
   }
 
   void AddSingleOp(const OpSpec& spec) {
+    spec_ = spec;
     // generate the output mapping for this op
     for (int i = 0; i < spec.NumOutput(); ++i) {
       auto output_name = spec.OutputName(i);
@@ -174,8 +175,9 @@ class NDLLSingleOpTest : public NDLLTest {
   /**
    * Provide decoded (i.e. decoded JPEG) data
    */
-  void DecodedData(TensorList<CPUBackend>* t, int n) {
-    NDLLTest::MakeImageBatch(n, t);
+  void DecodedData(TensorList<CPUBackend>* t, int n,
+                   NDLLImageType type = NDLL_RGB) {
+    NDLLTest::MakeImageBatch(n, t, type);
   }
 
  private:
@@ -231,10 +233,14 @@ class NDLLSingleOpTest : public NDLLTest {
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;
 
+
  protected:
   int batch_size_ = 32;
   int num_threads_ = 2;
   double eps_ = 1e-4;
+
+  // keep a copy of the creation OpSpec for reference
+  OpSpec spec_;
 };
 
 #define USING_NDLL_SINGLE_OP_TEST() \
