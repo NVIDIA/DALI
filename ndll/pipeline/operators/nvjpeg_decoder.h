@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/image.h"
 
 
@@ -134,27 +135,46 @@ class nvJPEGDecoder : public Operator {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator(spec),
+    max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     Y_{max_streams_},
     Cb_{max_streams_},
     Cr_{max_streams_},
     output_shape_(batch_size_),
     output_sampling_(batch_size_),
-    output_info_(batch_size_) {
+    output_info_(batch_size_),
+    thread_pool_(max_streams_,
+                 spec.GetArgument<int>("device_id"),
+                 true /* pin threads */) {
       // Setup the allocator struct to use our internal allocator
       nvjpegDevAllocator allocator;
       allocator.dev_malloc = &memory::DeviceNew;
       allocator.dev_free = &memory::DeviceDelete;
 
-      // create the handle
-      NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
+      // create the handles, streams and events we'll use
+      streams_.reserve(max_streams_);
+      handles_.reserve(max_streams_);
+      events_.reserve(max_streams_);
+
+      for (int i = 0; i < max_streams_; ++i) {
+        NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handles_[i]));
+        CUDA_CALL(cudaStreamCreate(&streams_[i]));
+        CUDA_CALL(cudaEventCreate(&events_[i]));
+      }
   }
 
   ~nvJPEGDecoder() {
-    NVJPEG_CALL(nvjpegDestroy(handle_));
+    for (int i = 0; i < max_streams_; ++i) {
+      NVJPEG_CALL(nvjpegDestroy(handles_[i]));
+      CUDA_CALL(cudaEventDestroy(events_[i]));
+      CUDA_CALL(cudaStreamDestroy(streams_[i]));
+    }
   }
 
   void Run(MixedWorkspace *ws) override {
+    // TODO(slayton): Is this necessary?
+    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+
     // Get dimensions
     for (int i = 0; i < batch_size_; ++i) {
       auto& in = ws->Input<CPUBackend>(0, i);
@@ -165,7 +185,7 @@ class nvJPEGDecoder : public Operator {
       nvjpegChromaSubsampling subsampling;
 
       // Get necessary image information
-      NVJPEG_CALL(nvjpegGetImageInfo(handle_,
+      NVJPEG_CALL(nvjpegGetImageInfo(handles_[i % max_streams_],
                                      static_cast<const unsigned char*>(data), in_size,
                                      &c,
                                      &nWidthY, &nHeightY,
@@ -173,7 +193,8 @@ class nvJPEGDecoder : public Operator {
                                      &nWidthCr, &nHeightCr,
                                      &subsampling));
 
-      ImageInfo info;
+      // Store pertinent info for later
+      EncodedImageInfo info;
       info.c = c;
       info.nWidthY = nWidthY;
       info.nHeightY = nHeightY;
@@ -199,73 +220,114 @@ class nvJPEGDecoder : public Operator {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output->set_type(type);
 
+    // Loop over images again and decode
     for (int i = 0; i < batch_size_; ++i) {
       auto& in = ws->Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
+      auto *output_data = output->mutable_tensor<uint8_t>(i);
 
-      if (ocv_fallback_indices_.count(i)) {
-        OCVFallback(i, data, in_size, output->mutable_tensor<uint8_t>(i), ws->stream());
-        continue;
-      }
-      // Huffman Decode
-      NVJPEG_CALL(nvjpegDecodePlanarCPU(handle_,
-                                        data,
-                                        in_size));
-
-      // Memcpy of Huffman co-efficients to device
-      NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle_,
-                                           ws->stream()));
-
-      const int stream_idx = i % max_streams_;
+      int count = ocv_fallback_indices_.count(i);
 
       auto info = output_info_[i];
 
-      Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
-      Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
-      Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
+      thread_pool_.DoWorkWithID(std::bind(
+            [this, info, data, in_size, output_data, count](int idx, int tid) {
+              const int stream_idx = idx % this->max_streams_;
+              DecodeSample(idx,
+                           stream_idx,
+                           handles_[stream_idx],
+                           info,
+                           data, in_size,
+                           output_data,
+                           (count > 0),  // Fallback if true
+                           streams_[stream_idx]);
+            }, i, std::placeholders::_1));
 
-      // perform decode
-      nvjpegImageOutputPlanar image_desc;
-      image_desc.p1 = Y_[stream_idx].mutable_data<uint8>();
-      image_desc.pitch1 = info.nWidthY;
-      image_desc.p2 = Cb_[stream_idx].mutable_data<uint8>();
-      image_desc.pitch2 = info.nWidthCb;
-      image_desc.p3 = Cr_[stream_idx].mutable_data<uint8>();
-      image_desc.pitch3 = info.nWidthCr;
-
-      NVJPEG_CALL(nvjpegDecodePlanarGPU(handle_,
-                                        image_desc,
-                                        NVJPEG_OUTPUT_YUV,
-                                        ws->stream()));
-
-      // copy & convert from YCbCr -> RGB
-      Npp8u *out_ptr = reinterpret_cast<Npp8u*>(output->raw_mutable_tensor(i));
-      convertToRGB(
-          array<const Npp8u*, 3>{reinterpret_cast<const Npp8u*>(Y_[stream_idx].raw_data()),
-                                 reinterpret_cast<const Npp8u*>(Cb_[stream_idx].raw_data()),
-                                 reinterpret_cast<const Npp8u*>(Cr_[stream_idx].raw_data())},
-          array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr},  // steps
-          info.c,
-          info.c * info.nWidthY,  // RGB step
-          out_ptr,  // output
-          info.nHeightY, info.nWidthY,  // output H, W
-          output_sampling_[i],   // sampling type
-          ws->stream());
-
-      // WriteHWCImage(out_ptr, info.nHeightY, info.nWidthY, info.c, "tmp_new");
-      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+      // Make sure work is finished being submitted
+      thread_pool_.WaitForWork();
     }
+
+    // ensure we're consistent with the main op stream
+    for (int i = 0; i < max_streams_; ++i) {
+      CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
+      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
+    }
+    // Make sure next iteration isn't unnecessarily falling back to
+    // opencv based on old indices
+    ocv_fallback_indices_.clear();
   }
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
+
+  struct EncodedImageInfo {
+    int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
+  };
 
  protected:
   USE_OPERATOR_MEMBERS();
 
+  void DecodeSample(int i,
+                    int stream_idx,
+                    nvjpegHandle_t handle,
+                    const EncodedImageInfo &info,
+                    const uint8 *data,
+                    const size_t in_size,
+                    uint8 *output,
+                    bool ocvFallback,
+                    cudaStream_t stream) {
+    if (ocvFallback) {
+      OCVFallback(data, in_size, output, stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+      return;
+    }
+    // Huffman Decode
+    NVJPEG_CALL(nvjpegDecodePlanarCPU(handle,
+          data,
+          in_size));
+
+    // Memcpy of Huffman co-efficients to device
+    NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle, stream));
+
+    Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
+    Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
+    Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
+
+    // perform decode
+    nvjpegImageOutputPlanar image_desc;
+    image_desc.p1 = Y_[stream_idx].mutable_data<uint8>();
+    image_desc.pitch1 = info.nWidthY;
+    image_desc.p2 = Cb_[stream_idx].mutable_data<uint8>();
+    image_desc.pitch2 = info.nWidthCb;
+    image_desc.p3 = Cr_[stream_idx].mutable_data<uint8>();
+    image_desc.pitch3 = info.nWidthCr;
+
+    NVJPEG_CALL(nvjpegDecodePlanarGPU(handle,
+          image_desc,
+          NVJPEG_OUTPUT_YUV,
+          stream));
+
+    // copy & convert from YCbCr -> RGB
+    Npp8u *out_ptr = reinterpret_cast<Npp8u*>(output);
+    convertToRGB(
+        array<const Npp8u*, 3>{reinterpret_cast<const Npp8u*>(Y_[stream_idx].raw_data()),
+        reinterpret_cast<const Npp8u*>(Cb_[stream_idx].raw_data()),
+        reinterpret_cast<const Npp8u*>(Cr_[stream_idx].raw_data())},
+        array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr},  // steps
+        info.c,
+        info.c * info.nWidthY,  // RGB step
+        out_ptr,  // output
+        info.nHeightY, info.nWidthY,  // output H, W
+        output_sampling_[i],   // sampling type
+        stream);
+
+    // WriteHWCImage(out_ptr, info.nHeightY, info.nWidthY, info.c, "tmp_new");
+    CUDA_CALL(cudaStreamSynchronize(stream));
+  }
+
   /**
    * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
    */
-  void OCVFallback(int i, const uint8_t* data, int size,
+  void OCVFallback(const uint8_t* data, int size,
                    uint8_t *decoded_device_data, cudaStream_t s) {
     const int c = (output_type_ == NDLL_GRAY) ? 1 : 3;
     auto decode_type = (output_type_ == NDLL_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE \
@@ -287,29 +349,32 @@ class nvJPEGDecoder : public Operator {
                               cudaMemcpyHostToDevice, s));
   }
 
-  nvjpegHandle_t handle_;
+  vector<nvjpegHandle_t> handles_;
+  vector<cudaStream_t> streams_;
+  vector<cudaEvent_t> events_;
 
   // output colour format
   NDLLImageType output_type_;
 
   // maximum number of streams to use to decode + convert
-  const int max_streams_ = num_threads_;
+  const int max_streams_;
 
+  // Storage for individual output components (per-stream)
   vector<Tensor<GPUBackend>> Y_;
   vector<Tensor<GPUBackend>> Cb_;
   vector<Tensor<GPUBackend>> Cr_;
 
-  struct ImageInfo {
-    int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
-  };
-
+ protected:
   // Storage for per-image info
   vector<Dims> output_shape_;
   vector<nvjpegChromaSubsampling> output_sampling_;
-  vector<ImageInfo> output_info_;
+  vector<EncodedImageInfo> output_info_;
 
   // Images that nvjpeg can't handle
   std::map<int, bool> ocv_fallback_indices_;
+
+  // Thread pool
+  ThreadPool thread_pool_;
 };
 
 }  // namespace ndll
