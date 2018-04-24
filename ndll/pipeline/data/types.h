@@ -53,6 +53,8 @@ inline std::string to_string(const NDLLDataType& dtype) {
       return "NO TYPE";
     case NDLL_UINT8:
       return "UINT8";
+    case NDLL_UINT32:
+      return "UINT32";
     case NDLL_INT16:
       return "INT16";
     case NDLL_INT32:
@@ -67,6 +69,18 @@ inline std::string to_string(const NDLLDataType& dtype) {
       return "FLOAT64";
     case NDLL_BOOL:
       return "BOOL";
+    case NDLL_NPPI_POINT:
+      return "NPPI_POINT";
+    case NDLL_NPPI_SIZE:
+      return "NPPI_SIZE";
+    case NDLL_NPPI_RECT_SIZE:
+      return "NPPI_RECT";
+    case NDLL_UINT8_PNTR:
+      return "UINT8_PNTR";
+    case NDLL_RESIZE_MAPPING:
+      return "RESIZE_MAPPING";
+    case NDLL_PIX_MAPPING:
+      return "PIX_MAPPING";
     case NDLL_INTERNAL_C_UINT8_P:
     case NDLL_INTERNAL_PARSEDJPEG:
     case NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM:

@@ -44,15 +44,15 @@ void ResizeAttr::SetSize(NDLLSize *in_size, const vector<Index> &shape,
 void ResizeAttr::DefineCrop(NDLLSize *out_size, int *pCropX, int *pCropY) const {
     // Set crop parameters
     if (random_crop_) {
-        *pCropX = randomUniform(out_size->width - crop_w_);
-        *pCropY = randomUniform(out_size->height - crop_h_);
+        *pCropX = randomUniform(out_size->width - crop_[0]);
+        *pCropY = randomUniform(out_size->height - crop_[1]);
     } else {
-        *pCropX = (out_size->width - crop_w_) / 2;
-        *pCropY = (out_size->height - crop_h_) / 2;
+        *pCropX = (out_size->width - crop_[0]) / 2;
+        *pCropY = (out_size->height - crop_[1]) / 2;
     }
 
-    out_size->width = crop_w_;
-    out_size->height = crop_h_;
+    out_size->width = crop_[0];
+    out_size->height = crop_[1];
 }
 
 }  // namespace ndll

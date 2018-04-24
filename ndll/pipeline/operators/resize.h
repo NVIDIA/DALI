@@ -49,12 +49,12 @@ void CollectPointersForExecution(size_t batch_size,
           TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 
 template <typename T>
-void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char *argName, T defVal, bool doubleArg = true) {
+void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char *argName, bool doubleArg = true) {
     try {
         *arg = spec.GetRepeatedArgument<T>(argName);
     } catch (std::runtime_error e) {
         try {
-            *arg = {spec.GetArgument<T>(argName, defVal)};
+            *arg = {spec.GetArgument<T>(argName)};
         } catch (std::runtime_error e) {
             NDLL_FAIL("Invalid type of argument \"" + argName + "\"");
         }
@@ -68,18 +68,17 @@ class ResizeAttr {
  public:
     explicit inline ResizeAttr(const OpSpec &spec) :
             rand_gen_(time(nullptr)),
-            random_resize_(spec.GetArgument<bool>("random_resize", false)),
-            warp_resize_(spec.GetArgument<bool>("warp_resize", false)),
-            image_type_(spec.GetArgument<NDLLImageType>("image_type", NDLL_RGB)),
+            random_resize_(spec.GetArgument<bool>("random_resize")),
+            warp_resize_(spec.GetArgument<bool>("warp_resize")),
+            image_type_(spec.GetArgument<NDLLImageType>("image_type")),
             color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
-            random_crop_(spec.GetArgument<bool>("random_crop", false)),
-            crop_h_(spec.GetArgument<int>("crop_h", -1)),
-            crop_w_(spec.GetArgument<int>("crop_w", -1)),
-            type_(spec.GetArgument<NDLLInterpType>("interp_type", NDLL_INTERP_LINEAR)) {
-        resize_.first = spec.GetArgument<int>("resize_a", -1);
-        resize_.second = spec.GetArgument<int>("resize_b", -1);
+            random_crop_(spec.GetArgument<bool>("random_crop")),
+            type_(spec.GetArgument<NDLLInterpType>("interp_type")) {
+        resize_.first = spec.GetArgument<int>("resize_a");
+        resize_.second = spec.GetArgument<int>("resize_b");
 
-        GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", 0.f, false);
+        GetSingleOrDoubleArg(spec, &crop_, "crop");
+        GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
 
         // Validate input parameters
         NDLL_ENFORCE(resize_.first > 0 && resize_.second > 0);
@@ -105,8 +104,8 @@ class ResizeAttr {
     void DefineCrop(NDLLSize *out_size, int *pCropX, int *pCropY) const;
 
     bool CropNeeded(const NDLLSize &out_size) const {
-        return 0 < crop_h_ && crop_h_ <= out_size.height &&
-               0 < crop_w_ && crop_w_ <= out_size.width;
+        return 0 < crop_[1] && crop_[1] <= out_size.height &&
+               0 < crop_[0] && crop_[0] <= out_size.width;
     }
 
     void MirrorNeeded(NppiPoint *pntr) const {
@@ -143,7 +142,7 @@ protected:
     int C_;
 
     bool random_crop_;
-    int crop_h_, crop_w_;
+    vector<int>crop_;
     vector<float> mirror_prob_;
 
     // Interpolation type
@@ -218,7 +217,7 @@ class Resize : public Operator, public ResizeAttr {
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, sizes(input_t).data(),
         output_ptrs_.data(), sizes(output_t).data(),
-        type_, resizeParam_.data());
+        type_);
     nppSetStream(old_stream);
   }
 
