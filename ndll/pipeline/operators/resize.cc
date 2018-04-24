@@ -16,7 +16,7 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .AddArg("resize_a", "Lower bound for resize")
   .AddArg("resize_b", "Upper bound for resize")
   .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
-  .AddArg("crop", "Size of the cropped image")
+  .AddOptionalArg("crop", "Size of the cropped image", -1)
   .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB)
   .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR);
 
