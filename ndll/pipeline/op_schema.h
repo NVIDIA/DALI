@@ -103,13 +103,8 @@ class OpSchema {
   /**
    * @brief Adds a required argument to op
    */
-  inline OpSchema& AddArg(std::string s, std::string doc) {
-    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
-        "\" is reserved for internal use");
+  inline OpSchema& AddArg(const std::string &s, const std::string &doc) {
+    CheckArgument(s);
     arguments_[s] = doc;
     return *this;
   }
@@ -121,13 +116,8 @@ class OpSchema {
   inline typename std::enable_if<
     !is_vector<T>::value && !is_array<T>::value,
     OpSchema&>::type
-  AddOptionalArg(std::string s, std::string doc, T default_value) {
-    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
-        "\" is reserved for internal use");
+  AddOptionalArg(const std::string &s, const std::string &doc, T default_value) {
+    CheckArgument(s);
     std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
     Value * to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(stored_doc, to_store);
@@ -138,13 +128,9 @@ class OpSchema {
    * @brief Adds an optional vector argument to op
    */
   template <typename T>
-  inline OpSchema& AddOptionalArg(std::string s, std::string doc, std::vector<T> default_value) {
-    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(optional_arguments_.find(s) == optional_arguments_.end(), "Argument \"" + s +
-        "\" already added to the schema");
-    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(), "Argument name \"" + s +
-        "\" is reserved for internal use");
+  inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
+                                  std::vector<T> default_value) {
+    CheckArgument(s);
     std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
     Value * to_store = Value::construct(std::vector<T>(default_value));
     optional_arguments_[s] = std::make_pair(stored_doc, to_store);
@@ -159,6 +145,12 @@ class OpSchema {
     REPORT_FATAL_PROBLEM("In-place op support not yet implemented.");
     return *this;
   }
+
+  /**
+   * @brief Sets a parent (which could be used as a storage of default parameters
+   */
+  inline void setParentSchema(OpSchema *parent)      { parent_ = parent; }
+  inline const OpSchema *parentSchema() const        { return parent_; }
 
   inline string Dox() const {
     std::string ret = dox_;
@@ -207,7 +199,7 @@ class OpSchema {
     }
     for (std::string s : vec) {
       NDLL_ENFORCE(arguments_.find(s) != arguments_.end() ||
-          optional_arguments_.find(s) != optional_arguments_.end() ||
+          OptionalArgumentExists(s) ||
           s == "device",
           "Got an unexpected argument \"" + s + "\"");
       std::set<std::string>::iterator it = req_arguments_left.find(s);
@@ -228,12 +220,13 @@ class OpSchema {
   }
 
   template<typename T>
-  inline T GetDefaultValueForOptionalArgument(std::string s) const {
-    NDLL_ENFORCE(optional_arguments_.find(s) != optional_arguments_.end() ||
+  inline T GetDefaultValueForOptionalArgument(const std::string &s) const {
+    const bool argFound = OptionalArgumentExists(s);
+    NDLL_ENFORCE(argFound ||
         internal_arguments_.find(s) != internal_arguments_.end(),
         "Default value does not exist for argument \"" + s + "\"");
     Value * v;
-    if (optional_arguments_.find(s) != optional_arguments_.end()) {
+    if (argFound) {
       auto arg_pair = *optional_arguments_.find(s);
       v = arg_pair.second.second;
     } else {
@@ -245,7 +238,21 @@ class OpSchema {
     return vT->Get();
   }
 
+  bool OptionalArgumentExists(const std::string &s) const {
+    return optional_arguments_.find(s) != optional_arguments_.end();
+  }
+
  private:
+  inline bool CheckArgument(const std::string &s) {
+    NDLL_ENFORCE(arguments_.find(s) == arguments_.end(),
+                 "Argument \"" + s + "\" already added to the schema");
+    NDLL_ENFORCE(!OptionalArgumentExists(s),
+                 "Argument \"" + s + "\" already added to the schema");
+    NDLL_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(),
+                 "Argument name \"" + s + "\" is reserved for internal use");
+    return true;
+  }
+
   string dox_;
   SpecFunc output_fn_, in_place_fn_;
 
@@ -253,6 +260,7 @@ class OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
+  OpSchema *parent_ = NULL;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
@@ -261,17 +269,26 @@ class OpSchema {
 
 class SchemaRegistry {
  public:
-  static OpSchema& RegisterSchema(std::string name) {
+  static OpSchema& RegisterSchema(const std::string &name, const char *parentName = NULL) {
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
         "registered for operator '" + name + "'. NDLL_OPERATOR_SCHEMA(op) "
         "should only be called once per op.");
 
+    if (parentName) {
+      NDLL_ENFORCE(schema_map.count(parentName) != 0, "ParentSchema '" + std::string(parentName) +
+           "' for OpSchema '" + name + "' is not registered");
+    }
+
     // Insert the op schema and return a reference to it
-    return schema_map[name];
+    OpSchema &schema = schema_map[name];
+    if (parentName)
+      schema.setParentSchema(&GetSchema(parentName));
+
+    return schema;
   }
 
-  static OpSchema& GetSchema(std::string name) {
+  static OpSchema& GetSchema(const std::string &name) {
     auto &schema_map = registry();
     auto it = schema_map.find(name);
     NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +
@@ -285,12 +302,18 @@ class SchemaRegistry {
   static std::map<string, OpSchema>& registry();
 };
 
-#define NDLL_OPERATOR_SCHEMA(OpName)                       \
-  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {       \
-    return 42;                                        \
-  }                                                   \
-  static OpSchema* ANONYMIZE_VARIABLE(OpName) =       \
-    &SchemaRegistry::RegisterSchema(#OpName)          \
+#define NDLL_OPERATOR_SCHEMA_REG(OpName, ParentOpName)      \
+  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
+    return 42;                                              \
+  }                                                         \
+  static OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
+    &SchemaRegistry::RegisterSchema(#OpName, ParentOpName)
+
+#define NDLL_OPERATOR_SCHEMA(OpName)                            \
+      NDLL_OPERATOR_SCHEMA_REG(OpName, NULL)
+
+#define NDLL_OPERATOR_SCHEMA_WITH_PARENT(OpName, ParentOpName)  \
+      NDLL_OPERATOR_SCHEMA_REG(OpName, #ParentOpName)
 
 }  // namespace ndll
 
