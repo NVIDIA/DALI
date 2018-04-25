@@ -14,7 +14,7 @@ NDLL_OPERATOR_SCHEMA(ColorTwist)
 NDLL_REGISTER_OPERATOR(ColorIntensity, ColorIntensity<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(ColorIntensity, ColorIntensity<GPUBackend>, GPU);
 
-NDLL_OPERATOR_SCHEMA(ColorIntensity)
+NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorIntensity, ColorTwist)
     .DocStr("Foo")
     .NumInput(1)
     .NumOutput(1)
@@ -27,7 +27,7 @@ NDLL_OPERATOR_SCHEMA(ColorIntensity)
 NDLL_REGISTER_OPERATOR(ColorOffset, ColorOffset<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(ColorOffset, ColorOffset<GPUBackend>, GPU);
 
-NDLL_OPERATOR_SCHEMA(ColorOffset)
+NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorOffset, ColorTwist)
     .DocStr("Foo")
     .NumInput(1)
     .NumOutput(1)
@@ -40,7 +40,7 @@ NDLL_OPERATOR_SCHEMA(ColorOffset)
 NDLL_REGISTER_OPERATOR(HueSaturation, HueSaturation<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(HueSaturation, HueSaturation<GPUBackend>, GPU);
 
-NDLL_OPERATOR_SCHEMA(HueSaturation)
+NDLL_OPERATOR_SCHEMA_WITH_PARENT(HueSaturation, ColorTwist)
     .DocStr("Foo")
     .NumInput(1)
     .NumOutput(1)
@@ -51,7 +51,7 @@ NDLL_OPERATOR_SCHEMA(HueSaturation)
 NDLL_REGISTER_OPERATOR(ColorContrast, ColorContrast<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(ColorContrast, ColorContrast<GPUBackend>, GPU);
 
-NDLL_OPERATOR_SCHEMA(ColorContrast)
+NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorContrast, ColorTwist)
     .DocStr("Foo")
     .NumInput(1)
     .NumOutput(1)
@@ -202,6 +202,8 @@ bool hue_saturation_matrix(float hue, float saturation, float transf_matr[][4]) 
 
   return true;
 }
+
+#if !NEW_RESIZE_IMPLEMENTED
 
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                            Tensor<CPUBackend> *output, const char *pOpName,
@@ -364,6 +366,6 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
   CollectPointersForExecution(reshapeBatch ? 1 : batch_size, input, inPtrs, output, outPtrs);
   return newResize;
 }
-
+#endif
 
 }  // namespace ndll

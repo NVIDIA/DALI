@@ -189,14 +189,18 @@ class OpSpec {
    * not exist.
    */
   template <typename T>
-  inline T GetArgument(const string &name) const;
+  inline T GetArgument(const string &name) const {
+    return GetArgument<T, T>(name);
+  }
 
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  inline vector<T> GetRepeatedArgument(const string &name) const;
+  inline std::vector<T> GetRepeatedArgument(const string &name) const {
+    return GetArgument<T, std::vector<T>>(name);
+  }
 
   inline StrPair* mutable_input(int idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, NumInput());
@@ -262,6 +266,9 @@ class OpSpec {
   }
 
  private:
+  template <typename T, typename S>
+  inline S GetArgument(const string &name) const;
+
   string name_;
   std::unordered_map<string, Argument*> arguments_;
 
@@ -269,30 +276,24 @@ class OpSpec {
   vector<StrPair> inputs_, outputs_;
 };
 
-template <typename T>
-inline T OpSpec::GetArgument(const string &name) const {
+template <typename T, typename S>
+inline S OpSpec::GetArgument(const string &name) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
 
   if (arg_it == arguments_.end()) {
-    OpSchema& schema = SchemaRegistry::GetSchema(this->name());
-    return schema.GetDefaultValueForOptionalArgument<T>(name);
+    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema *pSchema = &schema;
+    while (pSchema && !pSchema->OptionalArgumentExists(name))
+      pSchema = pSchema->parentSchema();
+
+    if (!pSchema)         // Parent Schema with valid default value of argument was not found
+      pSchema = &schema;  // Use pointer of the initial Schema
+
+    return pSchema->GetDefaultValueForOptionalArgument<S>(name);
   }
 
-  return arg_it->second->template Get<T>();
-}
-
-template <typename T>
-inline vector<T> OpSpec::GetRepeatedArgument(const string &name) const {
-  // Search for the argument by name
-  auto arg_it = arguments_.find(name);
-
-  if (arg_it == arguments_.end()) {
-    OpSchema& schema = SchemaRegistry::GetSchema(this->name());
-    return schema.GetDefaultValueForOptionalArgument<vector<T>>(name);
-  }
-
-  return arg_it->second->template Get<vector<T>>();
+  return arg_it->second->template Get<S>();
 }
 
 #define INSTANTIATE_ARGUMENT_AS_INT64(T)                                              \
