@@ -18,7 +18,7 @@ NDLL_OPERATOR_SCHEMA(NewResize)
     .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
     .AddOptionalArg("crop", "Size of the cropped image", -1)
     .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
-                    "vertical flip of the image", 0.0f)
+                    "vertical flip of the image", vector<float>{0.f, 0.f})
     .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR);
 
 NDLL_REGISTER_TYPE(ResizeMapping, NDLL_RESIZE_MAPPING);
