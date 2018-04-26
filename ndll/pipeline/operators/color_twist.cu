@@ -1,7 +1,8 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
-#include <nppdefs.h>
 #include "ndll/pipeline/operators/color_twist.h"
+#include <vector>
+#include <string>
 
 namespace ndll {
 

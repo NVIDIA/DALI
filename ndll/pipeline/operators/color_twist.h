@@ -3,11 +3,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COLOR_TWIST_H_
 #define NDLL_PIPELINE_OPERATORS_COLOR_TWIST_H_
 
-#include <ctgmath>
-#include <vector>
-#include <string>
 #include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/operators/displacement_filter.h"
 
 namespace ndll {
 
