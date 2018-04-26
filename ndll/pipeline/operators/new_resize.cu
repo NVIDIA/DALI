@@ -3,6 +3,8 @@
 #include "ndll/pipeline/operators/new_resize.h"
 #include <float.h>
 #include <assert.h>
+#include <string>
+#include <vector>
 
 namespace ndll {
 
