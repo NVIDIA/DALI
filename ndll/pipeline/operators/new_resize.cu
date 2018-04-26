@@ -1,12 +1,8 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 
 #include "ndll/pipeline/operators/new_resize.h"
-#include "resize.h"
 #include <float.h>
 #include <assert.h>
-#include <npp.h>
-#include <string>
-#include <vector>
 
 namespace ndll {
 
@@ -243,7 +239,7 @@ class PixMappingHelper {
 };
 
 __global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDescr,
-                                     MappingInfo *mapPntr[], MappingInfo **mappingMem, size_t step) {
+                      MappingInfo *mapPntr[], MappingInfo **mappingMem, size_t step) {
   size_t idx = blockIdx.x;
   mapPntr[idx] = mappingMem[idx];
   if (mapPntr[idx]) {
@@ -258,7 +254,7 @@ __global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDe
 }
 
 __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
-                                      const NDLLSize *in_sizes, int W0, MappingInfo *pResizeMapping[]) {
+                       const NDLLSize *in_sizes, int W0, MappingInfo *pResizeMapping[]) {
   const int imagIdx = blockIdx.x;
   auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
   if (in_sizes)

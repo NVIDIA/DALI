@@ -7,7 +7,6 @@
 #include <random>
 #include <ctgmath>
 #include <vector>
-#include <npps.h>
 
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/resize.h"
@@ -332,7 +331,6 @@ class NewResize : public Resize<Backend> {
     }
 
     if (congenericBatch) {
-
       if (newMapping) {
         // Copying the descriptor of operation into GPU
         resizeParamGPU_.Copy(vector<ResizeGridParam>(
@@ -357,142 +355,142 @@ class NewResize : public Resize<Backend> {
       }
 #endif
 
-      NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
-                    sizeIn, input.template data<uint8>(),
-                    sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
-                    RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
-                    mapPntr, mapMemGPU_, pResizeMapping, pPixMapping, newMapping));
-      } else {
-        resizeParamGPU_.Copy(resizeParam_, s);
+    NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
+                  sizeIn, input.template data<uint8>(),
+                  sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
+                  RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
+                  mapPntr, mapMemGPU_, pResizeMapping, pPixMapping, newMapping));
+    } else {
+      resizeParamGPU_.Copy(resizeParam_, s);
 
-        vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
-                                     ResizeAttr::outputImages()};
+      vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
+                                   ResizeAttr::outputImages()};
 
-        for (int i = input_t; i <= output_t; i++) {
-            const auto &sizes = ResizeAttr::sizes(static_cast<io_type >(i));
-            TENSOR_COPY(sizesGPU_[i], sizes, s);
-            TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
-        }
-
-        NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
-                                sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
+      for (int i = input_t; i <= output_t; i++) {
+          const auto &sizes = ResizeAttr::sizes(static_cast<io_type >(i));
+          TENSOR_COPY(sizesGPU_[i], sizes, s);
+          TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
       }
+
+      NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
+                              sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
     }
+  }
 
  private:
-   MappingInfo **CopyResizeTableToGPU(size_t resizeMemory[], cudaStream_t s,
+  MappingInfo **CopyResizeTableToGPU(size_t resizeMemory[], cudaStream_t s,
                                       size_t nTable = 1, size_t nSliceNumb = 1) {
-     MappingInfo *mapMem[BATCH_SLICE_NUMB];
-     for (size_t i = 0; i < nSliceNumb; ++i) {
-       if (resizeMemory[i] == UINT_MAX) {
-         // Resize tables will not be constructed for that batch slice
-         mapMem[i] = NULL;
-         continue;
-       }
+    MappingInfo *mapMem[BATCH_SLICE_NUMB];
+    for (size_t i = 0; i < nSliceNumb; ++i) {
+      if (resizeMemory[i] == UINT_MAX) {
+        // Resize tables will not be constructed for that batch slice
+        mapMem[i] = NULL;
+        continue;
+      }
 
-       if (resizeMemory_[i] < resizeMemory[i]) {
-           resizeMemory_[i] = resizeMemory[i];
+      if (resizeMemory_[i] < resizeMemory[i]) {
+        resizeMemory_[i] = resizeMemory[i];
 
-            // Re-allocate memory needed for all resize tables of the i-th batch slice
-         CUDA_CALL(cudaFree(mapMem_[i]));
+        // Re-allocate memory needed for all resize tables of the i-th batch slice
+        CUDA_CALL(cudaFree(mapMem_[i]));
 
-         const size_t length = resizeMemory_[i] * sizeof(mapMem_[0]);
-         CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(mapMem_ + i), length));
-       }
+        const size_t length = resizeMemory_[i] * sizeof(mapMem_[0]);
+        CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(mapMem_ + i), length));
+      }
 
-       mapMem[i] = mapMem_[i];
-     }
+      mapMem[i] = mapMem_[i];
+    }
 
-     const size_t len = nSliceNumb * sizeof(mapMemGPU_[0]);
-     if (!mappingPntr_) {
-       const size_t length = nTable * sizeof(mappingPntr_[0]);
-       CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mappingPntr_), length));
-       CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mapMemGPU_), len));
-     }
+    const size_t len = nSliceNumb * sizeof(mapMemGPU_[0]);
+    if (!mappingPntr_) {
+      const size_t length = nTable * sizeof(mappingPntr_[0]);
+      CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mappingPntr_), length));
+      CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mapMemGPU_), len));
+    }
 
-     CUDA_CALL(cudaMemcpyAsync(mapMemGPU_, mapMem, len, cudaMemcpyHostToDevice, s));
-     return mappingPntr_;
-   }
+    CUDA_CALL(cudaMemcpyAsync(mapMemGPU_, mapMem, len, cudaMemcpyHostToDevice, s));
+    return mappingPntr_;
+  }
 
-   bool PrepareCropAndResize(const NDLLSize *input_size, NDLLSize *out_size, int C,
-                             ResizeGridParam resizeParam[],
-                             ResizeMappingTable *ppResizeTbl = NULL) const {
-     NDLLSize out_resize(*out_size);
-     int cropY, cropX;
-     const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
-     if (doingCrop)
-       ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
-     else
-       cropY = cropX = 0;
+  bool PrepareCropAndResize(const NDLLSize *input_size, NDLLSize *out_size, int C,
+                           ResizeGridParam resizeParam[],
+                           ResizeMappingTable *ppResizeTbl = NULL) const {
+    NDLLSize out_resize(*out_size);
+    int cropY, cropX;
+    const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
+    if (doingCrop)
+     ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
+    else
+     cropY = cropX = 0;
 
-     resizeParam[2] = {cropX, cropY};
+    resizeParam[2] = {cropX, cropY};
 
-     return CreateResizeGrid(*input_size, out_resize, C, resizeParam, ppResizeTbl);
-   }
+    return CreateResizeGrid(*input_size, out_resize, C, resizeParam, ppResizeTbl);
+  }
 
-   bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
-                          ResizeGridParam resizeParam[],
-                          ResizeMappingTable *ppResizeTbl = NULL) const {
-     const int H0 = input_size.height;
-     const int H1 = out_size.height;
-     const int W0 = input_size.width;
-     const int W1 = out_size.width;
+  bool CreateResizeGrid(const NDLLSize &input_size, const NDLLSize &out_size, int C,
+                        ResizeGridParam resizeParam[],
+                        ResizeMappingTable *ppResizeTbl = NULL) const {
+    const int H0 = input_size.height;
+    const int H1 = out_size.height;
+    const int W0 = input_size.width;
+    const int W1 = out_size.width;
 
-     int lcm(int a, int b);
-     const int lcmH = lcm(H0, H1);
-     const int lcmW = lcm(W0, W1);
+    int lcm(int a, int b);
+    const int lcmH = lcm(H0, H1);
+    const int lcmW = lcm(W0, W1);
 
-     bool newResize = resizeParam[0].x != lcmW / W0 || resizeParam[0].y != lcmH / H0 ||
-                      resizeParam[1].x != lcmW / W1 || resizeParam[1].y != lcmH / H1;
+    bool newResize = resizeParam[0].x != lcmW / W0 || resizeParam[0].y != lcmH / H0 ||
+                    resizeParam[1].x != lcmW / W1 || resizeParam[1].y != lcmH / H1;
 
-     if (newResize) {
-       resizeParam[0] = {lcmW / W0, lcmH / H0};
-       resizeParam[1] = {lcmW / W1, lcmH / H1};
-     }
+    if (newResize) {
+     resizeParam[0] = {lcmW / W0, lcmH / H0};
+     resizeParam[1] = {lcmW / W1, lcmH / H1};
+    }
 
-     if (newResize && ppResizeTbl)
-       ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::type_);
+    if (newResize && ppResizeTbl)
+     ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::type_);
 
-     return newResize;
-   }
+    return newResize;
+  }
 
-   bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
-        // Check if all input sizes are the same
-     const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
+  bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
+      // Check if all input sizes are the same
+    const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
 
-     const auto pImages = *ResizeAttr::outputImages();
-     const auto pFirstBatchImage = pImages[0];
+    const auto pImages = *ResizeAttr::outputImages();
+    const auto pFirstBatchImage = pImages[0];
 
-     int i = batch_size_;
-     while (--i > 0) {
-       const auto inSize = *ResizeAttr::size(input_t, i);
-       if (!SAME_SIZES(inSize, sizeIn))
-         break;
+    int i = batch_size_;
+    while (--i > 0) {
+      const auto inSize = *ResizeAttr::size(input_t, i);
+      if (!SAME_SIZES(inSize, sizeIn))
+       break;
 
-       const auto outSize = *ResizeAttr::size(output_t, i);
-       if (!SAME_SIZES(outSize, sizeOut))
-         break;
+      const auto outSize = *ResizeAttr::size(output_t, i);
+      if (!SAME_SIZES(outSize, sizeOut))
+       break;
 
-       if (pImages[i] != pFirstBatchImage + i * imageSize)
-         break;
-     }
+      if (pImages[i] != pFirstBatchImage + i * imageSize)
+       break;
+    }
 
-     return i == 0;
-   }
+    return i == 0;
+  }
 
-   // Members used in RunBatchedGPU;
-   ResizeMappingTable resizeTbl_;
-                                            // Memory allocated for:
-   vector<ResizeGridParam>resizeParam_;     //     Resizing grid AND mirroring parameters on CPU
-   ResizeGridDescr resizeParamGPU_;         //                                            on GPU
-   MirroringDescr mirrorParamGPU_;
-   ImgSizeDescr sizesGPU_[2];               //     Input/Output images sizes on GPU
-   ImgRasterDescr imgsGPU_[2];              //     Input/Output images rasters on GPU
-   size_t resizeMemory_[BATCH_SLICE_NUMB];  //     total length of simplified resize tables
-   MappingInfo *mapMem_[BATCH_SLICE_NUMB];  //     all resize tables of the batch slices on CPU
-   MappingInfo **mapMemGPU_;                //     all resize tables of the batch slices on GPU
-   MappingInfo **mappingPntr_;              //     all resize tables for batch images on GPU
-   USE_OPERATOR_MEMBERS();
+  // Members used in RunBatchedGPU;
+  ResizeMappingTable resizeTbl_;
+                                          // Memory allocated for:
+  vector<ResizeGridParam>resizeParam_;     //     Resizing grid AND mirroring parameters on CPU
+  ResizeGridDescr resizeParamGPU_;         //                                            on GPU
+  MirroringDescr mirrorParamGPU_;
+  ImgSizeDescr sizesGPU_[2];               //     Input/Output images sizes on GPU
+  ImgRasterDescr imgsGPU_[2];              //     Input/Output images rasters on GPU
+  size_t resizeMemory_[BATCH_SLICE_NUMB];  //     total length of simplified resize tables
+  MappingInfo *mapMem_[BATCH_SLICE_NUMB];  //     all resize tables of the batch slices on CPU
+  MappingInfo **mapMemGPU_;                //     all resize tables of the batch slices on GPU
+  MappingInfo **mappingPntr_;              //     all resize tables for batch images on GPU
+  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace ndll
