@@ -203,7 +203,7 @@ void Executor::RunGPU() {
   // issued. Notify any waiting threads.
   std::unique_lock<std::mutex> lock(ready_mutex_);
   ready_queue_.push(queue_idx);
-  ready_cond_.notify_one();
+  ready_cond_.notify_all();
   lock.unlock();
 
   // Save the queue_idx so we can enforce the
@@ -223,6 +223,12 @@ void Executor::Outputs(DeviceWorkspace *ws) {
     in_use_queue_.pop();
     free_cond_.notify_one();
     lock.unlock();
+  }
+
+  if (exec_error_) {
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+    throw std::runtime_error(error);
   }
 
   // Block until the work for a batch has been issued.

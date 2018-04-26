@@ -45,11 +45,11 @@ class GPUAllocator : public AllocatorBase {
   explicit GPUAllocator(const OpSpec &spec) : AllocatorBase(spec) {}
   virtual ~GPUAllocator() = default;
 
-  void New(void **ptr, size_t bytes) override {
+  virtual void New(void **ptr, size_t bytes) {
     CUDA_CALL(cudaMalloc(ptr, bytes));
   }
 
-  void Delete(void *ptr, size_t /* unused */) override {
+  virtual void Delete(void *ptr, size_t /* unused */) {
     CUDA_CALL(cudaFree(ptr));
   }
 };

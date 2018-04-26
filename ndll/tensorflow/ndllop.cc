@@ -3,6 +3,10 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
+#include "ndll/tensorflow/tfallocator.h"
+
+#include "ndll/pipeline/ndll.pb.h"
+#include "ndll/pipeline/pipeline.h"
 #include "ndll/c_api/c_api.h"
 #include "ndll/common.h"
 
@@ -40,6 +44,7 @@ class NdllOp : public tf::OpKernel {
  public:
   explicit NdllOp(tf::OpKernelConstruction* context)
     : OpKernel(context) {
+
     std::string serialized_pipeline;
     OP_REQUIRES_OK(context, context->GetAttr("serialized_pipeline", &serialized_pipeline));
 
@@ -60,6 +65,9 @@ class NdllOp : public tf::OpKernel {
                    num_threads,
                    device_id);
 
+    SetupTFAllocator();
+    UpdateTFAllocaterContext<tf::OpKernelConstruction>(context);
+
     LOG_LINE << "Pipeline created\n";
     Run(&pipe_handle_);
     LOG_LINE << "After first run\n";
@@ -71,10 +79,13 @@ class NdllOp : public tf::OpKernel {
 
   void Compute(tf::OpKernelContext* context) override {
     LOG_LINE << "Computing...\n";
-    Run(&pipe_handle_);
-    LOG_LINE << "Computing...\n";
-    Output(&pipe_handle_);
+    std::cout << context << " " << context->num_inputs() << std::endl;
+    UpdateTFAllocaterContext<tf::OpKernelContext>(context);
 
+    LOG_LINE << "Updated context\n";
+    Run(&pipe_handle_);
+    LOG_LINE << "Before output...\n";
+    Output(&pipe_handle_);
     LOG_LINE << "After output...\n";
 
     // Classification

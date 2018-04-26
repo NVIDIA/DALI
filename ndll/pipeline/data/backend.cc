@@ -64,6 +64,11 @@ class AllocatorManager {
       .Create(allocator.name(), allocator);
   }
 
+  static void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    gpu_allocator_ = std::move(allocator);
+  }
+
  private:
   // AllocatorManager should be accessed through its static members
   AllocatorManager() {}
@@ -96,6 +101,14 @@ void SetPinnedCPUAllocator(const OpSpec& allocator) {
 
 void SetGPUAllocator(const OpSpec& allocator) {
   AllocatorManager::SetGPUAllocator(allocator);
+}
+
+void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator) {
+  AllocatorManager::SetGPUAllocator(std::move(allocator));
+}
+
+GPUAllocator& GetGPUAllocator() {
+  return AllocatorManager::GetGPUAllocator();
 }
 
 void* GPUBackend::New(size_t bytes, bool) {

@@ -18,6 +18,9 @@ void InitializeBackends(const OpSpec &cpu_allocator,
 void SetCPUAllocator(const OpSpec& allocator);
 void SetPinnedCPUAllocator(const OpSpec& allocator);
 void SetGPUAllocator(const OpSpec& allocator);
+void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
+
+GPUAllocator& GetGPUAllocator();
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */
