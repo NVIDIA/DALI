@@ -233,7 +233,7 @@ class nvJPEGDecoder : public Operator {
 
       thread_pool_.DoWorkWithID(std::bind(
             [this, info, data, in_size, output_data, count](int idx, int tid) {
-              const int stream_idx = idx % this->max_streams_;
+              const int stream_idx = tid;
               DecodeSample(idx,
                            stream_idx,
                            handles_[stream_idx],
@@ -242,11 +242,11 @@ class nvJPEGDecoder : public Operator {
                            output_data,
                            (count > 0),  // Fallback if true
                            streams_[stream_idx]);
+              CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
             }, i, std::placeholders::_1));
-
-      // Make sure work is finished being submitted
-      thread_pool_.WaitForWork();
     }
+    // Make sure work is finished being submitted
+    thread_pool_.WaitForWork();
 
     // ensure we're consistent with the main op stream
     for (int i = 0; i < max_streams_; ++i) {
