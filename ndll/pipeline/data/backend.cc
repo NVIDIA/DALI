@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <memory>
+#include <utility>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"

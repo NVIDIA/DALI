@@ -2,6 +2,11 @@
 #ifndef NDLL_TENSORFLOW_TFALLOCATOR_H_
 #define NDLL_TENSORFLOW_TFALLOCATOR_H_
 
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <unordered_map>
+
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
@@ -11,9 +16,6 @@
 #include "ndll/pipeline/c_api.h"
 #include "ndll/pipeline/op_spec.h"
 #include "ndll/pipeline/data/backend.h"
-
-#include <cstdint>
-#include <memory>
 
 namespace tf = tensorflow;
 
@@ -31,7 +33,6 @@ class TFGPUAllocator : public GPUAllocator {
     LOG_LINE << "[Allocating with TF]\n";
     std::shared_ptr<tf::PersistentTensor> t = std::make_shared<tf::PersistentTensor>();
     tf::TensorShape shape;
-    LOG_LINE << "bytes " << bytes << "\n"; 
     shape.AddDim(bytes);
     tf::Tensor* unused;
     tf::Status status;
@@ -72,10 +73,12 @@ class TFGPUAllocator : public GPUAllocator {
   void* GetData(std::shared_ptr<tf::PersistentTensor> t) {
     if (context_ == nullptr) {
       return const_cast<void*>(
-          reinterpret_cast<const void*>(t->AccessTensor(construction_context_)->tensor_data().data()));
+          reinterpret_cast<const void*>(
+            t->AccessTensor(construction_context_)->tensor_data().data()));
     } else {
       return const_cast<void*>(
-          reinterpret_cast<const void*>(t->AccessTensor(context_)->tensor_data().data()));
+          reinterpret_cast<const void*>(
+            t->AccessTensor(context_)->tensor_data().data()));
     }
   }
 };
@@ -85,14 +88,15 @@ NDLL_DECLARE_OPTYPE_REGISTRY(TFGPUAllocator, TFGPUAllocator);
 }  // namespace ndll
 
 void SetupTFAllocator() {
-  ndll::OpSpec spec("TFGPUAllocator"); 
+  ndll::OpSpec spec("TFGPUAllocator");
   std::unique_ptr<ndll::GPUAllocator> allocator(new ndll::TFGPUAllocator(spec));
   ndll::SetGPUAllocator(std::move(allocator));
 }
 
 template <typename Ctx>
 void UpdateTFAllocaterContext(Ctx* context) {
-  ndll::TFGPUAllocator& tfGPUAllocator = dynamic_cast<ndll::TFGPUAllocator&>(ndll::GetGPUAllocator());
+  ndll::TFGPUAllocator& tfGPUAllocator = dynamic_cast<ndll::TFGPUAllocator&>(
+                                                        ndll::GetGPUAllocator());
   tfGPUAllocator.UpdateContext(context);
 }
 
