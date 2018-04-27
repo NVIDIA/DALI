@@ -131,10 +131,10 @@ bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
   }
 }
 
-class nvJPEGDecoder : public Operator {
+class nvJPEGDecoder : public Operator<Mixed> {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
-    Operator(spec),
+    Operator<Mixed>(spec),
     max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     Y_{max_streams_},
@@ -242,7 +242,6 @@ class nvJPEGDecoder : public Operator {
                            output_data,
                            (count > 0),  // Fallback if true
                            streams_[stream_idx]);
-              CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
             }, i, std::placeholders::_1));
     }
     // Make sure work is finished being submitted
@@ -285,6 +284,9 @@ class nvJPEGDecoder : public Operator {
           data,
           in_size));
 
+    // Ensure previous GPU work is finished
+    CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
+
     // Memcpy of Huffman co-efficients to device
     NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle, stream));
 
@@ -319,9 +321,6 @@ class nvJPEGDecoder : public Operator {
         info.nHeightY, info.nWidthY,  // output H, W
         output_sampling_[i],   // sampling type
         stream);
-
-    // WriteHWCImage(out_ptr, info.nHeightY, info.nWidthY, info.c, "tmp_new");
-    CUDA_CALL(cudaStreamSynchronize(stream));
   }
 
   /**
