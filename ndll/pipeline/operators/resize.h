@@ -35,18 +35,6 @@ class ResizeParamDescr {
   size_t nBatchSlice_;
 };
 
-void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
-                           const char *pOpName = NULL,
-                           const uint8 **pInRaster = NULL, uint8 **ppOutRaster = NULL,
-                           vector<NDLLSize> *pSizes = NULL, const NDLLSize *out_size = NULL);
-bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
-          size_t batch_size, bool reshapeBatch = false,
-          vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
-          vector<NDLLSize> *pSizes = NULL, ResizeParamDescr *pResizeParam = NULL);
-void CollectPointersForExecution(size_t batch_size,
-          const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-          TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
-
 template <typename T>
 void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char *argName,
                           bool doubleArg = true) {
