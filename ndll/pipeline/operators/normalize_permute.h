@@ -108,15 +108,19 @@ class NormalizePermute : public Operator {
         std::to_string(batch_size_) + ")");
 
     for (int i = 0; i < batch_size_; ++i) {
-      NDLL_ENFORCE(input.tensor_shape(i).size() == 3,
+      const auto shape = input.tensor_shape(i);
+      NDLL_ENFORCE(shape.size() == 3,
           "Expects 3-dim image input (v. " +
-          std::to_string(input.tensor_shape(i).size()) + ")");
-      NDLL_ENFORCE(input.tensor_shape(i)[0] == H_,
-          "Input image height does not match output height.");
-      NDLL_ENFORCE(input.tensor_shape(i)[1] == W_,
-          "Input image width does not match output width.");
-      NDLL_ENFORCE(input.tensor_shape(i)[2] == C_,
-          "Input image channels does not match output channels.");
+          std::to_string(shape.size()) + ")");
+      NDLL_ENFORCE(shape[0] == H_,
+          "Input image height (" + std::to_string(shape[0]) +
+          ") does not match output height (" + std::to_string(H_) + ")");
+      NDLL_ENFORCE(shape[1] == W_,
+          "Input image width (" + std::to_string(shape[1]) +
+          ") does not match output width (" + std::to_string(W_) + ")");
+      NDLL_ENFORCE(shape[2] == C_,
+          "Input image channels (" + std::to_string(shape[1]) +
+          ") does not match output channels (" + std::to_string(C_) + ")");
     }
 
     // Resize the output & run
