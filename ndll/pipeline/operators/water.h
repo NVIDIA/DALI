@@ -31,7 +31,7 @@ class WaterAugment {
 
   void Cleanup() {}
 
-  __host__ __device__
+  DISPLACEMENT_IMPL
   Index operator()(int h, int w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;

@@ -519,5 +519,87 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, i
     pixMappingCPU.resize(helper.numUsed());
 }
 
+template <>
+void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+  const auto &input = ws->Input<GPUBackend>(idx);
+  const auto &output = ws->Output<GPUBackend>(idx);
+  const bool use_NN = ResizeAttr::type_ == NDLL_INTERP_NN;
+
+  size_t resizeMemory[BATCH_SLICE_NUMB];
+  ResizeGridParam *pResizeGrid = resizeParam_.data();
+  MirroringInfo *pMirror = pResizeGrid + N_GRID_PARAMS * batch_size_;
+  ResizeParamDescr resizeDescr(this, pResizeGrid, pMirror,
+                             use_NN ? resizeMemory : NULL, BATCH_SLICE_NUMB);
+
+  const bool newMapping = DataDependentSetupGPU(input, output, batch_size_, false,
+                             ResizeAttr::inputImages(), ResizeAttr::outputImages(), NULL,
+                             &resizeDescr);
+
+  const int C = input.shape()[0][2];
+
+  const auto sizeIn = *ResizeAttr::size(input_t, 0);
+  const auto sizeOut = *ResizeAttr::size(output_t, 0);
+  cudaStream_t s = ws->stream();
+
+  const bool congenericBatch = BatchIsCongeneric(sizeIn, sizeOut, C);
+  MappingInfo **mapPntr = NULL;
+  if (use_NN) {
+    if (newMapping) {
+        if (congenericBatch)
+            mapPntr = CopyResizeTableToGPU(resizeMemory, s);
+        else
+            mapPntr = CopyResizeTableToGPU(resizeMemory, s, batch_size_, BATCH_SLICE_NUMB);
+    } else {
+        mapPntr = mappingPntr_;
+    }
+  }
+
+  if (congenericBatch) {
+    if (newMapping) {
+      // Copying the descriptor of operation into GPU
+      resizeParamGPU_.Copy(vector<ResizeGridParam>(
+              resizeParam_.begin(), resizeParam_.begin() + N_GRID_PARAMS), s);
+    }
+
+    mirrorParamGPU_.Copy(vector<ResizeGridParam>(
+          resizeParam_.begin() + N_GRID_PARAMS * batch_size_, resizeParam_.end()), s);
+
+    const ResizeMapping *pResizeMapping = NULL;
+    const PixMapping *pPixMapping = NULL;
+#if USE_RESIZE_TABLE_GPU
+    if (!use_NN) {
+      if (newMapping || !resizeTbl_.IsValid(sizeIn, sizeOut, C)) {
+          resizeTbl_.constructTable(sizeIn.height, sizeIn.width,
+                          sizeOut.height, sizeOut.width, C, ResizeAttr::type_);
+          resizeTbl_.copyToGPU(s);
+      }
+
+      pResizeMapping = RESIZE_MAPPING_GPU(resizeTbl_.resizeMappingGPU);
+      pPixMapping = PIX_MAPPING_GPU(resizeTbl_.pPixMappingGPU);
+    }
+#endif
+
+  NDLL_CALL(BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
+                sizeIn, input.template data<uint8>(),
+                sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
+                RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
+                mapPntr, mapMemGPU_, pResizeMapping, pPixMapping, newMapping));
+  } else {
+    resizeParamGPU_.Copy(resizeParam_, s);
+
+    vector<uint8 *> *raster[] = {(vector<uint8 *> *)(ResizeAttr::inputImages()),
+                                 ResizeAttr::outputImages()};
+
+    for (int i = input_t; i <= output_t; i++) {
+        const auto &sizes = ResizeAttr::sizes(static_cast<io_type >(i));
+        TENSOR_COPY(sizesGPU_[i], sizes, s);
+        TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
+    }
+
+    NDLL_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
+                            sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
+  }
+}
+
 }  // namespace ndll
 

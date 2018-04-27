@@ -7,21 +7,17 @@
 namespace ndll {
 
 template <typename Backend>
-class DummyOp : public Operator {
+class DummyOp : public Operator<Backend> {
  public:
   inline explicit DummyOp(const OpSpec &spec) :
-    Operator(spec) {}
+    Operator<Backend>(spec) {}
 
   virtual inline ~DummyOp() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *, const int) override {
-    NDLL_FAIL("I'm a dummy op don't run me");
-  }
-
-  inline void RunBatchedGPU(DeviceWorkspace *, const int) override {
+  void RunImpl(Workspace<Backend> *, const int) override {
     NDLL_FAIL("I'm a dummy op don't run me");
   }
 };

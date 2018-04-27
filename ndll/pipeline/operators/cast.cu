@@ -30,27 +30,24 @@ NDLLError_t BatchedCast(OType * output,
   return NDLLSuccess;
 }
 
-template <typename Backend>
-void Cast<Backend>::RunBatchedGPU(DeviceWorkspace *ws, const int idx) {
+template<>
+void Cast<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto *output = ws->Output<GPUBackend>(idx);
 
   NDLLDataType itype = input.type().id();
 
   NDLL_TYPE_SWITCH(output_type_, OType,
-    output->mutable_data<OType>();
-    output->ResizeLike(input);
-    NDLL_TYPE_SWITCH(itype, IType,
-      NDLL_CALL(BatchedCast(
-          output->mutable_data<OType>(),
-          input.data<IType>(),
-          input.size(),
-          ws->stream()));););
+      output->mutable_data<OType>();
+      output->ResizeLike(input);
+      NDLL_TYPE_SWITCH(itype, IType,
+        NDLL_CALL(BatchedCast(
+            output->mutable_data<OType>(),
+            input.data<IType>(),
+            input.size(),
+            ws->stream()));););
 }
 
-template
-void Cast<GPUBackend>::RunBatchedGPU(DeviceWorkspace *ws, const int idx);
-template
-void Cast<CPUBackend>::RunBatchedGPU(DeviceWorkspace *ws, const int idx);
+NDLL_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);
 
 }  // namespace ndll

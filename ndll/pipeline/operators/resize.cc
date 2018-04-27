@@ -3,9 +3,6 @@
 
 namespace ndll {
 
-// NDLL_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
-NDLL_REGISTER_OPERATOR(Resize, Resize<GPUBackend>, GPU);
-
 NDLL_OPERATOR_SCHEMA(Resize)
   .DocStr("Foo")
   .NumInput(1)
@@ -57,6 +54,16 @@ void ResizeAttr::DefineCrop(NDLLSize *out_size, int *pCropX, int *pCropY) const 
 
   out_size->width = crop_[0];
   out_size->height = crop_[1];
+}
+
+template <>
+void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+  NDLL_FAIL("Not implemented");
+}
+
+template <>
+void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  NDLL_FAIL("Not implemented");
 }
 
 }  // namespace ndll

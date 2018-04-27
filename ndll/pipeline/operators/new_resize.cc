@@ -4,6 +4,37 @@
 
 namespace ndll {
 
+template <>
+void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+// void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
+  const auto &input = ws->Input<CPUBackend>(idx);
+  const auto &output = ws->Output<CPUBackend>(idx);
+
+  const auto &input_shape = input.shape();
+  NDLLSize out_size, input_size;
+  ResizeAttr::SetSize(&input_size, input_shape, ResizeAttr::resize(), &out_size);
+
+  const int C = input_shape[2];
+
+  ResizeGridParam resizeParam[N_GRID_PARAMS] = {};
+  ResizeMappingTable resizeTbl;
+  PrepareCropAndResize(&input_size, &out_size, C, resizeParam, &resizeTbl);
+
+  const int H0 = input_size.height;
+  const int W0 = input_size.width;
+  const int H1 = out_size.height;
+  const int W1 = out_size.width;
+  bool mirrorHor, mirrorVert;
+  ResizeAttr::MirrorNeeded(&mirrorHor, &mirrorVert);
+
+  DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
+  const auto pResizeMapping = RESIZE_MAPPING_CPU(resizeTbl.resizeMappingCPU);
+  const auto pMapping = RESIZE_MAPPING_CPU(resizeTbl.resizeMappingSimpleCPU);
+  const auto pPixMapping = PIX_MAPPING_CPU(resizeTbl.pixMappingCPU);
+  AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
+                   static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
+}
+
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
 NDLL_OPERATOR_SCHEMA(NewResize)

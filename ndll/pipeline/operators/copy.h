@@ -2,8 +2,6 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COPY_H_
 #define NDLL_PIPELINE_OPERATORS_COPY_H_
 
-#include <cuda_runtime_api.h>
-
 #include <cstring>
 
 #include "ndll/pipeline/operator.h"
@@ -11,40 +9,17 @@
 namespace ndll {
 
 template <typename Backend>
-class Copy : public Operator {
+class Copy : public Operator<Backend> {
  public:
   inline explicit Copy(const OpSpec &spec) :
-    Operator(spec) {}
+    Operator<Backend>(spec) {}
 
   virtual inline ~Copy() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
-    output->set_type(input.type());
-    output->ResizeLike(input);
-
-    TypeInfo type = input.type();
-    type.Copy<CPUBackend, CPUBackend>(
-        output->raw_mutable_data(),
-        input.raw_data(), input.size(), 0);
-  }
-
-  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
-    auto &input = ws->Input<GPUBackend>(idx);
-    auto output = ws->Output<GPUBackend>(idx);
-    output->set_type(input.type());
-    output->ResizeLike(input);
-    CUDA_CALL(cudaMemcpyAsync(
-            output->raw_mutable_data(),
-            input.raw_data(),
-            input.nbytes(),
-            cudaMemcpyDeviceToDevice,
-            ws->stream()));
-  }
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 };
 
 }  // namespace ndll

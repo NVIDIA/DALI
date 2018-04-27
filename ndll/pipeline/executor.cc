@@ -64,7 +64,7 @@ void Executor::RunCPU() {
               TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
               SampleWorkspace ws;
               for (int j = 0; j < graph_->NumCPUOp(); ++j) {
-                Operator &op = graph_->cpu_op(j);
+                OperatorBase &op = graph_->cpu_op(j);
                 wsb.cpu_op_data[j].GetSample(&ws, data_idx, tid);
                 op.Run(&ws);
               }
@@ -98,7 +98,7 @@ void Executor::RunMixed() {
 
   try {
     for (int i = 0; i < graph_->NumMixedOp(); ++i) {
-      Operator &op = graph_->mixed_op(i);
+      OperatorBase &op = graph_->mixed_op(i);
       MixedWorkspace &ws = wsb.mixed_op_data[i];
       op.Run(&ws);
       if (ws.has_stream() && ws.has_event()) {
@@ -141,7 +141,7 @@ void Executor::RunGPU() {
   try {
     WorkspaceBlob &wsb = wss_[queue_idx];
     for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-      Operator &op = graph_->gpu_op(i);
+      OperatorBase &op = graph_->gpu_op(i);
       DeviceWorkspace &ws = wsb.gpu_op_data[i];
       auto parent_events = ws.ParentEvents();
 

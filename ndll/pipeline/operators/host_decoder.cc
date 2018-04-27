@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_REGISTER_OPERATOR(HostDecoder, HostDecoder<CPUBackend>, CPU);
+NDLL_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
 
 NDLL_OPERATOR_SCHEMA(HostDecoder)
   .DocStr("Decode images on the host."

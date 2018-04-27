@@ -26,7 +26,7 @@ class SampleWorkspace;
  * HostWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class HostWorkspace : public Workspace<HostInputType, HostOutputType> {
+class HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:
   inline HostWorkspace() {}
   inline ~HostWorkspace() = default;

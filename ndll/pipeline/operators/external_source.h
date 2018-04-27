@@ -15,10 +15,10 @@ namespace ndll {
  * potential scoping and data corruption issues.
  */
 template <typename Backend>
-class ExternalSource : public Operator {
+class ExternalSource : public Operator<Backend> {
  public:
   inline explicit ExternalSource(const OpSpec &spec) :
-    Operator(spec) {
+    Operator<Backend>(spec) {
     output_name_ = spec.Output(0);
   }
 
@@ -58,23 +58,7 @@ class ExternalSource : public Operator {
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
-  inline void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
-    // Wrap the output tensor around our data
-    auto output = ws->Output<Backend>(idx);
-    if (data_in_tl_) {
-      output->ShareData(&tl_data_, ws->data_idx());
-    } else {
-      NDLL_ENFORCE_VALID_INDEX(ws->data_idx(), t_data_.size());
-      auto &data = t_data_[ws->data_idx()];
-      output->ShareData(&data);
-    }
-  }
-
-  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
-    NDLL_ENFORCE(data_in_tl_, "Cannot feed non-contiguous data in gpu op.");
-    auto output = ws->Output<Backend>(idx);
-    output->ShareData(&tl_data_);
-  }
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   string output_name_;
   TensorList<Backend> tl_data_;

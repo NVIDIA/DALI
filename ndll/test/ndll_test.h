@@ -114,7 +114,11 @@ class NDLLTest : public ::testing::Test {
     }
   }
 
-  inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl) {
+  inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl,
+                             NDLLImageType type = NDLL_RGB) {
+    if (images_.size() == 0) {
+      DecodeJPEGS(type);
+    }
     MakeDecodedBatch(n, tl, images_, image_dims_, c_);
   }
 

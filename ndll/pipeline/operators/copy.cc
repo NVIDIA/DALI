@@ -3,8 +3,20 @@
 
 namespace ndll {
 
+template<>
+void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  auto &input = ws->Input<CPUBackend>(idx);
+  auto output = ws->Output<CPUBackend>(idx);
+  output->set_type(input.type());
+  output->ResizeLike(input);
+
+  TypeInfo type = input.type();
+  type.Copy<CPUBackend, CPUBackend>(
+      output->raw_mutable_data(),
+      input.raw_data(), input.size(), 0);
+}
+
 NDLL_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
-NDLL_REGISTER_OPERATOR(Copy, Copy<GPUBackend>, GPU);
 
 NDLL_OPERATOR_SCHEMA(Copy)
   .DocStr("Foo")

@@ -8,7 +8,6 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/image/transform.h"
 #include "ndll/pipeline/operator.h"
 
 namespace ndll {
@@ -159,10 +158,10 @@ class ResizeAttr {
 };
 
 template <typename Backend>
-class Resize : public Operator, public ResizeAttr {
+class Resize : public Operator<Backend>, public ResizeAttr {
  public:
   explicit inline Resize(const OpSpec &spec) :
-    Operator(spec), ResizeAttr(spec) {
+    Operator<Backend>(spec), ResizeAttr(spec) {
       resizeParam_.resize(batch_size_);
       // Resize per-image data
       input_ptrs_.resize(batch_size_);
@@ -177,53 +176,14 @@ class Resize : public Operator, public ResizeAttr {
   virtual inline ~Resize() = default;
 
  protected:
-  inline void SetupSharedSampleParams(DeviceWorkspace* ws) override {
-    const int resize_a = resize_.first;
-    const int resize_b = resize_.second;
-    for (int i = 0; i < batch_size_; ++i) {
-      auto rand_a = randomUniform(resize_b, resize_a);
-      auto rand_b = randomUniform(resize_b, resize_a);
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-      per_sample_rand_[i] = std::make_pair(rand_a, rand_b);
-    }
-  }
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
-    const auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
+  inline void DataDependentSetup(Workspace<Backend> *ws, const int idx);
 
-    const vector <Index> &input_shape = input.shape();
-    NDLLSize input_size, out_size;
-    SetSize(&input_size, input_shape, resize(), &out_size);
-
-    const uint8 *pInRaster;
-    uint8 *pOutRaster;
-    DataDependentSetupCPU(input, output, "Resize", &pInRaster, &pOutRaster, NULL, &out_size);
-    NDLL_CALL(BatchedResize(&pInRaster, 1, C_, &input_size,
-                                &pOutRaster, &out_size, type_));
-  }
-
-  inline void RunBatchedGPU(DeviceWorkspace *ws, const int idx) override {
-    const auto &input = ws->Input<GPUBackend>(idx);
-    auto output = ws->Output<GPUBackend>(idx);
-
-    ResizeParamDescr resizeDescr(this, resizeParam_.data());
-    DataDependentSetupGPU(input, output, batch_size_, false,
-                            inputImages(), outputImages(), NULL, &resizeDescr);
-
-    // Run the kernel
-    cudaStream_t old_stream = nppGetStream();
-    nppSetStream(ws->stream());
-    BatchedResize(
-        (const uint8**)input_ptrs_.data(),
-        batch_size_, C_, sizes(input_t).data(),
-        output_ptrs_.data(), sizes(output_t).data(),
-        type_);
-    nppSetStream(old_stream);
-  }
-
-    vector<NppiPoint>resizeParam_;
-    USE_OPERATOR_MEMBERS();
+  vector<NppiPoint> resizeParam_;
+  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace ndll

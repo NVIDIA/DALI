@@ -1,203 +1,208 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#include <gtest/gtest.h>
-#include <opencv2/opencv.hpp>
-
-#include <utility>
-#include <string>
-
-#include "ndll/pipeline/operators/resize_crop_mirror.h"
-#include "ndll/common.h"
-#include "ndll/error_handling.h"
-#include "ndll/image/jpeg.h"
-#include "ndll/pipeline/pipeline.h"
-#include "ndll/test/ndll_test.h"
+#include "ndll/test/ndll_test_single_op.h"
 
 namespace ndll {
 
-namespace {
-// 440 & 410 not supported by npp
-const vector<string> hybdec_images = {
-  image_folder + "/411.jpg",
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
-};
-}  // namespace
-
 template <typename ImgType>
-class ResizeCropMirrorTest : public NDLLTest {
+class ResizeCropMirrorTest : public NDLLSingleOpTest {
  public:
-  void SetUp() {
-    if (IsColor(img_type_)) {
-      c_ = 3;
-    } else if (img_type_ == NDLL_GRAY) {
-      c_ = 1;
-    } else {
-      NDLL_FAIL("Unsupported image type.");
+  USING_NDLL_SINGLE_OP_TEST();
+
+  vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs) {
+    // single input - encoded images
+    // single output - decoded images
+    vector<TensorList<CPUBackend>*> outputs(1);
+
+    vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
+
+    const TensorList<CPUBackend>& image_data = *inputs[0];
+    const auto n = spec_.name();
+
+    c_ = (IsColor(img_type_) ? 3 : 1);
+    auto cv_type = (c_ == 3) ? CV_8UC3 : CV_8UC1;
+
+    const int resize_a = spec_.GetArgument<int>("resize_a");
+    const int resize_b = spec_.GetArgument<int>("resize_b");
+    const bool random_resize = spec_.GetArgument<bool>("random_resize");
+    const bool warp_resize = spec_.GetArgument<bool>("warp_resize");
+    const vector<int> crop = spec_.GetRepeatedArgument<int>("crop");
+    const float mirror_prob = spec_.GetArgument<float>("mirror_prob");
+
+    // Can't handle these right now
+    assert(random_resize == false);
+    assert(random_crop == false);
+    assert(mirror_prob == 0.f);
+
+    int rsz_h, rsz_w;
+    int crop_x, crop_y;
+    int crop_h = crop.at(0), crop_w = crop.at(1);
+    int mirror = true;
+
+    for (int i = 0; i < image_data.ntensor(); ++i) {
+      auto *data = image_data.tensor<unsigned char>(i);
+      auto shape = image_data.tensor_shape(i);
+      const int H = shape[0], W = shape[1];
+
+      cv::Mat input = cv::Mat(H, W, cv_type,
+                              const_cast<unsigned char*>(data));
+
+      // perform the resize
+      cv::Mat rsz_img;
+
+      // determine resize parameters
+      if (warp_resize) {
+        rsz_h = resize_a;
+        rsz_w = resize_b;
+      } else {
+        if (H >= W) {
+          rsz_w = resize_a;
+          rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+        } else {  // W > H
+          rsz_h = resize_a;
+          rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+        }
+      }
+
+      crop_y = (rsz_h - crop_h) / 2;
+      crop_x = (rsz_w - crop_w) / 2;
+
+      cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, cv::INTER_LINEAR);
+
+      // Perform a crop
+      cv::Mat crop_img(crop_h, crop_w, cv_type);
+      int crop_offset = crop_y * rsz_w * c_ + crop_x * c_;
+      uint8 *crop_ptr = rsz_img.ptr() + crop_offset;
+
+      CUDA_CALL(cudaMemcpy2D(crop_img.ptr(), crop_w * c_,
+                             crop_ptr, rsz_w * c_, crop_w * c_, crop_h,
+                             cudaMemcpyHostToHost));
+
+
+      // Random mirror
+      cv::Mat mirror_img;
+      if (mirror) {
+        cv::flip(crop_img, mirror_img, 1);
+      } else {
+        mirror_img = crop_img;
+      }
+
+      out[i].Resize({mirror_img.rows, mirror_img.cols, c_});
+      auto *out_data = out[i].mutable_data<unsigned char>();
+
+      std::memcpy(out_data, mirror_img.ptr(), mirror_img.rows * mirror_img.cols * c_);
     }
-
-    rand_gen_.seed(time(nullptr));
-    LoadJPEGS(hybdec_images, &jpegs_, &jpeg_sizes_);
-  }
-
-  void TearDown() {
-    NDLLTest::TearDown();
-  }
-
-  void VerifyImage(const uint8 *img, const uint8 *img2, int n,
-      float mean_bound = 2.0, float std_bound = 3.0) {
-    vector<int> abs_diff(n, 0);
-    for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(static_cast<int>(img[i] - img2[i]));
-    }
-    double mean, std;
-    MeanStdDev(abs_diff, &mean, &std);
-
-#ifndef NDEBUG
-    cout << "num: " << abs_diff.size() << endl;
-    cout << "mean: " << mean << endl;
-    cout << "std: " << std << endl;
-#endif
-
-    // Note: We allow a slight deviation from the ground truth.
-    // This value was picked fairly arbitrarily to let the test
-    // pass for libjpeg turbo
-    ASSERT_LT(mean, mean_bound);
-    ASSERT_LT(std, std_bound);
-  }
-
-  template <typename T>
-  void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
-    // Avoid division by zero
-    ASSERT_NE(diff.size(), 0);
-
-    double sum = 0, var_sum = 0;
-    for (auto &val : diff) {
-      sum += val;
-    }
-    *mean = sum / diff.size();
-    for (auto &val : diff) {
-      var_sum += (val - *mean)*(val - *mean);
-    }
-    *std = sqrt(var_sum / diff.size());
-  }
-
-  Pipeline *BuildPipe(int batch_size, int num_thread,
-                      bool use_fast_resize) {
-    // Create the pipeline
-    Pipeline *pipe = new Pipeline(
-        batch_size,
-        num_thread,
-        0, false);
-
-    TensorList<CPUBackend> data;
-    this->MakeJPEGBatch(&data, batch_size);
-    pipe->AddExternalInput("jpegs");
-    pipe->SetExternalInput("jpegs", data);
-
-    // Decode the images
-    pipe->AddOperator(
-        OpSpec("HostDecoder")
-        .AddInput("jpegs", "cpu")
-        .AddOutput("images", "cpu"));
-
-    pipe->AddOperator(
-        OpSpec("HostDecoder")
-        .AddInput("jpegs", "cpu")
-        .AddOutput("images2", "cpu"));
-
-    string op_name = (use_fast_resize) ?
-          "FastResizeCropMirror" : "ResizeCropMirror";
-
-    // Resize + crop multiple sets of images
-    pipe->AddOperator(
-        OpSpec(op_name)
-        .AddArg("device", "cpu")
-        .AddInput("images", "cpu")
-        .AddOutput("resized1", "cpu")
-        .AddInput("images2", "cpu")
-        .AddOutput("resized2", "cpu")
-        .AddArg("resize_a", 128)
-        .AddArg("resize_b", 128)
-        .AddArg("crop", vector<int>{24, 24})
-        .AddArg("num_input_sets", 2));
-
-    return pipe;
+    outputs[0] = new TensorList<CPUBackend>();
+    outputs[0]->Copy(out, 0);
+    return outputs;
   }
 
  protected:
+  OpSpec DefaultSchema(bool fast_resize = false) {
+    const char *op = (fast_resize) ? "FastResizeCropMirror"
+                                   : "ResizeCropMirror";
+    return OpSpec(op)
+           .AddArg("device", "cpu")
+           .AddArg("output_type", this->img_type_)
+           .AddArg("random_resize", false)
+           .AddArg("random_crop", false)
+           .AddArg("mirror_prob", 0.f)
+           .AddInput("input", "cpu")
+           .AddOutput("output", "cpu");
+  }
+
   const NDLLImageType img_type_ = ImgType::type;
-  int c_;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(ResizeCropMirrorTest, Types);
 
-TYPED_TEST(ResizeCropMirrorTest, MultipleInputSets) {
-  int batch_size = this->jpegs_.size();
-  int num_thread = 1;
+TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
 
-  Pipeline *pipe = this->BuildPipe(batch_size, num_thread, false);
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("crop", vector<int>{224, 224})
+                    .AddArg("warp_resize", false));
 
-  // Build and run the pipeline
-  vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
-  pipe->Build(outputs);
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
 
-  // Decode the images
-  pipe->RunCPU();
-  pipe->RunGPU();
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
 
-  DeviceWorkspace results;
-  pipe->Outputs(&results);
-
-  // Verify the results
-  auto output0 = results.Output<CPUBackend>(0);
-  auto output1 = results.Output<CPUBackend>(1);
-
-  // WriteHWCBatch(*output, "image");
-  for (int i = 0; i < batch_size; ++i) {
-    this->VerifyImage(
-        output0->template tensor<uint8>(i),
-        output1->template tensor<uint8>(i),
-        output0->tensor_shape(i)[0]*output0->tensor_shape(i)[1]*output0->tensor_shape(i)[2]);
-  }
+  this->CheckAnswers(&ws, {0});
 }
 
-TYPED_TEST(ResizeCropMirrorTest, FastMultipleInputSets) {
-  int batch_size = this->jpegs_.size();
-  int num_thread = 1;
+TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
 
-  Pipeline *pipe = this->BuildPipe(batch_size, num_thread, true);
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("crop", vector<int>{224, 224})
+                    .AddArg("warp_resize", true));
 
-  // Build and run the pipeline
-  vector<std::pair<string, string>> outputs = {{"resized1", "cpu"}, {"resized2", "cpu"}};
-  pipe->Build(outputs);
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
 
-  // Decode the images
-  pipe->RunCPU();
-  pipe->RunGPU();
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
 
-  DeviceWorkspace results;
-  pipe->Outputs(&results);
+  this->CheckAnswers(&ws, {0});
+}
 
-  // Verify the results
-  auto output0 = results.Output<CPUBackend>(0);
-  auto output1 = results.Output<CPUBackend>(1);
+TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
 
-  // WriteHWCBatch(*output, "image");
-  for (int i = 0; i < batch_size; ++i) {
-    this->VerifyImage(
-        output0->template tensor<uint8>(i),
-        output1->template tensor<uint8>(i),
-        output0->tensor_shape(i)[0]*output0->tensor_shape(i)[1]*output0->tensor_shape(i)[2]);
-  }
+  this->AddSingleOp(this->DefaultSchema(true)
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("crop", vector<int>{224, 224})
+                    .AddArg("warp_resize", false));
+
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
+
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
+
+  this->CheckAnswers(&ws, {0});
+}
+
+TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
+
+  this->AddSingleOp(this->DefaultSchema(true)
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("crop", vector<int>{224, 224})
+                    .AddArg("warp_resize", true));
+
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
+
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(6e-2);
+
+  this->CheckAnswers(&ws, {0});
 }
 
 }  // namespace ndll
-
