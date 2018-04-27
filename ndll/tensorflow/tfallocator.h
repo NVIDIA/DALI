@@ -10,6 +10,7 @@
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
+#include "tensorflow/stream_executor/stream.h"
 
 #include "ndll/pipeline/data/allocator.h"
 #include "ndll/common.h"
@@ -46,6 +47,13 @@ class TFGPUAllocator : public GPUAllocator {
 
     if (!status.ok()) {
       throw status;
+    }
+
+    if (context_ != nullptr) {
+      auto device_context = context_->op_device_context();
+      if (device_context != nullptr) {
+        device_context->stream()->BlockHostUntilDone();
+      }
     }
 
     void* data = GetData(t);
