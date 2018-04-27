@@ -200,7 +200,7 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
   // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
   // Difference is consistent, deterministic and goes away if I force OCV
   // instead of TJPG decoding.
-  this->SetEps(5e-2);
+  this->SetEps(6e-2);
 
   this->CheckAnswers(&ws, {0});
 }

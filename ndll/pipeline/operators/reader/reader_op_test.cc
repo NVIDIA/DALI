@@ -38,7 +38,7 @@ class DummyDataReader : public DataReader<Backend> {
     return true;
   }
 
-  void RunPerSampleCPU(SampleWorkspace* ws) override {
+  void RunImpl(SampleWorkspace* ws, int idx) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
 

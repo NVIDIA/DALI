@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_OPERATOR_H_
 
 #include <string>
+#include <vector>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
