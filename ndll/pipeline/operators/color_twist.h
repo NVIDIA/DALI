@@ -3,8 +3,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_COLOR_TWIST_H_
 #define NDLL_PIPELINE_OPERATORS_COLOR_TWIST_H_
 
-#include "ndll/pipeline/operator.h"
 #include <vector>
+#include "ndll/pipeline/operator.h"
 
 namespace ndll {
 
