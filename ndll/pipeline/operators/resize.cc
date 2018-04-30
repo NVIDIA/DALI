@@ -21,6 +21,15 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR);
 
 
+resize_t ResizeAttr::GetRandomSizes() const {
+  if (!random_resize_)
+      return resize_;
+
+  auto rand_a = std::uniform_int_distribution<>(resize_.first, resize_.second)(rand_gen_);
+  auto rand_b = std::uniform_int_distribution<>(resize_.first, resize_.second)(rand_gen_);
+  return std::make_pair(rand_a, rand_b);
+}
+
 void ResizeAttr::SetSize(NDLLSize *in_size, const vector<Index> &shape,
                          const resize_t &rand, NDLLSize *out_size) const {
   in_size->height = shape[0];
