@@ -28,6 +28,7 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
     const bool warp_resize = spec_.GetArgument<bool>("warp_resize");
     const vector<int> crop = spec_.GetRepeatedArgument<int>("crop");
     const float mirror_prob = spec_.GetArgument<float>("mirror_prob");
+    const bool random_crop = spec_.GetArgument<bool>("random_crop");
 
     // Can't handle these right now
     assert(random_resize == false);
