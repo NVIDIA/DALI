@@ -124,7 +124,7 @@ class Operator : public OperatorBase {
 
  protected:
   /**
-   * @brief Shared param setup for CPU computation
+   * @brief Shared param setup
    */
   virtual void SetupSharedSampleParams(Workspace<Backend> *ws) {}
 

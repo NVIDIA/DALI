@@ -11,7 +11,8 @@ NDLL_OPERATOR_SCHEMA(Sphere)
     .DocStr("Perform a sphere augmentation")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets();
+    .AllowMultipleInputSets()
+    DISPLACEMENT_SCHEMA_ARGS;
 
 }  // namespace ndll
 

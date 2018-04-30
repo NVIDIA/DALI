@@ -2,6 +2,8 @@
 #ifndef NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_H_
 #define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_FILTER_IMPL_CPU_H_
 
+#include <random>
+
 #include "ndll/common.h"
 #include "ndll/pipeline/operator.h"
 
@@ -16,7 +18,11 @@ class DisplacementFilter<CPUBackend, Displacement,
   explicit DisplacementFilter(const OpSpec &spec) :
     Operator(spec),
     displace_(spec),
-    augment_(spec) {}
+    augment_(spec),
+    rand_gen_(spec.GetArgument<int>("seed")),
+    dis(spec.GetArgument<float>("probability")) {
+      mask_.set_pinned(false);
+  }
 
   virtual ~DisplacementFilter() {
     displace_.Cleanup();
@@ -59,29 +65,39 @@ class DisplacementFilter<CPUBackend, Displacement,
     auto *in = input.data<T>();
     auto *out = output->template mutable_data<T>();
 
-    for (Index h = 0; h < H; ++h) {
-      for (Index w = 0; w < W; ++w) {
-        // calculate displacement for all channels at once
-        // vs. per-channel
-        if (per_channel_transform) {
-          for (Index c = 0; c < C; ++c) {
+    if (mask_.template data<bool>()[idx]) {
+      for (Index h = 0; h < H; ++h) {
+        for (Index w = 0; w < W; ++w) {
+          // calculate displacement for all channels at once
+          // vs. per-channel
+          if (per_channel_transform) {
+            for (Index c = 0; c < C; ++c) {
+              // output idx is set by location
+              Index out_idx = (h * W + w) * C + c;
+              // input idx is calculated by function
+              Index in_idx = displace_(h, w, c, H, W, C);
+
+              // copy
+              out[out_idx] = augment_(in[in_idx], h, w, c, H, W, C);
+            }
+          } else {
             // output idx is set by location
-            Index out_idx = (h * W + w) * C + c;
+            Index out_idx = (h * W + w) * C;
             // input idx is calculated by function
-            Index in_idx = displace_(h, w, c, H, W, C);
+            Index in_idx = displace_(h, w, 0, H, W, C);
 
-            // copy
-            out[out_idx] = augment_(in[in_idx], h, w, c, H, W, C);
+            // apply transform uniformly across channels
+            for (int c = 0; c < C; ++c) {
+              out[out_idx+c] = augment_(in[in_idx + c], h, w, c, H, W, C);
+            }
           }
-        } else {
-          // output idx is set by location
-          Index out_idx = (h * W + w) * C;
-          // input idx is calculated by function
-          Index in_idx = displace_(h, w, 0, H, W, C);
-
-          // apply transform uniformly across channels
+        }
+      }
+    } else {  // Do not do augmentation, pass through
+      for (Index h = 0; h < H; ++h) {
+        for (Index w = 0; w < W; ++w) {
           for (int c = 0; c < C; ++c) {
-            out[out_idx+c] = augment_(in[in_idx + c], h, w, c, H, W, C);
+            out[(h * W + w) * C + c] = in[(h * W + w) * C + c];
           }
         }
       }
@@ -89,11 +105,24 @@ class DisplacementFilter<CPUBackend, Displacement,
     return true;
   }
 
+  void SetupSharedSampleParams(SampleWorkspace *ws) override {
+    mask_.Resize({batch_size_});
+    mask_.mutable_data<bool>();
+
+    for (int i = 0; i < batch_size_; ++i) {
+      mask_.template mutable_data<bool>()[i] = dis(rand_gen_);
+    }
+  }
+
   USE_OPERATOR_MEMBERS();
 
  private:
   Displacement displace_;
   Augment augment_;
+
+  std::mt19937 rand_gen_;
+  Tensor<CPUBackend> mask_;
+  std::bernoulli_distribution dis;
 };
 
 }  // namespace ndll

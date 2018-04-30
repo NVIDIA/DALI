@@ -13,6 +13,7 @@ NDLL_OPERATOR_SCHEMA(Jitter)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddOptionalArg("nDegree", "Foo", 2);
+    .AddOptionalArg("nDegree", "Foo", 2)
+    DISPLACEMENT_SCHEMA_ARGS;
 
 }  // namespace ndll
