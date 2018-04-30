@@ -6,7 +6,8 @@
 namespace ndll {
 
 NDLL_OPERATOR_SCHEMA(CropMirrorNormalize)
-  .DocStr("Foo")
+  .DocStr("perform fused cropping (fixed and random), normalization, format conversion "
+          "(NHWC to NCHW) if desired, and type casting")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()

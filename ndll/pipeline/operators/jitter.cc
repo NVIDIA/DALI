@@ -9,7 +9,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(Jitter)
-    .DocStr("Foo")
+    .DocStr("Perform a Jitter-style augmentation")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()

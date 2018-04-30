@@ -9,14 +9,14 @@ NDLL_REGISTER_TYPE(DctQuantInvImageParam, NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM)
 NDLL_REGISTER_OPERATOR(HuffmanDecoder, HuffmanDecoder, CPU);
 
 NDLL_OPERATOR_SCHEMA(HuffmanDecoder)
-  .DocStr("Foo")
+  .DocStr("Perform Huffman decode step on encoded JPEGs")
   .NumInput(1)
   .NumOutput(2)
   .AddOptionalArg("dct_bytes_hint", "Hint for memory used to preallocate space per image",
       4 * 1048576);
 
 NDLL_OPERATOR_SCHEMA(DCTQuantInv)
-  .DocStr("Foo")
+  .DocStr("Perform iDCT on passed coefficients to produce decoded JPEGs")
   .NumInput(2)
   .NumOutput(1)
   .AddOptionalArg("output_type", "Output image type", NDLL_RGB)
