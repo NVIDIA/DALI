@@ -49,7 +49,8 @@ void NormalizePermute<CPUBackend>::CPURunHelper(const Tensor<CPUBackend> &input,
 NDLL_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(NormalizePermute)
-  .DocStr("Foo")
+  .DocStr("Normalize images, and permute ordering from NHWC to NCHW. Can also "
+          "cast the output to different datatypes")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()

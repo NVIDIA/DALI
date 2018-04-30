@@ -8,7 +8,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(Sphere, Sphere<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(Sphere)
-    .DocStr("Foo")
+    .DocStr("Perform a sphere augmentation")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets();

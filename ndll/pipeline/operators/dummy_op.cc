@@ -8,7 +8,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(DummyOp, DummyOp<CPUBackend>, CPU);
 
 NDLL_OPERATOR_SCHEMA(DummyOp)
-  .DocStr("Foo")
+  .DocStr("Dummy operator for testing")
   .OutputFn([](const OpSpec &spec) { return spec.GetArgument<int>("num_outputs"); })
   .NumInput(0, 10)
   .AddOptionalArg("num_outputs", "Number of outputs", 2);

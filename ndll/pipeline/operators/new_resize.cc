@@ -38,7 +38,8 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
 NDLL_OPERATOR_SCHEMA(NewResize)
-    .DocStr("Foo")
+    .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
+            "cropping (random and fixed) and image mirroring.")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
