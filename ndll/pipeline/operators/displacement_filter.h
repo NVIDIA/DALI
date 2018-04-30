@@ -19,7 +19,8 @@
 #endif
 
 #define DISPLACEMENT_SCHEMA_ARGS \
-  .AddOptionalArg("probability", "Probability of applying this augmentation to the input image", 1.0f)
+  .AddOptionalArg("probability", \
+      "Probability of applying this augmentation to the input image", 1.0f)
 
 namespace ndll {
 
