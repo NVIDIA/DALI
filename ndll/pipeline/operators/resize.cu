@@ -61,12 +61,8 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
 
 template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
-  for (int i = 0; i < batch_size_; ++i) {
-    auto rand_a = std::uniform_int_distribution<>(resize_.first, resize_.second)(rand_gen_);
-    auto rand_b = std::uniform_int_distribution<>(resize_.first, resize_.second)(rand_gen_);
-
-    per_sample_rand_[i] = std::make_pair(rand_a, rand_b);
-  }
+  for (int i = 0; i < batch_size_; ++i)
+    per_sample_rand_[i] = GetRandomSizes();
 }
 
 template<>

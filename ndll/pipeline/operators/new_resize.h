@@ -242,8 +242,8 @@ NDLLError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
 #define nYoffset(W, C)          ((W) * (C))
 
 
-#define SAME_SIZES(size1, size2)    (size1.height == size2.height && \
-                                     size1.width == size2.width)
+#define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
+                                     size1->width == size2->width)
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
@@ -268,6 +268,7 @@ class NewResize : public Resize<Backend> {
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
   MappingInfo **CopyResizeTableToGPU(size_t resizeMemory[], cudaStream_t s,
@@ -311,9 +312,9 @@ class NewResize : public Resize<Backend> {
     int cropY, cropX;
     const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
     if (doingCrop)
-     ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
+      ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
     else
-     cropY = cropX = 0;
+      cropY = cropX = 0;
 
     resizeParam[2] = {cropX, cropY};
 
@@ -336,35 +337,36 @@ class NewResize : public Resize<Backend> {
                     resizeParam[1].x != lcmW / W1 || resizeParam[1].y != lcmH / H1;
 
     if (newResize) {
-     resizeParam[0] = {lcmW / W0, lcmH / H0};
-     resizeParam[1] = {lcmW / W1, lcmH / H1};
+      resizeParam[0] = {lcmW / W0, lcmH / H0};
+      resizeParam[1] = {lcmW / W1, lcmH / H1};
     }
 
     if (newResize && ppResizeTbl)
-     ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::type_);
+      ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::type_);
 
     return newResize;
   }
 
-  bool BatchIsCongeneric(const NDLLSize &sizeIn, const NDLLSize &sizeOut, int C) {
+  bool BatchIsCongeneric(const NDLLSize *sizeIn, const NDLLSize *sizeOut, int C) {
+    if (ResizeAttr::random_resize_)
+      return false;
+
       // Check if all input sizes are the same
-    const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
+    const uint32_t imageSize = sizeOut->width * sizeOut->height * C;
 
     const auto pImages = *ResizeAttr::outputImages();
     const auto pFirstBatchImage = pImages[0];
 
     int i = batch_size_;
     while (--i > 0) {
-      const auto inSize = *ResizeAttr::size(input_t, i);
-      if (!SAME_SIZES(inSize, sizeIn))
-       break;
+      if (!SAME_SIZES(ResizeAttr::size(input_t, i), sizeIn))
+        break;
 
-      const auto outSize = *ResizeAttr::size(output_t, i);
-      if (!SAME_SIZES(outSize, sizeOut))
-       break;
+      if (!SAME_SIZES(ResizeAttr::size(output_t, i), sizeOut))
+        break;
 
       if (pImages[i] != pFirstBatchImage + i * imageSize)
-       break;
+        break;
     }
 
     return i == 0;

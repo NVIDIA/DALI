@@ -6,13 +6,12 @@ namespace ndll {
 
 template <>
 void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-// void RunPerSampleCPU(SampleWorkspace *ws, const int idx) override {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto &output = ws->Output<CPUBackend>(idx);
 
   const auto &input_shape = input.shape();
   NDLLSize out_size, input_size;
-  ResizeAttr::SetSize(&input_size, input_shape, ResizeAttr::resize(), &out_size);
+  SetSize(&input_size, input_shape, GetRandomSizes(), &out_size);
 
   const int C = input_shape[2];
 
@@ -25,7 +24,7 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const int H1 = out_size.height;
   const int W1 = out_size.width;
   bool mirrorHor, mirrorVert;
-  ResizeAttr::MirrorNeeded(&mirrorHor, &mirrorVert);
+  MirrorNeeded(&mirrorHor, &mirrorVert);
 
   DataDependentSetupCPU(input, output, "NewResize", NULL, NULL, NULL, &out_size);
   const auto pResizeMapping = RESIZE_MAPPING_CPU(resizeTbl.resizeMappingCPU);
@@ -34,6 +33,9 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   AUGMENT_RESIZE_CPU(H1, W1, C, input.template data<uint8>(),
                    static_cast<uint8 *>(output->raw_mutable_data()), RESIZE_N);
 }
+
+template <>
+void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {}
 
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);

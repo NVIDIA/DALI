@@ -113,6 +113,7 @@ class ResizeAttr {
   }
 
  protected:
+  resize_t GetRandomSizes() const;
   void MirrorNeeded(bool *pHorMirror, bool *pVertMirror = NULL) const {
     if (pHorMirror) {
       *pHorMirror = mirror_prob_.empty()? false :
