@@ -67,9 +67,11 @@ class RecordIOLoader : public IndexedFileLoader {
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
 
+    tensor->Resize({size});
+
     int64 n_read = 0;
     while (n_read < size) {
-      n_read += filestream_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()) + n_read,
+      n_read += filestream_->Read(tensor->mutable_data<uint8_t>() + n_read,
                      size - n_read);
       if (n_read < size) {
         NDLL_ENFORCE(current_file_index_ + 1 < uris_.size(),
