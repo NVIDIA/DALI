@@ -9,12 +9,12 @@
 
 namespace ndll {
 
-template <typename T, bool per_channel_transform, class Displacement, class Color>
+template <typename T, bool per_channel_transform, class Displacement, NDLLInterpType interp_type>
 __global__
 void DisplacementKernel(const T *in, T* out,
                         const int N, const Index * shapes,
                         const bool * mask, const Index pitch,
-                        Displacement displace, Color color) {
+                        Displacement displace) {
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
@@ -31,10 +31,40 @@ void DisplacementKernel(const T *in, T* out,
         const int w = (out_idx / C) % W;
         const int h = (out_idx / W / C);
 
-        // calculate input idx from function
-        auto in_idx = displace(h, w, c, H, W, C);
+        if (interp_type == NDLL_INTERP_NN) {
+          // NN interpolation
 
-        image_out[out_idx] = color(image_in[in_idx], h, w, c, H, W, C);
+          // calculate input idx from function
+          Point<Index> p = displace.template operator()<Index>(h, w, c, H, W, C);
+          auto in_idx = (p.y * W + p.x) * C + c;
+
+          image_out[out_idx] = image_in[in_idx];
+        } else {
+          // LINEAR interpolation
+          Point<float> p = displace.template operator()<float>(h, w, c, H, W, C);
+          T inter_values[4];
+          const Index x = p.x;
+          const Index y = p.y;
+          const Index xp = x < W - 1 ? x + 1 : x;
+          const Index yp = y < H - 1 ? y + 1 : y;
+          // 0, 0
+          inter_values[0] = __ldg(&in[(y * W + x) * C + c]);
+          // 1, 0
+          inter_values[1] = __ldg(&in[(y * W + xp) * C + c]);
+          // 0, 1
+          inter_values[2] = __ldg(&in[(yp * W + x) * C + c]);
+          // 1, 1
+          inter_values[3] = __ldg(&in[(yp * W + xp) * C + c]);
+          const float rx = p.x - x;
+          const float ry = p.y - y;
+          const float mrx = 1 - rx;
+          const float mry = 1 - ry;
+          image_out[out_idx] = static_cast<T>(
+              inter_values[0] * mrx * mry +
+              inter_values[1] * rx * mry +
+              inter_values[2] * mrx * ry +
+              inter_values[3] * rx * ry);
+        }
       } else {
         image_out[out_idx] = image_in[out_idx];
       }
@@ -43,12 +73,12 @@ void DisplacementKernel(const T *in, T* out,
 }
 
 template <typename T, int C, bool per_channel_transform,
-          int nThreads, class Displacement, class Color>
+          int nThreads, class Displacement, NDLLInterpType interp_type>
 __global__
 void DisplacementKernel_aligned32bit(const T *in, T* out,
                         const int N, const Index * shapes,
                         const bool * mask, const Index pitch,
-                        Displacement displace, Color color) {
+                        Displacement displace) {
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
   __shared__ T scratch[nThreads * C * nPixelsPerThread];
   // block per image
@@ -77,8 +107,35 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
             const int h = hw / W;
 #pragma unroll
             for (int c = 0; c < C; ++c) {
-              auto tmp_idx = displace(h, w, c, H, W, C);
-              my_scratch[j * C + c] = color(image_in[tmp_idx], h, w, c, H, W, C);
+              if (interp_type == NDLL_INTERP_NN) {
+                Point<Index> p = displace.template operator()<Index>(h, w, c, H, W, C);
+                auto tmp_idx = (p.y * W + p.x) * C + c;
+                my_scratch[j * C + c] = image_in[tmp_idx];
+              } else {
+                Point<float> p = displace.template operator()<float>(h, w, c, H, W, C);
+                T inter_values[4];
+                const Index x = p.x;
+                const Index y = p.y;
+                const Index xp = x < W - 1 ? x + 1 : x;
+                const Index yp = y < H - 1 ? y + 1 : y;
+                // 0, 0
+                inter_values[0] = __ldg(&image_in[(y * W + x) * C + c]);
+                // 1, 0
+                inter_values[1] = __ldg(&image_in[(y * W + xp) * C + c]);
+                // 0, 1
+                inter_values[2] = __ldg(&image_in[(yp * W + x) * C + c]);
+                // 1, 1
+                inter_values[3] = __ldg(&image_in[(yp * W + xp) * C + c]);
+                const float rx = p.x - x;
+                const float ry = p.y - y;
+                const float mrx = 1 - rx;
+                const float mry = 1 - ry;
+                my_scratch[j * C + c] = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
             }
           }
         } else {
@@ -87,9 +144,38 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
             const int hw = hw0 + j;
             const int w = hw % W;
             const int h = hw / W;
-            auto tmp_idx = displace(h, w, 0, H, W, C);
-            for (int c = 0; c < C; ++c) {
-              my_scratch[j * C + c] = color(image_in[tmp_idx + c], h, w, c, H, W, C);
+            if (interp_type == NDLL_INTERP_NN) {
+              Point<Index> p = displace.template operator()<Index>(h, w, 0, H, W, C);
+              auto tmp_idx = (p.y * W + p.x) * C;
+              for (int c = 0; c < C; ++c) {
+                my_scratch[j * C + c] = image_in[tmp_idx + c];
+              }
+            } else {
+              Point<float> p = displace.template operator()<float>(h, w, 0, H, W, C);
+              T inter_values[4];
+              const Index x = p.x;
+              const Index y = p.y;
+              const Index xp = x < W - 1 ? x + 1 : x;
+              const Index yp = y < H - 1 ? y + 1 : y;
+              const float rx = p.x - x;
+              const float ry = p.y - y;
+              const float mrx = 1 - rx;
+              const float mry = 1 - ry;
+              for (int c = 0; c < C; ++c) {
+                // 0, 0
+                inter_values[0] = __ldg(&image_in[(y * W + x) * C + c]);
+                // 1, 0
+                inter_values[1] = __ldg(&image_in[(y * W + xp) * C + c]);
+                // 0, 1
+                inter_values[2] = __ldg(&image_in[(yp * W + x) * C + c]);
+                // 1, 1
+                inter_values[3] = __ldg(&image_in[(yp * W + xp) * C + c]);
+                my_scratch[j * C + c] = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
             }
           }
         }
@@ -113,9 +199,36 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
             const int h = hw / W;
 #pragma unroll
             for (int c = 0; c < C; ++c) {
-              auto tmp_idx = displace(h, w, c, H, W, C);
-              out[offset + h * W * C + w * C + c] =
-                color(image_in[tmp_idx], h, w, c, H, W, C);
+              if (interp_type == NDLL_INTERP_NN) {
+                Point<Index> p = displace.template operator()<Index>(h, w, c, H, W, C);
+                auto tmp_idx = (p.y * W + p.x) * C + c;
+                out[offset + h * W * C + w * C + c] = image_in[tmp_idx];
+              } else {
+                // LINEAR interpolation
+                Point<float> p = displace.template operator()<float>(h, w, c, H, W, C);
+                T inter_values[4];
+                const Index x = p.x;
+                const Index y = p.y;
+                const Index xp = x < W - 1 ? x + 1 : x;
+                const Index yp = y < H - 1 ? y + 1 : y;
+                // 0, 0
+                inter_values[0] = __ldg(&image_in[(y * W + x) * C + c]);
+                // 1, 0
+                inter_values[1] = __ldg(&image_in[(y * W + xp) * C + c]);
+                // 0, 1
+                inter_values[2] = __ldg(&image_in[(yp * W + x) * C + c]);
+                // 1, 1
+                inter_values[3] = __ldg(&image_in[(yp * W + xp) * C + c]);
+                const float rx = p.x - x;
+                const float ry = p.y - y;
+                const float mrx = 1 - rx;
+                const float mry = 1 - ry;
+                out[offset + h * W * C + w * C + c] = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
             }
           }
         } else {
@@ -124,11 +237,40 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
             const int hw = hw0 + j;
             const int w = hw % W;
             const int h = hw / W;
-            auto tmp_idx = displace(h, w, 0, H, W, C);
+            if (interp_type == NDLL_INTERP_NN) {
+              Point<Index> p = displace.template operator()<Index>(h, w, 0, H, W, C);
+              auto tmp_idx = (p.y * W + p.x) * C;
 #pragma unroll
-            for (int c = 0; c < C; ++c) {
-              out[offset + h * W * C + w * C + c] =
-                color(image_in[tmp_idx + c], h, w, c, H, W, C);
+              for (int c = 0; c < C; ++c) {
+                out[offset + h * W * C + w * C + c] = image_in[tmp_idx + c];
+              }
+            } else {
+              // LINEAR interpolation
+              Point<float> p = displace.template operator()<float>(h, w, 0, H, W, C);
+              T inter_values[4];
+              const Index x = p.x;
+              const Index y = p.y;
+              const Index xp = x < W - 1 ? x + 1 : x;
+              const Index yp = y < H - 1 ? y + 1 : y;
+              const float rx = p.x - x;
+              const float ry = p.y - y;
+              const float mrx = 1 - rx;
+              const float mry = 1 - ry;
+              for (int c = 0; c < C; ++c) {
+                // 0, 0
+                inter_values[0] = __ldg(&image_in[(y * W + x) * C + c]);
+                // 1, 0
+                inter_values[1] = __ldg(&image_in[(y * W + xp) * C + c]);
+                // 0, 1
+                inter_values[2] = __ldg(&image_in[(yp * W + x) * C + c]);
+                // 1, 1
+                inter_values[3] = __ldg(&image_in[(yp * W + xp) * C + c]);
+                out[offset + h * W * C + w * C + c] = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
             }
           }
         }
@@ -145,21 +287,22 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
 }
 
 template <class Displacement,
-          class Augment,
           bool per_channel_transform>
 class DisplacementFilter<GPUBackend, Displacement,
-                         Augment, per_channel_transform> : public Operator<GPUBackend> {
+                         per_channel_transform> : public Operator<GPUBackend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
-     Operator(spec),
-     displace_(spec),
-     augment_(spec),
-     rand_gen_(spec.GetArgument<int>("seed")),
-     dis(spec.GetArgument<float>("probability")) {}
+      Operator(spec),
+      displace_(spec),
+      interp_type_(spec.GetArgument<NDLLInterpType>("interp_type")),
+      rand_gen_(spec.GetArgument<int>("seed")),
+      dis(spec.GetArgument<float>("probability")) {
+    NDLL_ENFORCE(interp_type_ == NDLL_INTERP_NN || interp_type_ == NDLL_INTERP_LINEAR,
+        "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
+  }
 
   virtual ~DisplacementFilter() {
      displace_.Cleanup();
-     augment_.Cleanup();
   }
 
   void RunImpl(DeviceWorkspace* ws, const int idx) override {
@@ -193,6 +336,8 @@ class DisplacementFilter<GPUBackend, Displacement,
     mask_gpu_.template mutable_data<bool>();
     mask_gpu_.Copy(mask_, ws->stream());
   }
+
+  USE_OPERATOR_MEMBERS();
 
  private:
   static const int nDims = 3;
@@ -247,13 +392,26 @@ class DisplacementFilter<GPUBackend, Displacement,
       maxPower2 = maxPower2 > power2 ? power2 : maxPower2;
     }
 
-    DisplacementKernelLauncher(ws, input.template data<T>(),
-                               output->template mutable_data<T>(),
-                               input.ntensor(), pitch, C, maxPower2);
+    switch (interp_type_) {
+      case NDLL_INTERP_NN:
+        DisplacementKernelLauncher<T, NDLL_INTERP_NN>(ws, input.template data<T>(),
+            output->template mutable_data<T>(),
+            input.ntensor(), pitch, C, maxPower2);
+        break;
+      case NDLL_INTERP_LINEAR:
+        DisplacementKernelLauncher<T, NDLL_INTERP_LINEAR>(ws, input.template data<T>(),
+            output->template mutable_data<T>(),
+            input.ntensor(), pitch, C, maxPower2);
+        break;
+      default:
+        NDLL_FAIL("Unsupported interpolation type,"
+            " only NN and LINEAR are supported for this operation");
+    }
+
     return true;
   }
 
-  template <typename U>
+  template <typename U, NDLLInterpType interp_type>
   void DisplacementKernelLauncher(DeviceWorkspace * ws,
                                   const U* in, U* out,
                                   const int N, const int pitch,
@@ -262,38 +420,37 @@ class DisplacementFilter<GPUBackend, Displacement,
       switch (C) {
         case 1:
           DisplacementKernel_aligned32bit<U, 1, per_channel_transform,
-            256, Displacement, Augment>
+            256, Displacement, interp_type>
               <<<N, 256, 0, ws->stream()>>>(
                   in, out, N,
                   meta_gpu.template mutable_data<Index>(),
                   mask_gpu_.template mutable_data<bool>(),
-                  pitch, displace_, augment_);
+                  pitch, displace_);
           return;
         case 3:
           DisplacementKernel_aligned32bit<U, 3, per_channel_transform,
-            256, Displacement, Augment>
+            256, Displacement, interp_type>
               <<<N, 256, 0, ws->stream()>>>(
                   in, out, N,
                   meta_gpu.template mutable_data<Index>(),
                   mask_gpu_.template mutable_data<bool>(),
-                  pitch, displace_, augment_);
+                  pitch, displace_);
           return;
         default:
           break;
       }
     }
-    DisplacementKernel<U, per_channel_transform, Displacement>
+    DisplacementKernel<U, per_channel_transform, Displacement, interp_type>
       <<<N, 256, 0, ws->stream()>>>(
           in, out, N,
           meta_gpu.template mutable_data<Index>(),
           mask_gpu_.template mutable_data<bool>(),
-          pitch, displace_, augment_);
+          pitch, displace_);
   }
 
-  USE_OPERATOR_MEMBERS();
 
   Displacement displace_;
-  Augment augment_;
+  NDLLInterpType interp_type_;
 
   Tensor<CPUBackend> meta_cpu;
   Tensor<GPUBackend> meta_gpu;

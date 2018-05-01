@@ -18,28 +18,31 @@ class JitterAugment {
         nDegree_(spec.GetArgument<int>("nDegree")),
         rnd_(spec.GetArgument<int>("seed"), 128*256) {}
 
+template <typename T>
 #ifdef __CUDA_ARCH__
   __host__ __device__
 #endif
-  Index operator()(int y, int x, int c, int H, int W, int C) {
+  Point<T> operator()(int y, int x, int c, int H, int W, int C) {
     // JITTER_PREAMBLE
     const uint16_t degr = nDegree_;
     const uint16_t nHalf = degr/2;
-    const int nYoffset = W * C;
 
 
     // JITTER_CORE
-    int newX, newY;
 #ifdef __CUDA_ARCH__
     const int idx = threadIdx.x + blockIdx.x * blockDim.x;
 #else
     const int idx = 0;
 #endif
 
-    const uint32_t from = (newX = rnd_.rand(idx) % degr - nHalf + x) > 0 && newX < W && \
-                          (newY = rnd_.rand(idx) % degr - nHalf + y) > 0 && newY < H?   \
-                          newX * C + newY * nYoffset + c : (y * W + x) * C + c;
-    return from;
+    Point<T> p;
+    const int newX = rnd_.rand(idx) % degr - nHalf + x;
+    const int newY = rnd_.rand(idx) % degr - nHalf + y;
+
+    p.x = newX > 0 && newX < W ? newX : 0;
+    p.y = newY > 0 && newY < H ? newY : 0;
+
+    return p;
   }
 
   void Cleanup() {
@@ -52,7 +55,7 @@ class JitterAugment {
 };
 
 template <typename Backend>
-class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>, ColorIdentity> {
+class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
  public:
     inline explicit Jitter(const OpSpec &spec)
       : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}

@@ -10,35 +10,51 @@
 namespace ndll {
 
 template <class Displacement,
-          class Augment,
           bool per_channel_transform>
 class DisplacementFilter<CPUBackend, Displacement,
-                         Augment, per_channel_transform> : public Operator<CPUBackend> {
+                         per_channel_transform> : public Operator<CPUBackend> {
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
-    Operator(spec),
-    displace_(spec),
-    augment_(spec),
-    rand_gen_(spec.GetArgument<int>("seed")),
-    dis(spec.GetArgument<float>("probability")) {
-      mask_.set_pinned(false);
+      Operator(spec),
+      displace_(spec),
+      interp_type_(spec.GetArgument<NDLLInterpType>("interp_type")),
+      rand_gen_(spec.GetArgument<int>("seed")),
+      dis(spec.GetArgument<float>("probability")) {
+    mask_.set_pinned(false);
+    NDLL_ENFORCE(interp_type_ == NDLL_INTERP_NN || interp_type_ == NDLL_INTERP_LINEAR,
+        "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
   }
 
   virtual ~DisplacementFilter() {
     displace_.Cleanup();
-    augment_.Cleanup();
   }
 
   void RunImpl(SampleWorkspace* ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
     auto &input = ws->Input<CPUBackend>(idx);
-    if (IsType<float>(input.type())) {
-      PerSampleCPULoop<float>(ws, idx);
-    } else if (IsType<uint8_t>(input.type())) {
-      PerSampleCPULoop<uint8_t>(ws, idx);
-    } else {
-      NDLL_FAIL("Unexpected input type " + input.type().name());
+    switch(interp_type_) {
+      case NDLL_INTERP_NN:
+        if (IsType<float>(input.type())) {
+          PerSampleCPULoop<float, NDLL_INTERP_NN>(ws, idx);
+        } else if (IsType<uint8_t>(input.type())) {
+          PerSampleCPULoop<uint8_t, NDLL_INTERP_NN>(ws, idx);
+        } else {
+          NDLL_FAIL("Unexpected input type " + input.type().name());
+        }
+        break;
+      case NDLL_INTERP_LINEAR:
+        if (IsType<float>(input.type())) {
+          PerSampleCPULoop<float, NDLL_INTERP_LINEAR>(ws, idx);
+        } else if (IsType<uint8_t>(input.type())) {
+          PerSampleCPULoop<uint8_t, NDLL_INTERP_LINEAR>(ws, idx);
+        } else {
+          NDLL_FAIL("Unexpected input type " + input.type().name());
+        }
+        break;
+      default:
+        NDLL_FAIL("Unsupported interpolation type,"
+            " only NN and LINEAR are supported for this operation");
     }
   }
 
@@ -53,7 +69,7 @@ class DisplacementFilter<CPUBackend, Displacement,
   }
 
  private:
-  template <typename T>
+  template <typename T, NDLLInterpType interp_type>
   bool PerSampleCPULoop(SampleWorkspace *ws, const int idx) {
     auto& input = ws->Input<CPUBackend>(idx);
     auto *output = ws->Output<CPUBackend>(idx);
@@ -75,20 +91,80 @@ class DisplacementFilter<CPUBackend, Displacement,
               // output idx is set by location
               Index out_idx = (h * W + w) * C + c;
               // input idx is calculated by function
-              Index in_idx = displace_(h, w, c, H, W, C);
+              T out_value;
+              if (interp_type == NDLL_INTERP_NN) {
+                // NN interpolation
+                Point<Index> p = displace_.template operator()<Index>(h, w, c, H, W, C);
+                Index in_idx = (p.y * W + p.x) * C + c;
+                out_value = in[in_idx];
+              } else {
+                // LINEAR interpolation
+                Point<float> p = displace_.template operator()<float>(h, w, c, H, W, C);
+                T inter_values[4];
+                Index x = p.x;
+                Index y = p.y;
+                Index xp = x < W - 1 ? x + 1 : x;
+                Index yp = y < H - 1 ? y + 1 : y;
+                // 0, 0
+                inter_values[0] = in[(y * W + x) * C + c];
+                // 1, 0
+                inter_values[1] = in[(y * W + xp) * C + c];
+                // 0, 1
+                inter_values[2] = in[(yp * W + x) * C + c];
+                // 1, 1
+                inter_values[3] = in[(yp * W + xp) * C + c];
+                const float rx = p.x - x;
+                const float ry = p.y - y;
+                const float mrx = 1 - rx;
+                const float mry = 1 - ry;
+                out_value = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
 
               // copy
-              out[out_idx] = augment_(in[in_idx], h, w, c, H, W, C);
+              out[out_idx] = out_value;
             }
           } else {
             // output idx is set by location
             Index out_idx = (h * W + w) * C;
-            // input idx is calculated by function
-            Index in_idx = displace_(h, w, 0, H, W, C);
+            if (interp_type == NDLL_INTERP_NN) {
+              // input idx is calculated by function
+              Point<Index> p = displace_.template operator()<Index>(h, w, 0, H, W, C);
+              Index in_idx = (p.y * W + p.x) * C;
 
-            // apply transform uniformly across channels
-            for (int c = 0; c < C; ++c) {
-              out[out_idx+c] = augment_(in[in_idx + c], h, w, c, H, W, C);
+              // apply transform uniformly across channels
+              for (int c = 0; c < C; ++c) {
+                out[out_idx+c] = in[in_idx + c];
+              }
+            } else {
+              Point<float> p = displace_.template operator()<float>(h, w, 0, H, W, C);
+              T inter_values[4];
+              Index x = p.x;
+              Index y = p.y;
+              Index xp = x < W - 1 ? x + 1 : x;
+              Index yp = y < H - 1 ? y + 1 : y;
+              const float rx = p.x - x;
+              const float ry = p.y - y;
+              const float mrx = 1 - rx;
+              const float mry = 1 - ry;
+              for (int c = 0; c < C; ++c) {
+                // 0, 0
+                inter_values[0] = in[(y * W + x) * C + c];
+                // 1, 0
+                inter_values[1] = in[(y * W + xp) * C + c];
+                // 0, 1
+                inter_values[2] = in[(yp * W + x) * C + c];
+                // 1, 1
+                inter_values[3] = in[(yp * W + xp) * C + c];
+                out[out_idx + c] = static_cast<T>(
+                    inter_values[0] * mrx * mry +
+                    inter_values[1] * rx * mry +
+                    inter_values[2] * mrx * ry +
+                    inter_values[3] * rx * ry);
+              }
             }
           }
         }
@@ -118,11 +194,12 @@ class DisplacementFilter<CPUBackend, Displacement,
 
  private:
   Displacement displace_;
-  Augment augment_;
+  NDLLInterpType interp_type_;
 
   std::mt19937 rand_gen_;
   Tensor<CPUBackend> mask_;
   std::bernoulli_distribution dis;
+
 };
 
 }  // namespace ndll

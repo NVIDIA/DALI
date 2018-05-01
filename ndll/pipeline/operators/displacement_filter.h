@@ -20,34 +20,29 @@
 
 #define DISPLACEMENT_SCHEMA_ARGS \
   .AddOptionalArg("probability", \
-      "Probability of applying this augmentation to the input image", 1.0f)
+      "Probability of applying this augmentation to the input image", 1.0f) \
+  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_NN)
 
 namespace ndll {
 
-class ColorIdentity {
- public:
-  explicit ColorIdentity(const OpSpec& spec) {}
-
-  template <typename T>
-  DISPLACEMENT_IMPL
-  T operator()(const T in, const Index h, const Index w, const Index c,
-               const Index H, const Index W, const Index C) {
-    // identity
-    return in;
-  }
-
-  void Cleanup() {}
+template <typename T>
+struct Point {
+  T x, y;
 };
 
 class DisplacementIdentity {
  public:
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
+  template<typename T>
   DISPLACEMENT_IMPL
-  Index operator()(const Index h, const Index w, const Index c,
-                   const Index H, const Index W, const Index C) {
+  Point<T> operator()(const Index h, const Index w, const Index c,
+                      const Index H, const Index W, const Index C) {
     // identity
-    return (h * W + w) * C + c;
+    Point<T> p;
+    p.x = w;
+    p.y = h;
+    return p;
   }
 
   void Cleanup() {}
@@ -55,7 +50,6 @@ class DisplacementIdentity {
 
 template <typename Backend,
           class Displacement = DisplacementIdentity,
-          class Augment = ColorIdentity,
           bool per_channel_transform = false>
 class DisplacementFilter : public Operator<Backend> {};
 

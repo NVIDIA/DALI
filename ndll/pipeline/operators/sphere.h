@@ -14,36 +14,37 @@ class SphereAugment {
  public:
   explicit SphereAugment(const OpSpec& spec) {}
 
+  template <typename T>
   DISPLACEMENT_IMPL
-  Index operator()(int h, int w, int c, int H, int W, int C) {
+  Point<T> operator()(int h, int w, int c, int H, int W, int C) {
     // SPHERE_PREAMBLE
     const int mid_x = W / 2;
     const int mid_y = H / 2;
     const int d = mid_x > mid_y ? mid_x : mid_y;
-    const int nYoffset = W * C;
 
     // SPHERE_CORE
     const int trueY = h - mid_y;
     const int trueX = w - mid_x;
     const float rad = sqrtf(trueX * trueX + trueY * trueY) / d;
 
-    int newX = mid_x + rad * trueX;
-    int newY = mid_y + rad * trueY;
+    T newX = mid_x + rad * trueX;
+    T newY = mid_y + rad * trueY;
 
-    const int from_idx = newX > 0 && newX < W && newY > 0 && newY < H ?
-      newX * C + newY * nYoffset + c : c;
+    Point<T> p;
+    p.x = newX > 0 && newX < W ? newX : 0;
+    p.y = newY > 0 && newY < H ? newY : 0;
 
-    return from_idx;
+    return p;
   }
 
   void Cleanup() {}
 };
 
 template <typename Backend>
-class Sphere : public DisplacementFilter<Backend, SphereAugment, ColorIdentity> {
+class Sphere : public DisplacementFilter<Backend, SphereAugment> {
  public:
     inline explicit Sphere(const OpSpec &spec)
-      : DisplacementFilter<Backend, SphereAugment, ColorIdentity>(spec) {}
+      : DisplacementFilter<Backend, SphereAugment>(spec) {}
 
 
     virtual ~Sphere() = default;
