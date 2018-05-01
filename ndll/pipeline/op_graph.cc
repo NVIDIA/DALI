@@ -81,9 +81,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     new_node = &cpu_node;
   } else if (device == "gpu") {
-    // Enforce graph constraints
-    NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
-
     // Create the operator
     OpPtr tmp(
         GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));

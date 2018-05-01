@@ -12,9 +12,6 @@
 
 namespace ndll {
 
-// TODO(tgale): The constraint that GPU ops cannot produce CPU
-// outputs is arbitrary. We could easily enable cpu/gpu outputs
-// for gpu ops, do we want to do this?
 void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   NDLL_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
@@ -83,15 +80,21 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
         "result name. " + error_str);
 
     // Validate output data conforms to graph constraints
+    bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
       NDLL_ENFORCE(output_device == "cpu", "cpu ops can only produce "
           "cpu outputs." + error_str);
-    } else {
-      NDLL_ENFORCE(output_device == "gpu", "gpu ops can only produce "
-          "gpu outputs." + error_str);
+    } else if (device == "gpu") {
+      if (output_device == "cpu") {
+        mark_explicitly_contiguous = true;
+      }
     }
 
-    EdgeMeta meta = NewEdge(device);
+    EdgeMeta meta = NewEdge(output_device);
+    if (mark_explicitly_contiguous) {
+      meta.has_contiguous = true;
+    }
+
     NDLL_ENFORCE(edge_names_.insert({output_name, meta}).second,
         "Output name insertion failure.");
   }
@@ -130,8 +133,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec);
         graph_.AddOp(spec, "__MakeContiguous_" + name);
+
+        outputs.push_back("contiguous_" + name + "_" + device);
       }
-      outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
       if (!it->second.has_gpu) {
         NDLL_ENFORCE(it->second.has_cpu, "Output '" + name +
