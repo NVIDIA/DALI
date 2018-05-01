@@ -45,6 +45,8 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
     out_roi.width = out_sizes[i].width;
     out_roi.height = out_sizes[i].height;
 
+    printf("batched i: %d, h: %d, w: %d\n", i, out_roi.height, out_roi.width);
+
     // TODO(tgale): Can move condition out w/ function ptr or std::function obj
     if (C == 3) {
       NDLL_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
@@ -61,14 +63,19 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
 
 template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
-  for (int i = 0; i < batch_size_; ++i)
+  for (int i = 0; i < batch_size_; ++i) {
     per_sample_rand_[i] = GetRandomSizes();
+    printf("i: %d h: %d w: %d\n", i, per_sample_rand_[i].first, per_sample_rand_[i].second);
+  }
 }
 
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     const auto &input = ws->Input<GPUBackend>(idx);
-    auto output = ws->Output<GPUBackend>(idx);
+    const bool save_attrs = spec_.HasArgument("save_attrs");
+    const int outputs_per_idx = save_attrs ? 2 : 1;
+
+    auto output = ws->Output<GPUBackend>(outputs_per_idx * idx);
 
     ResizeParamDescr resizeDescr(this, resizeParam_.data());
     DataDependentSetupGPU(input, output, batch_size_, false,
@@ -83,6 +90,25 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         output_ptrs_.data(), sizes(output_t).data(),
         type_);
     nppSetStream(old_stream);
+
+    // Setup and output the resize attributes if necessary
+    if (save_attrs) {
+      auto *attr_output = ws->Output<CPUBackend>(outputs_per_idx * idx + 1);
+
+      vector<Dims> resize_shape(input.ntensor());
+
+      for (int i = 0; i < input.ntensor(); ++i) {
+        resize_shape[i] = Dims{2};
+      }
+
+      attr_output->Resize(resize_shape);
+
+      for (int i = 0; i < input.ntensor(); ++i) {
+        int *t = attr_output->mutable_tensor<int>(i);
+        t[0] = sizes(output_t).data()[i].height;
+        t[1] = sizes(output_t).data()[i].width;
+      }
+    }
 }
 
 NDLL_REGISTER_OPERATOR(Resize, Resize<GPUBackend>, GPU);

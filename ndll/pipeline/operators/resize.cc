@@ -7,7 +7,13 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
           "cropping (random and fixed) and image mirroring.")
   .NumInput(1)
-  .NumOutput(1)
+  .OutputFn([](const OpSpec& spec) {
+      if (spec.HasArgument("save_attrs")) {
+        return 2;
+      } else {
+        return 1;
+      }
+      })
   .AllowMultipleInputSets()
   .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
   .AddOptionalArg("warp_resize", "Foo", false)
@@ -18,7 +24,8 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
       "vertical flip of the image", vector<float>{0.f, 0.f})
   .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB)
-  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR);
+  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR)
+  .AddOptionalArg("save_attrs", "Save reshape attributes for testing", false);
 
 
 resize_t ResizeAttr::GetRandomSizes() const {

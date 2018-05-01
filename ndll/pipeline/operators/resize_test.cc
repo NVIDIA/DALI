@@ -1,169 +1,164 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#include <gtest/gtest.h>
-#include <opencv2/opencv.hpp>
-
-#include <utility>
-#include <string>
-
-#include "ndll/pipeline/operators/resize_crop_mirror.h"
-#include "ndll/common.h"
-#include "ndll/error_handling.h"
-#include "ndll/image/jpeg.h"
-#include "ndll/pipeline/pipeline.h"
-#include "ndll/test/ndll_test.h"
+#include "ndll/test/ndll_test_single_op.h"
 
 namespace ndll {
 
-namespace {
-// 440 & 410 not supported by npp
-const vector<string> hybdec_images = {
-  image_folder + "/411.jpg",
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
-};
-}  // namespace
-
 template <typename ImgType>
-class ResizeTest : public NDLLTest {
+class ResizeTest : public NDLLSingleOpTest {
  public:
-  void SetUp() {
-    if (IsColor(img_type_)) {
-      c_ = 3;
-    } else if (img_type_ == NDLL_GRAY) {
-      c_ = 1;
-    } else {
-      NDLL_FAIL("Unsupported image type.");
+  USING_NDLL_SINGLE_OP_TEST();
+
+  vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs,
+            DeviceWorkspace *ws) {
+    // single input - encoded images
+    // single output - decoded images
+    vector<TensorList<CPUBackend>*> outputs(1);
+
+    vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
+
+    const TensorList<CPUBackend>& image_data = *inputs[0];
+    const auto n = spec_.name();
+
+    c_ = (IsColor(img_type_) ? 3 : 1);
+    auto cv_type = (c_ == 3) ? CV_8UC3 : CV_8UC1;
+
+    const int resize_a = spec_.GetArgument<int>("resize_a");
+    const int resize_b = spec_.GetArgument<int>("resize_b");
+    const bool random_resize = spec_.GetArgument<bool>("random_resize");
+    const bool warp_resize = spec_.GetArgument<bool>("warp_resize");
+
+    // Can't handle these right now
+    if (!spec_.GetArgument<bool>("save_attrs")) {
+      assert(random_resize == false);
     }
 
-    rand_gen_.seed(time(nullptr));
-    LoadJPEGS(hybdec_images, &jpegs_, &jpeg_sizes_);
-  }
+    int rsz_h, rsz_w;
 
-  void TearDown() {
-    NDLLTest::TearDown();
-  }
+    for (int i = 0; i < image_data.ntensor(); ++i) {
+      auto *data = image_data.tensor<unsigned char>(i);
+      auto shape = image_data.tensor_shape(i);
+      const int H = shape[0], W = shape[1];
 
-  void VerifyImage(const uint8 *img, const uint8 *img2, int n,
-      float mean_bound = 2.0, float std_bound = 3.0) {
-    std::vector<uint8> host_img(n), host_img2(n);
+      cv::Mat input = cv::Mat(H, W, cv_type,
+                              const_cast<unsigned char*>(data));
 
-    CUDA_CALL(cudaMemcpy(host_img.data(), img, n*sizeof(uint8), cudaMemcpyDefault));
-    CUDA_CALL(cudaMemcpy(host_img2.data(), img2, n*sizeof(uint8), cudaMemcpyDefault));
+      // perform the resize
+      cv::Mat rsz_img;
 
-    vector<int> abs_diff(n, 0);
-    for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(static_cast<int>(host_img[i] - host_img2[i]));
+      // determine resize parameters
+      if (spec_.GetArgument<bool>("save_attrs")) {
+        const int *t = ws->Output<CPUBackend>(1)->tensor<int>(i);
+        rsz_h = t[0];
+        rsz_w = t[1];
+      } else {
+        if (warp_resize) {
+          rsz_h = resize_a;
+          rsz_w = resize_b;
+        } else {
+          if (H >= W) {
+            rsz_w = resize_a;
+            rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+          } else {  // W > H
+            rsz_h = resize_a;
+            rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+          }
+        }
+      }
+
+      cv::resize(input, rsz_img, cv::Size(rsz_h, rsz_w), 0, 0, cv::INTER_LINEAR);
+
+      out[i].Resize({rsz_img.rows, rsz_img.cols, c_});
+      auto *out_data = out[i].mutable_data<unsigned char>();
+
+      std::memcpy(out_data, rsz_img.ptr(), rsz_img.rows * rsz_img.cols * c_);
     }
-    double mean, std;
-    MeanStdDev(abs_diff, &mean, &std);
-
-#ifndef NDEBUG
-    cout << "num: " << abs_diff.size() << endl;
-    cout << "mean: " << mean << endl;
-    cout << "std: " << std << endl;
-#endif
-
-    // Note: We allow a slight deviation from the ground truth.
-    // This value was picked fairly arbitrarily to let the test
-    // pass for libjpeg turbo
-    ASSERT_LT(mean, mean_bound);
-    ASSERT_LT(std, std_bound);
-  }
-
-  template <typename T>
-  void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
-    // Avoid division by zero
-    ASSERT_NE(diff.size(), 0);
-
-    double sum = 0, var_sum = 0;
-    for (auto &val : diff) {
-      sum += val;
-    }
-    *mean = sum / diff.size();
-    for (auto &val : diff) {
-      var_sum += (val - *mean)*(val - *mean);
-    }
-    *std = sqrt(var_sum / diff.size());
+    outputs[0] = new TensorList<CPUBackend>();
+    outputs[0]->Copy(out, 0);
+    return outputs;
   }
 
  protected:
+  OpSpec DefaultSchema() {
+    return OpSpec("Resize")
+           .AddArg("device", "gpu")
+           .AddInput("input", "gpu")
+           .AddOutput("output", "gpu");
+  }
+
   const NDLLImageType img_type_ = ImgType::type;
-  int c_;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(ResizeTest, Types);
 
-TYPED_TEST(ResizeTest, MultipleData) {
-  int batch_size = this->jpegs_.size();
-  int num_thread = 1;
-
-  // Create the pipeline
-  Pipeline pipe(
-      batch_size,
-      num_thread,
-      0, false);
-
+TYPED_TEST(ResizeTest, TestFixedResize) {
   TensorList<CPUBackend> data;
-  this->MakeJPEGBatch(&data, batch_size);
-  pipe.AddExternalInput("jpegs");
-  pipe.SetExternalInput("jpegs", data);
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
 
-  // Decode the images
-  pipe.AddOperator(
-      OpSpec("HostDecoder")
-      .AddInput("jpegs", "cpu")
-      .AddOutput("images", "cpu"));
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("warp_resize", false)
+                    .AddArg("mirror_prob", 0.f));
 
-  pipe.AddOperator(
-      OpSpec("HostDecoder")
-      .AddInput("jpegs", "cpu")
-      .AddOutput("images2", "cpu"));
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
 
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
 
-  // Resize + crop multiple sets of images
-  pipe.AddOperator(
-      OpSpec("Resize")
-      .AddArg("device", "gpu")
-      .AddInput("images", "gpu")
-      .AddOutput("resized1", "gpu")
-      .AddInput("images2", "gpu")
-      .AddOutput("resized2", "gpu")
-      .AddArg("resize_a", 384)
-      .AddArg("resize_b", 384)
-      .AddArg("num_input_sets", 2));
+  this->CheckAnswers(&ws, {0});
+}
 
-    // Build and run the pipeline
-    vector<std::pair<string, string>> outputs = {{"resized1", "gpu"}, {"resized2", "gpu"}};
+TYPED_TEST(ResizeTest, TestFixedResizeWarp) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
 
-  pipe.Build(outputs);
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 480)
+                    .AddArg("resize_b", 480)
+                    .AddArg("warp_resize", true)
+                    .AddArg("mirror_prob", 0.f));
 
-  // Decode the images
-  pipe.RunCPU();
-  pipe.RunGPU();
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
 
-  DeviceWorkspace results;
-  pipe.Outputs(&results);
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
 
-  // Verify the results
-  auto output0 = results.Output<GPUBackend>(0);
-  auto output1 = results.Output<GPUBackend>(1);
+  this->CheckAnswers(&ws, {0});
+}
 
-  // WriteHWCBatch(*output, "image");
-  for (int i = 0; i < batch_size; ++i) {
-    this->VerifyImage(
-        output0->template tensor<uint8>(i),
-        output1->template tensor<uint8>(i),
-        output0->tensor_shape(i)[0]*output0->tensor_shape(i)[1]*output0->tensor_shape(i)[2]);
-  }
+TYPED_TEST(ResizeTest, TestRandomResize) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
+
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 128)
+                    .AddArg("resize_b", 256)
+                    .AddArg("random_resize", true)
+                    .AddArg("mirror_prob", 0.f)
+                    .AddArg("save_attrs", true)
+                    .AddArg("warp_resize", false)
+                    .AddOutput("attrs", "cpu"));
+
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
+
+  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+  // Difference is consistent, deterministic and goes away if I force OCV
+  // instead of TJPG decoding.
+  this->SetEps(5e-2);
+
+  this->CheckAnswers(&ws, {0});
 }
 
 }  // namespace ndll
-
