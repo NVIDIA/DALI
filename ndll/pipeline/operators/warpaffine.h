@@ -12,19 +12,31 @@ namespace ndll {
 
 class WarpAffineAugment {
  public:
-  explicit WarpAffineAugment(const OpSpec& spec) {}
+  static const int size = 6;
+  explicit WarpAffineAugment(const OpSpec& spec) {
+    std::vector<float> tmp = spec.GetRepeatedArgument<float>("matrix");
+    NDLL_ENFORCE(tmp.size() == size, "Warp affine matrix needs to have 6 elements");
+    for (int i = 0; i < size; ++i) {
+      matrix[i] = tmp[i];
+    }
+  }
 
   template <typename T>
   DISPLACEMENT_IMPL
   Point<T> operator()(int h, int w, int c, int H, int W, int C) {
     // TODO(ptredak): actual implementation
     Point<T> p;
-    p.x = 0;
-    p.y = 0;
+    const T newX = matrix[0] * w + matrix[1] * h + matrix[2];
+    const T newY = matrix[3] * w + matrix[4] * h + matrix[5];
+    p.x = newX > 0 && newX < W ? newX : 0;
+    p.y = newY > 0 && newY < H ? newY : 0;
     return p;
   }
 
   void Cleanup() {}
+
+ private:
+  float matrix[6];
 };
 
 template <typename Backend>
