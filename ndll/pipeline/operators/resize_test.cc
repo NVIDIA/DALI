@@ -106,10 +106,10 @@ TYPED_TEST(ResizeTest, TestFixedResize) {
   DeviceWorkspace ws;
   this->RunOperator(&ws);
 
-  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
-  // Difference is consistent, deterministic and goes away if I force OCV
-  // instead of TJPG decoding.
-  this->SetEps(5e-2);
+  // Note: There seem to be implementation differences between
+  // NPP and openCV - put a relatively high error bound that will catch
+  // obvious errors, but pass on slight differences.
+  this->SetEps(2e-1);
 
   this->CheckAnswers(&ws, {0});
 }
@@ -128,10 +128,10 @@ TYPED_TEST(ResizeTest, TestFixedResizeWarp) {
   DeviceWorkspace ws;
   this->RunOperator(&ws);
 
-  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
-  // Difference is consistent, deterministic and goes away if I force OCV
-  // instead of TJPG decoding.
-  this->SetEps(5e-2);
+  // Note: There seem to be implementation differences between
+  // NPP and openCV - put a relatively high error bound that will catch
+  // obvious errors, but pass on slight differences.
+  this->SetEps(2e-1);
 
   this->CheckAnswers(&ws, {0});
 }
@@ -142,8 +142,8 @@ TYPED_TEST(ResizeTest, TestRandomResize) {
   this->SetExternalInputs({std::make_pair("input", &data)});
 
   this->AddSingleOp(this->DefaultSchema()
-                    .AddArg("resize_a", 128)
-                    .AddArg("resize_b", 256)
+                    .AddArg("resize_a", 256)
+                    .AddArg("resize_b", 480)
                     .AddArg("random_resize", true)
                     .AddArg("mirror_prob", 0.f)
                     .AddArg("save_attrs", true)
@@ -153,10 +153,35 @@ TYPED_TEST(ResizeTest, TestRandomResize) {
   DeviceWorkspace ws;
   this->RunOperator(&ws);
 
-  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
-  // Difference is consistent, deterministic and goes away if I force OCV
-  // instead of TJPG decoding.
-  this->SetEps(5e-2);
+  // Note: There seem to be implementation differences between
+  // NPP and openCV - put a relatively high error bound that will catch
+  // obvious errors, but pass on slight differences.
+  this->SetEps(2e-1);
+
+  this->CheckAnswers(&ws, {0});
+}
+
+TYPED_TEST(ResizeTest, TestRandomResizeWarp) {
+  TensorList<CPUBackend> data;
+  this->DecodedData(&data, this->batch_size_, this->img_type_);
+  this->SetExternalInputs({std::make_pair("input", &data)});
+
+  this->AddSingleOp(this->DefaultSchema()
+                    .AddArg("resize_a", 256)
+                    .AddArg("resize_b", 480)
+                    .AddArg("random_resize", true)
+                    .AddArg("mirror_prob", 0.f)
+                    .AddArg("save_attrs", true)
+                    .AddArg("warp_resize", true)
+                    .AddOutput("attrs", "cpu"));
+
+  DeviceWorkspace ws;
+  this->RunOperator(&ws);
+
+  // Note: There seem to be implementation differences between
+  // NPP and openCV - put a relatively high error bound that will catch
+  // obvious errors, but pass on slight differences.
+  this->SetEps(2e-1);
 
   this->CheckAnswers(&ws, {0});
 }

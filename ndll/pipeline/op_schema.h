@@ -62,6 +62,22 @@ class OpSchema {
   }
 
   /**
+   * @brief Sets a function to determine the number of
+   * additional outputs (independent of output sets) from an
+   * op from the op's specification.
+   *
+   * If this function is not set it will be assumed that no
+   * additional outputs can be returned
+   *
+   * Use case is to expose additional information (such as random
+   * numbers used within operators) to the user
+   */
+  inline OpSchema& AdditionalOutputsFn(SpecFunc f) {
+    additional_outputs_fn_ = f;
+    return *this;
+  }
+
+  /**
    * @brief Sets the number of inputs that the op can receive.
    */
   inline OpSchema& NumInput(int n) {
@@ -195,6 +211,11 @@ class OpSchema {
 
   int CalculateOutputs(const OpSpec &spec) const;
 
+  int CalculateAdditionalOutputs(const OpSpec &spec) const {
+    if (!additional_outputs_fn_) return 0;
+    return additional_outputs_fn_(spec);
+  }
+
   inline bool SupportsInPlace(const OpSpec &spec) const {
     if (!in_place_fn_) return false;
     return in_place_fn_(spec);
@@ -247,7 +268,7 @@ class OpSchema {
 
  private:
   string dox_;
-  SpecFunc output_fn_, in_place_fn_;
+  SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
 
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;

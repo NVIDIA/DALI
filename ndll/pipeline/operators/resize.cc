@@ -7,13 +7,10 @@ NDLL_OPERATOR_SCHEMA(Resize)
   .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
           "cropping (random and fixed) and image mirroring.")
   .NumInput(1)
-  .OutputFn([](const OpSpec& spec) {
-      if (spec.HasArgument("save_attrs")) {
-        return 2;
-      } else {
-        return 1;
-      }
-      })
+  .NumOutput(1)
+  .AdditionalOutputsFn([](const OpSpec& spec) {
+    return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
+  })
   .AllowMultipleInputSets()
   .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
   .AddOptionalArg("warp_resize", "Foo", false)
