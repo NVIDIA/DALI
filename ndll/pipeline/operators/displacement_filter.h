@@ -21,7 +21,9 @@
 #define DISPLACEMENT_SCHEMA_ARGS \
   .AddOptionalArg("probability", \
       "Probability of applying this augmentation to the input image", 1.0f) \
-  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_NN)
+  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_NN) \
+  .AddOptionalArg("fill_value", \
+      "Color value used for padding pixels", 0.f)
 
 namespace ndll {
 

@@ -23,6 +23,15 @@ class DisplacementFilter<CPUBackend, Displacement,
     mask_.set_pinned(false);
     NDLL_ENFORCE(interp_type_ == NDLL_INTERP_NN || interp_type_ == NDLL_INTERP_LINEAR,
         "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
+    try {
+      fill_value_ = spec.GetArgument<float>("fill_value");
+    } catch (std::runtime_error e) {
+      try {
+        fill_value_ = spec.GetArgument<int>("fill_value");
+      } catch (std::runtime_error e) {
+        NDLL_FAIL("Invalid type of argument \"fill_value\". Expected int or float");
+      }
+    }
   }
 
   virtual ~DisplacementFilter() {
@@ -106,33 +115,41 @@ class DisplacementFilter<CPUBackend, Displacement,
               if (interp_type == NDLL_INTERP_NN) {
                 // NN interpolation
                 Point<Index> p = displace_.template operator()<Index>(h, w, c, H, W, C);
-                Index in_idx = (p.y * W + p.x) * C + c;
-                out_value = in[in_idx];
+                if (p.x >= 0 && p.y >= 0) {
+                  Index in_idx = (p.y * W + p.x) * C + c;
+                  out_value = in[in_idx];
+                } else {
+                  out_value = fill_value_;
+                }
               } else {
                 // LINEAR interpolation
                 Point<float> p = displace_.template operator()<float>(h, w, c, H, W, C);
-                T inter_values[4];
-                Index x = p.x;
-                Index y = p.y;
-                Index xp = x < W - 1 ? x + 1 : x;
-                Index yp = y < H - 1 ? y + 1 : y;
-                // 0, 0
-                inter_values[0] = in[(y * W + x) * C + c];
-                // 1, 0
-                inter_values[1] = in[(y * W + xp) * C + c];
-                // 0, 1
-                inter_values[2] = in[(yp * W + x) * C + c];
-                // 1, 1
-                inter_values[3] = in[(yp * W + xp) * C + c];
-                const float rx = p.x - x;
-                const float ry = p.y - y;
-                const float mrx = 1 - rx;
-                const float mry = 1 - ry;
-                out_value = static_cast<T>(
-                    inter_values[0] * mrx * mry +
-                    inter_values[1] * rx * mry +
-                    inter_values[2] * mrx * ry +
-                    inter_values[3] * rx * ry);
+                if (p.x >= 0 && p.y >= 0) {
+                  T inter_values[4];
+                  Index x = p.x;
+                  Index y = p.y;
+                  Index xp = x < W - 1 ? x + 1 : x;
+                  Index yp = y < H - 1 ? y + 1 : y;
+                  // 0, 0
+                  inter_values[0] = in[(y * W + x) * C + c];
+                  // 1, 0
+                  inter_values[1] = in[(y * W + xp) * C + c];
+                  // 0, 1
+                  inter_values[2] = in[(yp * W + x) * C + c];
+                  // 1, 1
+                  inter_values[3] = in[(yp * W + xp) * C + c];
+                  const float rx = p.x - x;
+                  const float ry = p.y - y;
+                  const float mrx = 1 - rx;
+                  const float mry = 1 - ry;
+                  out_value = static_cast<T>(
+                      inter_values[0] * mrx * mry +
+                      inter_values[1] * rx * mry +
+                      inter_values[2] * mrx * ry +
+                      inter_values[3] * rx * ry);
+                } else {
+                  out_value = fill_value_;
+                }
               }
 
               // copy
@@ -144,37 +161,49 @@ class DisplacementFilter<CPUBackend, Displacement,
             if (interp_type == NDLL_INTERP_NN) {
               // input idx is calculated by function
               Point<Index> p = displace_.template operator()<Index>(h, w, 0, H, W, C);
-              Index in_idx = (p.y * W + p.x) * C;
+              if (p.x >= 0 && p.y >= 0) {
+                Index in_idx = (p.y * W + p.x) * C;
 
-              // apply transform uniformly across channels
-              for (int c = 0; c < C; ++c) {
-                out[out_idx+c] = in[in_idx + c];
+                // apply transform uniformly across channels
+                for (int c = 0; c < C; ++c) {
+                  out[out_idx+c] = in[in_idx + c];
+                }
+              } else {
+                for (int c = 0; c < C; ++c) {
+                  out[out_idx+c] = fill_value_;
+                }
               }
             } else {
               Point<float> p = displace_.template operator()<float>(h, w, 0, H, W, C);
-              T inter_values[4];
-              Index x = p.x;
-              Index y = p.y;
-              Index xp = x < W - 1 ? x + 1 : x;
-              Index yp = y < H - 1 ? y + 1 : y;
-              const float rx = p.x - x;
-              const float ry = p.y - y;
-              const float mrx = 1 - rx;
-              const float mry = 1 - ry;
-              for (int c = 0; c < C; ++c) {
-                // 0, 0
-                inter_values[0] = in[(y * W + x) * C + c];
-                // 1, 0
-                inter_values[1] = in[(y * W + xp) * C + c];
-                // 0, 1
-                inter_values[2] = in[(yp * W + x) * C + c];
-                // 1, 1
-                inter_values[3] = in[(yp * W + xp) * C + c];
-                out[out_idx + c] = static_cast<T>(
-                    inter_values[0] * mrx * mry +
-                    inter_values[1] * rx * mry +
-                    inter_values[2] * mrx * ry +
-                    inter_values[3] * rx * ry);
+              if (p.x >= 0 && p.y >= 0) {
+                T inter_values[4];
+                Index x = p.x;
+                Index y = p.y;
+                Index xp = x < W - 1 ? x + 1 : x;
+                Index yp = y < H - 1 ? y + 1 : y;
+                const float rx = p.x - x;
+                const float ry = p.y - y;
+                const float mrx = 1 - rx;
+                const float mry = 1 - ry;
+                for (int c = 0; c < C; ++c) {
+                  // 0, 0
+                  inter_values[0] = in[(y * W + x) * C + c];
+                  // 1, 0
+                  inter_values[1] = in[(y * W + xp) * C + c];
+                  // 0, 1
+                  inter_values[2] = in[(yp * W + x) * C + c];
+                  // 1, 1
+                  inter_values[3] = in[(yp * W + xp) * C + c];
+                  out[out_idx + c] = static_cast<T>(
+                      inter_values[0] * mrx * mry +
+                      inter_values[1] * rx * mry +
+                      inter_values[2] * mrx * ry +
+                      inter_values[3] * rx * ry);
+                }
+              } else {
+                for (int c = 0; c < C; ++c) {
+                  out[out_idx+c] = fill_value_;
+                }
               }
             }
           }
@@ -194,6 +223,7 @@ class DisplacementFilter<CPUBackend, Displacement,
 
   Displacement displace_;
   NDLLInterpType interp_type_;
+  float fill_value_;
 
   std::mt19937 rand_gen_;
   Tensor<CPUBackend> mask_;

@@ -39,8 +39,8 @@ template <typename T>
     const int newX = rnd_.rand(idx) % degr - nHalf + x;
     const int newY = rnd_.rand(idx) % degr - nHalf + y;
 
-    p.x = newX > 0 && newX < W ? newX : 0;
-    p.y = newY > 0 && newY < H ? newY : 0;
+    p.x = newX >= 0 && newX < W ? newX : -1;
+    p.y = newY >= 0 && newY < H ? newY : -1;
 
     return p;
   }

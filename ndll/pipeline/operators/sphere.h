@@ -31,8 +31,8 @@ class SphereAugment {
     T newY = mid_y + rad * trueY;
 
     Point<T> p;
-    p.x = newX > 0 && newX < W ? newX : 0;
-    p.y = newY > 0 && newY < H ? newY : 0;
+    p.x = newX >= 0 && newX < W ? newX : -1;
+    p.y = newY >= 0 && newY < H ? newY : -1;
 
     return p;
   }
