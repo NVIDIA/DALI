@@ -258,7 +258,7 @@ static vector<string> GetRegisteredGPUOps() {
   return GPUOperatorRegistry::Registry().RegisteredNames();
 }
 
-static OpSchema GetSchema(const string &name) {
+static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
 #ifdef NDLL_BUILD_PROTO3

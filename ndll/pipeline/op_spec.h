@@ -282,10 +282,10 @@ inline S OpSpec::GetArgument(const string &name) const {
   auto arg_it = arguments_.find(name);
 
   if (arg_it == arguments_.end()) {
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const auto &schema = SchemaRegistry::GetSchema(this->name());
     const OpSchema *pSchema = &schema;
     while (pSchema && !pSchema->OptionalArgumentExists(name))
-      pSchema = pSchema->parentSchema();
+      pSchema = SchemaRegistry::GetSchema(pSchema->getParentName());
 
     if (!pSchema)         // Parent Schema with valid default value of argument was not found
       pSchema = &schema;  // Use pointer of the initial Schema

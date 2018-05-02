@@ -29,18 +29,11 @@ bool AllOutputsGPU(const OpSpec &spec) {
 }
 
 void CheckOpConstraints(const OpSpec &spec) {
-  OpSchema schema = SchemaRegistry::GetSchema(spec.name());
+  auto &schema = SchemaRegistry::GetSchema(spec.name());
+  const int num_input_sets = spec.GetArgument<int>("num_input_sets");
 
-  bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
-
-  int num_input_sets = 1;
-  if (allows_multiple_inputs) {
-    num_input_sets = spec.GetArgument<int>("num_input_sets");
-  } else {
-    NDLL_ENFORCE(spec.GetArgument<int>("num_input_sets") == 1,
-        "Op '" + spec.name() + "' does not support multiple input sets.");
-  }
-
+  NDLL_ENFORCE(num_input_sets == 1 || schema.AllowsMultipleInputSets(),
+      "Op '" + spec.name() + "' does not support multiple input sets.");
   NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
       "Op '" + spec.name() + "' does not support in-place execution.");
   NDLL_ENFORCE(spec.NumInput() <= num_input_sets * schema.MaxNumInput(),
