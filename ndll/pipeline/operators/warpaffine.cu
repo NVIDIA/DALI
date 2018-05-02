@@ -7,5 +7,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(WarpAffine, WarpAffine<GPUBackend>, GPU);
 
+NDLL_REGISTER_OPERATOR(Rotate, Rotate<GPUBackend>, GPU);
+
 }  // namespace ndll
 

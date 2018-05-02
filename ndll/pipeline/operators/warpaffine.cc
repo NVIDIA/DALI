@@ -13,6 +13,18 @@ NDLL_OPERATOR_SCHEMA(WarpAffine)
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AddArg("matrix", "Matrix of the transform (dst -> src)")
+    .AddOptionalArg("use_image_center",
+        "Whether to use image center as the center of transformation", false)
+    DISPLACEMENT_SCHEMA_ARGS;
+
+NDLL_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);
+
+NDLL_OPERATOR_SCHEMA(Rotate)
+    .DocStr("Rotate the image")
+    .NumInput(1)
+    .NumOutput(1)
+    .AllowMultipleInputSets()
+    .AddArg("angle", "Rotation angle")
     DISPLACEMENT_SCHEMA_ARGS;
 
 }  // namespace ndll

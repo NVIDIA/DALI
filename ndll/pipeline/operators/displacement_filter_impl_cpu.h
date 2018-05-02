@@ -68,6 +68,17 @@ class DisplacementFilter<CPUBackend, Displacement,
     output->ResizeLike(input);
   }
 
+  void SetupSharedSampleParams(SampleWorkspace *ws) override {
+    mask_.Resize({batch_size_});
+    mask_.mutable_data<bool>();
+
+    for (int i = 0; i < batch_size_; ++i) {
+      mask_.template mutable_data<bool>()[i] = dis(rand_gen_);
+    }
+  }
+
+  USE_OPERATOR_MEMBERS();
+
  private:
   template <typename T, NDLLInterpType interp_type>
   bool PerSampleCPULoop(SampleWorkspace *ws, const int idx) {
@@ -181,18 +192,6 @@ class DisplacementFilter<CPUBackend, Displacement,
     return true;
   }
 
-  void SetupSharedSampleParams(SampleWorkspace *ws) override {
-    mask_.Resize({batch_size_});
-    mask_.mutable_data<bool>();
-
-    for (int i = 0; i < batch_size_; ++i) {
-      mask_.template mutable_data<bool>()[i] = dis(rand_gen_);
-    }
-  }
-
-  USE_OPERATOR_MEMBERS();
-
- private:
   Displacement displace_;
   NDLLInterpType interp_type_;
 

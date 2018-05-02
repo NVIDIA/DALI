@@ -50,8 +50,8 @@ template <typename T>
   }
 
  private:
-  Randomizer<Backend> rnd_;
   const size_t nDegree_;
+  Randomizer<Backend> rnd_;
 };
 
 template <typename Backend>
