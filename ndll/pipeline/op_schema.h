@@ -38,7 +38,7 @@ class OpSchema {
         Value::construct(1234));
   }
 
-  inline ~OpSchema() = default;
+  inline ~OpSchema()          { delete [] getParentName(); }
 
   /**
    * @brief Sets the doc string for this operator.
@@ -165,8 +165,13 @@ class OpSchema {
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters
    */
-  inline void setParentSchema(OpSchema *parent)      { parent_ = parent; }
-  inline const OpSchema *parentSchema() const        { return parent_; }
+  inline void setParentName(const char *parentName) {
+    delete [] getParentName();
+    parentName_ = !parentName || !parentName[0]? NULL :
+                  strcpy(new char [strlen(parentName) + 1], parentName);
+  }
+
+  inline const char *getParentName() const          { return parentName_; }
 
   inline string Dox() const {
     std::string ret = dox_;
@@ -281,7 +286,7 @@ class OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
-  OpSchema *parent_ = NULL;
+  char *parentName_ = NULL;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
@@ -296,25 +301,27 @@ class SchemaRegistry {
         "registered for operator '" + name + "'. NDLL_OPERATOR_SCHEMA(op) "
         "should only be called once per op.");
 
-    if (parentName) {
-      NDLL_ENFORCE(schema_map.count(parentName) != 0, "ParentSchema '" + std::string(parentName) +
-           "' for OpSchema '" + name + "' is not registered");
-    }
-
     // Insert the op schema and return a reference to it
     OpSchema &schema = schema_map[name];
-    if (parentName)
-      schema.setParentSchema(&GetSchema(parentName));
-
+    schema.setParentName(parentName);
     return schema;
   }
 
-  static OpSchema& GetSchema(const std::string &name) {
+  static const OpSchema& GetSchema(const std::string &name) {
     auto &schema_map = registry();
     auto it = schema_map.find(name);
     NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +
         name + "' not registered");
     return it->second;
+  }
+
+  static const OpSchema *GetSchema(const char *pName) {
+    if (!pName)
+      return NULL;
+
+    auto &schema_map = registry();
+    auto it = schema_map.find(pName);
+    return it != schema_map.end()?  &it->second : NULL;
   }
 
  private:

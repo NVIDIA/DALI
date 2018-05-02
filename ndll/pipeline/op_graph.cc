@@ -29,19 +29,11 @@ bool AllOutputsGPU(const OpSpec &spec) {
 }
 
 void CheckOpConstraints(const OpSpec &spec) {
-  OpSchema schema = SchemaRegistry::GetSchema(spec.name());
+  auto &schema = SchemaRegistry::GetSchema(spec.name());
+  const int num_input_sets = spec.GetArgument<int>("num_input_sets");
 
-  bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
-  const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
-
-  int num_input_sets = 1;
-  if (allows_multiple_inputs) {
-    num_input_sets = spec.GetArgument<int>("num_input_sets");
-  } else {
-    NDLL_ENFORCE(spec.GetArgument<int>("num_input_sets") == 1,
-        "Op '" + spec.name() + "' does not support multiple input sets.");
-  }
-
+  NDLL_ENFORCE(num_input_sets == 1 || schema.AllowsMultipleInputSets(),
+      "Op '" + spec.name() + "' does not support multiple input sets.");
   NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
       "Op '" + spec.name() + "' does not support in-place execution.");
   NDLL_ENFORCE(spec.NumInput() <= num_input_sets * schema.MaxNumInput(),
@@ -52,7 +44,7 @@ void CheckOpConstraints(const OpSpec &spec) {
       "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
+  NDLL_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec),
       "Operator '" + spec.name() +
       "' supports " + std::to_string(schema.CalculateOutputs(spec)/num_input_sets) + " outputs, "
       "but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");
@@ -82,6 +74,9 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     new_node = &cpu_node;
   } else if (device == "gpu") {
+    // Enforce graph constraints
+    NDLL_ENFORCE(AllOutputsGPU(spec), "GPU ops can only produce GPU output data.");
+
     // Create the operator
     OpPtr tmp(
         GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));
