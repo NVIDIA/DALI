@@ -45,8 +45,6 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
     out_roi.width = out_sizes[i].width;
     out_roi.height = out_sizes[i].height;
 
-    printf("batched i: %d, h: %d, w: %d\n", i, out_roi.height, out_roi.width);
-
     // TODO(tgale): Can move condition out w/ function ptr or std::function obj
     if (C == 3) {
       NDLL_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
@@ -65,7 +63,6 @@ template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   for (int i = 0; i < batch_size_; ++i) {
     per_sample_rand_[i] = GetRandomSizes();
-    printf("i: %d h: %d w: %d\n", i, per_sample_rand_[i].first, per_sample_rand_[i].second);
   }
 }
 

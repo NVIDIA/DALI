@@ -423,13 +423,11 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       if (node.spec.OutputDevice(j) == "gpu") {
         ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
       } else if (node.spec.OutputDevice(j) == "cpu") {
-        printf("Adding CPU output to GPU op\n");
         ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
       } else {
         NDLL_FAIL("Executor encountered gpu op with non cpu/gpu output.");
       }
     }
-    printf("ws now has %d outputs\n", ws.NumOutput());
   }
 }
 
