@@ -38,7 +38,7 @@ class OpSchema {
         Value::construct(1234));
   }
 
-  inline ~OpSchema()          { delete [] getParentName(); }
+  inline ~OpSchema()          { delete getParentName(); }
 
   /**
    * @brief Sets the doc string for this operator.
@@ -149,13 +149,12 @@ class OpSchema {
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters
    */
-  inline void setParentName(const char *parentName) {
-    delete [] getParentName();
-    parentName_ = !parentName || !parentName[0]? NULL :
-                  strcpy(new char [strlen(parentName) + 1], parentName);
+  inline void setParentName(const std::string &parentName) {
+    delete getParentName();
+    parentName_ = parentName.empty()? NULL : new std::string(parentName);
   }
 
-  inline const char *getParentName() const          { return parentName_; }
+  inline const std::string *getParentName() const   { return parentName_; }
 
   inline string Dox() const {
     std::string ret = dox_;
@@ -265,7 +264,7 @@ class OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
-  char *parentName_ = NULL;
+  std::string *parentName_ = NULL;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
@@ -274,7 +273,7 @@ class OpSchema {
 
 class SchemaRegistry {
  public:
-  static OpSchema& RegisterSchema(const std::string &name, const char *parentName = NULL) {
+  static OpSchema& RegisterSchema(const std::string &name, const string &parentName = "") {
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
         "registered for operator '" + name + "'. NDLL_OPERATOR_SCHEMA(op) "
@@ -294,12 +293,12 @@ class SchemaRegistry {
     return it->second;
   }
 
-  static const OpSchema *GetSchema(const char *pName) {
+  static const OpSchema *GetSchema(const std::string *pName) {
     if (!pName)
       return NULL;
 
     auto &schema_map = registry();
-    auto it = schema_map.find(pName);
+    auto it = schema_map.find(*pName);
     return it != schema_map.end()?  &it->second : NULL;
   }
 
@@ -317,7 +316,7 @@ class SchemaRegistry {
     &SchemaRegistry::RegisterSchema(#OpName, ParentOpName)
 
 #define NDLL_OPERATOR_SCHEMA(OpName)                            \
-      NDLL_OPERATOR_SCHEMA_REG(OpName, NULL)
+      NDLL_OPERATOR_SCHEMA_REG(OpName, string{})
 
 #define NDLL_OPERATOR_SCHEMA_WITH_PARENT(OpName, ParentOpName)  \
       NDLL_OPERATOR_SCHEMA_REG(OpName, #ParentOpName)

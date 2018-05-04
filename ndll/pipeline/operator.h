@@ -154,12 +154,17 @@ NDLL_DECLARE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 NDLL_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
-#define NDLL_REGISTER_OPERATOR(OpName, OpType, device)        \
-  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();            \
-  static int ANONYMIZE_VARIABLE(OpName) =                 \
-    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();              \
-  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,           \
+#define NDLL_REGISTER_OPERATOR(OpName, OpType, device)          \
+  int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();             \
+  static int ANONYMIZE_VARIABLE(OpName) =                       \
+    NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();               \
+  NDLL_DEFINE_OPTYPE_REGISTERER(OpName, OpType,                 \
       device##Operator, ndll::OperatorBase)
+
+#define NDLL_REGISTER_OPERATOR_FOR_DEVICE(OpName, device)       \
+        NDLL_REGISTER_OPERATOR(OpName, OpName<device##Backend>, device)
+
+#define NDLL_NOT_IMPLEMENED_OPERATOR  NDLL_FAIL("Not implemented")
 
 class ResizeParamDescr;
 
