@@ -280,17 +280,26 @@ template <typename T, typename S>
 inline S OpSpec::GetArgument(const string &name) const {
   // Search for the argument by name
   auto arg_it = arguments_.find(name);
-
   if (arg_it == arguments_.end()) {
-    const auto &schema = SchemaRegistry::GetSchema(this->name());
-    const OpSchema *pSchema = &schema;
-    while (pSchema && !pSchema->OptionalArgumentExists(name))
-      pSchema = SchemaRegistry::GetSchema(pSchema->getParentName());
+    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    if (!schema.OptionalArgumentExists(name)) {
+      bool haveParent = schema.HasParent();
+      string parentName = schema.getParentName();
+      while (haveParent) {
+        // get next schema
+        auto &newSchema = SchemaRegistry::GetSchema(parentName);
 
-    if (!pSchema)         // Parent Schema with valid default value of argument was not found
-      pSchema = &schema;  // Use pointer of the initial Schema
+        // check if this schema has the argument we want
+        if (newSchema.OptionalArgumentExists(name))
+          return newSchema.GetDefaultValueForOptionalArgument<S>(name);
 
-    return pSchema->GetDefaultValueForOptionalArgument<S>(name);
+        // otherwise, move to this schema's parent
+        haveParent = newSchema.HasParent();
+        parentName = newSchema.getParentName();
+      }
+    }
+
+    return schema.GetDefaultValueForOptionalArgument<S>(name);
   }
 
   return arg_it->second->template Get<S>();
