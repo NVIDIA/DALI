@@ -13,7 +13,7 @@ template <typename T, class Displacement, NDLLInterpType interp_type>
 __device__ inline T GetPixelValueSingleC(const Index h, const Index w, const Index c,
                                          const Index H, const Index W, const Index C,
                                          const T * input,
-                                         Displacement& displace, const T fill_value) {
+                                         Displacement& displace, const T fill_value) {  // NOLINT
   T ret;
   if (interp_type == NDLL_INTERP_NN) {
     // NN interpolation
@@ -65,7 +65,7 @@ template <typename T, class Displacement, NDLLInterpType interp_type>
 __device__ inline void GetPixelValueMultiC(const Index h, const Index w,
                                            const Index H, const Index W, const Index C,
                                            const T * input, T * output,
-                                           Displacement& displace, const T fill_value) {
+                                           Displacement& displace, const T fill_value) {  // NOLINT
   if (interp_type == NDLL_INTERP_NN) {
     // NN interpolation
 
@@ -141,7 +141,7 @@ void DisplacementKernel(const T *in, T* out,
         const int w = (out_idx / C) % W;
         const int h = (out_idx / W / C);
 
-        image_out[out_idx] = GetPixelValueSingleC<T,Displacement,interp_type>(h, w, c, H, W, C,
+        image_out[out_idx] = GetPixelValueSingleC<T, Displacement, interp_type>(h, w, c, H, W, C,
             image_in, displace, fill_value);
       } else {
         image_out[out_idx] = image_in[out_idx];
