@@ -38,7 +38,7 @@ class OpSchema {
         Value::construct(1234));
   }
 
-  inline ~OpSchema()          { delete getParentName(); }
+  inline ~OpSchema() = default;
 
   /**
    * @brief Sets the doc string for this operator.
@@ -149,12 +149,9 @@ class OpSchema {
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters
    */
-  inline void setParentName(const std::string &parentName) {
-    delete getParentName();
-    parentName_ = parentName.empty()? NULL : new std::string(parentName);
-  }
-
-  inline const std::string *getParentName() const   { return parentName_; }
+  inline void setParentName(const std::string &parentName)  { parentName_ = parentName; }
+  inline const std::string &getParentName() const           { return parentName_; }
+  inline bool HasParent() const                             { return !getParentName().empty(); }
 
   inline string Dox() const {
     std::string ret = dox_;
@@ -264,7 +261,7 @@ class OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
-  std::string *parentName_ = NULL;
+  std::string parentName_;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
@@ -291,15 +288,6 @@ class SchemaRegistry {
     NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +
         name + "' not registered");
     return it->second;
-  }
-
-  static const OpSchema *GetSchema(const std::string *pName) {
-    if (!pName)
-      return NULL;
-
-    auto &schema_map = registry();
-    auto it = schema_map.find(*pName);
-    return it != schema_map.end()?  &it->second : NULL;
   }
 
  private:
