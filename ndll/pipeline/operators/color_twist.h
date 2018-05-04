@@ -11,9 +11,6 @@ namespace ndll {
 typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst, int nDstStep,
                                     NppiSize oSizeROI, const Npp32f aTwist[3][4]);
 
-NDLLError_t BatchedColorTwist(const uint8 **in_batch, const NDLLSize *sizes, uint8 **out_batch,
-                              int N, int C, colorTwistFunc func, const Npp32f aTwist[][4]);
-
 template <typename Backend>
 class ColorTwist : public Operator<Backend> {
  public:
@@ -27,7 +24,6 @@ class ColorTwist : public Operator<Backend> {
     output_ptrs_.resize(batch_size_);
     sizes_.resize(batch_size_);
   }
-
 
   virtual ~ColorTwist() = default;
 
@@ -66,29 +62,22 @@ class ColorIntensity : public ColorTwist<Backend> {
   }
 
   void InitColorTwistParam(const OpSpec &spec) {
-    if (ColorTwist<Backend>::colorImgs()) {
-      scale_[0] = spec.GetArgument<float>("R_level");
-      scale_[1] = spec.GetArgument<float>("G_level");
-      scale_[2] = spec.GetArgument<float>("B_level");
-    } else {
-      scale_[0] = spec.GetArgument<float>("GRAY_level");
-      scale_[1] = scale_[2] = 0.;
-    }
+    if (ColorTwist<Backend>::colorImgs())
+      scale_ = spec.GetArgument<vector<float>>("RGB_level");
+    else
+      scale_ = {spec.GetArgument<float>("GRAY_level"), 0., 0.};
   }
 
-  inline const float *scale() const { return scale_; }
+  inline const float *scale() const { return scale_.data(); }
 
  private:
-  float scale_[3];
+  vector<float> scale_;
 };
 
 template <typename Backend>
 class ColorOffset : public ColorIntensity<Backend> {
  public:
-  inline explicit ColorOffset(const OpSpec &spec) : ColorIntensity<Backend>(spec) {
-    ColorIntensity<Backend>::InitColorTwistParam(spec);
-  }
-
+  inline explicit ColorOffset(const OpSpec &spec) : ColorIntensity<Backend>(spec) {}
   virtual ~ColorOffset() = default;
 
  protected:
