@@ -6,93 +6,49 @@
 namespace ndll {
 
 NDLL_OPERATOR_SCHEMA(ColorTwist)
-    .DocStr("Foo")
+    .DocStr("ColorTwist - used as a base Schema for Color Transformations")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB);
 
-NDLL_REGISTER_OPERATOR(ColorIntensity, ColorIntensity<CPUBackend>, CPU);
-
 NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorIntensity, ColorTwist)
-    .DocStr("Foo")
+    .DocStr("Changes the intensity of RGB/Gray images")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("R_level", "Intensity of red channel", 1.f)
-    .AddOptionalArg("G_level", "Intensity of green channel", 1.f)
-    .AddOptionalArg("B_level", "Intensity of blue channel", 1.f)
+    .AddOptionalArg("RGB_level", "Intensity of RGB channels", vector<float>{1.f, 1.f, 1.f})
     .AddOptionalArg("GRAY_level", "Intensity of gray level", 1.f);
 
-
-NDLL_REGISTER_OPERATOR(ColorOffset, ColorOffset<CPUBackend>, CPU);
-
-NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorOffset, ColorTwist)
-    .DocStr("Foo")
+NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorOffset, ColorIntensity)
+    .DocStr("Sets the offset for RGB/Gray channels")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("R_level", "Intensity of red channel", 0.f)
-    .AddOptionalArg("G_level", "Intensity of green channel", 0.f)
-    .AddOptionalArg("B_level", "Intensity of blue channel", 0.f)
+    .AddOptionalArg("RGB_level", "Intensity of RGB channels", vector<float>{0.f, 0.f, 0.f})
     .AddOptionalArg("GRAY_level", "Intensity of gray level", 0.f);
 
-
-NDLL_REGISTER_OPERATOR(HueSaturation, HueSaturation<CPUBackend>, CPU);
-
 NDLL_OPERATOR_SCHEMA_WITH_PARENT(HueSaturation, ColorTwist)
-    .DocStr("Foo")
+    .DocStr("Changes the hue/saturation levels of the image")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue", "Hue parameter", 0.f)
     .AddOptionalArg("saturation", "Color saturation level", 1.f);
 
-
-NDLL_REGISTER_OPERATOR(ColorContrast, ColorContrast<CPUBackend>, CPU);
-
 NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorContrast, ColorTwist)
-    .DocStr("Foo")
+    .DocStr("Changes the color contrast of the image")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("slope", "Slope of color contrast", 1.f)
     .AddOptionalArg("bias",  "Bias of color contrast", 0.f);
 
+/*  Following operators are not implemented for CPU
+NDLL_REGISTER_OPERATOR_FOR_DEVICE(ColorIntensity, CU);
+NDLL_REGISTER_OPERATOR_FOR_DEVICE(ColorOffset, CPU);
+NDLL_REGISTER_OPERATOR_FOR_DEVICE(HueSaturation, CPU);
+NDLL_REGISTER_OPERATOR_FOR_DEVICE(ColorContrast, CPU);
+*/
+
 template <>
 void ColorTwist<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
-
-  const uint8 * input_ptrs;
-  uint8 * output_ptrs;
-  vector<NDLLSize> size(1);
-
-  DataDependentSetupCPU(input, output, "ColorTwist", &input_ptrs, &output_ptrs, &size);
-
-  float matr[4][4];
-  NDLL_CALL(BatchedColorTwist(&input_ptrs, size.data(),
-                              &output_ptrs, 1, C_,
-                              twistFunc_, twistMatr(matr) ? matr : NULL));
-}
-
-NDLLError_t BatchedColorTwist(const uint8 **in_batch, const NDLLSize *sizes, uint8 **out_batch,
-                              int N, int C, colorTwistFunc func, const Npp32f aTwist[][4]) {
-  NDLL_ASSERT(N > 0);
-  NDLL_ASSERT(C == 1 || C == 3);
-  NDLL_ASSERT(sizes != nullptr);
-
-  if (!func)            // If transformation function is not defined,
-    aTwist = NULL;      // we will not use twist matrix
-
-  for (int i = 0; i < N; ++i) {
-    NDLL_ASSERT(in_batch[i] != nullptr);
-    NDLL_ASSERT(out_batch[i] != nullptr);
-
-    const int nStep = sizes[i].width * C;
-    if (aTwist)
-      NDLL_CHECK_NPP(func(in_batch[i], nStep, out_batch[i], nStep, sizes[i], aTwist));
-    else
-      CUDA_CALL(cudaMemcpy(out_batch[i], in_batch[i],
-                           nStep * sizes[i].height, cudaMemcpyDefault));
-  }
-
-  return NDLLSuccess;
+  NDLL_NOT_IMPLEMENED_OPERATOR;
 }
 
 bool brightness_matrix(const float *pScale, float pMatr[][4]) {
