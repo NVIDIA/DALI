@@ -42,7 +42,7 @@ class DisplacementFilter<CPUBackend, Displacement,
     DataDependentSetup(ws, idx);
 
     auto &input = ws->Input<CPUBackend>(idx);
-    switch(interp_type_) {
+    switch (interp_type_) {
       case NDLL_INTERP_NN:
         if (IsType<float>(input.type())) {
           PerSampleCPULoop<float, NDLL_INTERP_NN>(ws, idx);
@@ -228,7 +228,6 @@ class DisplacementFilter<CPUBackend, Displacement,
   std::mt19937 rand_gen_;
   Tensor<CPUBackend> mask_;
   std::bernoulli_distribution dis;
-
 };
 
 }  // namespace ndll
