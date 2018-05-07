@@ -273,6 +273,7 @@ def test_warpaffine():
                                                 std = [1., 1., 1.])
             self.affine = ops.WarpAffine(device = "gpu",
                                          matrix = [1.0, 0.8, 0.0, 0.0, 1.2, 0.0],
+                                         fill_value = 128,
                                          interp_type = types.INTERP_LINEAR,
                                          use_image_center = True)
             self.iter = 0
