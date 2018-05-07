@@ -211,3 +211,92 @@ def test_seed():
         if i == 0:
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
+
+def test_rotate():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.huffman = ops.HuffmanDecoder()
+            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                                output_dtype = types.FLOAT,
+                                                output_layout = types.NHWC,
+                                                random_crop = True,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+            self.rotate = ops.Rotate(device = "gpu", angle = 45.0,
+                                     fill_value = 128,
+                                     interp_type=types.INTERP_LINEAR)
+            self.iter = 0
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
+            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            outputs = self.cmnp([images, images])
+            outputs[1] = self.rotate(outputs[1])
+            return [self.labels] + outputs
+
+        def iter_setup(self):
+            pass
+    pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    import cv2
+    orig_cpu = pipe_out[1].asCPU()
+    for i in range(128):
+        orig = orig_cpu.at(i)
+        M = cv2.getRotationMatrix2D((112,112),45, 1)
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        rotated_dali = pipe_out[2].asCPU().at(i)
+        diff = out - rotated_dali
+        diff[rotated_dali==[128.,128.,128.]] = 0
+        assert(np.max(np.abs(diff)/255.0) < 0.025)
+
+def test_warpaffine():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.huffman = ops.HuffmanDecoder()
+            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                                output_dtype = types.FLOAT,
+                                                output_layout = types.NHWC,
+                                                random_crop = True,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+            self.affine = ops.WarpAffine(device = "gpu",
+                                         matrix = [1.0, 0.8, 0.0, 0.0, 1.2, 0.0],
+                                         interp_type = types.INTERP_LINEAR,
+                                         use_image_center = True)
+            self.iter = 0
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
+            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            outputs = self.cmnp([images, images])
+            outputs[1] = self.affine(outputs[1])
+            return [self.labels] + outputs
+
+        def iter_setup(self):
+            pass
+    pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    import cv2
+    orig_cpu = pipe_out[1].asCPU()
+    for i in range(128):
+        orig = orig_cpu.at(i)
+        M = np.array([1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112]).reshape((2,3))
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        dali_output = pipe_out[2].asCPU().at(i)
+        diff = out - dali_output
+        diff[dali_output==[128.,128.,128.]] = 0
+        assert(np.max(np.abs(diff)/255.0) < 0.025)
