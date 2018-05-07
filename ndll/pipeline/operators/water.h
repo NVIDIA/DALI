@@ -31,20 +31,20 @@ class WaterAugment {
 
   void Cleanup() {}
 
+  template <typename T>
   DISPLACEMENT_IMPL
-  Index operator()(int h, int w, int c, int H, int W, int C) {
+  Point<T> operator()(int h, int w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;
 
-    const int newX = w + wX.ampl * sin(wX.freq * h + wX.phase);
-    const int newY = h + wY.ampl * cos(wY.freq * w + wY.phase);
-    const int nYOffset = W * C;
+    const T newX = w + wX.ampl * sinf(wX.freq * h + wX.phase);
+    const T newY = h + wY.ampl * cosf(wY.freq * w + wY.phase);
 
-    const int from = newX > 0 && newX < W &&  \
-                     newY > 0 && newY < H ?   \
-                     newX * C + newY * nYOffset : 0;
+    Point<T> p;
+    p.x = newX >= 0 && newX < W ? newX : -1;
+    p.y = newY >= 0 && newY < H ? newY : -1;
 
-    return from + c;
+    return p;
   }
 
  private:

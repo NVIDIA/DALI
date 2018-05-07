@@ -122,7 +122,6 @@ class Operator : public OperatorBase {
     }
   }
 
- protected:
   /**
    * @brief Shared param setup
    */
