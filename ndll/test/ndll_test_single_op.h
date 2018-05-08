@@ -124,15 +124,17 @@ class NDLLSingleOpTest : public NDLLTest {
 
   virtual
   vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs) = 0;
+  Reference(const vector<TensorList<CPUBackend>*> &inputs,
+            DeviceWorkspace *ws) = 0;
 
   /**
    * Check the desireed calculated answers in ws (given by user-provided indices)
    * against a supplied reference implementation.
    */
-  void CheckAnswers(DeviceWorkspace *ws, const vector<int>& output_indices = {}) {
+  void CheckAnswers(DeviceWorkspace *ws,
+                    const vector<int>& output_indices) {
     // outputs_ contains map of idx -> (name, device)
-    vector<TensorList<CPUBackend>*> res = Reference(input_data_);
+    vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
 
     // get outputs from pipeline, copy to host if necessary
     for (size_t i = 0; i < output_indices.size(); ++i) {

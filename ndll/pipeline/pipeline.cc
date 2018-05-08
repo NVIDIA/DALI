@@ -135,6 +135,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
         graph_.AddOp(spec, "__MakeContiguous_" + name);
 
         outputs.push_back("contiguous_" + name + "_" + device);
+      } else {
+        // handle contiguous output from gpu ops
+        outputs.push_back(name + "_" + device);
       }
     } else if (device == "gpu") {
       if (!it->second.has_gpu) {

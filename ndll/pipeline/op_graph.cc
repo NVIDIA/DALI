@@ -32,6 +32,7 @@ void CheckOpConstraints(const OpSpec &spec) {
   OpSchema schema = SchemaRegistry::GetSchema(spec.name());
 
   bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
+  const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 
   int num_input_sets = 1;
   if (allows_multiple_inputs) {
@@ -51,7 +52,7 @@ void CheckOpConstraints(const OpSpec &spec) {
       "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec),
+  NDLL_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
       "Operator '" + spec.name() +
       "' supports " + std::to_string(schema.CalculateOutputs(spec)/num_input_sets) + " outputs, "
       "but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");

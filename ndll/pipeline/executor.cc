@@ -420,7 +420,13 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // Allocate TensorLists for this ops output
-      ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+      if (node.spec.OutputDevice(j) == "gpu") {
+        ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+      } else if (node.spec.OutputDevice(j) == "cpu") {
+        ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+      } else {
+        NDLL_FAIL("Executor encountered gpu op with non cpu/gpu output.");
+      }
     }
   }
 }
@@ -463,11 +469,15 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
 
   for (auto &ws : wsb->gpu_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
-      NDLL_ENFORCE(ws.OutputIsType<GPUBackend>(i), "Executor "
-          "encountered gpu op with non-gpu output.");
-      TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-      tl->mutable_data<uint8>();
-      tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      if (ws.OutputIsType<GPUBackend>(i)) {
+        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
+        tl->mutable_data<uint8>();
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      } else {
+        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
+        tl->mutable_data<uint8>();
+        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+      }
     }
   }
 }
@@ -557,11 +567,19 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     auto &info = cpu_output_info_[i];
     NodeID node_id = info.prod_and_idx.first;
     int output_idx = info.prod_and_idx.second;
-    NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_MIXED);
+    // Contiguous CPU outputs come from mixed or GPU ops
+    NDLL_ENFORCE(graph_->NodeType(node_id) == NDLL_MIXED ||
+                 graph_->NodeType(node_id) == NDLL_GPU);
 
-    int mixed_op_id = graph_->NodeIdx(node_id);
-    wsb->mixed_op_data[mixed_op_id].SetOutput(
-        output_idx, cpu_outputs_[i].GetTL(queue_idx));
+    if (graph_->NodeType(node_id) == NDLL_MIXED) {
+      int mixed_op_id = graph_->NodeIdx(node_id);
+      wsb->mixed_op_data[mixed_op_id].SetOutput(
+          output_idx, cpu_outputs_[i].GetTL(queue_idx));
+    } else {  // NDLL_GPU
+      int gpu_op_id = graph_->NodeIdx(node_id);
+      wsb->gpu_op_data[gpu_op_id].SetOutput(output_idx,
+          cpu_outputs_[i].GetTL(queue_idx));
+    }
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
