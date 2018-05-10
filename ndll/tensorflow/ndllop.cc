@@ -39,7 +39,7 @@ REGISTER_OP("Ndll")
     TF_RETURN_IF_ERROR(c->GetAttr("batch_size", &batch_size));
     TF_RETURN_IF_ERROR(c->GetAttr("height", &height));
     TF_RETURN_IF_ERROR(c->GetAttr("width", &width));
-    c->set_output(0, c->MakeShape({batch_size, 3, height, width}));
+    c->set_output(0, c->MakeShape({batch_size, height, width, 3}));
     return tf::Status::OK();
   });
 
