@@ -7,5 +7,5 @@ setup(name='ndll',
           'ndll.plugin'
           ],
       package_data={
-          '': ['*ndll_backend.*']}
+          '': ['*.so']}
      )

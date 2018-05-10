@@ -17,6 +17,10 @@ set(NDLL_SRCS ${NDLL_SRCS} ${tmp})
 
 set(ndll_lib "ndll")
 
+if (BUILD_TENSORFLOW)
+  set(customop_lib "ndll_tf")
+endif()
+
 set(NDLL_PROTO_OBJ $<TARGET_OBJECTS:NDLL_PROTO>)
 
 if (BUILD_LMDB)
@@ -84,7 +88,7 @@ if (BUILD_TENSORFLOW)
 
   add_subdirectory(tensorflow)
 
-  set(customop_lib "ndll_tf")
+  #set(customop_lib "ndll_tf")
   cuda_add_library(${customop_lib} SHARED ${NDLL_TF_SRCS})
 
   # TF <= 1.3
