@@ -7,6 +7,7 @@
 #include <random>
 #include <ctgmath>
 #include <vector>
+#include <algorithm>
 
 #include "ndll/pipeline/operator.h"
 #include "ndll/pipeline/operators/resize.h"
