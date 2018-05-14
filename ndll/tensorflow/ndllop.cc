@@ -1,4 +1,6 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#include <chrono>
+
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
@@ -10,7 +12,6 @@
 #include "ndll/c_api/c_api.h"
 #include "ndll/common.h"
 
-#include <chrono>
 typedef std::chrono::high_resolution_clock Clock;
 
 namespace tf = tensorflow;
@@ -89,12 +90,14 @@ class NdllOp : public tf::OpKernel {
     LOG_LINE << "Updated context\n";
     auto s = Clock::now();
     Run(&pipe_handle_);
-    long run_time =  std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - s).count();
+    int64_t run_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                         Clock::now() - s).count();
     LOG_LINE << "Before output...\n";
 
     s = Clock::now();
     Output(&pipe_handle_);
-    long output_time =  std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - s).count();
+    int64_t output_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                            Clock::now() - s).count();
     LOG_LINE << "After output...\n";
 
     s = Clock::now();
@@ -111,23 +114,28 @@ class NdllOp : public tf::OpKernel {
     OP_REQUIRES_OK(context,
         context->allocate_output(1, label_output_shape, &label_output_tensor));
 
-    long allocate_time =  std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - s).count();
+    int64_t allocate_time =  std::chrono::duration_cast<std::chrono::microseconds>(
+                             Clock::now() - s).count();
 
     s = Clock::now();
     CopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(data_output_tensor->flat<float>().data()),
         0);
-    long copy0_time =  std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - s).count();
+    int64_t copy0_time =  std::chrono::duration_cast<std::chrono::microseconds>(
+                           Clock::now() - s).count();
 
     s = Clock::now();
     CopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(label_output_tensor->flat<float>().data()),
         1);
-    long copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - s).count();
+    int64_t copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(
+                            Clock::now() - s).count();
 
-    long total_time = std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - total_s).count();
-    LOG_LINE << "[TIMES] TOTAL " << total_time << " RUN " << run_time << " - OUTPUT " << output_time
-      << " - ALLOC " << allocate_time << " - COPY0 " << copy0_time << " - COPY1 " << copy1_time << std::endl;
+    int64_t total_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                           Clock::now() - total_s).count();
+    LOG_LINE << "[TIMES] TOTAL " << total_time << " RUN " << run_time
+      << " - OUTPUT " << output_time << " - ALLOC " << allocate_time
+      << " - COPY0 " << copy0_time << " - COPY1 " << copy1_time << std::endl;
   }
 
  private:
