@@ -39,59 +39,56 @@ namespace ndll {
     const uint32_t sy0 = resizeParam[0].y;      \
     const uint32_t sx1 = resizeParam[1].x;      \
     const uint32_t sy1 = resizeParam[1].y;      \
-    const uint32_t area = sx1 * sy1;            \
+    const uint32_t area = sx1 * sy1;
 
 #define RESIZE_PREPARE()                        \
-    SET_RESIZE_PARAM()                          \
+    SET_RESIZE_PARAM();                         \
     const uint32_t cropX = resizeParam[2].x;    \
     const uint32_t cropY = resizeParam[2].y;
 
+#define ADD_WEIGHTED_COLOR()                    \
+    if (weight) {                               \
+      pixColor[0] += weight * *pPix;            \
+      if (C > 1) {                              \
+        pixColor[1] += weight * *(pPix + 1);    \
+        pixColor[2] += weight * *(pPix + 2);    \
+      }                                         \
+    }
 
 #define SET_PIXEL_COLOR()                                           \
     out[to] = (pixColor[0] + (area >> 1)) / area;                   \
     if (C > 1) {                                                    \
       out[to + 1] = (pixColor[1] + (area >> 1)) / area;             \
       out[to + 2] = (pixColor[2] + (area >> 1)) / area;             \
-    }                                                               \
+    }
 
-#define RESIZE_PREAMBLE()                                           \
-    RESIZE_PREPARE()                                                \
-    uint32_t extraColor[3] = {0, 0, 0};                             \
-    uint32_t sumColor[3], pixColor[3];
+#define RESIZE_PREAMBLE()       RESIZE_PREPARE()
 
 #define RESIZE_CORE(C)                                                  \
     const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                    \
     const uint32_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};    \
-    const uint32_t extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};     \
+    const uint32_t extra[2] =  {min((nX + sx1) % sx0, sx1),             \
+                                min((nY + sy1) % sy0, sy1)};            \
     const uint32_t lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};  \
-    uint32_t rowMult = lenFirst[1];                                     \
-    pixColor[0] = pixColor[1] = pixColor[2] = 0;                        \
+    uint32_t rowMult = endIdx[1] > begIdx[1]? lenFirst[1] : extra[1];   \
+    uint32_t pixColor[3] = {0, 0, 0};                                   \
     uint32_t y0 = begIdx[1];                                            \
     while (true) {                                                      \
       size_t x0 = endIdx[0];                                            \
       const uint8 *pPix = in + ((y0 * W0) + x0) * C;                    \
-      uint32_t len = extra[0];                                          \
-      extraColor[0] = len * *pPix;                                      \
-      if (C > 1) {                                                      \
-        extraColor[1] = len * *(pPix + 1);                              \
-        extraColor[2] = len * *(pPix + 2);                              \
-      }                                                                 \
+      size_t weight = rowMult * extra[0];                               \
+      ADD_WEIGHTED_COLOR();                                             \
                                                                         \
-      sumColor[0] = sumColor[1] = sumColor[2] = 0;                      \
-      while (--x0 > begIdx[0]) {                                        \
+      if (x0 > begIdx[0]) {                                             \
+        weight = rowMult * sx0;                                         \
         pPix -= C;                                                      \
-        sumColor[0] += *pPix;                                           \
-        if (C > 1) {                                                    \
-          sumColor[1] += *(pPix + 1);                                   \
-          sumColor[2] += *(pPix + 2);                                   \
+        while (--x0 > begIdx[0]) {                                      \
+          ADD_WEIGHTED_COLOR();                                         \
+          pPix -= C;                                                    \
         }                                                               \
-      }                                                                 \
                                                                         \
-      len = lenFirst[0];                                                \
-      pixColor[0] += rowMult * (sumColor[0] * sx0 + len * *(pPix -= C) + extraColor[0]);  \
-      if (C > 1) {                                                      \
-        pixColor[1] += rowMult * (sumColor[1] * sx0 + len * *(pPix + 1) + extraColor[1]); \
-        pixColor[2] += rowMult * (sumColor[2] * sx0 + len * *(pPix + 2) + extraColor[2]); \
+        weight = rowMult * lenFirst[0];                                 \
+        ADD_WEIGHTED_COLOR();                                           \
       }                                                                 \
                                                                         \
       if (++y0  >= endIdx[1]) {                                         \
@@ -173,20 +170,16 @@ class ResizeMappingTable {
     int pixColor[3] = {0, 0, 0};                                    \
     for (int i = pResizePix->nPixels; i--;) {                       \
       auto pPix = pBase + (pPixMap + i)->pixAddr;                   \
-      const int pixArea = (pPixMap + i)->pixArea;                   \
-      pixColor[0] += *pPix * pixArea;                               \
-      if (C > 1) {                                                  \
-        pixColor[1] += *(pPix + 1) * pixArea;                       \
-        pixColor[2] += *(pPix + 2) * pixArea;                       \
-      }                                                             \
+      const int weight = (pPixMap + i)->pixArea;                    \
+      ADD_WEIGHTED_COLOR();                                         \
     }                                                               \
     SET_PIXEL_COLOR();                                              \
   } else {                                                          \
     auto pPix = pBase + pMapping[(nY % sy0) * sx0 + nX % sx0];      \
     out[to] = *pPix;                                                \
     if (C > 1) {                                                    \
-      out[to + 1] = *(pPix +1);                                     \
-      out[to + 2] = *(pPix +2);                                     \
+      out[to + 1] = *(pPix + 1);                                    \
+      out[to + 2] = *(pPix + 2);                                    \
     }                                                               \
   }
 

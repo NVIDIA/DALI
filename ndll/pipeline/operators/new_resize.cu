@@ -269,14 +269,10 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
                         blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
 
-#define RESIZE_GPU_PREAMBLE()                       \
-            uint32_t extraColor[3] = {0, 0, 0};     \
-            uint32_t sumColor[3], pixColor[3]
-
+#define RESIZE_GPU_PREAMBLE()         // empty macro
 #define RESIZE_GPU_CORE(C)            RESIZE_CORE(C)
+
 #define RESIZE_GPU_N_PREAMBLE()       // empty macro
-
-
 #define RESIZE_GPU_N_CORE(C)          RESIZE_N_CORE(C)
 
 __global__ void BatchedCongenericResizeKernel(
@@ -429,14 +425,14 @@ void PixMappingHelper::constructTable(int C, int W0, size_t sx0, size_t sy0, siz
       size_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};
 
       // Intersection of the right (bottom) pixels with the PIX (could be equal to 0)
-      const size_t extra[2] = {(nX + sx1) % sx0, (nY + sy1) % sy0};
+      const size_t extra[2] = {min((nX + sx1) % sx0, sx1), min((nY + sy1) % sy0, sy1)};
 
       // Length of the left (top) pixels intersecting with the PIX
       const size_t lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};
 
       // Doubled (x,y) coordinates of the pixel's center
-      const size_t lenX = endIdx[0] + begIdx[0] - (extra[0] ? 0 : 1);
-      const size_t lenY = endIdx[1] + begIdx[1] - (extra[1] ? 0 : 1);
+      const size_t lenX = endIdx[0] + begIdx[0] - (extra[0] || endIdx[0] == begIdx[0]? 0 : 1);
+      const size_t lenY = endIdx[1] + begIdx[1] - (extra[1] || endIdx[1] == begIdx[1]? 0 : 1);
 
       // Relative address to the first intersecting pixels
       UpdateMapping(((y * sy1) % sy0) * sx0 + (x * sx1) % sx0, lenX, lenY);
@@ -446,7 +442,7 @@ void PixMappingHelper::constructTable(int C, int W0, size_t sx0, size_t sy0, siz
 #if RUN_CHECK_1
       size_t check = 0;
 #endif
-      size_t rowMult = lenFirst[1];
+      size_t rowMult = endIdx[1]? lenFirst[1] : extra[1];
       size_t y0 = 0;
       while (true) {
         size_t x0 = endIdx[0];
@@ -456,13 +452,15 @@ void PixMappingHelper::constructTable(int C, int W0, size_t sx0, size_t sy0, siz
         if (extra[0])
           AddPixel(pixAddr, extra[0] * rowMult, x0, y0);
 
-        while (--x0 > 0)
-          AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
+        if (x0) {
+          while (--x0 > 0)
+            AddPixel(pixAddr -= C, sx0 * rowMult, x0, y0);
 
-        AddPixel(pixAddr -= C, lenFirst[0] * rowMult, x0, y0);
+          AddPixel(pixAddr -= C, lenFirst[0] * rowMult, x0, y0);
+        }
 
 #if RUN_CHECK_1
-        check += rowMult * (sx0 * (endIdx[0] - 1) + lenFirst[0] + extra[0]);
+        check += rowMult * ((endIdx[0]? sx0 * (endIdx[0] - 1) + lenFirst[0] : 0) + extra[0]);
 #endif
         if (++y0 >= endIdx[1]) {
           if (y0 > endIdx[1] || !(rowMult = extra[1]))
