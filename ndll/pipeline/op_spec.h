@@ -282,23 +282,6 @@ inline S OpSpec::GetArgument(const string &name) const {
   auto arg_it = arguments_.find(name);
   if (arg_it == arguments_.end()) {
     const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
-    if (!schema.OptionalArgumentExists(name)) {
-      bool haveParent = schema.HasParent();
-      string parentName = schema.getParentName();
-      while (haveParent) {
-        // get next schema
-        auto &newSchema = SchemaRegistry::GetSchema(parentName);
-
-        // check if this schema has the argument we want
-        if (newSchema.OptionalArgumentExists(name))
-          return newSchema.GetDefaultValueForOptionalArgument<S>(name);
-
-        // otherwise, move to this schema's parent
-        haveParent = newSchema.HasParent();
-        parentName = newSchema.getParentName();
-      }
-    }
-
     return schema.GetDefaultValueForOptionalArgument<S>(name);
   }
 

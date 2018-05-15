@@ -242,23 +242,7 @@ class OpSchema {
   }
 
   template<typename T>
-  inline T GetDefaultValueForOptionalArgument(const std::string &s) const {
-    const bool argFound = OptionalArgumentExists(s);
-    NDLL_ENFORCE(argFound ||
-        internal_arguments_.find(s) != internal_arguments_.end(),
-        "Default value does not exist for argument \"" + s + "\"");
-    Value * v;
-    if (argFound) {
-      auto arg_pair = *optional_arguments_.find(s);
-      v = arg_pair.second.second;
-    } else {
-      auto arg_pair = *internal_arguments_.find(s);
-      v = arg_pair.second.second;
-    }
-    ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
-    NDLL_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
-    return vT->Get();
-  }
+  T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
   bool OptionalArgumentExists(const std::string &s) const {
     return optional_arguments_.find(s) != optional_arguments_.end();
@@ -316,6 +300,42 @@ class SchemaRegistry {
 
   static std::map<string, OpSchema>& registry();
 };
+
+template<typename T>
+T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
+  const bool argFound = OptionalArgumentExists(s);
+  if (!argFound) {
+    bool haveParent = HasParent();
+    string parentName = getParentName();
+    while (haveParent) {
+      // get next schema
+      auto &newSchema = SchemaRegistry::GetSchema(parentName);
+
+      // check if this schema has the argument we want
+      if (newSchema.OptionalArgumentExists(s))
+        return newSchema.GetDefaultValueForOptionalArgument<T>(s);
+
+      // otherwise, move to this schema's parent
+      haveParent = newSchema.HasParent();
+      parentName = newSchema.getParentName();
+    }
+  }
+
+  NDLL_ENFORCE(argFound ||
+               internal_arguments_.find(s) != internal_arguments_.end(),
+               "Default value does not exist for argument \"" + s + "\"");
+  Value * v;
+  if (argFound) {
+    auto arg_pair = *optional_arguments_.find(s);
+    v = arg_pair.second.second;
+  } else {
+    auto arg_pair = *internal_arguments_.find(s);
+    v = arg_pair.second.second;
+  }
+  ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
+  NDLL_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
+  return vT->Get();
+}
 
 #define NDLL_OPERATOR_SCHEMA_REG(OpName, ParentOpName)      \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
