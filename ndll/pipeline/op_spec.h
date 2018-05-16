@@ -278,31 +278,16 @@ class OpSpec {
 
 template <typename T, typename S>
 inline S OpSpec::GetArgument(const string &name) const {
-  // Search for the argument by name
+  // Search for the argument locally first
   auto arg_it = arguments_.find(name);
-  if (arg_it == arguments_.end()) {
+  if (arg_it != arguments_.end()) {
+    // Found locally - return
+    return arg_it->second->template Get<S>();
+  } else {
+    // Argument wasn't present locally, get the default from the associated schema
     const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
-    if (!schema.OptionalArgumentExists(name)) {
-      bool haveParent = schema.HasParent();
-      string parentName = schema.getParentName();
-      while (haveParent) {
-        // get next schema
-        auto &newSchema = SchemaRegistry::GetSchema(parentName);
-
-        // check if this schema has the argument we want
-        if (newSchema.OptionalArgumentExists(name))
-          return newSchema.GetDefaultValueForOptionalArgument<S>(name);
-
-        // otherwise, move to this schema's parent
-        haveParent = newSchema.HasParent();
-        parentName = newSchema.getParentName();
-      }
-    }
-
     return schema.GetDefaultValueForOptionalArgument<S>(name);
   }
-
-  return arg_it->second->template Get<S>();
 }
 
 #define INSTANTIATE_ARGUMENT_AS_INT64(T)                                              \
