@@ -24,7 +24,7 @@ TEST(OpSchemaTest, SimpleTest) {
 }
 
 NDLL_OPERATOR_SCHEMA(Dummy2)
-  .NumInput(1,2)
+  .NumInput(1, 2)
   .OutputFn([](const OpSpec& spec) {
     return spec.NumInput() * 2;
   });
@@ -103,7 +103,6 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17.f);
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("baz"), 2.f);
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("dummy"), 1.85f);
-
 }
 
 }  // namespace ndll
