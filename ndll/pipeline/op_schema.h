@@ -165,12 +165,32 @@ class OpSchema {
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters
    */
-  inline void setParentName(const std::string &parentName)  { parentName_ = parentName; }
-  inline const std::string &getParentName() const           { return parentName_; }
-  inline bool HasParent() const                             { return !getParentName().empty(); }
+  inline OpSchema& AddParent(const std::string &parentName) {
+    parents_.push_back(parentName);
+    return *this;
+  }
+
+  inline OpSchema& SetName(const std::string &name) {
+    name_ = name;
+    return *this;
+  }
+
+  inline string Name() const {
+    return name_;
+  }
+
+  inline const vector<std::string>& GetParents() const {
+    return parents_;
+  }
+
+  inline bool HasParent() const {
+    return parents_.size() > 0;
+  }
 
   inline string Dox() const {
-    std::string ret = dox_;
+    std::string ret = Name();
+    ret += "\n\nOverview\n----------\n";
+    ret += dox_;
     ret += "\n\nParameters\n----------\n";
     for (auto arg_pair : arguments_) {
       ret += arg_pair.first + " : " + arg_pair.second + "\n";
@@ -241,12 +261,12 @@ class OpSchema {
     }
   }
 
-  template<typename T>
-  T GetDefaultValueForOptionalArgument(const std::string &s) const;
+  inline const OpSchema& GetSchemaWithArgument(const string& name) const;
 
-  bool OptionalArgumentExists(const std::string &s) const {
-    return optional_arguments_.find(s) != optional_arguments_.end();
-  }
+  inline bool OptionalArgumentExists(const std::string &s, const bool local_only = false) const;
+
+  template<typename T>
+  inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
  private:
   inline bool CheckArgument(const std::string &s) {
@@ -259,6 +279,7 @@ class OpSchema {
     return true;
   }
 
+  string name_;
   string dox_;
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
 
@@ -266,7 +287,7 @@ class OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_;
-  std::string parentName_;
+  vector<string> parents_;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
@@ -275,7 +296,7 @@ class OpSchema {
 
 class SchemaRegistry {
  public:
-  static OpSchema& RegisterSchema(const std::string &name, const string &parentName = "") {
+  static OpSchema& RegisterSchema(const std::string &name) {
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
         "registered for operator '" + name + "'. NDLL_OPERATOR_SCHEMA(op) "
@@ -283,8 +304,7 @@ class SchemaRegistry {
 
     // Insert the op schema and return a reference to it
     OpSchema &schema = schema_map[name];
-    schema.setParentName(parentName);
-    return schema;
+    return schema.SetName(name);
   }
 
   static const OpSchema& GetSchema(const std::string &name) {
@@ -301,54 +321,76 @@ class SchemaRegistry {
   static std::map<string, OpSchema>& registry();
 };
 
-template<typename T>
-T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
-  const bool argFound = OptionalArgumentExists(s);
-  if (!argFound) {
-    bool haveParent = HasParent();
-    string parentName = getParentName();
-    while (haveParent) {
-      // get next schema
-      auto &newSchema = SchemaRegistry::GetSchema(parentName);
+inline string GetSchemaWithArg(const string& start, const string& arg) {
+  const OpSchema& s = SchemaRegistry::GetSchema(start);
 
-      // check if this schema has the argument we want
-      if (newSchema.OptionalArgumentExists(s))
-        return newSchema.GetDefaultValueForOptionalArgument<T>(s);
+  // Found locally, return immediately
+  if (s.OptionalArgumentExists(arg, true)) {
+    return start;
+  }
+  // otherwise, loop over any parents
+  for (auto& parent : s.GetParents()) {
+    // recurse
+    string tmp = GetSchemaWithArg(parent, arg);
 
-      // otherwise, move to this schema's parent
-      haveParent = newSchema.HasParent();
-      parentName = newSchema.getParentName();
+    // we found the schema, return
+    if (!tmp.empty()) {
+      return tmp;
     }
   }
-
-  NDLL_ENFORCE(argFound ||
-               internal_arguments_.find(s) != internal_arguments_.end(),
-               "Default value does not exist for argument \"" + s + "\"");
-  Value * v;
-  if (argFound) {
-    auto arg_pair = *optional_arguments_.find(s);
-    v = arg_pair.second.second;
-  } else {
-    auto arg_pair = *internal_arguments_.find(s);
-    v = arg_pair.second.second;
-  }
-  ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
-  NDLL_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
-  return vT->Get();
+  // default case, return empty string
+  return string{};
 }
 
-#define NDLL_OPERATOR_SCHEMA_REG(OpName, ParentOpName)      \
+template<typename T>
+inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
+  // check if argument exists in this schema
+  const bool argFound = OptionalArgumentExists(s, true);
+
+  if (argFound || internal_arguments_.find(s) != internal_arguments_.end()) {
+    Value * v;
+    if (argFound) {
+      auto arg_pair = *optional_arguments_.find(s);
+      v = arg_pair.second.second;
+    } else {
+      auto arg_pair = *internal_arguments_.find(s);
+      v = arg_pair.second.second;
+    }
+    ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
+    NDLL_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
+    return vT->Get();
+  } else {
+    // get the parent schema that has the optional argument and return from there
+    string tmp = GetSchemaWithArg(Name(), s);
+    const OpSchema& schema = SchemaRegistry::GetSchema(tmp);
+    return schema.template GetDefaultValueForOptionalArgument<T>(s);
+  }
+}
+
+bool OpSchema::OptionalArgumentExists(const std::string &s,
+                                      const bool local_only) const {
+  // check just this schema for the argument
+  if (local_only) {
+    return optional_arguments_.find(s) != optional_arguments_.end();
+  } else {
+    // recurse through this schema and all parents (through inheritance tree)
+    string tmp = GetSchemaWithArg(Name(), s);
+    if (tmp.empty()) return false;
+
+    const OpSchema &schema = SchemaRegistry::GetSchema(tmp);
+    return schema.OptionalArgumentExists(s, true);
+  }
+}
+
+#define NDLL_OPERATOR_SCHEMA_REG(OpName)      \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
     return 42;                                              \
   }                                                         \
   static OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
-    &SchemaRegistry::RegisterSchema(#OpName, ParentOpName)
+    &SchemaRegistry::RegisterSchema(#OpName)
 
 #define NDLL_OPERATOR_SCHEMA(OpName)                            \
-      NDLL_OPERATOR_SCHEMA_REG(OpName, string{})
-
-#define NDLL_OPERATOR_SCHEMA_WITH_PARENT(OpName, ParentOpName)  \
-      NDLL_OPERATOR_SCHEMA_REG(OpName, #ParentOpName)
+      NDLL_OPERATOR_SCHEMA_REG(OpName)
 
 }  // namespace ndll
 

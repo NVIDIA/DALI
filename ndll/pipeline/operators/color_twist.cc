@@ -11,33 +11,37 @@ NDLL_OPERATOR_SCHEMA(ColorTwist)
     .NumOutput(1)
     .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB);
 
-NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorIntensity, ColorTwist)
+NDLL_OPERATOR_SCHEMA(ColorIntensity)
     .DocStr("Changes the intensity of RGB/Gray images")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("RGB_level", "Intensity of RGB channels", vector<float>{1.f, 1.f, 1.f})
-    .AddOptionalArg("GRAY_level", "Intensity of gray level", 1.f);
+    .AddOptionalArg("GRAY_level", "Intensity of gray level", 1.f)
+    .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorOffset, ColorIntensity)
+NDLL_OPERATOR_SCHEMA(ColorOffset)
     .DocStr("Sets the offset for RGB/Gray channels")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("RGB_level", "Intensity of RGB channels", vector<float>{0.f, 0.f, 0.f})
-    .AddOptionalArg("GRAY_level", "Intensity of gray level", 0.f);
+    .AddOptionalArg("GRAY_level", "Intensity of gray level", 0.f)
+    .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA_WITH_PARENT(HueSaturation, ColorTwist)
+NDLL_OPERATOR_SCHEMA(HueSaturation)
     .DocStr("Changes the hue/saturation levels of the image")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue", "Hue parameter", 0.f)
-    .AddOptionalArg("saturation", "Color saturation level", 1.f);
+    .AddOptionalArg("saturation", "Color saturation level", 1.f)
+    .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA_WITH_PARENT(ColorContrast, ColorTwist)
+NDLL_OPERATOR_SCHEMA(ColorContrast)
     .DocStr("Changes the color contrast of the image")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("slope", "Slope of color contrast", 1.f)
-    .AddOptionalArg("bias",  "Bias of color contrast", 0.f);
+    .AddOptionalArg("bias",  "Bias of color contrast", 0.f)
+    .AddParent("ColorTwist");
 
 /*  Following operators are not implemented for CPU
 NDLL_REGISTER_OPERATOR_FOR_DEVICE(ColorIntensity, CU);
