@@ -16,7 +16,7 @@ include(FindPackageHandleStandardArgs)
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
 message(STATUS "root: ${NVJPEG_ROOT_DIR}")
-find_path(NVJPEG_INCLUDE_DIR nvJPEG.h
+find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
     PATHS ${NVJPEG_ROOT_DIR}
     PATH_SUFFIXES include)
 

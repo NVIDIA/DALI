@@ -9,7 +9,8 @@ class nvjpegDecodeTest : public NDLLSingleOpTest {
   USING_NDLL_SINGLE_OP_TEST();
 
   vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs) {
+  Reference(const vector<TensorList<CPUBackend>*> &inputs,
+            DeviceWorkspace *ws) {
     // single input - encoded images
     // single output - decoded images
     vector<TensorList<CPUBackend>*> outputs(1);

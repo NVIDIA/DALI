@@ -2,9 +2,7 @@
 #ifndef NDLL_PIPELINE_OPERATORS_NVJPEG_DECODER_H_
 #define NDLL_PIPELINE_OPERATORS_NVJPEG_DECODER_H_
 
-
-
-#include <nvJPEG.h>
+#include <nvjpeg.h>
 
 #include <opencv2/opencv.hpp>
 #include <array>
@@ -43,6 +41,19 @@ int DeviceDelete(void *ptr) {
 }
 
 }  // namespace memory
+
+inline nvjpegOutputFormat GetFormat(NDLLImageType type) {
+  switch (type) {
+    case NDLL_RGB:
+      return NVJPEG_OUTPUT_RGBI;
+    case NDLL_BGR:
+      return NVJPEG_OUTPUT_BGRI;
+    case NDLL_GRAY:
+      return NVJPEG_OUTPUT_Y;
+    default:
+      NDLL_FAIL("Unknown output format");
+  }
+}
 
 void convertToRGB(array<const Npp8u*, 3> YCbCr,
                   array<Npp32s, 3> steps,
@@ -279,17 +290,26 @@ class nvJPEGDecoder : public Operator<Mixed> {
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
+
+    nvjpegImageOutputInterleaved out_desc;
+    out_desc.ptr = output;
+    out_desc.pitch = info.c * info.nHeightY * info.nWidthY;
+
     // Huffman Decode
-    NVJPEG_CALL(nvjpegDecodePlanarCPU(handle,
+    NVJPEG_CALL(nvjpegDecodeCPU(handle,
           data,
-          in_size));
+          in_size,
+          GetFormat(output_type_),
+          &out_desc,
+          stream));
 
     // Ensure previous GPU work is finished
     CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
 
     // Memcpy of Huffman co-efficients to device
-    NVJPEG_CALL(nvjpegDecodePlanarMemcpy(handle, stream));
+    NVJPEG_CALL(nvjpegDecodeMixed(handle, stream));
 
+#if 0
     Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
     Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
     Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
@@ -302,12 +322,10 @@ class nvJPEGDecoder : public Operator<Mixed> {
     image_desc.pitch2 = info.nWidthCb;
     image_desc.p3 = Cr_[stream_idx].mutable_data<uint8>();
     image_desc.pitch3 = info.nWidthCr;
+#endif
+    NVJPEG_CALL(nvjpegDecodeGPU(handle, stream));
 
-    NVJPEG_CALL(nvjpegDecodePlanarGPU(handle,
-          image_desc,
-          NVJPEG_OUTPUT_YUV,
-          stream));
-
+#if 0
     // copy & convert from YCbCr -> RGB
     Npp8u *out_ptr = reinterpret_cast<Npp8u*>(output);
     convertToRGB(
@@ -321,6 +339,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
         info.nHeightY, info.nWidthY,  // output H, W
         output_sampling_[i],   // sampling type
         stream);
+#endif
   }
 
   /**
