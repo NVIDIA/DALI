@@ -16,6 +16,19 @@ typedef std::chrono::high_resolution_clock Clock;
 
 namespace tf = tensorflow;
 
+#define TF_NDLL_CALL(FUNC)                                                         \
+    do {                                                                           \
+      try {                                                                        \
+        FUNC;                                                                      \
+      } catch (std::runtime_error& e) {                                            \
+        std::string error = "NDLL " + std::string(#FUNC)                           \
+                            + " failed: " + std::string(e.what());                 \
+        LOG_LINE << error << std::endl;                                            \
+        context->SetStatus(tf::errors::Internal(error));                           \
+       return;                                                                     \
+      }                                                                            \
+    } while (0)
+
 tf::TensorShape NdllToShape(int64_t* ns) {
   tf::TensorShape ts;
   for (int i = 0; ns[i] != 0; ++i)
@@ -61,19 +74,18 @@ class NdllOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     LOG_LINE << "Initializing...\n";
 
-    // TODO(spanev) Use TF allocator
-    CreatePipeline(&pipe_handle_,
+    TF_NDLL_CALL(CreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
                    batch_size,
                    num_threads,
-                   device_id);
+                   device_id));
 
     SetupTFAllocator();
     UpdateTFAllocaterContext<tf::OpKernelConstruction>(context);
 
     LOG_LINE << "Pipeline created\n";
-    Run(&pipe_handle_);
+    TF_NDLL_CALL(Run(&pipe_handle_));
     LOG_LINE << "After first run\n";
   }
 
@@ -89,21 +101,23 @@ class NdllOp : public tf::OpKernel {
 
     LOG_LINE << "Updated context\n";
     auto s = Clock::now();
-    Run(&pipe_handle_);
+    TF_NDLL_CALL(Run(&pipe_handle_));
     int64_t run_time = std::chrono::duration_cast<std::chrono::microseconds>(
                          Clock::now() - s).count();
     LOG_LINE << "Before output...\n";
 
     s = Clock::now();
-    Output(&pipe_handle_);
+    TF_NDLL_CALL(Output(&pipe_handle_));
     int64_t output_time = std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
     LOG_LINE << "After output...\n";
 
     s = Clock::now();
     // Classification
-    int64_t* data_tensor_shape = ShapeAt(&pipe_handle_, 0);
-    int64_t* label_tensor_shape = ShapeAt(&pipe_handle_, 1);
+    int64_t* data_tensor_shape;
+    int64_t* label_tensor_shape;
+    TF_NDLL_CALL(data_tensor_shape = ShapeAt(&pipe_handle_, 0));
+    TF_NDLL_CALL(label_tensor_shape = ShapeAt(&pipe_handle_, 1));
 
     tf::Tensor* data_output_tensor = NULL;
     tf::Tensor* label_output_tensor = NULL;
@@ -118,16 +132,16 @@ class NdllOp : public tf::OpKernel {
                              Clock::now() - s).count();
 
     s = Clock::now();
-    CopyTensorNTo(&pipe_handle_,
+    TF_NDLL_CALL(CopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(data_output_tensor->flat<float>().data()),
-        0);
+        0));
     int64_t copy0_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
 
     s = Clock::now();
-    CopyTensorNTo(&pipe_handle_,
+    TF_NDLL_CALL(CopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(label_output_tensor->flat<float>().data()),
-        1);
+        1));
     int64_t copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
 
