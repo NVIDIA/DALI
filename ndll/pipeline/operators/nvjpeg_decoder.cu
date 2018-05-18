@@ -11,6 +11,8 @@ NDLL_OPERATOR_SCHEMA(nvJPEGDecoder)
           "Output(0): Decoded images on GPU in HWC ordering")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("output_type", "Output color format", NDLL_RGB);
+  .AddOptionalArg("output_type", "Output color format", NDLL_RGB)
+  .AddOptionalArg("use_batched_decode",
+                  "Use nvjpeg's batched decoding API", false);
 
 }  // namespace ndll

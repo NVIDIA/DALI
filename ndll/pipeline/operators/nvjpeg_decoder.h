@@ -55,83 +55,7 @@ inline nvjpegOutputFormat GetFormat(NDLLImageType type) {
   }
 }
 
-void convertToRGB(array<const Npp8u*, 3> YCbCr,
-                  array<Npp32s, 3> steps,
-                  int c, int rgb_step,
-                  Npp8u* out,
-                  int outH, int outW,
-                  nvjpegChromaSubsampling sampling,
-                  cudaStream_t stream) {
-  NppiSize s;
-  s.width = outW;
-  s.height = outH;
-
-  cudaStream_t old_stream = nppGetStream();
-  nppSetStream(stream);
-  switch (sampling) {
-    case NVJPEG_CSS_444:
-      nppiYCbCr444ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
-      break;
-    case NVJPEG_CSS_422:
-      nppiYCbCr422ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-      break;
-    case NVJPEG_CSS_420:
-      nppiYCbCr420ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-      break;
-    case NVJPEG_CSS_411:
-      nppiYCbCr411ToRGB_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
-      break;
-    case NVJPEG_CSS_440:
-    case NVJPEG_CSS_410:
-    case NVJPEG_CSS_GRAY:
-    case NVJPEG_CSS_UNKNOWN:
-    default:
-      NDLL_FAIL("Unsupported subsampling format");
-  }
-
-  // set the old stream for NPP
-  nppSetStream(old_stream);
-}
-
-void convertToBGR(array<const Npp8u*, 3> YCbCr,
-                  array<Npp32s, 3> steps,
-                  int c, int rgb_step,
-                  Npp8u* out,
-                  int outH, int outW,
-                  nvjpegChromaSubsampling sampling,
-                  cudaStream_t stream) {
-  NppiSize s;
-  s.width = outW;
-  s.height = outH;
-
-  cudaStream_t old_stream = nppGetStream();
-  nppSetStream(stream);
-  switch (sampling) {
-    case NVJPEG_CSS_444:
-      nppiYCbCr444ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps[0], out, c * outW, s);
-      break;
-    case NVJPEG_CSS_422:
-      nppiYCbCr422ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-      break;
-    case NVJPEG_CSS_420:
-      nppiYCbCr420ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c * outW, s);
-      break;
-    case NVJPEG_CSS_411:
-      nppiYCbCr411ToBGR_JPEG_8u_P3C3R(YCbCr.data(), steps.data(), out, c *outW, s);
-      break;
-    case NVJPEG_CSS_440:
-    case NVJPEG_CSS_410:
-    case NVJPEG_CSS_GRAY:
-    case NVJPEG_CSS_UNKNOWN:
-    default:
-      NDLL_FAIL("Unsupported subsampling format");
-  }
-
-  // set the old stream for NPP
-  nppSetStream(old_stream);
-}
-
-bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
+inline bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
   switch (subsampling) {
     case NVJPEG_CSS_444:
     case NVJPEG_CSS_422:
@@ -148,12 +72,12 @@ class nvJPEGDecoder : public Operator<Mixed> {
     Operator<Mixed>(spec),
     max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
-    Y_{max_streams_},
-    Cb_{max_streams_},
-    Cr_{max_streams_},
     output_shape_(batch_size_),
     output_sampling_(batch_size_),
     output_info_(batch_size_),
+    use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
+    batched_image_idx_(batch_size_),
+    batched_output_(batch_size_),
     thread_pool_(max_streams_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
@@ -187,6 +111,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));
 
     // Get dimensions
+    int idx_in_batch = 0;
     for (int i = 0; i < batch_size_; ++i) {
       auto& in = ws->Input<CPUBackend>(0, i);
       auto in_size = in.size();
@@ -222,6 +147,10 @@ class nvJPEGDecoder : public Operator<Mixed> {
       // note if we can't use nvjpeg for this image
       if (!SupportedSubsampling(subsampling)) {
         ocv_fallback_indices_[i] = true;
+      } else {
+        // Store the index for batched api
+        batched_image_idx_[i] = idx_in_batch;
+        idx_in_batch++;
       }
     }
 
@@ -231,32 +160,81 @@ class nvJPEGDecoder : public Operator<Mixed> {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output->set_type(type);
 
-    // Loop over images again and decode
-    for (int i = 0; i < batch_size_; ++i) {
-      auto& in = ws->Input<CPUBackend>(0, i);
-      auto in_size = in.size();
-      const auto *data = in.data<uint8_t>();
-      auto *output_data = output->mutable_tensor<uint8_t>(i);
+    if (use_batched_decode_) {
+      int images_in_batch = batch_size_ - ocv_fallback_indices_.size();
 
-      int count = ocv_fallback_indices_.count(i);
+      // setup this batch for nvjpeg with the number of images to be handled
+      // by nvjpeg within this batch (!= batch_size if fallbacks are needed)
+      NVJPEG_CALL(nvjpegDecodeBatchedInitialize(handles_[0],
+                                                images_in_batch,
+                                                max_streams_,
+                                                GetFormat(output_type_)));
 
-      auto info = output_info_[i];
+      for (int i = 0; i < batch_size_; ++i) {
+        auto& in = ws->Input<CPUBackend>(0, i);
+        auto in_size = in.size();
+        const auto *data = in.data<uint8_t>();
+        auto *output_data = output->mutable_tensor<uint8_t>(i);
 
-      thread_pool_.DoWorkWithID(std::bind(
-            [this, info, data, in_size, output_data, count](int idx, int tid) {
-              const int stream_idx = tid;
-              DecodeSample(idx,
-                           stream_idx,
-                           handles_[stream_idx],
-                           info,
-                           data, in_size,
-                           output_data,
-                           (count > 0),  // Fallback if true
-                           streams_[stream_idx]);
-            }, i, std::placeholders::_1));
+        int count = ocv_fallback_indices_.count(i);
+
+        auto info = output_info_[i];
+
+        batched_output_[batched_image_idx_[i]].ptr = output->mutable_tensor<uint8_t>(i);
+        batched_output_[batched_image_idx_[i]].pitch = info.c * info.nWidthY * info.nHeightY;
+
+        thread_pool_.DoWorkWithID(std::bind(
+              [this, info, data, in_size, output_data, count](int idx, int tid) {
+                DecodeSingleSampleHost(idx,
+                                       batched_image_idx_[idx],
+                                       tid,
+                                       handles_[0],
+                                       info,
+                                       data, in_size,
+                                       output_data,
+                                       (count > 0),  // Fallback if true
+                                       streams_[0]);
+              }, i, std::placeholders::_1));
+      }
+      // Sync thread-based work, assemble outputs and call batched
+      thread_pool_.WaitForWork();
+
+      // Mixed work
+      NVJPEG_CALL(nvjpegDecodeBatchedMixed(handles_[0],
+                                           batched_output_.data(),
+                                           streams_[0]));
+
+      // iDCT
+      NVJPEG_CALL(nvjpegDecodeBatchedGPU(handles_[0],
+                                         streams_[0]));
+    } else {
+      // Loop over images again and decode
+      for (int i = 0; i < batch_size_; ++i) {
+        auto& in = ws->Input<CPUBackend>(0, i);
+        auto in_size = in.size();
+        const auto *data = in.data<uint8_t>();
+        auto *output_data = output->mutable_tensor<uint8_t>(i);
+
+        int count = ocv_fallback_indices_.count(i);
+
+        auto info = output_info_[i];
+
+        thread_pool_.DoWorkWithID(std::bind(
+              [this, info, data, in_size, output_data, count](int idx, int tid) {
+                const int stream_idx = tid;
+                DecodeSingleSample(idx,
+                             stream_idx,
+                             handles_[stream_idx],
+                             info,
+                             data, in_size,
+                             output_data,
+                             (count > 0),  // Fallback if true
+                             streams_[stream_idx]);
+              }, i, std::placeholders::_1));
+      }
+      // Make sure work is finished being submitted
+      thread_pool_.WaitForWork();
     }
-    // Make sure work is finished being submitted
-    thread_pool_.WaitForWork();
 
     // ensure we're consistent with the main op stream
     for (int i = 0; i < max_streams_; ++i) {
@@ -276,7 +254,8 @@ class nvJPEGDecoder : public Operator<Mixed> {
  protected:
   USE_OPERATOR_MEMBERS();
 
-  void DecodeSample(int i,
+  // Decode a single sample end-to-end in a thread
+  void DecodeSingleSample(int i,
                     int stream_idx,
                     nvjpegHandle_t handle,
                     const EncodedImageInfo &info,
@@ -309,37 +288,33 @@ class nvJPEGDecoder : public Operator<Mixed> {
     // Memcpy of Huffman co-efficients to device
     NVJPEG_CALL(nvjpegDecodeMixed(handle, stream));
 
-#if 0
-    Y_[stream_idx].Resize({info.nWidthY * info.nHeightY});
-    Cb_[stream_idx].Resize({info.nWidthCb * info.nHeightCb});
-    Cr_[stream_idx].Resize({info.nWidthCr * info.nHeightCr});
-
-    // perform decode
-    nvjpegImageOutputPlanar image_desc;
-    image_desc.p1 = Y_[stream_idx].mutable_data<uint8>();
-    image_desc.pitch1 = info.nWidthY;
-    image_desc.p2 = Cb_[stream_idx].mutable_data<uint8>();
-    image_desc.pitch2 = info.nWidthCb;
-    image_desc.p3 = Cr_[stream_idx].mutable_data<uint8>();
-    image_desc.pitch3 = info.nWidthCr;
-#endif
+    // iDCT and output
     NVJPEG_CALL(nvjpegDecodeGPU(handle, stream));
+  }
 
-#if 0
-    // copy & convert from YCbCr -> RGB
-    Npp8u *out_ptr = reinterpret_cast<Npp8u*>(output);
-    convertToRGB(
-        array<const Npp8u*, 3>{reinterpret_cast<const Npp8u*>(Y_[stream_idx].raw_data()),
-        reinterpret_cast<const Npp8u*>(Cb_[stream_idx].raw_data()),
-        reinterpret_cast<const Npp8u*>(Cr_[stream_idx].raw_data())},
-        array<Npp32s, 3>{info.nWidthY, info.nWidthCb, info.nWidthCr},  // steps
-        info.c,
-        info.c * info.nWidthY,  // RGB step
-        out_ptr,  // output
-        info.nHeightY, info.nWidthY,  // output H, W
-        output_sampling_[i],   // sampling type
-        stream);
-#endif
+  // Perform the CPU part of a batched decode on a single thread
+  void DecodeSingleSampleHost(int i,
+                              int image_idx,
+                              int thread_idx,
+                              nvjpegHandle_t handle,
+                              const EncodedImageInfo &info,
+                              const uint8 *data,
+                              const size_t in_size,
+                              uint8 *output,
+                              bool ocvFallback,
+                              cudaStream_t stream) {
+    if (ocvFallback) {
+      OCVFallback(data, in_size, output, stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+      return;
+    }
+
+    NVJPEG_CALL(nvjpegDecodeBatchedCPU(handle,
+                                       data,
+                                       in_size,
+                                       image_idx,
+                                       thread_idx,
+                                       stream));
   }
 
   /**
@@ -377,11 +352,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
   // maximum number of streams to use to decode + convert
   const int max_streams_;
 
-  // Storage for individual output components (per-stream)
-  vector<Tensor<GPUBackend>> Y_;
-  vector<Tensor<GPUBackend>> Cb_;
-  vector<Tensor<GPUBackend>> Cr_;
-
  protected:
   // Storage for per-image info
   vector<Dims> output_shape_;
@@ -390,6 +360,14 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
   // Images that nvjpeg can't handle
   std::map<int, bool> ocv_fallback_indices_;
+
+  bool use_batched_decode_;
+  // For batched API we need image index within the batch being
+  // decoded by nvjpeg. If some images are falling back to OCV
+  // this != the image index in the batch
+  vector<int> batched_image_idx_;
+  // output pointers
+  vector<nvjpegImageOutputInterleaved> batched_output_;
 
   // Thread pool
   ThreadPool thread_pool_;
