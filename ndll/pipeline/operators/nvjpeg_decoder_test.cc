@@ -46,7 +46,7 @@ class nvjpegDecodeTest : public NDLLSingleOpTest {
   const NDLLImageType img_type_ = ImgType::type;
 };
 
-typedef ::testing::Types<RGB, BGR> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(nvjpegDecodeTest, Types);
 
 TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
@@ -60,7 +60,7 @@ TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
   this->AddSingleOp(OpSpec("nvJPEGDecoder")
               .AddArg("device", "mixed")
               .AddArg("output_type", this->img_type_)
-              .AddArg("max_streams", 2)
+              .AddArg("max_streams", 1)
               .AddInput("encoded", "cpu")
               .AddOutput("decoded", "gpu"));
 

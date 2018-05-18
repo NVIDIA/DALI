@@ -55,6 +55,18 @@ inline nvjpegOutputFormat GetFormat(NDLLImageType type) {
   }
 }
 
+inline int GetOutputPitch(NDLLImageType type) {
+  switch (type) {
+    case NDLL_RGB:
+    case NDLL_BGR:
+      return 3;
+    case NDLL_GRAY:
+      return 1;
+    default:
+      NDLL_FAIL("Unknown output format");
+  }
+}
+
 inline bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
   switch (subsampling) {
     case NVJPEG_CSS_444:
@@ -162,6 +174,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
     if (use_batched_decode_) {
       int images_in_batch = batch_size_ - ocv_fallback_indices_.size();
+      batched_output_.resize(images_in_batch);
 
       // setup this batch for nvjpeg with the number of images to be handled
       // by nvjpeg within this batch (!= batch_size if fallbacks are needed)
@@ -180,8 +193,11 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
         auto info = output_info_[i];
 
-        batched_output_[batched_image_idx_[i]].ptr = output->mutable_tensor<uint8_t>(i);
-        batched_output_[batched_image_idx_[i]].pitch = info.c * info.nWidthY * info.nHeightY;
+        // Setup outputs for images that will be processed via nvjpeg-batched
+        if (count == 0) {
+          batched_output_[batched_image_idx_[i]].ptr = output->mutable_tensor<uint8_t>(i);
+          batched_output_[batched_image_idx_[i]].pitch = GetOutputPitch(output_type_) * info.nWidthY;
+        }
 
         thread_pool_.DoWorkWithID(std::bind(
               [this, info, data, in_size, output_data, count](int idx, int tid) {
@@ -272,7 +288,8 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
     nvjpegImageOutputInterleaved out_desc;
     out_desc.ptr = output;
-    out_desc.pitch = info.c * info.nHeightY * info.nWidthY;
+    // out_desc.pitch = info.c * info.nWidthY;
+    out_desc.pitch = GetOutputPitch(output_type_) * info.nWidthY;
 
     // Huffman Decode
     NVJPEG_CALL(nvjpegDecodeCPU(handle,
