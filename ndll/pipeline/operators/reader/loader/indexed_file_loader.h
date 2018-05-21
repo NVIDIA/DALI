@@ -6,6 +6,7 @@
 #include <string>
 #include <tuple>
 #include <fstream>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/reader/loader/loader.h"
