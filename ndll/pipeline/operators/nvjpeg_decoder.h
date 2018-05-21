@@ -72,6 +72,7 @@ inline bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
     case NVJPEG_CSS_444:
     case NVJPEG_CSS_422:
     case NVJPEG_CSS_420:
+    case NVJPEG_CSS_GRAY:
       return true;
     default:
       return false;
