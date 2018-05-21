@@ -18,8 +18,6 @@ class RecordIOLoader : public IndexedFileLoader {
   explicit RecordIOLoader(const OpSpec& options)
     : IndexedFileLoader(options, false) {
     Init(options);
-    current_file_index_ = 0;
-    filestream_.reset(FileStream::Open(uris_[0]));
   }
   ~RecordIOLoader() {}
 
@@ -60,7 +58,7 @@ class RecordIOLoader : public IndexedFileLoader {
     if (current_index_ == static_cast<size_t>(Size())) {
       current_index_ = 0;
       current_file_index_ = 0;
-      filestream_.reset(FileStream::Open(uris_[current_file_index_]));
+      current_file_.reset(FileStream::Open(uris_[current_file_index_]));
     }
 
     int64 seek_pos, size;
@@ -71,19 +69,16 @@ class RecordIOLoader : public IndexedFileLoader {
 
     int64 n_read = 0;
     while (n_read < size) {
-      n_read += filestream_->Read(tensor->mutable_data<uint8_t>() + n_read,
+      n_read += current_file_->Read(tensor->mutable_data<uint8_t>() + n_read,
                      size - n_read);
       if (n_read < size) {
         NDLL_ENFORCE(current_file_index_ + 1 < uris_.size(),
             "Incomplete or corrupted record files");
-        filestream_.reset(FileStream::Open(uris_[++current_file_index_]));
+        current_file_.reset(FileStream::Open(uris_[++current_file_index_]));
       }
     }
     ++current_index_;
   }
-
- protected:
-  std::unique_ptr<FileStream> filestream_;
 };
 
 }  // namespace ndll
