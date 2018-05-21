@@ -6,6 +6,7 @@
 #include <string>
 #include <tuple>
 #include <fstream>
+#include <memory>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/reader/loader/loader.h"
@@ -32,7 +33,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_ = FileStream::Open(uris_[file_index]);
+      current_file_.reset(FileStream::Open(uris_[file_index]));
       current_file_index_ = file_index;
     }
     tensor->Resize({size});
@@ -82,18 +83,19 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     current_index_ = num_indices/num_shards_ * shard_id_;
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
-    current_file_ = FileStream::Open(uris_[current_file_index_]);
+    current_file_.reset(FileStream::Open(uris_[current_file_index_]));
     current_file_->Seek(seek_pos);
   }
 
   void Reset() {
-    current_index_ = 0;
+    size_t num_indices = indices_.size();
+    current_index_ = num_indices/num_shards_ * shard_id_;
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_ = FileStream::Open(uris_[file_index]);
+      current_file_.reset(FileStream::Open(uris_[file_index]));
       current_file_index_ = file_index;
     }
     current_file_->Seek(seek_pos);
@@ -103,7 +105,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   std::vector<std::tuple<int64, int64, size_t>> indices_;
   size_t current_index_;
   size_t current_file_index_;
-  FileStream * current_file_;
+  std::unique_ptr<FileStream> current_file_;
 };
 
 }  // namespace ndll
