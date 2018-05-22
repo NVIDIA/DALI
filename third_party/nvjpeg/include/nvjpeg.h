@@ -51,6 +51,8 @@
 
 #define NVJPEGAPI
 
+#define NVJPEG_MAX_COMPONENT 4
+
 #include "cuda_runtime.h"
 
 #if defined(__cplusplus)
@@ -74,32 +76,30 @@ typedef enum
 // Enumeration returned by getImageInfo identifies image format stored inside JPEG input stream
 // In the case of NVJPEG_CSS_GRAY only 1 luminance channel is encoded in JPEG input stream
 // Otherwise both chroma planes are present
+// Initial release support: 4:4:4, 4:2:0, 4:2:2, Grayscale
 typedef enum
 {
-    // Initial release support: 4:4:4, 4:2:0, 4:2:2, so first priority
-    NVJPEG_CSS_444,
-    NVJPEG_CSS_422,
-    NVJPEG_CSS_420,
-    NVJPEG_CSS_440,
-    NVJPEG_CSS_411,
-    NVJPEG_CSS_410,
-    NVJPEG_CSS_GRAY,
-    NVJPEG_CSS_UNKNOWN
+    NVJPEG_CSS_444 = 0,
+    NVJPEG_CSS_422 = 1,
+    NVJPEG_CSS_420 = 2,
+    NVJPEG_CSS_440 = 3,
+    NVJPEG_CSS_411 = 4,
+    NVJPEG_CSS_410 = 5,
+    NVJPEG_CSS_GRAY = 6,
+    NVJPEG_CSS_UNKNOWN = -1
 } nvjpegChromaSubsampling;
 
 // Parameter of this type specifies what type of output user wants for image decoding
-// Final support of this feature in initial release is under question:
-// NVJPEG_OUTPUT_UNCHANGED and NVJPEG_OUTPUT_Y will be supported
-// NVJPEG_OUTPUT_RGB and NVJPEG_OUTPUT_BGR are under investigation right now
+// nvjpeg assumes type of objects pointed by 'destination' parameter pointer from this output format parameter
 typedef enum
 {
-    NVJPEG_OUTPUT_UNCHANGED,   // return decoded image as it is - planar luminance and chrominance (if exists)
-    NVJPEG_OUTPUT_YUV,         // return planar luma and chroma (basically same as NVJPEG_OF_UNCHANGED)
-    NVJPEG_OUTPUT_Y,           // return Y component only
-    NVJPEG_OUTPUT_RGB,         // convert to planar RGB
-    NVJPEG_OUTPUT_BGR,         // convert to planar BGR
-    NVJPEG_OUTPUT_RGBI,         // convert to interleaved RGB
-    NVJPEG_OUTPUT_BGRI,         // convert to interleaved BGR
+    NVJPEG_OUTPUT_UNCHANGED   = 0, // return decoded image as it is - write planar output
+    NVJPEG_OUTPUT_YUV         = 1, // return planar luma and chroma
+    NVJPEG_OUTPUT_Y           = 2, // return luma component only, write to 1-st channel of nvjpegImage
+    NVJPEG_OUTPUT_RGB         = 4, // convert to planar RGB
+    NVJPEG_OUTPUT_BGR         = 5, // convert to planar BGR
+    NVJPEG_OUTPUT_RGBI        = 6, // convert to interleaved RGB and write to 1st channel of nvjpegImage
+    NVJPEG_OUTPUT_BGRI        = 7  // convert to interleaved BGR and write to 1st channel of nvjpegImage
 } nvjpegOutputFormat;
 
 // Implementation
@@ -107,11 +107,20 @@ typedef enum
 typedef enum 
 {
     NVJPEG_BACKEND_DEFAULT = 0,
-    NVJPEG_BACKEND_HYBRID,
-    NVJPEG_BACKEND_GPU,
-    NVJPEG_BACKEND_CPU,
+    NVJPEG_BACKEND_HYBRID  = 1,
+    NVJPEG_BACKEND_GPU     = 2,
+    NVJPEG_BACKEND_CPU     = 3,
 } nvjpegBackend;
 
+// Output buffers descriptor.
+// Data written to planes depends on output forman, i.e. RGB or YUV
+typedef struct
+{
+    unsigned char * channel[NVJPEG_MAX_COMPONENT];
+    unsigned int    pitch[NVJPEG_MAX_COMPONENT];
+} nvjpegImage;
+
+/*
 // Output buffers descriptor. Used for planar output only
 // Data written to planes depends on output forman, i.e. RGB or YUV
 typedef struct
@@ -125,13 +134,13 @@ typedef struct
 } nvjpegImageOutputPlanar;
 
 // Output buffers descriptor. Used for interleaved output. 
-// Applicable only for RGBi/BGRi output (NVJPEG_OUTPUT_RGBI/NVJPEG_OUTPUT_BGRI)
+// Applicable only for interleaved output (NVJPEG_OUTPUT_RGBI/NVJPEG_OUTPUT_BGRI/NVJPEG_OUTPUT_YI)
 typedef struct
 {
     unsigned char *ptr;
     int pitch;
 } nvjpegImageOutputInterleaved;
-
+*/
 
 // Prototype for device memory allocation. 
 typedef int (*tDevMalloc)(void**, size_t);
@@ -170,25 +179,18 @@ nvjpegStatus_t NVJPEGAPI nvjpegDestroy(nvjpegHandle_t handle);
 // IN     data        : Pointer to the buffer containing the jpeg image to be decoded. 
 // IN     length      : Length of the jpeg image buffer.
 // OUT    nComponent  : Number of componenets of the image, currently only supports 1-channel (grayscale) or 3-channel.
-// OUT    nWidthY     : Width of Y component.
-// OUT    nHeightY    : Height to Y component.
-// OUT    nWidthCb    : Width ofCbY component.
-// OUT    nHeightCb   : Height to Cb component.
-// OUT    nWidthCr    : Width ofCrY component.
-// OUT    nHeightCr   : Height to Cr component.
 // OUT    subsampling : Chroma subsampling used in this JPEG, see nvjpegChromaSubsampling
+// OUT    widths      : array of size NVJPEG_MAX_COMPONENT, returns width of each channel. 0 if channel is not encoded  
+// OUT    heights     : array of size NVJPEG_MAX_COMPONENT, returns height of each channel. 0 if channel is not encoded 
+
 nvjpegStatus_t NVJPEGAPI nvjpegGetImageInfo(
           nvjpegHandle_t handle,
           const unsigned char *data, 
           unsigned int length,
           int *nComponents, 
-          int *nWidthY,  
-          int *nHeightY, 
-          int *nWidthCb, 
-          int *nHeightCb,  
-          int *nWidthCr, 
-          int *nHeightCr,
-          nvjpegChromaSubsampling *subsampling);
+          nvjpegChromaSubsampling *subsampling,
+          int *widths,
+          int *heights);
                    
 
 // Decodes single image, output in planar form. Output buffers should be large enough to be able to store 
@@ -209,7 +211,7 @@ nvjpegStatus_t NVJPEGAPI nvjpegDecode(
           const unsigned char *data,
           unsigned int length, 
           nvjpegOutputFormat output_format,
-          void *destination,
+          nvjpegImage *destination,
           cudaStream_t stream);
 
 // Same functionality and parameters as for nvjpegDecodePlanar, but separated in steps: 
@@ -224,7 +226,7 @@ nvjpegStatus_t NVJPEGAPI nvjpegDecodeCPU(
           const unsigned char *data,
           unsigned int length,
           nvjpegOutputFormat output_format,
-          void *destination,
+          nvjpegImage *destination,
           cudaStream_t stream);
 
 nvjpegStatus_t NVJPEGAPI nvjpegDecodeMixed(
@@ -267,7 +269,7 @@ nvjpegStatus_t NVJPEGAPI nvjpegDecodeBatched(
           nvjpegHandle_t handle,
           const unsigned char *const *data,
           const unsigned int *lengths, 
-          void *destinations,
+          nvjpegImage *destinations,
           cudaStream_t stream);
 
 // Same functionality as nvjpegDecodePlanarBatched but done in separate consecutive steps: 
@@ -289,7 +291,7 @@ nvjpegStatus_t NVJPEGAPI nvjpegDecodeBatchedCPU(
 
 nvjpegStatus_t NVJPEGAPI nvjpegDecodeBatchedMixed(
           nvjpegHandle_t handle,
-          void *destinations,
+          nvjpegImage *destinations,
           cudaStream_t stream);
 
 nvjpegStatus_t NVJPEGAPI nvjpegDecodeBatchedGPU(

@@ -72,7 +72,7 @@ inline bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
     case NVJPEG_CSS_444:
     case NVJPEG_CSS_422:
     case NVJPEG_CSS_420:
-    case NVJPEG_CSS_GRAY:
+//    case NVJPEG_CSS_411:
       return true;
     default:
       return false;
@@ -86,7 +86,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
     max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     output_shape_(batch_size_),
-    output_sampling_(batch_size_),
     output_info_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
@@ -130,35 +129,21 @@ class nvJPEGDecoder : public Operator<Mixed> {
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
-      int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
-      nvjpegChromaSubsampling subsampling;
+      EncodedImageInfo info;
 
       // Get necessary image information
       NVJPEG_CALL(nvjpegGetImageInfo(handles_[i % max_streams_],
                                      static_cast<const unsigned char*>(data), in_size,
-                                     &c,
-                                     &nWidthY, &nHeightY,
-                                     &nWidthCb, &nHeightCb,
-                                     &nWidthCr, &nHeightCr,
-                                     &subsampling));
+                                     &info.c, &info.subsampling,
+                                     info.widths, info.heights));
 
       // Store pertinent info for later
-      EncodedImageInfo info;
-      info.c = c;
-      info.nWidthY = nWidthY;
-      info.nHeightY = nHeightY;
-      info.nWidthCb = nWidthCb;
-      info.nHeightCb = nHeightCb;
-      info.nWidthCr = nWidthCr;
-      info.nHeightCr = nHeightCr;
-
       const int image_depth = (output_type_ == NDLL_GRAY) ? 1 : 3;
-      output_shape_[i] = Dims({nHeightY, nWidthY, image_depth});
-      output_sampling_[i] = subsampling;
+      output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
 
       // note if we can't use nvjpeg for this image
-      if (!SupportedSubsampling(subsampling)) {
+      if (!SupportedSubsampling(info.subsampling)) {
         ocv_fallback_indices_[i] = true;
       } else {
         // Store the index for batched api
@@ -173,7 +158,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output->set_type(type);
 
-    if (use_batched_decode_) {
+    if (0/*use_batched_decode_*/) {
       int images_in_batch = batch_size_ - ocv_fallback_indices_.size();
       batched_output_.resize(images_in_batch);
 
@@ -196,8 +181,8 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
         // Setup outputs for images that will be processed via nvjpeg-batched
         if (count == 0) {
-          batched_output_[batched_image_idx_[i]].ptr = output->mutable_tensor<uint8_t>(i);
-          batched_output_[batched_image_idx_[i]].pitch = GetOutputPitch(output_type_) * info.nWidthY;
+          batched_output_[batched_image_idx_[i]].channel[0] = output->mutable_tensor<uint8_t>(i);
+          batched_output_[batched_image_idx_[i]].pitch[0] = GetOutputPitch(output_type_) * info.widths[0];
         }
 
         thread_pool_.DoWorkWithID(std::bind(
@@ -265,7 +250,10 @@ class nvJPEGDecoder : public Operator<Mixed> {
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
   struct EncodedImageInfo {
-    int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
+    int c;
+    nvjpegChromaSubsampling subsampling;
+    int widths[NVJPEG_MAX_COMPONENT];
+    int heights[NVJPEG_MAX_COMPONENT];
   };
 
  protected:
@@ -287,10 +275,10 @@ class nvJPEGDecoder : public Operator<Mixed> {
       return;
     }
 
-    nvjpegImageOutputInterleaved out_desc;
-    out_desc.ptr = output;
+    nvjpegImage out_desc;
+    out_desc.channel[0] = output;
     // out_desc.pitch = info.c * info.nWidthY;
-    out_desc.pitch = GetOutputPitch(output_type_) * info.nWidthY;
+    out_desc.pitch[0] = GetOutputPitch(output_type_) * info.widths[0];
 
     // Huffman Decode
     NVJPEG_CALL(nvjpegDecodeCPU(handle,
@@ -373,7 +361,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
  protected:
   // Storage for per-image info
   vector<Dims> output_shape_;
-  vector<nvjpegChromaSubsampling> output_sampling_;
   vector<EncodedImageInfo> output_info_;
 
   // Images that nvjpeg can't handle
@@ -385,7 +372,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
   // this != the image index in the batch
   vector<int> batched_image_idx_;
   // output pointers
-  vector<nvjpegImageOutputInterleaved> batched_output_;
+  vector<nvjpegImage> batched_output_;
 
   // Thread pool
   ThreadPool thread_pool_;
