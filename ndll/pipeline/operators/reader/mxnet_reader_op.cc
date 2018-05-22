@@ -6,7 +6,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(MXNetReader, MXNetReader, CPU);
 
-NDLL_OPERATOR_SCHEMA(MXNetReader)
+NDLL_SCHEMA(MXNetReader)
   .DocStr("Read sample data from a MXNet RecordIO")
   .NumInput(0)
   .NumOutput(2)

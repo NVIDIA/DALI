@@ -5,7 +5,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
 
-NDLL_OPERATOR_SCHEMA(HostDecoder)
+NDLL_SCHEMA(HostDecoder)
   .DocStr("Decode images on the host."
           "Will pass to faster format-specific decoders if possible. "
           "Input(0): Encoded image stream"

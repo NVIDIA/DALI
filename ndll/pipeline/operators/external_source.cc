@@ -18,7 +18,7 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
 NDLL_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(ExternalSource)
+NDLL_SCHEMA(ExternalSource)
   .DocStr("Allows externally provided data to be passed as an input to "
           "the pipeline")
   .NumInput(0)

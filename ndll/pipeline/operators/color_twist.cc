@@ -5,13 +5,13 @@
 
 namespace ndll {
 
-NDLL_OPERATOR_SCHEMA(ColorTwist)
+NDLL_SCHEMA(ColorTwist)
     .DocStr("ColorTwist - used as a base Schema for Color Transformations")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB);
 
-NDLL_OPERATOR_SCHEMA(ColorIntensity)
+NDLL_SCHEMA(ColorIntensity)
     .DocStr("Changes the intensity of RGB/Gray images")
     .NumInput(1)
     .NumOutput(1)
@@ -19,7 +19,7 @@ NDLL_OPERATOR_SCHEMA(ColorIntensity)
     .AddOptionalArg("GRAY_level", "Intensity of gray level", 1.f)
     .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA(ColorOffset)
+NDLL_SCHEMA(ColorOffset)
     .DocStr("Sets the offset for RGB/Gray channels")
     .NumInput(1)
     .NumOutput(1)
@@ -27,7 +27,7 @@ NDLL_OPERATOR_SCHEMA(ColorOffset)
     .AddOptionalArg("GRAY_level", "Intensity of gray level", 0.f)
     .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA(HueSaturation)
+NDLL_SCHEMA(HueSaturation)
     .DocStr("Changes the hue/saturation levels of the image")
     .NumInput(1)
     .NumOutput(1)
@@ -35,7 +35,7 @@ NDLL_OPERATOR_SCHEMA(HueSaturation)
     .AddOptionalArg("saturation", "Color saturation level", 1.f)
     .AddParent("ColorTwist");
 
-NDLL_OPERATOR_SCHEMA(ColorContrast)
+NDLL_SCHEMA(ColorContrast)
     .DocStr("Changes the color contrast of the image")
     .NumInput(1)
     .NumOutput(1)

@@ -6,7 +6,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 
-NDLL_OPERATOR_SCHEMA(Caffe2Reader)
+NDLL_SCHEMA(Caffe2Reader)
   .DocStr("Read sample data from a Caffe2 LMDB")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {

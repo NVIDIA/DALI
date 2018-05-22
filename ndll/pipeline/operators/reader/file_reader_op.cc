@@ -7,7 +7,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
-NDLL_OPERATOR_SCHEMA(FileReader)
+NDLL_SCHEMA(FileReader)
   .DocStr("Read individual (Image, label) pairs from a list")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)

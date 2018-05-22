@@ -299,7 +299,7 @@ class SchemaRegistry {
   static OpSchema& RegisterSchema(const std::string &name) {
     auto &schema_map = registry();
     NDLL_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
-        "registered for operator '" + name + "'. NDLL_OPERATOR_SCHEMA(op) "
+        "registered for operator '" + name + "'. NDLL_SCHEMA(op) "
         "should only be called once per op.");
 
     // Insert the op schema and return a reference to it
@@ -382,15 +382,15 @@ bool OpSchema::OptionalArgumentExists(const std::string &s,
   }
 }
 
-#define NDLL_OPERATOR_SCHEMA_REG(OpName)      \
+#define NDLL_SCHEMA_REG(OpName)      \
   int NDLL_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
     return 42;                                              \
   }                                                         \
   static OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
     &SchemaRegistry::RegisterSchema(#OpName)
 
-#define NDLL_OPERATOR_SCHEMA(OpName)                            \
-      NDLL_OPERATOR_SCHEMA_REG(OpName)
+#define NDLL_SCHEMA(OpName)                            \
+      NDLL_SCHEMA_REG(OpName)
 
 }  // namespace ndll
 

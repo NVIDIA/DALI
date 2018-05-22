@@ -11,7 +11,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 
-NDLL_OPERATOR_SCHEMA(_TFRecordReader)
+NDLL_SCHEMA(_TFRecordReader)
   .OutputFn([](const OpSpec &spec) {
       std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
       return v.size();

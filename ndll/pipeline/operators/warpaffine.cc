@@ -7,7 +7,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(WarpAffine)
+NDLL_SCHEMA(WarpAffine)
     .DocStr("Apply an affine transformation to the image")
     .NumInput(1)
     .NumOutput(1)
@@ -19,7 +19,7 @@ NDLL_OPERATOR_SCHEMA(WarpAffine)
 
 NDLL_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(Rotate)
+NDLL_SCHEMA(Rotate)
     .DocStr("Rotate the image")
     .NumInput(1)
     .NumOutput(1)

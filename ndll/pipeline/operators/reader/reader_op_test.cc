@@ -68,7 +68,7 @@ class DummyDataReader : public DataReader<CPUBackend> {
 
 NDLL_REGISTER_OPERATOR(DummyDataReader, DummyDataReader, CPU);
 
-NDLL_OPERATOR_SCHEMA(DummyDataReader)
+NDLL_SCHEMA(DummyDataReader)
   .DocStr("Dummy")
   .OutputFn([](const OpSpec& spec) { return 1; })
   .NumInput(0)
