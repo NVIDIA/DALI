@@ -3,7 +3,7 @@
 
 namespace ndll {
 
-NDLL_OPERATOR_SCHEMA(Resize)
+NDLL_SCHEMA(Resize)
   .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
           "cropping (random and fixed) and image mirroring.")
   .NumInput(1)

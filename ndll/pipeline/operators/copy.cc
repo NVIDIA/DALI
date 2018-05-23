@@ -18,7 +18,7 @@ void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
 NDLL_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(Copy)
+NDLL_SCHEMA(Copy)
   .DocStr("Make a copy of the input tensor")
   .NumInput(1)
   .NumOutput(1);

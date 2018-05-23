@@ -39,7 +39,7 @@ void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {}
 
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
 NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
-NDLL_OPERATOR_SCHEMA(NewResize)
+NDLL_SCHEMA(NewResize)
     .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
             "cropping (random and fixed) and image mirroring.")
     .NumInput(1)

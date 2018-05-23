@@ -11,7 +11,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(Water, Water<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(Water)
+NDLL_SCHEMA(Water)
     .DocStr("Perform a water augmentation")
     .NumInput(1)
     .NumOutput(1)

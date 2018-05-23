@@ -5,7 +5,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 
-NDLL_OPERATOR_SCHEMA(CaffeReader)
+NDLL_SCHEMA(CaffeReader)
   .DocStr("Read (Image, label) pairs from a Caffe LMDB")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)

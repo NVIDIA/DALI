@@ -5,7 +5,7 @@
 
 namespace ndll {
 
-NDLL_OPERATOR_SCHEMA(Dummy1)
+NDLL_SCHEMA(Dummy1)
   .NumInput(1)
   .NumOutput(1);
 
@@ -23,7 +23,7 @@ TEST(OpSchemaTest, SimpleTest) {
   ASSERT_EQ(schema.NumOutput(), 1);
 }
 
-NDLL_OPERATOR_SCHEMA(Dummy2)
+NDLL_SCHEMA(Dummy2)
   .NumInput(1, 2)
   .OutputFn([](const OpSpec& spec) {
     return spec.NumInput() * 2;
@@ -36,7 +36,7 @@ TEST(OpSchemaTest, OutputFNTest) {
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
 }
 
-NDLL_OPERATOR_SCHEMA(Dummy3)
+NDLL_SCHEMA(Dummy3)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("foo", "foo", 1.5f);
 
@@ -48,7 +48,7 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
 }
 
-NDLL_OPERATOR_SCHEMA(Dummy4)
+NDLL_SCHEMA(Dummy4)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("bar", "var", 17.f)
   .AddParent("Dummy3");
@@ -62,7 +62,7 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17);
 }
 
-NDLL_OPERATOR_SCHEMA(Dummy5)
+NDLL_SCHEMA(Dummy5)
   .DocStr("Foo")
   .NumInput(1)
   .NumOutput(1)
@@ -82,11 +82,11 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("baz"), 2.f);
 }
 
-NDLL_OPERATOR_SCHEMA(Dummy6)
+NDLL_SCHEMA(Dummy6)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("dummy", "dummy", 1.85f);
 
-NDLL_OPERATOR_SCHEMA(Dummy7)
+NDLL_SCHEMA(Dummy7)
   .NumInput(1).NumOutput(1)
   .AddParent("Dummy5")
   .AddParent("Dummy6");

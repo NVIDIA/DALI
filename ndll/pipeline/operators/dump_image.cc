@@ -25,7 +25,7 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 
 NDLL_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(DumpImage)
+NDLL_SCHEMA(DumpImage)
   .DocStr("Save images in batch to disk in PPM format")
   .NumInput(1)
   .NumOutput(1)

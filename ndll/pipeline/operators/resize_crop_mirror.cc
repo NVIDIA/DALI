@@ -5,7 +5,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(ResizeCropMirror)
+NDLL_SCHEMA(ResizeCropMirror)
   .DocStr("Perform a fused resize, crop, mirror operation. Handles both fixed"
           " and random resizing and cropping.")
   .NumInput(1)
@@ -21,7 +21,7 @@ NDLL_OPERATOR_SCHEMA(ResizeCropMirror)
 
 NDLL_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(FastResizeCropMirror)
+NDLL_SCHEMA(FastResizeCropMirror)
   .DocStr("Perform a fused resize, crop, mirror operation. Handles both fixed "
           "and random resizing and cropping. Backprojects the desired crop "
           "through the resize operation to reduce the amount of work performed")

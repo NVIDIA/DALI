@@ -23,7 +23,7 @@ void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 
 NDLL_REGISTER_OPERATOR(Cast, Cast<CPUBackend>, CPU);
 
-NDLL_OPERATOR_SCHEMA(Cast)
+NDLL_SCHEMA(Cast)
   .DocStr("Cast tensor to a different type")
   .NumInput(1)
   .NumOutput(1)
