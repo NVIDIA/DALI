@@ -42,7 +42,7 @@ int DeviceDelete(void *ptr) {
 
 }  // namespace memory
 
-inline nvjpegOutputFormat GetFormat(NDLLImageType type) {
+inline nvjpegOutputFormat_t GetFormat(NDLLImageType type) {
   switch (type) {
     case NDLL_RGB:
       return NVJPEG_OUTPUT_RGBI;
@@ -67,11 +67,15 @@ inline int GetOutputPitch(NDLLImageType type) {
   }
 }
 
-inline bool SupportedSubsampling(const nvjpegChromaSubsampling &subsampling) {
+inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
   switch (subsampling) {
     case NVJPEG_CSS_444:
     case NVJPEG_CSS_422:
     case NVJPEG_CSS_420:
+    case NVJPEG_CSS_411:
+    case NVJPEG_CSS_410:
+    case NVJPEG_CSS_GRAY:
+    case NVJPEG_CSS_440:
       return true;
     default:
       return false;
@@ -85,7 +89,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
     max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     output_shape_(batch_size_),
-    output_sampling_(batch_size_),
     output_info_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
@@ -94,17 +97,18 @@ class nvJPEGDecoder : public Operator<Mixed> {
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
       // Setup the allocator struct to use our internal allocator
-      nvjpegDevAllocator allocator;
+      nvjpegDevAllocator_t allocator;
       allocator.dev_malloc = &memory::DeviceNew;
       allocator.dev_free = &memory::DeviceDelete;
 
       // create the handles, streams and events we'll use
       streams_.reserve(max_streams_);
-      handles_.reserve(max_streams_);
+      states_.reserve(max_streams_);
       events_.reserve(max_streams_);
 
+      NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
       for (int i = 0; i < max_streams_; ++i) {
-        NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handles_[i]));
+        NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
         CUDA_CALL(cudaStreamCreate(&streams_[i]));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
@@ -112,10 +116,11 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
   ~nvJPEGDecoder() {
     for (int i = 0; i < max_streams_; ++i) {
-      NVJPEG_CALL(nvjpegDestroy(handles_[i]));
+      NVJPEG_CALL(nvjpegJpegStateDestroy(states_[i]));
       CUDA_CALL(cudaEventDestroy(events_[i]));
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
+    NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
   void Run(MixedWorkspace *ws) override {
@@ -129,39 +134,27 @@ class nvJPEGDecoder : public Operator<Mixed> {
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
-      int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
-      nvjpegChromaSubsampling subsampling;
+      EncodedImageInfo info;
 
       // Get necessary image information
-      NVJPEG_CALL(nvjpegGetImageInfo(handles_[i % max_streams_],
+      NVJPEG_CALL(nvjpegGetImageInfo(handle_,
                                      static_cast<const unsigned char*>(data), in_size,
-                                     &c,
-                                     &nWidthY, &nHeightY,
-                                     &nWidthCb, &nHeightCb,
-                                     &nWidthCr, &nHeightCr,
-                                     &subsampling));
+                                     &info.c, &info.subsampling,
+                                     info.widths, info.heights));
 
       // Store pertinent info for later
-      EncodedImageInfo info;
-      info.c = c;
-      info.nWidthY = nWidthY;
-      info.nHeightY = nHeightY;
-      info.nWidthCb = nWidthCb;
-      info.nHeightCb = nHeightCb;
-      info.nWidthCr = nWidthCr;
-      info.nHeightCr = nHeightCr;
-
       const int image_depth = (output_type_ == NDLL_GRAY) ? 1 : 3;
-      output_shape_[i] = Dims({nHeightY, nWidthY, image_depth});
-      output_sampling_[i] = subsampling;
+      output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
 
       // note if we can't use nvjpeg for this image
-      if (!SupportedSubsampling(subsampling)) {
+      if (!SupportedSubsampling(info.subsampling)) {
         ocv_fallback_indices_[i] = true;
+        output_info_[i].nvjpeg_support = false;
       } else {
         // Store the index for batched api
         batched_image_idx_[i] = idx_in_batch;
+        output_info_[i].nvjpeg_support = true;
         idx_in_batch++;
       }
     }
@@ -173,12 +166,13 @@ class nvJPEGDecoder : public Operator<Mixed> {
     output->set_type(type);
 
     if (use_batched_decode_) {
-      int images_in_batch = batch_size_ - ocv_fallback_indices_.size();
+      int images_in_batch = idx_in_batch;
       batched_output_.resize(images_in_batch);
 
       // setup this batch for nvjpeg with the number of images to be handled
       // by nvjpeg within this batch (!= batch_size if fallbacks are needed)
-      NVJPEG_CALL(nvjpegDecodeBatchedInitialize(handles_[0],
+      NVJPEG_CALL(nvjpegDecodeBatchedInitialize(handle_,
+                                                states_[0],
                                                 images_in_batch,
                                                 max_streams_,
                                                 GetFormat(output_type_)));
@@ -189,26 +183,24 @@ class nvJPEGDecoder : public Operator<Mixed> {
         const auto *data = in.data<uint8_t>();
         auto *output_data = output->mutable_tensor<uint8_t>(i);
 
-        int count = ocv_fallback_indices_.count(i);
-
         auto info = output_info_[i];
 
         // Setup outputs for images that will be processed via nvjpeg-batched
-        if (count == 0) {
-          batched_output_[batched_image_idx_[i]].ptr = output->mutable_tensor<uint8_t>(i);
-          batched_output_[batched_image_idx_[i]].pitch = GetOutputPitch(output_type_) * info.nWidthY;
+        if (info.nvjpeg_support) {
+          batched_output_[batched_image_idx_[i]].channel[0] = output->mutable_tensor<uint8_t>(i);
+          batched_output_[batched_image_idx_[i]].pitch[0] = GetOutputPitch(output_type_) * info.widths[0];
         }
 
         thread_pool_.DoWorkWithID(std::bind(
-              [this, info, data, in_size, output_data, count](int idx, int tid) {
+              [this, info, data, in_size, output_data](int idx, int tid) {
                 DecodeSingleSampleHost(idx,
                                        batched_image_idx_[idx],
                                        tid,
-                                       handles_[0],
+                                       handle_,
+                                       states_[0],
                                        info,
                                        data, in_size,
                                        output_data,
-                                       (count > 0),  // Fallback if true
                                        streams_[0]);
               }, i, std::placeholders::_1));
       }
@@ -216,13 +208,15 @@ class nvJPEGDecoder : public Operator<Mixed> {
       thread_pool_.WaitForWork();
 
       // Mixed work
-      NVJPEG_CALL(nvjpegDecodeBatchedMixed(handles_[0],
-                                           batched_output_.data(),
-                                           streams_[0]));
+      NVJPEG_CALL(nvjpegDecodeBatchedPhaseTwo(handle_,
+                                            states_[0],
+                                            streams_[0]));
 
       // iDCT
-      NVJPEG_CALL(nvjpegDecodeBatchedGPU(handles_[0],
-                                         streams_[0]));
+      NVJPEG_CALL(nvjpegDecodeBatchedPhaseThree(handle_,
+                                            states_[0],
+                                            batched_output_.data(),
+                                            streams_[0]));
     } else {
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
@@ -231,20 +225,18 @@ class nvJPEGDecoder : public Operator<Mixed> {
         const auto *data = in.data<uint8_t>();
         auto *output_data = output->mutable_tensor<uint8_t>(i);
 
-        int count = ocv_fallback_indices_.count(i);
-
         auto info = output_info_[i];
 
         thread_pool_.DoWorkWithID(std::bind(
-              [this, info, data, in_size, output_data, count](int idx, int tid) {
+              [this, info, data, in_size, output_data](int idx, int tid) {
                 const int stream_idx = tid;
                 DecodeSingleSample(idx,
                              stream_idx,
-                             handles_[stream_idx],
+                             handle_,
+                             states_[stream_idx],
                              info,
                              data, in_size,
                              output_data,
-                             (count > 0),  // Fallback if true
                              streams_[stream_idx]);
               }, i, std::placeholders::_1));
       }
@@ -264,7 +256,11 @@ class nvJPEGDecoder : public Operator<Mixed> {
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
   struct EncodedImageInfo {
-    int c, nWidthY, nHeightY, nWidthCb, nHeightCb, nWidthCr, nHeightCr;
+    bool nvjpeg_support;
+    int c;
+    nvjpegChromaSubsampling_t subsampling;
+    int widths[NVJPEG_MAX_COMPONENT];
+    int heights[NVJPEG_MAX_COMPONENT];
   };
 
  protected:
@@ -274,62 +270,63 @@ class nvJPEGDecoder : public Operator<Mixed> {
   void DecodeSingleSample(int i,
                     int stream_idx,
                     nvjpegHandle_t handle,
+                    nvjpegJpegState_t state,
                     const EncodedImageInfo &info,
                     const uint8 *data,
                     const size_t in_size,
                     uint8 *output,
-                    bool ocvFallback,
                     cudaStream_t stream) {
-    if (ocvFallback) {
+    if (!info.nvjpeg_support) {
       OCVFallback(data, in_size, output, stream);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
 
-    nvjpegImageOutputInterleaved out_desc;
-    out_desc.ptr = output;
+    nvjpegImage_t out_desc;
+    out_desc.channel[0] = output;
     // out_desc.pitch = info.c * info.nWidthY;
-    out_desc.pitch = GetOutputPitch(output_type_) * info.nWidthY;
+    out_desc.pitch[0] = GetOutputPitch(output_type_) * info.widths[0];
 
     // Huffman Decode
-    NVJPEG_CALL(nvjpegDecodeCPU(handle,
+    NVJPEG_CALL(nvjpegDecodePhaseOne(handle,
+          state,
           data,
           in_size,
           GetFormat(output_type_),
-          &out_desc,
           stream));
 
     // Ensure previous GPU work is finished
     CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
 
     // Memcpy of Huffman co-efficients to device
-    NVJPEG_CALL(nvjpegDecodeMixed(handle, stream));
+    NVJPEG_CALL(nvjpegDecodePhaseTwo(handle, state, stream));
 
     // iDCT and output
-    NVJPEG_CALL(nvjpegDecodeGPU(handle, stream));
+    NVJPEG_CALL(nvjpegDecodePhaseThree(handle, state, &out_desc, stream));
   }
 
   // Perform the CPU part of a batched decode on a single thread
   void DecodeSingleSampleHost(int i,
-                              int image_idx,
+                              int nvjpeg_image_idx,
                               int thread_idx,
                               nvjpegHandle_t handle,
+                              nvjpegJpegState_t state,
                               const EncodedImageInfo &info,
                               const uint8 *data,
                               const size_t in_size,
                               uint8 *output,
-                              bool ocvFallback,
                               cudaStream_t stream) {
-    if (ocvFallback) {
+    if (!info.nvjpeg_support) {
       OCVFallback(data, in_size, output, stream);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
 
-    NVJPEG_CALL(nvjpegDecodeBatchedCPU(handle,
+    NVJPEG_CALL(nvjpegDecodeBatchedPhaseOne(handle,
+                                       state,
                                        data,
                                        in_size,
-                                       image_idx,
+                                       nvjpeg_image_idx,
                                        thread_idx,
                                        stream));
   }
@@ -359,7 +356,8 @@ class nvJPEGDecoder : public Operator<Mixed> {
                               cudaMemcpyHostToDevice, s));
   }
 
-  vector<nvjpegHandle_t> handles_;
+  nvjpegHandle_t handle_;
+  vector<nvjpegJpegState_t> states_;
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;
 
@@ -372,7 +370,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
  protected:
   // Storage for per-image info
   vector<Dims> output_shape_;
-  vector<nvjpegChromaSubsampling> output_sampling_;
   vector<EncodedImageInfo> output_info_;
 
   // Images that nvjpeg can't handle
@@ -384,7 +381,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
   // this != the image index in the batch
   vector<int> batched_image_idx_;
   // output pointers
-  vector<nvjpegImageOutputInterleaved> batched_output_;
+  vector<nvjpegImage_t> batched_output_;
 
   // Thread pool
   ThreadPool thread_pool_;

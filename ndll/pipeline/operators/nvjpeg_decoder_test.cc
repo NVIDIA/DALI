@@ -61,6 +61,7 @@ TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
               .AddArg("device", "mixed")
               .AddArg("output_type", this->img_type_)
               .AddArg("max_streams", 1)
+              .AddArg("use_batched_decode", false)
               .AddInput("encoded", "cpu")
               .AddOutput("decoded", "gpu"));
 
@@ -70,7 +71,7 @@ TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
   // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
   // Difference is consistent, deterministic and goes away if I force OCV
   // instead of TJPG decoding.
-  this->SetEps(0.5);
+  this->SetEps(2.0);
 
   this->CheckAnswers(&ws, {0});
 }
@@ -97,7 +98,7 @@ TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode) {
   // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
   // Difference is consistent, deterministic and goes away if I force OCV
   // instead of TJPG decoding.
-  this->SetEps(0.5);
+  this->SetEps(2.0);
 
   this->CheckAnswers(&ws, {0});
 }
