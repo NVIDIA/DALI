@@ -4,9 +4,9 @@
 #include <pybind11/stl.h>
 
 #include "ndll/pipeline/init.h"
-#include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/op_schema.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operators/op_schema.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
@@ -258,6 +258,10 @@ static vector<string> GetRegisteredGPUOps() {
   return GPUOperatorRegistry::Registry().RegisteredNames();
 }
 
+static vector<string> GetRegisteredSupportOps() {
+  return SupportOperatorRegistry::Registry().RegisteredNames();
+}
+
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
@@ -472,6 +476,11 @@ PYBIND11_MODULE(ndll_backend, m) {
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,
+        "name"_a,
+        "device"_a,
+        "regular_input"_a = true,
+        py::return_value_policy::reference_internal)
+    .def("AddArgumentInput", &OpSpec::AddArgumentInput,
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
@@ -496,6 +505,7 @@ PYBIND11_MODULE(ndll_backend, m) {
   // Registries for cpu & gpu operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
+  m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema);

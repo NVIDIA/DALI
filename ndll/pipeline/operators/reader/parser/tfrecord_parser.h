@@ -8,8 +8,8 @@
 #include <string>
 
 #include "ndll/common.h"
-#include "ndll/pipeline/argument.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/argument.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/pipeline/operators/reader/parser/parser.h"
 #include "ndll/pipeline/operators/reader/parser/tf_feature.h"
 #include "ndll/pipeline/operators/reader/parser/example.pb.h"

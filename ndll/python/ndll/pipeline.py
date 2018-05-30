@@ -79,6 +79,7 @@ class Pipeline(object):
             # op if we have not already
             if source_op.id not in op_ids:
                 op_ids.add(source_op.id)
+                source_op.check_args()
                 ops.append(source_op)
             else:
                 # If the op was already added, we need to

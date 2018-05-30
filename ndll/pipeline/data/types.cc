@@ -1,4 +1,18 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+
+#define NDLL_TYPENAME_REGISTERER(Type) \
+{                                      \
+  return #Type;                        \
+}
+
+#define NDLL_TYPEID_REGISTERER(Type, dtype)                           \
+{                                                                     \
+  std::lock_guard<std::mutex> lock(mutex_);                           \
+  static NDLLDataType type_id = TypeTable::RegisterType<Type>(dtype); \
+  return type_id;                                                     \
+}
+
+
 #include "ndll/pipeline/data/types.h"
 
 #include "ndll/pipeline/data/backend.h"
@@ -6,6 +20,7 @@
 namespace ndll {
 std::mutex TypeTable::mutex_;
 std::unordered_map<std::type_index, NDLLDataType> TypeTable::type_map_;
+int TypeTable::index_ = NDLL_DATATYPE_END;
 
 template <>
 void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
@@ -14,7 +29,7 @@ void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
 }
 
 template <>
-void TypeInfo::Construct<GPUBackend>(void *ptr, Index n) {
+void TypeInfo::Construct<GPUBackend>(void *, Index) {
   // NoOp. GPU types must not require constructor
 }
 
@@ -25,7 +40,7 @@ void TypeInfo::Destruct<CPUBackend>(void *ptr, Index n) {
 }
 
 template <>
-void TypeInfo::Destruct<GPUBackend>(void *ptr, Index n) {
+void TypeInfo::Destruct<GPUBackend>(void *, Index) {
   // NoOp. GPU types must not require destructor
 }
 
@@ -55,19 +70,5 @@ void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
   MemCopy(dst, src, n*size(), stream);
 }
 
-// Instantiate some basic types
-NDLL_REGISTER_TYPE(NoType, NDLL_NO_TYPE);
-NDLL_REGISTER_TYPE(uint8, NDLL_UINT8);
-NDLL_REGISTER_TYPE(int16, NDLL_INT16);
-NDLL_REGISTER_TYPE(int32, NDLL_INT32);
-NDLL_REGISTER_TYPE(int64, NDLL_INT64);
-NDLL_REGISTER_TYPE(float16, NDLL_FLOAT16);
-NDLL_REGISTER_TYPE(float, NDLL_FLOAT);
-NDLL_REGISTER_TYPE(double, NDLL_FLOAT64);
-NDLL_REGISTER_TYPE(bool, NDLL_BOOL);
-NDLL_REGISTER_TYPE(NppiPoint, NDLL_NPPI_POINT);
-NDLL_REGISTER_TYPE(NppiSize, NDLL_NPPI_SIZE);
-NDLL_REGISTER_TYPE(NppiRect, NDLL_NPPI_RECT_SIZE);
-NDLL_REGISTER_TYPE(uint8 *, NDLL_UINT8_PNTR);
-NDLL_REGISTER_TYPE(const uint8*, NDLL_INTERNAL_C_UINT8_P);
+
 }  // namespace ndll

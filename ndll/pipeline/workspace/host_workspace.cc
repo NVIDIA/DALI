@@ -25,6 +25,9 @@ void HostWorkspace::GetSample(SampleWorkspace *ws,
       ws->AddOutput(gpu_outputs_[output_meta.second][data_idx]);
     }
   }
+  for (auto& arg_pair : argument_inputs_) {
+    ws->AddArgumentInput(arg_pair.second, arg_pair.first);
+  }
 }
 
 int HostWorkspace::NumInputAtIdx(int idx) const {

@@ -21,8 +21,6 @@ using DeviceInputType = shared_ptr<TensorList<Backend>>;
 template <typename Backend>
 using DeviceOutputType = shared_ptr<TensorList<Backend>>;
 
-class SampleWorkspace;
-
 /**
  * @brief DeviceWorkspace stores all data that a gpu operator operates on,
  * including its input and output TensorLists, parameter tensors and
@@ -38,21 +36,11 @@ class DeviceWorkspace : public WorkspaceBase<DeviceInputType, DeviceOutputType> 
    * to a default state.
    */
   inline void Clear() {
+    WorkspaceBase<DeviceInputType, DeviceOutputType>::Clear();
     has_stream_ = false;
     has_event_ = false;
     stream_ = 0;
     parent_events_.clear();
-
-    cpu_inputs_.clear();
-    gpu_inputs_.clear();
-    cpu_outputs_.clear();
-    gpu_outputs_.clear();
-    input_index_map_.clear();
-    output_index_map_.clear();
-    cpu_inputs_index_.clear();
-    gpu_inputs_index_.clear();
-    cpu_outputs_index_.clear();
-    gpu_outputs_index_.clear();
   }
 
   /**

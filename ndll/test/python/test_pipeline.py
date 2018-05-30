@@ -65,8 +65,7 @@ def test_cropmirrornormalize_layout():
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
-                                                     std = [1., 1., 1.],
-                                                     mirror_prob = 0.0)
+                                                     std = [1., 1., 1.])
             self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = types.NCHW,
@@ -74,8 +73,7 @@ def test_cropmirrornormalize_layout():
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
-                                                     std = [1., 1., 1.],
-                                                     mirror_prob = 0.0)
+                                                     std = [1., 1., 1.])
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
@@ -121,7 +119,6 @@ def test_cropmirrornormalize_pad():
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.],
-                                                     mirror_prob = 0.0,
                                                      pad_output = True)
             self.cmnp      = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
@@ -131,7 +128,6 @@ def test_cropmirrornormalize_pad():
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.],
-                                                     mirror_prob = 0.0,
                                                      pad_output = False)
 
         def define_graph(self):
@@ -187,14 +183,15 @@ def test_seed():
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.copy = ops.Copy(device="gpu")
+            self.coin = ops.CoinFlip()
             self.iter = 0
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             dct_coeff, jpeg_meta = self.huffman(self.jpegs)
             images = self.idct(dct_coeff.gpu(), jpeg_meta)
-            output = self.cmnp(images)
+            mirror = self.coin()
+            output = self.cmnp(images, mirror = mirror)
             return (output, self.labels)
 
         def iter_setup(self):
