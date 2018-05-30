@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/pipeline/op_graph.h"
 
-#include "ndll/pipeline/op_schema.h"
+#include "ndll/pipeline/operators/op_schema.h"
 
 namespace ndll {
 
@@ -44,14 +44,14 @@ void CheckOpConstraints(const OpSpec &spec) {
 
   NDLL_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
       "Op '" + spec.name() + "' does not support in-place execution.");
-  NDLL_ENFORCE(spec.NumInput() <= num_input_sets * schema.MaxNumInput(),
+  NDLL_ENFORCE(spec.NumRegularInput() <= num_input_sets * schema.MaxNumInput(),
       "Operator '" + spec.name() +
       "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumInput()) + ".");
-  NDLL_ENFORCE(spec.NumInput() >= num_input_sets * schema.MinNumInput(),
+      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
+  NDLL_ENFORCE(spec.NumRegularInput() >= num_input_sets * schema.MinNumInput(),
       "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumInput()) + ".");
+      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
   NDLL_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
       "Operator '" + spec.name() +
       "' supports " + std::to_string(schema.CalculateOutputs(spec)/num_input_sets) + " outputs, "
@@ -106,6 +106,20 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     id_to_node_map_.push_back({NDLL_MIXED, mixed_nodes_.size()-1});
 
     new_node = &mixed_node;
+  } else if (device == "support") {
+    // Enforce graph constraints
+    NDLL_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
+
+    // Create the operator
+    OpPtr tmp(
+        SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device));
+
+    support_nodes_.resize(support_nodes_.size()+1);
+    OpNode &support_node = support_nodes_.back();
+    support_node.op = std::move(tmp);
+    id_to_node_map_.push_back({NDLL_SUPPORT, support_nodes_.size() - 1});
+
+    new_node = &support_node;
   } else {
     NDLL_FAIL("Invalid device argument \"" + device +
         "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
@@ -137,6 +151,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     TensorMeta meta;
     meta.node = new_node->id;
     meta.index = i;
+    meta.is_support = spec.IsArgumentInput(i);
     meta.is_cpu = spec.InputDevice(i) == "cpu" ? true : false;
 
     vector<TensorMeta> &consumer_info = tensor_consumers_[spec.Input(i)];
@@ -151,6 +166,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     TensorMeta meta;
     meta.node = new_node->id;
     meta.index = i;
+    meta.is_support = spec.GetArgument<string>("device") == "support";
     meta.is_cpu = spec.OutputDevice(i) == "cpu" ? true : false;
 
     auto ret = tensor_producers_.insert({name, meta});
@@ -317,6 +333,13 @@ void OpGraph::RemoveOp(NodeID id) {
       id_to_node_map_[mixed_node.id].second = i;
     }
     break;
+  case NDLL_SUPPORT:
+    support_nodes_.erase(support_nodes_.begin() + idx);
+
+    for (size_t i = idx; i < support_nodes_.size(); ++i) {
+      OpNode &support_node = this->support_node(i);
+      id_to_node_map_[support_node.id].second = i;
+    }
   }
 }
 
@@ -333,6 +356,9 @@ OpNode& OpGraph::node(NodeID id) {
     break;
   case NDLL_MIXED:
     return mixed_nodes_[idx_pair.second];
+    break;
+  case NDLL_SUPPORT:
+    return support_nodes_[idx_pair.second];
     break;
   default:
     NDLL_FAIL("Internal error. Invalid node type index.");
@@ -354,6 +380,12 @@ OpNode& OpGraph::node(const std::string& name) {
   }
   // Search mixed nodes
   for (auto& node : mixed_nodes_) {
+    if (node.instance_name == name) {
+      return node;
+    }
+  }
+  // Search support nodes
+  for (auto& node : support_nodes_) {
     if (node.instance_name == name) {
       return node;
     }

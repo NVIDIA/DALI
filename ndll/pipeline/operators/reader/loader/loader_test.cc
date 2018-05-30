@@ -4,7 +4,7 @@
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/backend.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/test/ndll_test.h"
 
 #include "ndll/pipeline/operators/reader/loader/loader.h"

@@ -11,15 +11,15 @@
 #include <ctime>
 
 #include "ndll/common.h"
-#include "ndll/pipeline/async_pipelined_executor.h"
+#include "ndll/pipeline/executor/executor.h"
+#include "ndll/pipeline/executor/pipelined_executor.h"
+#include "ndll/pipeline/executor/async_pipelined_executor.h"
 #include "ndll/pipeline/ndll.pb.h"
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
-#include "ndll/pipeline/executor.h"
-#include "ndll/pipeline/operators/external_source.h"
+#include "ndll/pipeline/operators/util/external_source.h"
 #include "ndll/pipeline/op_graph.h"
-#include "ndll/pipeline/pipelined_executor.h"
 
 namespace ndll {
 
@@ -156,6 +156,7 @@ class Pipeline {
     meta.has_cpu = true;
     meta.has_gpu = false;
     meta.has_contiguous = false;
+    meta.is_support = false;
     NDLL_ENFORCE(edge_names_.insert({name, meta}).second,
         "ExternalInput name insertion failure.");
 
@@ -292,7 +293,7 @@ class Pipeline {
 
  private:
   using EdgeMeta = struct {
-    bool has_cpu, has_gpu, has_contiguous;
+    bool has_cpu, has_gpu, has_contiguous, is_support;
   };
 
   // Return the nearest multiple of 8 that is >= base_ptr_offset
@@ -313,6 +314,7 @@ class Pipeline {
     edge.has_cpu = false;
     edge.has_gpu = false;
     edge.has_contiguous = false;
+    edge.is_support = false;
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {
@@ -320,9 +322,13 @@ class Pipeline {
     } else if (device == "mixed") {
       edge.has_gpu = true;
       edge.has_contiguous = true;
+    } else if (device == "support") {
+      edge.has_cpu = true;
+      edge.is_support = true;
+      edge.has_contiguous = true;
     } else {
       NDLL_FAIL("Invalid device argument \"" + device + "\". "
-          "Valid options are \"cpu\", \"gpu\" or \"mixed\"");
+          "Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
     }
     return edge;
   }

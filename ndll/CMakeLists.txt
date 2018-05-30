@@ -9,6 +9,7 @@ add_subdirectory(image)
 add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
+add_subdirectory(c_api)
 
 # Collect files in this directory
 file(GLOB tmp *.cc)

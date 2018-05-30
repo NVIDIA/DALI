@@ -99,8 +99,7 @@ inline string BuildErrorString(string statement, string file, int line) {
       ndll::string error = "[" + file + ":" + line +      \
         "]: NPP error \"" +                               \
         nppErrorString(status) + "\"";                    \
-      NDLLSetLastError(error);                            \
-      return NDLLError;                                   \
+      NDLL_FAIL(error);                                   \
     }                                                     \
   } while (0)
 

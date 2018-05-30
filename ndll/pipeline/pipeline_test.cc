@@ -8,8 +8,8 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/tensor.h"
-#include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/operators/copy.h"
+#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operators/util/copy.h"
 #include "ndll/test/ndll_test.h"
 #include "ndll/util/image.h"
 
