@@ -36,7 +36,7 @@ message OpDef {
 // Stores pipeline options and a list of operators
 message PipelineDef {
   optional int64 num_threads = 1 [default = 4];
-  required int64 batch_size = 2;
+  required int32 batch_size = 2;
   optional bool use_async = 3 [default = false];
   optional bool pipeline = 4 [default = false];
 
@@ -48,4 +48,5 @@ message PipelineDef {
 
   // Store all registered outputs
   repeated InputOutput pipe_outputs = 7;
+  optional int32 device_id = 8 [default = 0];
 }
