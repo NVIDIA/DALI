@@ -118,7 +118,8 @@ class ResizeCropMirror : public Operator<CPUBackend> {
         tl_workspace_[ws->thread_idx()].data()));
   }
 
-  inline const TransformMeta GetTransformMeta(const vector<Index> &input_shape, SampleWorkspace * ws, const Index index) {
+  inline const TransformMeta GetTransformMeta(const vector<Index> &input_shape,
+                                              SampleWorkspace * ws, const Index index) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];

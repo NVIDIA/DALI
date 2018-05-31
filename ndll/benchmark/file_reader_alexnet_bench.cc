@@ -46,13 +46,13 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform1", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
   // Add coin flip RNG for mirror mask

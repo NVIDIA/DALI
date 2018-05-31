@@ -46,13 +46,13 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform1", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
   // Add coin flip RNG for mirror mask
@@ -198,13 +198,13 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform1", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "support")
-      .AddArg("range", vector<float>{0,1})
+      .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
   // Add coin flip RNG for mirror mask
