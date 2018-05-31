@@ -6,7 +6,8 @@
 
 namespace ndll {
 
-NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
+// TODO(ptredak): re-enable it once RNG is changed on the CPU to be deterministic
+// NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
 
 NDLL_SCHEMA(Jitter)
     .DocStr("Perform a Jitter-style augmentation")
