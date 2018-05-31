@@ -35,13 +35,10 @@ class ResizeCropMirror : public Operator<CPUBackend> {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator(spec),
-    rand_gen_(spec.GetArgument<int>("seed")),
     random_resize_(spec.GetArgument<bool>("random_resize")),
     warp_resize_(spec.GetArgument<bool>("warp_resize")),
     resize_a_(spec.GetArgument<int>("resize_a")),
-    resize_b_(spec.GetArgument<int>("resize_b")),
-    random_crop_(spec.GetArgument<bool>("random_crop")),
-    mirror_prob_(spec.GetArgument<float>("mirror_prob")) {
+    resize_b_(spec.GetArgument<int>("resize_b")) {
     vector<int> temp_crop;
     try {
       temp_crop = spec.GetRepeatedArgument<int>("crop");
@@ -65,7 +62,6 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
     NDLL_ENFORCE(resize_a_ <= resize_b_);
     NDLL_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
-    NDLL_ENFORCE(mirror_prob_ <= 1.f && mirror_prob_ >= 0.f);
 
     // Resize per-image & per-thread data
     tl_workspace_.resize(num_threads_);
@@ -81,7 +77,7 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     int H, W, C;
     int rsz_h, rsz_w;
     int crop_x, crop_y;
-    bool mirror;
+    int mirror;
   };
 
   inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
@@ -92,7 +88,7 @@ class ResizeCropMirror : public Operator<CPUBackend> {
       NDLL_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
     }
 
-    per_thread_meta_[ws->thread_idx()] = GetTransformMeta(input.shape());
+    per_thread_meta_[ws->thread_idx()] = GetTransformMeta(input.shape(), ws, ws->data_idx());
   }
 
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
@@ -122,7 +118,7 @@ class ResizeCropMirror : public Operator<CPUBackend> {
         tl_workspace_[ws->thread_idx()].data()));
   }
 
-  inline const TransformMeta GetTransformMeta(const vector<Index> &input_shape) {
+  inline const TransformMeta GetTransformMeta(const vector<Index> &input_shape, SampleWorkspace * ws, const Index index) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
@@ -161,17 +157,20 @@ class ResizeCropMirror : public Operator<CPUBackend> {
       }
     }
 
-    // Set crop parameters
-    if (random_crop_) {
-      meta.crop_y = std::uniform_int_distribution<>(0, meta.rsz_h - crop_h_)(rand_gen_);
-      meta.crop_x = std::uniform_int_distribution<>(0, meta.rsz_w - crop_w_)(rand_gen_);
-    } else {
-      meta.crop_y = (meta.rsz_h - crop_h_) / 2;
-      meta.crop_x = (meta.rsz_w - crop_w_) / 2;
-    }
+    // Crop
+    float crop_x_image_coord = spec_.GetArgument<float>("crop_pos_x", ws, index);
+    float crop_y_image_coord = spec_.GetArgument<float>("crop_pos_y", ws, index);
+
+    NDLL_ENFORCE(crop_x_image_coord >= 0.f && crop_x_image_coord <= 1.f,
+        "Crop coordinates need to be in range [0.0, 1.0]");
+    NDLL_ENFORCE(crop_y_image_coord >= 0.f && crop_y_image_coord <= 1.f,
+        "Crop coordinates need to be in range [0.0, 1.0]");
+
+    meta.crop_y = crop_y_image_coord * (meta.rsz_h - crop_h_);
+    meta.crop_x = crop_x_image_coord * (meta.rsz_w - crop_w_);
 
     // Set mirror parameters
-    meta.mirror = std::bernoulli_distribution(mirror_prob_)(rand_gen_);
+    meta.mirror = spec_.GetArgument<int>("mirror", ws, index);
     return meta;
   }
 
@@ -183,11 +182,7 @@ class ResizeCropMirror : public Operator<CPUBackend> {
   int resize_a_, resize_b_;
 
   // Crop meta-data
-  bool random_crop_;
   int crop_h_, crop_w_;
-
-  // Mirror meta-data
-  float mirror_prob_;
 
   vector<vector<uint8>> tl_workspace_;
   vector<TransformMeta> per_thread_meta_;

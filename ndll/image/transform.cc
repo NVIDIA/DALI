@@ -9,7 +9,7 @@ namespace ndll {
 // Note: User is responsible for avoiding division by 0 w/ the std deviation
 NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img, NDLLInterpType type,
+    int crop_w, int mirror, uint8 *out_img, NDLLInterpType type,
     uint8 *workspace) {
   // TODO(tgale): Figure out which ones of these we actually want to check.
   // We need a better way of error checking so that the user actually knows
@@ -75,7 +75,7 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
 
 NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
-    int crop_w, bool mirror, uint8 *out_img, NDLLInterpType type,
+    int crop_w, int mirror, uint8 *out_img, NDLLInterpType type,
     uint8 *workspace) {
   // TODO(tgale): Figure out which ones of these we actually want to check.
   // We need a better way of error checking so that the user actually knows
