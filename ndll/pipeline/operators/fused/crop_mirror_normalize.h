@@ -19,11 +19,9 @@ class CropMirrorNormalize : public Operator<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator<Backend>(spec),
-    rand_gen_(spec.GetArgument<int>("seed")),
     output_type_(spec.GetArgument<NDLLDataType>("output_dtype")),
     output_layout_(spec.GetArgument<NDLLTensorLayout>("output_layout")),
     pad_(spec.GetArgument<bool>("pad_output")),
-    random_crop_(spec.GetArgument<bool>("random_crop")),
     image_type_(spec.GetArgument<NDLLImageType>("image_type")),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1),
@@ -89,8 +87,6 @@ class CropMirrorNormalize : public Operator<Backend> {
   template <typename OUT>
   void ValidateHelper(TensorList<Backend> *output);
 
-  std::mt19937 rand_gen_;
-
   // Output data type
   NDLLDataType output_type_;
 
@@ -101,7 +97,6 @@ class CropMirrorNormalize : public Operator<Backend> {
   bool pad_;
 
   // Crop meta-data
-  bool random_crop_;
   int crop_h_;
   int crop_w_;
 
