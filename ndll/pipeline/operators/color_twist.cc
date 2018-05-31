@@ -2,6 +2,7 @@
 #include "ndll/pipeline/operators/color_twist.h"
 #include <vector>
 #include <string>
+#include <cmath>
 
 namespace ndll {
 
