@@ -10,7 +10,7 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs,
-            DeviceWorkspace *ws) {
+            DeviceWorkspace *) {
     // single input - encoded images
     // single output - decoded images
     vector<TensorList<CPUBackend>*> outputs(1);
@@ -28,13 +28,9 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
     const bool random_resize = spec_.GetArgument<bool>("random_resize");
     const bool warp_resize = spec_.GetArgument<bool>("warp_resize");
     const vector<int> crop = spec_.GetRepeatedArgument<int>("crop");
-    const float mirror_prob = spec_.GetArgument<float>("mirror_prob");
-    const bool random_crop = spec_.GetArgument<bool>("random_crop");
 
     // Can't handle these right now
     assert(random_resize == false);
-    assert(random_crop == false);
-    assert(mirror_prob == 0.f);
 
     int rsz_h, rsz_w;
     int crop_x, crop_y;
@@ -107,8 +103,6 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
            .AddArg("device", "cpu")
            .AddArg("output_type", this->img_type_)
            .AddArg("random_resize", false)
-           .AddArg("random_crop", false)
-           .AddArg("mirror_prob", 0.f)
            .AddInput("input", "cpu")
            .AddOutput("output", "cpu");
   }
