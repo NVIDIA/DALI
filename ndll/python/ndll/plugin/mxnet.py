@@ -22,10 +22,10 @@ def feed_ndarray(ndll_tensor, arr):
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
     ndll_tensor.copy_to_external(ptr)
 
-
-class NDLLIterator:
+class NDLLGenericIterator:
     def __init__(self,
                  pipelines,
+                 output_map,
                  size = -1,
                  data_name='data',
                  label_name='softmax_label',
@@ -42,17 +42,19 @@ class NDLLIterator:
         self._data_batches = [[None, None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
+        self.output_map = output_map
 
         self._first_batch = None
         self._first_batch = self.next()
-        data = self._first_batch[0].data[0]
-        label = self._first_batch[0].label[0]
+        self.provide_data = []
+        self.provide_label = []
+        for data in self._first_batch[0].data:
+            data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
+            self.provide_data.append(mx.io.DataDesc(data_name, data_shape, data.dtype, layout=data_layout))
+        for label in self._first_batch[0].label:
+            label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
+            self.provide_label.append(mx.io.DataDesc(label_name, label_shape, label.dtype))
 
-        data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
-        label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
-
-        self.provide_data = [mx.io.DataDesc(data_name, data_shape, data.dtype, layout=data_layout)]
-        self.provide_label = [mx.io.DataDesc(label_name, label_shape, label.dtype)]
 
     def __next__(self):
         if self._first_batch is not None:
@@ -65,20 +67,30 @@ class NDLLIterator:
         for p in self._pipes:
             outputs.append(p.run())
         for i in range(self._num_gpus):
-            data, label = outputs[i]
-            data = data.as_tensor()
-            data_shape = data.shape()
-            label = label.as_tensor()
-            label.squeeze()
-            label_shape = label.shape()
+            out_data = []
+            out_label = []
+            for i, out in enumerate(outputs[i]):
+                if self.output_map[i] == "data":
+                    out_data.append(out)
+                elif self.output_map[i] == "label":
+                    out_label.append(out)
+
+            data = list(map(lambda x: x.as_tensor(), out_data))
+            data_shape = list(map(lambda x: x.shape(), data))
+            label = list(map(lambda x: x.as_tensor(), out_label))
+            for l in label:
+                l.squeeze()
+            label_shape = list(map(lambda x: x.shape(), label))
             if self._data_batches[i][self._current_data_batch] is None:
-                d = mx.nd.zeros(data_shape, mx.gpu(self._pipes[i].device_id))
-                l = mx.nd.zeros(label_shape, mx.cpu(0))
-                self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=[d], label=[l])
+                d = [mx.nd.zeros(shape, mx.gpu(self._pipes[i].device_id)) for shape in data_shape]
+                l = [mx.nd.zeros(shape, mx.cpu(0)) for shape in label_shape]
+                self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
             d = self._data_batches[i][self._current_data_batch].data
             l = self._data_batches[i][self._current_data_batch].label
-            feed_ndarray(data, d[0])
-            feed_ndarray(label, l[0])
+            for i, d_arr in enumerate(d):
+                feed_ndarray(data[i], d_arr)
+            for i, l_arr in enumerate(l):
+                feed_ndarray(label[i], l_arr)
         copy_db_index = self._current_data_batch
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
@@ -94,3 +106,14 @@ class NDLLIterator:
             self._counter = self._counter % self._size
         else:
             logging.warn("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")
+
+class NDLLClassificationIterator(NDLLGenericIterator):
+    def __init__(self,
+                 pipelines,
+                 size = -1,
+                 data_name='data',
+                 label_name='softmax_label',
+                 data_layout='NCHW'):
+        super(NDLLClassificationIterator, self).__init__(pipelines, ["data", "label"],
+                                                         size, data_name, label_name,
+                                                         data_layout)
