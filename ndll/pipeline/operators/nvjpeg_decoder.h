@@ -149,7 +149,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
       // note if we can't use nvjpeg for this image
       if (!SupportedSubsampling(info.subsampling)) {
-        ocv_fallback_indices_[i] = true;
         output_info_[i].nvjpeg_support = false;
       } else {
         // Store the index for batched api
@@ -183,7 +182,7 @@ class nvJPEGDecoder : public Operator<Mixed> {
         const auto *data = in.data<uint8_t>();
         auto *output_data = output->mutable_tensor<uint8_t>(i);
 
-        auto info = output_info_[i];
+        auto &info = output_info_[i];
 
         // Setup outputs for images that will be processed via nvjpeg-batched
         if (info.nvjpeg_support) {
@@ -251,9 +250,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
       CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
       CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
     }
-    // Make sure next iteration isn't unnecessarily falling back to
-    // opencv based on old indices
-    ocv_fallback_indices_.clear();
   }
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
@@ -373,9 +369,6 @@ class nvJPEGDecoder : public Operator<Mixed> {
   // Storage for per-image info
   vector<Dims> output_shape_;
   vector<EncodedImageInfo> output_info_;
-
-  // Images that nvjpeg can't handle
-  std::map<int, bool> ocv_fallback_indices_;
 
   bool use_batched_decode_;
   // For batched API we need image index within the batch being
