@@ -48,7 +48,7 @@ class C2Pipe(Pipeline):
     def define_graph(self):
         self.jpegs = self.input()
         images = self.decode(self.jpegs)
-        resized = self.rcm(images, crop_pos_x = self.uniform(), crop_pos_y = self.uniform(), mirror = mirror)
+        resized = self.rcm(images, crop_pos_x = self.uniform(), crop_pos_y = self.uniform(), mirror = mirror())
         output = self.np(resized.gpu())
         return output
 
