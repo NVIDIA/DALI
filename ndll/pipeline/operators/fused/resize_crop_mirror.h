@@ -14,31 +14,13 @@ namespace ndll {
 
 /**
  * @brief Performs fused resize+crop+mirror
- *
- * Resize Options:
- * 1. Random resize (a, b), non-warping
- * 2. Random resize (a, b), warping
- * 3. Fixed resize minsize to a, non-warping
- *    - can be done w/ non-warping random resize w/ a = b
- * 3. Fixed resize to (h, w), warping
- *
- * Crop Options:
- * 1. Center crop (h, w)
- * 2. Random crop (h, w)
- *
- * Mirror Options:
- * 1. Mirror probability
  */
 
 template <typename Backend>
 class ResizeCropMirror : public Operator<CPUBackend> {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
-    Operator(spec),
-    random_resize_(spec.GetArgument<bool>("random_resize")),
-    warp_resize_(spec.GetArgument<bool>("warp_resize")),
-    resize_a_(spec.GetArgument<int>("resize_a")),
-    resize_b_(spec.GetArgument<int>("resize_b")) {
+    Operator(spec) {
     vector<int> temp_crop;
     try {
       temp_crop = spec.GetRepeatedArgument<int>("crop");
@@ -59,8 +41,14 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
     // Validate input parameters
-    NDLL_ENFORCE(resize_a_ > 0 && resize_b_ > 0);
-    NDLL_ENFORCE(resize_a_ <= resize_b_);
+    resize_shorter_ = (spec.HasArgument("resize_shorter") ||
+                       spec.HasTensorArgument("resize_shorter"));
+    resize_x_ = spec.HasArgument("resize_x") ||
+                spec.HasTensorArgument("resize_x");
+    resize_y_ = spec.HasArgument("resize_y") ||
+                spec.HasTensorArgument("resize_y");
+    NDLL_ENFORCE(resize_shorter_ != (resize_x_ || resize_y_),
+                 "Options `resize_shorter` and `resize_x` or `resize_y` are mutually exclusive.");
     NDLL_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
 
     // Resize per-image & per-thread data
@@ -125,36 +113,35 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     meta.W = input_shape[1];
     meta.C = input_shape[2];
 
-    if (random_resize_ && warp_resize_) {
-      // random resize + warp. Select a new size for both dims of
-      // the image uniformly from the range [resize_a_, resize_b_]
-      meta.rsz_h = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
-      meta.rsz_w = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
-    } else if (random_resize_) {
-      // random + no warp. We select a new size of the smallest side
-      // of the image uniformly in the range [resize_a_, resize_b_]
-      if (meta.W < meta.H) {
-        meta.rsz_w = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
-        meta.rsz_h = static_cast<float>(meta.H) / meta.W * meta.rsz_w;
+    if (resize_shorter_) {
+      // resize_shorter set
+      int shorter_side_size = spec_.GetArgument<float>("resize_shorter", ws, index);
+      if (meta.H < meta.W) {
+        float scale = shorter_side_size/static_cast<float>(meta.H);
+        meta.rsz_h = shorter_side_size;
+        meta.rsz_w = scale * meta.W;
       } else {
-        meta.rsz_h = std::uniform_int_distribution<>(resize_a_, resize_b_)(rand_gen_);
-        meta.rsz_w = static_cast<float>(meta.W) / meta.H * meta.rsz_h;
+        float scale = shorter_side_size/static_cast<float>(meta.W);
+        meta.rsz_h = scale * meta.H;
+        meta.rsz_w = shorter_side_size;
       }
-    } else if (warp_resize_) {
-      // no random + warp. We take the new dims to be h = resize_a_
-      // and w = resize_b_
-      meta.rsz_h = resize_a_;
-      meta.rsz_w = resize_b_;
     } else {
-      // no random + no warp. In this mode resize_b_ is ignored and
-      // the input image is resizes such that the smallest side is
-      // >= resize_a_
-      if (meta.W < meta.H) {
-          meta.rsz_w = resize_a_;
-          meta.rsz_h = static_cast<float>(meta.H) / meta.W * meta.rsz_w;
+      if (resize_x_) {
+        if (resize_y_) {
+          // resize_x and resize_y set
+          meta.rsz_h = spec_.GetArgument<float>("resize_y", ws, index);
+          meta.rsz_w = spec_.GetArgument<float>("resize_x", ws, index);
+        } else {
+          // resize_x set only
+          meta.rsz_w = spec_.GetArgument<float>("resize_x", ws, index);
+          float scale = static_cast<float>(meta.rsz_w) / meta.W;
+          meta.rsz_h = scale * meta.H;
+        }
       } else {
-          meta.rsz_h = resize_a_;
-          meta.rsz_w = static_cast<float>(meta.W) / meta.H * meta.rsz_h;
+        // resize_y set only
+        meta.rsz_h = spec_.GetArgument<float>("resize_y", ws, index);
+        float scale = static_cast<float>(meta.rsz_h) / meta.H;
+        meta.rsz_w = scale * meta.W;
       }
     }
 
@@ -175,12 +162,8 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     return meta;
   }
 
-  std::mt19937 rand_gen_;
-
   // Resize meta-data
-  bool random_resize_;
-  bool warp_resize_;
-  int resize_a_, resize_b_;
+  bool resize_shorter_, resize_x_, resize_y_;
 
   // Crop meta-data
   int crop_h_, crop_w_;

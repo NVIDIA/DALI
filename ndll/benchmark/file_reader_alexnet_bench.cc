@@ -66,8 +66,8 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   pipe.AddOperator(
       OpSpec("ResizeCropMirror")
       .AddArg("device", "cpu")
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 256)
+      .AddArg("resize_x", 256)
+      .AddArg("resize_y", 256)
       .AddArg("crop", vector<int>{224, 224})
       .AddArg("mirror_prob", 0.5f)
       .AddInput("images", "cpu")

@@ -30,10 +30,7 @@ class C2Pipe(Pipeline):
                                      exec_async=async)
         self.input = ops.ExternalSource()
         self.decode = ops.HostDecoder(output_type = types.RGB)
-        self.rcm = ops.FastResizeCropMirror(random_resize = True,
-                                            resize_a = 256,
-                                            resize_b = 480,
-                                            crop = [224, 224])
+        self.rcm = ops.FastResizeCropMirror(crop = [224, 224])
         self.np = ops.NormalizePermute(device = "gpu",
                                        output_dtype = types.FLOAT16,
                                        mean = [128., 128., 128.],
@@ -42,13 +39,17 @@ class C2Pipe(Pipeline):
                                        width = 224,
                                        channels = 3)
         self.uniform = ops.Uniform(range = (0., 1.))
+        self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
         self.iter = 0
 
     def define_graph(self):
         self.jpegs = self.input()
         images = self.decode(self.jpegs)
-        resized = self.rcm(images, crop_pos_x = self.uniform(), crop_pos_y = self.uniform(), mirror = self.mirror())
+        resized = self.rcm(images, crop_pos_x = self.uniform(),
+                           crop_pos_y = self.uniform(),
+                           mirror = self.mirror(),
+                           resize_shorter = self.resize_uniform())
         output = self.np(resized.gpu())
         return output
 

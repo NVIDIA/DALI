@@ -52,6 +52,12 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{256, 480})
+      .AddOutput("resize", "cpu"));
+
   // Add coin flip RNG for mirror mask
   pipe.AddOperator(
       OpSpec("CoinFlip")
@@ -64,16 +70,12 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   pipe.AddOperator(
       OpSpec(resize_op)
       .AddArg("device", "cpu")
-      .AddArg("random_resize", true)
-      .AddArg("warp_resize", false)
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 480)
-      .AddArg("random_crop", true)
       .AddArg("crop", vector<int>{224, 224})
       .AddInput("images", "cpu")
       .AddArgumentInput("mirror", "mirror")
       .AddArgumentInput("crop_pos_x", "uniform1")
       .AddArgumentInput("crop_pos_y", "uniform2")
+      .AddArgumentInput("resize_shorter", "resize")
       .AddOutput("resized", "cpu"));
 
   pipe.AddOperator(

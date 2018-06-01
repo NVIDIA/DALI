@@ -66,8 +66,8 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
   pipe.AddOperator(
       OpSpec("FastResizeCropMirror")
       .AddArg("device", "cpu")
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 256)
+      .AddArg("resize_x", 256)
+      .AddArg("resize_y", 256)
       .AddArg("crop", vector<int>{224, 224})
       .AddInput("images", "cpu")
       .AddArgumentInput("crop_pos_x", "uniform1")

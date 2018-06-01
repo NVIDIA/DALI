@@ -23,14 +23,14 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
     c_ = (IsColor(img_type_) ? 3 : 1);
     auto cv_type = (c_ == 3) ? CV_8UC3 : CV_8UC1;
 
-    const int resize_a = spec_.GetArgument<int>("resize_a");
-    const int resize_b = spec_.GetArgument<int>("resize_b");
-    const bool random_resize = spec_.GetArgument<bool>("random_resize");
-    const bool warp_resize = spec_.GetArgument<bool>("warp_resize");
+    int resize_a = spec_.GetArgument<float>("resize_x");
+    int resize_b = spec_.GetArgument<float>("resize_y");
+    bool warp_resize = true;
+    if (resize_a == 0) {
+      resize_a = spec_.GetArgument<float>("resize_shorter");
+      warp_resize = false;
+    }
     const vector<int> crop = spec_.GetRepeatedArgument<int>("crop");
-
-    // Can't handle these right now
-    assert(random_resize == false);
 
     int rsz_h, rsz_w;
     int crop_x, crop_y;
@@ -102,7 +102,6 @@ class ResizeCropMirrorTest : public NDLLSingleOpTest {
     return OpSpec(op)
            .AddArg("device", "cpu")
            .AddArg("output_type", this->img_type_)
-           .AddArg("random_resize", false)
            .AddInput("input", "cpu")
            .AddOutput("output", "cpu");
   }
@@ -119,10 +118,8 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
   this->SetExternalInputs({std::make_pair("input", &data)});
 
   this->AddSingleOp(this->DefaultSchema()
-                    .AddArg("resize_a", 480)
-                    .AddArg("resize_b", 480)
-                    .AddArg("crop", vector<int>{224, 224})
-                    .AddArg("warp_resize", false));
+                    .AddArg("resize_shorter", 480.f)
+                    .AddArg("crop", vector<int>{224, 224}));
 
   DeviceWorkspace ws;
   this->RunOperator(&ws);
@@ -141,10 +138,9 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
   this->SetExternalInputs({std::make_pair("input", &data)});
 
   this->AddSingleOp(this->DefaultSchema()
-                    .AddArg("resize_a", 480)
-                    .AddArg("resize_b", 480)
-                    .AddArg("crop", vector<int>{224, 224})
-                    .AddArg("warp_resize", true));
+                    .AddArg("resize_x", 480.f)
+                    .AddArg("resize_y", 480.f)
+                    .AddArg("crop", vector<int>{224, 224}));
 
   DeviceWorkspace ws;
   this->RunOperator(&ws);
@@ -163,10 +159,8 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
   this->SetExternalInputs({std::make_pair("input", &data)});
 
   this->AddSingleOp(this->DefaultSchema(true)
-                    .AddArg("resize_a", 480)
-                    .AddArg("resize_b", 480)
-                    .AddArg("crop", vector<int>{224, 224})
-                    .AddArg("warp_resize", false));
+                    .AddArg("resize_shorter", 480.f)
+                    .AddArg("crop", vector<int>{224, 224}));
 
   DeviceWorkspace ws;
   this->RunOperator(&ws);
@@ -185,10 +179,9 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
   this->SetExternalInputs({std::make_pair("input", &data)});
 
   this->AddSingleOp(this->DefaultSchema(true)
-                    .AddArg("resize_a", 480)
-                    .AddArg("resize_b", 480)
-                    .AddArg("crop", vector<int>{224, 224})
-                    .AddArg("warp_resize", true));
+                    .AddArg("resize_x", 480.f)
+                    .AddArg("resize_y", 480.f)
+                    .AddArg("crop", vector<int>{224, 224}));
 
   DeviceWorkspace ws;
   this->RunOperator(&ws);
