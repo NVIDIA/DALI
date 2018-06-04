@@ -13,16 +13,16 @@
 namespace ndll {
 
 #define MAP_INSERT_OR_UPDATE(VALUE)                     \
-	int dev;                                              \
-	CUDA_CALL(cudaGetDevice(&dev));                       \
-	std::cout << "[BACKEND] " << dev << "\n";             \
-	auto it = gpu_allocators_.find(dev);                  \
-	if (it != gpu_allocators_.end()) {                    \
-		std::cout << "VALUE updated" << endl;               \
-		it->second = VALUE;                                 \
-	} else {                                              \
-		gpu_allocators_.insert(std::make_pair(dev, VALUE)); \
-	}
+  int dev;                                              \
+  CUDA_CALL(cudaGetDevice(&dev));                       \
+  std::cout << "[BACKEND] " << dev << "\n";             \
+  auto it = gpu_allocators_.find(dev);                  \
+  if (it != gpu_allocators_.end()) {                    \
+    std::cout << "VALUE updated" << endl;               \
+    it->second = VALUE;                                 \
+  } else {                                              \
+    gpu_allocators_.insert(std::make_pair(dev, VALUE)); \
+  }
 
 
 
