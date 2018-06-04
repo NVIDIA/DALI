@@ -95,17 +95,25 @@ NDLL_DECLARE_OPTYPE_REGISTRY(TFGPUAllocator, TFGPUAllocator);
 
 }  // namespace ndll
 
-void SetupTFAllocator() {
+void SetupTFAllocator(int device_id) {
+  int dev;
+  CUDA_CALL(cudaGetDevice(&dev));
+  CUDA_CALL(cudaSetDevice(device_id));
   ndll::OpSpec spec("TFGPUAllocator");
   std::unique_ptr<ndll::GPUAllocator> allocator(new ndll::TFGPUAllocator(spec));
   ndll::SetGPUAllocator(std::move(allocator));
+  CUDA_CALL(cudaSetDevice(dev));
 }
 
 template <typename Ctx>
-void UpdateTFAllocaterContext(Ctx* context) {
+void UpdateTFAllocaterContext(Ctx* context, int device_id) {
+  int dev;
+  CUDA_CALL(cudaGetDevice(&dev));
+  CUDA_CALL(cudaSetDevice(device_id));
   ndll::TFGPUAllocator& tfGPUAllocator = dynamic_cast<ndll::TFGPUAllocator&>(
                                                         ndll::GetGPUAllocator());
   tfGPUAllocator.UpdateContext(context);
+  CUDA_CALL(cudaSetDevice(dev));
 }
 
 #endif  // NDLL_TENSORFLOW_TFALLOCATOR_H_

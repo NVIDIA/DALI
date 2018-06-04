@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <memory>
+#include <unordered_map>
 #include <utility>
 
 #include "ndll/common.h"
@@ -10,6 +11,20 @@
 #include "ndll/pipeline/operators/op_spec.h"
 
 namespace ndll {
+
+#define MAP_INSERT_OR_UPDATE(VALUE)                     \
+	int dev;                                              \
+	CUDA_CALL(cudaGetDevice(&dev));                       \
+	std::cout << "[BACKEND] " << dev << "\n";             \
+	auto it = gpu_allocators_.find(dev);                  \
+	if (it != gpu_allocators_.end()) {                    \
+		std::cout << "VALUE updated" << endl;               \
+		it->second = VALUE;                                 \
+	} else {                                              \
+		gpu_allocators_.insert(std::make_pair(dev, VALUE)); \
+	}
+
+
 
 class AllocatorManager {
  public:
@@ -20,13 +35,14 @@ class AllocatorManager {
     std::lock_guard<std::mutex> lock(mutex_);
     NDLL_ENFORCE(cpu_allocator_ == nullptr, "NDLL CPU allocator already set");
     NDLL_ENFORCE(pinned_cpu_allocator_ == nullptr, "NDLL Pinned CPU allocator already set");
-    NDLL_ENFORCE(gpu_allocator_ == nullptr, "NDLL GPU allocator already set");
+    NDLL_ENFORCE(gpu_allocators_.size() == 0, "NDLL GPU allocator already set");
     cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(cpu_allocator.name(), cpu_allocator);
     pinned_cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(pinned_cpu_allocator.name(), pinned_cpu_allocator);
-    gpu_allocator_ = GPUAllocatorRegistry::Registry()
-      .Create(gpu_allocator.name(), gpu_allocator);
+    gpu_opspec_.reset(new OpSpec(gpu_allocator));
+    MAP_INSERT_OR_UPDATE(
+      GPUAllocatorRegistry::Registry().Create(gpu_allocator.name(), gpu_allocator));
   }
 
   static CPUAllocator& GetCPUAllocator() {
@@ -42,9 +58,16 @@ class AllocatorManager {
   }
 
   static GPUAllocator& GetGPUAllocator() {
-    NDLL_ENFORCE(gpu_allocator_ != nullptr,
-        "NDLL GPU allocator not set. Did you forget to call NDLLInit?");
-    return *gpu_allocator_.get();
+    int dev;
+    CUDA_CALL(cudaGetDevice(&dev));
+    auto gpu_allocator = gpu_allocators_.find(dev);
+    // Lazy allocation per device
+    if (gpu_allocator == gpu_allocators_.end()) {
+      MAP_INSERT_OR_UPDATE(
+        GPUAllocatorRegistry::Registry().Create(gpu_opspec_->name(), *gpu_opspec_));
+      gpu_allocator = gpu_allocators_.find(dev);
+    }
+    return *gpu_allocator->second.get();
   }
 
   static void SetCPUAllocator(const OpSpec& allocator) {
@@ -61,13 +84,13 @@ class AllocatorManager {
 
   static void SetGPUAllocator(const OpSpec& allocator) {
     std::lock_guard<std::mutex> lock(mutex_);
-    gpu_allocator_ = GPUAllocatorRegistry::Registry()
-      .Create(allocator.name(), allocator);
+    MAP_INSERT_OR_UPDATE(
+      GPUAllocatorRegistry::Registry().Create(allocator.name(), allocator));
   }
 
   static void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator) {
     std::lock_guard<std::mutex> lock(mutex_);
-    gpu_allocator_ = std::move(allocator);
+    MAP_INSERT_OR_UPDATE(std::move(allocator));
   }
 
  private:
@@ -76,13 +99,16 @@ class AllocatorManager {
 
   static unique_ptr<CPUAllocator> cpu_allocator_;
   static unique_ptr<CPUAllocator> pinned_cpu_allocator_;
-  static unique_ptr<GPUAllocator> gpu_allocator_;
+  static std::unordered_map<int, unique_ptr<GPUAllocator>> gpu_allocators_;
+  static std::unique_ptr<const OpSpec> gpu_opspec_;
+
   static std::mutex mutex_;
 };
 
 unique_ptr<CPUAllocator> AllocatorManager::cpu_allocator_(nullptr);
 unique_ptr<CPUAllocator> AllocatorManager::pinned_cpu_allocator_(nullptr);
-unique_ptr<GPUAllocator> AllocatorManager::gpu_allocator_(nullptr);
+std::unordered_map<int, unique_ptr<GPUAllocator>> AllocatorManager::gpu_allocators_;
+unique_ptr<const OpSpec> AllocatorManager::gpu_opspec_(nullptr);
 std::mutex AllocatorManager::mutex_;
 
 // Sets the allocator ptrs for all backends

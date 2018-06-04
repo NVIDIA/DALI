@@ -72,6 +72,7 @@ class NdllOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
+    this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
     TF_NDLL_CALL(CreatePipeline(&pipe_handle_,
@@ -81,8 +82,8 @@ class NdllOp : public tf::OpKernel {
                    num_threads,
                    device_id));
 
-    SetupTFAllocator();
-    UpdateTFAllocaterContext<tf::OpKernelConstruction>(context);
+    SetupTFAllocator(device_id_);
+    UpdateTFAllocaterContext<tf::OpKernelConstruction>(context, device_id_);
 
     LOG_LINE << "Pipeline created\n";
     TF_NDLL_CALL(Run(&pipe_handle_));
@@ -97,7 +98,7 @@ class NdllOp : public tf::OpKernel {
     auto total_s = Clock::now();
     LOG_LINE << "Computing...\n";
     std::cout << context << " " << context->num_inputs() << std::endl;
-    UpdateTFAllocaterContext<tf::OpKernelContext>(context);
+    UpdateTFAllocaterContext<tf::OpKernelContext>(context, device_id_);
 
     LOG_LINE << "Updated context\n";
     auto s = Clock::now();
@@ -154,6 +155,7 @@ class NdllOp : public tf::OpKernel {
 
  private:
   PipelineHandle pipe_handle_;
+  int device_id_;
 };
 
 REGISTER_KERNEL_BUILDER(Name("Ndll").Device(tf::DEVICE_GPU), NdllOp);
