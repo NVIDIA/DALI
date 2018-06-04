@@ -61,7 +61,6 @@ def test_cropmirrornormalize_layout():
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
-                                                     random_crop = False,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
@@ -69,7 +68,6 @@ def test_cropmirrornormalize_layout():
             self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = types.NCHW,
-                                                     random_crop = False,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
@@ -114,7 +112,6 @@ def test_cropmirrornormalize_pad():
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = layout,
-                                                     random_crop = False,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
@@ -123,7 +120,6 @@ def test_cropmirrornormalize_pad():
             self.cmnp      = ops.CropMirrorNormalize(device = "gpu",
                                                      output_dtype = types.FLOAT,
                                                      output_layout = layout,
-                                                     random_crop = False,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
@@ -178,12 +174,12 @@ def test_seed():
             self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
-                                                random_crop = True,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
+            self.uniform = ops.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
@@ -191,7 +187,7 @@ def test_seed():
             dct_coeff, jpeg_meta = self.huffman(self.jpegs)
             images = self.idct(dct_coeff.gpu(), jpeg_meta)
             mirror = self.coin()
-            output = self.cmnp(images, mirror = mirror)
+            output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
         def iter_setup(self):
@@ -219,7 +215,6 @@ def test_rotate():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
-                                                random_crop = True,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -227,13 +222,16 @@ def test_rotate():
             self.rotate = ops.Rotate(device = "gpu", angle = 45.0,
                                      fill_value = 128,
                                      interp_type=types.INTERP_LINEAR)
+            self.uniform = ops.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             dct_coeff, jpeg_meta = self.huffman(self.jpegs)
             images = self.idct(dct_coeff.gpu(), jpeg_meta)
-            outputs = self.cmnp([images, images])
+            outputs = self.cmnp([images, images],
+                                crop_pos_x = self.uniform(),
+                                crop_pos_y = self.uniform())
             outputs[1] = self.rotate(outputs[1])
             return [self.labels] + outputs
 
@@ -263,7 +261,6 @@ def test_warpaffine():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
-                                                random_crop = True,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -273,13 +270,16 @@ def test_warpaffine():
                                          fill_value = 128,
                                          interp_type = types.INTERP_LINEAR,
                                          use_image_center = True)
+            self.uniform = ops.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             dct_coeff, jpeg_meta = self.huffman(self.jpegs)
             images = self.idct(dct_coeff.gpu(), jpeg_meta)
-            outputs = self.cmnp([images, images])
+            outputs = self.cmnp([images, images],
+                                crop_pos_x = self.uniform(),
+                                crop_pos_y = self.uniform())
             outputs[1] = self.affine(outputs[1])
             return [self.labels] + outputs
 

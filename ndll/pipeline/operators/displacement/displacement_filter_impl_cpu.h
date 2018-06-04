@@ -2,8 +2,6 @@
 #ifndef NDLL_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_CPU_H_
 #define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_CPU_H_
 
-#include <random>
-
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/displacement/displacement_filter.h"
 

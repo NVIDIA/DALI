@@ -11,13 +11,25 @@ NDLL_SCHEMA(ResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
-  .AddOptionalArg("warp_resize", "Foo", false)
-  .AddArg("resize_a", "Lower bound for resize")
-  .AddArg("resize_b", "Upper bound for resize")
-  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+  .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_y` is left at 0, then the op will keep "
+      "the aspect ratio of the original image", 0.f)
+  .AddOptionalArg("resize_y", "The length of the Y dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_x` is left at 0, then the op will keep "
+      "the aspect ratio of the original image", 0.f)
+  .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
+      "This option is mutually exclusive with `resize_x` and `resize_y`. "
+      "The op will keep the aspect ratio of the original image", 0.f)
   .AddArg("crop", "Size of the cropped image")
-  .AddOptionalArg("mirror_prob", "Probablity of random flipping of the image", 0.5f);
+  .AddOptionalArg("crop_pos_x",
+      "Horizontal position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("crop_pos_y",
+      "Vertical position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("mirror", "Mask for horizontal flip", 0);
 
 NDLL_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
@@ -28,12 +40,24 @@ NDLL_SCHEMA(FastResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
-  .AddOptionalArg("warp_resize", "Foo", false)
-  .AddArg("resize_a", "Lower bound for resize")
-  .AddArg("resize_b", "Upper bound for resize")
-  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+  .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_y` is left at 0, then the op will keep "
+      "the aspect ratio of the original image", 0.f)
+  .AddOptionalArg("resize_y", "The length of the Y dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_x` is left at 0, then the op will keep "
+      "the aspect ratio of the original image", 0.f)
+  .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
+      "This option is mutually exclusive with `resize_x` and `resize_y`. "
+      "The op will keep the aspect ratio of the original image", 0.f)
   .AddArg("crop", "Size of the cropped image")
-  .AddOptionalArg("mirror_prob", "Probablity of random flipping of the image", 0.5f);
+  .AddOptionalArg("crop_pos_x",
+      "Horizontal position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("crop_pos_y",
+      "Vertical position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("mirror", "Mask for horizontal flip", 0);
 
 }  // namespace ndll

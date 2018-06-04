@@ -15,9 +15,13 @@ NDLL_SCHEMA(CropMirrorNormalize)
   .AddOptionalArg("pad_output", "Whether to pad the output to "
       "number of channels being multiple of 4",
       false)
-  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop",
-      false)
-  .AddOptionalArg("mirror", "Mask for horizontal flip", false)
+  .AddOptionalArg("crop_pos_x",
+      "Horizontal position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("crop_pos_y",
+      "Vertical position of the crop in image coordinates (0.0 - 1.0)",
+      0.5f)
+  .AddOptionalArg("mirror", "Mask for horizontal flip", 0)
   .AddOptionalArg("image_type", "Type of the input image", NDLL_RGB)
   .AddArg("mean", "Mean pixel values for image normalization")
   .AddArg("std", "Standard deviation values for image normalization")

@@ -324,18 +324,20 @@ void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *w
         + to_string(C_) + " channels, got " + to_string(C) + ".");
 
 
-    // Random crop
+    // Crop
     NDLL_ENFORCE(H >= crop_h_);
     NDLL_ENFORCE(W >= crop_w_);
 
-    int crop_x, crop_y;
-    if (random_crop_) {
-      crop_y = std::uniform_int_distribution<>(0, H - crop_h_)(rand_gen_);
-      crop_x = std::uniform_int_distribution<>(0, W - crop_w_)(rand_gen_);
-    } else {
-      crop_y = (H - crop_h_) / 2;
-      crop_x = (W - crop_w_) / 2;
-    }
+    float crop_x_image_coord = spec_.GetArgument<float>("crop_pos_x", ws, i);
+    float crop_y_image_coord = spec_.GetArgument<float>("crop_pos_y", ws, i);
+
+    NDLL_ENFORCE(crop_x_image_coord >= 0.f && crop_x_image_coord <= 1.f,
+        "Crop coordinates need to be in range [0.0, 1.0]");
+    NDLL_ENFORCE(crop_y_image_coord >= 0.f && crop_y_image_coord <= 1.f,
+        "Crop coordinates need to be in range [0.0, 1.0]");
+
+    int crop_y = crop_y_image_coord * (H - crop_h_);
+    int crop_x = crop_x_image_coord * (W - crop_w_);
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
   }
   if (has_mirror_) {

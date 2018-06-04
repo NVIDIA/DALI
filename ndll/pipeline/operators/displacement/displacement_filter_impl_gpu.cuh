@@ -2,8 +2,6 @@
 #ifndef NDLL_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 #define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 
-#include <random>
-
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/displacement/displacement_filter.h"
 

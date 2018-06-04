@@ -344,10 +344,11 @@ template <typename T, typename S>
 inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const {
   // Search for the argument in tensor arguments first
   if (this->HasTensorArgument(name)) {
-    NDLL_ENFORCE(ws != nullptr, "Tensor value is undexpected for argument \"" + name + "\".");
+    NDLL_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
     const auto& value = ws->ArgumentInput(name);
     NDLL_ENFORCE(IsType<S>(value.type()),
-        "Unexpected type of argument \"" + name + "\".");
+        "Unexpected type of argument \"" + name + "\". Expected " +
+        TypeTable::GetTypeName<S>() + " and got " + value.type().name());
     return value.template data<S>()[idx];
   }
   // Search for the argument locally
@@ -382,6 +383,13 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
   }                                                                                             \
   template<>                                                                                    \
   inline T OpSpec::GetArgument(const string& name, const ArgumentWorkspace *ws, Index idx) const { \
+    if (this->HasTensorArgument(name)) {                                                           \
+      NDLL_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");    \
+      const auto& value = ws->ArgumentInput(name);                                                 \
+      if (IsType<T>(value.type())) {                                                               \
+        return value.template data<T>()[idx];                                                      \
+      }                                                                                            \
+    }                                                                                              \
     int64 tmp = this->GetArgument<int64>(name, ws, idx);                                           \
     return static_cast<T>(tmp);                                                                    \
   }                                                                                                \
