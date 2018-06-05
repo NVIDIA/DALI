@@ -313,12 +313,9 @@ class OpSpec {
       in->set_name(inputs_[i].first);
       in->set_device(inputs_[i].second);
       if (this->IsArgumentInput(i)) {
-        std::cout << "ADDING ARG_INPUT " << inputs_[i].first << std::endl;
-         in->set_is_argument_input(true);
          in->set_arg_name(this->ArgumentInputName(i));
-      } else {
-        std::cout << "ADDING INPUT " << inputs_[i].first << std::endl;
       }
+      in->set_is_argument_input(this->IsArgumentInput(i));
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
