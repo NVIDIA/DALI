@@ -125,6 +125,10 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
           CopyToExternalTensor(t, ptr);
+        })
+    .def("dtype",
+        [](Tensor<CPUBackend> &t) {
+          return FormatStrFromType(t.type());
         });
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
@@ -139,6 +143,10 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
           CopyToExternalTensor(t, ptr);
+        })
+    .def("dtype",
+        [](Tensor<GPUBackend> &t) {
+          return FormatStrFromType(t.type());
         });
 }
 
