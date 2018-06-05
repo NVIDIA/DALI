@@ -14,8 +14,8 @@
 
 #include "ndll/pipeline/data/allocator.h"
 #include "ndll/common.h"
-#include "ndll/pipeline/c_api.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/c_api/c_api.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/pipeline/data/backend.h"
 
 namespace tf = tensorflow;

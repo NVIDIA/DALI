@@ -23,7 +23,7 @@ namespace tf = tensorflow;
       } catch (std::runtime_error& e) {                                            \
         std::string error = "NDLL " + std::string(#FUNC)                           \
                             + " failed: " + std::string(e.what());                 \
-        LOG_LINE << error << std::endl;                                            \
+        std::cout << error << std::endl;                                            \
         context->SetStatus(tf::errors::Internal(error));                           \
        return;                                                                     \
       }                                                                            \
