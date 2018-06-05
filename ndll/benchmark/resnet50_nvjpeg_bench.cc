@@ -28,7 +28,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
 
   pipe.AddOperator(
     OpSpec("Caffe2Reader")
-    .AddArg("path", "/mnt/imagenet/train-c2lmdb-480")
+    .AddArg("path", "/data/imagenet/train-c2lmdb-480")
     .AddOutput("raw_jpegs", "cpu")
     .AddOutput("labels", "cpu"));
 
@@ -136,7 +136,7 @@ BENCHMARK_DEFINE_F(RealRN50, HybridPipe)(benchmark::State& st) { // NOLINT
 
   pipe.AddOperator(
     OpSpec("Caffe2Reader")
-    .AddArg("path", "/mnt/imagenet/train-c2lmdb-480")
+    .AddArg("path", "/data/imagenet/train-c2lmdb-480")
     .AddOutput("raw_jpegs", "cpu")
     .AddOutput("labels", "cpu"));
 
