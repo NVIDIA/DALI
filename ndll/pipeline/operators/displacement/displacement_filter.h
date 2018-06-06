@@ -18,13 +18,6 @@
 #endif
 #endif
 
-#define DISPLACEMENT_SCHEMA_ARGS \
-  .AddOptionalArg("mask", \
-      "Whether to apply this augmentation to the input image", true) \
-  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_NN) \
-  .AddOptionalArg("fill_value", \
-      "Color value used for padding pixels", 0.f)
-
 namespace ndll {
 
 template <typename T, typename = int>

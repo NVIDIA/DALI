@@ -12,7 +12,7 @@ NDLL_SCHEMA(Sphere)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll
 

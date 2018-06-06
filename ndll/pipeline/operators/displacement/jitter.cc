@@ -15,6 +15,6 @@ NDLL_SCHEMA(Jitter)
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AddOptionalArg("nDegree", "Foo", 2)
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll

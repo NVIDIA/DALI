@@ -19,7 +19,7 @@ NDLL_SCHEMA(Water)
     .AddOptionalArg<float>("freq_y", "Foo", 2.0 * M_PI / 128)
     .AddOptionalArg("phase_x", "Foo", 0.f)
     .AddOptionalArg("phase_y", "Foo", 0.f)
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll
 
