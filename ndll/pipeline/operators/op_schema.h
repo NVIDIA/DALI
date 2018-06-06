@@ -142,7 +142,7 @@ class OpSchema {
     OpSchema&>::type
   AddOptionalArg(const std::string &s, const std::string &doc, T default_value) {
     CheckArgument(s);
-    std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
+    std::string stored_doc = doc + " (default value: `" + to_string(default_value) + "`)";
     Value * to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(stored_doc, to_store);
     return *this;
@@ -196,16 +196,16 @@ class OpSchema {
   }
 
   inline string Dox() const {
-    std::string ret = Name();
-    ret += "\n\nOverview\n----------\n";
+    std::string ret = "# " + Name();
+    ret += "\n\nOverview\n--------\n";
     ret += dox_;
-    ret += "\n\nParameters\n----------\n";
+    ret += "\n\nRequired Parameters\n-------------------\n";
     for (auto arg_pair : arguments_) {
-      ret += arg_pair.first + " : " + arg_pair.second + "\n";
+      ret += " - `" + arg_pair.first + "` : " + arg_pair.second + "\n";
     }
     ret += "\n\nOptional Parameters\n-------------------\n";
     for (auto arg_pair : optional_arguments_) {
-      ret += arg_pair.first + " : " + arg_pair.second.first + "\n";
+      ret += " - `" + arg_pair.first + "` : " + arg_pair.second.first + "\n";
     }
     return ret;
   }
