@@ -53,6 +53,7 @@ void RandomResizedCrop<CPUBackend>::InitParams(const OpSpec &spec) {
       "Provided empty range");
   params_->aspect_ratio_dis.resize(batch_size_);
   params_->area_dis.resize(batch_size_);
+  params_->uniform.resize(batch_size_);
   for (size_t i = 0; i < params_->aspect_ratio_dis.size(); ++i) {
     params_->aspect_ratio_dis[i] = std::uniform_real_distribution<float>(aspect_ratios[0],
                                                                          aspect_ratios[1]);
