@@ -4,6 +4,8 @@
 
 #include <vector>
 #include <random>
+#include <memory>
+#include <utility>
 
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/operators/op_spec.h"

@@ -1,8 +1,9 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/image/jpeg.h"
-#include "ndll/util/ocv.h"
 
 #include <turbojpeg.h>
+
+#include "ndll/util/ocv.h"
 
 namespace ndll {
 

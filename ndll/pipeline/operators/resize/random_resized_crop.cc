@@ -9,11 +9,14 @@
 namespace ndll {
 
 NDLL_SCHEMA(RandomResizedCrop)
-  .DocStr("Perform a crop with randomly chosen area and aspect ratio, then resize it to given size.")
+  .DocStr("Perform a crop with randomly chosen area and aspect ratio,"
+      " then resize it to given size.")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("random_aspect_ratio", "Range from which to choose random aspect ratio", std::vector<float>{3./4., 4./3.})
+  .AddOptionalArg("random_aspect_ratio",
+      "Range from which to choose random aspect ratio",
+      std::vector<float>{3./4., 4./3.})
   .AddOptionalArg("random_area", "Range from which to choose random area factor `A`."
       " Before resizing, the cropped image's area will be equal to `A` * original image's area.",
       std::vector<float>{0.08, 1.0})
