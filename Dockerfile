@@ -60,12 +60,15 @@ WORKDIR /opt/ndll
 COPY . .
 
 RUN mkdir build && cd build && \
+    pip install tensorflow-gpu && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
         -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
         -DBUILD_PROTOBUF=ON -DBUILD_LMDB=ON \
-        -DNVJPEG_ROOT_DIR=/opt/ndll/third_party/nvjpeg && \
+        -DNVJPEG_ROOT_DIR=/opt/ndll/third_party/nvjpeg \
+        -DBUILD_TENSORFLOW=ON && \
     make -j"$(nproc)" && \
     make install && \
-    ldconfig
+    ldconfig && \
+    pip uninstall --yes tensorflow-gpu
 
 ENV LD_LIBRARY_PATH /opt/ndll/build:$LD_LIBRARY_PATH
