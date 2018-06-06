@@ -28,17 +28,14 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   NDLL_ASSERT(crop_w > 0);
   NDLL_ASSERT((crop_y + crop_h) <= rsz_h);
   NDLL_ASSERT((crop_x + crop_w) <= rsz_w);
-  // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
-  // is kinda icky to const_cast away the const-ness, but there isn't another way
-  // (that I know of) without making the input argument non-const.
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
-  const cv::Mat cv_img = cv::Mat(H, W, channel_flag, const_cast<uint8*>(img));
+  const cv::Mat cv_img = CreateMatFromPtr(H, W, channel_flag, img);
 
   cv::Mat rsz_img;
   if (workspace != nullptr) {
     // We have a temporary buffer allocated by the user. For this function we
     // need a buffer of rsz_h*rsz_w*C bytes. Wrap this buffer w/ a cv::Mat
-    rsz_img = cv::Mat(rsz_h, rsz_w, channel_flag, workspace);
+    rsz_img = CreateMatFromPtr(rsz_h, rsz_w, channel_flag, workspace);
   }
 
   int ocv_type;
@@ -104,19 +101,16 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   roi_x = static_cast<int>(static_cast<float>(crop_x) / rsz_w * W);
   roi_y = static_cast<int>(static_cast<float>(crop_y) / rsz_h * H);
 
-  // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
-  // is kinda icky to const_cast away the const-ness, but there isn't another way
-  // (that I know of) without making the input argument non-const.
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
-  const cv::Mat cv_img = cv::Mat(roi_h, roi_w, channel_flag,
-      const_cast<uint8*>(img) + roi_y*W*C + roi_x*C, W*C);
+  const cv::Mat cv_img = CreateMatFromPtr(roi_h, roi_w, channel_flag,
+      img + roi_y*W*C + roi_x*C, W*C);
 
   // Note: We only need an intermediate buffer if we are going to mirror the image.
   // If we are not going to mirror the image, wrap the output pointer in a cv::Mat
   // and do the resize directly into that buffer to avoid the unnescessary memcpy.
   // Then just return.
   if (!mirror) {
-    cv::Mat cv_out_img(crop_h, crop_w, channel_flag, out_img);
+    cv::Mat cv_out_img = CreateMatFromPtr(crop_h, crop_w, channel_flag, out_img);
     cv::resize(cv_img, cv_out_img,
         cv::Size(crop_w, crop_h),
         0, 0, cv::INTER_LINEAR);
@@ -128,7 +122,7 @@ NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     // We have a tmp buffer allocated by the user. For this function the tmp
     // buffer only needs to be crop_w x crop_h x C. Wrap this buffer w/ a cv::Mat
     // header
-    rsz_img = cv::Mat(crop_h, crop_w, channel_flag, workspace);
+    rsz_img = CreateMatFromPtr(crop_h, crop_w, channel_flag, workspace);
   }
 
   int ocv_type;

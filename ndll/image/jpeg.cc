@@ -1,8 +1,9 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #include "ndll/image/jpeg.h"
 
-#include <opencv2/opencv.hpp>
 #include <turbojpeg.h>
+
+#include "ndll/util/ocv.h"
 
 namespace ndll {
 
@@ -130,10 +131,10 @@ NDLLError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   // fallback to opencv if tJPG decode fails
   if (error) {
     cv::Mat dst(h, w, (c == 1) ? CV_8UC1: CV_8UC3,
-                reinterpret_cast<char*>(image->raw_mutable_data()));
+                image->raw_mutable_data());
 
     cv::imdecode(
-        cv::Mat(1, size, CV_8UC1, const_cast<char*>(reinterpret_cast<const char*>(jpeg))),
+        CreateMatFromPtr(1, size, CV_8UC1, reinterpret_cast<const char*>(jpeg)),
         (c == 1) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR,
         &dst);
 

@@ -303,10 +303,10 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx
 
 template<>
 void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  NDLL_ENFORCE(IsType<uint8>(input.type()),
+      "Expected input data as uint8.");
   for (int i = 0; i < batch_size_; ++i) {
-    auto &input = ws->Input<GPUBackend>(0);
-    NDLL_ENFORCE(IsType<uint8>(input.type()),
-        "Expected input data as uint8.");
     vector<Index> input_shape = input.tensor_shape(i);
     NDLL_ENFORCE(input_shape.size() == 3,
         "Expects 3-dimensional image input.");

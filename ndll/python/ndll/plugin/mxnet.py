@@ -5,6 +5,7 @@ from ndll.pipeline import Pipeline
 import mxnet as mx
 import ctypes
 import logging
+import numpy as np
 
 # MXNet currently does not expose WaitToWrite C API call
 # in Python API
@@ -81,32 +82,32 @@ class NDLLGenericIterator:
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
             # 2 categories
-            for i, out in enumerate(outputs[i]):
-                if self.output_map[i] == "data":
+            for j, out in enumerate(outputs[i]):
+                if self.output_map[j] == "data":
                     out_data.append(out)
-                elif self.output_map[i] == "label":
+                elif self.output_map[j] == "label":
                     out_label.append(out)
 
             # Change NDLL TensorLists into Tensors
             data = list(map(lambda x: x.as_tensor(), out_data))
-            data_shape = list(map(lambda x: x.shape(), data))
+            data_info = list(map(lambda x: (x.shape(), np.dtype(x.dtype())), data))
             label = list(map(lambda x: x.as_tensor(), out_label))
             # Change label shape from [batch_size, 1] to [batch_size]
             for l in label:
                 l.squeeze()
-            label_shape = list(map(lambda x: x.shape(), label))
+            label_info = list(map(lambda x: (x.shape(), np.dtype(x.dtype())), label))
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
-                d = [mx.nd.zeros(shape, mx.gpu(self._pipes[i].device_id)) for shape in data_shape]
-                l = [mx.nd.zeros(shape, mx.cpu(0)) for shape in label_shape]
+                d = [mx.nd.zeros(shape, mx.gpu(self._pipes[i].device_id), dtype = dtype for shape, dtype in data_info]
+                l = [mx.nd.zeros(shape, mx.cpu(0), dtype = dtype) for shape, dtype in label_info]
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
             d = self._data_batches[i][self._current_data_batch].data
             l = self._data_batches[i][self._current_data_batch].label
             # Copy data from NDLL Tensors to MXNet NDArrays
-            for i, d_arr in enumerate(d):
-                feed_ndarray(data[i], d_arr)
-            for i, l_arr in enumerate(l):
-                feed_ndarray(label[i], l_arr)
+            for j, d_arr in enumerate(d):
+                feed_ndarray(data[j], d_arr)
+            for j, l_arr in enumerate(l):
+                feed_ndarray(label[j], l_arr)
         copy_db_index = self._current_data_batch
         # Change index for double buffering
         self._current_data_batch = (self._current_data_batch + 1) % 2
