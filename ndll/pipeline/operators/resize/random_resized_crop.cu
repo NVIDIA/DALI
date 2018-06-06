@@ -41,6 +41,79 @@ void RandomResizedCrop<GPUBackend>::InitParams(const OpSpec &spec) {
 
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx) {
+  auto &input = ws->Input<GPUBackend>(idx);
+  NDLL_ENFORCE(IsType<uint8>(input.type()),
+      "Expected input data as uint8.");
+
+  const int newH = size_[0];
+  const int newW = size_[1];
+
+  auto *output = ws->Output<GPUBackend>(idx);
+  output->set_type(input.type());
+
+  std::vector<Dims> output_shape(batch_size_);
+  for (int i = 0; i < batch_size_; ++i) {
+    const int C = input.tensor_shape(i)[2];
+    output_shape[i] = {newH, newW, C};
+  }
+  output->Resize(output_shape);
+
+  for (int i = 0; i < batch_size_; ++i) {
+    const CropInfo &crop = params_->crops[i];
+    NppiRect in_roi, out_roi;
+    in_roi.x = crop.x;
+    in_roi.y = crop.y;
+    in_roi.width = crop.w;
+    in_roi.height = crop.h;
+    out_roi.x = 0;
+    out_roi.y = 0;
+    out_roi.width = newW;
+    out_roi.height = newH;
+
+    const int H = input.tensor_shape(i)[0];  // HWC
+    const int W = input.tensor_shape(i)[1];  // HWC
+    const int C = input.tensor_shape(i)[2];  // HWC
+
+    NDLLSize input_size, output_size;
+
+    input_size.width = W;
+    input_size.height = H;
+
+    output_size.width = newW;
+    output_size.height = newH;
+
+    NppiInterpolationMode npp_interp_type;
+    NDLL_ENFORCE(NPPInterpForNDLLInterp(interp_type_, &npp_interp_type) == NDLLSuccess,
+        "Unsupported interpolation type");
+
+    switch (C) {
+      case 3:
+        NDLL_CHECK_NPP(nppiResize_8u_C3R(input.tensor<uint8_t>(i),
+                                         W*C,
+                                         input_size,
+                                         in_roi,
+                                         output->mutable_tensor<uint8_t>(i),
+                                         newW*C,
+                                         output_size,
+                                         out_roi,
+                                         npp_interp_type));
+        break;
+      case 1:
+        NDLL_CHECK_NPP(nppiResize_8u_C1R(input.tensor<uint8_t>(i),
+                                         W*C,
+                                         input_size,
+                                         in_roi,
+                                         output->mutable_tensor<uint8_t>(i),
+                                         newW*C,
+                                         output_size,
+                                         out_roi,
+                                         npp_interp_type));
+        break;
+      default:
+        NDLL_FAIL("RandomResizedCrop is implemented only for images"
+            " with C = 1 or 3, but encountered C = " + to_string(C) + ".");
+    }
+  }
 }
 
 template<>
@@ -71,11 +144,14 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
     }
 
     if (attempt == num_attempts_) {
+      std::cout << "Fail" << std::endl;
       int min_dim = H < W ? H : W;
       crop.w = min_dim;
       crop.h = min_dim;
       crop.x = (W - min_dim) / 2;
       crop.y = (H - min_dim) / 2;
+    } else {
+      std::cout << "Success" << std::endl;
     }
 
     params_->crops[i] = crop;
