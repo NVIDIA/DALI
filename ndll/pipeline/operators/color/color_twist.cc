@@ -6,14 +6,20 @@
 namespace ndll {
 
 NDLL_SCHEMA(ColorTransformBase)
-    .DocStr("Base Schema for color transformations operators.")
-    .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB);
+    .DocStr(R"code(Base Schema for color transformations operators.)code")
+    .AddOptionalArg("image_type",
+        R"code(The color space of input and output image)code", NDLL_RGB);
 
 NDLL_SCHEMA(Brightness)
-    .DocStr("Changes the brightness of an image")
+    .DocStr(R"code(Changes the brightness of an image)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("brightness", "Brightness change (0 - black image, 1 - no changes)", 1.f)
+    .AddOptionalArg("brightness",
+        R"code(`float`Brightness change factor.
+        Values >= 0 are accepted. For example:
+          `0` - black image,
+          `1` - no change
+          `2` - increase brightness twice)code", 1.f)
     .AddParent("ColorTransformBase");
 
 NDLL_SCHEMA(Contrast)
