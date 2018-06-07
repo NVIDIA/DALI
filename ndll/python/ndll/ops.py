@@ -226,7 +226,7 @@ class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
 
     @classmethod
     def _docstring(cls):
-        schema = b.GetSchema("_TFRecordReader")
+        schema = b.GetSchema("TFRecordReader")
         return schema.Dox()
 
     @property

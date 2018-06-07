@@ -15,7 +15,7 @@ NDLL_SCHEMA(FileReader)
   .AddOptionalArg("file_list", "Path to the file with a list of pairs \"file label\""
       "(leave empty to traverse the `file_root` directory to obtain files and labels)",
       std::string())
-  LOADER_SCHEMA_ARGS;
+  .AddParent("LoaderBase");
 
 }  // namespace ndll
 

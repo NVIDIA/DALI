@@ -10,6 +10,6 @@ NDLL_SCHEMA(CaffeReader)
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("path", "Path to Caffe LMDB directory")
-  LOADER_SCHEMA_ARGS;
+  .AddParent("LoaderBase");
 
 }  // namespace ndll

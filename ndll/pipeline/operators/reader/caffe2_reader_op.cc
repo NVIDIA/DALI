@@ -23,7 +23,7 @@ NDLL_SCHEMA(Caffe2Reader)
   .AddOptionalArg("label_type", "Foo", 0)
   .AddOptionalArg("additional_inputs", "Foo", 0)
   .AddOptionalArg("bbox", "Foo", false)
-  LOADER_SCHEMA_ARGS;
+  .AddParent("LoaderBase");
 
 }  // namespace ndll
 

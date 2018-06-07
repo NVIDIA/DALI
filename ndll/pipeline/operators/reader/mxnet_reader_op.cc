@@ -12,7 +12,7 @@ NDLL_SCHEMA(MXNetReader)
   .NumOutput(2)
   .AddArg("path", "List of paths to RecordIO files")
   .AddArg("index_path", "List of paths to index files")
-  LOADER_SCHEMA_ARGS;
+  .AddParent("LoaderBase");
 
 }  // namespace ndll
 
