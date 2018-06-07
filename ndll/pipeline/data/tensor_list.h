@@ -64,7 +64,7 @@ class TensorList : public Buffer<Backend> {
     this->set_type(type);
 
     for (size_t i = 0; i < other.size(); ++i) {
-      type.Copy<SrcBackend, Backend>(
+      type.template Copy<SrcBackend, Backend>(
           raw_mutable_tensor(i),
           other[i].raw_data(),
           other[i].size(), 0);

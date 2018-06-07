@@ -77,10 +77,10 @@ class Pipeline {
     seed_.resize(MAX_SEEDS);
     current_seed = 0;
     if (seed != -1) {
-      std::seed_seq ss = std::seed_seq({seed});
+      std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
     } else {
-      std::seed_seq ss = std::seed_seq({time(0)});
+      std::seed_seq ss{time(0)};
       ss.generate(seed_.begin(), seed_.end());
     }
 

@@ -123,6 +123,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
+  using ndll::OperatorBase::Run;
+
   void Run(MixedWorkspace *ws) override {
     // TODO(slayton): Is this necessary?
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));

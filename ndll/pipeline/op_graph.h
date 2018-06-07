@@ -283,7 +283,7 @@ class OpGraph {
     case NDLL_SUPPORT:
       return support_nodes_[index];
     }
-    string str_error = "No Node for index " + idx;
+    string str_error = "No Node for index " + to_string(idx);
     NDLL_FAIL(str_error);
   }
 
