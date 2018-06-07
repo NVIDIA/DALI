@@ -78,13 +78,17 @@ endif()
 # Build the TensorFlow op
 if (BUILD_TENSORFLOW)
   # Get the TF compile et linking flags
-  execute_process(
-    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_compile_flags()), end=\"\")"
-    OUTPUT_VARIABLE TF_CFLAGS)
+  #execute_process(
+  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_compile_flags()), end=\"\")"
+  #  OUTPUT_VARIABLE TF_CFLAGS)
+
+  #execute_process(
+  #  COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_link_flags()), end=\"\")"
+  # OUTPUT_VARIABLE TF_LFLAGS)
 
   execute_process(
-    COMMAND python -c "from __future__ import print_function; import tensorflow as tf; print(\" \".join(tf.sysconfig.get_link_flags()), end=\"\")"
-    OUTPUT_VARIABLE TF_LFLAGS)
+    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"dist\" and \"local\" in p] ; print(f[0], end=\"\")"
+    OUTPUT_VARIABLE DIST_PACKAGES_DIR)
 
   add_subdirectory(tensorflow)
 
@@ -94,13 +98,12 @@ if (BUILD_TENSORFLOW)
   # TF <= 1.3
   # target_compile_options(${customop_lib} PRIVATE -D_GLIBCXX_USE_CXX11_ABI=0 -I${TF_INC} -I${TF_INC}/external/nsync/public -lcudart -L /usr/local/cuda/lib64 -L${TF_LIB} -ltensorflow_framework)
 
-  separate_arguments(TF_CFLAGS UNIX_COMMAND "${TF_CFLAGS}")
-  separate_arguments(TF_LFLAGS UNIX_COMMAND "${TF_LFLAGS}")
+  separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${DIST_PACKAGES_DIR}/tensorflow/include -D_GLIBCXX_USE_CXX11_ABI=0")
   target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
 
   add_dependencies(${customop_lib} ${ndll_lib})
 
-  target_link_libraries(${customop_lib} -L/usr/local/lib/python2.7/dist-packages/tensorflow)
+  target_link_libraries(${customop_lib} -L${DIST_PACKAGES_DIR}/tensorflow)
   target_link_libraries(${customop_lib} -ltensorflow_framework)
   target_link_libraries(${customop_lib} ${NDLL_LIBS} ${ndll_lib})
 
