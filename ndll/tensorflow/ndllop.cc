@@ -11,6 +11,7 @@
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/c_api/c_api.h"
 #include "ndll/common.h"
+#include "ndll/error_handling.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
