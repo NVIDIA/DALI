@@ -6,7 +6,11 @@ namespace ndll {
 
 NDLL_SCHEMA(CropMirrorNormalize)
   .DocStr(R"code(Perform fused cropping, normalization, format conversion
-          (NHWC to NCHW) if desired, and type casting)code")
+          (NHWC to NCHW) if desired, and type casting.
+          Normalization takes input image and produces output using formula
+          ```
+          output = (input - mean) / std
+          ```)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()

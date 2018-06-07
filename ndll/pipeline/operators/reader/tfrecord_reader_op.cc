@@ -12,8 +12,14 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 
 NDLL_SCHEMA(_TFRecordReaderBase)
-  .AddArg("path", "List of paths to TFRecord files")
-  .AddArg("index_path", "List of paths to index files");
+  .AddArg("path",
+      R"code(`list of string`
+      List of paths to TFRecord files)code")
+  .AddArg("index_path",
+      R"code(`list of string`
+      List of paths to index files (1 index file for every TFRecord file).
+      Index files may be obtained from TFRecord files using
+      `tfrecord2idx` script distributed with NDLL)code");
 
 NDLL_SCHEMA(_TFRecordReader)
   .OutputFn([](const OpSpec &spec) {

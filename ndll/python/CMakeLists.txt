@@ -13,6 +13,8 @@ set_target_properties(${ndll_python_lib} PROPERTIES
 # Add install rule
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/ndll/python/ndll" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python")
 install(FILES "${PROJECT_SOURCE_DIR}/ndll/python/setup.py" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python")
+install(FILES "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python")
+install(FILES "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python")
 install(FILES "${PROJECT_BINARY_DIR}/ndll/lib${ndll_lib}.so" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python/ndll")
 if (BUILD_TENSORFLOW)
   install(FILES "${PROJECT_BINARY_DIR}/ndll/lib${customop_lib}.so" DESTINATION "${PROJECT_BINARY_DIR}/ndll/python/ndll")

@@ -16,7 +16,7 @@ class NormalizePermute : public Operator<Backend> {
     output_type_(spec.GetArgument<NDLLDataType>("output_dtype")),
     H_(spec.GetArgument<int>("height")),
     W_(spec.GetArgument<int>("width")),
-    C_(spec.GetArgument<int>("channels")) {
+    C_(IsColor(spec.GetArgument<NDLLImageType>("image_type")) ? 3 : 1) {
     NDLL_ENFORCE(H_ > 0);
     NDLL_ENFORCE(W_ > 0);
     NDLL_ENFORCE(C_ == 3 || C_ == 1);
@@ -31,9 +31,6 @@ class NormalizePermute : public Operator<Backend> {
       std[i] = 1.f / std[i];
     }
 
-    // TODO(tgale): We don't really want to do this in
-    // the default stream, we should make at least some
-    // stream available for constructors of ops.
     mean_.Copy(mean, 0);
     inv_std_.Copy(std, 0);
 

@@ -18,7 +18,9 @@ NDLL_SCHEMA(Caffe2Reader)
       int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
-  .AddArg("path", "Path to Caffe2 LMDB directory")
+  .AddArg("path",
+      R"code(`string`
+      Path to Caffe2 LMDB directory)code")
   .AddOptionalArg("num_labels", "Foo", 1)
   .AddOptionalArg("label_type", "Foo", 0)
   .AddOptionalArg("additional_inputs", "Foo", 0)

@@ -8,12 +8,16 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
 NDLL_SCHEMA(FileReader)
-  .DocStr("Read individual (Image, label) pairs from a list")
+  .DocStr("Read (Image, label) pairs from a directory")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
-  .AddArg("file_root", "Path to directory containing data files")
-  .AddOptionalArg("file_list", "Path to the file with a list of pairs \"file label\""
-      "(leave empty to traverse the `file_root` directory to obtain files and labels)",
+  .AddArg("file_root", 
+      R"code(`string`
+      Path to a directory containing data files)code")
+  .AddOptionalArg("file_list",
+      R"code(`string`
+      Path to the file with a list of pairs ``file label``
+      (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddParent("LoaderBase");
 
