@@ -52,4 +52,39 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
   }
 }
 
+string OpSchema::Dox() const {
+  std::string ret = "# " + Name();
+  ret += "\n\nOverview\n--------\n";
+  ret += dox_;
+  ret += "\n\nRequired Parameters\n-------------------\n";
+  for (auto arg_pair : GetRequiredArguments()) {
+    ret += " - `" + arg_pair.first + "` : " + arg_pair.second + "\n";
+  }
+  ret += "\n\nOptional Parameters\n-------------------\n";
+  for (auto arg_pair : GetOptionalArguments()) {
+    ret += " - `" + arg_pair.first + "` : " + arg_pair.second.first + "\n";
+  }
+  return ret;
+}
+
+std::map<std::string, std::string> OpSchema::GetRequiredArguments() const {
+  auto ret = arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetRequiredArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
+}
+
+std::map<std::string, std::pair<std::string, Value*>> OpSchema::GetOptionalArguments() const {
+  auto ret = optional_arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetOptionalArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
+}
+
 }  // namespace ndll

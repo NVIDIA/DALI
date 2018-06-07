@@ -195,20 +195,7 @@ class OpSchema {
     return parents_.size() > 0;
   }
 
-  inline string Dox() const {
-    std::string ret = "# " + Name();
-    ret += "\n\nOverview\n--------\n";
-    ret += dox_;
-    ret += "\n\nRequired Parameters\n-------------------\n";
-    for (auto arg_pair : arguments_) {
-      ret += " - `" + arg_pair.first + "` : " + arg_pair.second + "\n";
-    }
-    ret += "\n\nOptional Parameters\n-------------------\n";
-    for (auto arg_pair : optional_arguments_) {
-      ret += " - `" + arg_pair.first + "` : " + arg_pair.second.first + "\n";
-    }
-    return ret;
-  }
+  string Dox() const;
 
   inline int MaxNumInput() const {
     return max_num_input_;
@@ -273,6 +260,10 @@ class OpSchema {
                  "Argument name \"" + s + "\" is reserved for internal use");
     return true;
   }
+
+  std::map<std::string, std::string> GetRequiredArguments() const;
+
+  std::map<std::string, std::pair<std::string, Value*>> GetOptionalArguments() const;
 
   string dox_;
   string name_;
