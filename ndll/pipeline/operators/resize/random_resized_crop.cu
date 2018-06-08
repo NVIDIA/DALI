@@ -58,6 +58,9 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   }
   output->Resize(output_shape);
 
+  cudaStream_t old_stream = nppGetStream();
+  nppSetStream(ws->stream());
+
   for (int i = 0; i < batch_size_; ++i) {
     const CropInfo &crop = params_->crops[i];
     NppiRect in_roi, out_roi;
@@ -114,6 +117,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
             " with C = 1 or 3, but encountered C = " + to_string(C) + ".");
     }
   }
+  nppSetStream(old_stream);
 }
 
 template<>

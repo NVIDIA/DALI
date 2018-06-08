@@ -26,7 +26,7 @@ def feed_ndarray(ndll_tensor, arr):
     # Copy data from NDLL tensor to ptr
     ndll_tensor.copy_to_external(ptr)
 
-class NDLLGenericIterator:
+class NDLLGenericIterator(object):
     def __init__(self,
                  pipelines,
                  output_map,
@@ -98,7 +98,7 @@ class NDLLGenericIterator:
             label_info = list(map(lambda x: (x.shape(), np.dtype(x.dtype())), label))
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
-                d = [mx.nd.zeros(shape, mx.gpu(self._pipes[i].device_id), dtype = dtype for shape, dtype in data_info]
+                d = [mx.nd.zeros(shape, mx.gpu(self._pipes[i].device_id), dtype = dtype) for shape, dtype in data_info]
                 l = [mx.nd.zeros(shape, mx.cpu(0), dtype = dtype) for shape, dtype in label_info]
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
             d = self._data_batches[i][self._current_data_batch].data
