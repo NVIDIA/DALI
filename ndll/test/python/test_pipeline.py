@@ -170,8 +170,7 @@ def test_seed():
                                              device_id,
                                              seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.huffman = ops.HuffmanDecoder()
-            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 crop = (224, 224),
@@ -184,8 +183,7 @@ def test_seed():
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
-            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
-            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            images = self.decode(self.jpegs)
             mirror = self.coin()
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
@@ -210,8 +208,7 @@ def test_rotate():
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.huffman = ops.HuffmanDecoder()
-            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
@@ -227,8 +224,7 @@ def test_rotate():
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
-            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
-            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            images = self.decode(self.jpegs)
             outputs = self.cmnp([images, images],
                                 crop_pos_x = self.uniform(),
                                 crop_pos_y = self.uniform())
@@ -256,8 +252,7 @@ def test_warpaffine():
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.huffman = ops.HuffmanDecoder()
-            self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
@@ -275,8 +270,7 @@ def test_warpaffine():
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
-            dct_coeff, jpeg_meta = self.huffman(self.jpegs)
-            images = self.idct(dct_coeff.gpu(), jpeg_meta)
+            images = self.decode(self.jpegs)
             outputs = self.cmnp([images, images],
                                 crop_pos_x = self.uniform(),
                                 crop_pos_y = self.uniform())
