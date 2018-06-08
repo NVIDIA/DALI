@@ -4,8 +4,14 @@ include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
 
 # For NPP
+find_cuda_helper_libs(nppicom)
+find_cuda_helper_libs(nppicc)
+find_cuda_helper_libs(nppc)
 find_cuda_helper_libs(nppig)
-list(APPEND NDLL_LIBS ${CUDA_nppig_LIBRARY})
+list(APPEND NDLL_LIBS ${CUDA_nppicom_LIBRARY}
+                      ${CUDA_nppicc_LIBRARY}
+                      ${CUDA_nppc_LIBRARY}
+                      ${CUDA_nppig_LIBRARY})
 
 # NVTX for profiling
 if (BUILD_NVTX)
@@ -53,10 +59,6 @@ if (OpenCV_FOUND)
 endif()
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND NDLL_LIBS ${OpenCV_LIBRARIES})
-
-# Hybrid Decode
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/hybrid_decode)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/hybrid_decode/include)
 
 # PyBind
 if (BUILD_PYTHON)

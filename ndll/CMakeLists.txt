@@ -29,7 +29,7 @@ endif()
 
 # cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO> $<TARGET_OBJECTS:TF_PROTO> $<TARGET_OBJECTS:NDLL_PROTO>)
 cuda_add_library(${ndll_lib} SHARED ${NDLL_SRCS} ${NDLL_PROTO_OBJ})
-target_link_libraries(${ndll_lib} ${NDLL_LIBS} hybrid_decode)
+target_link_libraries(${ndll_lib} ${NDLL_LIBS})
 
 # Add install rules
 install(TARGETS ${ndll_lib} DESTINATION lib)
