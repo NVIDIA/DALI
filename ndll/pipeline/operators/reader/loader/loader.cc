@@ -5,11 +5,22 @@
 namespace ndll {
 
 NDLL_SCHEMA(LoaderBase)
-  .AddOptionalArg("random_shuffle", "Whether to shuffle data", false)                              \
-  .AddOptionalArg("initial_fill", "Size of the buffer used for shuffling", 1024)                   \
-  .AddOptionalArg("num_shards", "Partition the data into this many parts", 1)                      \
-  .AddOptionalArg("shard_id", "Id of the part to read", 0)                                         \
-  .AddOptionalArg("tensor_init_bytes", "Hint for how much memory to allocate per image", 1048576);
+  .AddOptionalArg("random_shuffle",
+      R"code(`bool`
+      Whether to randomly shuffle data.)code", false)
+  .AddOptionalArg("initial_fill",
+      R"code(`int`
+      Size of the buffer used for shuffling.)code", 1024)
+  .AddOptionalArg("num_shards",
+      R"code(`int`
+      Partition the data into this many parts
+      (used for multiGPU training).)code", 1)
+  .AddOptionalArg("shard_id",
+      R"code(`int`
+      Id of the part to read)code", 0)
+  .AddOptionalArg("tensor_init_bytes",
+      R"code(`int`
+      Hint for how much memory to allocate per image)code", 1048576);
 
 
 }  // namespace ndll

@@ -296,7 +296,7 @@ class SchemaRegistry {
   static const OpSchema& GetSchema(const std::string &name) {
     auto &schema_map = registry();
     auto it = schema_map.find(name);
-    NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +
+    NDLL_ENFORCE(it != schema_map.end(), "Schema '" +
         name + "' not registered");
     return it->second;
   }
