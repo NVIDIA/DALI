@@ -39,34 +39,44 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
 
+  // Add uniform RNG
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform1", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform2", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{256, 480})
+      .AddOutput("resize", "cpu"));
+
+  // Add coin flip RNG for mirror mask
+  pipe.AddOperator(
+      OpSpec("CoinFlip")
+      .AddArg("device", "support")
+      .AddArg("probability", 0.5f)
+      .AddOutput("mirror", "cpu"));
+
+  std::string resize_op = fast_resize ? "FastResizeCropMirror" : "ResizeCropMirror";
   // Add a resize+crop+mirror op
-  if (fast_resize) {
-    pipe.AddOperator(
-        OpSpec("FastResizeCropMirror")
-        .AddArg("device", "cpu")
-        .AddArg("random_resize", true)
-        .AddArg("warp_resize", false)
-        .AddArg("resize_a", 256)
-        .AddArg("resize_b", 480)
-        .AddArg("random_crop", true)
-        .AddArg("crop", vector<int>{224, 224})
-        .AddArg("mirror_prob", 0.5f)
-        .AddInput("images", "cpu")
-        .AddOutput("resized", "cpu"));
-  } else {
-    pipe.AddOperator(
-        OpSpec("ResizeCropMirror")
-        .AddArg("device", "cpu")
-        .AddArg("random_resize", true)
-        .AddArg("warp_resize", false)
-        .AddArg("resize_a", 256)
-        .AddArg("resize_b", 480)
-        .AddArg("random_crop", true)
-        .AddArg("crop", vector<int>{224, 224})
-        .AddArg("mirror_prob", 0.5f)
-        .AddInput("images", "cpu")
-        .AddOutput("resized", "cpu"));
-  }
+  pipe.AddOperator(
+      OpSpec(resize_op)
+      .AddArg("device", "cpu")
+      .AddArg("crop", vector<int>{224, 224})
+      .AddInput("images", "cpu")
+      .AddArgumentInput("mirror", "mirror")
+      .AddArgumentInput("crop_pos_x", "uniform1")
+      .AddArgumentInput("crop_pos_y", "uniform2")
+      .AddArgumentInput("resize_shorter", "resize")
+      .AddOutput("resized", "cpu"));
 
   pipe.AddOperator(
       OpSpec("NormalizePermute")
@@ -181,6 +191,26 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddInput("images", "gpu")
       .AddOutput("resized", "gpu"));
 
+  // Add uniform RNG
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform1", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform2", "cpu"));
+
+  // Add coin flip RNG for mirror mask
+  pipe.AddOperator(
+      OpSpec("CoinFlip")
+      .AddArg("device", "support")
+      .AddArg("probability", 0.5f)
+      .AddOutput("mirror", "cpu"));
+
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
       OpSpec("CropMirrorNormalize")
@@ -188,11 +218,13 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddArg("output_type", NDLL_FLOAT16)
       .AddArg("random_crop", true)
       .AddArg("crop", vector<int>{224, 224})
-      .AddArg("mirror_prob", 0.5f)
       .AddArg("image_type", img_type)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
       .AddInput("resized", "gpu")
+      .AddArgumentInput("mirror", "mirror")
+      .AddArgumentInput("crop_pos_x", "uniform1")
+      .AddArgumentInput("crop_pos_y", "uniform2")
       .AddOutput("final", "gpu"));
 
   // Build and run the pipeline

@@ -68,14 +68,29 @@ class _OperatorInstance(object):
                     """Expected inputs of type TensorReference or list of
                     TensorReference. Received input type {}"""
                     .format(type(inp).__name__))
+        # Argument inputs
+        for k in kwargs.keys():
+            if k not in ["name"]:
+                if not isinstance(kwargs[k], TensorReference):
+                    raise TypeError(
+                            """Expected inputs of type
+                            TensorReference. Received
+                            input type {}"""
+                            .format(type(inp).__name__))
+                self._spec.AddArgumentInput(k, kwargs[k].name)
+                self._inputs = list(self._inputs) + [kwargs[k]]
+
+    def check_args(self):
+        self._op.schema.CheckArgs(self._spec)
 
     def generate_outputs(self):
         # Add outputs
-        num_output = self._op.schema.CalculateOutputs(self._spec)
-        if self._op.device == 'mixed':
-            output_device = 'gpu'
+        if self._op.device == "gpu" or self._op.device == "mixed":
+            output_device = "gpu"
         else:
-            output_device = self._op.device
+            output_device = "cpu"
+
+        num_output = self._op.schema.CalculateOutputs(self._spec)
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
@@ -111,7 +126,7 @@ class _NDLLOperatorMeta(type):
     def __doc__(self):
         return self._docstring()
 
-def python_op_factory(name):
+def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_NDLLOperatorMeta, object)):
         def __init__(self, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
@@ -122,10 +137,10 @@ def python_op_factory(name):
             if "device" in kwargs.keys():
                 self._device = kwargs["device"]
             else:
-                self._device = "cpu"
+                self._spec.AddArg("device", op_device)
+                self._device = op_device
 
             # Store the specified arguments
-            self._schema.CheckArgs(list(kwargs.keys()))
             for key, value in kwargs.items():
                 if isinstance(value, list):
                     if not value:
@@ -173,12 +188,17 @@ def python_op_factory(name):
     Operator.__name__ = str(name)
     return Operator
 
-# TODO(tgale): Do this for all cpu/gpu ops. Figure
-# out how we want to expose what devices are supported
-_all_ops = set(b.RegisteredCPUOps()).union(set(b.RegisteredGPUOps())).union(set(b.RegisteredMixedOps()))
-for op_name in _all_ops:
+_cpugpu_ops = (set(b.RegisteredCPUOps())
+            .union(set(b.RegisteredGPUOps()))
+            .union(set(b.RegisteredMixedOps())))
+_support_ops = set(b.RegisteredSupportOps())
+for op_name in _cpugpu_ops:
     setattr(sys.modules[__name__], op_name,
-            python_op_factory(op_name))
+            python_op_factory(op_name, op_device = "cpu"))
+# add support ops
+for op_name in _support_ops:
+    setattr(sys.modules[__name__], op_name,
+            python_op_factory(op_name, op_device = "support"))
 
 # custom wrappers around ops
 

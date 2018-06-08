@@ -4,9 +4,9 @@
 #include <pybind11/stl.h>
 
 #include "ndll/pipeline/init.h"
-#include "ndll/pipeline/operator.h"
-#include "ndll/pipeline/op_schema.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/operator.h"
+#include "ndll/pipeline/operators/op_schema.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/pipeline/pipeline.h"
 #include "ndll/pipeline/data/tensor.h"
 #include "ndll/pipeline/data/tensor_list.h"
@@ -125,6 +125,10 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
           CopyToExternalTensor(t, ptr);
+        })
+    .def("dtype",
+        [](Tensor<CPUBackend> &t) {
+          return FormatStrFromType(t.type());
         });
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
@@ -139,6 +143,10 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
           CopyToExternalTensor(t, ptr);
+        })
+    .def("dtype",
+        [](Tensor<GPUBackend> &t) {
+          return FormatStrFromType(t.type());
         });
 }
 
@@ -262,7 +270,11 @@ static vector<string> GetRegisteredMixedOps() {
   return MixedOperatorRegistry::Registry().RegisteredNames();
 }
 
-static OpSchema GetSchema(const string &name) {
+static vector<string> GetRegisteredSupportOps() {
+  return SupportOperatorRegistry::Registry().RegisteredNames();
+}
+
+static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
 #ifdef NDLL_BUILD_PROTO3
@@ -476,6 +488,11 @@ PYBIND11_MODULE(ndll_backend, m) {
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
     .def("AddInput", &OpSpec::AddInput,
+        "name"_a,
+        "device"_a,
+        "regular_input"_a = true,
+        py::return_value_policy::reference_internal)
+    .def("AddArgumentInput", &OpSpec::AddArgumentInput,
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
@@ -501,6 +518,7 @@ PYBIND11_MODULE(ndll_backend, m) {
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
   m.def("RegisteredMixedOps", &GetRegisteredMixedOps);
+  m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema);

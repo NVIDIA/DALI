@@ -42,16 +42,37 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       .AddInput("compressed_images", "cpu")
       .AddOutput("images", "cpu"));
 
+  // Add uniform RNG
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform1", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform2", "cpu"));
+
+  // Add coin flip RNG for mirror mask
+  pipe.AddOperator(
+      OpSpec("CoinFlip")
+      .AddArg("device", "support")
+      .AddArg("probability", 0.5f)
+      .AddOutput("mirror", "cpu"));
+
   // Add a resize+crop+mirror op
   pipe.AddOperator(
-      OpSpec("ResizeCropMirror")
+      OpSpec("FastResizeCropMirror")
       .AddArg("device", "cpu")
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 256)
-      .AddArg("random_crop", true)
+      .AddArg("resize_x", 256)
+      .AddArg("resize_y", 256)
       .AddArg("crop", vector<int>{224, 224})
-      .AddArg("mirror_prob", 0.5f)
       .AddInput("images", "cpu")
+      .AddArgumentInput("crop_pos_x", "uniform1")
+      .AddArgumentInput("crop_pos_y", "uniform2")
+      .AddArgumentInput("mirror", "mirror")
       .AddOutput("resized", "cpu"));
 
   pipe.AddOperator(
@@ -173,18 +194,39 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddOutput("resized", "gpu"));
 #endif
 
-  // Add a bached crop+mirror+normalize+permute op
+  // Add uniform RNG
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform1", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{0, 1})
+      .AddOutput("uniform2", "cpu"));
+
+  // Add coin flip RNG for mirror mask
+  pipe.AddOperator(
+      OpSpec("CoinFlip")
+      .AddArg("device", "support")
+      .AddArg("probability", 0.5f)
+      .AddOutput("mirror", "cpu"));
+
+  // Add a batched crop+mirror+normalize+permute op
   pipe.AddOperator(
       OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
       .AddArg("output_type", NDLL_FLOAT16)
-      .AddArg("random_crop", true)
       .AddArg("crop", vector<int>{224, 224})
-      .AddArg("mirror_prob", 0.5f)
       .AddArg("image_type", img_type)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
       .AddInput("images", "gpu")
+      .AddArgumentInput("crop_pos_x", "uniform1")
+      .AddArgumentInput("crop_pos_y", "uniform2")
+      .AddArgumentInput("mirror", "mirror")
       .AddOutput("final", "gpu"));
 
   // Build and run the pipeline

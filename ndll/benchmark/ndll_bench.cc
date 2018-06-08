@@ -6,7 +6,7 @@
 #include "ndll/common.h"
 #include "ndll/pipeline/data/allocator.h"
 #include "ndll/pipeline/init.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/op_spec.h"
 
 int main(int argc, char **argv) {
   ndll::NDLLInit(ndll::OpSpec("CPUAllocator"),

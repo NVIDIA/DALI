@@ -13,7 +13,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/operators/operator.h"
 
 namespace ndll {
 
@@ -42,6 +42,7 @@ struct TensorMeta {
   NodeID node;
   Index index;
   bool is_cpu;
+  bool is_support;
 };
 
 /**
@@ -82,7 +83,7 @@ class OpGraph {
    * @brief Returns the total number of ops in the graph.
    */
   inline Index NumOp() const {
-    return NumCPUOp() + NumGPUOp() + NumMixedOp();
+    return NumCPUOp() + NumGPUOp() + NumMixedOp() + NumSupportOp();
   }
 
   /**
@@ -99,6 +100,11 @@ class OpGraph {
    * @brief Returns the number of mixed ops in the graph.
    */
   inline Index NumMixedOp() const { return mixed_nodes_.size(); }
+
+  /**
+   * @brief Returns the number of support ops in the graph.
+   */
+  inline Index NumSupportOp() const { return support_nodes_.size(); }
 
   /**
    * @brief Returns a reference to the `idx`-th cpu op that was
@@ -152,6 +158,24 @@ class OpGraph {
   inline OpNode& mixed_node(Index idx) {
     NDLL_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
     return mixed_nodes_[idx];
+  }
+
+  /**
+   * @brief Returns a reference to the `idx`-th support op
+   * that was added to the graph.
+   */
+  inline OperatorBase& support_op(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
+    return *support_nodes_[idx].op;
+  }
+
+  /**
+   * @brief Returns the node object for the `idx`-th support op that
+   * was added to the graph.
+   */
+  inline OpNode& support_node(Index idx) {
+    NDLL_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
+    return support_nodes_[idx];
   }
 
   /**
@@ -256,6 +280,8 @@ class OpGraph {
       return gpu_nodes_[index];
     case NDLL_MIXED:
       return mixed_nodes_[index];
+    case NDLL_SUPPORT:
+      return support_nodes_[index];
     }
     string str_error = "No Node for index " + idx;
     NDLL_FAIL(str_error);
@@ -298,6 +324,7 @@ class OpGraph {
   vector<OpNode> cpu_nodes_;
   vector<OpNode> gpu_nodes_;
   vector<OpNode> mixed_nodes_;
+  vector<OpNode> support_nodes_;
 
   // Stores a mapping from NodeIDs to a pair where the first
   // element indicates what type of node it is,  and the second

@@ -30,11 +30,7 @@ class C2Pipe(Pipeline):
                                      exec_async=async)
         self.input = ops.ExternalSource()
         self.decode = ops.HostDecoder(output_type = types.RGB)
-        self.rcm = ops.FastResizeCropMirror(random_resize = True,
-                                            resize_a = 256,
-                                            resize_b = 480,
-                                            random_crop = True,
-                                            crop = [224, 224])
+        self.rcm = ops.FastResizeCropMirror(crop = [224, 224])
         self.np = ops.NormalizePermute(device = "gpu",
                                        output_dtype = types.FLOAT16,
                                        mean = [128., 128., 128.],
@@ -42,12 +38,18 @@ class C2Pipe(Pipeline):
                                        height = 224,
                                        width = 224,
                                        channels = 3)
+        self.uniform = ops.Uniform(range = (0., 1.))
+        self.resize_uniform = ops.Uniform(range = (256., 480.))
+        self.mirror = ops.CoinFlip(probability = 0.5)
         self.iter = 0
 
     def define_graph(self):
         self.jpegs = self.input()
         images = self.decode(self.jpegs)
-        resized = self.rcm(images)
+        resized = self.rcm(images, crop_pos_x = self.uniform(),
+                           crop_pos_y = self.uniform(),
+                           mirror = self.mirror(),
+                           resize_shorter = self.resize_uniform())
         output = self.np(resized.gpu())
         return output
 
@@ -73,11 +75,12 @@ class HybridPipe(Pipeline):
                                  interp_type = types.INTERP_LINEAR)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                             output_dtype = types.FLOAT16,
-                                            random_crop = True,
                                             crop = (224, 224),
                                             image_type = types.RGB,
                                             mean = [128., 128., 128.],
                                             std = [1., 1., 1.])
+        self.uniform = ops.Uniform(range = (0., 1.))
+        self.mirror = ops.CoinFlip(probability = 0.5)
         self.iter = 0
 
     def define_graph(self):
@@ -85,7 +88,9 @@ class HybridPipe(Pipeline):
         dct_coeff, jpeg_meta = self.huffman(self.jpegs)
         images = self.idct(dct_coeff.gpu(), jpeg_meta)
         resized = self.resize(images)
-        output = self.cmnp(resized)
+        output = self.cmnp(resized, mirror = self.mirror(),
+                           crop_pos_x = self.uniform(),
+                           crop_pos_y = self.uniform())
         return output
 
     def iter_setup(self):

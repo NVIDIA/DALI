@@ -18,6 +18,11 @@
 
 namespace ndll {
 
+// pi
+#ifndef M_PI
+const float M_PI =  3.14159265358979323846;
+#endif
+
 // Using declaration for common types
 using std::array;
 using std::cout;

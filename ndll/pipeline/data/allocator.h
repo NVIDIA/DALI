@@ -3,7 +3,7 @@
 #define NDLL_PIPELINE_DATA_ALLOCATOR_H_
 
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/operator_factory.h"
+#include "ndll/pipeline/operators/operator_factory.h"
 
 namespace ndll {
 

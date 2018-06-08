@@ -12,7 +12,7 @@
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
-#include "ndll/pipeline/op_spec.h"
+#include "ndll/pipeline/operators/op_spec.h"
 #include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {

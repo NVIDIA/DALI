@@ -38,17 +38,11 @@ class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> 
    * to a default state.
    */
   inline void Clear() {
+    WorkspaceBase<SampleInputType, SampleOutputType>::Clear();
     data_idx_ = -1;
     thread_idx_ = -1;
     has_stream_ = false;
     stream_ = 0;
-
-    cpu_inputs_.clear();
-    gpu_inputs_.clear();
-    cpu_outputs_.clear();
-    gpu_outputs_.clear();
-    input_index_map_.clear();
-    output_index_map_.clear();
   }
 
   /**

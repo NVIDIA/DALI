@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include "ndll/pipeline/operators/copy.h"
 #include "ndll/test/ndll_test.h"
 
 namespace ndll {

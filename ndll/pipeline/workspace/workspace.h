@@ -4,11 +4,50 @@
 
 #include <vector>
 #include <utility>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/data/backend.h"
+#include "ndll/pipeline/data/tensor.h"
 
 namespace ndll {
+
+/**
+ * @brief ArgumentWorskpace is a base class of
+ * objects storing tensor arguments
+ * of operators
+ */
+class ArgumentWorkspace {
+ public:
+  ArgumentWorkspace() {}
+  virtual ~ArgumentWorkspace() = default;
+
+  inline void Clear() {
+    argument_inputs_.clear();
+  }
+
+  void AddArgumentInput(shared_ptr<Tensor<CPUBackend>> input, std::string arg_name) {
+    argument_inputs_[arg_name] = input;
+  }
+
+  void SetArgumentInput(shared_ptr<Tensor<CPUBackend>> input, std::string arg_name) {
+    NDLL_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
+        "Argument \"" + arg_name + "\" not found.");
+    argument_inputs_[arg_name] = input;
+  }
+
+  const Tensor<CPUBackend>& ArgumentInput(std::string arg_name) const {
+    NDLL_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
+        "Argument \"" + arg_name + "\" not found.");
+    return *(argument_inputs_.at(arg_name));
+  }
+
+ protected:
+  // Argument inputs
+  std::unordered_map<std::string, shared_ptr<Tensor<CPUBackend>>> argument_inputs_;
+};
 
 /**
  * @brief WorkspaceBase is a base class of objects
@@ -17,10 +56,28 @@ namespace ndll {
  * meta-data about execution.
  */
 template <template<typename> class InputType, template<typename> class OutputType>
-class WorkspaceBase {
+class WorkspaceBase : public ArgumentWorkspace {
  public:
   WorkspaceBase() {}
   virtual ~WorkspaceBase() = default;
+
+  /**
+   * @brief Clears the contents of the workspaces, reseting it
+   * to a default state.
+   */
+  inline void Clear() {
+    ArgumentWorkspace::Clear();
+    cpu_inputs_.clear();
+    gpu_inputs_.clear();
+    cpu_outputs_.clear();
+    gpu_outputs_.clear();
+    input_index_map_.clear();
+    output_index_map_.clear();
+    cpu_inputs_index_.clear();
+    gpu_inputs_index_.clear();
+    cpu_outputs_index_.clear();
+    gpu_outputs_index_.clear();
+  }
 
   /**
    * @brief Returns the number of inputs.
@@ -230,7 +287,6 @@ class WorkspaceBase {
     index->push_back(idx);
     (*index_map)[idx] = std::make_pair(on_cpu, vec->size()-1);
   }
-
 
   vector<InputType<CPUBackend>> cpu_inputs_;
   vector<OutputType<CPUBackend>> cpu_outputs_;

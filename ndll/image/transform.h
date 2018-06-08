@@ -27,7 +27,7 @@ namespace ndll {
  */
 NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_x, int crop_y, int crop_h, int crop_w,
-    bool mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
+    int mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
 /**
@@ -49,7 +49,7 @@ NDLLError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
  */
 NDLLError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h, int crop_w,
-    bool mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
+    int mirror, uint8 *out_img, NDLLInterpType type = NDLL_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
 }  // namespace ndll

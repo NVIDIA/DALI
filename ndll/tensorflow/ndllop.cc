@@ -3,9 +3,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
-#include "ndll/pipeline/ndll.pb.h"
-#include "ndll/pipeline/pipeline.h"
-#include "ndll/pipeline/c_api.h"
+#include "ndll/c_api/c_api.h"
 #include "ndll/common.h"
 
 namespace tf = tensorflow;
@@ -101,7 +99,6 @@ class NdllOp : public tf::OpKernel {
   }
 
  private:
-  std::unique_ptr<ndll::Pipeline> pipeline_;
   PipelineHandle pipe_handle_;
 };
 

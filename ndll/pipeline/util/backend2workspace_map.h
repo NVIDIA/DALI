@@ -5,6 +5,8 @@
 #include "ndll/pipeline/data/backend.h"
 #include "ndll/pipeline/workspace/device_workspace.h"
 #include "ndll/pipeline/workspace/sample_workspace.h"
+#include "ndll/pipeline/workspace/mixed_workspace.h"
+#include "ndll/pipeline/workspace/support_workspace.h"
 
 namespace ndll {
 
@@ -27,8 +29,23 @@ class Backend2WorkspaceMap<GPUBackend> {
   typedef DeviceWorkspace Type;
 };
 
+template<>
+class Backend2WorkspaceMap<SupportBackend> {
+ public:
+  typedef SupportWorkspace Type;
+};
+
+template<>
+class Backend2WorkspaceMap<MixedBackend> {
+ public:
+  typedef MixedWorkspace Type;
+};
+
+
 // Workspace<CPUBackend> maps to SampleWorkspace
 // Workspace<GPUBackend> maps to DeviceWorkspace
+// Workspace<MixedBackend> maps to MixedWorkspace
+// Workspace<SupportBackend> maps to SupportWorkspace
 template<typename Backend>
 using Workspace = typename Backend2WorkspaceMap<Backend>::Type;
 

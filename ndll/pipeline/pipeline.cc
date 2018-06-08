@@ -7,7 +7,7 @@
 #include <functional>
 #include <memory>
 
-#include "ndll/pipeline/argument.h"
+#include "ndll/pipeline/operators/argument.h"
 #include "ndll/pipeline/util/device_guard.h"
 
 namespace ndll {
@@ -21,14 +21,21 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 
   // Validate op device
   string device = spec.GetArgument<string>("device");
-  NDLL_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed", "Invalid "
+  NDLL_ENFORCE(device == "cpu" ||
+               device == "gpu" ||
+               device == "mixed" ||
+               device == "support", "Invalid "
       "device argument \"" + device + "\". Valid options are "
-      "\"cpu\", \"gpu\" or \"mixed\"");
+      "\"cpu\", \"gpu\", \"mixed\" or \"support\"");
 
   DeviceGuard g(device_id_);
 
-  // Verify the inputs to the op
+  // Verify the regular inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
+    if (spec.IsArgumentInput(i)) {
+      // We only look at regular inputs here
+      continue;
+    }
     string input_name = spec.InputName(i);
     string input_device = spec.InputDevice(i);
     auto it = edge_names_.find(input_name);
@@ -58,13 +65,38 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
           "inputs. " + error_str);
       NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. " + error_str);
+      NDLL_ENFORCE(!it->second.is_support,
+          "Argument input can only be used as regular input by support ops. " + error_str);
+    } else if (device == "support") {
+      NDLL_ENFORCE(input_device == "cpu", "Support ops can only take cpu inputs. " + error_str);
+      NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
+          "only on gpu. " + error_str);
+      NDLL_ENFORCE(it->second.is_support,
+          "Support ops can only take inputs produced by other support ops." + error_str);
     } else if (input_device == "cpu") {
+      // device == gpu
       NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. " + error_str);
       SetupCPUInput(it, i, &spec);
     } else {
       SetupGPUInput(it);
     }
+  }
+
+  // Verify the argument inputs to the op
+  for (const auto& arg_pair : spec.ArgumentInputs()) {
+    std::string input_name = spec.InputName(arg_pair.second);
+    auto it = edge_names_.find(input_name);
+
+    NDLL_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
+        "' to op '" + spec.name() + "' is not known to the pipeline.");
+
+    string error_str = "(op: '" + spec.name() + "', input: '" +
+      input_name + "')";
+
+    NDLL_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
+        "only on GPU. " + error_str);
+    NDLL_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
   }
 
   // Verify and record the outputs of the op
@@ -81,9 +113,9 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 
     // Validate output data conforms to graph constraints
     bool mark_explicitly_contiguous = false;
-    if (device == "cpu") {
-      NDLL_ENFORCE(output_device == "cpu", "cpu ops can only produce "
-          "cpu outputs." + error_str);
+    if (device == "cpu" || device == "support") {
+      NDLL_ENFORCE(output_device == "cpu", "CPU and support ops can only produce "
+          "CPU outputs." + error_str);
     } else if (device == "gpu") {
       if (output_device == "cpu") {
         mark_explicitly_contiguous = true;
@@ -93,6 +125,10 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     EdgeMeta meta = NewEdge(output_device);
     if (mark_explicitly_contiguous) {
       meta.has_contiguous = true;
+    }
+    if (device == "support") {
+      meta.has_contiguous = true;
+      meta.is_support = true;
     }
 
     NDLL_ENFORCE(edge_names_.insert({output_name, meta}).second,

@@ -31,7 +31,13 @@ class GPUBackend final {
  * @brief Dummy Backend class to differentiate
  * Mixed ops.
  */
-class Mixed final {};
+class MixedBackend final {};
+
+/**
+ * @brief Dummy Backend class to differentiate
+ * Support ops.
+ */
+class SupportBackend final {};
 
 /**
  * @brief Provides access to CPU allocator and other cpu meta-data

@@ -15,7 +15,16 @@
 #include "ndll/common.h"
 #include "ndll/error_handling.h"
 
+#ifndef NDLL_TYPENAME_REGISTERER
+#define NDLL_TYPENAME_REGISTERER(...)
+#endif
+
+#ifndef NDLL_TYPEID_REGISTERER
+#define NDLL_TYPEID_REGISTERER(...)
+#endif
+
 namespace ndll {
+
 
 /**
  * @brief Enum identifiers for the different data types that
@@ -31,6 +40,7 @@ enum NDLLDataType {
   NDLL_FLOAT = 5,
   NDLL_FLOAT64 = 6,
   NDLL_BOOL = 7,
+  NDLL_STRING = 8,
   NDLL_NPPI_POINT,
   NDLL_NPPI_SIZE,
   NDLL_NPPI_RECT_SIZE,
@@ -38,13 +48,7 @@ enum NDLLDataType {
   NDLL_UINT32,
   NDLL_RESIZE_MAPPING,
   NDLL_PIX_MAPPING,
-
-  // Internal types
-  NDLL_INTERNAL_C_UINT8_P = 1000,
-  NDLL_INTERNAL_PARSEDJPEG = 1001,
-  NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM = 1002,
-  NDLL_INTERNAL_TEST_TYPE = 1003,
-  NDLL_INTERNAL_TEST_TYPE_2 = 1004,
+  NDLL_DATATYPE_END
 };
 
 inline std::string to_string(const NDLLDataType& dtype) {
@@ -69,6 +73,8 @@ inline std::string to_string(const NDLLDataType& dtype) {
       return "FLOAT64";
     case NDLL_BOOL:
       return "BOOL";
+    case NDLL_STRING:
+      return "STRING";
     case NDLL_NPPI_POINT:
       return "NPPI_POINT";
     case NDLL_NPPI_SIZE:
@@ -81,15 +87,9 @@ inline std::string to_string(const NDLLDataType& dtype) {
       return "RESIZE_MAPPING";
     case NDLL_PIX_MAPPING:
       return "PIX_MAPPING";
-    case NDLL_INTERNAL_C_UINT8_P:
-    case NDLL_INTERNAL_PARSEDJPEG:
-    case NDLL_INTERNAL_DCTQUANTINV_IMAGE_PARAM:
-    case NDLL_INTERNAL_TEST_TYPE:
-    case NDLL_INTERNAL_TEST_TYPE_2:
+    default:
       return "<internal>";
   }
-
-  NDLL_FAIL("Unknown datatype");
 }
 
 // Dummy type to represent the invalid default state of ndll types.
@@ -101,10 +101,16 @@ struct NoType {};
 class TypeTable {
  public:
   template <typename T>
-  static NDLLDataType GetTypeID();
+  static NDLLDataType GetTypeID() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    static NDLLDataType type_id = TypeTable::RegisterType<T>(static_cast<NDLLDataType>(++index_));
+    return type_id;
+  }
 
   template <typename T>
-  static string GetTypeName();
+  static string GetTypeName() {
+    return typeid(T).name();
+  }
 
  private:
   // TypeTable should only be referenced through its static members
@@ -115,24 +121,21 @@ class TypeTable {
   static NDLLDataType RegisterType(NDLLDataType dtype) {
     // Lock the mutex to ensure correct setup even if this
     // method is triggered from threads
-    std::lock_guard<std::mutex> lock(mutex_);
 
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));
 
-    // This method should only be called once per type. It shouldn't
-    // even be possible to call this twice without compiler errors
-    // because it is only called from the explicit specialization of
-    // GetIDForType().
-    NDLL_ENFORCE(id_it == type_map_.end(),
-        "Re-registration of type, check for duplicate NDLL_REGISTER_TYPE calls");
-
-    type_map_[typeid(T)] = dtype;
-    return dtype;
+    if (id_it == type_map_.end()) {
+      type_map_[typeid(T)] = dtype;
+      return dtype;
+    } else {
+      return id_it->second;
+    }
   }
 
   static std::mutex mutex_;
   static std::unordered_map<std::type_index, NDLLDataType> type_map_;
+  static int index_;
 };
 
 // Stores the unqiue ID for a type and its size in bytes
@@ -267,14 +270,26 @@ inline bool IsValidType(TypeInfo type) {
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
 #define NDLL_REGISTER_TYPE(Type, dtype)                           \
-  template <> string TypeTable::GetTypeName<Type>() {             \
-    return #Type;                                                 \
-  }                                                               \
-  template <> NDLLDataType TypeTable::GetTypeID<Type>() {               \
-    static NDLLDataType type_id = TypeTable::RegisterType<Type>(dtype);      \
-    return type_id;                                               \
-  }
+  template <> string TypeTable::GetTypeName<Type>()               \
+    NDLL_TYPENAME_REGISTERER(Type);                               \
+  template <> NDLLDataType TypeTable::GetTypeID<Type>()           \
+    NDLL_TYPEID_REGISTERER(Type, dtype);
 
+// Instantiate some basic types
+NDLL_REGISTER_TYPE(NoType, NDLL_NO_TYPE);
+NDLL_REGISTER_TYPE(uint8, NDLL_UINT8);
+NDLL_REGISTER_TYPE(int16, NDLL_INT16);
+NDLL_REGISTER_TYPE(int32, NDLL_INT32);
+NDLL_REGISTER_TYPE(int64, NDLL_INT64);
+NDLL_REGISTER_TYPE(float16, NDLL_FLOAT16);
+NDLL_REGISTER_TYPE(float, NDLL_FLOAT);
+NDLL_REGISTER_TYPE(double, NDLL_FLOAT64);
+NDLL_REGISTER_TYPE(bool, NDLL_BOOL);
+NDLL_REGISTER_TYPE(NppiPoint, NDLL_NPPI_POINT);
+NDLL_REGISTER_TYPE(NppiSize, NDLL_NPPI_SIZE);
+NDLL_REGISTER_TYPE(NppiRect, NDLL_NPPI_RECT_SIZE);
+NDLL_REGISTER_TYPE(uint8 *, NDLL_UINT8_PNTR);
+NDLL_REGISTER_TYPE(std::string, NDLL_STRING);
 
 /**
  * @brief Easily instantiate templates for all types
@@ -282,7 +297,7 @@ inline bool IsValidType(TypeInfo type) {
  * DType becomes a type corresponding to given NDLLDataType
  */
 #define NDLL_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
-  switch (type) {                                     \
+  switch (type) {                                    \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
     case NDLL_UINT8:                                 \
@@ -338,7 +353,7 @@ inline bool IsValidType(TypeInfo type) {
   }
 
 #define NDLL_TYPE_SWITCH(type, DType, ...)           \
-  switch (type) {                                     \
+  switch (type) {                                    \
     case NDLL_NO_TYPE:                               \
       NDLL_FAIL("Invalid type.");                    \
     case NDLL_UINT8:                                 \

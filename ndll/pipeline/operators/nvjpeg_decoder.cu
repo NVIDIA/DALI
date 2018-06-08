@@ -5,7 +5,7 @@ namespace ndll {
 
 NDLL_REGISTER_OPERATOR(nvJPEGDecoder, nvJPEGDecoder, Mixed);
 
-NDLL_OPERATOR_SCHEMA(nvJPEGDecoder)
+NDLL_SCHEMA(nvJPEGDecoder)
   .DocStr("Decode JPEG images using the nvJPEG library."
           "Input(0): Encoded image streams"
           "Output(0): Decoded images on GPU in HWC ordering")

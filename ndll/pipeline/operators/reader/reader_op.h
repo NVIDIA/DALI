@@ -10,7 +10,7 @@
 
 #include "ndll/pipeline/operators/reader/loader/loader.h"
 #include "ndll/pipeline/operators/reader/parser/parser.h"
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/operators/operator.h"
 
 namespace ndll {
 

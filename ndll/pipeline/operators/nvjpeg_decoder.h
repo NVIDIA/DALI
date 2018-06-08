@@ -9,7 +9,7 @@
 #include <map>
 #include <vector>
 
-#include "ndll/pipeline/operator.h"
+#include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/util/thread_pool.h"
 #include "ndll/util/image.h"
 
@@ -82,10 +82,10 @@ inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
   }
 }
 
-class nvJPEGDecoder : public Operator<Mixed> {
+class nvJPEGDecoder : public Operator<MixedBackend> {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
-    Operator<Mixed>(spec),
+    Operator<MixedBackend>(spec),
     max_streams_(spec.GetArgument<int>("max_streams")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     output_shape_(batch_size_),
@@ -186,9 +186,9 @@ class nvJPEGDecoder : public Operator<Mixed> {
 
         // Setup outputs for images that will be processed via nvjpeg-batched
         if (info.nvjpeg_support) {
-          batched_output_[batched_image_idx_[i]].channel[0] = 
+          batched_output_[batched_image_idx_[i]].channel[0] =
             output->mutable_tensor<uint8_t>(i);
-          batched_output_[batched_image_idx_[i]].pitch[0] = 
+          batched_output_[batched_image_idx_[i]].pitch[0] =
             GetOutputPitch(output_type_) * info.widths[0];
         }
 
