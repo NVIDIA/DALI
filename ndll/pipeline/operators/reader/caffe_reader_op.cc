@@ -9,7 +9,7 @@ NDLL_SCHEMA(CaffeReader)
   .DocStr("Read (Image, label) pairs from a Caffe LMDB")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
-  .AddArg("path", 
+  .AddArg("path",
       R"code(`string`
       Path to Caffe LMDB directory)code")
   .AddParent("LoaderBase");

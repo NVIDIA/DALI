@@ -11,7 +11,7 @@ NDLL_SCHEMA(FileReader)
   .DocStr("Read (Image, label) pairs from a directory")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
-  .AddArg("file_root", 
+  .AddArg("file_root",
       R"code(`string`
       Path to a directory containing data files)code")
   .AddOptionalArg("file_list",

@@ -37,7 +37,7 @@ class C2Pipe(Pipeline):
                                        std = [1., 1., 1.],
                                        height = 224,
                                        width = 224,
-                                       channels = 3)
+                                       image_type = types.RGB)
         self.uniform = ops.Uniform(range = (0., 1.))
         self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
