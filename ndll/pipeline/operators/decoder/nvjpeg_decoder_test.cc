@@ -60,7 +60,6 @@ TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
   this->AddSingleOp(OpSpec("nvJPEGDecoder")
               .AddArg("device", "mixed")
               .AddArg("output_type", this->img_type_)
-              .AddArg("max_streams", 1)
               .AddArg("use_batched_decode", false)
               .AddInput("encoded", "cpu")
               .AddOutput("decoded", "gpu"));
@@ -87,7 +86,6 @@ TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode) {
   this->AddSingleOp(OpSpec("nvJPEGDecoder")
               .AddArg("device", "mixed")
               .AddArg("output_type", this->img_type_)
-              .AddArg("max_streams", 2)
               .AddArg("use_batched_decode", true)
               .AddInput("encoded", "cpu")
               .AddOutput("decoded", "gpu"));

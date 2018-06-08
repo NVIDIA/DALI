@@ -86,7 +86,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
-    max_streams_(spec.GetArgument<int>("max_streams")),
+    max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<NDLLImageType>("output_type")),
     output_shape_(batch_size_),
     output_info_(batch_size_),

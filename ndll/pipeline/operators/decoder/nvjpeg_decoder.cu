@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#include "ndll/pipeline/operators/nvjpeg_decoder.h"
+#include "ndll/pipeline/operators/decoder/nvjpeg_decoder.h"
 
 namespace ndll {
 
@@ -13,7 +13,6 @@ NDLL_SCHEMA(nvJPEGDecoder)
   .NumOutput(1)
   .AddOptionalArg("output_type", "Output color format", NDLL_RGB)
   .AddOptionalArg("use_batched_decode",
-                  "Use nvjpeg's batched decoding API", false)
-  .AddOptionalArg("max_streams", "Foo", 1);
+                  "Use nvjpeg's batched decoding API", false);
 
 }  // namespace ndll
