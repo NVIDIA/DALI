@@ -27,11 +27,12 @@ int OpSchema::CalculateOutputs(const OpSpec &spec) const {
 void OpSchema::CheckArgs(const OpSpec &spec) const {
   std::vector<string> vec = spec.ListArguments();
   std::set<std::string> req_arguments_left;
-  for (auto& arg_pair : arguments_) {
+  auto required_arguments = GetRequiredArguments();
+  for (auto& arg_pair : required_arguments) {
     req_arguments_left.insert(arg_pair.first);
   }
   for (std::string s : vec) {
-    NDLL_ENFORCE(arguments_.find(s) != arguments_.end() ||
+    NDLL_ENFORCE(required_arguments.find(s) != required_arguments.end() ||
         OptionalArgumentExists(s) ||
         internal_arguments_.find(s) != internal_arguments_.end(),
         "Got an unexpected argument \"" + s + "\"");
