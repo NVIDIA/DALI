@@ -322,6 +322,7 @@ class OpSpec {
       ndll_proto::InputOutput *out = op->add_output();
       out->set_name(outputs_[i].first);
       out->set_device(outputs_[i].second);
+      out->set_is_argument_input(false);
     }
 
     for (auto& a : arguments_) {
