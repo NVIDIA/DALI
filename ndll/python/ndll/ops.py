@@ -67,7 +67,7 @@ class _OperatorInstance(object):
                 raise TypeError(
                     """Expected inputs of type TensorReference or list of
                     TensorReference. Received input type {}"""
-                    .format(type(inp).__name__))
+                    .format(type(inputs[0]).__name__))
         # Argument inputs
         for k in kwargs.keys():
             if k not in ["name"]:
