@@ -123,6 +123,9 @@ class Pipeline {
     ndll_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 
+    this->batch_size_ = def.batch_size();
+    this->device_id_ = def.device_id();
+
     // from serialized pipeline, construct new pipeline
     // All external inputs
     for (auto& ex : def.external_inputs()) {

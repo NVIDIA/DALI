@@ -297,8 +297,9 @@ string Pipeline::SerializeToProtobuf() const {
 
     out->set_name(output.first);
     out->set_device(output.second);
+    out->set_is_argument_input(false);
   }
-
+  pipe.set_device_id(this->device_id_);
   string output = pipe.SerializeAsString();
 
 #ifndef NDEBUG

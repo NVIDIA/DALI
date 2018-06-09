@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <string>
+#include <exception>
 
 #include "ndll/common.h"
 #include "ndll/pipeline/operators/argument.h"
@@ -41,8 +42,13 @@ class TFRecordParser : public Parser {
 
     // Omit length and crc
     data = data + sizeof(length) + sizeof(crc);
-    NDLL_ENFORCE(example.ParseFromArray(data, length),
-        "Error in parsing - invalid TFRecord file!");
+    try {
+      NDLL_ENFORCE(example.ParseFromArray(data, length),
+          "Error in parsing - invalid TFRecord file!");
+    } catch(std::exception& e) {
+      std::string str = "Error while parsing TFRecord: " + std::string(e.what());
+      NDLL_FAIL(str);
+    }
 
     for (size_t i = 0; i < features_.size(); ++i) {
       auto* output = ws->Output<CPUBackend>(i);

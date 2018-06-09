@@ -3,6 +3,7 @@
 #define NDLL_PIPELINE_DATA_BACKEND_H_
 
 #include <cuda_runtime_api.h>
+#include <memory>
 
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/data/allocator.h"
@@ -18,6 +19,9 @@ void InitializeBackends(const OpSpec &cpu_allocator,
 void SetCPUAllocator(const OpSpec& allocator);
 void SetPinnedCPUAllocator(const OpSpec& allocator);
 void SetGPUAllocator(const OpSpec& allocator);
+void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
+
+GPUAllocator& GetGPUAllocator();
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */

@@ -59,7 +59,15 @@ class OpSpec {
     }
 
     for (int i = 0; i < def.input_size(); ++i) {
-      this->AddInput(def.input(i).name(), def.input(i).device());
+      if (!def.input(i).is_argument_input()) {
+        this->AddInput(def.input(i).name(), def.input(i).device());
+      }
+    }
+
+    for (int i = 0; i < def.input_size(); ++i) {
+      if (def.input(i).is_argument_input()) {
+        this->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
+      }
     }
 
     for (int i = 0; i < def.output_size(); ++i) {
@@ -304,12 +312,17 @@ class OpSpec {
       ndll_proto::InputOutput *in = op->add_input();
       in->set_name(inputs_[i].first);
       in->set_device(inputs_[i].second);
+      if (this->IsArgumentInput(i)) {
+         in->set_arg_name(this->ArgumentInputName(i));
+      }
+      in->set_is_argument_input(this->IsArgumentInput(i));
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
       ndll_proto::InputOutput *out = op->add_output();
       out->set_name(outputs_[i].first);
       out->set_device(outputs_[i].second);
+      out->set_is_argument_input(false);
     }
 
     for (auto& a : arguments_) {

@@ -75,6 +75,7 @@ int64_t* ShapeAt(PipelineHandle* pipe_handle, int n) {
 }
 
 void CopyTensorNTo(PipelineHandle* pipe_handle, void* dst, int n) {
+  ndll::TimeRange tr("CopyTensorNTo", ndll::TimeRange::kGreen);
   ndll::DeviceWorkspace* ws = reinterpret_cast<ndll::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<ndll::CPUBackend>(n)) {
     ndll::Tensor<ndll::CPUBackend> t;
