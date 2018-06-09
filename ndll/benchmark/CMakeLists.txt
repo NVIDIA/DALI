@@ -3,8 +3,10 @@ if (BUILD_BENCHMARK)
   set(NDLL_BENCHMARK_SRCS
     #"${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_nvjpeg_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/ndll_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_alexnet_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/decoder_bench.cc"
   )
 
   if (BUILD_LMDB)

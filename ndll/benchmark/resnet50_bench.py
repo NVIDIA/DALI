@@ -67,8 +67,7 @@ class HybridPipe(Pipeline):
                                          exec_pipelined=pipelined,
                                          exec_async=async)
         self.input = ops.ExternalSource()
-        self.huffman = ops.HuffmanDecoder()
-        self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.resize = ops.Resize(device = "gpu", random_resize = True,
                                  resize_a = 256, resize_b = 480,
                                  image_type = types.RGB,
@@ -85,8 +84,7 @@ class HybridPipe(Pipeline):
 
     def define_graph(self):
         self.jpegs = self.input()
-        dct_coeff, jpeg_meta = self.huffman(self.jpegs)
-        images = self.idct(dct_coeff.gpu(), jpeg_meta)
+        images = self.decode(self.jpegs)
         resized = self.resize(images)
         output = self.cmnp(resized, mirror = self.mirror(),
                            crop_pos_x = self.uniform(),

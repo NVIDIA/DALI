@@ -61,6 +61,8 @@ class NDLLSingleOpTest : public NDLLTest {
  public:
   inline void SetUp() override {
     NDLLTest::SetUp();
+    jpegs_.clear();
+    jpeg_sizes_.clear();
 
     // encoded in jpegs_
     LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
@@ -72,8 +74,6 @@ class NDLLSingleOpTest : public NDLLTest {
 
     // Set the pipeline batch size
     batch_size_ = 32;
-
-    InitPipeline();
   }
   inline void TearDown() override {
     NDLLTest::TearDown();
@@ -93,6 +93,7 @@ class NDLLSingleOpTest : public NDLLTest {
 
   void AddSingleOp(const OpSpec& spec) {
     spec_ = spec;
+    InitPipeline();
     // generate the output mapping for this op
     for (int i = 0; i < spec.NumOutput(); ++i) {
       auto output_name = spec.OutputName(i);
@@ -107,6 +108,7 @@ class NDLLSingleOpTest : public NDLLTest {
   }
 
   void SetExternalInputs(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
+    InitPipeline();
     inputs_ = inputs;
     for (auto& input : inputs) {
       input_data_.push_back(input.second);
@@ -167,7 +169,7 @@ class NDLLSingleOpTest : public NDLLTest {
    * TODO(slayton): Add different encodings
    */
   void EncodedJPEGData(TensorList<CPUBackend>* t, int n) {
-    NDLLTest::MakeJPEGBatch(t, n);
+    NDLLTest::MakeEncodedBatch(t, n, jpegs_, jpeg_sizes_);
   }
 
   void EncodedPNGData(TensorList<CPUBackend>* t, int n) {
@@ -186,11 +188,8 @@ class NDLLSingleOpTest : public NDLLTest {
   // use a Get mean, std-dev of difference
   template <typename T>
   void CheckBuffers(int N, const T *a, const T *b) {
-    double diff_sum = 0;
-
     vector<double> diff(N);
 
-    double div_eps = 1e-7;
     double mean, std;
     for (int i = 0; i < N; ++i) {
       diff[i] = static_cast<double>(a[i]) - static_cast<double>(b[i]);

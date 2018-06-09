@@ -492,9 +492,7 @@ class HybridPipe(Pipeline):
         idx_files = [base + "val.idx"]
         rec_files = [base + "val.rec"]
         self.input = ops.MXNetReader(path = rec_files, index_path = idx_files, shard_id = device_id, num_shards = num_gpus)
-
-        self.huffman = ops.HuffmanDecoder()
-        self.idct = ops.DCTQuantInv(device = "gpu", output_type = types.RGB)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.resize = ops.Resize(device = "gpu", random_resize = True,
                                  resize_a = 256, resize_b = 480,
                                  image_type = types.RGB,
@@ -510,8 +508,7 @@ class HybridPipe(Pipeline):
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
-        dct_coeff, jpeg_meta = self.huffman(inputs)
-        images = self.idct(dct_coeff.gpu(), jpeg_meta)
+        images = self.decoder(inputs)
         images = self.resize(images)
         output = self.cmn(images)
         return (output, labels.gpu())

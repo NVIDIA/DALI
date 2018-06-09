@@ -266,6 +266,10 @@ static vector<string> GetRegisteredGPUOps() {
   return GPUOperatorRegistry::Registry().RegisteredNames();
 }
 
+static vector<string> GetRegisteredMixedOps() {
+  return MixedOperatorRegistry::Registry().RegisteredNames();
+}
+
 static vector<string> GetRegisteredSupportOps() {
   return SupportOperatorRegistry::Registry().RegisteredNames();
 }
@@ -510,9 +514,10 @@ PYBIND11_MODULE(ndll_backend, m) {
         return ret;
         }, py::return_value_policy::reference);
 
-  // Registries for cpu & gpu operators
+  // Registries for cpu, gpu & mixed operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
+  m.def("RegisteredMixedOps", &GetRegisteredMixedOps);
   m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
 
   // Registry for OpSchema

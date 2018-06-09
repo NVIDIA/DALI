@@ -164,18 +164,10 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
-      OpSpec("HuffmanDecoder")
-      .AddArg("device", "cpu")
+      OpSpec("nvJPEGDecoder")
+      .AddArg("device", "mixed")
       .AddInput("compressed_images", "cpu")
-      .AddOutput("dct_data", "cpu")
-      .AddOutput("jpeg_meta", "cpu"));
-
-  pipe.AddOperator(
-      OpSpec("DCTQuantInv")
-      .AddArg("device", "gpu")
       .AddArg("output_type", img_type)
-      .AddInput("dct_data", "gpu")
-      .AddInput("jpeg_meta", "cpu")
       .AddOutput("images", "gpu"));
 
   // Add a batched resize op

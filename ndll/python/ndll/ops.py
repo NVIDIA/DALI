@@ -67,7 +67,7 @@ class _OperatorInstance(object):
                 raise TypeError(
                     """Expected inputs of type TensorReference or list of
                     TensorReference. Received input type {}"""
-                    .format(type(inp).__name__))
+                    .format(type(inputs[0]).__name__))
         # Argument inputs
         for k in kwargs.keys():
             if k not in ["name"]:
@@ -85,13 +85,16 @@ class _OperatorInstance(object):
 
     def generate_outputs(self):
         # Add outputs
-        device = "cpu"
-        if self._op.device == "gpu":
-            device = "gpu"
+        if self._op.device == "gpu" or self._op.device == "mixed":
+            output_device = "gpu"
+        else:
+            output_device = "cpu"
+
         num_output = self._op.schema.CalculateOutputs(self._spec)
+
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = TensorReference(t_name, device, self)
+            t = TensorReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             self.append_output(t)
 
@@ -186,7 +189,8 @@ def python_op_factory(name, op_device = "cpu"):
     return Operator
 
 _cpugpu_ops = (set(b.RegisteredCPUOps())
-            .union(set(b.RegisteredGPUOps())))
+            .union(set(b.RegisteredGPUOps()))
+            .union(set(b.RegisteredMixedOps())))
 _support_ops = set(b.RegisteredSupportOps())
 for op_name in _cpugpu_ops:
     setattr(sys.modules[__name__], op_name,
