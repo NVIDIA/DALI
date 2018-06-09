@@ -17,6 +17,8 @@ typedef std::chrono::high_resolution_clock Clock;
 
 namespace tf = tensorflow;
 
+#define USE_TF_ALLOCATOR 0
+
 #define TF_NDLL_CALL(FUNC)                                                         \
     do {                                                                           \
       try {                                                                        \
@@ -83,9 +85,10 @@ class NdllOp : public tf::OpKernel {
                    num_threads,
                    device_id));
 
+#if USE_TF_ALLOCATOR
     SetupTFAllocator(device_id_);
     UpdateTFAllocaterContext<tf::OpKernelConstruction>(context, device_id_);
-
+#endif
     LOG_LINE << "Pipeline created\n";
     TF_NDLL_CALL(Run(&pipe_handle_));
     LOG_LINE << "After first run\n";
@@ -98,9 +101,9 @@ class NdllOp : public tf::OpKernel {
   void Compute(tf::OpKernelContext* context) override {
     auto total_s = Clock::now();
     LOG_LINE << "Computing...\n";
-    std::cout << context << " " << context->num_inputs() << std::endl;
+#if USE_TF_ALLOCATOR
     UpdateTFAllocaterContext<tf::OpKernelContext>(context, device_id_);
-
+#endif
     LOG_LINE << "Updated context\n";
     auto s = Clock::now();
     TF_NDLL_CALL(Run(&pipe_handle_));
