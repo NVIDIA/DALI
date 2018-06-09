@@ -28,6 +28,8 @@ NDLL_SCHEMA(Cast)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddArg("dtype", "Output data type");
+  .AddArg("dtype",
+      R"code(`ndll.types.NDLLDataType`
+      Output data type)code");
 
 }  // namespace ndll

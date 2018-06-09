@@ -11,6 +11,8 @@ NDLL_SCHEMA(DummyOp)
   .DocStr("Dummy operator for testing")
   .OutputFn([](const OpSpec &spec) { return spec.GetArgument<int>("num_outputs"); })
   .NumInput(0, 10)
-  .AddOptionalArg("num_outputs", "Number of outputs", 2);
+  .AddOptionalArg("num_outputs",
+      R"code(`int`
+      Number of outputs)code", 2);
 
 }  // namespace ndll

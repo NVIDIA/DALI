@@ -15,15 +15,24 @@ NDLL_SCHEMA(RandomResizedCrop)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("random_aspect_ratio",
-      "Range from which to choose random aspect ratio",
+      R"code(`list of float`
+      Range from which to choose random aspect ratio)code",
       std::vector<float>{3./4., 4./3.})
-  .AddOptionalArg("random_area", "Range from which to choose random area factor `A`."
-      " Before resizing, the cropped image's area will be equal to `A` * original image's area.",
+  .AddOptionalArg("random_area",
+      R"code(`list of float`
+      Range from which to choose random area factor `A`.
+      Before resizing, the cropped image's area will be equal to `A` * original image's area.)code",
       std::vector<float>{0.08, 1.0})
-  .AddOptionalArg("interp_type", "Interpolation method", NDLL_INTERP_LINEAR)
-  .AddArg("size", "Size of resized image")
+  .AddOptionalArg("interp_type",
+      R"code(`ndll.types.NDLLInterpType`
+      Type of interpolation used)code",
+      NDLL_INTERP_LINEAR)
+  .AddArg("size",
+      R"code(`list of float`
+      Size of resized image)code")
   .AddOptionalArg("num_attempts",
-      "Maximum number of attempts used to choose random area and aspect ratio", 10);
+      R"code(`int`
+      Maximum number of attempts used to choose random area and aspect ratio)code", 10);
 
 template<>
 struct RandomResizedCrop<CPUBackend>::Params {

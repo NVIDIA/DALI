@@ -23,6 +23,8 @@ NDLL_SCHEMA(CoinFlip)
       " usable as an argument for select ops.")
   .NumInput(0)
   .NumOutput(1)
-  .AddOptionalArg("probability", "Probability of returning 1", 0.5f);
+  .AddOptionalArg("probability",
+      R"code(`float`
+      Probability of returning 1)code", 0.5f);
 
 }  // namespace ndll
