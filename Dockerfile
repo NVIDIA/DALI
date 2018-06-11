@@ -61,6 +61,8 @@ COPY . .
 
 RUN mkdir build && cd build && \
     pip install tensorflow-gpu && \
+    ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=/opt/ndll \
         -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
         -DBUILD_PROTOBUF=ON -DBUILD_LMDB=ON \
@@ -68,6 +70,7 @@ RUN mkdir build && cd build && \
         -DBUILD_TENSORFLOW=ON && \
     make -j"$(nproc)" && \
     make install && \
+    rm /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig && \
     pip uninstall --yes tensorflow-gpu
 
