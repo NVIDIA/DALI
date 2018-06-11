@@ -43,62 +43,68 @@ class nvjpegDecodeTest : public NDLLSingleOpTest {
   }
 
  protected:
+  void TestDecode(bool batched, int num_threads) {
+    const int batch_size = 32;
+    this->SetBatchSize(batch_size);
+    this->SetNumThreads(num_threads);
+    TensorList<CPUBackend> encoded_data;
+    this->EncodedJPEGData(&encoded_data, batch_size);
+    this->SetExternalInputs({std::make_pair("encoded", &encoded_data)});
+
+    this->AddSingleOp(OpSpec("nvJPEGDecoder")
+                .AddArg("device", "mixed")
+                .AddArg("output_type", this->img_type_)
+                .AddArg("use_batched_decode", batched)
+                .AddInput("encoded", "cpu")
+                .AddOutput("decoded", "gpu"));
+
+    DeviceWorkspace ws;
+    this->RunOperator(&ws);
+
+    // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
+    // Difference is consistent, deterministic and goes away if I force OCV
+    // instead of TJPG decoding.
+    this->SetEps(2.0);
+
+    this->CheckAnswers(&ws, {0});
+  }
+
   const NDLLImageType img_type_ = ImgType::type;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(nvjpegDecodeTest, Types);
 
-TYPED_TEST(nvjpegDecodeTest, TestJPEGDecode) {
-  const int batch_size = 32;
-  this->SetBatchSize(batch_size);
-  this->SetNumThreads(1);
-  TensorList<CPUBackend> encoded_data;
-  this->EncodedJPEGData(&encoded_data, batch_size);
-  this->SetExternalInputs({std::make_pair("encoded", &encoded_data)});
+TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode) {
+  this->TestDecode(false, 1);
+}
 
-  this->AddSingleOp(OpSpec("nvJPEGDecoder")
-              .AddArg("device", "mixed")
-              .AddArg("output_type", this->img_type_)
-              .AddArg("use_batched_decode", false)
-              .AddInput("encoded", "cpu")
-              .AddOutput("decoded", "gpu"));
+TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode2T) {
+  this->TestDecode(false, 2);
+}
 
-  DeviceWorkspace ws;
-  this->RunOperator(&ws);
+TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode3T) {
+  this->TestDecode(false, 3);
+}
 
-  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
-  // Difference is consistent, deterministic and goes away if I force OCV
-  // instead of TJPG decoding.
-  this->SetEps(2.0);
-
-  this->CheckAnswers(&ws, {0});
+TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode4T) {
+  this->TestDecode(false, 4);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode) {
-  const int batch_size = 32;
-  this->SetBatchSize(batch_size);
-  this->SetNumThreads(1);
-  TensorList<CPUBackend> encoded_data;
-  this->EncodedJPEGData(&encoded_data, batch_size);
-  this->SetExternalInputs({std::make_pair("encoded", &encoded_data)});
+  this->TestDecode(true, 1);
+}
 
-  this->AddSingleOp(OpSpec("nvJPEGDecoder")
-              .AddArg("device", "mixed")
-              .AddArg("output_type", this->img_type_)
-              .AddArg("use_batched_decode", true)
-              .AddInput("encoded", "cpu")
-              .AddOutput("decoded", "gpu"));
+TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode2T) {
+  this->TestDecode(true, 2);
+}
 
-  DeviceWorkspace ws;
-  this->RunOperator(&ws);
+TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode3T) {
+  this->TestDecode(true, 3);
+}
 
-  // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
-  // Difference is consistent, deterministic and goes away if I force OCV
-  // instead of TJPG decoding.
-  this->SetEps(2.0);
-
-  this->CheckAnswers(&ws, {0});
+TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode4T) {
+  this->TestDecode(true, 4);
 }
 
 }  // namespace ndll
