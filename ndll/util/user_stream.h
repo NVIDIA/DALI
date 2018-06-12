@@ -72,16 +72,10 @@ class UserStream {
   UserStream() {}
 
   size_t GetDeviceForBuffer(const ndll::Buffer<GPUBackend> &b) {
-    const void* ptr = b.raw_data();
-    CUdeviceptr cuptr = (const CUdeviceptr) ptr;
-    CUcontext ctx;
-    CUpointer_attribute attr = CU_POINTER_ATTRIBUTE_CONTEXT;
-    CUresult result = cuPointerGetAttribute(&ctx, attr, cuptr);
-    NDLL_ENFORCE(result == CUDA_SUCCESS,
-        "Used pointer from unknown CUDA context");
-    cuCtxSetCurrent(ctx);
-    int dev;
-    CUDA_CALL(cudaGetDevice(&dev));
+    int dev = b.device_id();
+    NDLL_ENFORCE(dev != -1,
+        "Used a pointer from unknown device");
+    CUDA_CALL(cudaSetDevice(dev));
     return dev;
   }
 

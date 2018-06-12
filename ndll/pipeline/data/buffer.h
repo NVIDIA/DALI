@@ -62,7 +62,8 @@ class Buffer {
                     size_(0),
                     shares_data_(false),
                     num_bytes_(0),
-                    pinned_(true)
+                    pinned_(true),
+                    device_(-1)
     {}
 
   virtual ~Buffer() = default;
@@ -165,6 +166,14 @@ class Buffer {
   inline void set_pinned(const bool pinned) {
     NDLL_ENFORCE(!data_, "Can only set allocation mode before first allocation");
     pinned_ = pinned;
+  }
+
+  /**
+   * @brief Returns a device this buffer was allocated on
+   * If the backend is CPUBackend, return -1
+   */
+  int device_id() const {
+    return device_;
   }
 
   /**

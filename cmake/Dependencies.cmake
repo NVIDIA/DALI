@@ -11,8 +11,7 @@ find_cuda_helper_libs(nppig)
 list(APPEND NDLL_LIBS ${CUDA_nppicom_LIBRARY}
                       ${CUDA_nppicc_LIBRARY}
                       ${CUDA_nppc_LIBRARY}
-                      ${CUDA_nppig_LIBRARY}
-                      "-lcuda")
+                      ${CUDA_nppig_LIBRARY})
 
 # NVTX for profiling
 if (BUILD_NVTX)
