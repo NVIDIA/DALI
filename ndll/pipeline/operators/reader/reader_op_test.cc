@@ -63,7 +63,6 @@ class DummyDataReader : public DataReader<CPUBackend> {
 
  private:
   std::atomic<int> count_;
-  const int max_count = 100;
 };
 
 NDLL_REGISTER_OPERATOR(DummyDataReader, DummyDataReader, CPU);

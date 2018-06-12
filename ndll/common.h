@@ -144,8 +144,11 @@ struct TimeRange {
 #endif
   }
 
+#ifdef NDLL_USE_NVTX
+
  private:
     bool started = false;
+#endif
 };
 
 using std::to_string;

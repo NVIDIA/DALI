@@ -12,6 +12,7 @@ namespace ndll {
 class Parser {
  public:
   explicit Parser(const OpSpec& spec) {}
+  virtual ~Parser() {}
 
   /**
    * Parse the 'size' bytes of information contained in data to

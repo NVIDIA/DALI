@@ -22,6 +22,7 @@ template <typename Backend>
 class DummyBase {
  public:
   DummyBase() {}
+  virtual ~DummyBase() {}
 
   virtual int GetId() const = 0;
 };

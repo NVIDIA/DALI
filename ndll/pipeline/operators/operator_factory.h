@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <functional>
 
 #include "ndll/common.h"
 #include "ndll/error_handling.h"

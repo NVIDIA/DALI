@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <memory>
+#include <cmath>
 #include "ndll/pipeline/operators/operator.h"
 
 namespace ndll {

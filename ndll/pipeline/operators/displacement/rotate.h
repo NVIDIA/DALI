@@ -4,6 +4,7 @@
 #define NDLL_PIPELINE_OPERATORS_DISPLACEMENT_ROTATE_H_
 
 #include <vector>
+#include <cmath>
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/operators/displacement/warpaffine.h"
 
