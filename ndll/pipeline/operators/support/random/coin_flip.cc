@@ -25,6 +25,6 @@ NDLL_SCHEMA(CoinFlip)
   .NumOutput(1)
   .AddOptionalArg("probability",
       R"code(`float`
-      Probability of returning 1)code", 0.5f);
+      Probability of returning 1.)code", 0.5f);
 
 }  // namespace ndll

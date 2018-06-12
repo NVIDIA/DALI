@@ -6,13 +6,17 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(nvJPEGDecoder, nvJPEGDecoder, Mixed);
 
 NDLL_SCHEMA(nvJPEGDecoder)
-  .DocStr("Decode JPEG images using the nvJPEG library."
-          "Input(0): Encoded image streams"
-          "Output(0): Decoded images on GPU in HWC ordering")
+  .DocStr(R"code(Decode JPEG images using the nvJPEG library.
+          Output of the decoder is on the GPU
+          and uses `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("output_type", "Output color format", NDLL_RGB)
+  .AddOptionalArg("output_type",
+      R"code(`ndll.types.NDLLImageType`
+      The color space of output image)code",
+      NDLL_RGB)
   .AddOptionalArg("use_batched_decode",
-                  "Use nvjpeg's batched decoding API", false);
+      R"code(`bool`
+      Use nvJPEG's batched decoding API.)code", false);
 
 }  // namespace ndll

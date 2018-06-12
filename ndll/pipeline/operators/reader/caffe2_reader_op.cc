@@ -7,7 +7,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 
 NDLL_SCHEMA(Caffe2Reader)
-  .DocStr("Read sample data from a Caffe2 LMDB")
+  .DocStr("Read sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
       auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
@@ -31,13 +31,13 @@ NDLL_SCHEMA(Caffe2Reader)
       MULTI_LABEL_SPARSE = 1 : sparse active label indices for multi-label classification
       MULTI_LABEL_DENSE = 2 : dense label embedding vector for label embedding regression
       MULTI_LABEL_WEIGHTED_SPARSE = 3 : sparse active label indices with per-label weights
-      for multi-label classification)code", 0)
+      for multi-label classification.)code", 0)
   .AddOptionalArg("additional_inputs",
       R"code(`int`
-      Additional auxiliary data tensors provided for each sample)code", 0)
+      Additional auxiliary data tensors provided for each sample.)code", 0)
   .AddOptionalArg("bbox",
       R"code(`bool`
-      Denotes if bounding-box information is present)code", false)
+      Denotes if bounding-box information is present.)code", false)
   .AddParent("LoaderBase");
 
 }  // namespace ndll

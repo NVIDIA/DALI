@@ -12,6 +12,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 
 NDLL_SCHEMA(_TFRecordReaderBase)
+  .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .AddArg("path",
       R"code(`list of string`
       List of paths to TFRecord files)code")
