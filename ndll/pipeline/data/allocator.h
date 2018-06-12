@@ -53,12 +53,15 @@ class GPUAllocator : public AllocatorBase {
 
   virtual void Delete(void *ptr, size_t /* unused */) {
     if (ptr != nullptr) {
-      std::cout << "HI" << std::endl;
+      int dev;
+      cudaGetDevice(&dev);
+      std::cout << "HI " << ptr << " " << dev << std::endl;
     CUdeviceptr cuptr = (CUdeviceptr) ptr;
     CUcontext ctx;
     CUpointer_attribute attr = CU_POINTER_ATTRIBUTE_CONTEXT;
     CUresult result = cuPointerGetAttribute(&ctx, attr, cuptr);
     if (result == CUDA_SUCCESS) {
+      std::cout << "HI2 " << ptr << std::endl;
       cuCtxPushCurrent(ctx);
       CUDA_CALL(cudaFree(ptr));
       cuCtxPopCurrent(&ctx);
