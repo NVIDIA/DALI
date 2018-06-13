@@ -320,7 +320,8 @@ class Buffer {
   using Buffer<Backend>::data_;                 \
   using Buffer<Backend>::size_;                 \
   using Buffer<Backend>::shares_data_;          \
-  using Buffer<Backend>::num_bytes_
+  using Buffer<Backend>::num_bytes_;            \
+  using Buffer<Backend>::device_
 
 }  // namespace ndll
 
