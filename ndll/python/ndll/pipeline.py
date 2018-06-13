@@ -176,7 +176,7 @@ class Pipeline(object):
     # defined by the user to construct their graph of operations.
     # this returns a list of output TensorReferences that we can
     # trace back to add them to the graph
-    def build_graph(self):
+    def define_graph(self):
         raise NotImplementedError
 
     # Can be overriden by user-defined pipeline to perform any

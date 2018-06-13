@@ -4,6 +4,7 @@
 
 #include <dirent.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #include <fstream>
 #include <string>
@@ -46,11 +47,13 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
 
   while ((entry = readdir(dir))) {
     struct stat s;
-    stat(entry->d_name, &s);
+    std::string full_path = path + "/" + std::string(entry->d_name);
+    int ret = stat(full_path.c_str(), &s);
+    NDLL_ENFORCE(ret == 0,
+        "Could not access " + full_path + " during directory traversal.");
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
     if (S_ISDIR(s.st_mode)) {
-      std::string new_folder = path + "/" + std::string{entry->d_name};
-      assemble_file_list(new_folder, dir_count, &file_label_pairs);
+      assemble_file_list(full_path, dir_count, &file_label_pairs);
       dir_count++;
     }
   }
@@ -88,6 +91,13 @@ class FileLoader : public Loader<CPUBackend> {
     // first / only shard: no change needed
     if (shard_id_ == 0) return;
 
+    if (shuffle_) {
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(524287);
+      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+    }
+
     int samples_per_shard = Size() / num_shards_;
     current_index_ = shard_id_ * samples_per_shard;
   }
@@ -113,7 +123,7 @@ class FileLoader : public Loader<CPUBackend> {
     current_image->Close();
 
     // copy the label
-    tensor->mutable_data<uint8_t>()[image_size] = image_pair.second;
+    *(reinterpret_cast<int*>(&tensor->mutable_data<uint8_t>()[image_size])) = image_pair.second;
   }
 
   Index Size() override {
