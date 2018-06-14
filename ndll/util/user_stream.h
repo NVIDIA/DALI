@@ -62,10 +62,8 @@ class UserStream {
     int gpu_count = 0;
     CUDA_CALL(cudaGetDeviceCount(&gpu_count));
     streams_.resize(gpu_count);
-    int hi_pri, lo_pri;
-    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lo_pri, &hi_pri));
     for (size_t i = 0; i < streams_.size(); ++i) {
-      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[i], 0, hi_pri));
+      CUDA_CALL(cudaStreamCreate(&streams_[i]));
     }
   }
 

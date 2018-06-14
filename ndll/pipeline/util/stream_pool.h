@@ -47,10 +47,8 @@ class StreamPool {
       int dev;
       cudaGetDevice(&dev);
 
-      int hi_pri, lo_pri;
-      CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lo_pri, &hi_pri));
-      CUDA_CALL(cudaStreamCreateWithPriority(&new_stream,
-              non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault, hi_pri));
+      CUDA_CALL(cudaStreamCreateWithFlags(&new_stream,
+              non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault));
       streams_.push_back(new_stream);
       stream_devices_[new_stream] = dev;
       return new_stream;
