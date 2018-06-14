@@ -186,7 +186,7 @@ class Tensor : public Buffer<Backend> {
     size_ = Product(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
-    device_ = t->device_id();
+    device_ = tl->device_id();
     shares_data_ = true;
   }
 
