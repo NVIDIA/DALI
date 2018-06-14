@@ -104,7 +104,7 @@ class HybridPipe(Pipeline):
         super(HybridPipe, self).__init__(batch_size,
                                          num_threads,
                                          device_id)
-        self.input = ops.FileReader(file_root = data_dir, shard_id = args.rank, num_shards = args.world_size)
+        self.input = ops.Caffe2Reader(path = data_dir, shard_id = args.rank, num_shards = args.world_size)
         self.decode= ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.rrc = ops.RandomResizedCrop(device = "gpu", size = (224, 224))
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
