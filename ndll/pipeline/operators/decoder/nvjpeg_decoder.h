@@ -109,7 +109,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
-        CUDA_CALL(cudaStreamCreate(&streams_[i]));
+        CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
       CUDA_CALL(cudaEventCreate(&master_event_));
