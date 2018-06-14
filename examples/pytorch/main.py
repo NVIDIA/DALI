@@ -25,13 +25,13 @@ except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 try:
-    from ndll.plugin.pytorch import NDLLClassificationIterator 
+    from ndll.plugin.pytorch import NDLLClassificationIterator
     from ndll.pipeline import Pipeline
     import ndll.ops as ops
     import ndll.types as types
 except ImportError:
     raise ImportError("Please install dali from https://www.github.com/nvidia/dali to run this example.")
-   
+
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -104,7 +104,7 @@ class HybridPipe(Pipeline):
         super(HybridPipe, self).__init__(batch_size,
                                          num_threads,
                                          device_id)
-        self.input = ops.Caffe2Reader(path = data_dir, shard_id = args.rank, num_shards = args.world_size)
+        self.input = ops.FileReader(file_root = data_dir, shard_id = args.rank, num_shards = args.world_size)
         self.decode= ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.rrc = ops.RandomResizedCrop(device = "gpu", size = (224, 224))
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -135,7 +135,7 @@ def main():
     args.gpu = 0
     if args.distributed:
         args.gpu = args.rank % torch.cuda.device_count()
-        
+
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
@@ -244,7 +244,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     for i, data in enumerate(train_loader):
         if i>100 and args.prof:
             break
-        
+
         input = data[0][0][0]
         target = data[0][1][0].cuda().long()
 
@@ -272,7 +272,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         losses.update(to_python_float(reduced_loss), input.size(0))
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
-        
+
         loss = loss*args.loss_scale
         # compute gradient and do SGD step
         if args.fp16:
