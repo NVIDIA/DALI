@@ -249,7 +249,7 @@ class Tensor : public Buffer<Backend> {
     size_ = t.size_;
     shares_data_ = t.shares_data_;
     num_bytes_ = t.num_bytes_;
-    device_id_ = t.device_id_;
+    device_ = t.device_;
 
     t.shape_.clear();
     t.backend_ = Backend();
@@ -269,7 +269,7 @@ class Tensor : public Buffer<Backend> {
       size_ = t.size_;
       shares_data_ = t.shares_data_;
       num_bytes_ = t.num_bytes_;
-      device_id_ = t.device_id_;
+      device_ = t.device_;
 
 
       t.shape_.clear();

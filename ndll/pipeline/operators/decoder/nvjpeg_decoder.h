@@ -269,7 +269,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
  protected:
   USE_OPERATOR_MEMBERS();
-  using Operator<MixedBackend>::Run;
 
   // Decode a single sample end-to-end in a thread
   void DecodeSingleSample(int i,
