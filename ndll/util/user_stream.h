@@ -63,7 +63,7 @@ class UserStream {
     CUDA_CALL(cudaGetDeviceCount(&gpu_count));
     streams_.resize(gpu_count);
     for (size_t i = 0; i < streams_.size(); ++i) {
-      CUDA_CALL(cudaStreamCreate(&streams_[i]));
+      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
     }
   }
 

@@ -109,9 +109,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
-        CUDA_CALL(cudaStreamCreate(&streams_[i]));
+        CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
+      CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
   ~nvJPEGDecoder() {
@@ -127,7 +128,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   void Run(MixedWorkspace *ws) override {
     // TODO(slayton): Is this necessary?
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
+    for (int i = 0; i < max_streams_; ++i) {
+      CUDA_CALL(cudaStreamWaitEvent(streams_[i], master_event_, 0));
+    }
 
     // Get dimensions
     int idx_in_batch = 0;
@@ -358,6 +363,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   nvjpegHandle_t handle_;
   vector<nvjpegJpegState_t> states_;
+  cudaEvent_t master_event_;
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;
 
