@@ -31,7 +31,7 @@ def feed_ndarray(ndll_tensor, arr):
     ndll_tensor.copy_to_external(c_type_pointer)
     return arr#.squeeze()
 
-class NDLLGenericIterator:
+class NDLLGenericIterator(object):
     def __init__(self,
                  pipelines,
                  output_map,
