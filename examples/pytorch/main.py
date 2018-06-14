@@ -67,6 +67,8 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
+parser.add_argument('--num-classes', default=1000, type=int,
+                    help='number of classes to be trained')
 
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
@@ -148,10 +150,10 @@ def main():
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
+        model = models.__dict__[args.arch](pretrained=True, num_classes=args.num_classes)
     else:
         print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
+        model = models.__dict__[args.arch](num_classes=args.num_classes)
 
     model = model.cuda()
     if args.fp16:
