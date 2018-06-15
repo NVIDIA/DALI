@@ -5,7 +5,7 @@ BINNAME=dali_test.bin
 for DIRNAME in \
   "../../build/ndll/python/dali" \
   "../../build-*$PYV*/ndll/python/dali" \
-  "$(python -c 'import os; import dali; print os.path.dirname(dali.__file__)' 2>/dev/null || echo '')"
+  "$(python -c 'import os; import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
 do
     if [ -x "$DIRNAME/test/$BINNAME" ]; then
         FULLPATH="$DIRNAME/test/$BINNAME"
