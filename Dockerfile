@@ -75,6 +75,7 @@ RUN JPEG_TURBO_VERSION=1.5.2 && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # CUDA
+#ENV CUDA_VERSION=9.0
 RUN CUDA_VERSION=9.0 && \
     CUDA_BUILD=9.0.176_384.81 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
@@ -134,3 +135,12 @@ RUN for PYVER in $(ls /opt/python); do \
         popd \
       ); \
     done
+
+ENV CUDA_VERSION 9.0
+LABEL com.nvidia.volumes.needed="nvidia_driver"
+LABEL com.nvidia.cuda.version="${CUDA_VERSION}"
+RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+ENV PATH /usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+
