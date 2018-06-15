@@ -20,7 +20,7 @@
 namespace ndll {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/test/test_images";  // NOLINT
+const string image_folder = "/data/dali/test/test_images";  // NOLINT
 
 struct DimPair { int h = 0, w = 0; };
 

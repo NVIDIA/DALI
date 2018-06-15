@@ -14,7 +14,7 @@
 namespace ndll {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = "../ndll/benchmark/benchmark_images";  // NOLINT
+const string image_folder = "/data/dali/benchmark/benchmark_images";  // NOLINT
 
 class NDLLBenchmark : public benchmark::Fixture {
  public:
