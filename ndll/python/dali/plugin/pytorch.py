@@ -22,16 +22,16 @@ to_torch_type = {
     np.dtype(np.int64)   : torch.int64
 }
 
-def feed_ndarray(ndll_tensor, arr):
-    assert ndll_tensor.shape() == list(arr.size()), \
-            ("Shapes do not match: NDLL tensor has size {0}"
-            ", but PyTorch Tensor has size {1}".format(ndll_tensor.shape(), list(arr.size())))
+def feed_ndarray(dali_tensor, arr):
+    assert dali_tensor.shape() == list(arr.size()), \
+            ("Shapes do not match: DALI tensor has size {0}"
+            ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     #turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    ndll_tensor.copy_to_external(c_type_pointer)
+    dali_tensor.copy_to_external(c_type_pointer)
     return arr#.squeeze()
 
-class NDLLGenericIterator(object):
+class DALIGenericIterator(object):
     def __init__(self,
                  pipelines,
                  output_map,
@@ -82,7 +82,7 @@ class NDLLGenericIterator(object):
                 elif self.output_map[j] == "label":
                     out_labels.append(out)
 
-            # Change NDLL TensorLists into Tensors
+            # Change DALI TensorLists into Tensors
             data = [x.as_tensor() for x in out_data]
             data_shape = [x.shape() for x in data]
             # Change label shape from [batch_size, 1] to [batch_size]
@@ -107,7 +107,7 @@ class NDLLGenericIterator(object):
             else:
                 pyt_data, pyt_labels = self._data_batches[i][self._current_data_batch]
 
-            # Copy data from NDLL Tensors to torch tensors
+            # Copy data from DALI Tensors to torch tensors
             for j, d_arr in enumerate(data):
                 feed_ndarray(d_arr, pyt_data[j])
             for j, l_arr in enumerate(labels):
@@ -129,15 +129,15 @@ class NDLLGenericIterator(object):
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
-            logging.warn("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")
+            logging.warn("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
-class NDLLClassificationIterator(NDLLGenericIterator):
+class DALIClassificationIterator(DALIGenericIterator):
     def __init__(self,
                  pipelines,
                  size = -1,
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW'):
-        super(NDLLClassificationIterator, self).__init__(pipelines, ["data", "label"],
+        super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size, data_name, label_name,
                                                          data_layout)
