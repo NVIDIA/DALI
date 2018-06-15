@@ -1,7 +1,7 @@
 #########################################################################################
 ##  Stage 1: build DALI wheels using manylinux1 (CentOS 5 derivative)
 #########################################################################################
-FROM quay.io/pypa/manylinux1_x86_64 AS builder
+FROM quay.io/pypa/manylinux1_x86_64
 
 # Install yum Dependencies
 RUN yum install -y zip
@@ -134,46 +134,3 @@ RUN for PYVER in $(ls /opt/python); do \
         popd \
       ); \
     done
-
-#########################################################################################
-##  Stage 2: install Dali on top of the NGC CUDA+cuDNN base image
-#########################################################################################
-FROM gitlab-dl.nvidia.com:5005/dgx/cuda:9.0-cudnn7.1-devel-ubuntu16.04--18.07 AS dlbase
-
-ARG PYVER=2.7
-ARG PYV=27
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        doxygen \
-        python$PYVER \
-        python$PYVER-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV PYTHONIOENCODING utf-8
-ENV LC_ALL C.UTF-8
-RUN rm -f /usr/bin/python && \
-    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
-    ln -s /usr/bin/python$PYVER /usr/bin/python && \
-    ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
-
-# If installing multiple pips, install pip2 last so that pip == pip2 when done.
-RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
-    python get-pip.py && \
-    rm get-pip.py
-
-COPY Acknowledgements.txt /opt/dali/
-COPY COPYRIGHT   /opt/dali/
-COPY Doxyfile    /opt/dali/
-COPY LICENSE     /opt/dali/
-COPY README.md   /opt/dali/
-COPY docs/       /opt/dali/docs/
-COPY examples/   /opt/dali/examples/
-COPY scripts/    /opt/dali/scripts/
-COPY tools/      /opt/dali/tools/
-
-ENV PYV=${PYV}
-COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
-
-RUN pip install /opt/dali/*.whl
-
-RUN cd /opt/dali && doxygen Doxyfile
