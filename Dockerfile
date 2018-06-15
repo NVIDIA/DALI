@@ -94,9 +94,6 @@ WORKDIR /opt/dali
 
 COPY . .
 
-ARG NVIDIA_BUILD_ID
-ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
-
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} && \
     for PYVER in $(ls /opt/python); do \
@@ -113,12 +110,27 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
             -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
             -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
         make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+        popd \
+      ); \
+    done
+
+ARG NVIDIA_BUILD_ID
+ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
+
+RUN for PYVER in $(ls /opt/python); do \
+      ( \
+        set -e; \
+        PYTHONPATH="/opt/python/${PYVER}" && \
+        PYBIN="${PYTHONPATH}/bin" && \
+        PYLIB="${PYTHONPATH}/lib" && \
+        PATH="${PYBIN}:${PATH}" && \
+        pushd build-${PYVER} && \
+        LD_LIBRARY_PATH="${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
         "${PYBIN}/pip" wheel -v ndll/python \
             --build-option --python-tag=${PYVER} \
             --build-option --plat-name=manylinux1_x86_64 \
             --build-option --build-number=${NVIDIA_BUILD_ID} && \
         ../ndll/python/bundle-wheel.sh nvidia_dali-*.whl && \
-        popd \
       ); \
     done
 
