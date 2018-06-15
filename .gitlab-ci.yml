@@ -29,12 +29,12 @@ before_script:
     - export NV_DOCKER_ARGS="curl -s http://localhost:3476/docker/cli?dev=${RUNNER_GPUS//,/+}"     && echo "${NV_DOCKER_ARGS}"
     - export RELEASE_BRANCH_NAME=${CI_COMMIT_REF_NAME%%-devel}                                     && echo "${RELEASE_BRANCH_NAME}"
     - export IMAGE_NAME_PREFIX="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_NAME}"                       && echo "${IMAGE_NAME_PREFIX}"
-    - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-base"                                           && echo "${BASE_IMAGE_NAME}"
-    - export BASE_IMAGE_NAME_VERSIONED="${IMAGE_NAME_PREFIX}.${CI_PIPELINE_ID}"                    && echo "${BASE_IMAGE_NAME_VERSIONED}"
-    - export BUILD_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-build"                              && echo "${BUILD_IMAGE_NAME}"
-    - export BUILD_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-py${PYVER}-build"            && echo "${BUILD_IMAGE_NAME_VERSIONED}"
-    - export DEVEL_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-devel"                              && echo "${DEVEL_IMAGE_NAME}"
-    - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-py${PYVER}-devel"            && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
+    - export BUILD_IMAGE_NAME="${IMAGE_NAME_PREFIX}-build"                                         && echo "${BUILD_IMAGE_NAME}"
+    - export BUILD_IMAGE_NAME_VERSIONED="${IMAGE_NAME_PREFIX}.${CI_PIPELINE_ID}-build"             && echo "${BUILD_IMAGE_NAME_VERSIONED}"
+    - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-base"                                && echo "${BASE_IMAGE_NAME}"
+    - export BASE_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME%%-base}.${CI_PIPELINE_ID}"               && echo "${BASE_IMAGE_NAME_VERSIONED}"
+    - export DEVEL_IMAGE_NAME="${BASE_IMAGE_NAME%%-base}-devel"                                    && echo "${DEVEL_IMAGE_NAME}"
+    - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-devel"                       && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
     - export ORIGIN_SSH=git@${ORIGIN1/\//:}                                                        && echo "${ORIGIN_SSH}"
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
@@ -67,6 +67,7 @@ dali-builder:
       GET_SOURCES_ATTEMPTS: 3
     script:
     # build a dlbase+dali image
+    - docker pull "${BUILD_IMAGE_NAME}" || true
     - docker pull "${BASE_IMAGE_NAME}" || true
     - docker build --pull
                    --target dlbase
