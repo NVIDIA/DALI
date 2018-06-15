@@ -58,6 +58,14 @@ dali-builder:
                    --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}" .
     - docker push "${BUILD_IMAGE_NAME}"
     - docker push "${BUILD_IMAGE_NAME_VERSIONED}"
+    # copy out wheels as build artifacts
+    - export CONTAINER="extract-${CI_JOB_ID}"
+    - docker create --name "${CONTAINER}" "${BUILD_IMAGE_NAME_VERSIONED}"
+    - docker cp "${CONTAINER}:/wheelhouse/" "wheelhouse/"
+    - docker rm -f "${CONTAINER}"
+    artifacts:
+      paths:
+      - wheelhouse/
 
 .base_template: &BASE
     variables:
