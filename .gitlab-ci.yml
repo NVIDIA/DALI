@@ -25,7 +25,7 @@ stages:
 
 before_script:
     - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.5   && echo "${PYVER}"
-    - export PYV=${PYVER%.}                                                                        && echo "${PYV}"
+    - export PYV=${PYVER/./}                                                                       && echo "${PYV}"
     - export NV_DOCKER_ARGS="curl -s http://localhost:3476/docker/cli?dev=${RUNNER_GPUS//,/+}"     && echo "${NV_DOCKER_ARGS}"
     - export RELEASE_BRANCH_NAME=${CI_COMMIT_REF_NAME%%-devel}                                     && echo "${RELEASE_BRANCH_NAME}"
     - export IMAGE_NAME_PREFIX="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_NAME}"                       && echo "${IMAGE_NAME_PREFIX}"
