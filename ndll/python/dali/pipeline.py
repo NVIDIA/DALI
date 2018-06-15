@@ -1,7 +1,7 @@
 #pylint: disable=no-member
 from collections import deque
-import ndll.backend as b
-import ndll.tensor as nt
+import dali.backend as b
+import dali.tensor as nt
 
 class Pipeline(object):
     def __init__(self, batch_size, num_threads, device_id, seed = -1,

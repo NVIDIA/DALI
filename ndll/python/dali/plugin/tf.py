@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def NDLLIterator():
+def DALIIterator():
     try:
         libndll_tf = 'libndll_tf.so'
         ndll_tf_module = tf.load_op_library(libndll_tf)

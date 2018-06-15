@@ -1,7 +1,7 @@
-from ndll.ndll_backend import *
+from dali.backend_impl import *
 
 # Note: If we every need to add more complex functionality
-# for importing the ndll c++ extensions, we can do it here
+# for importing the dali c++ extensions, we can do it here
 
 initialized = False
 if not initialized:

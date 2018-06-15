@@ -308,18 +308,18 @@ TFValue ConvertTFRecordDefaultValue(TFFeatureType type, py::object val) {
 }
 #endif  // NDLL_BUILD_PROTO3
 
-PYBIND11_MODULE(ndll_backend, m) {
-  m.doc() = "Python bindings for the C++ portions of NDLL";
+PYBIND11_MODULE(backend_impl, m) {
+  m.doc() = "Python bindings for the C++ portions of DALI";
 
-  // NDLL Init function
+  // DALI Init function
   m.def("Init", &NDLLInit);
 
   // Types
   py::module types_m = m.def_submodule("types");
-  types_m.doc() = "Datatypes and options used by NDLL";
+  types_m.doc() = "Datatypes and options used by DALI";
 
-  // NDLLDataType
-  py::enum_<NDLLDataType>(types_m, "NDLLDataType", "Data type of image")
+  // DALIDataType
+  py::enum_<NDLLDataType>(types_m, "DALIDataType", "Data type of image")
     .value("NO_TYPE", NDLL_NO_TYPE)
     .value("UINT8", NDLL_UINT8)
     .value("FLOAT16", NDLL_FLOAT16)
@@ -329,22 +329,22 @@ PYBIND11_MODULE(ndll_backend, m) {
     .value("BOOL", NDLL_BOOL)
     .export_values();
 
-  // NDLLImageType
-  py::enum_<NDLLImageType>(types_m, "NDLLImageType", "Image type")
+  // DALIImageType
+  py::enum_<NDLLImageType>(types_m, "DALIImageType", "Image type")
     .value("RGB", NDLL_RGB)
     .value("BGR", NDLL_BGR)
     .value("GRAY", NDLL_GRAY)
     .export_values();
 
-  // NDLLInterpType
-  py::enum_<NDLLInterpType>(types_m, "NDLLInterpType", "Interpolation mode")
+  // DALIInterpType
+  py::enum_<NDLLInterpType>(types_m, "DALIInterpType", "Interpolation mode")
     .value("INTERP_NN", NDLL_INTERP_NN)
     .value("INTERP_LINEAR", NDLL_INTERP_LINEAR)
     .value("INTERP_CUBIC", NDLL_INTERP_CUBIC)
     .export_values();
 
-  // NDLLTensorLayout
-  py::enum_<NDLLTensorLayout>(types_m, "NDLLTensorLayout", "Tensor layout")
+  // DALITensorLayout
+  py::enum_<NDLLTensorLayout>(types_m, "DALITensorLayout", "Tensor layout")
     .value("NCHW", NDLL_NCHW)
     .value("NHWC", NDLL_NHWC)
     .export_values();
@@ -473,7 +473,7 @@ PYBIND11_MODULE(ndll_backend, m) {
           return sizes[op_name];
         });
 
-#define NDLL_OPSPEC_ADDARG(T) \
+#define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \
         [](OpSpec *spec, const string& name, T v) -> OpSpec& { \
         spec->AddArg(name, v); \
@@ -496,12 +496,12 @@ PYBIND11_MODULE(ndll_backend, m) {
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
-    NDLL_OPSPEC_ADDARG(std::string)
-    NDLL_OPSPEC_ADDARG(bool)
-    NDLL_OPSPEC_ADDARG(int64)
-    NDLL_OPSPEC_ADDARG(float)
+    DALI_OPSPEC_ADDARG(std::string)
+    DALI_OPSPEC_ADDARG(bool)
+    DALI_OPSPEC_ADDARG(int64)
+    DALI_OPSPEC_ADDARG(float)
 #ifdef NDLL_BUILD_PROTO3
-    NDLL_OPSPEC_ADDARG(TFFeature)
+    DALI_OPSPEC_ADDARG(TFFeature)
 #endif
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {

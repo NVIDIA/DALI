@@ -2,8 +2,8 @@
 import sys
 import copy
 from itertools import count
-import ndll.backend as b
-from ndll.tensor import TensorReference
+import dali.backend as b
+from dali.tensor import TensorReference
 from future.utils import with_metaclass
 
 class _OpCounter(object):
@@ -121,13 +121,13 @@ class _OperatorInstance(object):
     def append_output(self, output):
         self._outputs.append(output)
 
-class _NDLLOperatorMeta(type):
+class _DaliOperatorMeta(type):
     @property
     def __doc__(self):
         return self._docstring()
 
 def python_op_factory(name, op_device = "cpu"):
-    class Operator(with_metaclass(_NDLLOperatorMeta, object)):
+    class Operator(with_metaclass(_DaliOperatorMeta, object)):
         def __init__(self, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
@@ -202,7 +202,7 @@ for op_name in _support_ops:
 
 # custom wrappers around ops
 
-class TFRecordReader(with_metaclass(_NDLLOperatorMeta, object)):
+class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
             self._path = path

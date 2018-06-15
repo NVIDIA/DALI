@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-# cd "$( dirname "${BASH_SOURCE[0]}" )"
 
-cd /opt/ndll/build
+cd /opt/ndll/build*$PYV*
 ./ndll/run_benchmarks --benchmark_filter="RN50*"

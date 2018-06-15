@@ -16,6 +16,7 @@ variables:
 ######################################################
 
 stages:
+    - build builder
     - build base
     - build devel
     - trigger
@@ -24,65 +25,85 @@ stages:
 
 before_script:
     - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.5   && echo "${PYVER}"
+    - export PYV=${PYVER%.}                                                                        && echo "${PYV}"
     - export NV_DOCKER_ARGS="curl -s http://localhost:3476/docker/cli?dev=${RUNNER_GPUS//,/+}"     && echo "${NV_DOCKER_ARGS}"
     - export RELEASE_BRANCH_NAME=${CI_COMMIT_REF_NAME%%-devel}                                     && echo "${RELEASE_BRANCH_NAME}"
     - export IMAGE_NAME_PREFIX="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_NAME}"                       && echo "${IMAGE_NAME_PREFIX}"
-    - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-base"                             && echo "${BASE_IMAGE_NAME}"
-    - export BASE_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME%%-base}.${CI_PIPELINE_ID}"               && echo "${BASE_IMAGE_NAME_VERSIONED}"
-    - export DEVEL_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-devel"                           && echo "${DEVEL_IMAGE_NAME}"
-    - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-devel"                       && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
+    - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-base"                                           && echo "${BASE_IMAGE_NAME}"
+    - export BASE_IMAGE_NAME_VERSIONED="${IMAGE_NAME_PREFIX}.${CI_PIPELINE_ID}"                    && echo "${BASE_IMAGE_NAME_VERSIONED}"
+    - export BUILD_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-build"                              && echo "${BUILD_IMAGE_NAME}"
+    - export BUILD_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-py${PYVER}-build"            && echo "${BUILD_IMAGE_NAME_VERSIONED}"
+    - export DEVEL_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-devel"                              && echo "${DEVEL_IMAGE_NAME}"
+    - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-py${PYVER}-devel"            && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
     - export ORIGIN_SSH=git@${ORIGIN1/\//:}                                                        && echo "${ORIGIN_SSH}"
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
     - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
 
-.base_template : &BASE
+dali-builder:
+    stage: build builder
     variables:
       GIT_STRATEGY: fetch
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
-    - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-base"
-    - export BASE_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME%-base}.${CI_PIPELINE_ID}"
     - echo -e "Dockerfile*\n"
               ".git*\n"
-              ".dockerignore\n"
-              "qa" > .dockerignore
+              ".dockerignore\n" > .dockerignore
+    # build the manylinux1 builder image
+    - docker pull "${BUILD_IMAGE_NAME}" || true
+    - docker build --pull
+                   --target builder
+                   --cache-from "${BUILD_IMAGE_NAME}"
+                   -t "${BUILD_IMAGE_NAME}" -t "${BUILD_IMAGE_NAME_VERSIONED}"
+                   --build-arg "NVIDIA_BUILD_ID=${CI_JOB_ID}" .
+    - docker push "${BUILD_IMAGE_NAME}"
+    - docker push "${BUILD_IMAGE_NAME_VERSIONED}"
+
+.base_template: &BASE
+    # build a dlbase+dali image
     - docker pull "${BASE_IMAGE_NAME}" || true
     - docker build --pull
+                   --target dlbase
+                   --cache-from "${BUILD_IMAGE_NAME}"
                    --cache-from "${BASE_IMAGE_NAME}"
                    -t "${BASE_IMAGE_NAME}" -t "${BASE_IMAGE_NAME_VERSIONED}"
-                   --build-arg "NVIDIA_BUILD_REF=${CI_COMMIT_SHA}"
-                   --build-arg "NVIDIA_BUILD_ID=${CI_JOB_ID}"
-                   --build-arg "PYVER=${PYVER}" .
+                   --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}"
+                   --label "com.nvidia.build.id=${CI_JOB_ID}" .
     - docker push "${BASE_IMAGE_NAME}"
     - docker push "${BASE_IMAGE_NAME_VERSIONED}"
     except:
     - tags
 
-py2-ndll-base:
-    stage: build base
-    <<: *BASE
+py2-base:
+  stage: build base
+  <<: *DEVEL
 
-py3-ndll-base:
-    stage: build base
-    <<: *BASE
+py3-base:
+  stage: build base
+  <<: *DEVEL
 
-
-.devel_template : &DEVEL
+.devel_template: &DEVEL
     stage: build devel
     variables:
       GIT_STRATEGY: fetch
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
-    - echo -e "FROM ${BASE_IMAGE_NAME_VERSIONED}\n"
+    - export CI_PROJECT_NAME=dali
+    - echo -e "FROM ${BUILD_IMAGE_NAME_VERSIONED} AS builder\n"
+              "FROM ${BASE_IMAGE_NAME_VERSIONED}\n"
+              "COPY --from=builder /opt/${CI_PROJECT_NAME}/build-*${PYV}* /opt/${CI_PROJECT_NAME}/\n"
+              "COPY CMakeLists.txt /opt/${CI_PROJECT_NAME}/\n"
               "COPY Dockerfile* /opt/${CI_PROJECT_NAME}/\n"
               "COPY .gitignore /opt/${CI_PROJECT_NAME}/\n"
               "COPY .gitmodules /opt/${CI_PROJECT_NAME}/\n"
               "COPY .gitlab-ci.yml /opt/${CI_PROJECT_NAME}/\n"
               "COPY .git/ /opt/${CI_PROJECT_NAME}/.git/\n"
+              "COPY cmake/   /opt/${CI_PROJECT_NAME}/cmake/\n"
+              "COPY ndll/ /opt/${CI_PROJECT_NAME}/ndll/\n"
               "COPY qa/   /opt/${CI_PROJECT_NAME}/qa/\n"
+              "COPY third_party/  /opt/${CI_PROJECT_NAME}/third_party/\n"
         > Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_NAME}
     - git remote set-url origin ${ORIGIN_HTTPS}
     - docker build --pull -t "${DEVEL_IMAGE_NAME}" -t "${DEVEL_IMAGE_NAME_VERSIONED}"
@@ -92,56 +113,18 @@ py3-ndll-base:
     except:
     - tags
 
-py2-ndll:
+py2-dali:
   stage: build devel
   <<: *DEVEL
 
-py3-ndll:
+py3-dali:
   stage: build devel
   <<: *DEVEL
-
-.stage_template : &STAGE
-    stage: staging
-    environment: staging
-    variables:
-      GIT_STRATEGY: fetch
-      GIT_SUBMODULE_STRATEGY: recursive
-      GET_SOURCES_ATTEMPTS: 3
-    script:
-    - export STAGE_IMAGE_NAME="${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME/%-devel/-stage}"          && echo "${STAGE_IMAGE_NAME}"
-    - export QA_IMAGE_NAME="${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME/%-devel/-qa}"                && echo "${QA_IMAGE_NAME}"
-    # push a xx.yy-stage tag that records the commit we staged from
-    - git remote set-url origin ${ORIGIN_SSH}
-    - git push --delete origin refs/tags/${CI_COMMIT_REF_NAME/%-devel/-stage}
-    - git push origin HEAD:refs/tags/${CI_COMMIT_REF_NAME/%-devel/-stage}
-    # create xx.yy-stage image
-    - docker pull "${BASE_IMAGE_NAME_VERSIONED}"
-    - docker tag "${BASE_IMAGE_NAME_VERSIONED}" "${STAGE_IMAGE_NAME}"
-    - docker push "${STAGE_IMAGE_NAME}"
-    # create xx.yy-qa image on top of -stage that adds the qa/* tests back in
-    - echo -e "FROM ${STAGE_IMAGE_NAME}\n"
-              "COPY qa/   /opt/${CI_PROJECT_NAME}/qa/\n"
-        > Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_NAME/%-devel/-qa}
-    - docker build --pull -t "${QA_IMAGE_NAME}" -f Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_NAME/%-devel/-qa} .
-    - docker push "${QA_IMAGE_NAME}"
-    only:
-    - /^.*-devel$/
-    except:
-    - tags
-    when: manual
-
-ndll-stage:
-  stage: staging
-  <<: *STAGE
-
-ndll-stage:
-  stage: staging
-  <<: *STAGE
 
 .test_template: &TEST_TEMPLATE
     environment: "${CI_JOB_NAME}"
     variables:
-      TEST_WORK_DIR: "/opt/ndll/qa/${CI_JOB_NAME}/"
+      TEST_WORK_DIR: "/opt/dali/qa/${CI_JOB_NAME}/"
       TEST_SCRIPT: "./test.sh"
     script:
     - export TEST_WORK_DIR="${TEST_WORK_DIR%%--*}"
@@ -154,6 +137,7 @@ ndll-stage:
       docker run --rm $(eval ${NV_DOCKER_ARGS})
              --name "${CONTAINER_NAME}"
              -v $DATADIR:/data
+             -e PYV=${PYV}
              $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
              ${DEVEL_IMAGE_NAME_VERSIONED}
              /bin/bash -c "nvidia-smi && cd ${TEST_WORK_DIR} && exec bash -ex ${TEST_SCRIPT}" || RV=$?;
@@ -191,54 +175,6 @@ ndll-stage:
     - V100
     - R384
     - 4GPU
-
-.1080Ti_R384_1GPU: &1080Ti_R384_1GPU
-    tags:
-    - 1080Ti
-    - R384
-    - 1GPU
-    only:
-    - /^.*-devel$/
-
-.TitanXP_R384_2GPU: &TitanXP_R384_2GPU
-    tags:
-    - TitanXP
-    - R384
-    - 2GPU
-    only:
-    - /^.*-devel$/
-
-.M60_R384_2GPU: &M60_R384_2GPU
-    tags:
-    - M60
-    - R384
-    - 2GPU
-    only:
-    - /^.*-devel$/
-
-.K80_R384_2GPU: &K80_R384_2GPU
-    tags:
-    - K80
-    - R384
-    - 2GPU
-    only:
-    - /^.*-devel$/
-
-.P40_R384_1GPU: &P40_R384_1GPU
-    tags:
-    - P40
-    - R384
-    - 1GPU
-    only:
-    - /^.*-devel$/
-
-.M40_R384_1GPU: &M40_R384_1GPU
-    tags:
-    - M40
-    - R384
-    - 1GPU
-    only:
-    - /^.*-devel$/
 
 ######################################################
 ##

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from ndll.pipeline import Pipeline
+from dali.pipeline import Pipeline
 import mxnet as mx
 import ctypes
 import logging
@@ -14,19 +14,19 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def feed_ndarray(ndll_tensor, arr):
+def feed_ndarray(dali_tensor, arr):
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
-    assert ndll_tensor.shape() == list(arr.shape), \
-            ("Shapes do not match: NDLL tensor has shape {0}"
-            ", but NDArray has shape {1}".format(ndll_tensor.shape(), list(arr.shape)))
+    assert dali_tensor.shape() == list(arr.shape), \
+            ("Shapes do not match: DALI tensor has shape {0}"
+            ", but NDArray has shape {1}".format(dali_tensor.shape(), list(arr.shape)))
     # Get CTypes void pointer to the underlying memory held by arr
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
-    # Copy data from NDLL tensor to ptr
-    ndll_tensor.copy_to_external(ptr)
+    # Copy data from DALI tensor to ptr
+    dali_tensor.copy_to_external(ptr)
 
-class NDLLGenericIterator(object):
+class DALIGenericIterator(object):
     def __init__(self,
                  pipelines,
                  output_map,
@@ -88,7 +88,7 @@ class NDLLGenericIterator(object):
                 elif self.output_map[j] == "label":
                     out_label.append(out)
 
-            # Change NDLL TensorLists into Tensors
+            # Change DALI TensorLists into Tensors
             data = list(map(lambda x: x.as_tensor(), out_data))
             data_info = list(map(lambda x: (x.shape(), np.dtype(x.dtype())), data))
             label = list(map(lambda x: x.as_tensor(), out_label))
@@ -103,7 +103,7 @@ class NDLLGenericIterator(object):
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
             d = self._data_batches[i][self._current_data_batch].data
             l = self._data_batches[i][self._current_data_batch].label
-            # Copy data from NDLL Tensors to MXNet NDArrays
+            # Copy data from DALI Tensors to MXNet NDArrays
             for j, d_arr in enumerate(d):
                 feed_ndarray(data[j], d_arr)
             for j, l_arr in enumerate(l):
@@ -123,15 +123,15 @@ class NDLLGenericIterator(object):
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
-            logging.warn("NDLL iterator does not support resetting while epoch is not finished. Ignoring...")
+            logging.warn("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
-class NDLLClassificationIterator(NDLLGenericIterator):
+class DALIClassificationIterator(DALIGenericIterator):
     def __init__(self,
                  pipelines,
                  size = -1,
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW'):
-        super(NDLLClassificationIterator, self).__init__(pipelines, ["data", "label"],
+        super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size, data_name, label_name,
                                                          data_layout)

@@ -1,7 +1,7 @@
 #pylint: disable=no-name-in-module, unused-import
-import ndll.backend
-from ndll.backend import TensorCPU
-from ndll.backend import TensorListCPU
+import dali.backend
+from dali.backend import TensorCPU
+from dali.backend import TensorListCPU
 
 class TensorReference(object):
     def __init__(self, name, device="cpu", source=None):
