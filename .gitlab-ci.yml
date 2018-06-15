@@ -61,6 +61,11 @@ dali-builder:
     - docker push "${BUILD_IMAGE_NAME_VERSIONED}"
 
 .base_template: &BASE
+    variables:
+      GIT_STRATEGY: fetch
+      GIT_SUBMODULE_STRATEGY: recursive
+      GET_SOURCES_ATTEMPTS: 3
+    script:
     # build a dlbase+dali image
     - docker pull "${BASE_IMAGE_NAME}" || true
     - docker build --pull
@@ -77,11 +82,11 @@ dali-builder:
 
 py2-base:
   stage: build base
-  <<: *DEVEL
+  <<: *BASE
 
 py3-base:
   stage: build base
-  <<: *DEVEL
+  <<: *BASE
 
 .devel_template: &DEVEL
     stage: build devel
