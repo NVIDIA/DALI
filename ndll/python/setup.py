@@ -24,4 +24,7 @@ setup(name='nvidia-dali',
               'rec2idx = rec2idx:main',
               ],
           },
+      install_requires = [
+          'future',
+          ],
      )
