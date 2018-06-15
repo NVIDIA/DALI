@@ -131,6 +131,7 @@ RUN for PYVER in $(ls /opt/python); do \
             --build-option --plat-name=manylinux1_x86_64 \
             --build-option --build-number=${NVIDIA_BUILD_ID} && \
         ../ndll/python/bundle-wheel.sh nvidia_dali-*.whl && \
+        popd \
       ); \
     done
 
