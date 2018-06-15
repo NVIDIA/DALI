@@ -49,11 +49,11 @@ class ResizeAttr {
     resize_.first = spec.GetArgument<int>("resize_a");
     resize_.second = spec.GetArgument<int>("resize_b");
 
-    //GetSingleOrDoubleArg(spec, &crop_, "crop");
+    // GetSingleOrDoubleArg(spec, &crop_, "crop");
     crop_.resize(2);
     crop_[0] = -1;
     crop_[1] = -1;
-    //GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
+    // GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
     mirror_prob_.resize(2);
     mirror_prob_[0] = 0;
     mirror_prob_[1] = 0;
