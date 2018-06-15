@@ -35,7 +35,7 @@ class UserStream {
     if (it != streams_.end()) {
       return it->second;
     } else {
-      CUDA_CALL(cudaStreamCreate(&streams_[dev]));
+      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[dev], cudaStreamNonBlocking));
       return streams_.at(dev);
     }
   }
