@@ -44,13 +44,19 @@ class ResizeAttr {
             warp_resize_(spec.GetArgument<bool>("warp_resize")),
             image_type_(spec.GetArgument<NDLLImageType>("image_type")),
             color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
-            random_crop_(spec.GetArgument<bool>("random_crop")),
+            random_crop_(false),
             type_(spec.GetArgument<NDLLInterpType>("interp_type")) {
     resize_.first = spec.GetArgument<int>("resize_a");
     resize_.second = spec.GetArgument<int>("resize_b");
 
-    GetSingleOrDoubleArg(spec, &crop_, "crop");
-    GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
+    //GetSingleOrDoubleArg(spec, &crop_, "crop");
+    crop_.resize(2);
+    crop_[0] = -1;
+    crop_[1] = -1;
+    //GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
+    mirror_prob_.resize(2);
+    mirror_prob_[0] = 0;
+    mirror_prob_[1] = 0;
 
     // Validate input parameters
     NDLL_ENFORCE(resize_.first > 0 && resize_.second > 0);
