@@ -4,25 +4,45 @@
 namespace ndll {
 
 NDLL_SCHEMA(Resize)
-  .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
-          "cropping (random and fixed) and image mirroring.")
+  .DocStr(R"code(Resize images.)code")
   .NumInput(1)
   .NumOutput(1)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
   })
   .AllowMultipleInputSets()
-  .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
-  .AddOptionalArg("warp_resize", "Foo", false)
-  .AddArg("resize_a", "Lower bound for resize")
-  .AddArg("resize_b", "Upper bound for resize")
-  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
-  .AddOptionalArg("crop", "Size of the cropped image", -1)
-  .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
-      "vertical flip of the image", vector<float>{0.f, 0.f})
-  .AddOptionalArg("image_type", "Input/output image type", NDLL_RGB)
-  .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR)
-  .AddOptionalArg("save_attrs", "Save reshape attributes for testing", false);
+  .AddOptionalArg("random_resize",
+      R"code(`bool`
+      Whether to randomly resize images.)code", false)
+  .AddOptionalArg("warp_resize",
+      R"code(`bool`
+      Whether to modify the aspect ratio of the image.)code", false)
+  .AddArg("resize_a",
+      R"code(`int`
+      If neither `random_resize` nor `warp_resize` is set - size to which the shorter side of the image is resized.
+      If `warp_image` is set and `random_resize` is not set - size to which height of the image is resized.
+      If `random_resize` is set and `warp_resize` is not set - lower bound for the shorter side of the resized image.
+      If both `random_resize` and `warp_resize` are set - lower bound for resized image's height and width.)code")
+  .AddArg("resize_b",
+      R"code(`int`
+      If neither `random_resize` nor `warp_resize` is set - ignored.
+      If `warp_image` is set and `random_resize` is not set - size to which width of the image is resized.
+      If `random_resize` is set and `warp_resize` is not set - upper bound for the shorter side of the resized image.
+      If both `random_resize` and `warp_resize` are set - upper bound for resized image's height and width.)code")
+//  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+//  .AddOptionalArg("crop", "Size of the cropped image", -1)
+//  .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
+//      "vertical flip of the image", vector<float>{0.f, 0.f})
+  .AddOptionalArg("image_type",
+        R"code(`ndll.types.NDLLImageType`
+        The color space of input and output image)code", NDLL_RGB)
+  .AddOptionalArg("interp_type",
+      R"code(`ndll.types.NDLLInterpType`
+      Type of interpolation used)code",
+      NDLL_INTERP_LINEAR)
+  .AddOptionalArg("save_attrs",
+      R"code(`bool`
+      Save reshape attributes for testing)code", false);
 
 
 resize_t ResizeAttr::GetRandomSizes() const {
@@ -71,12 +91,12 @@ void ResizeAttr::DefineCrop(NDLLSize *out_size, int *pCropX, int *pCropY) const 
 }
 
 template <>
-void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *) {
   NDLL_FAIL("Not implemented");
 }
 
 template <>
-void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void Resize<CPUBackend>::RunImpl(SampleWorkspace *, const int) {
   NDLL_FAIL("Not implemented");
 }
 

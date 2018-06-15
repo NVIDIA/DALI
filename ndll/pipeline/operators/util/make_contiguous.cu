@@ -6,8 +6,8 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(MakeContiguous, MakeContiguous, Mixed);
 
 NDLL_SCHEMA(MakeContiguous)
-  .DocStr("Move input batch to a contiguous representation, more suitable "
-          "for execution on the GPU")
+  .DocStr(R"code(Move input batch to a contiguous representation,
+  more suitable for execution on the GPU)code")
   .NumInput(1)
   .NumOutput(1);
 

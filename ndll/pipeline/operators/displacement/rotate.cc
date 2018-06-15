@@ -12,7 +12,9 @@ NDLL_SCHEMA(Rotate)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddArg("angle", "Rotation angle")
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddArg("angle",
+        R"code(`float` or `float tensor`
+        Rotation angle)code")
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll

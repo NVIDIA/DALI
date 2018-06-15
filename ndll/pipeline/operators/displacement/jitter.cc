@@ -10,11 +10,17 @@ namespace ndll {
 // NDLL_REGISTER_OPERATOR(Jitter, Jitter<CPUBackend>, CPU);
 
 NDLL_SCHEMA(Jitter)
-    .DocStr("Perform a Jitter-style augmentation")
+    .DocStr(R"code(Perform a random Jitter augmentation.
+    The output image is produced by moving each pixel by a
+    random amount bounded by half of `nDegree` parameter
+    (in both x and y dimensions).)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddOptionalArg("nDegree", "Foo", 2)
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddOptionalArg("nDegree",
+        R"code(`int`
+        Each pixel is moved by a random amount in
+        range `[-nDegree/2, nDegree/2]`.)code", 2)
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll

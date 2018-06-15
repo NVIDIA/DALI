@@ -72,7 +72,7 @@ NDLL_SCHEMA(DummyDataReader)
   .OutputFn([](const OpSpec& spec) { return 1; })
   .NumInput(0)
   .NumOutput(1)
-  LOADER_SCHEMA_ARGS;
+  .AddParent("LoaderBase");
 
 template <typename Backend>
 class ReaderTest : public NDLLTest {

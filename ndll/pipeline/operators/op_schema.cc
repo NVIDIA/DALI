@@ -27,11 +27,12 @@ int OpSchema::CalculateOutputs(const OpSpec &spec) const {
 void OpSchema::CheckArgs(const OpSpec &spec) const {
   std::vector<string> vec = spec.ListArguments();
   std::set<std::string> req_arguments_left;
-  for (auto& arg_pair : arguments_) {
+  auto required_arguments = GetRequiredArguments();
+  for (auto& arg_pair : required_arguments) {
     req_arguments_left.insert(arg_pair.first);
   }
   for (std::string s : vec) {
-    NDLL_ENFORCE(arguments_.find(s) != arguments_.end() ||
+    NDLL_ENFORCE(required_arguments.find(s) != required_arguments.end() ||
         OptionalArgumentExists(s) ||
         internal_arguments_.find(s) != internal_arguments_.end(),
         "Got an unexpected argument \"" + s + "\"");
@@ -50,6 +51,41 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
     ret += ".";
     NDLL_FAIL(ret);
   }
+}
+
+string OpSchema::Dox() const {
+  std::string ret = "# " + Name();
+  ret += "\n\nOverview\n--------\n";
+  ret += dox_;
+  ret += "\n\nRequired Parameters\n-------------------\n";
+  for (auto arg_pair : GetRequiredArguments()) {
+    ret += " - `" + arg_pair.first + "` : " + arg_pair.second + "\n";
+  }
+  ret += "\n\nOptional Parameters\n-------------------\n";
+  for (auto arg_pair : GetOptionalArguments()) {
+    ret += " - `" + arg_pair.first + "` : " + arg_pair.second.first + "\n";
+  }
+  return ret;
+}
+
+std::map<std::string, std::string> OpSchema::GetRequiredArguments() const {
+  auto ret = arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetRequiredArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
+}
+
+std::map<std::string, std::pair<std::string, Value*>> OpSchema::GetOptionalArguments() const {
+  auto ret = optional_arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetOptionalArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
 }
 
 }  // namespace ndll

@@ -8,11 +8,11 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(Sphere, Sphere<CPUBackend>, CPU);
 
 NDLL_SCHEMA(Sphere)
-    .DocStr("Perform a sphere augmentation")
+    .DocStr("Perform a sphere augmentation.")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    DISPLACEMENT_SCHEMA_ARGS;
+    .AddParent("DisplacementFilter");
 
 }  // namespace ndll
 

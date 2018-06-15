@@ -24,6 +24,8 @@ NDLL_SCHEMA(Uniform)
   .DocStr("Produce tensor filled with uniformly distributed random numbers.")
   .NumInput(0)
   .NumOutput(1)
-  .AddOptionalArg("range", "Range of produced random numbers", std::vector<float>({-1, 1}));
+  .AddOptionalArg("range",
+      R"code(`list of float`
+      Range of produced random numbers)code", std::vector<float>({-1, 1}));
 
 }  // namespace ndll

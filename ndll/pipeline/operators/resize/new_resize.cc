@@ -35,10 +35,10 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 }
 
 template <>
-void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {}
+void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *) {}
 
-NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
-NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
+// NDLL_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
+// NDLL_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
 NDLL_SCHEMA(NewResize)
     .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
             "cropping (random and fixed) and image mirroring.")
@@ -55,8 +55,5 @@ NDLL_SCHEMA(NewResize)
                     "vertical flip of the image", vector<float>{0.f, 0.f})
     .AddOptionalArg("interp_type", "Type of interpolation used", NDLL_INTERP_LINEAR);
 
-NDLL_REGISTER_TYPE(ResizeMapping, NDLL_RESIZE_MAPPING);
-NDLL_REGISTER_TYPE(PixMapping, NDLL_PIX_MAPPING);
-NDLL_REGISTER_TYPE(uint32_t, NDLL_UINT32);
 }  // namespace ndll
 

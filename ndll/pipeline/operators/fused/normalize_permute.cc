@@ -49,16 +49,32 @@ void NormalizePermute<CPUBackend>::CPURunHelper(const Tensor<CPUBackend> &input,
 NDLL_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>, CPU);
 
 NDLL_SCHEMA(NormalizePermute)
-  .DocStr("Normalize images, and permute ordering from NHWC to NCHW. Can also "
-          "cast the output to different datatypes")
+  .DocStr(R"code(Perform fused normalization, format conversion from NHWC to NCHW
+          and type casting.
+          Normalization takes input image and produces output using formula
+          ```
+          output = (input - mean) / std
+          ```)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("output_dtype", "Output data type", NDLL_FLOAT)
-  .AddArg("height", "Height of the input image")
-  .AddArg("width", "Width of the input image")
-  .AddArg("channels", "Number of channels of input image")
-  .AddArg("mean", "Mean values of pixels for image normalizations")
-  .AddArg("std", "Standard deviation for image normalization");
+  .AddOptionalArg("output_dtype",
+      R"code(`ndll.types.NDLLDataType`
+      Output data type.)code", NDLL_FLOAT)
+  .AddOptionalArg("image_type",
+        R"code(`ndll.types.NDLLImageType`
+        The color space of input and output image)code", NDLL_RGB)
+  .AddArg("height",
+      R"code(`int`
+      Height of the input image)code")
+  .AddArg("width",
+      R"code(`int`
+      Width of the input image)code")
+  .AddArg("mean",
+      R"code(`list of float`
+      Mean pixel values for image normalization)code")
+  .AddArg("std",
+      R"code(`list of float`
+      Standard deviation values for image normalization)code");
 
 }  // namespace ndll

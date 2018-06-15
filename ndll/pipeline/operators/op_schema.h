@@ -142,7 +142,7 @@ class OpSchema {
     OpSchema&>::type
   AddOptionalArg(const std::string &s, const std::string &doc, T default_value) {
     CheckArgument(s);
-    std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
+    std::string stored_doc = doc + " (default value: `" + to_string(default_value) + "`)";
     Value * to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(stored_doc, to_store);
     return *this;
@@ -195,20 +195,7 @@ class OpSchema {
     return parents_.size() > 0;
   }
 
-  inline string Dox() const {
-    std::string ret = Name();
-    ret += "\n\nOverview\n----------\n";
-    ret += dox_;
-    ret += "\n\nParameters\n----------\n";
-    for (auto arg_pair : arguments_) {
-      ret += arg_pair.first + " : " + arg_pair.second + "\n";
-    }
-    ret += "\n\nOptional Parameters\n-------------------\n";
-    for (auto arg_pair : optional_arguments_) {
-      ret += arg_pair.first + " : " + arg_pair.second.first + "\n";
-    }
-    return ret;
-  }
+  string Dox() const;
 
   inline int MaxNumInput() const {
     return max_num_input_;
@@ -274,6 +261,10 @@ class OpSchema {
     return true;
   }
 
+  std::map<std::string, std::string> GetRequiredArguments() const;
+
+  std::map<std::string, std::pair<std::string, Value*>> GetOptionalArguments() const;
+
   string dox_;
   string name_;
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
@@ -305,7 +296,7 @@ class SchemaRegistry {
   static const OpSchema& GetSchema(const std::string &name) {
     auto &schema_map = registry();
     auto it = schema_map.find(name);
-    NDLL_ENFORCE(it != schema_map.end(), "Schema for op '" +
+    NDLL_ENFORCE(it != schema_map.end(), "Schema '" +
         name + "' not registered");
     return it->second;
   }

@@ -45,7 +45,6 @@ NDLLError_t BatchedResize(const uint8 **in_batch, int N, int C, const NDLLSize *
     out_roi.width = out_sizes[i].width;
     out_roi.height = out_sizes[i].height;
 
-    // TODO(tgale): Can move condition out w/ function ptr or std::function obj
     if (C == 3) {
       NDLL_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
               in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));

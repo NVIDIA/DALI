@@ -26,10 +26,15 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 NDLL_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);
 
 NDLL_SCHEMA(DumpImage)
-  .DocStr("Save images in batch to disk in PPM format")
+  .DocStr(R"code(Save images in batch to disk in PPM format.
+  Useful for debugging.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("suffix", "Suffix to be added to output file names", "")
-  .AddOptionalArg("input_layout", "Layout of input images", NDLL_NHWC);
+  .AddOptionalArg("suffix",
+      R"code(`string`
+      Suffix to be added to output file names)code", "")
+  .AddOptionalArg("input_layout",
+      R"code(`ndll.types.NDLLTensorLayout`
+      Layout of input images)code", NDLL_NHWC);
 
 }  // namespace ndll

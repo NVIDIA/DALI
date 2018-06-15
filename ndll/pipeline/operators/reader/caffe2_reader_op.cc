@@ -7,7 +7,7 @@ namespace ndll {
 NDLL_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 
 NDLL_SCHEMA(Caffe2Reader)
-  .DocStr("Read sample data from a Caffe2 LMDB")
+  .DocStr("Read sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
       auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
@@ -18,12 +18,27 @@ NDLL_SCHEMA(Caffe2Reader)
       int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
-  .AddArg("path", "Path to Caffe2 LMDB directory")
-  .AddOptionalArg("num_labels", "Foo", 1)
-  .AddOptionalArg("label_type", "Foo", 0)
-  .AddOptionalArg("additional_inputs", "Foo", 0)
-  .AddOptionalArg("bbox", "Foo", false)
-  LOADER_SCHEMA_ARGS;
+  .AddArg("path",
+      R"code(`string`
+      Path to Caffe2 LMDB directory)code")
+  .AddOptionalArg("num_labels",
+      R"code(`int`
+      Number of classes in dataset. Required when sparse labels are used.)code", 1)
+  .AddOptionalArg("label_type",
+      R"code(`int`
+      Enum describing the type of label stored in dataset.
+      SINGLE_LABEL = 0 : single integer label for multi-class classification
+      MULTI_LABEL_SPARSE = 1 : sparse active label indices for multi-label classification
+      MULTI_LABEL_DENSE = 2 : dense label embedding vector for label embedding regression
+      MULTI_LABEL_WEIGHTED_SPARSE = 3 : sparse active label indices with per-label weights
+      for multi-label classification.)code", 0)
+  .AddOptionalArg("additional_inputs",
+      R"code(`int`
+      Additional auxiliary data tensors provided for each sample.)code", 0)
+  .AddOptionalArg("bbox",
+      R"code(`bool`
+      Denotes if bounding-box information is present.)code", false)
+  .AddParent("LoaderBase");
 
 }  // namespace ndll
 

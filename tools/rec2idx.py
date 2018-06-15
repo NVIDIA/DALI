@@ -98,9 +98,11 @@ def parse_args():
     args.index = os.path.abspath(args.index)
     return args
 
-
-if __name__ == '__main__':
+def main():
     args = parse_args()
     creator = IndexCreator(args.record, args.index)
     creator.create_index()
     creator.close()
+
+if __name__ == '__main__':
+    main()
