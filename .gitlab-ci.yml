@@ -49,7 +49,8 @@ dali-builder:
     script:
     - echo -e "Dockerfile*\n"
               ".git*\n"
-              ".dockerignore\n" > .dockerignore
+              ".dockerignore\n"
+              "qa" > .dockerignore
     # build the manylinux1 builder image
     - docker pull "${BUILD_IMAGE_NAME}" || true
     - docker build --pull
