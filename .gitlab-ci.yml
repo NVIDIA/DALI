@@ -103,10 +103,7 @@ py3-base:
       GET_SOURCES_ATTEMPTS: 3
     script:
     - export CI_PROJECT_NAME=dali
-    - export BUILDDIR=$(docker run --rm -w /opt/${CI_PROJECT_NAME} -e PYV=$PYV ${BUILD_IMAGE_NAME_VERSIONED} bash -c 'ls -d build-*${PYV}*')
-    - echo -e "FROM ${BUILD_IMAGE_NAME_VERSIONED} AS builder\n"
-              "FROM ${BASE_IMAGE_NAME_VERSIONED}\n"
-              "COPY --from=builder /opt/${CI_PROJECT_NAME}/${BUILDDIR}/ /opt/${CI_PROJECT_NAME}/${BUILDDIR}/\n"
+    - echo -e "FROM ${BASE_IMAGE_NAME_VERSIONED}\n"
               "COPY CMakeLists.txt /opt/${CI_PROJECT_NAME}/\n"
               "COPY Dockerfile* /opt/${CI_PROJECT_NAME}/\n"
               "COPY .gitignore /opt/${CI_PROJECT_NAME}/\n"
