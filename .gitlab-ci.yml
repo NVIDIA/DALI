@@ -67,6 +67,10 @@ dali-builder:
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - echo -e "Dockerfile*\n"
+              ".git*\n"
+              ".dockerignore\n"
+              "qa" > .dockerignore
     # build a dlbase+dali image
     - docker pull "${BUILD_IMAGE_NAME}" || true
     - docker pull "${BASE_IMAGE_NAME}" || true
