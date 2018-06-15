@@ -13,7 +13,7 @@ RUN rm -rf /opt/python/cp27-cp27m /opt/_internal/cpython-2.7.15-ucs2 && \
 
 # Install python dependencies
 RUN for PYBIN in /opt/python/*/bin; do \
-        "${PYBIN}/pip" install future numpy setuptools tensorflow-gpu; \
+        "${PYBIN}/pip" install future numpy setuptools pip-autoremove; \
     done
 
 # Boost
@@ -75,7 +75,6 @@ RUN JPEG_TURBO_VERSION=1.5.2 && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # CUDA
-#ENV CUDA_VERSION=9.0
 RUN CUDA_VERSION=9.0 && \
     CUDA_BUILD=9.0.176_384.81 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
@@ -103,6 +102,7 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
         PYBIN="${PYTHONPATH}/bin" && \
         PYLIB="${PYTHONPATH}/lib" && \
         PATH="${PYBIN}:${PATH}" && \
+        pip install tensorflow-gpu && \
         mkdir build-${PYVER} && \
         pushd build-${PYVER} && \
         LD_LIBRARY_PATH="/usr/local/cuda/lib64/stubs:${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
@@ -110,6 +110,7 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
             -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
             -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
         make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+        pip-autoremove tensorflow-gpu -y && \
         popd \
       ); \
     done
@@ -126,7 +127,7 @@ RUN for PYVER in $(ls /opt/python); do \
         PATH="${PYBIN}:${PATH}" && \
         pushd build-${PYVER} && \
         LD_LIBRARY_PATH="${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
-        "${PYBIN}/pip" wheel -v ndll/python \
+        pip wheel -v ndll/python \
             --build-option --python-tag=${PYVER} \
             --build-option --plat-name=manylinux1_x86_64 \
             --build-option --build-number=${NVIDIA_BUILD_ID} && \
