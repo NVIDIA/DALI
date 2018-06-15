@@ -146,7 +146,6 @@ py3-dali:
       TEST_IMAGE: "$${DEVEL_IMAGE_NAME_VERSIONED}"
     script:
     - export TEST_WORK_DIR="${TEST_WORK_DIR%%--*}"
-    - export TEST_WORK_DIR="${TEST_WORK_DIR%-py[23]}"
     - export CONTAINER_NAME="${CI_PROJECT_NAME}.${CI_JOB_ID}.${CI_JOB_NAME}"
     - cat /proc/driver/nvidia/version
     - docker pull $(eval echo ${TEST_IMAGE})
@@ -178,7 +177,6 @@ py3-dali:
     TEST_IMAGE: "$${BUILD_IMAGE_NAME_VERSIONED}"
   script:
     - export TEST_WORK_DIR="${TEST_WORK_DIR%%--*}"
-    - export TEST_WORK_DIR="${TEST_WORK_DIR%-py[23]}"
     - export CONTAINER_NAME="${CI_PROJECT_NAME}.${CI_JOB_ID}.${CI_JOB_NAME}"
     - docker pull $(eval echo ${TEST_IMAGE})
     - ( sleep 10800 && echo "******TIMEOUT EXPIRED******" && docker kill "${CONTAINER_NAME}" ) &
@@ -249,7 +247,7 @@ py3-dali:
 ######################################################
 
 
-L0_lint--py2--P100_R384_4GPU:
+L0_lint--py2:
   <<: *L0_TEST
   <<: *CPU_ONLY_TEST
 
