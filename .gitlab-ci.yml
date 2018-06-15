@@ -57,7 +57,7 @@ dali-builder:
                    --target builder
                    --cache-from "${BUILD_IMAGE_NAME}"
                    -t "${BUILD_IMAGE_NAME}" -t "${BUILD_IMAGE_NAME_VERSIONED}"
-                   --build-arg "NVIDIA_BUILD_ID=${CI_JOB_ID}" .
+                   --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}" .
     - docker push "${BUILD_IMAGE_NAME}"
     - docker push "${BUILD_IMAGE_NAME_VERSIONED}"
 
@@ -79,6 +79,7 @@ dali-builder:
                    --cache-from "${BUILD_IMAGE_NAME}"
                    --cache-from "${BASE_IMAGE_NAME}"
                    -t "${BASE_IMAGE_NAME}" -t "${BASE_IMAGE_NAME_VERSIONED}"
+                   --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}"
                    --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}"
                    --label "com.nvidia.build.id=${CI_JOB_ID}" .
     - docker push "${BASE_IMAGE_NAME}"
