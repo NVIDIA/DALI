@@ -1,4 +1,8 @@
 #!/bin/bash -e
 
-cd /opt/dali/build-*$PYV*
+pushd ../..
+
+cd build-*$PYV*
 ./ndll/run_benchmarks --benchmark_filter="RN50*"
+
+popd

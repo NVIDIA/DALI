@@ -1,8 +1,12 @@
 #!/bin/bash -e
 
+pushd ../..
+
 # Create a dummy .git directory to fool linter
-cd /opt/dali
 mkdir -p .git
 
-cd /opt/dali/build-*$PYV*
+# Run linter
+cd build-*$PYV*
 make lint
+
+popd
