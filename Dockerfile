@@ -143,7 +143,13 @@ FROM gitlab-dl.nvidia.com:5005/dgx/cuda:9.0-cudnn7.1-devel-ubuntu16.04--18.07 AS
 ARG PYVER=2.7
 ARG PYV=27
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# glib-2.0 is needed for OpenCV's python module, which the tests will need later.
+# But it depends on python2 packages so must install it _before_ the desired
+# python so that the default is the one we want, not necessarily py2
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        glib-2.0 && \
+    apt-get install -y --no-install-recommends \
         doxygen \
         python$PYVER \
         python$PYVER-dev && \
@@ -165,11 +171,11 @@ COPY Acknowledgements.txt /opt/dali/
 COPY COPYRIGHT   /opt/dali/
 COPY Doxyfile    /opt/dali/
 COPY LICENSE     /opt/dali/
-COPY README.md  /opt/dali/
-COPY docs       /opt/dali/
-COPY examples   /opt/dali/
-COPY scripts    /opt/dali/
-COPY tools      /opt/dali/
+COPY README.md   /opt/dali/
+COPY docs/       /opt/dali/docs/
+COPY examples/   /opt/dali/examples/
+COPY scripts/    /opt/dali/scripts/
+COPY tools/      /opt/dali/tools/
 
 COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
 
