@@ -229,7 +229,6 @@ L0_lint--py2--P100_R384_4GPU:
 L0_self-test--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
-  <<: *TEST_USES_BUILD_IMAGE
 
 L0_python-self-test--py2--P100_R384_4GPU:
   <<: *L0_TEST
@@ -242,7 +241,6 @@ L0_python-self-test--P100_R384_4GPU:
 L0_rn50-benchmarks--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
-  <<: *TEST_USES_BUILD_IMAGE
 
 L0_rn50_python-benchmarks--P100_R384_4GPU:
   <<: *L0_TEST
@@ -255,7 +253,6 @@ L0_rn50_python-benchmarks--py2--P100_R384_4GPU:
 L0_self-test--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
-  <<: *TEST_USES_BUILD_IMAGE
 
 L0_python-self-test--py2--V100_R384_4GPU:
   <<: *L0_TEST
@@ -268,7 +265,6 @@ L0_python-self-test--V100_R384_4GPU:
 L0_rn50-benchmarks--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
-  <<: *TEST_USES_BUILD_IMAGE
 
 L0_rn50_python-benchmarks--V100_R384_4GPU:
   <<: *L0_TEST

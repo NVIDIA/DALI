@@ -118,7 +118,7 @@ done
 pushd $TMPDIR
 
 echo "patching to fix the so names to the hashed names"
-find $PKGNAME_S -name '*.so*' | while read sofile; do
+find $PKGNAME_S -name '*.so*' -o -name '*.bin' | while read sofile; do
     for ((i=0;i<${#DEPS_LIST[@]};++i)); do
         origname=${DEPS_SONAME[i]}
         patchedname=${patched[i]}
@@ -139,6 +139,13 @@ done
 find $PKGNAME_S -maxdepth 1 -type f -name "*.so*" | while read sofile; do
     echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
     patchelf --set-rpath '$ORIGIN:$ORIGIN/.libs' $sofile
+    patchelf --print-rpath $sofile
+done
+
+# set RPATH of test/*.bin to $ORIGIN, $ORIGIN/.libs
+find $PKGNAME_S/test -maxdepth 1 -type f -name "*.bin" | while read sofile; do
+    echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
+    patchelf --set-rpath '$ORIGIN:$ORIGIN/../.libs' $sofile
     patchelf --print-rpath $sofile
 done
 

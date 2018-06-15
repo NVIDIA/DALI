@@ -8,10 +8,11 @@ setup(name='nvidia-dali',
       license='Apache License 2.0',
       packages=[
           'dali',
-          'dali.plugin'
+          'dali.plugin',
+          'dali.test',
           ],
       package_data={
-          '': ['*.so','Acknowledgements.txt','LICENSE','COPYRIGHT']
+          '': ['*.so','*.bin','Acknowledgements.txt','LICENSE','COPYRIGHT']
           },
       py_modules = [
           'rec2idx',
@@ -28,3 +29,4 @@ setup(name='nvidia-dali',
           'future',
           ],
      )
+
