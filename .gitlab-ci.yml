@@ -149,6 +149,7 @@ py3-dali:
       docker run --rm $(eval ${NV_DOCKER_ARGS})
              --name "${CONTAINER_NAME}"
              -v $DATADIR:/data
+             -e PYVER=${PYVER}
              -e PYV=${PYV}
              $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
              ${DEVEL_IMAGE_NAME_VERSIONED}

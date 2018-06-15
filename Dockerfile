@@ -143,13 +143,7 @@ FROM gitlab-dl.nvidia.com:5005/dgx/cuda:9.0-cudnn7.1-devel-ubuntu16.04--18.07 AS
 ARG PYVER=2.7
 ARG PYV=27
 
-# glib-2.0 is needed for OpenCV's python module, which the tests will need later.
-# But it depends on python2 packages so must install it _before_ the desired
-# python so that the default is the one we want, not necessarily py2
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        glib-2.0 && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         doxygen \
         python$PYVER \
         python$PYVER-dev && \
