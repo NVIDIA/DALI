@@ -171,6 +171,7 @@ COPY examples/   /opt/dali/examples/
 COPY scripts/    /opt/dali/scripts/
 COPY tools/      /opt/dali/tools/
 
+ENV PYV=${PYV}
 COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
 
 RUN pip install /opt/dali/*.whl
