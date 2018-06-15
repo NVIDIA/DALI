@@ -96,7 +96,6 @@ WORKDIR /opt/dali
 COPY . .
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
-    export LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} && \
     for PYVER in $(ls /opt/python); do \
       ( \
         set -e; \
@@ -106,7 +105,7 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
         PATH="${PYBIN}:${PATH}" && \
         mkdir build-${PYVER} && \
         pushd build-${PYVER} && \
-        LD_LIBRARY_PATH="${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
+        LD_LIBRARY_PATH="/usr/local/cuda/lib64/stubs:${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
         cmake ../ -DCMAKE_INSTALL_PREFIX=. \
             -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
             -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
@@ -136,6 +135,7 @@ RUN for PYVER in $(ls /opt/python); do \
       ); \
     done
 
+# Metadata for nvidia-docker1
 ENV CUDA_VERSION 9.0
 LABEL com.nvidia.volumes.needed="nvidia_driver"
 LABEL com.nvidia.cuda.version="${CUDA_VERSION}"
@@ -143,4 +143,8 @@ RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
 ENV PATH /usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+# Metadata for nvidia-docker2
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_REQUIRE_CUDA "cuda>=${CUDA_VERSION}"
 
