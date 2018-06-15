@@ -2,7 +2,7 @@
 
 cd /opt/dali/examples
 
-pip install jupyter matplotlib
+pip install jupyter numpy==1.11.1 matplotlib python-opencv==3.1.0
 
 mkdir -p /opt/dali/idx_files
 
