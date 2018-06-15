@@ -22,6 +22,7 @@ class Randomizer {
  private:
     void *states_;
     size_t len_;
+    int device_;
 };
 
 }  // namespace ndll

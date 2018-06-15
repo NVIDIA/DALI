@@ -11,6 +11,7 @@
 
 #include "ndll/pipeline/operators/operator.h"
 #include "ndll/pipeline/util/thread_pool.h"
+#include "ndll/pipeline/util/device_guard.h"
 #include "ndll/util/image.h"
 
 
@@ -106,6 +107,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       states_.reserve(max_streams_);
       events_.reserve(max_streams_);
 
+      cudaGetDevice(&device_id_);
+
       NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
@@ -116,6 +119,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   }
 
   ~nvJPEGDecoder() {
+    DeviceGuard g(device_id_);
     for (int i = 0; i < max_streams_; ++i) {
       NVJPEG_CALL(nvjpegJpegStateDestroy(states_[i]));
       CUDA_CALL(cudaEventDestroy(events_[i]));
@@ -388,6 +392,9 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   // Thread pool
   ThreadPool thread_pool_;
+
+  // device id
+  int device_id_;
 };
 
 }  // namespace ndll

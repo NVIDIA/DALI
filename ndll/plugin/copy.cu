@@ -5,6 +5,7 @@
 #include "ndll/plugin/copy.h"
 #include "ndll/error_handling.h"
 #include "ndll/util/user_stream.h"
+#include "ndll/pipeline/util/device_guard.h"
 
 namespace ndll {
 
@@ -17,6 +18,7 @@ void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr) {
 
 void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr) {
   NDLL_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
+  DeviceGuard d(t.device_id());
   cudaStream_t stream = UserStream::Get()->GetStream(t);
   CUDA_CALL(cudaMemcpyAsync(ptr,
                             t.raw_data(),

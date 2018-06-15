@@ -7,6 +7,8 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+#include "ndll/pipeline/util/device_guard.h"
+
 namespace ndll {
 
 __global__
@@ -21,6 +23,7 @@ void initializeStates(const int N, unsigned int seed, curandState *states) {
 template <>
 Randomizer<GPUBackend>::Randomizer(int seed, size_t len) {
   len_ = len;
+  cudaGetDevice(&device_);
   states_ = GPUBackend::New(sizeof(curandState) * len, true);
   initializeStates<<<128, 256>>>(len_, seed, reinterpret_cast<curandState*>(states_));
 }
@@ -33,6 +36,7 @@ int Randomizer<GPUBackend>::rand(int idx) {
 
 template <>
 void Randomizer<GPUBackend>::Cleanup() {
+  DeviceGuard g(device_);
   GPUBackend::Delete(states_, sizeof(curandState) * len_, true);
 }
 

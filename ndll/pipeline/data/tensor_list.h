@@ -119,6 +119,7 @@ class TensorList : public Buffer<Backend> {
     offsets_ = other->offsets_;
     type_ = other->type_;
     num_bytes_ = other->num_bytes_;
+    device_ = other->device_;
 
     // If the other tensor has a non-zero size allocation, mark that
     // we are now sharing an allocation with another buffer

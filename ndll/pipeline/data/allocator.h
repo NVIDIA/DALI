@@ -2,6 +2,8 @@
 #ifndef NDLL_PIPELINE_DATA_ALLOCATOR_H_
 #define NDLL_PIPELINE_DATA_ALLOCATOR_H_
 
+#include <cuda.h>
+
 #include "ndll/error_handling.h"
 #include "ndll/pipeline/operators/operator_factory.h"
 
@@ -50,7 +52,9 @@ class GPUAllocator : public AllocatorBase {
   }
 
   virtual void Delete(void *ptr, size_t /* unused */) {
-    CUDA_CALL(cudaFree(ptr));
+    if (ptr != nullptr) {
+      CUDA_CALL(cudaFree(ptr));
+    }
   }
 };
 

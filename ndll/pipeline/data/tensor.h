@@ -102,6 +102,7 @@ class Tensor : public Buffer<Backend> {
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
+    device_ = tl->device_id();
   }
 
   /**
@@ -129,6 +130,7 @@ class Tensor : public Buffer<Backend> {
     type_ = t->type_;
     num_bytes_ = t->num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
+    device_ = t->device_id();
   }
 
   /**
@@ -184,6 +186,7 @@ class Tensor : public Buffer<Backend> {
     size_ = Product(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
+    device_ = tl->device_id();
     shares_data_ = true;
   }
 
@@ -246,6 +249,7 @@ class Tensor : public Buffer<Backend> {
     size_ = t.size_;
     shares_data_ = t.shares_data_;
     num_bytes_ = t.num_bytes_;
+    device_ = t.device_;
 
     t.shape_.clear();
     t.backend_ = Backend();
@@ -265,6 +269,8 @@ class Tensor : public Buffer<Backend> {
       size_ = t.size_;
       shares_data_ = t.shares_data_;
       num_bytes_ = t.num_bytes_;
+      device_ = t.device_;
+
 
       t.shape_.clear();
       t.backend_ = Backend();

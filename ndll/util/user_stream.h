@@ -3,9 +3,10 @@
 #define NDLL_UTIL_USER_STREAM_H_
 
 #include <cuda_runtime_api.h>
+#include <cuda.h>
 
 #include <mutex>
-#include <vector>
+#include <unordered_map>
 
 #include "ndll/pipeline/data/buffer.h"
 #include "ndll/pipeline/data/backend.h"
@@ -29,8 +30,14 @@ class UserStream {
 
   cudaStream_t GetStream(const ndll::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
-    NDLL_ENFORCE(dev < streams_.size(), "Requested stream for unknown device");
-    return streams_[dev];
+    std::unique_lock<std::mutex> lock(m_);
+    auto it = streams_.find(dev);
+    if (it != streams_.end()) {
+      return it->second;
+    } else {
+      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[dev], cudaStreamNonBlocking));
+      return streams_.at(dev);
+    }
   }
 
   void WaitForDevice(const ndll::Buffer<GPUBackend> &b) {
@@ -41,44 +48,41 @@ class UserStream {
 
   void Wait(const ndll::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
+    NDLL_ENFORCE(streams_.find(dev) != streams_.end(),
+        "Can only wait on user streams");
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
   void Wait() {
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
+    NDLL_ENFORCE(streams_.find(dev) != streams_.end(),
+        "Can only wait on user streams");
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
   void WaitAll() {
-    for (size_t i = 0; i < streams_.size(); ++i) {
-      CUDA_CALL(cudaSetDevice(i));
-      CUDA_CALL(cudaStreamSynchronize(streams_[i]));
+    for (const auto &dev_pair : streams_) {
+      CUDA_CALL(cudaSetDevice(dev_pair.first));
+      CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
     }
   }
 
  private:
-  UserStream() {
-    int gpu_count = 0;
-    CUDA_CALL(cudaGetDeviceCount(&gpu_count));
-    streams_.resize(gpu_count);
-    for (size_t i = 0; i < streams_.size(); ++i) {
-      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
-    }
-  }
+  UserStream() {}
 
   size_t GetDeviceForBuffer(const ndll::Buffer<GPUBackend> &b) {
-    const void* ptr = b.raw_data();
-    cudaPointerAttributes attr;
-    CUDA_CALL(cudaPointerGetAttributes(&attr, ptr));
-    CUDA_CALL(cudaSetDevice(attr.device));
-    return attr.device;
+    int dev = b.device_id();
+    NDLL_ENFORCE(dev != -1,
+        "Used a pointer from unknown device");
+    CUDA_CALL(cudaSetDevice(dev));
+    return dev;
   }
 
   static std::mutex m_;
   static UserStream * us_;
 
-  std::vector<cudaStream_t> streams_;
+  std::unordered_map<int, cudaStream_t> streams_;
 };
 }  // namespace ndll
 
