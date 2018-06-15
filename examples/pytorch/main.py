@@ -25,10 +25,10 @@ except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 try:
-    from ndll.plugin.pytorch import NDLLClassificationIterator
-    from ndll.pipeline import Pipeline
-    import ndll.ops as ops
-    import ndll.types as types
+    from dali.plugin.pytorch import NDLLClassificationIterator
+    from dali.pipeline import Pipeline
+    import dali.ops as ops
+    import dali.types as types
 except ImportError:
     raise ImportError("Please install dali from https://www.github.com/nvidia/dali to run this example.")
 
@@ -195,14 +195,14 @@ def main():
     pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = traindir)
     pipe.build()
     test_run = pipe.run()
-    from ndll.plugin.pytorch import NDLLClassificationIterator
+    from dali.plugin.pytorch import NDLLClassificationIterator
     train_loader = NDLLClassificationIterator(pipe, size = int(1281167 / args.world_size) )
 
 
     pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = valdir)
     pipe.build()
     test_run = pipe.run()
-    from ndll.plugin.pytorch import NDLLClassificationIterator
+    from dali.plugin.pytorch import NDLLClassificationIterator
     val_loader = NDLLClassificationIterator(pipe, size = int(50000 / args.world_size) )
 
     if args.evaluate:

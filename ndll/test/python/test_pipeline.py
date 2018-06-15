@@ -1,7 +1,7 @@
-from ndll.pipeline import Pipeline
-import ndll.ops as ops
-import ndll.types as types
-import ndll.tfrecord as tfrec
+from dali.pipeline import Pipeline
+import dali.ops as ops
+import dali.types as types
+import dali.tfrecord as tfrec
 import numpy as np
 from timeit import default_timer as timer
 import numpy as np

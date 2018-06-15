@@ -1,11 +1,10 @@
-#!/bin/bash
-set -e
+#!/bin/bash -e
 
-cd /opt/ndll/examples
+cd /opt/dali/examples
 
 pip install jupyter matplotlib
 
-mkdir -p /opt/ndll/idx_files
+mkdir -p /opt/dali/idx_files
 
 ls *.ipynb | xargs -i jupyter nbconvert \
                    --to notebook --execute \

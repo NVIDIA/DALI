@@ -1,5 +1,4 @@
-#!/bin/bash
-set -e
+#!/bin/bash -e
 
-cd /opt/ndll/ndll/benchmark
+cd /opt/dali/ndll/benchmark
 python resnet50_bench.py

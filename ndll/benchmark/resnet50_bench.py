@@ -1,7 +1,7 @@
 import argparse
-from ndll.pipeline import Pipeline
-import ndll.ops as ops
-import ndll.types as types
+from dali.pipeline import Pipeline
+import dali.ops as ops
+import dali.types as types
 import numpy as np
 from timeit import default_timer as timer
 

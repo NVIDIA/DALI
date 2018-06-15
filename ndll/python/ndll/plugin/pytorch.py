@@ -4,7 +4,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from ndll.pipeline import Pipeline
+from dali.pipeline import Pipeline
 import torch
 import ctypes
 import logging

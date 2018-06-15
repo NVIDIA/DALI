@@ -1,5 +1,4 @@
-#!/bin/bash
-set -e
+#!/bin/bash -e
 
-cd /opt/ndll/build*$PYV*
+cd /opt/dali/build-*$PYV*
 ./ndll/run_benchmarks --benchmark_filter="RN50*"
