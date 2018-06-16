@@ -45,13 +45,13 @@ include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
 list(APPEND NDLL_LIBS ${JPEG_TURBO_LIBRARY})
 
 # OpenCV
-# Note: OpenCV 3.* 'imdeocde()' is in the imgcodecs library
-find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc)
+# Note: OpenCV 3.* 'imdecode()' is in the imgcodecs library
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 if (OpenCV_FOUND)
   string(SUBSTRING ${OpenCV_VERSION} 0 1 OCV_VERSION)
   if ("${OCV_VERSION}" STREQUAL "3")
     # Get the imgcodecs library
-    find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc imgcodecs)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
   endif()
 
   # Check for opencv

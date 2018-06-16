@@ -2,6 +2,14 @@
 #ifndef NDLL_PIPELINE_DATA_TYPES_H_
 #define NDLL_PIPELINE_DATA_TYPES_H_
 
+// workaround missing "is_trivially_copyable" in g++ < 5.0
+#if __GNUG__ && __GNUC__ < 5
+#include <boost/type_traits/has_trivial_copy.hpp>
+#define IS_TRIVIALLY_COPYABLE(T) ::boost::has_trivial_copy<T>::value
+#else
+#define IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
+#endif
+
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -218,14 +226,14 @@ class TypeInfo {
   }
 
   template <typename T>
-  inline typename std::enable_if<std::is_trivially_copyable<T>::value>::type
+  inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
   CopyFunc(void *dst, const void *src, Index n) {
     // T is trivially copyable, we can copy using raw memcopy
     std::memcpy(dst, src, n*sizeof(T));
   }
 
   template <typename T>
-  inline typename std::enable_if<!std::is_trivially_copyable<T>::value>::type
+  inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
   CopyFunc(void *dst, const void *src, Index n) {
     T *typed_dst = static_cast<T*>(dst);
     const T* typed_src = static_cast<const T*>(src);

@@ -1,11 +1,11 @@
 import argparse
-from ndll.pipeline import Pipeline
-import ndll.ops as ops
-import ndll.types as types
+from dali.pipeline import Pipeline
+import dali.ops as ops
+import dali.types as types
 import numpy as np
 from timeit import default_timer as timer
 
-image_folder = "./benchmark_images"
+image_folder = "/data/dali/benchmark/benchmark_images"
 
 def read_jpegs(folder):
     with open(folder + "/image_list.txt", 'r') as file:

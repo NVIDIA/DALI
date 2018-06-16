@@ -1,16 +1,22 @@
 from setuptools import setup
 
-setup(name='ndll',
+setup(name='nvidia-dali',
+      description='NVIDIA DALI',
+      url='https://github.com/NVIDIA/dali',
       version='0.1.0',
+      author='NVIDIA Corporation',
+      license='Apache License 2.0',
       packages=[
-          'ndll',
-          'ndll.plugin',
+          'dali',
+          'dali.plugin',
+          'dali.test',
           ],
+      package_data={
+          '': ['*.so','*.bin','Acknowledgements.txt','LICENSE','COPYRIGHT']
+          },
       py_modules = [
           'rec2idx',
           ],
-      package_data={
-          '': ['*.so']},
       scripts = [
           'tfrecord2idx',
           ],
@@ -19,4 +25,8 @@ setup(name='ndll',
               'rec2idx = rec2idx:main',
               ],
           },
+      install_requires = [
+          'future',
+          ],
      )
+

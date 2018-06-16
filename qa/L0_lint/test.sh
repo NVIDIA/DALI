@@ -1,5 +1,12 @@
-#!/bin/bash
-set -e
+#!/bin/bash -e
 
-cd /opt/ndll/build
+pushd ../..
+
+# Create a dummy .git directory to fool linter
+mkdir -p .git
+
+# Run linter
+cd build-*$PYV*
 make lint
+
+popd

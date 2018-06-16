@@ -310,7 +310,7 @@ class OpGraph {
    * in filename.
    */
   void SaveToDotFile(const string filename) {
-    std::ofstream ofs = std::ofstream(filename);
+    std::ofstream ofs(filename);
     ofs << "digraph graphname {\n";
     const OpNode& current_node = GetNodeForIdx(0);
     GenerateDOTFromGraph(current_node, ofs);
