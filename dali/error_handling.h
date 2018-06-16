@@ -1,0 +1,251 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef DALI_ERROR_HANDLING_H_
+#define DALI_ERROR_HANDLING_H_
+
+#ifndef _MSC_VER
+#define DALI_USE_STACKTRACE 1
+#endif  // _MSC_VER
+
+#if DALI_USE_STACKTRACE
+#include <cxxabi.h>
+#include <execinfo.h>
+#endif  // DALI_USE_STACKTRACE
+
+#include <cuda_runtime_api.h>
+#include <nvml.h>
+
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <algorithm>
+
+#include "dali/common.h"
+#include "dali/util/npp.h"
+
+namespace dali {
+
+/**
+ * @brief Error object returned by dali functions. If an error is returned ('DALIError'),
+ * a string explaining the error can be found by calling 'DALIGetLastError'
+ */
+enum DALIError_t {
+  DALISuccess = 0,
+  DALIError = 1
+};
+
+/**
+ * @brief Returns a string explaining the last error that occured. Calling this function
+ * clears the error. If no error has occured (or it has been wiped out by a previous call
+ * to this function), this function returns an empty string
+ */
+string DALIGetLastError();
+
+// Sets the error string. Used internally by DALI to pass error strings out to the user
+void DALISetLastError(string error_str);
+
+inline string BuildErrorString(string statement, string file, int line) {
+  string line_str = std::to_string(line);
+  string error = "[" + file + ":" + line_str +
+    "]: Assert on \"" + statement +
+    "\" failed";
+  return error;
+}
+
+#define ASRT_1(code)                                                          \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      dali::string error = dali::BuildErrorString(#code, __FILE__, __LINE__); \
+      DALISetLastError(error);                                                \
+      return DALIError;                                                       \
+    }                                                                         \
+  } while (0)
+
+#define ASRT_2(code, str)                                                     \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      dali::string error = dali::BuildErrorString(#code, __FILE__, __LINE__); \
+      dali::string usr_str = str;                                             \
+      error += ": " + usr_str;                                                \
+      DALISetLastError(error);                                                \
+      return DALIError;                                                       \
+    }                                                                         \
+  } while (0)
+
+#define GET_MACRO(_1, _2, NAME, ...) NAME
+#define DALI_ASSERT(...) GET_MACRO(__VA_ARGS__, ASRT_2, ASRT_1)(__VA_ARGS__)
+
+#define DALI_FORWARD_ERROR(code) \
+  if ((code) == DALIError) {     \
+    return DALIError;            \
+  }
+
+#define DALI_RETURN_ERROR(str)                                            \
+  do {                                                                    \
+    dali::string file = __FILE__;                                         \
+    dali::string line = std::to_string(__LINE__);                         \
+    dali::string error =  "[" + file + ":" + line + "]: Error in DALI: "; \
+    error += str;                                                         \
+    DALISetLastError(error);                                              \
+    return DALIError;                                                     \
+  } while (0)
+
+// For checking npp return errors in dali library functions
+#define DALI_CHECK_NPP(code)                              \
+  do {                                                    \
+    NppStatus status = code;                              \
+    if (status != NPP_SUCCESS) {                          \
+    dali::string file = __FILE__;                         \
+      dali::string line = std::to_string(__LINE__);       \
+      dali::string error = "[" + file + ":" + line +      \
+        "]: NPP error \"" +                               \
+        nppErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                   \
+    }                                                     \
+  } while (0)
+
+//////////////////////////////////////////////////////
+/// Error checking utilities for the DALI pipeline ///
+//////////////////////////////////////////////////////
+
+// For calling CUDA library functions
+#define CUDA_CALL(code)                                    \
+  do {                                                     \
+    cudaError_t status = code;                             \
+    if (status != cudaSuccess) {                           \
+      dali::string error = dali::string("CUDA error \"") + \
+        cudaGetErrorString(status) + "\"";                 \
+      DALI_FAIL(error);                                    \
+    }                                                      \
+  } while (0)
+
+// For calling NVML library functions
+#define NVML_CALL(code)                                    \
+  do {                                                     \
+    nvmlReturn_t status = code;                            \
+    if (status != NVML_SUCCESS) {                          \
+      dali::string error = dali::string("NVML error \"") + \
+        nvmlErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                    \
+    }                                                      \
+  } while (0)
+
+// For calling DALI library functions
+#define DALI_CALL(code)                                         \
+  do {                                                          \
+    DALIError_t status = code;                                  \
+    if (status != DALISuccess) {                                \
+      dali::string error = DALIGetLastError();                  \
+      DALI_FAIL(error);                                         \
+    }                                                           \
+  } while (0)
+
+// Excpetion throwing checks for pipeline code
+#define ENFRC_1(code)                                                         \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      dali::string error = dali::string("Assert on \"") + #code +"\" failed"; \
+      DALI_FAIL(error);                                                       \
+    }                                                                         \
+  } while (0)
+
+#define ENFRC_2(code, str)                                                    \
+  do {                                                                        \
+    if (!(code)) {                                                            \
+      dali::string error = dali::string("Assert on \"") + #code +"\" failed"; \
+      dali::string usr_str = str;                                             \
+      error += ": " + usr_str;                                                \
+      DALI_FAIL(error);                                                       \
+    }                                                                         \
+  } while (0)
+
+#define DALI_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
+
+// Enforces that the value of 'var' is in the range [lower, upper)
+#define DALI_ENFORCE_IN_RANGE(var, lower, upper)                                         \
+  do {                                                                                   \
+    if (((var) < (lower)) || (static_cast<size_t>(var) >= static_cast<size_t>(upper))) { \
+      dali::string error = "Index " + std::to_string(var) + " out of range [" +          \
+        std::to_string(lower) + ", " + std::to_string(upper) + ").";                     \
+      DALI_FAIL(error);                                                                  \
+    }                                                                                    \
+  } while (0)
+
+// Enforces that the input var is in the range [0, upper)
+#define DALI_ENFORCE_VALID_INDEX(var, upper) \
+  DALI_ENFORCE_IN_RANGE(var, 0, upper)
+
+#if DALI_USE_STACKTRACE && DALI_DEBUG
+inline void ltrim(std::string *s) {
+    s->erase(s->begin(), std::find_if(s->begin(), s->end(), [](int ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+inline void rtrim(std::string *s) {
+    s->erase(std::find_if(s->rbegin(), s->rend(), [](int ch) {
+        return !std::isspace(ch);
+    }).base(), s->end());
+}
+
+inline void trim(std::string *s) {
+    ltrim(s);
+    rtrim(s);
+}
+
+inline dali::string GetStacktrace() {
+  const int MAX_STACK_SIZE = 100;
+  void * stack[MAX_STACK_SIZE];
+  int nframes = backtrace(stack, MAX_STACK_SIZE);
+  dali::string ret = "\nStacktrace (" + std::to_string(nframes) + " entries):\n";
+  char **msgs = backtrace_symbols(stack, nframes);
+  if (msgs != nullptr) {
+    for (int frame = 0; frame < nframes; ++frame) {
+      dali::string msg(msgs[frame]);
+      size_t symbol_start = string::npos;
+      size_t symbol_end = string::npos;
+      dali::string s = msgs[frame];
+      if ( ((symbol_start = msg.find("_Z")) != string::npos)
+          && (symbol_end = msg.find("+0x", symbol_start)) != string::npos ) {
+        string left(msg, 0, symbol_start);
+        string symbol(msg, symbol_start, symbol_end - symbol_start);
+        trim(&symbol);
+        string right(msg, symbol_end);
+        int status = 0;
+        char * demangled_symbol =
+          abi::__cxa_demangle(symbol.c_str(), 0, 0, &status);
+        if (demangled_symbol != nullptr) {
+          s = left + demangled_symbol + right;
+          std::free(demangled_symbol);
+        }
+      }
+      ret += "[frame " + std::to_string(frame) + "]: " + s + "\n";
+    }
+  }
+  free(msgs);
+  return ret;
+}
+#else
+inline dali::string GetStacktrace() {
+  return "";
+}
+#endif  // DALI_USE_STACKTRACE && DALI_DEBUG
+
+#define DALI_FAIL(str)                                              \
+  do {                                                              \
+    dali::string file = __FILE__;                                   \
+    dali::string line = std::to_string(__LINE__);                   \
+    dali::string error_str = "[" + file + ":" + line + "] " + str;  \
+    error_str += dali::GetStacktrace();                             \
+    throw std::runtime_error(error_str);                            \
+  } while (0)
+
+void DALIReportFatalProblem(const char *file, int line, const char *pComment);
+#define REPORT_FATAL_PROBLEM(comment) DALIReportFatalProblem(__FILE__, __LINE__, comment)
+
+#define LOG_LINE \
+  if (0) \
+  std::cout << __FILE__ << ":" << __LINE__ << ": "
+
+}  // namespace dali
+
+#endif  // DALI_ERROR_HANDLING_H_

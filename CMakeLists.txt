@@ -1,7 +1,7 @@
 # NOTE(tgale): Haven't tried with anything else.
 cmake_minimum_required(VERSION 3.5)
 
-project(NDLL CXX)
+project(DALI CXX)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
@@ -27,11 +27,11 @@ endif()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   message(STATUS "Building in DEBUG mode")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DNDLL_DEBUG=1")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DNDLL_DEBUG=1")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DDALI_DEBUG=1")
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDLL_DEBUG=0")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DNDLL_DEBUG=0")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDALI_DEBUG=0")
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
 endif()
 
 # Cmake path
@@ -59,10 +59,10 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 cuda_include_directories(${PROJECT_SOURCE_DIR})
 
 # Project build
-add_subdirectory(ndll)
+add_subdirectory(dali)
 
 # HACK: Add __init__.pys as needed
-file(WRITE ${CMAKE_BINARY_DIR}/ndll/__init__.py "")
+file(WRITE ${CMAKE_BINARY_DIR}/dali/__init__.py "")
 
 add_custom_target(lint COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 

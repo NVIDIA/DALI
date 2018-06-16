@@ -1,0 +1,127 @@
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+#ifndef DALI_PIPELINE_OPERATORS_READER_LOADER_LMDB_H_
+#define DALI_PIPELINE_OPERATORS_READER_LOADER_LMDB_H_
+
+#include <lmdb.h>
+#include <string>
+
+#include "dali/common.h"
+#include "dali/pipeline/operators/reader/loader/loader.h"
+
+namespace dali {
+
+#define CHECK_LMDB(status) \
+  do { \
+    DALI_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status))); \
+  } while (0)
+
+namespace lmdb {
+  inline bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value) {
+    int status = mdb_cursor_get(cursor, key, value, op);
+
+    if (status == MDB_NOTFOUND) {
+      // reached the end of the db
+      return false;
+    } else {
+      CHECK_LMDB(status);
+      return true;
+    }
+  }
+
+  inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
+    MDB_stat* stat = new MDB_stat;
+
+    CHECK_LMDB(mdb_stat(txn, dbi, stat));
+
+    uint64_t size = stat->ms_entries;
+    delete stat;
+
+    return size;
+  }
+
+  inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
+    MDB_stat* stat = new MDB_stat;
+
+    CHECK_LMDB(mdb_stat(txn, dbi, stat));
+
+    printf("DB has %d entries\n", static_cast<int>(stat->ms_entries));
+  }
+}  // namespace lmdb
+
+class LMDBReader : public Loader<CPUBackend> {
+ public:
+  explicit LMDBReader(const OpSpec& options)
+    : Loader(options),
+      db_path_(options.GetArgument<string>("path")) {
+
+    // Create the db environment, open the passed DB
+    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
+    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
+
+    // Create transaction and cursor
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+
+    // Optional: debug printing
+    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+
+    // work out how many entries to move forward to handle sharding
+    if (shard_id_ == 0) return;
+    int samples_per_shard = Size() / num_shards_;
+    int start_idx = shard_id_ * samples_per_shard;
+
+    for (int i = 0; i < start_idx; ++i) {
+      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    }
+  }
+  ~LMDBReader() {
+    mdb_cursor_close(mdb_cursor_);
+    mdb_dbi_close(mdb_env_, mdb_dbi_);
+    mdb_txn_abort(mdb_transaction_);
+    mdb_env_close(mdb_env_);
+    mdb_env_ = nullptr;
+  }
+
+  void ReadSample(Tensor<CPUBackend>* tensor) override {
+    // assume cursor is valid, read next, loop to start if necessary
+    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+
+    if (!ok) {
+      lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+    }
+
+    tensor->Resize({static_cast<Index>(value_.mv_size)});
+    tensor->mutable_data<uint8_t>();
+
+    std::memcpy(tensor->raw_mutable_data(),
+                reinterpret_cast<uint8_t*>(value_.mv_data),
+                value_.mv_size*sizeof(uint8_t));
+
+    return;
+  }
+
+  Index Size() {
+    return lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
+  }
+
+ private:
+  using Loader<CPUBackend>::shard_id_;
+  using Loader<CPUBackend>::num_shards_;
+
+  MDB_env* mdb_env_;
+  MDB_cursor* mdb_cursor_;
+  MDB_dbi mdb_dbi_;
+  MDB_txn* mdb_transaction_;
+
+  // values
+  MDB_val key_, value_;
+
+  // options
+  string db_path_;
+};
+
+};  // namespace dali
+
+#endif  // DALI_PIPELINE_OPERATORS_READER_LOADER_LMDB_H_

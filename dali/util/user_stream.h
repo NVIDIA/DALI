@@ -1,0 +1,89 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef DALI_UTIL_USER_STREAM_H_
+#define DALI_UTIL_USER_STREAM_H_
+
+#include <cuda_runtime_api.h>
+#include <cuda.h>
+
+#include <mutex>
+#include <unordered_map>
+
+#include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/error_handling.h"
+
+// This file contains utilities helping inspection and interaction with DALI GPU buffers
+// without forcing synchronization of all pipelines.
+// This functionality is NOT supposed to be used in any
+// performance-oriented portions of the code!
+
+namespace dali {
+class UserStream {
+ public:
+  static UserStream* Get() {
+    std::unique_lock<std::mutex> lock(m_);
+    if (us_ == nullptr) {
+      us_ = new UserStream();
+    }
+    return us_;
+  }
+
+  cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
+    size_t dev = GetDeviceForBuffer(b);
+    std::unique_lock<std::mutex> lock(m_);
+    auto it = streams_.find(dev);
+    if (it != streams_.end()) {
+      return it->second;
+    } else {
+      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[dev], cudaStreamNonBlocking));
+      return streams_.at(dev);
+    }
+  }
+
+  void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
+    GetDeviceForBuffer(b);
+    // GetDeviceForBuffer sets proper current device
+    CUDA_CALL(cudaDeviceSynchronize());
+  }
+
+  void Wait(const dali::Buffer<GPUBackend> &b) {
+    size_t dev = GetDeviceForBuffer(b);
+    DALI_ENFORCE(streams_.find(dev) != streams_.end(),
+        "Can only wait on user streams");
+    CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
+  }
+
+  void Wait() {
+    int dev;
+    CUDA_CALL(cudaGetDevice(&dev));
+    DALI_ENFORCE(streams_.find(dev) != streams_.end(),
+        "Can only wait on user streams");
+    CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
+  }
+
+  void WaitAll() {
+    for (const auto &dev_pair : streams_) {
+      CUDA_CALL(cudaSetDevice(dev_pair.first));
+      CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
+    }
+  }
+
+ private:
+  UserStream() {}
+
+  size_t GetDeviceForBuffer(const dali::Buffer<GPUBackend> &b) {
+    int dev = b.device_id();
+    DALI_ENFORCE(dev != -1,
+        "Used a pointer from unknown device");
+    CUDA_CALL(cudaSetDevice(dev));
+    return dev;
+  }
+
+  static std::mutex m_;
+  static UserStream * us_;
+
+  std::unordered_map<int, cudaStream_t> streams_;
+};
+}  // namespace dali
+
+#endif  // DALI_UTIL_USER_STREAM_H_
