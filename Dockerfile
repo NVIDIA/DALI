@@ -100,9 +100,9 @@ RUN rm -f /opt/python/cp37-cp37m
 ##################################
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    set -e && \
     for PYVER in $(ls /opt/python); do \
       ( \
-        set -e; \
         PYTHONPATH="/opt/python/${PYVER}" && \
         PYBIN="${PYTHONPATH}/bin" && \
         PYLIB="${PYTHONPATH}/lib" && \
@@ -118,14 +118,15 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
         pip-autoremove tensorflow-gpu -y && \
         popd \
       ); \
-    done
+    done && \
+    rm -rf /root/.cache/pip/
 
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
 
-RUN for PYVER in $(ls /opt/python); do \
+RUN set -e && \
+    for PYVER in $(ls /opt/python); do \
       ( \
-        set -e; \
         PYTHONPATH="/opt/python/${PYVER}" && \
         PYBIN="${PYTHONPATH}/bin" && \
         PYLIB="${PYTHONPATH}/lib" && \
