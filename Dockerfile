@@ -12,6 +12,9 @@ RUN rm -rf /opt/python/cp27-cp27m /opt/_internal/cpython-2.7.15-ucs2 && \
     cp /opt/python/cp27-cp27mu/bin/python /usr/bin
 
 # Install python dependencies
+## TODO: Fix autoremove.  When used below to clean up tensorflow-gpu,
+## it's removing too much.  Like wheel.  :)  Will need to install whatever
+## should remain explicitly, and this is the obvious place to do it.
 RUN for PYBIN in /opt/python/*/bin; do \
         "${PYBIN}/pip" install future numpy setuptools pip-autoremove; \
     done
@@ -115,7 +118,6 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
             -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
             -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
         make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-        pip-autoremove tensorflow-gpu -y && \
         popd \
       ); \
     done && \
