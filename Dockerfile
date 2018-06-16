@@ -94,6 +94,11 @@ WORKDIR /opt/dali
 
 COPY . .
 
+##################################
+## Not ready for Python 3.7 yet ##
+RUN rm -f /opt/python/cp37-cp37m
+##################################
+
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     for PYVER in $(ls /opt/python); do \
       ( \
