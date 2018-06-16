@@ -10,6 +10,7 @@ ARG PYV=27
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         doxygen \
+        graphviz \
         python$PYVER \
         python$PYVER-dev && \
     rm -rf /var/lib/apt/lists/*
@@ -33,6 +34,7 @@ COPY LICENSE     /opt/dali/
 COPY README.md   /opt/dali/
 COPY docs/       /opt/dali/docs/
 COPY examples/   /opt/dali/examples/
+COPY ndll/       /opt/dali/ndll/
 COPY scripts/    /opt/dali/scripts/
 COPY tools/      /opt/dali/tools/
 
