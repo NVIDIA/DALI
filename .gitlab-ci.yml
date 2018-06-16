@@ -119,7 +119,7 @@ py3-base:
               "COPY .gitlab-ci.yml /opt/${CI_PROJECT_NAME}/\n"
               "COPY .git/ /opt/${CI_PROJECT_NAME}/.git/\n"
               "COPY cmake/   /opt/${CI_PROJECT_NAME}/cmake/\n"
-              "COPY ndll/ /opt/${CI_PROJECT_NAME}/ndll/\n"
+              "COPY dali/ /opt/${CI_PROJECT_NAME}/dali/\n"
               "COPY qa/   /opt/${CI_PROJECT_NAME}/qa/\n"
               "COPY third_party/  /opt/${CI_PROJECT_NAME}/third_party/\n"
         > Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_NAME}

@@ -4,7 +4,7 @@ pushd ../..
 
 pip install numpy==1.11.1
 
-cd ndll/benchmark
+cd dali/benchmark
 python resnet50_bench.py
 
 popd

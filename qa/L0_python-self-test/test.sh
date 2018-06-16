@@ -10,7 +10,7 @@ apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER
 pip install nose numpy==1.11.1 opencv-python==3.1.0
 
 # Run python tests
-cd ndll/test/python
+cd dali/test/python
 nosetests --verbose test_pipeline.py
 
 popd

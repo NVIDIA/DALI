@@ -1,14 +1,14 @@
 # For CUDA
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
-list(APPEND NDLL_LIBS ${CUDA_LIBRARIES})
+list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 
 # For NPP
 find_cuda_helper_libs(nppicom)
 find_cuda_helper_libs(nppicc)
 find_cuda_helper_libs(nppc)
 find_cuda_helper_libs(nppig)
-list(APPEND NDLL_LIBS ${CUDA_nppicom_LIBRARY}
+list(APPEND DALI_LIBS ${CUDA_nppicom_LIBRARY}
                       ${CUDA_nppicc_LIBRARY}
                       ${CUDA_nppc_LIBRARY}
                       ${CUDA_nppig_LIBRARY})
@@ -16,13 +16,13 @@ list(APPEND NDLL_LIBS ${CUDA_nppicom_LIBRARY}
 # NVTX for profiling
 if (BUILD_NVTX)
   find_cuda_helper_libs(nvToolsExt)
-  list(APPEND NDLL_LIBS ${CUDA_nvToolsExt_LIBRARY})
-  add_definitions(-DNDLL_USE_NVTX)
+  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  add_definitions(-DDALI_USE_NVTX)
 endif()
 
 find_package(NVJPEG REQUIRED)
 include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
-list(APPEND NDLL_LIBS ${NVJPEG_LIBRARY})
+list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
 
 # Google C++ testing framework
 if (BUILD_TEST)
@@ -42,7 +42,7 @@ endif()
 # LibJpegTurbo
 find_package(JpegTurbo REQUIRED)
 include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
-list(APPEND NDLL_LIBS ${JPEG_TURBO_LIBRARY})
+list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
 
 # OpenCV
 # Note: OpenCV 3.* 'imdecode()' is in the imgcodecs library
@@ -58,7 +58,7 @@ if (OpenCV_FOUND)
   message(STATUS "Found OpenCV ${OpenCV_VERSION} (libs: ${OpenCV_LIBRARIES})")
 endif()
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-list(APPEND NDLL_LIBS ${OpenCV_LIBRARIES})
+list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
 
 # PyBind
 if (BUILD_PYTHON)
@@ -73,7 +73,7 @@ if (BUILD_LMDB)
   if (LMDB_FOUND)
     message(STATUS "Found LMDB ${LMDB_INCLUDE_DIR} : ${LMDB_LIBRARIES}")
     include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
-    list(APPEND NDLL_LIBS ${LMDB_LIBRARIES})
+    list(APPEND DALI_LIBS ${LMDB_LIBRARIES})
   else()
     message(STATUS "LMDB not found")
   endif()
@@ -89,11 +89,11 @@ if (PROTOBUF_FOUND)
   message(STATUS "Found Protobuf version ${PROTOBUF_VERSION} : ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
 
   if (PROTOBUF_VERSION MATCHES 3)
-    add_definitions(-DNDLL_BUILD_PROTO3=1)
+    add_definitions(-DDALI_BUILD_PROTO3=1)
     set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
   endif()
   include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
-  list(APPEND NDLL_LIBS ${PROTOBUF_LIBRARY})
+  list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
 else()
   message(STATUS "Protobuf not found")
 endif()

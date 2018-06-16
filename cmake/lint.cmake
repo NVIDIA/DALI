@@ -1,6 +1,6 @@
 get_filename_component(CMAKE_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(LINT_COMMAND python ${CMAKE_SOURCE_DIR}/third_party/cpplint.py)
-file(GLOB_RECURSE LINT_FILES ${CMAKE_SOURCE_DIR}/ndll/*.cc ${CMAKE_SOURCE_DIR}/ndll/*.h ${CMAKE_SOURCE_DIR}/ndll/*.cu ${CMAKE_SOURCE_DIR}/ndll/*.cuh)
+file(GLOB_RECURSE LINT_FILES ${CMAKE_SOURCE_DIR}/dali/*.cc ${CMAKE_SOURCE_DIR}/dali/*.h ${CMAKE_SOURCE_DIR}/dali/*.cu ${CMAKE_SOURCE_DIR}/dali/*.cuh)
 
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_FILES}

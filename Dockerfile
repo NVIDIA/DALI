@@ -135,11 +135,11 @@ RUN set -e && \
         PATH="${PYBIN}:${PATH}" && \
         pushd build-${PYVER} && \
         LD_LIBRARY_PATH="${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
-        pip wheel -v ndll/python \
+        pip wheel -v dali/python \
             --build-option --python-tag=${PYVER} \
             --build-option --plat-name=manylinux1_x86_64 \
             --build-option --build-number=${NVIDIA_BUILD_ID} && \
-        ../ndll/python/bundle-wheel.sh nvidia_dali-*.whl && \
+        ../dali/python/bundle-wheel.sh nvidia_dali-*.whl && \
         popd \
       ); \
     done

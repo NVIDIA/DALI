@@ -1,0 +1,27 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+#ifndef DALI_PIPELINE_OPERATORS_UTIL_COPY_H_
+#define DALI_PIPELINE_OPERATORS_UTIL_COPY_H_
+
+#include <cstring>
+
+#include "dali/pipeline/operators/operator.h"
+
+namespace dali {
+
+template <typename Backend>
+class Copy : public Operator<Backend> {
+ public:
+  inline explicit Copy(const OpSpec &spec) :
+    Operator<Backend>(spec) {}
+
+  virtual inline ~Copy() = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(Copy);
+
+ protected:
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+};
+
+}  // namespace dali
+
+#endif  // DALI_PIPELINE_OPERATORS_UTIL_COPY_H_

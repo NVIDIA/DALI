@@ -2,12 +2,12 @@
  * @mainpage
  * 
  * @section intro Introduction
- * NDLL (Nvidia Data Loading Library) is broken into two mains parts. The first part
+ * NVIDIA DALI (Data Loading Library) is broken into two mains parts. The first part
  * is a library of base primitives for data loading and augmentation. These are
  * organized in the source tree by what type of data they operate on. We currently
- * only have image primitives, so all of the primitives are located under @ref ndll/image/.
+ * only have image primitives, so all of the primitives are located under @ref dali/image/.
  *
- * The second part is a high performance data Pipeline (@ref ndll/pipeline). The pipeline 
+ * The second part is a high performance data Pipeline (@ref dali/pipeline). The pipeline 
  * is designed to be quite general and extensible.
  *
  * @section lib Library
@@ -21,30 +21,30 @@
  * key services.
  *
  * @subsection graph Graph:
- * @ref ndll::OpGraph @n
+ * @ref dali::OpGraph @n
  *
  * @subsection exec Executors:
- * @ref ndll::Executor @n
- * @ref ndll::PipelinedExecutor @n
- * @ref ndll::AsyncPipelinedExecutor @n
- * @ref ndll::AsyncExecutor (WIP) @n
+ * @ref dali::Executor @n
+ * @ref dali::PipelinedExecutor @n
+ * @ref dali::AsyncPipelinedExecutor @n
+ * @ref dali::AsyncExecutor (WIP) @n
  *
  * @subsection ops Operators:
- * @ref ndll::Operator @n
+ * @ref dali::Operator @n
  *
  * @subsection data Data Storage:
- * @ref ndll::Buffer<Backend> @n
- * @ref ndll::TensorList<Backend> @n
- * @ref ndll::Tensor<Backend> @n
+ * @ref dali::Buffer<Backend> @n
+ * @ref dali::TensorList<Backend> @n
+ * @ref dali::Tensor<Backend> @n
  *
  * @subsection mem Memory Allocation:
- * @ref ndll::CPUBackend @n
- * @ref ndll::GPUBackend @n
- * @ref ndll::AllocatorBase @n
- * @ref ndll::CPUAllocator @n
- * @ref ndll::GPUAllocator
+ * @ref dali::CPUBackend @n
+ * @ref dali::GPUBackend @n
+ * @ref dali::AllocatorBase @n
+ * @ref dali::CPUAllocator @n
+ * @ref dali::GPUAllocator
  *
  * The Pipeline also has Python bindings that expose a much nicer API than the 
- * C++ Pipeline. See the examples in 'ndll/benchmark'. All python code is under
- * the 'ndll/python' directory.
+ * C++ Pipeline. See the examples in 'dali/benchmark'. All python code is under
+ * the 'dali/python' directory.
  */
