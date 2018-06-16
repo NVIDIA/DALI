@@ -66,6 +66,7 @@ dali-builder:
     artifacts:
       paths:
       - wheelhouse/
+      expire_in: 1 month
 
 .base_template: &BASE
     variables:
