@@ -1,4 +1,4 @@
-# Source: caffe2/cmake/Modules/FindJpegTurbo.cmake
+# Derived from: caffe2/cmake/Modules/FindJpegTurbo.cmake
 #
 # - Try to find nvjpeg
 #

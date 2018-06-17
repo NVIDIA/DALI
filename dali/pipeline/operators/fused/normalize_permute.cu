@@ -38,8 +38,6 @@ template <typename OUT>
 DALIError_t BatchedNormalizePermute(const uint8 *in_batch,
     int N, int H, int W, int C,  float *mean, float *inv_std,
     OUT *out_batch, cudaStream_t stream) {
-  // TODO(tgale): Do we really want to verify all of this stuff
-  // or should we leave some of the more obvious ones up to the user?
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(mean != nullptr);
   DALI_ASSERT(inv_std != nullptr);

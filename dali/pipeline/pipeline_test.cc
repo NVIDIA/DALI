@@ -225,9 +225,6 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
       std::runtime_error);
 }
 
-// TODO(tgale): An external input is already contiguous, so it
-// is kind of a waste to insert a MakeContiguous op afterwards.
-// Is there any way we can do this without the extra copy?
 TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
   Pipeline pipe(1, 1, 0);
 
@@ -334,8 +331,6 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 0);
-
-  // TODO(tgale): Build and execute the graph, verify the outputs
 }
 
 TYPED_TEST(PipelineTest, TestSerialization) {

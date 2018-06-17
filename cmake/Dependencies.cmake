@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # For CUDA
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})

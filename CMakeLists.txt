@@ -1,4 +1,4 @@
-# NOTE(tgale): Haven't tried with anything else.
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 cmake_minimum_required(VERSION 3.5)
 
 project(DALI CXX)

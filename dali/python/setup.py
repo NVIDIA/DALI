@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 from setuptools import setup, find_packages
 
 setup(name='nvidia-dali',

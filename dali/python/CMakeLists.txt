@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # Get all the srcs
 file(GLOB tmp *.cc)
 set(dali_python_lib "backend_impl")

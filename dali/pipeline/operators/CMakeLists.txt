@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 add_subdirectory(color)
 add_subdirectory(decoder)
 add_subdirectory(displacement)

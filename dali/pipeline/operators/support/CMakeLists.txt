@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 add_subdirectory(random)
 
 # Get all the source files and dump test files

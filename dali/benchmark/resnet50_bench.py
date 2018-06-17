@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 import argparse
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops

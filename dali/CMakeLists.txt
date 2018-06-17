@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # Set variables used by subdirectories
 set(DALI_SRCS)
 set(DALI_TEST_SRCS)

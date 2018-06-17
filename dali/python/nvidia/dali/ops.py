@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #pylint: disable=no-member
 import sys
 import copy
@@ -165,9 +166,6 @@ def python_op_factory(name, op_device = "cpu"):
             return self._device
 
         def __call__(self, *inputs, **kwargs):
-            # TODO(tgale): Inputs come in as a list of
-            # TensorReferences. Can we also support
-            # kwargs based on the docstring?
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(

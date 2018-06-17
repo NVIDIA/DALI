@@ -297,9 +297,6 @@ void OpGraph::RemoveOp(NodeID id) {
   // effectively decrement all node ids after this node
   // to fill the gap.
   //
-  // TODO(tgale): Node remove is relatively expensive
-  // because we use a vector. Consider switching to
-  // a map if this becomes an issue.
   auto type_and_idx = id_to_node_map_[id];
   DALIOpType type = type_and_idx.first;
   int idx = type_and_idx.second;

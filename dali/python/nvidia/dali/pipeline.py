@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b

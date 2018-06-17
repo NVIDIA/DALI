@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 from nvidia.dali.backend_impl import *
 
 # Note: If we every need to add more complex functionality

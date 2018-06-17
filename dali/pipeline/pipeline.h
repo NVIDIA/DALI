@@ -103,13 +103,6 @@ class Pipeline {
               device_id, bytes_per_sample_hint,
               set_affinity, max_num_stream));
     }
-
-    // TODO(tgale): We need to figure out the best way to ensure that the memory
-    // this object allocates is stored on the correct NUMA node that we can
-    // force on the frameworks. Frameworks like C2 are tricky because any thread
-    // could execute this pipe on any iteration, so we'll need a way to force
-    // these specfic allocations to go our way without messing with everything
-    // else.
   }
 
   inline Pipeline(const string &serialized_pipe,

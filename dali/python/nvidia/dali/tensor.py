@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #pylint: disable=no-name-in-module, unused-import
 import nvidia.dali.backend
 from nvidia.dali.backend import TensorCPU

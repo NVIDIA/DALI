@@ -11,9 +11,6 @@ DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
     int crop_w, int mirror, uint8 *out_img, DALIInterpType type,
     uint8 *workspace) {
-  // TODO(tgale): Figure out which ones of these we actually want to check.
-  // We need a better way of error checking so that the user actually knows
-  // what they did wrong.
   DALI_ASSERT(img != nullptr);
   DALI_ASSERT(out_img != nullptr);
   DALI_ASSERT(H > 0);
@@ -74,9 +71,6 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
     int crop_w, int mirror, uint8 *out_img, DALIInterpType type,
     uint8 *workspace) {
-  // TODO(tgale): Figure out which ones of these we actually want to check.
-  // We need a better way of error checking so that the user actually knows
-  // what they did wrong.
   DALI_ASSERT(img != nullptr);
   DALI_ASSERT(out_img != nullptr);
   DALI_ASSERT(H > 0);

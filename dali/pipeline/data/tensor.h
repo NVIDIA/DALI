@@ -86,10 +86,6 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(idx >= 0, "Negative tensor index not supported.");
     DALI_ENFORCE(idx < tl->ntensor(), "Index of " + std::to_string(idx) +
         " out of range for TensorList of size " + std::to_string(tl->ntensor()));
-    // TODO(tgale): If we wanted to ensure the allocation is not cleaned up
-    // while this object still uses it, we could just keep a copy of
-    // the actual shared_ptr of the TensorList. Is this behavior something
-    // that we are interested in supporting?
 
     // Reset our pointer to the correct offset inside the tensor list.
     // This is not the beginning of the allocation, so we pass a noop

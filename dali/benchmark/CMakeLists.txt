@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 if (BUILD_BENCHMARK)
   # Get basic benchmark sources that don't depend on any other options
   set(DALI_BENCHMARK_SRCS

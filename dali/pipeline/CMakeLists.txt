@@ -1,3 +1,4 @@
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # Add all subdirectories
 add_subdirectory(data)
 add_subdirectory(operators)
