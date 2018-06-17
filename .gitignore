@@ -10,3 +10,4 @@ latex
 .*.swp
 valgrind-out.txt
 **/.ipynb_checkpoints
+.dockerignore

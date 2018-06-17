@@ -6,7 +6,7 @@ pushd ../..
 mkdir -p .git
 
 # Run linter
-cd build-*$PYV*
+cd build
 make lint
 
 popd

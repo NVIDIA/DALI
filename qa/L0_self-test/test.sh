@@ -4,7 +4,6 @@ BINNAME=dali_test.bin
 
 for DIRNAME in \
   "../../build/dali/python/dali" \
-  "../../build-*$PYV*/dali/python/dali" \
   "$(python -c 'import os; import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
 do
     if [ -x "$DIRNAME/test/$BINNAME" ]; then

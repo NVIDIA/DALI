@@ -1,146 +1,45 @@
 #########################################################################################
-##  Stage 1: build DALI wheels using manylinux1 (CentOS 5 derivative)
+##  Stage 2: build DALI wheels using manylinux1 (CentOS 5 derivative)
 #########################################################################################
-FROM quay.io/pypa/manylinux1_x86_64
+ARG DEPS_IMAGE_NAME
+FROM ${DEPS_IMAGE_NAME}
 
-# Install yum Dependencies
-RUN yum install -y zip
+ARG PYVER=2.7
+ARG PYV=27
 
-# Remove unnecessary Python version (narrow unicode Py2.7) from base container (must do this after yum)
-RUN rm -rf /opt/python/cp27-cp27m /opt/_internal/cpython-2.7.15-ucs2 && \
-    cp /opt/python/cp27-cp27mu/bin/python2.7 /usr/bin && \
-    cp /opt/python/cp27-cp27mu/bin/python /usr/bin
+ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 
-# Install python dependencies
-## TODO: Fix autoremove.  When used below to clean up tensorflow-gpu,
-## it's removing too much.  Like wheel.  :)  Will need to install whatever
-## should remain explicitly, and this is the obvious place to do it.
-RUN for PYBIN in /opt/python/*/bin; do \
-        "${PYBIN}/pip" install future numpy setuptools pip-autoremove; \
-    done
+ENV PYBIN=${PYTHONPATH}/bin \
+    PYLIB=${PYTHONPATH}/lib
 
-# Boost
-RUN BOOST_VERSION=1.66.0 && \
-    cd /usr/local && \
-    curl -L https://dl.bintray.com/boostorg/release/1.66.0/source/boost_${BOOST_VERSION//./_}.tar.gz | tar -xzf - && \
-    ln -s ../boost_${BOOST_VERSION//./_}/boost include/boost
+ENV PATH=${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/build:${PYLIB}:${LD_LIBRARY_PATH}
 
-# CMake
-RUN CMAKE_VERSION=3.11 && \
-    CMAKE_BUILD=3.11.3 && \
-    curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
-    cd /cmake-${CMAKE_BUILD} && \
-    ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /cmake-${CMAKE_BUILD}
+RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
-# protobuf v3.5.1
-RUN PROTOBUF_VERSION=3.5.1 && \
-    curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
-    cd /protobuf-${PROTOBUF_VERSION} && \
-    ./autogen.sh && \
-    ./configure --prefix=/usr/local 2>&1 > /dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null && \
-    rm -rf /protobuf-${PROTOBUF_VERSION}
+RUN pip install future numpy setuptools wheel tensorflow-gpu && \
+    rm -rf /root/.cache/pip/
 
-# LMDB
-RUN LMDB_VERSION=0.9.22 && \
-    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
-    cd /lmdb/libraries/liblmdb && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /lmdb
-
-# OpenCV
-RUN OPENCV_VERSION=3.1.0 && \
-    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && \
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
-          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
-          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF \
-          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF . && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /opencv-${OPENCV_VERSION}
-
-# libjpeg-turbo
-#
-# Note: the preceding OpenCV installation intentionally does NOT use libjpeg-turbo.
-# DALI will directly call libjpeg-turbo first, and if it fails, DALI will fall back
-# to OpenCV, which in turn will call its bundled (built-from-source) libjpeg.
-# To be extra sure OpenCV doesn't pick up libjpeg-turbo (in which case we'd have no
-# fallback), libjpeg-turbo is built and installed _after_ OpenCV.
-#
-RUN JPEG_TURBO_VERSION=1.5.2 && \
-    curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    autoreconf -fiv && \
-    ./configure --enable-shared --prefix=/usr/local 2>&1 >/dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
-
-# CUDA
-RUN CUDA_VERSION=9.0 && \
-    CUDA_BUILD=9.0.176_384.81 && \
-    curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
-    chmod +x cuda_${CUDA_BUILD}_linux-run && \
-    ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_${CUDA_BUILD}_linux-run
-
-# NVJPEG
-RUN NVJPEG_VERSION=9.0.450-24313934 && \
-    curl -L http://sqrl/dldata/nvjpeg/cuda-linux64-nvjpeg-${NVJPEG_VERSION}.tar.gz | tar -xzf - && \
-    cd /cuda-linux64-nvjpeg/ && \
-    mv lib64/libnvjpeg.so* /usr/local/lib/ && \
-    mv include/nvjpeg.h /usr/local/include/ && \
-    rm -rf /cuda-linux64-nvjpeg
+RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    ldconfig
 
 WORKDIR /opt/dali
 
 COPY . .
 
-##################################
-## Not ready for Python 3.7 yet ##
-RUN rm -f /opt/python/cp37-cp37m
-##################################
+WORKDIR /opt/dali/build
 
-RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
-    set -e && \
-    for PYVER in $(ls /opt/python); do \
-      ( \
-        PYTHONPATH="/opt/python/${PYVER}" && \
-        PYBIN="${PYTHONPATH}/bin" && \
-        PYLIB="${PYTHONPATH}/lib" && \
-        PATH="${PYBIN}:${PATH}" && \
-        pip install tensorflow-gpu && \
-        mkdir build-${PYVER} && \
-        pushd build-${PYVER} && \
-        LD_LIBRARY_PATH="/usr/local/cuda/lib64/stubs:${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
-        cmake ../ -DCMAKE_INSTALL_PREFIX=. \
-            -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
-            -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
-        make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-        popd \
-      ); \
-    done && \
-    rm -rf /root/.cache/pip/
+RUN LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
+    cmake ../ -DCMAKE_INSTALL_PREFIX=. \
+          -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
+          -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
 
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
 
-RUN set -e && \
-    for PYVER in $(ls /opt/python); do \
-      ( \
-        PYTHONPATH="/opt/python/${PYVER}" && \
-        PYBIN="${PYTHONPATH}/bin" && \
-        PYLIB="${PYTHONPATH}/lib" && \
-        PATH="${PYBIN}:${PATH}" && \
-        pushd build-${PYVER} && \
-        LD_LIBRARY_PATH="${PYLIB}:${PWD}:${LD_LIBRARY_PATH}" && \
-        pip wheel -v dali/python \
-            --build-option --python-tag=${PYVER} \
-            --build-option --plat-name=manylinux1_x86_64 \
-            --build-option --build-number=${NVIDIA_BUILD_ID} && \
-        ../dali/python/bundle-wheel.sh nvidia_dali-*.whl && \
-        popd \
-      ); \
-    done
-
+RUN pip wheel -v dali/python \
+        --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
+        --build-option --plat-name=manylinux1_x86_64 \
+        --build-option --build-number=${NVIDIA_BUILD_ID} && \
+    ../dali/python/bundle-wheel.sh nvidia_dali-*.whl
