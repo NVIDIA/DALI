@@ -6,7 +6,9 @@ FROM ${BUILD_IMAGE_NAME} AS builder
 FROM gitlab-dl.nvidia.com:5005/dgx/cuda:9.0-cudnn7.1-devel-ubuntu16.04--18.07
 
 ARG PYVER=2.7
+ENV PYVER=${PYVER}
 ARG PYV=27
+ENV PYV=${PYV}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         doxygen \
@@ -37,7 +39,6 @@ COPY examples/   /opt/dali/examples/
 COPY dali/       /opt/dali/dali/
 COPY tools/      /opt/dali/tools/
 
-ENV PYV=${PYV}
 COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
 
 RUN pip install /opt/dali/*.whl

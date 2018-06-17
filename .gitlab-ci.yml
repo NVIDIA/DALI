@@ -16,23 +16,26 @@ variables:
 ######################################################
 
 stages:
+    - build deps
     - build builder
     - build base
     - build devel
     - trigger
     - test
-    - staging
 
 before_script:
-    - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.5   && echo "${PYVER}"
+    - export PYVER=$(echo "${CI_JOB_NAME}" | grep -Eqv "(^|-)py[23]" && echo "" ||
+                     echo "${CI_JOB_NAME}" | sed 's/.*py\([0-9]\)\([0-9]\).*/\1.\2/')              && echo "${PYVER}"
     - export PYV=${PYVER/./}                                                                       && echo "${PYV}"
     - export NV_DOCKER_ARGS="curl -s http://localhost:3476/docker/cli?dev=${RUNNER_GPUS//,/+}"     && echo "${NV_DOCKER_ARGS}"
     - export RELEASE_BRANCH_NAME=${CI_COMMIT_REF_NAME%%-devel}                                     && echo "${RELEASE_BRANCH_NAME}"
     - export IMAGE_NAME_PREFIX="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_NAME}"                       && echo "${IMAGE_NAME_PREFIX}"
-    - export BUILD_IMAGE_NAME="${IMAGE_NAME_PREFIX}-build"                                         && echo "${BUILD_IMAGE_NAME}"
-    - export BUILD_IMAGE_NAME_VERSIONED="${IMAGE_NAME_PREFIX}.${CI_PIPELINE_ID}-build"             && echo "${BUILD_IMAGE_NAME_VERSIONED}"
+    - export DEPS_IMAGE_NAME="${IMAGE_NAME_PREFIX}-deps"                                           && echo "${DEPS_IMAGE_NAME}"
+    - export DEPS_IMAGE_NAME_VERSIONED="${IMAGE_NAME_PREFIX}.${CI_PIPELINE_ID}-deps"               && echo "${DEPS_IMAGE_NAME_VERSIONED}"
     - export BASE_IMAGE_NAME="${IMAGE_NAME_PREFIX}-py${PYVER}-base"                                && echo "${BASE_IMAGE_NAME}"
     - export BASE_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME%%-base}.${CI_PIPELINE_ID}"               && echo "${BASE_IMAGE_NAME_VERSIONED}"
+    - export BUILD_IMAGE_NAME="${BASE_IMAGE_NAME%%-base}-build"                                    && echo "${BUILD_IMAGE_NAME}"
+    - export BUILD_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-build"                       && echo "${BUILD_IMAGE_NAME_VERSIONED}"
     - export DEVEL_IMAGE_NAME="${BASE_IMAGE_NAME%%-base}-devel"                                    && echo "${DEVEL_IMAGE_NAME}"
     - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-devel"                       && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
@@ -40,7 +43,22 @@ before_script:
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
     - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
 
-dali-builder:
+dali_deps:
+    stage: build deps
+    variables:
+      GIT_STRATEGY: fetch
+      GET_SOURCES_ATTEMPTS: 3
+    script:
+    # build the manylinux1 deps image
+    - docker pull "${DEPS_IMAGE_NAME}" || true
+    - docker build --pull
+                   --cache-from "${DEPS_IMAGE_NAME}"
+                   -t "${DEPS_IMAGE_NAME}" -t "${DEPS_IMAGE_NAME_VERSIONED}"
+                   -f Dockerfile.deps .
+    - docker push "${DEPS_IMAGE_NAME}"
+    - docker push "${DEPS_IMAGE_NAME_VERSIONED}"
+
+.builder_template: &BUILDER
     stage: build builder
     variables:
       GIT_STRATEGY: fetch
@@ -49,13 +67,19 @@ dali-builder:
     script:
     - echo -e "Dockerfile*\n"
               ".git*\n"
-              ".dockerignore" > .dockerignore
+              ".dockerignore\n"
+              "docs\n"
+              "examples\n"
+              "qa/*\n"
+              "!qa/L0_lint" > .dockerignore
     # build the manylinux1 builder image
     - docker pull "${BUILD_IMAGE_NAME}" || true
     - docker build --pull
                    --cache-from "${BUILD_IMAGE_NAME}"
                    -t "${BUILD_IMAGE_NAME}" -t "${BUILD_IMAGE_NAME_VERSIONED}"
-                   --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}" .
+                   --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}"
+                   --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}"
+                   --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE_NAME_VERSIONED}" .
     - docker push "${BUILD_IMAGE_NAME}"
     - docker push "${BUILD_IMAGE_NAME_VERSIONED}"
     # copy out wheels as build artifacts
@@ -64,11 +88,28 @@ dali-builder:
     - docker cp "${CONTAINER}:/wheelhouse/" "wheelhouse/"
     - docker rm -f "${CONTAINER}"
     artifacts:
+      name: "${CI_JOB_NAME}"
       paths:
-      - wheelhouse/
+      - wheelhouse/*.whl
       expire_in: 1 month
 
+py27-wheel:
+  <<: *BUILDER
+
+py34-wheel:
+  <<: *BUILDER
+
+py35-wheel:
+  <<: *BUILDER
+
+py36-wheel:
+  <<: *BUILDER
+
+#py37-wheel:
+#  <<: *BUILDER
+
 .base_template: &BASE
+    stage: build base
     variables:
       GIT_STRATEGY: fetch
       GIT_SUBMODULE_STRATEGY: recursive
@@ -85,7 +126,7 @@ dali-builder:
                    --cache-from "${BUILD_IMAGE_NAME}"
                    --cache-from "${BASE_IMAGE_NAME}"
                    -t "${BASE_IMAGE_NAME}" -t "${BASE_IMAGE_NAME_VERSIONED}"
-                   --build-arg "BUILD_IMAGE_NAME=${BUILD_IMAGE_NAME}"
+                   --build-arg "BUILD_IMAGE_NAME=${BUILD_IMAGE_NAME_VERSIONED}"
                    --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}"
                    --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}"
                    --label "com.nvidia.build.id=${CI_JOB_ID}"
@@ -95,13 +136,20 @@ dali-builder:
     except:
     - tags
 
-py2-base:
-  stage: build base
+py27-base:
   <<: *BASE
 
-py3-base:
-  stage: build base
+#py34-base:
+#  <<: *BASE
+
+py35-base:
   <<: *BASE
+
+#py36-base:
+#  <<: *BASE
+
+#py37-base:
+#  <<: *BASE
 
 .devel_template: &DEVEL
     stage: build devel
@@ -131,13 +179,20 @@ py3-base:
     except:
     - tags
 
-py2-dali:
-  stage: build devel
+py27-dali:
   <<: *DEVEL
 
-py3-dali:
-  stage: build devel
+#py34-dali:
+#  <<: *DEVEL
+
+py35-dali:
   <<: *DEVEL
+
+#py36-dali:
+#  <<: *DEVEL
+
+#py37-dali:
+#  <<: *DEVEL
 
 .test_template: &TEST_TEMPLATE
     environment: "${CI_JOB_NAME}"
@@ -155,8 +210,6 @@ py3-dali:
       docker run --rm $(eval ${NV_DOCKER_ARGS})
              --name "${CONTAINER_NAME}"
              -v $DATADIR:/data
-             -e PYVER=${PYVER}
-             -e PYV=${PYV}
              $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
              $(eval echo ${TEST_IMAGE})
              /bin/bash -c "nvidia-smi && cd ${TEST_WORK_DIR} && exec bash -ex ${TEST_SCRIPT}" || RV=$?;
@@ -185,8 +238,6 @@ py3-dali:
       docker run --rm $(eval ${NV_DOCKER_ARGS})
              --name "${CONTAINER_NAME}"
              -v $DATADIR:/data
-             -e PYVER=${PYVER}
-             -e PYV=${PYV}
              $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
              $(eval echo ${TEST_IMAGE})
              /bin/bash -c "cd ${TEST_WORK_DIR} && exec bash -ex ${TEST_SCRIPT}" || RV=$?;
@@ -250,62 +301,62 @@ py3-dali:
 ######################################################
 
 
-L0_lint--py2:
+L0_lint--py27:
   <<: *L0_TEST
   <<: *CPU_ONLY_TEST
 
-L0_self-test--P100_R384_4GPU:
+L0_self-test--py35--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_python-self-test--py2--P100_R384_4GPU:
+L0_python-self-test--py27--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_python-self-test--P100_R384_4GPU:
+L0_python-self-test--py35--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_rn50-benchmarks--P100_R384_4GPU:
+L0_rn50-benchmarks--py35--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_rn50_python-benchmarks--P100_R384_4GPU:
+L0_rn50_python-benchmarks--py35--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_rn50_python-benchmarks--py2--P100_R384_4GPU:
+L0_rn50_python-benchmarks--py27--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_self-test--V100_R384_4GPU:
+L0_self-test--py35--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_python-self-test--py2--V100_R384_4GPU:
+L0_python-self-test--py27--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_python-self-test--V100_R384_4GPU:
+L0_python-self-test--py35--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_rn50-benchmarks--V100_R384_4GPU:
+L0_rn50-benchmarks--py35--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_rn50_python-benchmarks--V100_R384_4GPU:
+L0_rn50_python-benchmarks--py35--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_rn50_python-benchmarks--py2--V100_R384_4GPU:
+L0_rn50_python-benchmarks--py27--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
 
-L0_jupyter--py2--P100_R384_4GPU:
+L0_jupyter--py27--P100_R384_4GPU:
   <<: *L0_TEST
   <<: *P100_R384_4GPU
 
-L0_jupyter--py2--V100_R384_4GPU:
+L0_jupyter--py27--V100_R384_4GPU:
   <<: *L0_TEST
   <<: *V100_R384_4GPU
