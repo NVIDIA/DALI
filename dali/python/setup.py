@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='nvidia-dali',
       description='NVIDIA DALI',
@@ -6,13 +6,10 @@ setup(name='nvidia-dali',
       version='0.1.0',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
-      packages=[
-          'dali',
-          'dali.plugin',
-          'dali.test',
-          ],
+      packages=find_packages(),
+      zip_safe=False,
       package_data={
-          '': ['*.so','*.bin','Acknowledgements.txt','LICENSE','COPYRIGHT']
+          '': ['*.so','*.bin','Acknowledgements.txt','LICENSE','COPYRIGHT'],
           },
       py_modules = [
           'rec2idx',

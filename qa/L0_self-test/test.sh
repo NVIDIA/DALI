@@ -3,8 +3,8 @@
 BINNAME=dali_test.bin
 
 for DIRNAME in \
-  "../../build/dali/python/dali" \
-  "$(python -c 'import os; import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
+  "../../build/dali/python/nvidia/dali" \
+  "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
 do
     if [ -x "$DIRNAME/test/$BINNAME" ]; then
         FULLPATH="$DIRNAME/test/$BINNAME"

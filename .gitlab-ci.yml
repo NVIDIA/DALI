@@ -50,9 +50,11 @@ dali_deps:
       GET_SOURCES_ATTEMPTS: 3
     script:
     # build the manylinux1 deps image
-    - docker pull "${DEPS_IMAGE_NAME}" || true
+    - docker pull "${DEPS_IMAGE_NAME}" || 
+      docker pull "${CI_REGISTRY_IMAGE}:master-deps" || true
     - docker build --pull
                    --cache-from "${DEPS_IMAGE_NAME}"
+                   --cache-from "${CI_REGISTRY_IMAGE}:master-deps"
                    -t "${DEPS_IMAGE_NAME}" -t "${DEPS_IMAGE_NAME_VERSIONED}"
                    -f Dockerfile.deps .
     - docker push "${DEPS_IMAGE_NAME}"
@@ -73,9 +75,11 @@ dali_deps:
               "qa/*\n"
               "!qa/L0_lint" > .dockerignore
     # build the manylinux1 builder image
-    - docker pull "${BUILD_IMAGE_NAME}" || true
+    - docker pull "${BUILD_IMAGE_NAME}" ||
+      docker pull "${CI_REGISTRY_IMAGE}:master-py${PYVER}-build" || true
     - docker build --pull
                    --cache-from "${BUILD_IMAGE_NAME}"
+                   --cache-from "${CI_REGISTRY_IMAGE}:master-py${PYVER}-build"
                    -t "${BUILD_IMAGE_NAME}" -t "${BUILD_IMAGE_NAME_VERSIONED}"
                    --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}"
                    --build-arg "NVIDIA_BUILD_ID=${CI_PIPELINE_ID}"
@@ -261,6 +265,12 @@ py35-dali:
     stage: test
     <<: *TEST_TEMPLATE
 
+.L1_test: &L1_TEST
+    stage: test
+    <<: *TEST_TEMPLATE
+    when: manual
+    allow_failure: true
+
 .P100_R384_4GPU: &P100_R384_4GPU
     tags:
     - P100
@@ -359,4 +369,12 @@ L0_jupyter--py27--P100_R384_4GPU:
 
 L0_jupyter--py27--V100_R384_4GPU:
   <<: *L0_TEST
+  <<: *V100_R384_4GPU
+
+L1_jupyter_plugins--py27--P100_R384_4GPU:
+  <<: *L1_TEST
+  <<: *P100_R384_4GPU
+
+L1_jupyter_plugins--py27--V100_R384_4GPU:
+  <<: *L1_TEST
   <<: *V100_R384_4GPU
