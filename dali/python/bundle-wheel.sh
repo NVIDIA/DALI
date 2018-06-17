@@ -30,17 +30,17 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-INFILE=$(readlink -e $1)
+INWHL=$(readlink -e $1)
 OUTDIR=/wheelhouse
 
-WHL=$(basename $INFILE)
+OUTWHLNAME=$(basename $INWHL)
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
-WHL=${WHL//-none-/-}
+OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
-PKGNAME=$(echo "$WHL" | sed s'/-.*$//')
-PKGNAME_S=$(echo "$PKGNAME" | sed s'/^.*_//')
+PKGNAME=$(echo "$OUTWHLNAME" | sed 's/-.*$//')
+PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' )
 
-if [[ -z "$INFILE" || ! -f "$INFILE" || -z "$PKGNAME" ]]; then
+if [[ -z "$INWHL" || ! -f "$INWHL" || -z "$PKGNAME" ]]; then
     echo "Usage: $0 <inputfile.whl>"
     exit 1
 fi
@@ -77,7 +77,6 @@ make_wheel_record() {
 DEPS_LIST=(
     "/usr/local/lib/liblmdb.so"
     "dali/libdali.so"
-    "dali/libdali_tf.so"
     "/usr/local/lib/libnvjpeg.so.9.0"
     "/usr/local/lib/libopencv_core.so.3.1"
     "/usr/local/lib/libopencv_imgcodecs.so.3.1"
@@ -89,7 +88,6 @@ DEPS_LIST=(
 DEPS_SONAME=(
     "liblmdb.so"
     "libdali.so"
-    "libdali_tf.so"
     "libnvjpeg.so.9.0"
     "libopencv_core.so.3.1"
     "libopencv_imgcodecs.so.3.1"
@@ -100,8 +98,8 @@ DEPS_SONAME=(
 
 TMPDIR=$(mktemp -d)
 pushd $TMPDIR
-unzip -q $INFILE
-mkdir -p $PKGNAME_S/.libs
+unzip -q $INWHL
+mkdir -p $PKGNAME_PATH/.libs
 popd
 
 # copy over needed dependent .so files over and tag them with their hash
@@ -109,7 +107,7 @@ patched=()
 for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
     patchedname=$(fname_with_sha256 $filepath)
-    patchedpath=$PKGNAME_S/.libs/$patchedname
+    patchedpath=$PKGNAME_PATH/.libs/$patchedname
     cp $filepath $TMPDIR/$patchedpath
     patched+=("$patchedname")
     echo "Copied $filepath to $patchedpath"
@@ -118,7 +116,7 @@ done
 pushd $TMPDIR
 
 echo "patching to fix the so names to the hashed names"
-find $PKGNAME_S -name '*.so*' -o -name '*.bin' | while read sofile; do
+find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
     for ((i=0;i<${#DEPS_LIST[@]};++i)); do
         origname=${DEPS_SONAME[i]}
         patchedname=${patched[i]}
@@ -136,21 +134,21 @@ find $PKGNAME_S -name '*.so*' -o -name '*.bin' | while read sofile; do
 done
 
 # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN/.libs
-find $PKGNAME_S -maxdepth 1 -type f -name "*.so*" | while read sofile; do
+find $PKGNAME_PATH -maxdepth 1 -type f -name "*.so*" | while read sofile; do
     echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
     patchelf --set-rpath '$ORIGIN:$ORIGIN/.libs' $sofile
     patchelf --print-rpath $sofile
 done
 
 # set RPATH of test/*.bin to $ORIGIN, $ORIGIN/.libs
-find $PKGNAME_S/test -maxdepth 1 -type f -name "*.bin" | while read sofile; do
+find $PKGNAME_PATH/test -maxdepth 1 -type f -name "*.bin" | while read sofile; do
     echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
     patchelf --set-rpath '$ORIGIN:$ORIGIN/../.libs' $sofile
     patchelf --print-rpath $sofile
 done
 
 # set RPATH of .libs/ files to $ORIGIN
-find $PKGNAME_S/.libs -maxdepth 1 -type f -name "*.so*" | while read sofile; do
+find $PKGNAME_PATH/.libs -maxdepth 1 -type f -name "*.so*" | while read sofile; do
     echo "Setting rpath of $sofile to " '$ORIGIN'
     patchelf --set-rpath '$ORIGIN' $sofile
     patchelf --print-rpath $sofile
@@ -159,25 +157,22 @@ done
 # correct the metadata in the dist-info/WHEEL, e.g.:
 #Root-Is-Purelib: true
 #Tag: cp27-cp27mu-none-manylinux1_x86_64
-sed -i 's/\(Tag:.*\)-none-/\1-/;s/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}*dist-info/WHEEL
+sed -i 's/\(Tag:.*\)-none-/\1-/;s/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
 
 # regenerate the RECORD file with new hashes 
-record_file=`echo $WHL | sed -e 's/-cp.*$/.dist-info\/RECORD/g'`
-echo "Generating new record file $record_file"
-rm -f $record_file
+RECORD_FILE=$(ls $PKGNAME-*.dist-info/RECORD)
+echo "Generating new record file $RECORD_FILE"
+rm -f $RECORD_FILE
 # generate records for $PKGNAME_S folder
-find $PKGNAME_S -type f | while read fname; do
-    echo $(make_wheel_record $fname) >>$record_file
+find * -type f | while read FNAME; do
+    echo $(make_wheel_record $FNAME) >>$RECORD_FILE
 done
-# generate records for $PKGNAME-[version]-dist-info folder
-find ${PKGNAME}*dist-info -type f | while read fname; do
-    echo $(make_wheel_record $fname) >>$record_file
-done
+echo "$RECORD_FILE,," >> $RECORD_FILE
 
 # zip up the new wheel into the wheelhouse
 mkdir -p $OUTDIR
-rm -f $OUTDIR/$WHL
-zip -rq $OUTDIR/$WHL *
+rm -f $OUTDIR/$OUTWHLNAME
+zip -rq $OUTDIR/$OUTWHLNAME *
 
 # clean up
 popd

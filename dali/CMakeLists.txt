@@ -55,7 +55,7 @@ if (BUILD_TEST)
   target_link_libraries(${test_main_bin} ${DALI_LIBS} ${dali_lib} gtest)
 
   set_target_properties(${test_main_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
 endif()
 
 # Build benchmark suite
@@ -72,7 +72,7 @@ if (BUILD_BENCHMARK)
   target_link_libraries(${benchmark_bin} ${DALI_LIBS} ${dali_lib} benchmark pthread)
 
   set_target_properties(${benchmark_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
 endif()
 
 # Build the python bindings
@@ -113,5 +113,7 @@ if (BUILD_TENSORFLOW)
   target_link_libraries(${customop_lib} -ltensorflow_framework)
   target_link_libraries(${customop_lib} ${DALI_LIBS} ${dali_lib})
 
-  install(TARGETS ${customop_lib} DESTINATION lib)
+  set_target_properties(${customop_lib} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/plugin")
 endif()
+

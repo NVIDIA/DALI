@@ -1,7 +1,7 @@
-from dali.pipeline import Pipeline
-import dali.ops as ops
-import dali.types as types
-import dali.tfrecord as tfrec
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
+import nvidia.dali.tfrecord as tfrec
 import numpy as np
 from timeit import default_timer as timer
 import numpy as np

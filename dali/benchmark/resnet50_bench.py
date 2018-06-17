@@ -1,7 +1,7 @@
 import argparse
-from dali.pipeline import Pipeline
-import dali.ops as ops
-import dali.types as types
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
 import numpy as np
 from timeit import default_timer as timer
 
