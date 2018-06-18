@@ -1,0 +1,782 @@
+This software includes third-party components under the following licenses:
+
+========================
+Google Benchmark
+
+Copyright 2008, Google Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+========================
+GoogleTest
+
+Copyright 2008, Google Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+========================
+pybind11
+
+Copyright (c) 2016 Wenzel Jakob <wenzel.jakob@epfl.ch>, All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Please also refer to the file CONTRIBUTING.md, which clarifies licensing of
+external contributions to this project including patches, pull requests, etc.
+
+========================
+OpenCV
+
+By downloading, copying, installing or using the software you agree to this license.
+If you do not agree to this license, do not download, install,
+copy or use the software.
+
+
+                          License Agreement
+               For Open Source Computer Vision Library
+                       (3-clause BSD License)
+
+Copyright (C) 2000-2015, Intel Corporation, all rights reserved.
+Copyright (C) 2009-2011, Willow Garage Inc., all rights reserved.
+Copyright (C) 2009-2015, NVIDIA Corporation, all rights reserved.
+Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
+Copyright (C) 2015, OpenCV Foundation, all rights reserved.
+Copyright (C) 2015, Itseez Inc., all rights reserved.
+Third party copyrights are property of their respective owners.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+
+  * Neither the names of the copyright holders nor the names of the contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+This software is provided by the copyright holders and contributors "as is" and
+any express or implied warranties, including, but not limited to, the implied
+warranties of merchantability and fitness for a particular purpose are disclaimed.
+In no event shall copyright holders or contributors be liable for any direct,
+indirect, incidental, special, exemplary, or consequential damages
+(including, but not limited to, procurement of substitute goods or services;
+loss of use, data, or profits; or business interruption) however caused
+and on any theory of liability, whether in contract, strict liability,
+or tort (including negligence or otherwise) arising in any way out of
+the use of this software, even if advised of the possibility of such damage.
+
+========================
+
+libjpeg-turbo Licenses
+======================
+
+libjpeg-turbo is covered by three compatible BSD-style open source licenses:
+
+- The IJG (Independent JPEG Group) License, which is listed in
+  [README.ijg](README.ijg)
+
+  This license applies to the libjpeg API library and associated programs
+  (any code inherited from libjpeg, and any modifications to that code.)
+
+- The Modified (3-clause) BSD License, which is listed below
+
+  This license covers the TurboJPEG API library and associated programs.
+
+- The zlib License, which is listed below
+
+  This license is a subset of the other two, and it covers the libjpeg-turbo
+  SIMD extensions.
+
+
+Complying with the libjpeg-turbo Licenses
+=========================================
+
+This section provides a roll-up of the libjpeg-turbo licensing terms, to the
+best of our understanding.
+
+1.  If you are distributing a modified version of the libjpeg-turbo source,
+    then:
+
+    1.  You cannot alter or remove any existing copyright or license notices
+        from the source.
+
+        **Origin**
+        - Clause 1 of the IJG License
+        - Clause 1 of the Modified BSD License
+        - Clauses 1 and 3 of the zlib License
+
+    2.  You must add your own copyright notice to the header of each source
+        file you modified, so others can tell that you modified that file (if
+        there is not an existing copyright header in that file, then you can
+        simply add a notice stating that you modified the file.)
+
+        **Origin**
+        - Clause 1 of the IJG License
+        - Clause 2 of the zlib License
+
+    3.  You must include the IJG README file, and you must not alter any of the
+        copyright or license text in that file.
+
+        **Origin**
+        - Clause 1 of the IJG License
+
+2.  If you are distributing only libjpeg-turbo binaries without the source, or
+    if you are distributing an application that statically links with
+    libjpeg-turbo, then:
+
+    1.  Your product documentation must include a message stating:
+
+        This software is based in part on the work of the Independent JPEG
+        Group.
+
+        **Origin**
+        - Clause 2 of the IJG license
+
+    2.  If your binary distribution includes or uses the TurboJPEG API, then
+        your product documentation must include the text of the Modified BSD
+        License.
+
+        **Origin**
+        - Clause 2 of the Modified BSD License
+
+3.  You cannot use the name of the IJG or The libjpeg-turbo Project or the
+    contributors thereof in advertising, publicity, etc.
+
+    **Origin**
+    - IJG License
+    - Clause 3 of the Modified BSD License
+
+4.  The IJG and The libjpeg-turbo Project do not warrant libjpeg-turbo to be
+    free of defects, nor do we accept any liability for undesirable
+    consequences resulting from your use of the software.
+
+    **Origin**
+    - IJG License
+    - Modified BSD License
+    - zlib License
+
+
+The Modified (3-clause) BSD License
+===================================
+
+Copyright (C)\<YEAR\> \<AUTHOR\>.  All Rights Reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+- Neither the name of the libjpeg-turbo Project nor the names of its
+  contributors may be used to endorse or promote products derived from this
+  software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS",
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+
+The zlib License
+================
+
+Copyright (C) \<YEAR\>, \<AUTHOR\>.
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+
+========================
+Google Protobuf
+
+This license applies to all parts of Protocol Buffers except the following:
+
+  - Atomicops support for generic gcc, located in
+    src/google/protobuf/stubs/atomicops_internals_generic_gcc.h.
+    This file is copyrighted by Red Hat Inc.
+
+  - Atomicops support for AIX/POWER, located in
+    src/google/protobuf/stubs/atomicops_internals_power.h.
+    This file is copyrighted by Bloomberg Finance LP.
+
+Copyright 2014, Google Inc.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Code generated by the Protocol Buffer compiler is owned by the owner
+of the input file used when generating it.  This code is not
+standalone and requires a support library to be linked with it.  This
+support library is itself covered by the above license.
+
+========================
+NVIDIA nvJPEG
+
+SOFTWARE LICENSE AGREEMENT
+(April 19, 2018 version)
+
+This Software License Agreement, including exhibits attached ("Agreement”) is a
+legal agreement between you and NVIDIA Corporation ("NVIDIA") and governs your
+use of a NVIDIA software and materials provided hereunder (“SOFTWARE”). 
+
+This Agreement can be accepted only by an adult of legal age of majority in the
+country in which the SOFTWARE is used. 
+
+If you are entering into this Agreement on behalf of a company or other legal
+entity, you represent that you have the legal authority to bind the entity to
+this Agreement, in which case “you” will mean the entity you represent. 
+
+If you don’t have the required age or authority to accept this Agreement, or if
+you don’t accept all the terms and conditions of this Agreement, do not
+download, install, copy or use the SOFTWARE.  
+
+You agree to use the SOFTWARE only for purposes that are permitted by (a) this
+Agreement, and (b) any applicable law, regulation or generally accepted
+practices or guidelines in the relevant jurisdictions.
+
+1. License. 
+
+1.1 Grant
+
+Subject to the terms of this Agreement, NVIDIA hereby grants you a
+non-exclusive, non-transferable license, without the right to sublicense to
+install, use and make copies of the SOFTWARE for your use.
+
+1.2 Authorized Users
+
+You may allow employees and contractors of your entity or of your
+subsidiary(ies) to access and use the SOFTWARE from your secure network to
+perform work on your behalf. 
+
+If you are an academic institution you may allow users enrolled or employed by
+the academic institution to access and use the SOFTWARE from your secure
+network. 
+
+You are responsible for the compliance with the terms of this Agreement by your
+authorized users. If you become aware that your authorized users didn’t follow
+the terms of this Agreement, you agree to take reasonable steps to resolve the
+non-compliance and prevent new occurrences. 
+
+1.3 Pre-Release SOFTWARE 
+
+The SOFTWARE versions identified as alpha, beta, preview or otherwise as
+pre-release, may not be fully functional, may contain errors or design flaws,
+and may have reduced or different security, privacy, accessibility,
+availability, and reliability standards relative to commercial versions of
+NVIDIA software and materials. Use of a pre-release SOFTWARE may result in
+unexpected results, loss of data, project delays or other unpredictable damage
+or loss. 
+
+You may use a pre-release SOFTWARE at your own risk, understanding that
+pre-release SOFTWARE is not intended for use in production or business-critical
+systems. 
+
+NVIDIA may choose not to make available a commercial version of any pre-release
+SOFTWARE. NVIDIA may also choose to abandon development and terminate the
+availability of a pre-release SOFTWARE at any time without liability. 
+
+1.4  Updates
+
+NVIDIA may, at its option, make available patches, workarounds or other updates
+to this SOFTWARE. Unless the updates are provided with their separate governing
+terms, they are deemed part of the SOFTWARE licensed to you as provided in this
+Agreement.
+
+1.5  Third Party Licenses
+
+The SOFTWARE may come bundled with, or otherwise include or be distributed
+with, third party software licensed by a NVIDIA supplier and/or open source
+software provided under an open source license. Use of third party software is
+subject to the third party license terms, or in the absence of third party
+terms, the terms of this Agreement. Copyright to third party software is held
+by the copyright holders indicated in the third-party software or license.
+
+1.6 Reservation of Rights
+
+NVIDIA reserves all rights, title and interest in and to the SOFTWARE not
+expressly granted to you under this Agreement.
+
+2. Limitations. 
+
+The following license limitations apply to your use of the SOFTWARE:
+
+2.1 You may not reverse engineer, decompile or disassemble, or remove copyright
+or other proprietary notices from any portion of the SOFTWARE or copies of the
+SOFTWARE. 
+
+2.2 Except as expressly provided in this Agreement, you may not copy, sell,
+rent, sublicense, transfer, distribute, modify, or create derivative works of
+any portion of the SOFTWARE. 
+
+2.3 You may not bypass, disable, or circumvent any encryption, security,
+digital rights management or authentication mechanism in the SOFTWARE. 
+
+2.4 You may not use the SOFTWARE in any manner that would cause it to become
+subject to an open source software license. As examples, licenses that require
+as a condition of use, modification, and/or distribution that the SOFTWARE be
+(i) disclosed or distributed in source code form; (ii) licensed for the purpose
+of making derivative works; or (iii) redistributable at no charge.
+
+2.5  Unless you have an agreement with NVIDIA for this purpose, you may not use
+the SOFTWARE with any system or application where the use or failure of the
+system or application can reasonably be expected to threaten or result in
+personal injury, death, or catastrophic loss. Examples include use in nuclear,
+avionics, navigation, military, medical, life support or other life critical
+applications. NVIDIA does not design, test or manufacture the SOFTWARE for
+these critical uses and NVIDIA shall not be liable to you or any third party,
+in whole or in part, for any claims or damages arising from such uses. 
+
+2.6 You agree to defend, indemnify and hold harmless NVIDIA and its affiliates,
+and their respective employees, contractors, agents, officers and directors,
+from and against any and all claims, damages, obligations, losses, liabilities,
+costs or debt, fines, restitutions and expenses (including but not limited to
+attorney’s fees and costs incident to establishing the right of
+indemnification) arising out of or related to your use of the SOFTWARE outside
+of the scope of this Agreement, or not in compliance with its terms.
+
+3. Ownership. 
+
+3.1 The SOFTWARE, modifications thereto, and the respective intellectual
+property rights therein are owned by NVIDIA or its licensors and are licensed
+to you as described in this Agreement. NVIDIA’s licensors are intended third
+party beneficiaries with the rights to enforce this Agreement with respect to
+their intellectual property rights. 
+
+3.2  You may, but don’t have to, provide to NVIDIA suggestions, feature
+requests or other feedback regarding the SOFTWARE, including possible
+enhancements or modifications to the SOFTWARE. For any feedback that you
+voluntarily provide, you hereby grant NVIDIA and its affiliates a perpetual,
+non-exclusive, worldwide, irrevocable license to use, reproduce, modify,
+license, sublicense (through multiple tiers of sublicensees), and distribute
+(through multiple tiers of distributors) it without the payment of any
+royalties or fees to you. NVIDIA will decide if and how to respond to feedback
+and if to incorporate feedback into the SOFTWARE. 
+
+4.  No Warranties. 
+
+THE SOFTWARE IS PROVIDED BY NVIDIA “AS IS” AND “WITH ALL FAULTS.” TO THE
+MAXIMUM EXTENT PERMITTED BY LAW, NVIDIA AND ITS AFFILIATES EXPRESSLY DISCLAIM
+ALL WARRANTIES OF ANY KIND OR NATURE, WHETHER EXPRESS, IMPLIED OR STATUTORY,
+INCLUDING, BUT NOT LIMITED TO, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, OR THE ABSENCE OF ANY DEFECTS
+THEREIN, WHETHER LATENT OR PATENT. NO WARRANTY IS MADE ON THE BASIS OF TRADE
+USAGE, COURSE OF DEALING OR COURSE OF TRADE. 
+
+5.  Limitations of Liability. 
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NVIDIA AND ITS AFFILIATES SHALL NOT BE
+LIABLE FOR ANY SPECIAL, INCIDENTAL, PUNITIVE OR CONSEQUENTIAL DAMAGES, OR ANY
+LOST PROFITS, LOSS OF USE, LOSS OF DATA OR LOSS OF GOODWILL, OR THE COSTS OF
+PROCURING SUBSTITUTE PRODUCTS, ARISING OUT OF OR IN CONNECTION WITH THIS
+AGREEMENT OR THE USE OR PERFORMANCE OF THE SOFTWARE, WHETHER SUCH LIABILITY
+ARISES FROM ANY CLAIM BASED UPON BREACH OF CONTRACT, BREACH OF WARRANTY, TORT
+(INCLUDING NEGLIGENCE), PRODUCT LIABILITY OR ANY OTHER CAUSE OF ACTION OR
+THEORY OF LIABILITY. IN NO EVENT WILL NVIDIA’S AND ITS AFFILIATES TOTAL
+CUMULATIVE LIABILITY UNDER OR ARISING OUT OF THIS AGREEMENT EXCEED US$10.00.
+THE NATURE OF THE LIABILITY OR THE NUMBER OF CLAIMS OR SUITS SHALL NOT ENLARGE
+OR EXTEND THIS LIMIT. 
+
+These exclusions and limitations of liability shall apply regardless if NVIDIA
+or its affiliates have been advised of the possibility of such damages, and
+regardless of whether a remedy fails its essential purpose. These exclusions
+and limitations of liability form an essential basis of the bargain between the
+parties, and, absent any of these exclusions or limitations of liability, the
+provisions of this Agreement, including, without limitation, the economic
+terms, would be substantially different. 
+
+6.   Termination. 
+
+6.1 This Agreement will continue to apply until terminated by either you or
+NVIDIA as described below. 
+
+6.2 If you want to terminate this Agreement, you may do so by stopping to use
+the SOFTWARE. 
+
+6.3 NVIDIA may, at any time, terminate this Agreement if: (i) you fail to
+comply with any term of this Agreement and the non-compliance is not fixed
+within thirty (30) days following notice from NVIDIA (or immediately if you
+violate NVIDIA’s intellectual property rights); (ii) you commence or
+participate in any legal proceeding against NVIDIA with respect to the
+SOFTWARE; or (iii) NVIDIA decides to no longer provide the SOFTWARE or certain
+parts of the SOFTWARE to users in a country, or the provision of the SOFTWARE
+or to you by NVIDIA is, in NVIDIA’s sole discretion, no longer commercially
+viable. 
+
+6.4 Upon any termination of this Agreement, you agree to promptly discontinue
+use of the SOFTWARE and destroy all copies in your possession or control. Upon
+written request, you will certify in writing that you have complied with your
+commitments under this section. Upon any termination of this Agreement all
+provisions survive except for the license grant provisions. 
+
+7.  General.  
+ 
+If you wish to assign this Agreement or your rights and obligations, including
+by merger, consolidation, dissolution or operation of law, contact NVIDIA to
+ask for permission. Any attempted assignment not approved by NVIDIA in writing
+shall be void and of no effect. NVIDIA may assign, delegate or transfer this
+Agreement and its rights and obligations, and if to a non-affiliate you will be
+notified. 
+
+You agree to cooperate with NVIDIA and provide reasonably requested information
+to verify your compliance with this Agreement.
+
+This Agreement will be governed in all respects by the laws of the United
+States and of the State of Delaware as those laws are applied to contracts
+entered into and performed entirely within Delaware by Delaware residents,
+without regard to the conflicts of laws principles. The United Nations
+Convention on Contracts for the International Sale of Goods is specifically
+disclaimed. You agree to all terms of this Agreement in the English language.
+
+The state or federal courts residing in Santa Clara County, California shall
+have exclusive jurisdiction over any dispute or claim arising out of this
+Agreement. Notwithstanding this, you agree that NVIDIA shall still be allowed
+to apply for injunctive remedies or an equivalent type of urgent legal relief
+in any jurisdiction. 
+
+If any court of competent jurisdiction determines that any provision of this
+Agreement is illegal, invalid or unenforceable, such provision will be
+construed as limited to the extent necessary to be consistent with and fully
+enforceable under the law and the remaining provisions will remain in full
+force and effect. Unless otherwise specified, remedies are cumulative.
+
+Each party acknowledges and agrees that the other is an independent contractor
+in the performance of this Agreement. 
+
+Neither party will be responsible for any failure or delay in its performance
+under this Agreement to the extent due to causes beyond its reasonable control
+for so long as the cause or event continues in effect. 
+
+The SOFTWARE has been developed entirely at private expense and is “commercial
+items” consisting of “commercial computer software” and “commercial computer
+software documentation” provided with RESTRICTED RIGHTS. Use, duplication or
+disclosure by the U.S. Government or a U.S. Government subcontractor is subject
+to the restrictions in this Agreement pursuant to DFARS 227.7202-3(a) or as set
+forth in subparagraphs (c)(1) and (2) of the Commercial Computer Software -
+Restricted Rights clause at FAR 52.227-19, as applicable.
+Contractor/manufacturer is NVIDIA, 2788 San Tomas Expressway, Santa Clara, CA
+95051.
+
+The SOFTWARE is subject to United States export laws and regulations. You agree
+that you will not ship, transfer or export the SOFTWARE into any country, or
+use the SOFTWARE in any manner, prohibited by the United States Bureau of
+Industry and Security or economic sanctions regulations administered by the
+U.S. Department of Treasury’s Office of Foreign Assets Control (OFAC), or any
+applicable export laws, restrictions or regulations. These laws include
+restrictions on destinations, end users and end use. By accepting this
+Agreement, you confirm that you are not a resident or citizen of any country
+currently embargoed by the U.S. and that you are not otherwise prohibited from
+receiving the SOFTWARE.
+
+Any notice delivered by NVIDIA to you under this Agreement will be delivered
+via mail, email or fax. You agree that any notices that NVIDIA sends you
+electronically will satisfy any legal communication requirements. Please direct
+your legal notices or other correspondence to NVIDIA Corporation, 2788 San
+Tomas Expressway, Santa Clara, California 95051, United States of America,
+Attention: Legal Department.
+
+This Agreement and any exhibits incorporated to this Agreement constitute the
+entire agreement of the parties with respect to the subject matter of this
+Agreement and supersede all prior negotiations, conversations, or discussions
+between the parties relating to this subject matter. Any additional and/or
+conflicting terms on documents issued by you are null, void, and invalid. Any
+amendment or waiver under this Agreement shall be in writing and signed by
+representatives of both parties.
+

@@ -1,0 +1,13 @@
+*~
+build
+*.pyc
+doxygen
+html
+latex
+.vimrc
+.ycm_extra_conf.py
+**/imgui.ini
+.*.swp
+valgrind-out.txt
+**/.ipynb_checkpoints
+.dockerignore
