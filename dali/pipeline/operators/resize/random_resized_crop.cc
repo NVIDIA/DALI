@@ -140,14 +140,11 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws)
   }
 
   if (attempt == num_attempts_) {
-    std::cout << "Fail" << std::endl;
     int min_dim = H < W ? H : W;
     crop.w = min_dim;
     crop.h = min_dim;
     crop.x = (W - min_dim) / 2;
     crop.y = (H - min_dim) / 2;
-  } else {
-    std::cout << "Success" << std::endl;
   }
 
   params_->crops[id] = crop;
