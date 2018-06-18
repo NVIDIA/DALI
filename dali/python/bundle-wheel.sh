@@ -112,7 +112,7 @@ for filepath in "${DEPS_LIST[@]}"; do
     cp $filepath $TMPDIR/$patchedpath
     patched+=("$patchedname")
     echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $TMPDIR/$patchedpath $patchedname
+    patchelf --set-soname $patchedname $TMPDIR/$patchedpath
 done
 
 pushd $TMPDIR
