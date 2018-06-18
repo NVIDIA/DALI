@@ -1,46 +1,70 @@
 # DALI
 
-DALI is a collection of highly optimized building blocks and an execution engine to accelerate computer vision deep learning applications. The goal of DALI is to provide both performance and flexibility, as a single library, that can be easily integrated into DL training and inference applications.
+Today’s deep learning applications include complex, multi-stage pre-processing data pipelines that include compute-intensive steps mainly carried out on the CPU. For instance, steps such as load data from disk, decode, crop, random resize, color and spatial augmentations and format conversions are carried out on the CPUs, limiting the performance and scalability of training and inference tasks. In addition, the deep learning frameworks today have multiple data pre-processing implementations, resulting in challenges such as portability of training and inference workflows and code maintainability.
 
-## Key features
+NVIDIA Data Loading Library (DALI) is a collection of highly optimized building blocks and an execution engine to accelerate input data pre-processing for deep learning applications. DALI  provides both performance and flexibility of accelerating different data pipelines, as a single library, that can be easily integrated into different deep learning training and inference applications.
 
-- Full data pipeline accelerated from reading images on disk to getting ready for training/inference
-- Flexibility through configurable graphs
-- Support for image classification and segmentation workloads
-- Ease of integration through direct framework plugins
-- Portable training workflows with multiple input formats - JPEG images, LMDB, RecordIO, TFRecord
+Key highlights of DALI include:
+ - Full data pipeline accelerated from reading disk to getting ready for training/inference
+ - Flexibility through configurable graphs and custom operators
+ - Support for image classification and segmentation workloads
+ - Ease of integration through direct framework plugins and open source bindings
+ - Portable training workflows with multiple input formats - JPEG, raw formats, LMDB, RecordIO, TFRecord
+ - Extensible for user specific needs through open source license
 
-# Building and installing
+# Installing prebuilt DALI packages
 
 ## Prerequisities
 
-- NVIDIA CUDA 9.0 or above
+* [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
+* DALI can work with any of the following Deep Learning frameworks:
+  - [MXNet](http://mxnet.incubator.apache.org)
+    - Version 1.3 beta is required, `mxnet-cu90==1.3.0b20180612` or later
+  - [pyTorch](https://pytorch.org)
+    - Version 0.4
+  - [TensorFlow](https://www.tensorflow.org)
+    - Version 1.8
 
-## Binaries
+## Installation
 
-TODO
+`pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali`
 
-## From source
+# Compiling DALI from source
 
-### Install prerequisities
+## Prerequisities
+
+* [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
+* [nvJPEG library](https://developer.nvidia.com/nvjpeg)
+* [protobuf](https://github.com/google/protobuf) version 2 or above (version 3 or above is required for TensorFlow TFRecord file format support)
+* [CMake](https://cmake.org) version 3.5 or above
+* [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo) version 1.5.x or above
+* [OpenCV](https://opencv.org) version 3 or above
+* (Optional) [liblmdb](https://github.com/LMDB/lmdb) version 0.9.x or above
+* DALI can work with any of the following Deep Learning frameworks:
+  - [MXNet](http://mxnet.incubator.apache.org)
+    - Version 1.3 beta is required, `mxnet-cu90==1.3.0b20180612` or later
+  - [pyTorch](https://pytorch.org)
+    - Version 0.4
+  - [TensorFlow](https://www.tensorflow.org)
+    - Version 1.8
+    - Note: Installing TensorFlow is required to build the TensorFlow plugin for DALI
 
 
-
-### Get the DALI source
+## Get the DALI source
 
 ```
 git clone --recursive https://github.com/NVIDIA/dali
 cd dali
 ```
 
-### Make the build directory
+## Make the build directory
 
 ```
 mkdir build
 cd build
 ```
 
-### Compile DALI
+## Compile DALI
 
 To build DALI without LMDB support:
 
@@ -65,12 +89,10 @@ Optional CMake build parameters:
 - `BUILD_NVTX` - build with NVTX profiling enabled (default: OFF)
 - `BUILD_TENSORFLOW` - build TensorFlow plugin (default: OFF)
 
-## Docker image
-
-Dockerfile is supplied. To build:
+## Install Python bindings
 
 ```
-docker build -t dali -f Dockerfile
+pip install dali/python
 ```
 
 # Getting started
