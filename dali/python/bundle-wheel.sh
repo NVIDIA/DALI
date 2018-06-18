@@ -108,9 +108,24 @@ for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
     patchedname=$(fname_with_sha256 $filepath)
     patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
     patched+=("$patchedname")
-    echo "Copied $filepath to $patchedpath"
+
+    # HACK: CUDA libraries like libnvjpeg.so.9.0 set their .gnu.version info
+    # in the ELF... to their own name.  which means that if we go messing
+    # around with the SONAME, then anything that ever linked against that
+    # library will be broken.  For the rest of CUDA we don't have to deal
+    # with this because we rely on the CUDA libs to be installed as system
+    # libs.  libnvjpeg.so.9.0 is a special case because it's a newer addition
+    # that didn't originally ship with 9.0.
+    if [[ "$filename" == "libnvjpeg.so.9.0" ]]; then
+        echo "Skipping patch of DT_SONAME for $filename"
+        continue
+    fi
+
+    echo "Patching DT_SONAME field in $patchedpath"
+    patchelf --set-soname $patchedname $TMPDIR/$patchedpath
 done
 
 pushd $TMPDIR
