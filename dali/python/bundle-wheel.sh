@@ -108,9 +108,11 @@ for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
     patchedname=$(fname_with_sha256 $filepath)
     patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
     patched+=("$patchedname")
-    echo "Copied $filepath to $patchedpath"
+    echo "Patching DT_SONAME field in $patchedpath"
+    patchelf --set-soname $TMPDIR/$patchedpath $patchedname
 done
 
 pushd $TMPDIR
