@@ -1,0 +1,50 @@
+/**
+ * @mainpage
+ * 
+ * @section intro Introduction
+ * NVIDIA DALI (Data Loading Library) is broken into two mains parts. The first part
+ * is a library of base primitives for data loading and augmentation. These are
+ * organized in the source tree by what type of data they operate on. We currently
+ * only have image primitives, so all of the primitives are located under @ref dali/image/.
+ *
+ * The second part is a high performance data Pipeline (@ref dali/pipeline). The pipeline 
+ * is designed to be quite general and extensible.
+ *
+ * @section lib Library
+ * The library is currently quite small, but the goal is to build up a set of primitives
+ * used by the frameworks so that all frameworks have access to the same data augmentation
+ * and data loading functions.
+ *
+ * @section pipe Pipeline
+ * The Pipeline is the user-facing class that enables the construction and execution of
+ * graphs of operations. Underneath, it makes use of a few core classes that provide
+ * key services.
+ *
+ * @subsection graph Graph:
+ * @ref dali::OpGraph @n
+ *
+ * @subsection exec Executors:
+ * @ref dali::Executor @n
+ * @ref dali::PipelinedExecutor @n
+ * @ref dali::AsyncPipelinedExecutor @n
+ * @ref dali::AsyncExecutor (WIP) @n
+ *
+ * @subsection ops Operators:
+ * @ref dali::Operator @n
+ *
+ * @subsection data Data Storage:
+ * @ref dali::Buffer<Backend> @n
+ * @ref dali::TensorList<Backend> @n
+ * @ref dali::Tensor<Backend> @n
+ *
+ * @subsection mem Memory Allocation:
+ * @ref dali::CPUBackend @n
+ * @ref dali::GPUBackend @n
+ * @ref dali::AllocatorBase @n
+ * @ref dali::CPUAllocator @n
+ * @ref dali::GPUAllocator
+ *
+ * The Pipeline also has Python bindings that expose a much nicer API than the 
+ * C++ Pipeline. See the examples in 'dali/benchmark'. All python code is under
+ * the 'dali/python' directory.
+ */
