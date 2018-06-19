@@ -9,8 +9,10 @@ Key highlights of DALI include:
  - Flexibility through configurable graphs and custom operators
  - Support for image classification and segmentation workloads
  - Ease of integration through direct framework plugins and open source bindings
- - Portable training workflows with multiple input formats - JPEG, raw formats, LMDB, RecordIO, TFRecord
+ - Portable training workflows with multiple input formats - JPEG, LMDB, RecordIO, TFRecord
  - Extensible for user specific needs through open source license
+
+Note: DALI v0.1 is a pre-release software, which means certain features may not be fully functional, may contain errors or design flaws, and may have reduced or different security, privacy, accessibility, availability, and reliability standards relative to production-quality versions of NVIDIA software and materials. You may use a pre-release software at your own risk, understanding that pre-release software is not intended for use in production or business-critical systems.
 
 # Installing prebuilt DALI packages
 
