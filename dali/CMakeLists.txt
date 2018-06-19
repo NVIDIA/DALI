@@ -107,7 +107,7 @@ if (BUILD_TENSORFLOW)
   # OUTPUT_VARIABLE TF_LFLAGS)
 
   execute_process(
-    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"site\" in p] ; print(f[0], end=\"\")"
+    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
     OUTPUT_VARIABLE DIST_PACKAGES_DIR)
 
   add_subdirectory(tensorflow)
