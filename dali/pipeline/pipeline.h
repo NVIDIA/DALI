@@ -85,7 +85,9 @@ class DLL_PUBLIC Pipeline {
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    device_id_(device_id), bytes_per_sample_hint_(bytes_per_sample_hint) {
+    device_id_(device_id), pipelined_execution_(pipelined_execution),
+    async_execution_(async_execution), bytes_per_sample_hint_(bytes_per_sample_hint),
+    set_affinity_(set_affinity), max_num_stream_(max_num_stream) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
     seed_.resize(MAX_SEEDS);
     current_seed = 0;
@@ -96,26 +98,6 @@ class DLL_PUBLIC Pipeline {
       std::seed_seq ss{time(0)};
       ss.generate(seed_.begin(), seed_.end());
     }
-
-    if (pipelined_execution && async_execution) {
-      executor_.reset(new AsyncPipelinedExecutor(
-              batch_size, num_threads,
-              device_id, bytes_per_sample_hint,
-              set_affinity, max_num_stream));
-      executor_->Init();
-    } else if (pipelined_execution) {
-      executor_.reset(new PipelinedExecutor(
-              batch_size, num_threads,
-              device_id, bytes_per_sample_hint,
-              set_affinity, max_num_stream));
-    } else if (async_execution) {
-      DALI_FAIL("Not implemented.");
-    } else {
-      executor_.reset(new Executor(
-              batch_size, num_threads,
-              device_id, bytes_per_sample_hint,
-              set_affinity, max_num_stream));
-    }
   }
 
   DLL_PUBLIC inline Pipeline(const string &serialized_pipe,
@@ -124,8 +106,7 @@ class DLL_PUBLIC Pipeline {
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
     Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
-             async_execution, bytes_per_sample_hint, set_affinity,
-             max_num_stream) {
+             async_execution, bytes_per_sample_hint, set_affinity, max_num_stream) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 
@@ -349,7 +330,12 @@ class DLL_PUBLIC Pipeline {
 
   bool built_;
   int batch_size_, num_threads_, device_id_;
+  bool pipelined_execution_;
+  bool async_execution_;
   size_t bytes_per_sample_hint_;
+  int set_affinity_;
+  int max_num_stream_;
+
   std::vector<int> seed_;
   size_t current_seed;
 

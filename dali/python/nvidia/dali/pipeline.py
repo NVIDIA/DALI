@@ -164,8 +164,8 @@ class Pipeline(object):
         return self.outputs()
 
     def serialize(self):
-        if not self._built:
-            self.build()
+        if not self._prepared:
+            self._prepare_graph()
         return self._pipe.SerializeToProtobuf()
 
     def deserialize_and_build(self, serialized_pipeline):

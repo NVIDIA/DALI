@@ -147,18 +147,42 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
         "Output name insertion failure.");
   }
-
-  // Add the operator to the graph
-  PrepareOpSpec(&spec);
-  graph_.AddOp(spec, inst_name);
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
-  DeviceGuard g(device_id_);
-
   output_names_ = output_names;
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
+
+
+  // Creating the executor
+  if (pipelined_execution_ && async_execution_) {
+    executor_.reset(new AsyncPipelinedExecutor(
+            batch_size_, num_threads_,
+            device_id_, bytes_per_sample_hint_,
+            set_affinity_, max_num_stream_));
+    executor_->Init();
+  } else if (pipelined_execution_) {
+    executor_.reset(new PipelinedExecutor(
+            batch_size_, num_threads_,
+            device_id_, bytes_per_sample_hint_,
+            set_affinity_, max_num_stream_));
+  } else if (async_execution_) {
+    DALI_FAIL("Not implemented.");
+  } else {
+    executor_.reset(new Executor(
+            batch_size_, num_threads_,
+            device_id_, bytes_per_sample_hint_,
+            set_affinity_, max_num_stream_));
+  }
+
+  // Creating the graph
+  for (auto& name_op_spec : op_specs_) {
+    string& inst_name = name_op_spec.first;
+    OpSpec op_spec = name_op_spec.second;
+    PrepareOpSpec(&op_spec);
+    graph_.AddOp(op_spec, inst_name);
+  }
 
   // Validate the output tensors names
   vector<string> outputs;
@@ -207,6 +231,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     }
   }
 
+  DeviceGuard d(device_id_);
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
   built_ = true;
