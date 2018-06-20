@@ -102,3 +102,7 @@ pip install dali/python
 # Getting started
 
 [`examples`](examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
+
+# Contributors
+
+DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon Layton, Andrei Ivanov
