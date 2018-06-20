@@ -105,4 +105,4 @@ pip install dali/python
 
 # Contributors
 
-DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon Layton, Andrei Ivanov
+DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon Layton, Andrei Ivanov, Serge Panev
