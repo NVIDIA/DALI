@@ -237,6 +237,11 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   built_ = true;
 }
 
+void Pipeline::SetOutputNames(vector<std::pair<string, string>> output_names) {
+  output_names_ = output_names;
+}
+
+
 void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");

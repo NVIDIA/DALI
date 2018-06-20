@@ -428,6 +428,10 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p) {
           p->Build();
           })
+    .def("SetOutputNames",
+        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
+          p->SetOutputNames(outputs);
+          })
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",

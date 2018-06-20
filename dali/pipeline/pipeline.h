@@ -225,6 +225,12 @@ class DLL_PUBLIC Pipeline {
     Build(this->output_names_);
   }
 
+  /*
+   * @brief Set name output_names of the pipeline. Used to update the graph without
+   * running the executor.
+   */
+  void SetOutputNames(vector<std::pair<string, string>> output_names);
+
   /**
    * @brief Run the cpu portion of the pipeline.
    */
