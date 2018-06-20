@@ -312,6 +312,11 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   void RunImpl(DeviceWorkspace* ws, const int idx) override {
+    // Before we start working on the next input set, we need
+    // to wait until the last one is finished. Otherwise we risk
+    // overwriting data used by the kernel called for previous image
+    if (idx != 0)
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     DataDependentSetup(ws, idx);
 
     auto &input = ws->Input<GPUBackend>(idx);
