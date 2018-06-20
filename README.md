@@ -18,6 +18,7 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
 
 ## Prerequisities
 
+* Linux
 * [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
 * DALI can work with any of the following Deep Learning frameworks:
   - [MXNet](http://mxnet.incubator.apache.org)
@@ -35,6 +36,7 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
 
 ## Prerequisities
 
+* Linux
 * [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
 * [nvJPEG library](https://developer.nvidia.com/nvjpeg)
 * [protobuf](https://github.com/google/protobuf) version 2 or above (version 3 or above is required for TensorFlow TFRecord file format support)
