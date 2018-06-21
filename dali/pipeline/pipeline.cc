@@ -29,9 +29,6 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
 
-  // Take a copy of the passed OpSpec for serialization purposes
-  this->op_specs_.push_back(make_pair(inst_name, spec));
-
   // Validate op device
   string device = spec.GetArgument<string>("device");
   DALI_ENFORCE(device == "cpu" ||
@@ -147,6 +144,9 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
         "Output name insertion failure.");
   }
+
+  // Take a copy of the passed OpSpec for serialization purposes
+  this->op_specs_.push_back(make_pair(inst_name, spec));
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
@@ -278,8 +278,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddArg("device", "mixed")
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
-    PrepareOpSpec(&make_contiguous_spec);
-    graph_.AddOp(make_contiguous_spec, "__MakeContiguous_" + it->first);
+    this->op_specs_.push_back(make_pair("__MakeContiguous_" + it->first, make_contiguous_spec));
   }
 
   // Update the OpSpec to use the contiguous input
@@ -298,8 +297,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddArg("device", "mixed")
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
-  PrepareOpSpec(&copy_to_dev_spec);
-  graph_.AddOp(copy_to_dev_spec, "__Copy_" + it->first);
+  this->op_specs_.push_back(make_pair("__Copy_" + it->first, copy_to_dev_spec));
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
