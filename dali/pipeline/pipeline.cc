@@ -274,7 +274,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
     int input_idx, OpSpec *spec) {
   if (!it->second.has_contiguous) {
     // We check if the make contiguous op already exists
-    std::string op_name = OpSpec::TensorName("contiguous_" + it->first, "cpu");
+    std::string op_name = "__MakeContiguous_" + it->first;
     if (std::find_if(op_specs_.begin(), op_specs_.end(),
           [&op_name] (const std::pair<string, OpSpec>& p) {
                   return p.first == op_name;}) != op_specs_.end()) {
@@ -301,7 +301,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
   // We check if the copy_to_dev op already exists
-  std::string op_name = OpSpec::TensorName(it->first, "gpu");
+  std::string op_name = "__Copy_" + it->first;
   if (std::find_if(op_specs_.begin(), op_specs_.end(),
         [&op_name] (const std::pair<string, OpSpec>& p) {
                 return p.first == op_name;}) != op_specs_.end()) {
