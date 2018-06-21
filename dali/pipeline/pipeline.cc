@@ -147,6 +147,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 
   // Take a copy of the passed OpSpec for serialization purposes
   this->op_specs_.push_back(make_pair(inst_name, spec));
+  this->op_specs_to_serialize_.push_back(true);
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
@@ -279,6 +280,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     this->op_specs_.push_back(make_pair("__MakeContiguous_" + it->first, make_contiguous_spec));
+    this->op_specs_to_serialize_.push_back(false);
   }
 
   // Update the OpSpec to use the contiguous input
@@ -298,6 +300,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   this->op_specs_.push_back(make_pair("__Copy_" + it->first, copy_to_dev_spec));
+  this->op_specs_to_serialize_.push_back(false);
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
@@ -321,14 +324,16 @@ string Pipeline::SerializeToProtobuf() const {
 
   // loop over ops, create messages and append
   for (size_t i = 0; i < this->op_specs_.size(); ++i) {
-    dali_proto::OpDef *op_def = pipe.add_op();
+    if (op_specs_to_serialize_[i]) {
+      dali_proto::OpDef *op_def = pipe.add_op();
 
-    const auto& p = this->op_specs_[i];
-    const OpSpec& spec = p.second;
+      const auto& p = this->op_specs_[i];
+      const OpSpec& spec = p.second;
 
-    // As long as spec isn't an ExternalSource node, serialize
-    if (spec.name() != "ExternalSource") {
-      spec.SerializeToProtobuf(op_def, p.first);
+      // As long as spec isn't an ExternalSource node, serialize
+      if (spec.name() != "ExternalSource") {
+        spec.SerializeToProtobuf(op_def, p.first);
+      }
     }
   }
 
