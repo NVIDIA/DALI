@@ -273,7 +273,14 @@ void Pipeline::Outputs(DeviceWorkspace *ws) {
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
     int input_idx, OpSpec *spec) {
   if (!it->second.has_contiguous) {
-    if (graph_.TensorExists(OpSpec::TensorName("contiguous_" + it->first, "cpu"))) return;
+    // We check if the make contiguous op already exists
+    std::string op_name = OpSpec::TensorName("contiguous_" + it->first, "cpu");
+    if (std::find_if(op_specs_.begin(), op_specs_.end(),
+          [&op_name] (const std::pair<string, OpSpec>& p) {
+                  return p.first == op_name;}) != op_specs_.end()) {
+      return;
+    }
+
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
       .AddArg("device", "mixed")
@@ -293,7 +300,14 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
-  if (graph_.TensorExists(OpSpec::TensorName(it->first, "gpu"))) return;
+  // We check if the copy_to_dev op already exists
+  std::string op_name = OpSpec::TensorName(it->first, "gpu");
+  if (std::find_if(op_specs_.begin(), op_specs_.end(),
+        [&op_name] (const std::pair<string, OpSpec>& p) {
+                return p.first == op_name;}) != op_specs_.end()) {
+    return;
+  }
+
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
     .AddArg("device", "mixed")
