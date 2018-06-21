@@ -88,24 +88,12 @@ make_wheel_record() {
 }
 
 DEPS_LIST=(
-    "/usr/local/lib/liblmdb.so"
     "dali/libdali.so"
-    "/usr/local/lib/libnvjpeg.so.9.0"
-    "/usr/local/lib/libopencv_core.so.3.1"
-    "/usr/local/lib/libopencv_imgcodecs.so.3.1"
-    "/usr/local/lib/libopencv_imgproc.so.3.1"
-    "/usr/local/lib/libprotobuf.so.15"
     "/usr/local/lib/libturbojpeg.so.0"
 )
 
 DEPS_SONAME=(
-    "liblmdb.so"
     "libdali.so"
-    "libnvjpeg.so.9.0"
-    "libopencv_core.so.3.1"
-    "libopencv_imgcodecs.so.3.1"
-    "libopencv_imgproc.so.3.1"
-    "libprotobuf.so.15"
     "libturbojpeg.so.0"
 )
 
@@ -121,9 +109,14 @@ for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
     patchedname=$(fname_with_sha256 $filepath)
     patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    patched+=("$patchedname")
+
+    if [[ ! -f "$filepath" ]]; then
+        echo "Didn't find $filename, skipping..."
+        continue
+    fi
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
-    patched+=("$patchedname")
 
     # HACK: CUDA libraries like libnvjpeg.so.9.0 set their .gnu.version info
     # in the ELF... to their own name.  which means that if we go messing
@@ -162,17 +155,11 @@ find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
 done
 
 # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN/.libs
-find $PKGNAME_PATH -maxdepth 1 -type f -name "*.so*" | while read sofile; do
-    echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
-    patchelf --set-rpath '$ORIGIN:$ORIGIN/.libs' $sofile
-    patchelf --print-rpath $sofile
-done
-
-# set RPATH of test/*.bin to $ORIGIN, $ORIGIN/.libs
-find $PKGNAME_PATH/test -maxdepth 1 -type f -name "*.bin" | while read sofile; do
-    echo "Setting rpath of $sofile to " '$ORIGIN:$ORIGIN/.libs'
-    patchelf --set-rpath '$ORIGIN:$ORIGIN/../.libs' $sofile
-    patchelf --print-rpath $sofile
+find $PKGNAME_PATH/* -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
+    UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS/.libs'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS/.libs" $FILE
+    patchelf --print-rpath $FILE
 done
 
 # set RPATH of .libs/ files to $ORIGIN
