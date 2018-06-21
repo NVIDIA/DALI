@@ -318,7 +318,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           stream));
 
     // Ensure previous GPU work is finished
-    CUDA_CALL(cudaStreamSynchronize(streams_[stream_idx]));
+    CUDA_CALL(cudaStreamSynchronize(stream));
 
     // Memcpy of Huffman co-efficients to device
     NVJPEG_CALL(nvjpegDecodePhaseTwo(handle, state, stream));

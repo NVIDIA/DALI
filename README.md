@@ -1,4 +1,4 @@
-# DALI
+# NVIDIA DALI v0.1
 
 Today’s deep learning applications include complex, multi-stage pre-processing data pipelines that include compute-intensive steps mainly carried out on the CPU. For instance, steps such as load data from disk, decode, crop, random resize, color and spatial augmentations and format conversions are carried out on the CPUs, limiting the performance and scalability of training and inference tasks. In addition, the deep learning frameworks today have multiple data pre-processing implementations, resulting in challenges such as portability of training and inference workflows and code maintainability.
 
@@ -9,13 +9,16 @@ Key highlights of DALI include:
  - Flexibility through configurable graphs and custom operators
  - Support for image classification and segmentation workloads
  - Ease of integration through direct framework plugins and open source bindings
- - Portable training workflows with multiple input formats - JPEG, raw formats, LMDB, RecordIO, TFRecord
+ - Portable training workflows with multiple input formats - JPEG, LMDB, RecordIO, TFRecord
  - Extensible for user specific needs through open source license
+
+Note: DALI v0.1 is a pre-release software, which means certain features may not be fully functional, may contain errors or design flaws, and may have reduced or different security, privacy, accessibility, availability, and reliability standards relative to production-quality versions of NVIDIA software and materials. You may use a pre-release software at your own risk, understanding that pre-release software is not intended for use in production or business-critical systems.
 
 # Installing prebuilt DALI packages
 
 ## Prerequisities
 
+* Linux
 * [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
 * DALI can work with any of the following Deep Learning frameworks:
   - [MXNet](http://mxnet.incubator.apache.org)
@@ -33,6 +36,7 @@ Key highlights of DALI include:
 
 ## Prerequisities
 
+* Linux
 * [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
 * [nvJPEG library](https://developer.nvidia.com/nvjpeg)
 * [protobuf](https://github.com/google/protobuf) version 2 or above (version 3 or above is required for TensorFlow TFRecord file format support)
@@ -98,3 +102,7 @@ pip install dali/python
 # Getting started
 
 [`examples`](examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
+
+# Contributors
+
+DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon Layton, Andrei Ivanov, Serge Panev
