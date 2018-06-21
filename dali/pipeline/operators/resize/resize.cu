@@ -80,6 +80,11 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
 
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+    // Before we start working on the next input set, we need
+    // to wait until the last one is finished. Otherwise we risk
+    // overwriting data used by the kernel called for previous image
+    if (idx != 0)
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     const auto &input = ws->Input<GPUBackend>(idx);
     const bool save_attrs = spec_.HasArgument("save_attrs");
     const int outputs_per_idx = save_attrs ? 2 : 1;
