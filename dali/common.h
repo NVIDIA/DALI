@@ -260,6 +260,18 @@ struct is_array: std::false_type {};
 template <typename T, size_t A>
 struct is_array<std::array<T, A> >: std::true_type {};
 
+template <typename T>
+class TensorReference {
+ public:
+  using value_type = T;
+};
+
+template <typename T>
+struct is_tensor_reference: std::false_type {};
+
+template <typename T>
+struct is_tensor_reference<TensorReference<T> >: std::true_type {};
+
 }  // namespace dali
 
 #endif  // DALI_COMMON_H_

@@ -32,8 +32,7 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
 DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed
-  as an input to the pipeline)code")
+  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline)code")
   .NumInput(0)
   .NumOutput(1);
 

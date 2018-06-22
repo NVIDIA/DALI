@@ -52,21 +52,21 @@ void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *) {}
 
 // DALI_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
 // DALI_REGISTER_OPERATOR(NewResize, NewResize<GPUBackend>, GPU);
-DALI_SCHEMA(NewResize)
-    .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
-            "cropping (random and fixed) and image mirroring.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddOptionalArg("random_resize", "Whether to randomly resize images", false)
-    .AddOptionalArg("warp_resize", "Foo", false)
-    .AddArg("resize_a", "Lower bound for resize")
-    .AddArg("resize_b", "Upper bound for resize")
-    .AddOptionalArg("image_type", "Type of the input image", DALI_RGB)
-    .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
-    .AddOptionalArg("crop", "Size of the cropped image", -1)
-    .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
-                    "vertical flip of the image", vector<float>{0.f, 0.f})
-    .AddOptionalArg("interp_type", "Type of interpolation used", DALI_INTERP_LINEAR);
+//DALI_SCHEMA(NewResize)
+    //.DocStr("Resize images. Can do both fixed and random resizes, along with fused"
+            //"cropping (random and fixed) and image mirroring.")
+    //.NumInput(1)
+    //.NumOutput(1)
+    //.AddOptionalArg("random_resize", "Whether to randomly resize images", false)
+    //.AddOptionalArg("warp_resize", "Foo", false)
+    //.AddArg("resize_a", "Lower bound for resize")
+    //.AddArg("resize_b", "Upper bound for resize")
+    //.AddOptionalArg("image_type", "Type of the input image", DALI_RGB)
+    //.AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
+    //.AddOptionalArg("crop", "Size of the cropped image", -1)
+    //.AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
+                    //"vertical flip of the image", vector<float>{0.f, 0.f})
+    //.AddOptionalArg("interp_type", "Type of interpolation used", DALI_INTERP_LINEAR);
 
 }  // namespace dali
 

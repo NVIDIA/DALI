@@ -340,6 +340,20 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INT64", DALI_INT64)
     .value("INT32", DALI_INT32)
     .value("BOOL", DALI_BOOL)
+    .value("STRING", DALI_STRING)
+    .value("BOOL_VEC", DALI_BOOL_VEC)
+    .value("INT32_VEC", DALI_INT_VEC)
+    .value("STRING_VEC", DALI_STRING_VEC)
+    .value("FLOAT_VEC", DALI_FLOAT_VEC)
+#ifdef DALI_BUILD_PROTO3
+    .value("FEATURE", DALI_TF_FEATURE)
+    .value("FEATURE_VEC", DALI_TF_FEATURE_VEC)
+    .value("_FEATURE_DICT", DALI_TF_FEATURE_DICT)
+#endif  // DALI_BUILD_PROTO3
+    .value("IMAGE_TYPE", DALI_IMAGE_TYPE)
+    .value("DATA_TYPE", DALI_DATA_TYPE)
+    .value("INTERP_TYPE", DALI_INTERP_TYPE)
+    .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
     .export_values();
 
   // DALIImageType
@@ -546,7 +560,13 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace)
-    .def("CheckArgs", &OpSchema::CheckArgs);
+    .def("CheckArgs", &OpSchema::CheckArgs)
+    .def("GetArgumentDox", &OpSchema::GetArgumentDox)
+    .def("GetArgumentType", &OpSchema::GetArgumentType)
+    .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
+    .def("GetArgumentNames", &OpSchema::GetArgumentNames)
+    .def("IsArgumentOptional", &OpSchema::HasOptionalArgument)
+    .def("IsTensorArgument", &OpSchema::IsTensorArgument);
 
   ExposeTensor(m);
   ExposeTensorList(m);

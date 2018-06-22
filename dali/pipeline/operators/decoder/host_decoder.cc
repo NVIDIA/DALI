@@ -26,8 +26,7 @@ DALI_SCHEMA(HostDecoder)
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_type",
-      R"code(`dali.types.DALIImageType`
-      The color space of output image)code",
+      R"code(The color space of output image.)code",
       DALI_RGB);
 
 }  // namespace dali

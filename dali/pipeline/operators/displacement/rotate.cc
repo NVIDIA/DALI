@@ -21,13 +21,12 @@ namespace dali {
 DALI_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);
 
 DALI_SCHEMA(Rotate)
-    .DocStr("Rotate the image")
+    .DocStr("Rotate the image.")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AddArg("angle",
-        R"code(`float` or `float tensor`
-        Rotation angle)code")
+        R"code(Rotation angle.)code", DALI_FLOAT, true)
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

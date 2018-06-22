@@ -64,32 +64,30 @@ DALI_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<CPUBackend>, CPU);
 
 DALI_SCHEMA(NormalizePermute)
   .DocStr(R"code(Perform fused normalization, format conversion from NHWC to NCHW
-          and type casting.
-          Normalization takes input image and produces output using formula
-          ```
-          output = (input - mean) / std
-          ```)code")
+and type casting.
+Normalization takes input image and produces output using formula
+```
+output = (input - mean) / std
+```)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("output_dtype",
-      R"code(`dali.types.DALIDataType`
-      Output data type.)code", DALI_FLOAT)
+      R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("image_type",
-        R"code(`dali.types.DALIImageType`
-        The color space of input and output image)code", DALI_RGB)
+        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddArg("height",
-      R"code(`int`
-      Height of the input image)code")
+      R"code(Height of the input image.)code",
+      DALI_INT32)
   .AddArg("width",
-      R"code(`int`
-      Width of the input image)code")
+      R"code(Width of the input image.)code",
+      DALI_INT32)
   .AddArg("mean",
-      R"code(`list of float`
-      Mean pixel values for image normalization)code")
+      R"code(Mean pixel values for image normalization.)code",
+      DALI_FLOAT_VEC)
   .AddArg("std",
-      R"code(`list of float`
-      Standard deviation values for image normalization)code")
+      R"code(Standard deviation values for image normalization.)code",
+      DALI_FLOAT_VEC)
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

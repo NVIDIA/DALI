@@ -27,34 +27,38 @@ DALI_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 DALI_SCHEMA(_TFRecordReaderBase)
   .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .AddArg("path",
-      R"code(`list of string`
-      List of paths to TFRecord files)code")
+      R"code(List of paths to TFRecord files.)code",
+      DALI_STRING_VEC)
   .AddArg("index_path",
-      R"code(`list of string`
-      List of paths to index files (1 index file for every TFRecord file).
-      Index files may be obtained from TFRecord files using
-      `tfrecord2idx` script distributed with DALI)code");
+      R"code(List of paths to index files (1 index file for every TFRecord file).
+Index files may be obtained from TFRecord files using
+`tfrecord2idx` script distributed with DALI.)code",
+      DALI_STRING_VEC);
 
 DALI_SCHEMA(_TFRecordReader)
+  .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .OutputFn([](const OpSpec &spec) {
       std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
       return v.size();
     })
   .NumInput(0)
-  .AddArg("feature_names", "Names of the features in TFRecord")
-  .AddArg("features", "List of features")
+  .AddArg("feature_names", "Names of the features in TFRecord.",
+      DALI_STRING_VEC)
+  .AddArg("features", "List of features.",
+      DALI_TF_FEATURE_VEC)
   .AddParent("_TFRecordReaderBase")
   .AddParent("LoaderBase");
 
 // Schema for the actual TFRecordReader op exposed
 // in Python. It is here for proper docstring generation
 DALI_SCHEMA(TFRecordReader)
+  .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .AddArg("features",
-      R"code(`dict of (string, dali.tfrecord.Feature)`
-      Dictionary of names and configuration of features existing in TFRecord file.
-      Typically obtained using helper functions `dali.tfrecord.FixedLenFeature`
-      and `dali.tfrecord.VarLenFeature`, they are equivalent to TensorFlow's `tf.FixedLenFeature` and
-      `tf.VarLenFeature` respectively)code")
+      R"code(Dictionary of names and configuration of features existing in TFRecord file.
+Typically obtained using helper functions `dali.tfrecord.FixedLenFeature`
+and `dali.tfrecord.VarLenFeature`, they are equivalent to TensorFlow's `tf.FixedLenFeature` and
+`tf.VarLenFeature` respectively.)code",
+      DALI_TF_FEATURE_DICT)
   .AddParent("_TFRecordReaderBase")
   .AddParent("LoaderBase");
 

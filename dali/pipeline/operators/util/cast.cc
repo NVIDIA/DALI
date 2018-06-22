@@ -42,7 +42,7 @@ DALI_SCHEMA(Cast)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddArg("dtype",
-      R"code(`dali.types.DALIDataType`
-      Output data type)code");
+      R"code(Output data type.)code",
+      DALI_DATA_TYPE);
 
 }  // namespace dali

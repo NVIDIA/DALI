@@ -28,24 +28,21 @@ DALI_SCHEMA(RandomResizedCrop)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("random_aspect_ratio",
-      R"code(`list of float`
-      Range from which to choose random aspect ratio)code",
+      R"code(Range from which to choose random aspect ratio.)code",
       std::vector<float>{3./4., 4./3.})
   .AddOptionalArg("random_area",
-      R"code(`list of float`
-      Range from which to choose random area factor `A`.
+      R"code(Range from which to choose random area factor `A`.
       Before resizing, the cropped image's area will be equal to `A` * original image's area.)code",
       std::vector<float>{0.08, 1.0})
   .AddOptionalArg("interp_type",
-      R"code(`dali.types.DALIInterpType`
-      Type of interpolation used)code",
+      R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
   .AddArg("size",
-      R"code(`list of float`
-      Size of resized image)code")
+      R"code(Size of resized image.)code",
+      DALI_INT_VEC)
   .AddOptionalArg("num_attempts",
-      R"code(`int`
-      Maximum number of attempts used to choose random area and aspect ratio)code", 10)
+      R"code(Maximum number of attempts used to choose random area and aspect ratio.)code",
+      10)
   .EnforceInputLayout(DALI_NHWC);
 
 template<>

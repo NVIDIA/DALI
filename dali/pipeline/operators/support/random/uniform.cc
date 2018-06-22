@@ -38,7 +38,6 @@ DALI_SCHEMA(Uniform)
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",
-      R"code(`list of float`
-      Range of produced random numbers)code", std::vector<float>({-1, 1}));
+      R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}));
 
 }  // namespace dali

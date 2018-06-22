@@ -39,15 +39,12 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 DALI_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);
 
 DALI_SCHEMA(DumpImage)
-  .DocStr(R"code(Save images in batch to disk in PPM format.
-  Useful for debugging.)code")
+  .DocStr(R"code(Save images in batch to disk in PPM format. Useful for debugging.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("suffix",
-      R"code(`string`
-      Suffix to be added to output file names)code", "")
+      R"code(Suffix to be added to output file names.)code", std::string())
   .AddOptionalArg("input_layout",
-      R"code(`dali.types.DALITensorLayout`
-      Layout of input images)code", DALI_NHWC);
+      R"code(Layout of input images.)code", DALI_NHWC);
 
 }  // namespace dali
