@@ -65,7 +65,8 @@ class TFGPUAllocator : public GPUAllocator {
     if (context_ != nullptr) {
       auto device_context = context_->op_device_context();
       if (device_context != nullptr) {
-        device_context->stream()->BlockHostUntilDone();
+        // Check status in TF way
+        SE_CHECK_OK(device_context->stream()->BlockHostUntilDone());
       }
     }
 

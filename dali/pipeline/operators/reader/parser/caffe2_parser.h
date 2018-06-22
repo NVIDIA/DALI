@@ -186,7 +186,6 @@ class Caffe2Parser : public Parser {
     DALI_ENFORCE(protos.ParseFromArray(data, size));
 
     auto* image = ws->Output<CPUBackend>(0);
-    auto* label = ws->Output<CPUBackend>(1);
 
     const caffe2::TensorProto& image_proto = protos.protos(0);
     const caffe2::TensorProto& label_proto = protos.protos(1);
