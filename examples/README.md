@@ -2,7 +2,7 @@
 
 This directory contains examples of DALI usage. List of examples:
 
-- [Getting started](Getting started.ipynb) - build your first pipeline with DALI
+- [Getting started](Getting%20Started.ipynb) - build your first pipeline with DALI
 - [Augmentation gallery](AugmentationGallery.ipynb) - showcases different augmentations
 - [LMDB data loading](DataLoading-LMDB.ipynb) - example of reading data from LMDB database
 - [TFRecord data loading](DataLoading-TFRecord.ipynb) - example of reading data from TensorFlow's TFRecord file
