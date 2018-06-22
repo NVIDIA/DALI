@@ -87,6 +87,7 @@ class LMDBReader : public Loader<CPUBackend> {
 
     for (int i = 0; i < start_idx; ++i) {
       bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
     }
   }
   ~LMDBReader() {
@@ -102,7 +103,8 @@ class LMDBReader : public Loader<CPUBackend> {
     bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
 
     if (!ok) {
-      lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
     }
 
     tensor->Resize({static_cast<Index>(value_.mv_size)});
@@ -115,7 +117,7 @@ class LMDBReader : public Loader<CPUBackend> {
     return;
   }
 
-  Index Size() {
+  Index Size() override {
     return lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
   }
 

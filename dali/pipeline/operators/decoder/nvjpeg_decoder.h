@@ -131,7 +131,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
-  ~nvJPEGDecoder() {
+  ~nvJPEGDecoder() noexcept(false) {
     DeviceGuard g(device_id_);
     for (int i = 0; i < max_streams_; ++i) {
       NVJPEG_CALL(nvjpegJpegStateDestroy(states_[i]));

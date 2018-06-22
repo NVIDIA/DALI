@@ -28,7 +28,7 @@ class DeviceGuard {
     CUDA_CALL(cudaGetDevice(&original_device_));
     CUDA_CALL(cudaSetDevice(new_device));
   }
-  ~DeviceGuard() {
+  ~DeviceGuard() noexcept(false) {
     CUDA_CALL(cudaSetDevice(original_device_));
   }
  private:
