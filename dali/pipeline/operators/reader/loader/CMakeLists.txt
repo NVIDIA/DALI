@@ -20,7 +20,8 @@ remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
 
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
-if (BUILD_TEST)
+# we don't want to test Caffe2 reader if LMDB is not present
+if (BUILD_TEST AND BUILD_LMDB)
   # get all the test srcs
   file(GLOB tmp *_test.cc)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
