@@ -16,6 +16,9 @@
 #ifndef DALI_PIPELINE_OPERATORS_CROP_CROP_H_
 #define DALI_PIPELINE_OPERATORS_CROP_CROP_H_
 
+#include <vector>
+#include <utility>
+
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
@@ -32,7 +35,6 @@ class Crop : public Operator<Backend> {
     image_type_(spec.GetArgument<DALIImageType>("image_type")),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {
-
     vector<int> temp_crop;
     GetSingleOrDoubleArg(spec, &temp_crop, "sizes");
 
@@ -55,7 +57,7 @@ class Crop : public Operator<Backend> {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
- template <typename Out>
+  template <typename Out>
   void RunHelper(Workspace<Backend> *ws, const int idx);
 
   void DataDependentSetup(Workspace<Backend> *ws, const int idx);

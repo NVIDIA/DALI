@@ -48,7 +48,7 @@ __global__ void BatchedCropKernel(
         }
       }
     }
-  } else { // Layout == DALI_NHWC
+  } else {  // Layout == DALI_NHWC
     for (int c = 0; c < C; ++c) {
       for (int h = threadIdx.y; h < H; h += blockDim.y) {
         for (int w = threadIdx.x; w < W; w += blockDim.x) {
@@ -219,7 +219,6 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   } else {
     DALI_FAIL("Unsupported output type.");
   }
-
 }
 
 
@@ -233,7 +232,6 @@ void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   } else {
     DALI_FAIL("Unsupported output type.");
   }
-
 }
 
 
