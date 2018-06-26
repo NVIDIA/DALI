@@ -52,9 +52,11 @@ __global__ void BatchedCropKernel(
     for (int c = 0; c < C; ++c) {
       for (int h = threadIdx.y; h < H; h += blockDim.y) {
         for (int w = threadIdx.x; w < W; w += blockDim.x) {
-          // HWC for in and out
-          int idx = h*W*C + w*C + c;
-          output_ptr[idx] = static_cast<Out>(input_ptr[idx]);
+          // From HWC
+          int in_idx = h*in_stride + w*C + c;
+          // To HWC
+          int out_idx = h*W*C + w*C + c;
+          output_ptr[out_idx] = static_cast<Out>(input_ptr[in_idx]);
         }
       }
     }
