@@ -12,15 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(color)
-add_subdirectory(crop)
-add_subdirectory(decoder)
-add_subdirectory(displacement)
-add_subdirectory(fused)
-add_subdirectory(reader)
-add_subdirectory(resize)
-add_subdirectory(support)
-add_subdirectory(util)
+# Get all the source files and dump test files
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
