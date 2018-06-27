@@ -17,6 +17,7 @@
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
+#include "tensorflow/core/framework/register_types.h"
 
 #include "dali/tensorflow/tfallocator.h"
 
@@ -60,8 +61,10 @@ REGISTER_OP("Dali")
   .Attr("width: int = 0")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  .Output("batch: float")
-  .Output("label: float")
+  .Attr("image_type: {float, int32, half} = DT_FLOAT")
+  .Attr("label_type: {float, int32, half} = DT_INT32")
+  .Output("batch: image_type")
+  .Output("label: label_type")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
     int batch_size;
     int height;
@@ -73,6 +76,7 @@ REGISTER_OP("Dali")
     return tf::Status::OK();
   });
 
+template <typename Tb, typename Tl>
 class DaliOp : public tf::OpKernel {
  public:
   explicit DaliOp(tf::OpKernelConstruction* context)
@@ -151,14 +155,14 @@ class DaliOp : public tf::OpKernel {
 
     s = Clock::now();
     TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-        reinterpret_cast<void*>(data_output_tensor->flat<float>().data()),
+        reinterpret_cast<void*>(data_output_tensor->flat<Tb>().data()),
         0));
     int64_t copy0_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
 
     s = Clock::now();
     TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-        reinterpret_cast<void*>(label_output_tensor->flat<float>().data()),
+        reinterpret_cast<void*>(label_output_tensor->flat<Tl>().data()),
         1));
     int64_t copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
@@ -175,4 +179,28 @@ class DaliOp : public tf::OpKernel {
   int device_id_;
 };
 
-REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_GPU), DaliOp);
+#define REGISTER_KERNEL(type_b, type_l) \
+  REGISTER_KERNEL_BUILDER(              \
+      Name("Dali")                      \
+      .Device(tf::DEVICE_GPU)           \
+      .TypeConstraint<type_b>("image_type")     \
+      .TypeConstraint<type_l>("label_type")     \
+      , DaliOp<type_b, type_l>);
+
+#define REGISTER_KERNEL_FP16(type_l) \
+  REGISTER_KERNEL_BUILDER(              \
+      Name("Dali")                      \
+      .Device(tf::DEVICE_GPU)           \
+      .TypeConstraint("image_type", tf::DT_HALF)     \
+      .TypeConstraint<type_l>("label_type")     \
+      , DaliOp<unsigned short, type_l>); // NOLINT
+
+REGISTER_KERNEL(float, float);
+REGISTER_KERNEL(int, int);
+REGISTER_KERNEL(float, int);
+REGISTER_KERNEL(int, float);
+REGISTER_KERNEL_FP16(float);
+REGISTER_KERNEL_FP16(int);
+
+#undef REGISTER_KERNEL
+#undef REGISTER_KERNEL_FP16
