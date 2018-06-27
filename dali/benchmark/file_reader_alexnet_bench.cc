@@ -25,7 +25,6 @@ class FileReaderAlexnet : public DALIBenchmark {
 
 BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLINT
   int executor = st.range(0);
-  bool fast_resize = st.range(1);
   int batch_size = st.range(2);
   int num_thread = st.range(3);
   DALIImageType img_type = DALI_RGB;

@@ -38,7 +38,7 @@ class EventPool {
     DALI_ENFORCE(max_size != 0, "Event pool must have non-zero size.");
   }
 
-  inline ~EventPool() {
+  inline ~EventPool() noexcept(false) {
     for (auto &event : events_) {
       DeviceGuard g(event_devices_[event]);
       CUDA_CALL(cudaEventSynchronize(event));
