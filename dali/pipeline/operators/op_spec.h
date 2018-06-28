@@ -359,7 +359,7 @@ class DLL_PUBLIC OpSpec {
     }
   }
 
-  OpSpec& operator=(const OpSpec& other) {
+  DLL_PUBLIC OpSpec& operator=(const OpSpec& other) {
     this->name_ = other.name_;
     this->arguments_ = other.arguments_;
     this->argument_inputs_ = other.argument_inputs_;
