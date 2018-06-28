@@ -30,11 +30,11 @@ namespace dali {
 
 class OpSpec;
 
-class OpSchema {
+class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
-  explicit inline OpSchema(const std::string &name)
+  DLL_PUBLIC explicit inline OpSchema(const std::string &name)
     : name_(name),
       allow_multiple_input_sets_(false) {
     // Fill internal arguments
@@ -52,19 +52,19 @@ class OpSchema {
         Value::construct(1234));
   }
 
-  inline ~OpSchema() = default;
+  DLL_PUBLIC inline ~OpSchema() = default;
 
   /**
    * @brief Returns the name of this operator.
    */
-  inline const std::string& name() const {
+  DLL_PUBLIC inline const std::string& name() const {
     return name_;
   }
 
   /**
    * @brief Sets the doc string for this operator.
    */
-  inline OpSchema& DocStr(const string &dox) {
+  DLL_PUBLIC inline OpSchema& DocStr(const string &dox) {
     dox_ = dox;
     return *this;
   }
@@ -77,7 +77,7 @@ class OpSchema {
    * If the ops has a fixed number of outputs, this function
    * does not need to be added to the schema
    */
-  inline OpSchema& OutputFn(SpecFunc f) {
+  DLL_PUBLIC inline OpSchema& OutputFn(SpecFunc f) {
     output_fn_ = f;
     return *this;
   }
@@ -93,7 +93,7 @@ class OpSchema {
    * Use case is to expose additional information (such as random
    * numbers used within operators) to the user
    */
-  inline OpSchema& AdditionalOutputsFn(SpecFunc f) {
+  DLL_PUBLIC inline OpSchema& AdditionalOutputsFn(SpecFunc f) {
     additional_outputs_fn_ = f;
     return *this;
   }
@@ -101,7 +101,7 @@ class OpSchema {
   /**
    * @brief Sets the number of inputs that the op can receive.
    */
-  inline OpSchema& NumInput(int n) {
+  DLL_PUBLIC inline OpSchema& NumInput(int n) {
     DALI_ENFORCE(n >= 0);
     max_num_input_ = n;
     min_num_input_ = n;
@@ -111,7 +111,7 @@ class OpSchema {
   /**
    * @brief Sets the min and max number of inputs the op can receive.
    */
-  inline OpSchema& NumInput(int min, int max) {
+  DLL_PUBLIC inline OpSchema& NumInput(int min, int max) {
     DALI_ENFORCE(min <= max);
     DALI_ENFORCE(min >= 0);
     DALI_ENFORCE(max >= 0);
@@ -123,7 +123,7 @@ class OpSchema {
   /**
    * @brief Sets the number of outputs that the op can receive.
    */
-  inline OpSchema& NumOutput(int n) {
+  DLL_PUBLIC inline OpSchema& NumOutput(int n) {
     DALI_ENFORCE(n >= 0);
     num_output_ = n;
     return *this;
@@ -132,7 +132,7 @@ class OpSchema {
   /**
    * @brief Notes that multiple input sets can be used with this op
    */
-  inline OpSchema& AllowMultipleInputSets() {
+  DLL_PUBLIC inline OpSchema& AllowMultipleInputSets() {
     allow_multiple_input_sets_ = true;
     return *this;
   }
@@ -140,7 +140,7 @@ class OpSchema {
   /**
    * @brief Adds a required argument to op
    */
-  inline OpSchema& AddArg(const std::string &s, const std::string &doc) {
+  DLL_PUBLIC inline OpSchema& AddArg(const std::string &s, const std::string &doc) {
     CheckArgument(s);
     arguments_[s] = doc;
     return *this;
@@ -150,7 +150,7 @@ class OpSchema {
    * @brief Adds an optional non-vector argument to op
    */
   template <typename T>
-  inline typename std::enable_if<
+  DLL_PUBLIC inline typename std::enable_if<
     !is_vector<T>::value && !is_array<T>::value,
     OpSchema&>::type
   AddOptionalArg(const std::string &s, const std::string &doc, T default_value) {
@@ -165,7 +165,7 @@ class OpSchema {
    * @brief Adds an optional vector argument to op
    */
   template <typename T>
-  inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
+  DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
                                   std::vector<T> default_value) {
     CheckArgument(s);
     std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
@@ -178,7 +178,7 @@ class OpSchema {
    * @brief Sets a function that infers whether the op can
    * be executed in-place depending on the ops specification.
    */
-  inline OpSchema& InPlaceFn(SpecFunc f) {
+  DLL_PUBLIC inline OpSchema& InPlaceFn(SpecFunc f) {
     REPORT_FATAL_PROBLEM("In-place op support not yet implemented.");
     return *this;
   }
@@ -186,80 +186,81 @@ class OpSchema {
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters
    */
-  inline OpSchema& AddParent(const std::string &parentName) {
+  DLL_PUBLIC inline OpSchema& AddParent(const std::string &parentName) {
     parents_.push_back(parentName);
     return *this;
   }
 
-  inline OpSchema& SetName(const std::string &name) {
+  DLL_PUBLIC inline OpSchema& SetName(const std::string &name) {
     name_ = name;
     return *this;
   }
 
-  inline string Name() const {
+  DLL_PUBLIC inline string Name() const {
     return name_;
   }
 
-  inline const vector<std::string>& GetParents() const {
+  DLL_PUBLIC inline const vector<std::string>& GetParents() const {
     return parents_;
   }
 
-  inline bool HasParent() const {
+  DLL_PUBLIC inline bool HasParent() const {
     return parents_.size() > 0;
   }
 
   string Dox() const;
 
-  inline int MaxNumInput() const {
+  DLL_PUBLIC inline int MaxNumInput() const {
     return max_num_input_;
   }
 
-  inline int MinNumInput() const {
+  DLL_PUBLIC inline int MinNumInput() const {
     return min_num_input_;
   }
 
-  inline int NumOutput() const {
+  DLL_PUBLIC inline int NumOutput() const {
     return num_output_;
   }
 
-  inline bool AllowsMultipleInputSets() const {
+  DLL_PUBLIC inline bool AllowsMultipleInputSets() const {
     return allow_multiple_input_sets_;
   }
 
-  inline bool HasOutputFn() const {
+  DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
 
-  int CalculateOutputs(const OpSpec &spec) const;
+  DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
 
-  int CalculateAdditionalOutputs(const OpSpec &spec) const {
+  DLL_PUBLIC int CalculateAdditionalOutputs(const OpSpec &spec) const {
     if (!additional_outputs_fn_) return 0;
     return additional_outputs_fn_(spec);
   }
 
-  inline bool SupportsInPlace(const OpSpec &spec) const {
+  DLL_PUBLIC inline bool SupportsInPlace(const OpSpec &spec) const {
     if (!in_place_fn_) return false;
     return in_place_fn_(spec);
   }
 
-  void CheckArgs(const OpSpec &spec) const;
+  DLL_PUBLIC void CheckArgs(const OpSpec &spec) const;
 
-  inline const OpSchema& GetSchemaWithArgument(const string& name) const;
+  DLL_PUBLIC inline const OpSchema& GetSchemaWithArgument(const string& name) const;
 
-  inline bool OptionalArgumentExists(const std::string &s, const bool local_only = false) const;
+  DLL_PUBLIC inline bool OptionalArgumentExists(const std::string &s,
+                                                const bool local_only = false) const;
 
   template<typename T>
-  inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
+  DLL_PUBLIC inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
-  inline bool HasRequiredArgument(const std::string &name) const {
+  DLL_PUBLIC inline bool HasRequiredArgument(const std::string &name) const {
     return arguments_.find(name) != arguments_.end();
   }
 
-  inline bool HasOptionalArgument(const std::string &name) const {
+  DLL_PUBLIC inline bool HasOptionalArgument(const std::string &name) const {
     return optional_arguments_.find(name) != optional_arguments_.end();
   }
 
-  inline bool HasArgument(const string &name) const {
+  DLL_PUBLIC inline bool HasArgument(const string &name) const {
     return HasRequiredArgument(name) || HasOptionalArgument(name);
   }
 
@@ -317,7 +318,7 @@ class SchemaRegistry {
  private:
   inline SchemaRegistry() {}
 
-  static std::map<string, OpSchema>& registry();
+  DLL_PUBLIC static std::map<string, OpSchema>& registry();
 };
 
 inline string GetSchemaWithArg(const string& start, const string& arg) {

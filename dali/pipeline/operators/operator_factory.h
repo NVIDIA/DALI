@@ -85,9 +85,9 @@ class Registerer {
 
 // Creators a registry object for a specific op type
 #define DALI_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)            \
-  class RegistryName##Registry {                                      \
+  class DLL_PUBLIC RegistryName##Registry {                                      \
    public:                                                            \
-    static dali::OperatorRegistry<OpType>& Registry();                \
+    DLL_PUBLIC static dali::OperatorRegistry<OpType>& Registry();                \
   };
 
 #define DALI_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
