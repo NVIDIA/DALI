@@ -24,6 +24,7 @@ do
       pip install $inst
     fi
     # test code
+    DALI_TEST_CAFFE_LMDB_PATH="$topdir/qa/test_data/test_db_images/train-lmdb-256x256" \
     nosetests --verbose test_pipeline.py
     # remove pacakges
     remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages)

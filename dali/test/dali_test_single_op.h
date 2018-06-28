@@ -33,39 +33,6 @@ namespace dali {
   #define PIXEL_STAT_FILE "pixelStatFile"  // Output of statistics for compared sets of images
 #endif
 
-namespace images {
-
-const vector<string> jpeg_test_images = {
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/440.jpg",
-  image_folder + "/444.jpg",
-//  image_folder + "/gray.jpg",   // Batched decoding has a bug in nvJPEG when both grayscale
-                                  //  and color images are decoded in the same batch
-  image_folder + "/411.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
-};
-
-const vector<string> png_test_images = {
-  image_folder + "/png/000000000139.png",
-  image_folder + "/png/000000000285.png",
-  image_folder + "/png/000000000632.png",
-  image_folder + "/png/000000000724.png",
-  image_folder + "/png/000000000776.png",
-  image_folder + "/png/000000000785.png",
-  image_folder + "/png/000000000802.png",
-  image_folder + "/png/000000000872.png",
-  image_folder + "/png/000000000885.png",
-  image_folder + "/png/000000001000.png",
-  image_folder + "/png/000000001268.png"
-};
-
-}  // namespace images
-
 typedef enum {            // Checking:
   t_checkDefault    = 0,  //    combined vectors (all images, all colors)
   t_checkColorComp  = 1,  //    colors separately
@@ -85,7 +52,7 @@ typedef enum {
 // run the pipe using known data, and compare the result to
 // a reference solution.
 //
-// Implementaions must define:
+// Implementations must define:
 //  OpSpec AddOp() - definition of the operator
 //  void SetInputs() - define all external inputs to the graph
 //  void GetOutputs() - retrieve all testable outputs from the graph
@@ -94,12 +61,10 @@ class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
-    jpegs_.clear();
-    jpeg_sizes_.clear();
 
     // encoded in jpegs_
-    LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
-    LoadImages(images::png_test_images, &png_, &png_sizes_);
+    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_, &jpeg_sizes_);
+    LoadImages(image_folder + "/png", &png_names_, &png_, &png_sizes_);
 
     // decoded in images_
     DecodeImages(DALI_RGB, jpegs_, jpeg_sizes_, &jpeg_decoded_, &jpeg_dims_);
@@ -110,6 +75,10 @@ class DALISingleOpTest : public DALITest {
   }
   inline void TearDown() override {
     DALITest::TearDown();
+    for (auto &ptr : png_) delete[] ptr;
+    png_.clear();
+    png_sizes_.clear();
+    png_names_.clear();
   }
 
   inline void SetBatchSize(int b) {
@@ -381,6 +350,7 @@ class DALISingleOpTest : public DALITest {
 
   vector<uint8*> png_;
   vector<int> png_sizes_;
+  vector<string> png_names_;
 
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;

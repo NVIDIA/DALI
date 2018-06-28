@@ -23,9 +23,18 @@ void LoadImages(const string image_folder, vector<string> *image_names,
   DALI_ENFORCE(file.is_open());
 
   string img;
-  while (file >> img) {
+  while (std::getline(file, img)) {
     DALI_ENFORCE(img.size());
-    image_names->push_back(image_folder + "/" + img);
+    string::size_type pos = img.find('#');
+    // skip lines that are commented out
+    if (pos != string::npos) {
+      img = img.substr(0, pos);
+    }
+    // trim
+    img.erase(img.find_last_not_of(" \n\r\t")+1);
+    if (img.size()) {
+      image_names->push_back(image_folder + "/" + img);
+    }
   }
 
   for (auto img_name : *image_names) {

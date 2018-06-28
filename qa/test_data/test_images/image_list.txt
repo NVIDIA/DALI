@@ -1,0 +1,13 @@
+410.jpg
+411.jpg
+411-non-multiple-4-width.jpg
+420.jpg
+420-odd-both.jpg
+420-odd-height.jpg
+420-odd-width.jpg
+422.jpg
+422-odd-width.jpg
+440.jpg
+444.jpg
+cmyk.jpg
+# gray.jpg // Batched decoding has a bug in nvJPEG when both grayscale and color images are decoded in the same batch

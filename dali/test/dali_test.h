@@ -32,8 +32,9 @@
 
 namespace dali {
 
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "/data/dali/test/test_images";  // NOLINT
+const string image_folder = std::getenv("DALI_TEST_IMAGES_PATH") ?  // NOLINT
+                  string(std::getenv("DALI_TEST_IMAGES_PATH")) :
+                  "/data/dali/test/test_images";
 
 struct DimPair { int h = 0, w = 0; };
 
@@ -59,6 +60,9 @@ class DALITest : public ::testing::Test {
   virtual inline void TearDown() {
     for (auto &ptr : jpegs_) delete[] ptr;
     for (auto &ptr : images_) delete[] ptr;
+    jpegs_.clear();
+    jpeg_sizes_.clear();
+    jpeg_names_.clear();
   }
 
   inline int RandInt(int a, int b) {

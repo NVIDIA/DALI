@@ -44,7 +44,7 @@ DLL_PUBLIC void LoadImages(const vector<string> &image_names,
 /**
  * Loads images from a specified image folder. Assumes the folder contains
  * a file 'image_list.txt' that lists all the different images in the
- * folder
+ * folder. Use '#' to comment out given line.
  */
 DLL_PUBLIC void LoadImages(string image_folder, vector<string> *jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
@@ -52,7 +52,7 @@ DLL_PUBLIC void LoadImages(string image_folder, vector<string> *jpeg_names,
 /**
  * Loads jpegs from a specified image folder. Assumes the folder contains
  * a file 'image_list.txt' that lists all the different images in the
- * folder
+ * folder. Use '#' to comment out given line.
  */
 DLL_PUBLIC void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);

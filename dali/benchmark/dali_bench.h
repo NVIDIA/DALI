@@ -26,8 +26,9 @@
 
 namespace dali {
 
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "/data/dali/benchmark/benchmark_images";  // NOLINT
+const string image_folder = std::getenv("DALI_TEST_BENCHMARK_PATH") ?  // NOLINT
+                  string(std::getenv("DALI_TEST_BENCHMARK_PATH")):
+                  "/data/dali/benchmark/benchmark_images";
 
 class DALIBenchmark : public benchmark::Fixture {
  public:

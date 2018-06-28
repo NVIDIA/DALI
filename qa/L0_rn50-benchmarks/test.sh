@@ -17,5 +17,7 @@ if [[ -z "$FULLPATH" ]]; then
     exit 1
 fi
 
+DALI_TEST_BENCHMARK_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}")" && cd "../test_data/benchmark_images" && pwd )" \
+DALI_TEST_IMAGES_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}")" && cd "../test_data/test_images" && pwd )" \
 "$FULLPATH" --benchmark_filter="RN50*"
 

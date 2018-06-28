@@ -20,8 +20,12 @@ import numpy as np
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+import os
 
-caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
+if os.getenv("DALI_TEST_CAFFE_LMDB_PATH"):
+    caffe_db_folder = os.getenv("DALI_TEST_CAFFE_LMDB_PATH")
+else:
+    caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
 
 def test_tensor_multiple_uses():
     batch_size = 128
