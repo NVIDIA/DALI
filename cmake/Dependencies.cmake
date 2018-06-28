@@ -1,6 +1,9 @@
 # Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # For CUDA
 find_package(CUDA REQUIRED)
+if (${CUDA_VERSION_MAJOR} LESS 8)
+  message(FATAL "DALI needs at least CUDA 8.0")
+endif()
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 
@@ -21,9 +24,12 @@ if (BUILD_NVTX)
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
-find_package(NVJPEG REQUIRED)
-include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+if (BUILD_NVJPEG)
+  find_package(NVJPEG REQUIRED)
+  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
+  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+  add_definitions(-DDALI_USE_NVJPEG)
+endif()
 
 # Google C++ testing framework
 if (BUILD_TEST)
@@ -41,9 +47,12 @@ if (BUILD_BENCHMARK)
 endif()
 
 # LibJpegTurbo
-find_package(JpegTurbo REQUIRED)
-include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
-list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
+if (BUILD_JPEG_TURBO)
+  find_package(JpegTurbo REQUIRED)
+  include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
+  list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
+  add_definitions(-DDALI_USE_JPEG_TURBO)
+endif()
 
 # OpenCV
 # Note: OpenCV 3.* 'imdecode()' is in the imgcodecs library
@@ -53,6 +62,9 @@ if (OpenCV_FOUND)
   if ("${OCV_VERSION}" STREQUAL "3")
     # Get the imgcodecs library
     find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+  else()
+    # For opencv 2.x, image encode/decode functions are in highgui
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui)
   endif()
 
   # Check for opencv

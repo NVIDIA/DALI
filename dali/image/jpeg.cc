@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "dali/image/jpeg.h"
-
+#ifdef DALI_USE_JPEG_TURBO
 #include <turbojpeg.h>
-
+#endif // DALI_USE_JPEG_TURBO
 #include "dali/util/ocv.h"
 
 namespace dali {
@@ -27,6 +27,7 @@ namespace {
     DALI_ASSERT(!error, tjGetErrorStr());         \
   } while (0)
 
+#ifdef DALI_USE_JPEG_TURBO
 void PrintSubsampling(int sampling) {
   switch (sampling) {
   case TJSAMP_444:
@@ -51,6 +52,7 @@ void PrintSubsampling(int sampling) {
     cout << "unknown sampling ratio" << endl;
   }
 }
+#endif // DALI_USE_JPEG_TURBO
 
 // Slightly modified from  https://github.com/apache/incubator-mxnet/blob/master/plugin/opencv/cv_api.cc
 // http://www.64lines.com/jpeg-width-height
@@ -94,9 +96,13 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width)
 }  // namespace
 
 bool CheckIsJPEG(const uint8 *jpeg, int) {
+// Return false to indicate HostDecoder to use OpenCV fallback
+// see also dali/pipeline/operators/decoder/host_decoder.h:50
+#ifdef DALI_USE_JPEG_TURBO
   if ((jpeg[0] == 255) && (jpeg[1] == 216)) {
     return true;
   }
+#endif // DALI_USE_JPEG_TURBO
   return false;
 }
 
@@ -107,6 +113,7 @@ DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     DALIImageType type, Tensor<CPUBackend>* image) {
+#ifdef DALI_USE_JPEG_TURBO
   tjhandle handle = tjInitDecompress();
   TJPF pixel_format;
   if (type == DALI_RGB) {
@@ -160,6 +167,10 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   tjDestroy(handle);
 
   return DALISuccess;
+#else // DALI_USE_JPEG_TURBO
+  // Directly return error to prevent further invalid operation 
+  return DALIError;
+#endif // DALI_USE_JPEG_TURBO
 }
 
 }  // namespace dali
