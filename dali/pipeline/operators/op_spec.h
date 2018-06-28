@@ -359,6 +359,17 @@ class DLL_PUBLIC OpSpec {
     }
   }
 
+  OpSpec& operator=(const OpSpec& other) {
+    this->name_ = other.name_;
+    this->arguments_ = other.arguments_;
+    this->argument_inputs_ = other.argument_inputs_;
+    this->argument_inputs_indexes_ = other.argument_inputs_indexes_;
+    this->output_name_idx_ = other.output_name_idx_;
+    this->inputs_ = other.inputs_;
+    this->outputs_ = other.outputs_;
+    return *this;
+  }
+
  private:
   template <typename T, typename S>
   inline S GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const;

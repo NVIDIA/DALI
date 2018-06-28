@@ -23,33 +23,18 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/fused/crop_cast_permute.h"
 
 namespace dali {
 
 template <typename Backend>
-class Crop : public Operator<Backend> {
+class Crop : public CropCastPermute<Backend> {
  public:
   explicit inline Crop(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+    CropCastPermute<Backend>(Crop::PrepareOpSpec(spec)),
     image_type_(spec.GetArgument<DALIImageType>("image_type")),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {
-    vector<int> temp_crop;
-    GetSingleOrDoubleArg(spec, &temp_crop, "sizes");
-
-    DALI_ENFORCE(temp_crop.size() == 2, "Argument \"sizes\" expects a list of at most 2 elements, "
-        + to_string(temp_crop.size()) + " given.");
-    crop_h_ = temp_crop[0];
-    crop_w_ = temp_crop[1];
-
-    // Resize per-image data
-    crop_offsets_.resize(batch_size_);
-    input_ptrs_.Resize({batch_size_});
-    input_strides_.Resize({batch_size_});
-
-    per_sample_crop_.resize(batch_size_);
-    per_sample_dimensions_.resize(batch_size_);
   }
 
  protected:
@@ -57,13 +42,12 @@ class Crop : public Operator<Backend> {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  template <typename Out>
-  void RunHelper(Workspace<Backend> *ws, const int idx);
-
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
-
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
+  static OpSpec PrepareOpSpec(const OpSpec& spec) {
+    OpSpec newSpec = spec;
+    newSpec.AddArg<DALIDataType>("output_dtype", DALI_NO_TYPE);
+    newSpec.AddArg<DALITensorLayout>("output_layout", DALI_SAME);
+    return newSpec;
+  }
 
   int crop_h_;
   int crop_w_;
@@ -73,19 +57,10 @@ class Crop : public Operator<Backend> {
   bool color_;
   int C_;
 
-  // Output data type
-  DALIDataType output_type_;
-
   // Output data layout
   DALITensorLayout output_layout_;
 
-  Tensor<CPUBackend> input_ptrs_, input_strides_;
-  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
-  vector<int> crop_offsets_;
 
-  // store per-thread crop offsets for same resize on multiple data
-  std::vector<std::pair<int, int>> per_sample_crop_;
-  std::vector<std::pair<int, int>> per_sample_dimensions_;
 
   USE_OPERATOR_MEMBERS();
 };

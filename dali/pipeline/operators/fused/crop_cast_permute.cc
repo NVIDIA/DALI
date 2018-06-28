@@ -12,15 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/crop/crop.h"
+#include "dali/pipeline/operators/fused/crop_cast_permute.h"
 
 namespace dali {
 
-DALI_SCHEMA(Crop)
-  .DocStr(R"code(Perform a random crop.)code")
+DALI_SCHEMA(CropCastPermute)
+  .DocStr(R"code(Perform a random crop, data type
+          cast and permute (from NHWC to NCHW).)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
+  .AddOptionalArg("output_dtype",
+      R"code(`dali.types.DALIDataType`
+      Output data type.)code", DALI_NO_TYPE)
+  .AddOptionalArg("output_layout",
+      R"code(`dali.types.DALITensorLayout`
+      Output tensor data layout)code", DALI_NCHW)
   .AddOptionalArg("crop_pos_x",
       R"code(`float` or `float tensor`
       Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
