@@ -314,6 +314,8 @@ DALIError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                      const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping,
                      bool newMapping) {
   if (ppMapping && newMapping) {
+    CHECK_RESIZE_DESCR();
+
     InitiateResizeTables << < 1, 1, 0, stream >> >
          (1, resizeDescr, ppMapping, mapMem, 1);
 

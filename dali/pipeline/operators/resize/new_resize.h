@@ -48,6 +48,12 @@ namespace dali {
 #define N_GRID_PARAMS       3
 #define _countof(x)         sizeof(x)/sizeof(x[0])
 
+#define CHECK_RESIZE_DESCR()                    \
+    DALI_ENFORCE(resizeDescr[0].x > 0);         \
+    DALI_ENFORCE(resizeDescr[0].y > 0);         \
+    DALI_ENFORCE(resizeDescr[1].x > 0);         \
+    DALI_ENFORCE(resizeDescr[1].y > 0);         \
+
 #define SET_RESIZE_PARAM()                      \
     const uint32_t sx0 = resizeParam[0].x;      \
     const uint32_t sy0 = resizeParam[0].y;      \
