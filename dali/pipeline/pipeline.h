@@ -84,34 +84,48 @@ class DLL_PUBLIC Pipeline {
       bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
       int max_num_stream = -1) :
-    built_(false), batch_size_(batch_size), num_threads_(num_threads),
-    device_id_(device_id), pipelined_execution_(pipelined_execution),
-    async_execution_(async_execution), bytes_per_sample_hint_(bytes_per_sample_hint),
-    set_affinity_(set_affinity), max_num_stream_(max_num_stream) {
-    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
-    seed_.resize(MAX_SEEDS);
-    current_seed = 0;
-    if (seed != -1) {
-      std::seed_seq ss{seed};
-      ss.generate(seed_.begin(), seed_.end());
-    } else {
-      std::seed_seq ss{time(0)};
-      ss.generate(seed_.begin(), seed_.end());
-    }
+    built_(false) {
+    Init(batch_size, num_threads, device_id, seed,
+         pipelined_execution, async_execution,
+         bytes_per_sample_hint, set_affinity,
+         max_num_stream);
   }
 
   DLL_PUBLIC inline Pipeline(const string &serialized_pipe,
-      int batch_size, int num_threads, int device_id, int seed = -1,
+      int batch_size = -1, int num_threads = -1, int device_id = -1,
       bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) :
-    Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
-             async_execution, bytes_per_sample_hint, set_affinity, max_num_stream) {
+      int max_num_stream = -1) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 
-    this->batch_size_ = def.batch_size();
-    this->device_id_ = def.device_id();
+    // If not given, take parameters from the
+    // serialized pipeline
+    if (batch_size == -1) {
+      this->batch_size_ = def.batch_size();
+    } else {
+      this->batch_size_ = batch_size;
+    }
+    if (device_id == -1) {
+      this->device_id_ = def.device_id();
+    } else {
+      this->device_id_ = device_id;
+    }
+    if (num_threads == -1) {
+      this->num_threads_ = def.num_threads();
+    } else {
+      this->num_threads_ = num_threads;
+    }
+
+    this->seed_ = def.seed();
+
+    Init(this->batch_size_, this->num_threads_,
+         this->device_id_, this->seed_,
+         pipelined_execution,
+         async_execution,
+         bytes_per_sample_hint,
+         set_affinity,
+         max_num_stream);
 
     // from serialized pipeline, construct new pipeline
     // All external inputs
@@ -288,6 +302,34 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 
  private:
+  /**
+   * @brief Initializes the Pipeline internal state
+   */
+  void Init(int batch_size, int num_threads, int device_id,
+            int seed, bool pipelined_execution, bool async_execution,
+            size_t bytes_per_sample_hint, bool set_affinity,
+            int max_num_stream) {
+    this->batch_size_ = batch_size;
+    this->num_threads_ = num_threads;
+    this->device_id_ = device_id;
+    this->seed_ = seed;
+    this->pipelined_execution_ = pipelined_execution;
+    this->async_execution_ = async_execution;
+    this->bytes_per_sample_hint_ = bytes_per_sample_hint;
+    this->set_affinity_ = set_affinity;
+    this->max_num_stream_ = max_num_stream;
+    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+    seed_.resize(MAX_SEEDS);
+    current_seed = 0;
+    if (seed != -1) {
+      std::seed_seq ss{seed};
+      ss.generate(seed_.begin(), seed_.end());
+    } else {
+      std::seed_seq ss{time(0)};
+      ss.generate(seed_.begin(), seed_.end());
+    }
+  }
+
   using EdgeMeta = struct {
     bool has_cpu, has_gpu, has_contiguous, is_support;
   };

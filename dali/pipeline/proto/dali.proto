@@ -65,4 +65,5 @@ message PipelineDef {
   // Store all registered outputs
   repeated InputOutput pipe_outputs = 7;
   optional int32 device_id = 8 [default = 0];
+  optional int32 seed = 9 [default = -1];
 }

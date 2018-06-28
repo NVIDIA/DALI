@@ -174,7 +174,6 @@ class Pipeline(object):
                               self.batch_size,
                               self.num_threads,
                               self.device_id,
-                              self.seed,
                               self._exec_pipelined,
                               self._exec_async,
                               self._bytes_per_sample,
