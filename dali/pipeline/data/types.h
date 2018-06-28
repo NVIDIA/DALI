@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_DATA_TYPES_H_
 
 // workaround missing "is_trivially_copyable" in g++ < 5.0
-#if __GNUG__ && __GNUC__ < 5
+#if __cplusplus && __GNUC__ < 5 && !__clang__
 #include <boost/type_traits/has_trivial_copy.hpp>
 #define IS_TRIVIALLY_COPYABLE(T) ::boost::has_trivial_copy<T>::value
 #else

@@ -39,7 +39,7 @@ class StreamPool {
     DALI_ENFORCE(max_size != 0, "Stream pool must have non-zero size.");
   }
 
-  inline ~StreamPool() {
+  inline ~StreamPool() noexcept(false) {
     for (auto &stream : streams_) {
       int device = stream_devices_[stream];
       DeviceGuard g(device);

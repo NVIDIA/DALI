@@ -53,7 +53,8 @@ class OperatorBase {
     DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
 
-  virtual inline ~OperatorBase() = default;
+  virtual inline ~OperatorBase() noexcept(false)
+  {}
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
@@ -135,7 +136,8 @@ class Operator : public OperatorBase {
     OperatorBase(spec)
   {}
 
-  virtual inline ~Operator() = default;
+  virtual inline ~Operator() noexcept(false)
+  {}
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
@@ -165,7 +167,8 @@ class Operator<MixedBackend> : public OperatorBase {
     OperatorBase(spec)
   {}
 
-  virtual inline ~Operator() = default;
+  virtual inline ~Operator() noexcept(false)
+  {}
 
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override = 0;
