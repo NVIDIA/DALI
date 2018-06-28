@@ -140,7 +140,7 @@ class DALIGenericIterator(object):
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
-            logging.warn("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
+            logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
 class DALIClassificationIterator(DALIGenericIterator):
     def __init__(self,

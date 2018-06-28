@@ -16,11 +16,17 @@
 file(GLOB tmp *.cc)
 set(dali_python_lib "backend_impl")
 pybind11_add_module(${dali_python_lib} MODULE ${tmp})
+message(STATUS "Adding dependencies to ${dali_python_lib}: '${dali_lib}'")
 add_dependencies(${dali_python_lib} ${dali_lib})
 if (BUILD_TENSORFLOW)
+  message(STATUS "Adding dependencies to ${dali_python_lib}: '${customop_lib}'")
   add_dependencies(${dali_python_lib} ${customop_lib})
 endif()
-target_link_libraries(${dali_python_lib} PRIVATE ${dali_lib} ${DALI_LIBS})
+
+# Link libdali.so and libcudart_static.a into backend_impl (dali_python_lib)
+target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
+
+# Set output directory for backend_impl
 set_target_properties(${dali_python_lib} PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali)
 

@@ -1,0 +1,37 @@
+diff --git a/libraries/liblmdb/Makefile b/libraries/liblmdb/Makefile
+index f254511..5c15c11 100644
+--- a/libraries/liblmdb/Makefile
++++ b/libraries/liblmdb/Makefile
+@@ -38,18 +38,16 @@ mandir = $(datarootdir)/man
+ ########################################################################
+ 
+ IHDRS	= lmdb.h
+-ILIBS	= liblmdb.a liblmdb$(SOEXT)
++ILIBS	= liblmdb.a
+ IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load
+ IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1
+ PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
+-all:	$(ILIBS) $(PROGS)
++all:	$(ILIBS)
+ 
+-install: $(ILIBS) $(IPROGS) $(IHDRS)
+-	mkdir -p $(DESTDIR)$(bindir)
++install: $(ILIBS) $(IHDRS)
+ 	mkdir -p $(DESTDIR)$(libdir)
+ 	mkdir -p $(DESTDIR)$(includedir)
+ 	mkdir -p $(DESTDIR)$(mandir)/man1
+-	for f in $(IPROGS); do cp $$f $(DESTDIR)$(bindir); done
+ 	for f in $(ILIBS); do cp $$f $(DESTDIR)$(libdir); done
+ 	for f in $(IHDRS); do cp $$f $(DESTDIR)$(includedir); done
+ 	for f in $(IDOCS); do cp $$f $(DESTDIR)$(mandir)/man1; done
+@@ -61,8 +59,8 @@ test:	all
+ 	rm -rf testdb && mkdir testdb
+ 	./mtest && ./mdb_stat testdb
+ 
+-liblmdb.a:	mdb.o midl.o
+-	$(AR) rs $@ mdb.o midl.o
++liblmdb.a:	mdb.lo midl.lo
++	$(AR) rs $@ mdb.lo midl.lo
+ 
+ liblmdb$(SOEXT):	mdb.lo midl.lo
+ #	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)

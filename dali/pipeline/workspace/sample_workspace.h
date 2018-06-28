@@ -40,17 +40,17 @@ using SampleOutputType = shared_ptr<Tensor<Backend>>;
  * @brief SampleWorkspace stores all data required for an operator to
  * perform its computation on a single sample.
  */
-class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
+class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
  public:
-  SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
+  DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
-  ~SampleWorkspace() = default;
+  DLL_PUBLIC ~SampleWorkspace() = default;
 
   /**
    * @brief Clears the contents of the workspaces, reseting it
    * to a default state.
    */
-  inline void Clear() {
+  DLL_PUBLIC inline void Clear() {
     WorkspaceBase<SampleInputType, SampleOutputType>::Clear();
     data_idx_ = -1;
     thread_idx_ = -1;
@@ -63,25 +63,25 @@ class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> 
    * TensorList at index = `idx`.
    */
   template <typename Backend>
-  const Tensor<Backend>& Input(int idx) const;
+  DLL_PUBLIC const Tensor<Backend>& Input(int idx) const;
 
   /**
    * @brief Returns Tensor with index = data_idx() from the output
    * TensorList at index = `idx`.
    */
   template <typename Backend>
-  Tensor<Backend>* Output(int idx);
+  DLL_PUBLIC Tensor<Backend>* Output(int idx);
 
   /**
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.
    */
-  inline int data_idx() const { return data_idx_; }
+  DLL_PUBLIC inline int data_idx() const { return data_idx_; }
 
   /**
    * @brief Sets the data index for the workspace.
    */
-  inline void set_data_idx(int data_idx) {
+  DLL_PUBLIC inline void set_data_idx(int data_idx) {
     DALI_ENFORCE(data_idx >= 0, "Negative data index not supported.");
     data_idx_ = data_idx;
   }
@@ -89,12 +89,12 @@ class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> 
   /**
    * @brief Returns the index of the thread that will process this data.
    */
-  inline int thread_idx() const { return thread_idx_; }
+  DLL_PUBLIC inline int thread_idx() const { return thread_idx_; }
 
   /**
    * @brief Sets the thread index for the workspace.
    */
-  inline void set_thread_idx(int thread_idx) {
+  DLL_PUBLIC inline void set_thread_idx(int thread_idx) {
     DALI_ENFORCE(thread_idx >= 0, "Negative thread index not supported.");
     thread_idx_ = thread_idx;
   }
@@ -102,12 +102,12 @@ class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> 
   /**
    * @brief Returns true if the workspace contains a valid stream.
    */
-  inline bool has_stream() const { return has_stream_; }
+  DLL_PUBLIC inline bool has_stream() const { return has_stream_; }
 
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
-  inline cudaStream_t stream() const {
+  DLL_PUBLIC inline cudaStream_t stream() const {
     DALI_ENFORCE(has_stream_, "Workspace does not have a valid stream.");
     return stream_;
   }
@@ -115,7 +115,7 @@ class SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> 
   /**
    * @brief Sets the stream for this workspace.
    */
-  inline void set_stream(cudaStream_t stream) {
+  DLL_PUBLIC inline void set_stream(cudaStream_t stream) {
     has_stream_ = true;
     stream_ = stream;
   }

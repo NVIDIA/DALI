@@ -38,7 +38,7 @@ namespace dali {
  * Load all images from a list of image names. Assumes names contain
  * full path
  */
-void LoadImages(const vector<string> &image_names,
+DLL_PUBLIC void LoadImages(const vector<string> &image_names,
     vector<uint8*> *images, vector<int> *image_sizes);
 
 /**
@@ -46,7 +46,7 @@ void LoadImages(const vector<string> &image_names,
  * a file 'image_list.txt' that lists all the different images in the
  * folder
  */
-void LoadImages(string image_folder, vector<string> *jpeg_names,
+DLL_PUBLIC void LoadImages(string image_folder, vector<string> *jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
 
 /**
@@ -54,26 +54,26 @@ void LoadImages(string image_folder, vector<string> *jpeg_names,
  * a file 'image_list.txt' that lists all the different images in the
  * folder
  */
-void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
+DLL_PUBLIC void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
 
 /**
  * Loads all jpegs from the list of image names. Assumes names contains
  * full path
  */
-void LoadJPEGS(const vector<string> &jpeg_names,
+DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names,
     vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
 
 /**
  * @brief Writes the input image as a ppm file
  */
-void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name);
+DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name);
 
 /**
  * @brief Writes all images in a batch
  */
 template <typename Backend>
-void WriteHWCBatch(const TensorList<Backend> &tl, string suffix) {
+DLL_PUBLIC void WriteHWCBatch(const TensorList<Backend> &tl, string suffix) {
   DALI_ENFORCE(IsType<uint8>(tl.type()));
   for (int i = 0; i < tl.ntensor(); ++i) {
     DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
