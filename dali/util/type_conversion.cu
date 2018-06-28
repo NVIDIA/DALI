@@ -29,7 +29,7 @@ __global__ void ConvertKernel(const IN *data, int n, OUT *out) {
 }  // namespace
 
 template <typename IN, typename OUT>
-void Convert(const IN *data, int n, OUT *out) {
+DLL_PUBLIC void Convert(const IN *data, int n, OUT *out) {
   int block_size = 512;
   int blocks = ceil(static_cast<float>(n) / block_size);
   ConvertKernel<<<blocks, block_size, 0, 0>>>(data, n, out);
@@ -37,10 +37,10 @@ void Convert(const IN *data, int n, OUT *out) {
 
 // Note: These are used in the test suite for output verification, we
 // don't care if we do extra copy from T to T.
-template void Convert<uint8, double>(const uint8*, int, double*);
-template void Convert<float16, double>(const float16*, int, double*);
-template void Convert<int, double>(const int*, int, double*);
-template void Convert<float, double>(const float*, int, double*);
-template void Convert<double, double>(const double*, int, double*);
+template DLL_PUBLIC void Convert<uint8, double>(const uint8*, int, double*);
+template DLL_PUBLIC void Convert<float16, double>(const float16*, int, double*);
+template DLL_PUBLIC void Convert<int, double>(const int*, int, double*);
+template DLL_PUBLIC void Convert<float, double>(const float*, int, double*);
+template DLL_PUBLIC void Convert<double, double>(const double*, int, double*);
 
 }  // namespace dali

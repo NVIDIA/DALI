@@ -69,55 +69,55 @@ struct TensorMeta {
  * This enables us to iterate over select portions of the graph, or
  * the entire graph.
  */
-class OpGraph {
+class DLL_PUBLIC OpGraph {
  public:
-  inline OpGraph() {}
-  inline ~OpGraph() = default;
+  DLL_PUBLIC inline OpGraph() {}
+  DLL_PUBLIC inline ~OpGraph() = default;
 
   /**
    * @brief Adds an op with the input specification to the graph.
    */
-  void AddOp(const OpSpec &spec, const std::string& name);
+  DLL_PUBLIC void AddOp(const OpSpec &spec, const std::string& name);
 
   /**
    * @brief Removes the node with the specified NodeID from
    * the graph. Fails if the removal would produce an invalid
    * graph.
    */
-  void RemoveOp(NodeID id);
+  DLL_PUBLIC void RemoveOp(NodeID id);
 
   /**
    * @brief Returns the total number of ops in the graph.
    */
-  inline Index NumOp() const {
+  DLL_PUBLIC inline Index NumOp() const {
     return NumCPUOp() + NumGPUOp() + NumMixedOp() + NumSupportOp();
   }
 
   /**
    * @brief Returns the number of cpu ops in the graph.
    */
-  inline Index NumCPUOp() const { return cpu_nodes_.size(); }
+  DLL_PUBLIC inline Index NumCPUOp() const { return cpu_nodes_.size(); }
 
   /**
    * @brief Returns the number of gpu ops in the graph.
    */
-  inline Index NumGPUOp() const { return gpu_nodes_.size(); }
+  DLL_PUBLIC inline Index NumGPUOp() const { return gpu_nodes_.size(); }
 
   /**
    * @brief Returns the number of mixed ops in the graph.
    */
-  inline Index NumMixedOp() const { return mixed_nodes_.size(); }
+  DLL_PUBLIC inline Index NumMixedOp() const { return mixed_nodes_.size(); }
 
   /**
    * @brief Returns the number of support ops in the graph.
    */
-  inline Index NumSupportOp() const { return support_nodes_.size(); }
+  DLL_PUBLIC inline Index NumSupportOp() const { return support_nodes_.size(); }
 
   /**
    * @brief Returns a reference to the `idx`-th cpu op that was
    * added to the graph.
    */
-  inline OperatorBase& cpu_op(Index idx) {
+  DLL_PUBLIC inline OperatorBase& cpu_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return *cpu_nodes_[idx].op;
   }
@@ -126,7 +126,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th cpu op that
    * was added to the graph.
    */
-  inline OpNode& cpu_node(Index idx) {
+  DLL_PUBLIC inline OpNode& cpu_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx];
   }
@@ -135,7 +135,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline OperatorBase& gpu_op(Index idx) {
+  DLL_PUBLIC inline OperatorBase& gpu_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return *gpu_nodes_[idx].op;
   }
@@ -144,7 +144,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th gpu op that
    * was added to the graph.
    */
-  inline OpNode& gpu_node(Index idx) {
+  DLL_PUBLIC inline OpNode& gpu_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
     return gpu_nodes_[idx];
   }
@@ -153,7 +153,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th mixed op
    * that was added to the graph.
    */
-  inline OperatorBase& mixed_op(Index idx) {
+  DLL_PUBLIC inline OperatorBase& mixed_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
     return *mixed_nodes_[idx].op;
   }
@@ -162,7 +162,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th mixed op that
    * was added to the graph.
    */
-  inline OpNode& mixed_node(Index idx) {
+  DLL_PUBLIC inline OpNode& mixed_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
     return mixed_nodes_[idx];
   }
@@ -171,7 +171,7 @@ class OpGraph {
    * @brief Returns a reference to the `idx`-th support op
    * that was added to the graph.
    */
-  inline OperatorBase& support_op(Index idx) {
+  DLL_PUBLIC inline OperatorBase& support_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
     return *support_nodes_[idx].op;
   }
@@ -180,7 +180,7 @@ class OpGraph {
    * @brief Returns the node object for the `idx`-th support op that
    * was added to the graph.
    */
-  inline OpNode& support_node(Index idx) {
+  DLL_PUBLIC inline OpNode& support_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
     return support_nodes_[idx];
   }
@@ -191,18 +191,18 @@ class OpGraph {
    * index as argument so should not be used in performance
    * critical section of the code.
    */
-  OpNode& node(const std::string& name);
+  DLL_PUBLIC OpNode& node(const std::string& name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
    */
-  OpNode& node(NodeID id);
+  DLL_PUBLIC OpNode& node(NodeID id);
 
   /**
    * @brief Returns the type (cpu, gpu, mixed) of the node
    * at the given index.
    */
-  inline DALIOpType NodeType(NodeID id) const {
+  DLL_PUBLIC inline DALIOpType NodeType(NodeID id) const {
     DALI_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
     return id_to_node_map_[id].first;
   }
@@ -211,7 +211,7 @@ class OpGraph {
    * @brief Returns the index of the node with the specified id
    * among nodes of its type.
    */
-  inline Index NodeIdx(NodeID id) const {
+  DLL_PUBLIC inline Index NodeIdx(NodeID id) const {
     DALI_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
     return id_to_node_map_[id].second;
   }
@@ -220,7 +220,7 @@ class OpGraph {
    * @brief Returns the TensorMeta objects for the tensor
    * with the given name and its producer node.
    */
-  inline TensorMeta TensorSourceMeta(const string &name) const {
+  DLL_PUBLIC inline TensorMeta TensorSourceMeta(const string &name) const {
     auto it = tensor_producers_.find(name);
     DALI_ENFORCE(it != tensor_producers_.end(), "Tensor with name \"" +
         name + "\" has no known source.");
@@ -230,7 +230,7 @@ class OpGraph {
   /**
    * @brief Checks if given Tensor already exists in the graph
    */
-  inline bool TensorExists(const string &name) {
+  DLL_PUBLIC inline bool TensorExists(const string &name) {
     auto it = tensor_producers_.find(name);
     return it != tensor_producers_.end();
   }
@@ -239,7 +239,7 @@ class OpGraph {
    * @brief Returns the id of the op that produces the tensor with
    * the given name.
    */
-  inline NodeID TensorSourceID(const string &name) {
+  DLL_PUBLIC inline NodeID TensorSourceID(const string &name) {
     return TensorSourceMeta(name).node;
   }
 
@@ -247,7 +247,7 @@ class OpGraph {
    * @brief Returns the output idx of the input tensor in
    * its source.
    */
-  inline Index TensorIdxInSource(const string &name) {
+  DLL_PUBLIC inline Index TensorIdxInSource(const string &name) {
     return TensorSourceMeta(name).index;
   }
 
@@ -256,13 +256,13 @@ class OpGraph {
    * has a backend type that matches the calling type.
    */
   template <typename Backend>
-  bool TensorIsType(const string &name);
+  DLL_PUBLIC bool TensorIsType(const string &name);
 
   /**
    * @brief Returns a vector of meta-data about the nodes that
    * consume the tensor with the input name.
    */
-  inline vector<TensorMeta> TensorConsumerMeta(const string &name) const {
+  DLL_PUBLIC inline vector<TensorMeta> TensorConsumerMeta(const string &name) const {
     auto it = tensor_consumers_.find(name);
     if (it == tensor_consumers_.end()) {
       // If we have no entries for this tensors consumers,
@@ -277,7 +277,7 @@ class OpGraph {
    * @brief Returns the OpNode at idx from the id to node
    * map.
    */
-  const OpNode& GetNodeForIdx(int idx) const {
+  DLL_PUBLIC const OpNode& GetNodeForIdx(int idx) const {
     DALIOpType type = id_to_node_map_[idx].first;
     Index index = id_to_node_map_[idx].second;
     switch (type) {
@@ -297,7 +297,7 @@ class OpGraph {
   /**
    * @brief Helper function for saving graph to DOT file
    */
-  void GenerateDOTFromGraph(const OpNode& current_node, std::ofstream& ofs) {
+  DLL_PUBLIC void GenerateDOTFromGraph(const OpNode& current_node, std::ofstream& ofs) {
     if (current_node.children.empty()
         || visited_nodes_.find(current_node.id) != visited_nodes_.end()) {
       ofs << current_node.instance_name << "\n";
@@ -316,7 +316,7 @@ class OpGraph {
    * @brief Save graph in DOT directed graph format
    * in filename.
    */
-  void SaveToDotFile(const string filename) {
+  DLL_PUBLIC void SaveToDotFile(const string filename) {
     std::ofstream ofs(filename);
     ofs << "digraph graphname {\n";
     const OpNode& current_node = GetNodeForIdx(0);

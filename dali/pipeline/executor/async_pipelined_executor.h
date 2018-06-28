@@ -30,9 +30,9 @@ namespace dali {
  * are retrieved by calling Outputs, which manages all
  * needed synchronization.
  */
-class AsyncPipelinedExecutor : public PipelinedExecutor {
+class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
  public:
-  inline AsyncPipelinedExecutor(int batch_size, int num_thread,
+  DLL_PUBLIC inline AsyncPipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
     PipelinedExecutor(batch_size, num_thread, device_id,
@@ -42,13 +42,13 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
     gpu_thread_(device_id, set_affinity),
     device_id_(device_id) {}
 
-  virtual ~AsyncPipelinedExecutor() {
+  DLL_PUBLIC virtual ~AsyncPipelinedExecutor() {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
   }
 
-  void Init() override {
+  DLL_PUBLIC void Init() override {
     if (!cpu_thread_.WaitForInit()
         || !mixed_thread_.WaitForInit()
         || !gpu_thread_.WaitForInit()) {
@@ -60,13 +60,13 @@ class AsyncPipelinedExecutor : public PipelinedExecutor {
     }
   }
 
-  void RunCPU() override;
+  DLL_PUBLIC void RunCPU() override;
 
-  void RunMixed() override;
+  DLL_PUBLIC void RunMixed() override;
 
-  void RunGPU() override;
+  DLL_PUBLIC void RunGPU() override;
 
-  void Outputs(DeviceWorkspace *ws) override {
+  DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override {
     CheckForErrors();
     try {
       PipelinedExecutor::Outputs(ws);

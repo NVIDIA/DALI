@@ -1,7 +1,16 @@
 #########################################################################################
-##  Stage 1: build DALI dependencies using manylinux1 (CentOS 5 derivative)
+##  Stage 1: build DALI dependencies
+##     We would prefer to use publicly maintained manylinux1 (CentOS 5 derivative), but
+##     there are CXX11 ABI problems with the rh-devtoolset2 included with it, so we
+##     have switched to a "manylinux3" base that is just a minimally altered manylinux1
+##     built from CentOS 7 (w/ devtoolset3) instead of CentOS 5.  You can switch back
+##     to manylinux1 (or any other base you like) by changing FROM_IMAGE_NAME below
+##     or by passing an argument of the form `--build-arg FROM_IMAGE_NAME=myimage:mytag`
+##     to `docker build -f Dockerfile.deps ... .`
 #########################################################################################
-FROM quay.io/pypa/manylinux1_x86_64
+#ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
+ARG FROM_IMAGE_NAME=gitlab-dl.nvidia.com:5005/dali/manylinux:manylinux3_x86_64
+FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
 RUN yum install -y zip
@@ -29,14 +38,17 @@ RUN PROTOBUF_VERSION=3.5.1 && \
     curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
-    ./configure --prefix=/usr/local 2>&1 > /dev/null && \
+    ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null && \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
 # LMDB
+COPY docker/Makefile-lmdb.patch /tmp
 RUN LMDB_VERSION=0.9.22 && \
     git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
     cd /lmdb/libraries/liblmdb && \
+    patch -p3 < /tmp/Makefile-lmdb.patch && \
+    rm -f /tmp/Makefile-lmdb.patch && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /lmdb
 
@@ -45,6 +57,7 @@ RUN OPENCV_VERSION=3.1.0 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
           -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF \
           -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF . && \
@@ -77,9 +90,10 @@ RUN CUDA_VERSION=9.0 && \
 
 # NVJPEG
 RUN NVJPEG_VERSION=9.0 && \
+    NVJPEG_BUILD=9.0.462 && \
     curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_VERSION}.tar.gz | tar -xzf - && \
     cd /cuda-linux64-nvjpeg/ && \
-    mv lib64/libnvjpeg.so* /usr/local/lib/ && \
+    mv lib64/libnvjpeg*.a* /usr/local/lib/ && \
     mv include/nvjpeg.h /usr/local/include/ && \
     rm -rf /cuda-linux64-nvjpeg
 

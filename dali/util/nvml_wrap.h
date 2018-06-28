@@ -30,15 +30,17 @@ namespace dali {
 
 namespace nvml {
 
-DALIError_t wrapSymbols(void);
+DLL_PUBLIC DALIError_t wrapSymbols(void);
 
-DALIError_t wrapNvmlInit(void);
-DALIError_t wrapNvmlShutdown(void);
-DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId, nvmlDevice_t* device);
-DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id, nvmlDevice_t* device);
-DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index);
-DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device);
-DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
+DLL_PUBLIC DALIError_t wrapNvmlInit(void);
+DLL_PUBLIC DALIError_t wrapNvmlShutdown(void);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId,
+                                                            nvmlDevice_t* device);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id,
+                                                            nvmlDevice_t* device);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
 
 }  // namespace nvml
 

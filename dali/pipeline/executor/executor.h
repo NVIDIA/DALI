@@ -41,9 +41,9 @@ namespace dali {
  * buffers, so that we can produce data into one while the 
  * other is in use by the user.
  */
-class Executor {
+class DLL_PUBLIC Executor {
  public:
-  inline Executor(int batch_size, int num_thread, int device_id,
+  DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
       size_t bytes_per_sample_hint, bool set_affinity = false,
       int max_num_stream = -1) :
     batch_size_(batch_size), device_id_(device_id),
@@ -56,19 +56,19 @@ class Executor {
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
   }
 
-  virtual ~Executor() = default;
+  DLL_PUBLIC virtual ~Executor() = default;
 
-  virtual void Build(OpGraph *graph, vector<string> output_names);
+  DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names);
 
-  virtual void Init() {}
+  DLL_PUBLIC virtual void Init() {}
 
-  virtual void RunCPU();
+  DLL_PUBLIC virtual void RunCPU();
 
-  virtual void RunMixed();
+  DLL_PUBLIC virtual void RunMixed();
 
-  virtual void RunGPU();
+  DLL_PUBLIC virtual void RunGPU();
 
-  virtual void Outputs(DeviceWorkspace *ws);
+  DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws);
 
   friend class ExecutorTest;
 

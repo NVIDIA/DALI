@@ -91,7 +91,7 @@ class DaliOp : public tf::OpKernel {
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
-    TF_DALI_CALL(CreatePipeline(&pipe_handle_,
+    TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
                    batch_size,
@@ -103,12 +103,12 @@ class DaliOp : public tf::OpKernel {
     UpdateTFAllocaterContext<tf::OpKernelConstruction>(context, device_id_);
 #endif
     LOG_LINE << "Pipeline created\n";
-    TF_DALI_CALL(Run(&pipe_handle_));
+    TF_DALI_CALL(daliRun(&pipe_handle_));
     LOG_LINE << "After first run\n";
   }
 
   ~DaliOp() override {
-    DeletePipeline(&pipe_handle_);
+    daliDeletePipeline(&pipe_handle_);
   }
 
   void Compute(tf::OpKernelContext* context) override {
@@ -119,13 +119,13 @@ class DaliOp : public tf::OpKernel {
 #endif
     LOG_LINE << "Updated context\n";
     auto s = Clock::now();
-    TF_DALI_CALL(Run(&pipe_handle_));
+    TF_DALI_CALL(daliRun(&pipe_handle_));
     int64_t run_time = std::chrono::duration_cast<std::chrono::microseconds>(
                          Clock::now() - s).count();
     LOG_LINE << "Before output...\n";
 
     s = Clock::now();
-    TF_DALI_CALL(Output(&pipe_handle_));
+    TF_DALI_CALL(daliOutput(&pipe_handle_));
     int64_t output_time = std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
     LOG_LINE << "After output...\n";
@@ -134,8 +134,8 @@ class DaliOp : public tf::OpKernel {
     // Classification
     int64_t* data_tensor_shape;
     int64_t* label_tensor_shape;
-    TF_DALI_CALL(data_tensor_shape = ShapeAt(&pipe_handle_, 0));
-    TF_DALI_CALL(label_tensor_shape = ShapeAt(&pipe_handle_, 1));
+    TF_DALI_CALL(data_tensor_shape = daliShapeAt(&pipe_handle_, 0));
+    TF_DALI_CALL(label_tensor_shape = daliShapeAt(&pipe_handle_, 1));
 
     tf::Tensor* data_output_tensor = NULL;
     tf::Tensor* label_output_tensor = NULL;
@@ -150,14 +150,14 @@ class DaliOp : public tf::OpKernel {
                              Clock::now() - s).count();
 
     s = Clock::now();
-    TF_DALI_CALL(CopyTensorNTo(&pipe_handle_,
+    TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(data_output_tensor->flat<float>().data()),
         0));
     int64_t copy0_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
 
     s = Clock::now();
-    TF_DALI_CALL(CopyTensorNTo(&pipe_handle_,
+    TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
         reinterpret_cast<void*>(label_output_tensor->flat<float>().data()),
         1));
     int64_t copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(
@@ -171,7 +171,7 @@ class DaliOp : public tf::OpKernel {
   }
 
  private:
-  PipelineHandle pipe_handle_;
+  daliPipelineHandle pipe_handle_;
   int device_id_;
 };
 

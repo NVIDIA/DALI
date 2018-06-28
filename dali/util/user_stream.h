@@ -31,9 +31,9 @@
 // performance-oriented portions of the code!
 
 namespace dali {
-class UserStream {
+class DLL_PUBLIC UserStream {
  public:
-  static UserStream* Get() {
+  DLL_PUBLIC static UserStream* Get() {
     std::unique_lock<std::mutex> lock(m_);
     if (us_ == nullptr) {
       us_ = new UserStream();
@@ -41,7 +41,7 @@ class UserStream {
     return us_;
   }
 
-  cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
+  DLL_PUBLIC cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     std::unique_lock<std::mutex> lock(m_);
     auto it = streams_.find(dev);
@@ -53,20 +53,20 @@ class UserStream {
     }
   }
 
-  void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
+  DLL_PUBLIC void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
     GetDeviceForBuffer(b);
     // GetDeviceForBuffer sets proper current device
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void Wait(const dali::Buffer<GPUBackend> &b) {
+  DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     DALI_ENFORCE(streams_.find(dev) != streams_.end(),
         "Can only wait on user streams");
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
-  void Wait() {
+  DLL_PUBLIC void Wait() {
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
     DALI_ENFORCE(streams_.find(dev) != streams_.end(),
@@ -74,7 +74,7 @@ class UserStream {
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
-  void WaitAll() {
+  DLL_PUBLIC void WaitAll() {
     for (const auto &dev_pair : streams_) {
       CUDA_CALL(cudaSetDevice(dev_pair.first));
       CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
