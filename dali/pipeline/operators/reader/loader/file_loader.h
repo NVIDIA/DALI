@@ -101,7 +101,7 @@ class FileLoader : public Loader<CPUBackend> {
       }
     }
 
-    DALI_ENFORCE(Size() > 0, "No files read, Dali need files to work");
+    DALI_ENFORCE(Size() > 0, "No files found.");
     // first / only shard: no change needed
     if (shard_id_ == 0) return;
 
