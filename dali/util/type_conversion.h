@@ -22,7 +22,7 @@ namespace dali {
 // Type conversions for data on GPU. All conversions
 // run in the default stream
 template <typename IN, typename OUT>
-void Convert(const IN *data, int n, OUT *out);
+DLL_PUBLIC void Convert(const IN *data, int n, OUT *out);
 
 }  // namespace dali
 

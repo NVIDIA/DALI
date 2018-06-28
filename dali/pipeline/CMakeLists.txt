@@ -41,6 +41,7 @@ if (BUILD_BENCHMARK)
 endif()
 
 # Get the protobuf files for pipe serialization
-protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS proto/dali.proto)
+protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/dali.proto)
 add_library(DALI_PROTO OBJECT ${DALI_PROTO_HEADERS} ${DALI_PROTO_SRCS})
+SET_TARGET_PROPERTIES(DALI_PROTO PROPERTIES COMPILE_FLAGS "-include dali/api_helper.h")
 install(FILES ${DALI_PROTO_HEADERS} DESTINATION include/dali/pipeline)

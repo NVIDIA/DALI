@@ -38,10 +38,10 @@ typedef vector<Index> Dims;
  * in the list.
  */
 template <typename Backend>
-class TensorList : public Buffer<Backend> {
+class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
-  TensorList() {}
-  ~TensorList() = default;
+  DLL_PUBLIC TensorList() {}
+  DLL_PUBLIC ~TensorList() = default;
 
   /**
    * @brief Resizes this TensorList to match the shape of the input.
@@ -56,7 +56,7 @@ class TensorList : public Buffer<Backend> {
    * changing the underlying data type if needed.
    */
   template <typename SrcBackend>
-  inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
     ResizeLike(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
@@ -64,7 +64,7 @@ class TensorList : public Buffer<Backend> {
   }
 
   template <typename SrcBackend>
-  inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
     auto type = other[0].type();
 
     vector<Dims> new_shape(other.size());
@@ -89,7 +89,7 @@ class TensorList : public Buffer<Backend> {
    * contains a set of dimensions for each tensor to be allocated in the
    * list.
    */
-  inline void Resize(const vector<Dims> &new_shape) {
+  DLL_PUBLIC inline void Resize(const vector<Dims> &new_shape) {
     if (new_shape == shape_) return;
 
     // Calculate the new size
@@ -120,7 +120,7 @@ class TensorList : public Buffer<Backend> {
    * list shares data with another list, 'shares_data()' will 
    * return 'true'.
    */
-  inline void ShareData(TensorList<Backend> *other) {
+  DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(IsValidType(other->type_), "To share data, "
         "the input TensorList must have a valid data type");
@@ -154,7 +154,7 @@ class TensorList : public Buffer<Backend> {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes) {
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
@@ -174,7 +174,7 @@ class TensorList : public Buffer<Backend> {
    * @brief Returns a typed pointer to the tensor with the given index.
    */
   template <typename T>
-  inline T* mutable_tensor(int idx) {
+  DLL_PUBLIC inline T* mutable_tensor(int idx) {
     return this->template mutable_data<T>() + tensor_offset(idx);
   }
 
@@ -182,14 +182,14 @@ class TensorList : public Buffer<Backend> {
    * @brief Returns a const typed pointer to the tensor with the given index.
    */
   template <typename T>
-  inline const T* tensor(int idx) const {
+  DLL_PUBLIC inline const T* tensor(int idx) const {
     return this->template data<T>() + tensor_offset(idx);
   }
 
   /**
    * @brief Returns a raw pointer to the tensor with the given index.
    */
-  inline void* raw_mutable_tensor(int idx) {
+  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
     return static_cast<void*>(
         static_cast<uint8*>(this->raw_mutable_data()) +
         (tensor_offset(idx) * type_.size()));
@@ -198,7 +198,7 @@ class TensorList : public Buffer<Backend> {
   /**
    * @brief Returns a const raw pointer to the tensor with the given index.
    */
-  inline const void* raw_tensor(int idx) const {
+  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
     return static_cast<const void*>(
         static_cast<const uint8*>(this->raw_data()) +
         (tensor_offset(idx) * type_.size()));
@@ -207,14 +207,14 @@ class TensorList : public Buffer<Backend> {
   /**
    * @brief Returns the number of tensors in the list.
    */
-  inline int ntensor() const {
+  DLL_PUBLIC inline int ntensor() const {
     return shape_.size();
   }
 
   /**
    * @brief Returns the offset of the tensor with the given index.
    */
-  inline Index tensor_offset(int idx) const {
+  DLL_PUBLIC inline Index tensor_offset(int idx) const {
 #ifndef NDEBUG
     DALI_ENFORCE(idx >= 0, "Negative index not supported");
     DALI_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");

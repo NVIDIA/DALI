@@ -35,9 +35,9 @@ namespace dali {
  * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
-class PipelinedExecutor : public Executor {
+class DLL_PUBLIC PipelinedExecutor : public Executor {
  public:
-  inline PipelinedExecutor(int batch_size, int num_thread,
+  DLL_PUBLIC inline PipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
     Executor(batch_size, num_thread, device_id, bytes_per_sample_hint,
@@ -45,9 +45,9 @@ class PipelinedExecutor : public Executor {
     Executor::queue_depth_ = 3;
   }
 
-  virtual ~PipelinedExecutor() = default;
+  DLL_PUBLIC virtual ~PipelinedExecutor() = default;
 
-  void Build(OpGraph *graph, vector<string> output_names) override;
+  DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
 
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);
 

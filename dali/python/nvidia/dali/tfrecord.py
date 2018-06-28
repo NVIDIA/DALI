@@ -16,4 +16,4 @@ try:
     from nvidia.dali.backend_impl.tfrecord import *
 except ImportError:
     raise RuntimeError('DALI was not compiled with TFRecord support.'
-            ' Use BUILD_PROTOBUF=ON CMake option to enable TFRecord support')
+            ' Use BUILD_PROTO3=ON CMake option to enable TFRecord support')

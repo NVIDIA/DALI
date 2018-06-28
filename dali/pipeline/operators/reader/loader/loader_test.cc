@@ -21,24 +21,26 @@
 #include "dali/test/dali_test.h"
 
 #include "dali/pipeline/operators/reader/loader/loader.h"
+#include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/pipeline/operators/reader/loader/lmdb.h"
 
 namespace dali {
 
 template <typename Backend>
-class DataStoreTest : public DALITest {
+class DataLoadStoreTest : public DALITest {
  public:
   void SetUp() override {}
   void TearDown() override {}
 };
 
 typedef ::testing::Types<CPUBackend> TestTypes;
+string loader_test_image_folder = "/data/dali/benchmark";  // NOLINT
 
-TYPED_TEST_CASE(DataStoreTest, TestTypes);
+TYPED_TEST_CASE(DataLoadStoreTest, TestTypes);
 
 const char* path = std::getenv("DALI_TEST_CAFFE_LMDB_PATH");
 
-TYPED_TEST(DataStoreTest, LMDBTest) {
+TYPED_TEST(DataLoadStoreTest, LMDBTest) {
   shared_ptr<dali::LMDBReader> reader(
       new LMDBReader(
           OpSpec("CaffeReader")
@@ -55,8 +57,39 @@ TYPED_TEST(DataStoreTest, LMDBTest) {
   return;
 }
 
+TYPED_TEST(DataLoadStoreTest, LoaderTest) {
+  shared_ptr<dali::FileLoader> reader(
+      new FileLoader(
+          OpSpec("FileReader")
+          .AddArg("file_root", loader_test_image_folder)
+          .AddArg("batch_size", 32)));
+
+  for (int i = 0; i < 11; ++i) {
+    // grab an entry from the reader
+    auto* sample = reader->ReadOne();
+    // return the tensor to the reader for refilling
+    reader->ReturnTensor(sample);
+  }
+
+  return;
+}
+
+TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
+  try {
+    shared_ptr<dali::FileLoader> reader(
+        new FileLoader(
+            OpSpec("FileReader")
+            .AddArg("file_root", loader_test_image_folder + "/benchmark_images")
+            .AddArg("batch_size", 32)));
+  }
+  catch (std::runtime_error &e) {
+    return;
+  }
+  throw std::runtime_error("LoaderTestFail failed");
+}
+
 #if 0
-TYPED_TEST(DataStoreTest, CachedLMDBTest) {
+TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
   shared_ptr<dali::LMDBReader> reader(
       new LMDBReader(
           OpSpec("CaffeReader")

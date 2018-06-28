@@ -24,13 +24,13 @@ namespace dali {
  * pipeline objects. Must be called prior to constructing pipeline objects.
  * This must be called only once within a process.
  */
-void DALIInit(const OpSpec &cpu_allocator,
+DLL_PUBLIC void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator);
 
-void DALISetCPUAllocator(const OpSpec& allocator);
-void DALISetPinnedCPUAllocator(const OpSpec& allocator);
-void DALISetGPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void DALISetCPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void DALISetPinnedCPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void DALISetGPUAllocator(const OpSpec& allocator);
 
 
 }  // namespace dali

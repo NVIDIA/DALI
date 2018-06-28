@@ -29,6 +29,8 @@
 #include <string>
 #include <vector>
 
+#include "dali/api_helper.h"
+
 namespace dali {
 
 // pi

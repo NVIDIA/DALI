@@ -29,40 +29,40 @@ void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &pinned_cpu_allocator,
     const OpSpec &gpu_allocator);
 
-void SetCPUAllocator(const OpSpec& allocator);
-void SetPinnedCPUAllocator(const OpSpec& allocator);
-void SetGPUAllocator(const OpSpec& allocator);
-void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
+DLL_PUBLIC void SetCPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void SetPinnedCPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void SetGPUAllocator(const OpSpec& allocator);
+DLL_PUBLIC void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
 
 GPUAllocator& GetGPUAllocator();
 /**
  * @brief Provides access to GPU allocator and other GPU meta-data.
  */
-class GPUBackend final {
+class DLL_PUBLIC GPUBackend final {
  public:
-  static void* New(size_t bytes, bool);
-  static void Delete(void *ptr, size_t bytes, bool);
+  DLL_PUBLIC static void* New(size_t bytes, bool);
+  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool);
 };
 
 /**
  * @brief Dummy Backend class to differentiate
  * Mixed ops.
  */
-class MixedBackend final {};
+class DLL_PUBLIC MixedBackend final {};
 
 /**
  * @brief Dummy Backend class to differentiate
  * Support ops.
  */
-class SupportBackend final {};
+class DLL_PUBLIC SupportBackend final {};
 
 /**
  * @brief Provides access to CPU allocator and other cpu meta-data
  */
-class CPUBackend final {
+class DLL_PUBLIC CPUBackend final {
  public:
-  static void* New(size_t bytes, bool pinned);
-  static void Delete(void *ptr, size_t bytes, bool pinned);
+  DLL_PUBLIC static void* New(size_t bytes, bool pinned);
+  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool pinned);
 };
 
 // Utility to copy between backends

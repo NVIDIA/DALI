@@ -193,7 +193,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
   ValueInst<std::vector<T> > val;
 };
 
-Argument *DeserializeProtobuf(const dali_proto::Argument& arg);
+DLL_PUBLIC Argument *DeserializeProtobuf(const dali_proto::Argument& arg);
 
 template<typename T>
 T Argument::Get() {
