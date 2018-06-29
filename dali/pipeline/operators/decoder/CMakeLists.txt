@@ -13,15 +13,18 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
+if (BUILD_NVJPEG)
+  list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cu")
+  if (BUILD_TEST)
+    list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
+  endif()
+endif()
+
+list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder.cc")
 
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
+  list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_test.cc")
+  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 endif()
