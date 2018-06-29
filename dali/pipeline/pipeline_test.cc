@@ -249,6 +249,9 @@ TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
       .AddInput("data", "cpu")
       .AddOutput("data_copy", "gpu"));
 
+  vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
+  pipe.Build(outputs);
+
   OpGraph &graph = this->GetGraph(&pipe);
 
   // Validate the graph
@@ -291,6 +294,9 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
       .AddArg("device", "gpu")
       .AddInput("data", "gpu")
       .AddOutput("data_copy", "gpu"));
+
+  vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
+  pipe.Build(outputs);
 
   OpGraph &graph = this->GetGraph(&pipe);
 

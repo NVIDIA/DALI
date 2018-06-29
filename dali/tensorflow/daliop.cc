@@ -55,11 +55,11 @@ tf::TensorShape DaliToShape(int64_t* ns) {
 
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
-  .Attr("batch_size: int = 128")
+  .Attr("batch_size: int = -1")
   .Attr("height: int = 0")
   .Attr("width: int = 0")
-  .Attr("num_threads: int = 2")
-  .Attr("device_id: int = 0")
+  .Attr("num_threads: int = -1")
+  .Attr("device_id: int = -1")
   .Output("batch: float")
   .Output("label: float")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {

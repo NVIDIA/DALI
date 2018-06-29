@@ -31,7 +31,6 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
                               batch_size,
                               num_threads,
                               device_id,
-                              -1,
                               true,
                               true);
   pipe->Build();
@@ -49,19 +48,6 @@ void daliOutput(daliPipelineHandle* pipe_handle) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   pipeline->Outputs(ws);
-}
-
-void* daliTensorAt(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    dali::Tensor<dali::CPUBackend> *t = new dali::Tensor<dali::CPUBackend>();
-    t->ShareData(ws->Output<dali::CPUBackend>(n));
-    return t;
-  } else {
-    dali::Tensor<dali::GPUBackend> *t = new dali::Tensor<dali::GPUBackend>();
-    t->ShareData(ws->Output<dali::GPUBackend>(n));
-    return t;
-  }
 }
 
 int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
