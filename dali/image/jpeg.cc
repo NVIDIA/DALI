@@ -96,13 +96,9 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width)
 }  // namespace
 
 bool CheckIsJPEG(const uint8 *jpeg, int) {
-// Return false to indicate HostDecoder to use OpenCV fallback
-// see also dali/pipeline/operators/decoder/host_decoder.h:50
-#ifdef DALI_USE_JPEG_TURBO
   if ((jpeg[0] == 255) && (jpeg[1] == 216)) {
     return true;
   }
-#endif  // DALI_USE_JPEG_TURBO
   return false;
 }
 
@@ -113,7 +109,18 @@ DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     DALIImageType type, Tensor<CPUBackend>* image) {
+  
+  int h, w;
+  int c = (type == DALI_GRAY) ? 1 : 3;
+
+  DALI_CALL(GetJPEGImageDims(jpeg, size, &h, &w));
+  // resize the output tensor
+  image->Resize({h, w, c});
+  // force allocation
+  image->mutable_data<uint8_t>();
+
 #ifdef DALI_USE_JPEG_TURBO
+  // with tJPG  
   tjhandle handle = tjInitDecompress();
   TJPF pixel_format;
   if (type == DALI_RGB) {
@@ -125,10 +132,6 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   } else {
     DALI_RETURN_ERROR("Unsupported image type.");
   }
-  int h, w;
-  int c = (type == DALI_GRAY) ? 1 : 3;
-
-  DALI_CALL(GetJPEGImageDims(jpeg, size, &h, &w));
 
 #ifndef NDEBUG
   DALI_ASSERT(jpeg != nullptr);
@@ -139,24 +142,30 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   DALI_ASSERT(CheckIsJPEG(jpeg, size));
 #endif
 
-  // resize the output tensor
-  image->Resize({h, w, c});
-  // force allocation
-  image->mutable_data<uint8_t>();
-
   auto error = tjDecompress2(handle, jpeg, size,
                image->mutable_data<uint8_t>(),
                w, 0, h, pixel_format, 0);
+  
+  tjDestroy(handle);
 
-  // fallback to opencv if tJPG decode fails
+#else  // DALI_USE_JPEG_TURBO
+  // without tJPG
+  const int error = 1;  // since tJPG is absent
+
+#endif  // DALI_USE_JPEG_TURBO
+
+  // fallback to opencv if tJPG decode fails or absent
   if (error) {
     cv::Mat dst(h, w, (c == 1) ? CV_8UC1: CV_8UC3,
                 image->raw_mutable_data());
 
-    cv::imdecode(
+    cv::Mat ret = cv::imdecode(
         CreateMatFromPtr(1, size, CV_8UC1, reinterpret_cast<const char*>(jpeg)),
         (c == 1) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR,
         &dst);
+    
+    if (ret.empty())  // Empty Mat is returned on decoding failure
+        DALI_RETURN_ERROR("OpenCV decoding fail.");
 
     // if RGB needed, permute from BGR
     if (type == DALI_RGB) {
@@ -164,13 +173,8 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     }
   }
 
-  tjDestroy(handle);
-
   return DALISuccess;
-#else  // DALI_USE_JPEG_TURBO
-  // Directly return error to prevent further invalid operation
-  return DALIError;
-#endif  // DALI_USE_JPEG_TURBO
+
 }
 
 }  // namespace dali
