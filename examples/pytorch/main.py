@@ -231,8 +231,11 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
+        # reset DALI iterators
+        train_loader.reset()
+        val_loader.reset()
+
 def train(train_loader, model, criterion, optimizer, epoch):
-    a_stream = torch.cuda.Stream()
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -257,10 +260,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
         target_var = Variable(target)
 
         # compute output
-        with torch.cuda.stream(a_stream):
-            output = model(input_var)
-            loss = criterion(output, target_var)
-        a_stream.synchronize()
+        output = model(input_var)
+        loss = criterion(output, target_var)
+
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
