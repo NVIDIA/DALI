@@ -109,7 +109,6 @@ DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     DALIImageType type, Tensor<CPUBackend>* image) {
-  
   int h, w;
   int c = (type == DALI_GRAY) ? 1 : 3;
 
@@ -120,7 +119,7 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   image->mutable_data<uint8_t>();
 
 #ifdef DALI_USE_JPEG_TURBO
-  // with tJPG  
+  // with tJPG
   tjhandle handle = tjInitDecompress();
   TJPF pixel_format;
   if (type == DALI_RGB) {
@@ -145,7 +144,7 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   auto error = tjDecompress2(handle, jpeg, size,
                image->mutable_data<uint8_t>(),
                w, 0, h, pixel_format, 0);
-  
+
   tjDestroy(handle);
 
 #else  // DALI_USE_JPEG_TURBO
@@ -163,7 +162,6 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
         CreateMatFromPtr(1, size, CV_8UC1, reinterpret_cast<const char*>(jpeg)),
         (c == 1) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR,
         &dst);
-    
     if (ret.empty())  // Empty Mat is returned on decoding failure
         DALI_RETURN_ERROR("OpenCV decoding fail.");
 
@@ -174,7 +172,6 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   }
 
   return DALISuccess;
-
 }
 
 }  // namespace dali
