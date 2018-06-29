@@ -18,8 +18,9 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
 
 ## Prerequisities
 
-* Linux
-* [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
+* Linux x64
+* [NVIDIA Driver](https://www.nvidia.com/drivers) supporting [CUDA 9.0](https://developer.nvidia.com/cuda-downloads) or later
+  - This corresponds to 384.xx and later driver releases.
 * DALI can work with any of the following Deep Learning frameworks:
   - [MXNet](http://mxnet.incubator.apache.org)
     - Version 1.3 beta is required, `mxnet-cu90==1.3.0b20180612` or later

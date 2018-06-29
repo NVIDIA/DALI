@@ -51,10 +51,10 @@ enum DALIError_t {
  * clears the error. If no error has occured (or it has been wiped out by a previous call
  * to this function), this function returns an empty string
  */
-string DALIGetLastError();
+DLL_PUBLIC string DALIGetLastError();
 
 // Sets the error string. Used internally by DALI to pass error strings out to the user
-void DALISetLastError(string error_str);
+DLL_PUBLIC void DALISetLastError(string error_str);
 
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);

@@ -38,17 +38,17 @@ using MixedOutputType = shared_ptr<TensorList<Backend>>;
  * MixedWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
+class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
  public:
-  inline MixedWorkspace() : stream_(0) {}
-  inline ~MixedWorkspace() = default;
+  DLL_PUBLIC inline MixedWorkspace() : stream_(0) {}
+  DLL_PUBLIC inline ~MixedWorkspace() = default;
 
 
   /**
    * @brief Returns the number of Tensors in the input set of
    * tensors at the given index.
    */
-  int NumInputAtIdx(int idx) const;
+  DLL_PUBLIC int NumInputAtIdx(int idx) const;
 
   /**
    * @brief Returns the input Tensor at index `data_idx` in the input
@@ -58,7 +58,7 @@ class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
    * the output at the given index.
    */
   template <typename Backend>
-  const Tensor<Backend>& Input(int idx, int data_idx) const;
+  DLL_PUBLIC const Tensor<Backend>& Input(int idx, int data_idx) const;
 
   /**
    * @brief Returns the output TensorList at index `idx`.
@@ -67,12 +67,12 @@ class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
    * the output at the given index.
    */
   template <typename Backend>
-  TensorList<Backend>* Output(int idx);
+  DLL_PUBLIC TensorList<Backend>* Output(int idx);
 
   /**
    * @brief Sets the stream for this workspace.
    */
-  inline void set_stream(cudaStream_t stream) {
+  DLL_PUBLIC inline void set_stream(cudaStream_t stream) {
     has_stream_ = true;
     stream_ = stream;
   }
@@ -80,12 +80,12 @@ class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
   /**
    * @brief Returns true if 'set_stream' has been called.
    */
-  inline bool has_stream() const { return has_stream_; }
+  DLL_PUBLIC inline bool has_stream() const { return has_stream_; }
 
   /**
    * @brief Returns the cuda stream that this work is to be done in.
    */
-  inline cudaStream_t stream() const {
+  DLL_PUBLIC inline cudaStream_t stream() const {
     DALI_ENFORCE(has_stream_, "Workspace does not have a stream.");
     return stream_;
   }
@@ -93,7 +93,7 @@ class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
   /**
    * @brief Sets the event for this workspace.
    */
-  inline void set_event(cudaEvent_t event) {
+  DLL_PUBLIC inline void set_event(cudaEvent_t event) {
     has_event_ = true;
     event_ = event;
   }
@@ -101,12 +101,12 @@ class MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
   /**
    * @brief Returns true if 'set_event' has been called.
    */
-  inline bool has_event() const { return has_event_; }
+  DLL_PUBLIC inline bool has_event() const { return has_event_; }
 
   /**
    * @brief Returns the cuda event that signals this works completion.
    */
-  inline cudaEvent_t event() const {
+  DLL_PUBLIC inline cudaEvent_t event() const {
     DALI_ENFORCE(has_event_, "Workspace does not have an event.");
     return event_;
   }

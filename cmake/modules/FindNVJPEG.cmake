@@ -20,7 +20,7 @@ find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
     PATHS ${NVJPEG_ROOT_DIR}
     PATH_SUFFIXES include)
 
-find_library(NVJPEG_LIBRARY libnvjpeg.so nvjpeg
+find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
     PATHS ${NVJPEG_ROOT_DIR}
     PATH_SUFFIXES lib lib64)
 

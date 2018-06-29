@@ -20,10 +20,10 @@
 
 namespace dali {
 
-void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr);
-void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr);
-void CopyToExternalTensor(const Tensor<CPUBackend>& tl, void* ptr);
-void CopyToExternalTensor(const Tensor<GPUBackend>& tl, void* ptr);
+DLL_PUBLIC void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr);
+DLL_PUBLIC void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr);
+DLL_PUBLIC void CopyToExternalTensor(const Tensor<CPUBackend>& tl, void* ptr);
+DLL_PUBLIC void CopyToExternalTensor(const Tensor<GPUBackend>& tl, void* ptr);
 
 }  // namespace dali
 

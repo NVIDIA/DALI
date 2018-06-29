@@ -6,29 +6,41 @@ if (${CUDA_VERSION_MAJOR} LESS 8)
 endif()
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
+list(APPEND DALI_EXCLUDES libcudart_static.a)
+
+# For NVJPEG
+if (BUILD_NVJPEG)
+  find_package(NVJPEG REQUIRED)
+  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
+  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+  add_definitions(-DDALI_USE_NVJPEG)
+endif()
 
 # For NPP
-find_cuda_helper_libs(nppicom)
-find_cuda_helper_libs(nppicc)
-find_cuda_helper_libs(nppc)
-find_cuda_helper_libs(nppig)
-list(APPEND DALI_LIBS ${CUDA_nppicom_LIBRARY}
-                      ${CUDA_nppicc_LIBRARY}
-                      ${CUDA_nppc_LIBRARY}
-                      ${CUDA_nppig_LIBRARY})
+find_cuda_helper_libs(nppc_static)
+find_cuda_helper_libs(nppicom_static)
+find_cuda_helper_libs(nppicc_static)
+find_cuda_helper_libs(nppig_static)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY}
+                      ${CUDA_nppicom_static_LIBRARY}
+                      ${CUDA_nppicc_static_LIBRARY}
+                      ${CUDA_nppig_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a
+                          libnppicom_static.a
+                          libnppicc_static.a
+                          libnppig_static.a)
+
+# CULIBOS needed when using static CUDA libs
+find_cuda_helper_libs(culibos)
+list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+list(APPEND DALI_EXCLUDES libculibos.a)
 
 # NVTX for profiling
 if (BUILD_NVTX)
   find_cuda_helper_libs(nvToolsExt)
   list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
-endif()
-
-if (BUILD_NVJPEG)
-  find_package(NVJPEG REQUIRED)
-  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
-  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
-  add_definitions(-DDALI_USE_NVJPEG)
 endif()
 
 # Google C++ testing framework
@@ -51,6 +63,7 @@ if (BUILD_JPEG_TURBO)
   find_package(JpegTurbo REQUIRED)
   include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
   list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
+  list(APPEND DALI_EXCLUDES libturbojpeg.a)
   add_definitions(-DDALI_USE_JPEG_TURBO)
 endif()
 
@@ -72,6 +85,7 @@ if (OpenCV_FOUND)
 endif()
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
+list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_imgcodecs.a)
 
 # PyBind
 if (BUILD_PYTHON)
@@ -87,6 +101,7 @@ if (BUILD_LMDB)
     message(STATUS "Found LMDB ${LMDB_INCLUDE_DIR} : ${LMDB_LIBRARIES}")
     include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
     list(APPEND DALI_LIBS ${LMDB_LIBRARIES})
+    list(APPEND DALI_EXCLUDES liblmdb.a)
   else()
     message(STATUS "LMDB not found")
   endif()
@@ -107,6 +122,10 @@ if (PROTOBUF_FOUND)
   endif()
   include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
   list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
+  ################
+  ### Don't exclude protobuf symbols; doing so will lead to segfaults
+  #list(APPEND DALI_EXCLUDES libprotobuf.a)
+  ################
 else()
   message(STATUS "Protobuf not found")
 endif()
