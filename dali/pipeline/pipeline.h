@@ -95,7 +95,7 @@ class DLL_PUBLIC Pipeline {
       int batch_size = -1, int num_threads = -1, int device_id = -1,
       bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) {
+      int max_num_stream = -1) : built_(false) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 

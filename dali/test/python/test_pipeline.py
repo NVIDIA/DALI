@@ -252,7 +252,7 @@ def test_seed_serialize():
                            device_id = 0)
     s = orig_pipe.serialize()
     for i in range(50):
-        pipe = Pipeline(batch_size = -1, num_threads = -1, device_id = -1)
+        pipe = Pipeline()
         pipe.deserialize_and_build(s)
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].asCPU()
