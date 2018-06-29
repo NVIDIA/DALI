@@ -19,6 +19,14 @@ endif()
 
 # For NPP
 find_cuda_helper_libs(nppc_static)
+if (${CUDA_VERSION_MAJOR} EQUAL 8)
+# In CUDA 8 Nppi is a single library
+find_cuda_helper_libs(nppi_static)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY}
+                      ${CUDA_nppi_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a
+                          libnppi_static.a)
+else()
 find_cuda_helper_libs(nppicom_static)
 find_cuda_helper_libs(nppicc_static)
 find_cuda_helper_libs(nppig_static)
@@ -30,6 +38,7 @@ list(APPEND DALI_EXCLUDES libnppc_static.a
                           libnppicom_static.a
                           libnppicc_static.a
                           libnppig_static.a)
+endif()
 
 # CULIBOS needed when using static CUDA libs
 find_cuda_helper_libs(culibos)
