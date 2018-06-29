@@ -331,7 +331,7 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_num_threads(this->num_threads());
   pipe.set_batch_size(this->batch_size());
   pipe.set_device_id(this->device_id());
-  pipe.set_seed(this->seed_);
+  pipe.set_seed(this->original_seed_);
 
   // loop over external inputs
   for (auto &name : external_inputs_) {

@@ -117,10 +117,8 @@ class DLL_PUBLIC Pipeline {
       this->num_threads_ = num_threads;
     }
 
-    this->seed_ = def.seed();
-
     Init(this->batch_size_, this->num_threads_,
-         this->device_id_, this->seed_,
+         this->device_id_, def.seed(),
          pipelined_execution,
          async_execution,
          bytes_per_sample_hint,
@@ -312,7 +310,7 @@ class DLL_PUBLIC Pipeline {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
-    this->seed_ = seed;
+    this->original_seed_ = seed;
     this->pipelined_execution_ = pipelined_execution;
     this->async_execution_ = async_execution;
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
@@ -385,6 +383,7 @@ class DLL_PUBLIC Pipeline {
   int max_num_stream_;
 
   std::vector<int> seed_;
+  int original_seed_;
   size_t current_seed;
 
   OpGraph graph_;
