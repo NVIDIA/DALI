@@ -15,7 +15,7 @@
 #include "dali/image/jpeg.h"
 #ifdef DALI_USE_JPEG_TURBO
 #include <turbojpeg.h>
-#endif // DALI_USE_JPEG_TURBO
+#endif  // DALI_USE_JPEG_TURBO
 #include "dali/util/ocv.h"
 
 namespace dali {
@@ -52,7 +52,7 @@ void PrintSubsampling(int sampling) {
     cout << "unknown sampling ratio" << endl;
   }
 }
-#endif // DALI_USE_JPEG_TURBO
+#endif  // DALI_USE_JPEG_TURBO
 
 // Slightly modified from  https://github.com/apache/incubator-mxnet/blob/master/plugin/opencv/cv_api.cc
 // http://www.64lines.com/jpeg-width-height
@@ -102,7 +102,7 @@ bool CheckIsJPEG(const uint8 *jpeg, int) {
   if ((jpeg[0] == 255) && (jpeg[1] == 216)) {
     return true;
   }
-#endif // DALI_USE_JPEG_TURBO
+#endif  // DALI_USE_JPEG_TURBO
   return false;
 }
 
@@ -167,10 +167,10 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   tjDestroy(handle);
 
   return DALISuccess;
-#else // DALI_USE_JPEG_TURBO
-  // Directly return error to prevent further invalid operation 
+#else  // DALI_USE_JPEG_TURBO
+  // Directly return error to prevent further invalid operation
   return DALIError;
-#endif // DALI_USE_JPEG_TURBO
+#endif  // DALI_USE_JPEG_TURBO
 }
 
 }  // namespace dali

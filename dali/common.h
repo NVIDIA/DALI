@@ -15,7 +15,7 @@
 #ifndef DALI_COMMON_H_
 #define DALI_COMMON_H_
 
-#include <cuda_runtime_api.h> // for __align__ & CUDART_VERSION
+#include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_profiler_api.h>
 
@@ -105,7 +105,7 @@ __device__ inline dst StaticCastGpu(float val)
 template<>
 __device__ inline float16 StaticCastGpu(float val)
 { return __float2half(static_cast<float>(val)); }
-#endif // defined(CUDART_VERSION) && CUDART_VERSION < 9000
+#endif  // defined(CUDART_VERSION) && CUDART_VERSION < 9000
 
 // Helper to delete copy constructor & copy-assignment operator
 #define DISABLE_COPY_MOVE_ASSIGN(name)          \

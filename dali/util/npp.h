@@ -34,46 +34,46 @@ typedef NppiSize DALISize;
 //   oDstRectROI.y == 0
 // because it is the only case used in DALI for now
 // neep help to complete the arguments conversion
-inline static 
+inline static
 NppStatus
 nppiResize_8u_C1R(const Npp8u * pSrc, int nSrcStep, NppiSize oSrcSize, NppiRect oSrcRectROI,
-                        Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI, int eInterpolation)
-{
+                        Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI,
+                  int eInterpolation) {
   if (
-    oDstRectROI.width  == oDstSize.width && 
-    oDstRectROI.height == oDstSize.height && 
-    oDstRectROI.x == 0 && 
-    oDstRectROI.y == 0 
+    oDstRectROI.width  == oDstSize.width &&
+    oDstRectROI.height == oDstSize.height &&
+    oDstRectROI.x == 0 &&
+    oDstRectROI.y == 0
   )
     return nppiResize_8u_C1R(pSrc, oSrcSize, nSrcStep, oSrcRectROI,
-                             pDst, nDstStep, oDstSize, 
+                             pDst, nDstStep, oDstSize,
                              static_cast<double>(oDstRectROI.width)  / oSrcRectROI.width,
-                             static_cast<double>(oDstRectROI.height) / oSrcRectROI.height, 
+                             static_cast<double>(oDstRectROI.height) / oSrcRectROI.height,
                              eInterpolation);
   else
     return NPP_NOT_SUPPORTED_MODE_ERROR;
 }
 
-inline static 
+inline static
 NppStatus
 nppiResize_8u_C3R(const Npp8u * pSrc, int nSrcStep, NppiSize oSrcSize, NppiRect oSrcRectROI,
-                        Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI, int eInterpolation)
-{
+                        Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI,
+                  int eInterpolation) {
   if (
-    oDstRectROI.width  == oDstSize.width && 
-    oDstRectROI.height == oDstSize.height && 
-    oDstRectROI.x == 0 && 
-    oDstRectROI.y == 0 
+    oDstRectROI.width  == oDstSize.width &&
+    oDstRectROI.height == oDstSize.height &&
+    oDstRectROI.x == 0 &&
+    oDstRectROI.y == 0
   )
     return nppiResize_8u_C1R(pSrc, oSrcSize, nSrcStep, oSrcRectROI,
-                             pDst, nDstStep, oDstSize, 
+                             pDst, nDstStep, oDstSize,
                              static_cast<double>(oDstRectROI.width)  / oSrcRectROI.width,
-                             static_cast<double>(oDstRectROI.height) / oSrcRectROI.height, 
+                             static_cast<double>(oDstRectROI.height) / oSrcRectROI.height,
                              eInterpolation);
   else
     return NPP_NOT_SUPPORTED_MODE_ERROR;
 }
-#endif // NPP_VERSION_MAJOR == 8
+#endif  // NPP_VERSION_MAJOR == 8
 
 int NPPInterpForDALIInterp(DALIInterpType type, NppiInterpolationMode *npp_type);
 
