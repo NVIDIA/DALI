@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifdef DALI_USE_NVJPEG
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
 
 namespace dali {
@@ -34,4 +33,4 @@ DALI_SCHEMA(nvJPEGDecoder)
       Use nvJPEG's batched decoding API.)code", false);
 
 }  // namespace dali
-#endif // DALI_USE_NVJPEG
+
