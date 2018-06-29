@@ -397,13 +397,13 @@ PYBIND11_MODULE(backend_impl, m) {
     // initialize from serialized pipeline
     .def(py::init(
           [](string serialized_pipe,
-             int batch_size, int num_threads, int device_id, int seed = -1,
+             int batch_size, int num_threads, int device_id,
              bool pipelined_execution = true, bool async_execution = true,
              size_t bytes_per_sample_hint = 0, bool set_affinity = false,
              int max_num_stream = -1) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(serialized_pipe,
-                               batch_size, num_threads, device_id, seed, pipelined_execution,
+                               batch_size, num_threads, device_id, pipelined_execution,
                                async_execution, bytes_per_sample_hint, set_affinity,
                                max_num_stream));
             }),
@@ -411,7 +411,6 @@ PYBIND11_MODULE(backend_impl, m) {
         "batch_size"_a,
         "num_threads"_a,
         "device_id"_a,
-        "seed"_a,
         "exec_pipelined"_a,
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
@@ -427,6 +426,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("Build",
         [](Pipeline *p) {
           p->Build();
+          })
+    .def("SetOutputNames",
+        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
+          p->SetOutputNames(outputs);
           })
     .def("RunCPU", &Pipeline::RunCPU)
     .def("RunGPU", &Pipeline::RunGPU)

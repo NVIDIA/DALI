@@ -18,20 +18,14 @@ from nvidia.dali import backend as b
 from nvidia.dali import tensor as nt
 
 class Pipeline(object):
-    def __init__(self, batch_size, num_threads, device_id, seed = -1,
+    def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, exec_async=True,
                  bytes_per_sample=0, set_affinity=False,
                  max_streams=-1):
-        self._pipe = b.Pipeline(batch_size,
-                                num_threads,
-                                device_id,
-                                seed,
-                                exec_pipelined,
-                                exec_async,
-                                bytes_per_sample,
-                                set_affinity,
-                                max_streams)
-        self.seed = seed
+        self._batch_size = batch_size
+        self._num_threads = num_threads
+        self._device_id = device_id
+        self._seed = seed
         self._exec_pipelined = exec_pipelined
         self._built = False
         self._first_iter = True
@@ -44,22 +38,33 @@ class Pipeline(object):
 
     @property
     def batch_size(self):
-        return self._pipe.batch_size()
+        return self._batch_size
 
     @property
     def num_threads(self):
-        return self._pipe.num_threads()
+        return self._num_threads
 
     @property
     def device_id(self):
-        return self._pipe.device_id()
+        return self._device_id
 
     def epoch_size(self, name = None):
+        if not self._built:
+            raise RuntimeError("Pipeline must be builti first.")
         if name is not None:
             return self._pipe.epoch_size(name)
         return self._pipe.epoch_size()
 
     def _prepare_graph(self):
+        self._pipe = b.Pipeline(self._batch_size,
+                                self._num_threads,
+                                self._device_id,
+                                self._seed,
+                                self._exec_pipelined,
+                                self._exec_async,
+                                self._bytes_per_sample,
+                                self._set_affinity,
+                                self._max_streams)
         outputs = self.define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
@@ -127,6 +132,8 @@ class Pipeline(object):
         self._built = True
 
     def feed_input(self, ref, data):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         if not isinstance(ref, nt.TensorReference):
             raise TypeError(
                 "Expected argument one to "
@@ -144,15 +151,23 @@ class Pipeline(object):
             self._pipe.SetExternalTLInput(ref.name, inp)
 
     def run_cpu(self):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         self._pipe.RunCPU()
 
     def run_gpu(self):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         self._pipe.RunGPU()
 
     def outputs(self):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
     def run(self):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         if self._first_iter and self._exec_pipelined:
             self.iter_setup()
             self.run_cpu()
@@ -164,27 +179,28 @@ class Pipeline(object):
         return self.outputs()
 
     def serialize(self):
-        if not self._built:
-            self.build()
+        if not self._prepared:
+            self._prepare_graph()
+            self._pipe.SetOutputNames(self._names_and_devices)
         return self._pipe.SerializeToProtobuf()
 
     def deserialize_and_build(self, serialized_pipeline):
-        new_pipe = b.Pipeline(serialized_pipeline,
-                              self.batch_size,
-                              self.num_threads,
-                              self.device_id,
-                              self.seed,
-                              self._exec_pipelined,
-                              self._exec_async,
-                              self._bytes_per_sample,
-                              self._set_affinity,
-                              self._max_streams)
-        self._pipe = new_pipe
+        self._pipe = b.Pipeline(serialized_pipeline,
+                                self._batch_size,
+                                self._num_threads,
+                                self._device_id,
+                                self._exec_pipelined,
+                                self._exec_async,
+                                self._bytes_per_sample,
+                                self._set_affinity,
+                                self._max_streams)
         self._prepared = True
         self._pipe.Build()
         self._built = True
 
     def save_graph_to_dot_file(self, filename):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename)
 
     # defined by the user to construct their graph of operations.

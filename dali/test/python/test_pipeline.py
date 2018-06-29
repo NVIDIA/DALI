@@ -217,6 +217,50 @@ def test_seed():
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
+def test_seed_serialize():
+    batch_size = 64
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                                output_dtype = types.FLOAT,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+            self.coin = ops.CoinFlip()
+            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.iter = 0
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            images = self.decode(self.jpegs)
+            mirror = self.coin()
+            output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
+            return (output, self.labels)
+
+        def iter_setup(self):
+            pass
+    n = 30
+    orig_pipe = HybridPipe(batch_size=batch_size,
+                           num_threads=2,
+                           device_id = 0)
+    s = orig_pipe.serialize()
+    for i in range(50):
+        pipe = Pipeline()
+        pipe.deserialize_and_build(s)
+        pipe_out = pipe.run()
+        pipe_out_cpu = pipe_out[0].asCPU()
+        img_chw_test = pipe_out_cpu.at(n)
+        if i == 0:
+            img_chw = img_chw_test
+        assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
+
 def test_rotate():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):

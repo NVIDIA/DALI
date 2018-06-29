@@ -186,7 +186,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     DALI_ENFORCE(ret.second, "Operator '" + spec.name() +
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
-        this->node(TensorSourceID(name)).spec.name());
+        this->node(TensorSourceID(name)).spec.name() + "'");
   }
 }
 
