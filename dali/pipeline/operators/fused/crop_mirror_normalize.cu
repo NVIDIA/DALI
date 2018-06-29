@@ -55,7 +55,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
             int in_idx = c + C*mirrored_width + in_step*h;  // HWC, mirrored
             int out_idx = c*H*W + h*W + w;  // CHW
 
-            output_ptr[out_idx] = StaticCastGpu<Out>( // static_cast<Out>(
+            output_ptr[out_idx] = StaticCastGpu<Out>(
                 (static_cast<float>(input_ptr[in_idx])-mean[c]) * inv_std[c]);
           }
         }
@@ -68,7 +68,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
             int in_idx = c + C*w + in_step*h;  // HWC
             int out_idx = c*H*W + h*W + w;  // CHW
 
-            output_ptr[out_idx] = StaticCastGpu<Out>( // static_cast<Out>(
+            output_ptr[out_idx] = StaticCastGpu<Out>(
                 (static_cast<float>(input_ptr[in_idx])-mean[c]) * inv_std[c]);
           }
         }
@@ -108,7 +108,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
         input = (static_cast<float>(input_ptr[in_idx])-mean[c]) * inv_std[c];
       }
 
-      output_ptr[out_idx] = StaticCastGpu<Out>(input); // static_cast<Out>(input);
+      output_ptr[out_idx] = StaticCastGpu<Out>(input);
     }
   }
 }

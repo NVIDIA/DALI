@@ -27,19 +27,19 @@ __global__ void ConvertKernel(const IN *data, int n, OUT *out) {
   }
 }
 
-// Specialize the implementation of float16 for CUDA 8 which does not have builtin 
-// cast for float16.
-// IN CASE there are MORE specializations of "Convert" down there, corresponding 
-// specializations of ConvertKernel should be added below
+// Specialize the implementation of float16 for CUDA 8 which does
+// not have builtin cast for float16.
+// IN CASE there are MORE specializations of "Convert" down there,
+// corresponding specializations of ConvertKernel should be added below
 #if CUDART_VERSION < 9000
 template<>
-__global__ void ConvertKernel(const float16 *data, int n, double *out){
+__global__ void ConvertKernel(const float16 *data, int n, double *out) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < n) {
-    out[tid] = (double)__half2float(data[tid]);
+    out[tid] = static_cast<double>(__half2float(data[tid]));
   }
 }
-#endif // CUDART_VERSION < 9000
+#endif  // CUDART_VERSION < 9000
 
 }  // namespace
 
