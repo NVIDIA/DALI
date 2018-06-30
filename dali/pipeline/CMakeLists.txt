@@ -41,12 +41,7 @@ if (BUILD_BENCHMARK)
 endif()
 
 # Get the protobuf files for pipe serialization
-if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
-  # In cmake 3.8.0 or lower, EXPORT_MACRO is not available
-  protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS proto/dali.proto)
-else()
-  protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/dali.proto)
-endif()
+dali_protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/dali.proto)
 add_library(DALI_PROTO OBJECT ${DALI_PROTO_HEADERS} ${DALI_PROTO_SRCS})
 SET_TARGET_PROPERTIES(DALI_PROTO PROPERTIES COMPILE_FLAGS "-include dali/api_helper.h")
 install(FILES ${DALI_PROTO_HEADERS} DESTINATION include/dali/pipeline)
