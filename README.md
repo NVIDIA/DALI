@@ -1,3 +1,5 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 # NVIDIA DALI v0.1
 
 Today’s deep learning applications include complex, multi-stage pre-processing data pipelines that include compute-intensive steps mainly carried out on the CPU. For instance, steps such as load data from disk, decode, crop, random resize, color and spatial augmentations and format conversions are carried out on the CPUs, limiting the performance and scalability of training and inference tasks. In addition, the deep learning frameworks today have multiple data pre-processing implementations, resulting in challenges such as portability of training and inference workflows and code maintainability.
@@ -103,6 +105,10 @@ pip install dali/python
 # Getting started
 
 [`examples`](examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
+
+# Contributing to DALI
+
+Contributions to DALI are more than welcome.  To make the pull request process smooth, please follow these [`guidelines`](CONTRIBUTING).
 
 # Contributors
 
