@@ -383,7 +383,7 @@ PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, Mappi
                          allocMemoryFunction allocMemFunc, assignElemFunction assignFunc) :
                          area_(area), resizedArea_(resizedArea), allocMemFunc_(allocMemFunc),
                          assignFunc_(assignFunc), pMappingBase_(pMapping),
-                         pMappingClosestBase_(pMapInfo) {
+                         pMappingClosestBase_(pMapInfo), closestDist_(FLT_MAX) {
   numPixMapMax_ = 1;
   numPixMapUsed_ = 0;
 

@@ -203,7 +203,7 @@ class DALISingleOpTest : public DALITest {
   void CheckBuffers(int N, const T *a, const T *b) {
     vector<double> diff(N);
 
-    double mean, std;
+    double mean = 0, std;
     for (int i = 0; i < N; ++i) {
       diff[i] = static_cast<double>(a[i]) - static_cast<double>(b[i]);
     }
