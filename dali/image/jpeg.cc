@@ -113,6 +113,16 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   int c = (type == DALI_GRAY) ? 1 : 3;
 
   DALI_CALL(GetJPEGImageDims(jpeg, size, &h, &w));
+
+#ifndef NDEBUG
+  DALI_ASSERT(jpeg != nullptr);
+  DALI_ASSERT(size > 0);
+  DALI_ASSERT(h > 0);
+  DALI_ASSERT(w > 0);
+  DALI_ASSERT(image != nullptr);
+  DALI_ASSERT(CheckIsJPEG(jpeg, size));
+#endif
+
   // resize the output tensor
   image->Resize({h, w, c});
   // force allocation
@@ -131,15 +141,6 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   } else {
     DALI_RETURN_ERROR("Unsupported image type.");
   }
-
-#ifndef NDEBUG
-  DALI_ASSERT(jpeg != nullptr);
-  DALI_ASSERT(size > 0);
-  DALI_ASSERT(h > 0);
-  DALI_ASSERT(w > 0);
-  DALI_ASSERT(image != nullptr);
-  DALI_ASSERT(CheckIsJPEG(jpeg, size));
-#endif
 
   auto error = tjDecompress2(handle, jpeg, size,
                image->mutable_data<uint8_t>(),
