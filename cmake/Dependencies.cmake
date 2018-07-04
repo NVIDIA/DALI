@@ -100,7 +100,7 @@ find_package(Protobuf REQUIRED)
 
 if (PROTOBUF_FOUND)
   # Determine if we have proto v2.x or 3.x
-  execute_process(COMMAND protoc --version COMMAND cut -d " " -f 2 COMMAND cut -d . -f 1
+  execute_process(COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} --version COMMAND cut -d " " -f 2 COMMAND cut -d . -f 1
     OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE PROTOBUF_VERSION RESULT_VARIABLE __res)
   message(STATUS "Found Protobuf version ${PROTOBUF_VERSION} : ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
 
