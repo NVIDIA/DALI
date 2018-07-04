@@ -17,7 +17,7 @@ from setuptools import setup, find_packages
 setup(name='nvidia-dali',
       description='NVIDIA DALI',
       url='https://github.com/NVIDIA/dali',
-      version='0.1.1',
+      version='0.1.2',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
       packages=find_packages(),
