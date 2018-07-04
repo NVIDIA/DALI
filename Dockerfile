@@ -1,5 +1,5 @@
 #########################################################################################
-##  Stage 2: build DALI wheels using manylinux1 (CentOS 5 derivative)
+##  Stage 2: build DALI wheels on top of the dependencies image built in Stage 1
 #########################################################################################
 ARG DEPS_IMAGE_NAME
 FROM ${DEPS_IMAGE_NAME}

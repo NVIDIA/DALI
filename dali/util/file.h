@@ -18,11 +18,12 @@
 #include <cstdio>
 #include <string>
 
+#include "dali/api_helper.h"
 #include "dali/common.h"
 
 namespace dali {
 
-class FileStream {
+class DLL_PUBLIC FileStream {
  public:
   static FileStream * Open(const std::string& uri);
 

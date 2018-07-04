@@ -119,17 +119,17 @@ struct NoType {};
 /**
  * @brief Keeps track of mappings between types and unique identifiers.
  */
-class TypeTable {
+class DLL_PUBLIC TypeTable {
  public:
   template <typename T>
-  static DALIDataType GetTypeID() {
+  DLL_PUBLIC static DALIDataType GetTypeID() {
     std::lock_guard<std::mutex> lock(mutex_);
     static DALIDataType type_id = TypeTable::RegisterType<T>(static_cast<DALIDataType>(++index_));
     return type_id;
   }
 
   template <typename T>
-  static string GetTypeName() {
+  DLL_PUBLIC static string GetTypeName() {
     return typeid(T).name();
   }
 
@@ -160,21 +160,21 @@ class TypeTable {
 };
 
 // Stores the unqiue ID for a type and its size in bytes
-class TypeInfo {
+class DLL_PUBLIC TypeInfo {
  public:
-  inline TypeInfo() {
+  DLL_PUBLIC inline TypeInfo() {
     SetType<NoType>();
   }
 
   template <typename T>
-  static inline TypeInfo Create() {
+  DLL_PUBLIC static inline TypeInfo Create() {
     TypeInfo type;
     type.SetType<T>();
     return type;
   }
 
   template <typename T>
-  inline void SetType() {
+  DLL_PUBLIC inline void SetType() {
     // Note: We enforce the fact that NoType is invalid by
     // explicitly setting its type size as 0
     type_size_ = std::is_same<T, NoType>::value ? 0 : sizeof(T);
@@ -192,27 +192,27 @@ class TypeInfo {
   }
 
   template <typename Backend>
-  void Construct(void *ptr, Index n);
+  DLL_PUBLIC void Construct(void *ptr, Index n);
 
   template <typename Backend>
-  void Destruct(void *ptr, Index n);
+  DLL_PUBLIC void Destruct(void *ptr, Index n);
 
   template <typename DstBackend, typename SrcBackend>
-  void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
+  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
 
-  inline DALIDataType id() const {
+  DLL_PUBLIC inline DALIDataType id() const {
     return id_;
   }
 
-  inline size_t size() const {
+  DLL_PUBLIC inline size_t size() const {
     return type_size_;
   }
 
-  inline string name() const {
+  DLL_PUBLIC inline string name() const {
     return name_;
   }
 
-  inline bool operator==(const TypeInfo &rhs) const {
+  DLL_PUBLIC inline bool operator==(const TypeInfo &rhs) const {
     if ((rhs.id_ == id_) &&
         (rhs.type_size_ == type_size_) &&
         (rhs.name_ == name_)) {
@@ -274,14 +274,14 @@ class TypeInfo {
  * @brief Utility to check types
  */
 template <typename T>
-inline bool IsType(TypeInfo type) {
+DLL_PUBLIC inline bool IsType(TypeInfo type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 
 /**
  * @brief Utility to check for valid type
  */
-inline bool IsValidType(TypeInfo type) {
+DLL_PUBLIC inline bool IsValidType(TypeInfo type) {
   return !IsType<NoType>(type);
 }
 
@@ -291,9 +291,9 @@ inline bool IsValidType(TypeInfo type) {
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
 #define DALI_REGISTER_TYPE(Type, dtype)                           \
-  template <> string TypeTable::GetTypeName<Type>()               \
+  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()               \
     DALI_TYPENAME_REGISTERER(Type);                               \
-  template <> DALIDataType TypeTable::GetTypeID<Type>()           \
+  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()           \
     DALI_TYPEID_REGISTERER(Type, dtype);
 
 // Instantiate some basic types

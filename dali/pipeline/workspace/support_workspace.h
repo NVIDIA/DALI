@@ -36,20 +36,20 @@ using SupportOutputType = shared_ptr<Tensor<Backend>>;
  * including its input and output Tensors, parameter tensors and
  * meta-data about execution.
  */
-class SupportWorkspace : public WorkspaceBase<SupportInputType, SupportOutputType> {
+class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, SupportOutputType> {
  public:
-  SupportWorkspace() {}
-  ~SupportWorkspace() = default;
+  DLL_PUBLIC SupportWorkspace() {}
+  DLL_PUBLIC ~SupportWorkspace() = default;
 
   /**
    * @brief Returns the input Tensor at index `idx`.
    */
-  const Tensor<CPUBackend>& Input(int idx) const;
+  DLL_PUBLIC const Tensor<CPUBackend>& Input(int idx) const;
 
   /**
    * @brief Returns the output Tensor at index `idx`.
    */
-  Tensor<CPUBackend>* Output(int idx);
+  DLL_PUBLIC Tensor<CPUBackend>* Output(int idx);
 };
 
 }  // namespace dali

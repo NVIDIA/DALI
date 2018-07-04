@@ -39,29 +39,29 @@ namespace dali {
  * any additional input and output tensors it may need, and any
  * number of additional arguments.
  */
-class OpSpec {
+class DLL_PUBLIC OpSpec {
  public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
   using StrPair = std::pair<string, string>;
 
-  inline OpSpec() {}
+  DLL_PUBLIC inline OpSpec() {}
 
   /**
    * @brief Returns a full tensor name
    * given its name and device
    */
-  static std::string TensorName(std::string name, std::string device) {
+  DLL_PUBLIC static std::string TensorName(std::string name, std::string device) {
     return name + "_" + device;
   }
 
   /**
    * @brief Constructs a specification for an op with the given name.
    */
-  explicit inline OpSpec(const string &name)
+  DLL_PUBLIC explicit inline OpSpec(const string &name)
     : name_(name) {}
 
-  explicit inline OpSpec(const dali_proto::OpDef& def) {
+  DLL_PUBLIC explicit inline OpSpec(const dali_proto::OpDef& def) {
     name_ = def.name();
 
     // Extract all the arguments with correct types
@@ -91,12 +91,12 @@ class OpSpec {
   /**
    * @brief Getter for the name of the Operator.
    */
-  inline const string& name() const { return name_; }
+  DLL_PUBLIC inline const string& name() const { return name_; }
 
   /**
    * @brief Sets the name of the Operator.
    */
-  inline void set_name(const string &name) {
+  DLL_PUBLIC inline void set_name(const string &name) {
     name_ = name;
   }
 
@@ -104,7 +104,7 @@ class OpSpec {
    * @brief Add an argument with the given name and value.
    */
   template <typename T>
-  inline OpSpec& AddArg(const string &name, const T &val) {
+  DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
     Argument * arg = Argument::Store(name, val);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
@@ -116,7 +116,7 @@ class OpSpec {
   /**
    * @brief Add an instantiated argument with given name
    */
-  inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
+  DLL_PUBLIC inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
@@ -126,7 +126,7 @@ class OpSpec {
 
   // Forward to string implementation
   template <unsigned N>
-  inline OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
+  DLL_PUBLIC inline OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
     return this->AddArg<std::string>(name, c_str);
   }
 
@@ -139,7 +139,7 @@ class OpSpec {
    * which inputs are added to the OpSpec is the order in
    * which the Operator will receive them.
    */
-  OpSpec& AddInput(const string &name, const string &device, bool regular_input = true);
+  DLL_PUBLIC OpSpec& AddInput(const string &name, const string &device, bool regular_input = true);
 
   /**
    * @brief Specifies the argument input to the op.
@@ -147,7 +147,7 @@ class OpSpec {
    * per-iteration arguments. The input may be added only if
    * corresponding argument exists in the schema.
    */
-  OpSpec& AddArgumentInput(const string &arg_name, const string &inp_name);
+  DLL_PUBLIC OpSpec& AddArgumentInput(const string &arg_name, const string &inp_name);
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -158,41 +158,41 @@ class OpSpec {
    * which outputs are added to the OpSpec is the order in
    * which the Operator will receive them.
    */
-  OpSpec& AddOutput(const string &name, const string &device);
+  DLL_PUBLIC OpSpec& AddOutput(const string &name, const string &device);
 
-  inline int NumInput() const { return inputs_.size(); }
+  DLL_PUBLIC inline int NumInput() const { return inputs_.size(); }
 
-  inline int NumArgumentInput() const {
+  DLL_PUBLIC inline int NumArgumentInput() const {
     return argument_inputs_indexes_.size();
   }
 
-  inline int NumRegularInput() const {
+  DLL_PUBLIC inline int NumRegularInput() const {
     return NumInput() - NumArgumentInput();
   }
 
-  inline int NumOutput() const { return outputs_.size(); }
+  DLL_PUBLIC inline int NumOutput() const { return outputs_.size(); }
 
-  inline string Input(int idx) const {
+  DLL_PUBLIC inline string Input(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return TensorName(inputs_[idx].first, inputs_[idx].second);
   }
 
-  inline string InputName(int idx) const {
+  DLL_PUBLIC inline string InputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].first;
   }
 
-  inline string InputDevice(int idx) const {
+  DLL_PUBLIC inline string InputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].second;
   }
 
-  inline bool IsArgumentInput(int idx) const {
+  DLL_PUBLIC inline bool IsArgumentInput(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return argument_inputs_indexes_.find(idx) != argument_inputs_indexes_.end();
   }
 
-  inline std::string ArgumentInputName(int idx) const {
+  DLL_PUBLIC inline std::string ArgumentInputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     auto idx_ptr = argument_inputs_indexes_.find(idx);
     DALI_ENFORCE(idx_ptr != argument_inputs_indexes_.end(),
@@ -205,26 +205,26 @@ class OpSpec {
     DALI_FAIL("Internal error - found argument input index for non-existent argument input.");
   }
 
-  inline string Output(int idx) const {
+  DLL_PUBLIC inline string Output(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return TensorName(outputs_[idx].first, outputs_[idx].second);
   }
 
-  inline string OutputName(int idx) const {
+  DLL_PUBLIC inline string OutputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].first;
   }
 
-  inline string OutputDevice(int idx) const {
+  DLL_PUBLIC inline string OutputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].second;
   }
 
-  inline const std::unordered_map<string, Index>& ArgumentInputs() const {
+  DLL_PUBLIC inline const std::unordered_map<string, Index>& ArgumentInputs() const {
     return argument_inputs_;
   }
 
-  inline int OutputIdxForName(const string &name, const string &device) {
+  DLL_PUBLIC inline int OutputIdxForName(const string &name, const string &device) {
     auto it = output_name_idx_.find(std::make_pair(name, device));
     DALI_ENFORCE(it != output_name_idx_.end(), "Output with name '" +
         name + "' and device '" + device + "' does not exist.");
@@ -234,7 +234,7 @@ class OpSpec {
   /**
    * @brief Checks the spec to see if an argument has been specified
    */
-  bool HasArgument(const string &name) const {
+  DLL_PUBLIC bool HasArgument(const string &name) const {
     auto arg_it = arguments_.find(name);
     return arg_it != arguments_.end();
   }
@@ -242,7 +242,7 @@ class OpSpec {
   /**
    * @brief Checks the spec to see if a tensor argument has been specified
    */
-  bool HasTensorArgument(const std::string &name) const {
+  DLL_PUBLIC bool HasTensorArgument(const std::string &name) const {
     auto arg_it = argument_inputs_.find(name);
     return arg_it != argument_inputs_.end();
   }
@@ -251,7 +251,7 @@ class OpSpec {
   /**
    * @brief Lists all arguments specified in this spec.
    */
-  std::vector<std::string> ListArguments() const {
+  DLL_PUBLIC std::vector<std::string> ListArguments() const {
     std::vector<std::string> ret;
     for (auto &a : arguments_) {
       ret.push_back(a.first);
@@ -268,7 +268,7 @@ class OpSpec {
    * not exist.
    */
   template <typename T>
-  inline T GetArgument(const string &name,
+  DLL_PUBLIC inline T GetArgument(const string &name,
                        const ArgumentWorkspace *ws = nullptr,
                        Index idx = 0) const {
     return GetArgument<T, T>(name, ws, idx);
@@ -279,23 +279,23 @@ class OpSpec {
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  inline std::vector<T> GetRepeatedArgument(
+  DLL_PUBLIC inline std::vector<T> GetRepeatedArgument(
       const string &name, const ArgumentWorkspace *ws = nullptr, Index idx = 0) const {
     DALI_ENFORCE(idx == 0, "Tensor arguments cannot be used for vector values");
     return GetArgument<T, std::vector<T>>(name, ws, idx);
   }
 
-  inline StrPair* mutable_input(int idx) {
+  DLL_PUBLIC inline StrPair* mutable_input(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return &inputs_[idx];
   }
 
-  inline StrPair* mutable_output(int idx) {
+  DLL_PUBLIC inline StrPair* mutable_output(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return &outputs_[idx];
   }
 
-  string ToString() {
+  DLL_PUBLIC string ToString() {
     string ret;
     ret += "OpSpec for " + name() + ":\n  Inputs:\n";
     for (size_t i = 0; i < inputs_.size(); ++i) {
@@ -317,7 +317,7 @@ class OpSpec {
   /**
    * @brief Serialize spec to protobuf
    */
-  void SerializeToProtobuf(dali_proto::OpDef *op, const string& inst_name) const {
+  DLL_PUBLIC void SerializeToProtobuf(dali_proto::OpDef *op, const string& inst_name) const {
     op->set_name(name());
     op->set_inst_name(inst_name);
 

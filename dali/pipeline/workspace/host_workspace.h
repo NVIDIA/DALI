@@ -39,28 +39,28 @@ class SampleWorkspace;
  * HostWorkspace differs from BatchWorkspace in that the input data
  * in a mixed workspace is per-sample, and the outputs are contiguous.
  */
-class HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
+class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:
-  inline HostWorkspace() {}
-  inline ~HostWorkspace() = default;
+  DLL_PUBLIC inline HostWorkspace() {}
+  DLL_PUBLIC inline ~HostWorkspace() = default;
 
   /**
    * @brief Returns a sample workspace for the given sample
    * index and thread index
    */
-  void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
+  DLL_PUBLIC void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
 
   /**
    * @brief Returns the number of Tensors in the input set of
    * tensors at the given index.
    */
-  int NumInputAtIdx(int idx) const;
+  DLL_PUBLIC int NumInputAtIdx(int idx) const;
 
   /**
    * @brief Returns the number of Tensors in the output set of
    * tensors at the given index.
    */
-  int NumOutputAtIdx(int idx) const;
+  DLL_PUBLIC int NumOutputAtIdx(int idx) const;
 
   /**
    * @brief Returns the Tensor at index `data_idx` in the input
@@ -70,7 +70,7 @@ class HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
    * type of the tensor at the given index
    */
   template <typename Backend>
-  const Tensor<Backend>& Input(int idx, int data_idx) const;
+  DLL_PUBLIC const Tensor<Backend>& Input(int idx, int data_idx) const;
 
   /**
    * @brief Returns the Tensor at index `data_idx` in the output
@@ -80,7 +80,7 @@ class HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
    * type of the tensor at the given index
    */
   template <typename Backend>
-  Tensor<Backend>* Output(int idx, int data_idx);
+  DLL_PUBLIC Tensor<Backend>* Output(int idx, int data_idx);
 };
 
 }  // namespace dali
