@@ -36,7 +36,8 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC explicit inline OpSchema(const std::string &name)
     : name_(name),
-      allow_multiple_input_sets_(false) {
+      allow_multiple_input_sets_(false),
+      enforce_layout_(false) {
     // Fill internal arguments
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
         Value::construct(-1));
@@ -146,6 +147,12 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  DLL_PUBLIC inline OpSchema& EnforceInputLayout(DALITensorLayout layout) {
+    layout_ = layout;
+    enforce_layout_ = true;
+    return *this;
+  }
+
   /**
    * @brief Adds an optional non-vector argument to op
    */
@@ -226,6 +233,14 @@ class DLL_PUBLIC OpSchema {
     return allow_multiple_input_sets_;
   }
 
+  DLL_PUBLIC inline bool EnforceInputLayout() const {
+    return enforce_layout_;
+  }
+
+  DLL_PUBLIC inline DALITensorLayout InputLayout() const {
+    return layout_;
+  }
+
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
@@ -288,6 +303,9 @@ class DLL_PUBLIC OpSchema {
 
   bool allow_multiple_input_sets_;
   vector<string> parents_;
+
+  bool enforce_layout_;
+  DALITensorLayout layout_;
 
   std::map<std::string, std::string> arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
