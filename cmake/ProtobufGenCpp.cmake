@@ -25,7 +25,7 @@ function(DALI_PROTOBUF_GENERATE_CPP SRCS HDRS)
   if(NOT DEFINED DALI_PROTOBUF_GENERATE_CPP_APPEND_PATH)
     set(DALI_PROTOBUF_GENERATE_CPP_APPEND_PATH TRUE)
   endif()
-  
+
   cmake_parse_arguments(dali_protobuf "" "EXPORT_MACRO" "" ${ARGN})
 
   set(PROTO_FILES "${dali_protobuf_UNPARSED_ARGUMENTS}")
@@ -84,9 +84,9 @@ function(DALI_PROTOBUF_GENERATE_CPP SRCS HDRS)
     add_custom_command(
       OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.pb.cc"
              "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.pb.h"
-      COMMAND  ${Protobuf_PROTOC_EXECUTABLE}
+      COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE}
       ARGS "--cpp_out=${DLL_EXPORT_DECL}${CMAKE_CURRENT_BINARY_DIR}" ${_protobuf_include_path} ${ABS_FIL}
-      DEPENDS ${ABS_FIL} ${Protobuf_PROTOC_EXECUTABLE}
+      DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
       COMMENT "Running C++ protocol buffer compiler on ${FIL}"
       VERBATIM )
   endforeach()
