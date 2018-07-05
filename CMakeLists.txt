@@ -23,6 +23,8 @@ option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
 option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
+option(BUILD_JPEG_TURBO "Build with JpegTurbo" ON)
+option(BUILD_NVJPEG "Build with NvJpeg" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)
@@ -52,6 +54,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Dependencies
 include(cmake/Dependencies.cmake)
+include(cmake/ProtobufGenCpp.cmake)
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
@@ -62,9 +65,12 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
   -gencode arch=compute_50,code=sm_50 \
   -gencode arch=compute_52,code=sm_52 \
   -gencode arch=compute_60,code=sm_60 \
-  -gencode arch=compute_61,code=sm_61 \
-  -gencode arch=compute_70,code=sm_70 \
-  -gencode arch=compute_70,code=compute_70")
+  -gencode arch=compute_61,code=sm_61 ")
+if (${CUDA_VERSION_MAJOR} GREATER 8)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
+      -gencode arch=compute_70,code=sm_70 \
+      -gencode arch=compute_70,code=compute_70")
+endif()
 
 # Project dir
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})

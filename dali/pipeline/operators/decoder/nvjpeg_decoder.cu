@@ -33,3 +33,4 @@ DALI_SCHEMA(nvJPEGDecoder)
       Use nvJPEG's batched decoding API.)code", false);
 
 }  // namespace dali
+

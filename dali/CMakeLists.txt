@@ -42,6 +42,11 @@ if (BUILD_PROTO3)
 endif()
 
 set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
+if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
+  # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
+  # So this is a workaround to append PRIVATE in front of it 
+  set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
+endif()
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
 # Define symbol version script for libdali.so

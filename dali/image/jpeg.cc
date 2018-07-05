@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "dali/image/jpeg.h"
-
+#ifdef DALI_USE_JPEG_TURBO
 #include <turbojpeg.h>
-
+#endif  // DALI_USE_JPEG_TURBO
 #include "dali/util/ocv.h"
 
 namespace dali {
@@ -27,6 +27,7 @@ namespace {
     DALI_ASSERT(!error, tjGetErrorStr());         \
   } while (0)
 
+#ifdef DALI_USE_JPEG_TURBO
 void PrintSubsampling(int sampling) {
   switch (sampling) {
   case TJSAMP_444:
@@ -51,6 +52,7 @@ void PrintSubsampling(int sampling) {
     cout << "unknown sampling ratio" << endl;
   }
 }
+#endif  // DALI_USE_JPEG_TURBO
 
 // Slightly modified from  https://github.com/apache/incubator-mxnet/blob/master/plugin/opencv/cv_api.cc
 // http://www.64lines.com/jpeg-width-height
@@ -107,17 +109,6 @@ DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w) {
 
 DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     DALIImageType type, Tensor<CPUBackend>* image) {
-  tjhandle handle = tjInitDecompress();
-  TJPF pixel_format;
-  if (type == DALI_RGB) {
-    pixel_format = TJPF_RGB;
-  } else if (type == DALI_BGR) {
-    pixel_format = TJPF_BGR;
-  } else if (type == DALI_GRAY) {
-    pixel_format = TJPF_GRAY;
-  } else {
-    DALI_RETURN_ERROR("Unsupported image type.");
-  }
   int h, w;
   int c = (type == DALI_GRAY) ? 1 : 3;
 
@@ -137,27 +128,49 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   // force allocation
   image->mutable_data<uint8_t>();
 
+#ifdef DALI_USE_JPEG_TURBO
+  // with tJPG
+  tjhandle handle = tjInitDecompress();
+  TJPF pixel_format;
+  if (type == DALI_RGB) {
+    pixel_format = TJPF_RGB;
+  } else if (type == DALI_BGR) {
+    pixel_format = TJPF_BGR;
+  } else if (type == DALI_GRAY) {
+    pixel_format = TJPF_GRAY;
+  } else {
+    DALI_RETURN_ERROR("Unsupported image type.");
+  }
+
   auto error = tjDecompress2(handle, jpeg, size,
                image->mutable_data<uint8_t>(),
                w, 0, h, pixel_format, 0);
 
-  // fallback to opencv if tJPG decode fails
+  tjDestroy(handle);
+
+#else  // DALI_USE_JPEG_TURBO
+  // without tJPG
+  const int error = 1;  // since tJPG is absent
+
+#endif  // DALI_USE_JPEG_TURBO
+
+  // fallback to opencv if tJPG decode fails or absent
   if (error) {
     cv::Mat dst(h, w, (c == 1) ? CV_8UC1: CV_8UC3,
                 image->raw_mutable_data());
 
-    cv::imdecode(
+    cv::Mat ret = cv::imdecode(
         CreateMatFromPtr(1, size, CV_8UC1, reinterpret_cast<const char*>(jpeg)),
         (c == 1) ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR,
         &dst);
+    if (ret.empty())  // Empty Mat is returned on decoding failure
+        DALI_RETURN_ERROR("OpenCV decoding fail.");
 
     // if RGB needed, permute from BGR
     if (type == DALI_RGB) {
       cv::cvtColor(dst, dst, cv::COLOR_BGR2RGB);
     }
   }
-
-  tjDestroy(handle);
 
   return DALISuccess;
 }

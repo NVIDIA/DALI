@@ -24,7 +24,7 @@ namespace dali {
 int OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type);
 
 template <typename T>
-cv::Mat CreateMatFromPtr(int H,
+inline cv::Mat CreateMatFromPtr(int H,
                          int W,
                          int type,
                          const T * ptr,
