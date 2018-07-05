@@ -32,7 +32,7 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *in_batch,
   for (int c = 0; c < C; ++c) {
     for (int h = threadIdx.y; h < H; h += blockDim.y) {
       for (int w = threadIdx.x; w < W; w += blockDim.x) {
-        out[c*H*W + h*W + w] = static_cast<OUT>(
+        out[c*H*W + h*W + w] = StaticCastGpu<OUT>(
             (static_cast<float>(in[h*W*C + w*C + c]) - mean[c]) * inv_std[c]);
       }
     }

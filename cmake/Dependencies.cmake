@@ -1,18 +1,32 @@
 # Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 # For CUDA
 find_package(CUDA REQUIRED)
+if (${CUDA_VERSION_MAJOR} LESS 8)
+  message(FATAL "DALI needs at least CUDA 8.0")
+endif()
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # For NVJPEG
-find_package(NVJPEG REQUIRED)
-include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
-list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+if (BUILD_NVJPEG)
+  find_package(NVJPEG REQUIRED)
+  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
+  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+  add_definitions(-DDALI_USE_NVJPEG)
+endif()
 
 # For NPP
 find_cuda_helper_libs(nppc_static)
+if (${CUDA_VERSION_MAJOR} EQUAL 8)
+# In CUDA 8 Nppi is a single library
+find_cuda_helper_libs(nppi_static)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY}
+                      ${CUDA_nppi_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a
+                          libnppi_static.a)
+else()
 find_cuda_helper_libs(nppicom_static)
 find_cuda_helper_libs(nppicc_static)
 find_cuda_helper_libs(nppig_static)
@@ -24,6 +38,7 @@ list(APPEND DALI_EXCLUDES libnppc_static.a
                           libnppicom_static.a
                           libnppicc_static.a
                           libnppig_static.a)
+endif()
 
 # CULIBOS needed when using static CUDA libs
 find_cuda_helper_libs(culibos)
@@ -53,10 +68,13 @@ if (BUILD_BENCHMARK)
 endif()
 
 # LibJpegTurbo
-find_package(JpegTurbo REQUIRED)
-include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
-list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
-list(APPEND DALI_EXCLUDES libturbojpeg.a)
+if (BUILD_JPEG_TURBO)
+  find_package(JpegTurbo REQUIRED)
+  include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
+  list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
+  list(APPEND DALI_EXCLUDES libturbojpeg.a)
+  add_definitions(-DDALI_USE_JPEG_TURBO)
+endif()
 
 # OpenCV
 # Note: OpenCV 3.* 'imdecode()' is in the imgcodecs library
@@ -66,6 +84,9 @@ if (OpenCV_FOUND)
   if ("${OCV_VERSION}" STREQUAL "3")
     # Get the imgcodecs library
     find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+  else()
+    # For opencv 2.x, image encode/decode functions are in highgui
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui)
   endif()
 
   # Check for opencv
