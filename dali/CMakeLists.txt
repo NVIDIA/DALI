@@ -124,7 +124,7 @@ if (BUILD_TENSORFLOW)
 
   cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
 
-  separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${DIST_PACKAGES_DIR}/tensorflow/include -D_GLIBCXX_USE_CXX11_ABI=0")
+  separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${DIST_PACKAGES_DIR}/tensorflow/include -I${DIST_PACKAGES_DIR}/external/nsync/public -D_GLIBCXX_USE_CXX11_ABI=0")
   target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
 
   message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
