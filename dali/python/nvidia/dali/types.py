@@ -40,10 +40,10 @@ _known_types = {
         DALIDataType.FLOAT : ("float", float),
         DALIDataType.BOOL : ("bool", bool),
         DALIDataType.STRING : ("str", _to_string),
-        DALIDataType.BOOL_VEC : ("bool or list of bool", _to_list(bool)),
-        DALIDataType.INT32_VEC : ("int or list of int",_to_list(int)),
-        DALIDataType.STRING_VEC : ("str or list of str", _to_list(_to_string)),
-        DALIDataType.FLOAT_VEC : ("float or list of float", _to_list(float)),
+        DALIDataType._BOOL_VEC : ("bool or list of bool", _to_list(bool)),
+        DALIDataType._INT32_VEC : ("int or list of int",_to_list(int)),
+        DALIDataType._STRING_VEC : ("str or list of str", _to_list(_to_string)),
+        DALIDataType._FLOAT_VEC : ("float or list of float", _to_list(float)),
         DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
@@ -51,7 +51,7 @@ _known_types = {
         }
 if _tfrecord_support:
     _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)
-    _known_types[DALIDataType.FEATURE_VEC] = ("nvidia.dali.tfrecord.Feature or " \
+    _known_types[DALIDataType._FEATURE_VEC] = ("nvidia.dali.tfrecord.Feature or " \
                                             "list of nvidia.dali.tfrecord.Feature",
                                             _to_list(tfrec.Feature))
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",

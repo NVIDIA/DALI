@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <functional>
 #include <mutex>
@@ -196,8 +197,7 @@ class DLL_PUBLIC TypeTable {
   template <typename T>
   DLL_PUBLIC static typename std::enable_if<
     !is_vector<T>::value &&
-    !is_array<T>::value &&
-    !is_tensor_reference<T>::value,
+    !is_array<T>::value,
     string>::type GetTypeName() {
     return typeid(T).name();
   }
@@ -207,13 +207,6 @@ class DLL_PUBLIC TypeTable {
     is_vector<T>::value || is_array<T>::value,
     string>::type GetTypeName() {
     return "list of " + GetTypeName<typename T::value_type>();
-  }
-
-  template <typename T>
-  DLL_PUBLIC static typename std::enable_if<
-    is_tensor_reference<T>::value,
-    string>::type GetTypeName() {
-    return "tensor of " + GetTypeName<typename T::value_type>();
   }
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {

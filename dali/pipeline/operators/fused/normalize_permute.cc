@@ -66,9 +66,11 @@ DALI_SCHEMA(NormalizePermute)
   .DocStr(R"code(Perform fused normalization, format conversion from NHWC to NCHW
 and type casting.
 Normalization takes input image and produces output using formula
-```
+
+..
+
 output = (input - mean) / std
-```)code")
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()

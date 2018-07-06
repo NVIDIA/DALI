@@ -141,7 +141,10 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Adds a required argument to op with its type
    */
-  DLL_PUBLIC inline OpSchema& AddArg(const std::string &s, const std::string &doc, const DALIDataType dtype, bool enable_tensor_input = false) {
+  DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
+                                     const std::string &doc,
+                                     const DALIDataType dtype,
+                                     bool enable_tensor_input = false) {
     CheckArgument(s);
     arguments_[s] = std::make_pair(doc, dtype);
     if (enable_tensor_input) {
@@ -163,7 +166,8 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline typename std::enable_if<
     !is_vector<T>::value && !is_array<T>::value,
     OpSchema&>::type
-  AddOptionalArg(const std::string &s, const std::string &doc, T default_value, bool enable_tensor_input = false) {
+  AddOptionalArg(const std::string &s, const std::string &doc,
+                 T default_value, bool enable_tensor_input = false) {
     CheckArgument(s);
     Value * to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(doc, to_store);

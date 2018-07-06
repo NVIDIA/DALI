@@ -30,9 +30,11 @@ DALI_SCHEMA(Brightness)
     .AddOptionalArg("brightness",
         R"code(Brightness change factor.
 Values >= 0 are accepted. For example:
-  `0` - black image,
-  `1` - no change
-  `2` - increase brightness twice)code", 1.f, true)
+
+* `0` - black image,
+* `1` - no change
+* `2` - increase brightness twice
+)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Contrast)
@@ -42,9 +44,11 @@ DALI_SCHEMA(Contrast)
     .AddOptionalArg("contrast",
         R"code(Contrast change factor.
 Values >= 0 are accepted. For example:
-  `0` - gray image,
-  `1` - no change
-  `2` - increase contrast twice)code", 1.f, true)
+
+* `0` - gray image,
+* `1` - no change
+* `2` - increase contrast twice
+)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -62,8 +66,10 @@ DALI_SCHEMA(Saturation)
     .AddOptionalArg("saturation",
         R"code(Saturation change factor.
 Values >= 0 are supported. For example:
-  `0` - completely desaturated image
-  `1` - no change to image's saturation)code", 1.f, true)
+
+* `0` - completely desaturated image
+* `1` - no change to image's saturation
+)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 }  // namespace dali

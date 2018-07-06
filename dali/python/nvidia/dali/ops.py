@@ -24,6 +24,7 @@ from future.utils import with_metaclass
 def _docstring_generator(cls):
     schema = b.GetSchema(cls.__name__)
     ret = schema.Dox()
+    ret += '\n'
     ret += """
 Parameters
 ----------

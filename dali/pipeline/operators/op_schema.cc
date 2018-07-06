@@ -67,20 +67,11 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
 }
 
 string OpSchema::Dox() const {
-  std::string ret = dox_;
-  //ret += "\n\nParameters\n----------\n";
-  //for (auto arg_pair : GetRequiredArguments()) {
-    //ret += "`" + arg_pair.first + "` : " +
-      //arg_pair.second.first + "\n";
-  //}
-  //for (auto arg_pair : GetOptionalArguments()) {
-    //ret += "`" + arg_pair.first + "` : " +
-      //arg_pair.second.first + "\n";
-  //}
-  return ret;
+  return dox_;
 }
 
-std::map<std::string, std::pair<std::string, DALIDataType> > OpSchema::GetRequiredArguments() const {
+std::map<std::string, std::pair<std::string, DALIDataType> >
+OpSchema::GetRequiredArguments() const {
   auto ret = arguments_;
   for (const auto &parent_name : parents_) {
     const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
@@ -101,7 +92,8 @@ std::map<std::string, std::pair<std::string, Value*>> OpSchema::GetOptionalArgum
 }
 
 std::string OpSchema::GetArgumentDox(const std::string &name) const {
-  DALI_ENFORCE(HasArgument(name), "Argument \"" + name + "\" is not supported by operator \"" + this->name() + "\".");
+  DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
+      "\" is not supported by operator \"" + this->name() + "\".");
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).first;
   } else {
@@ -111,7 +103,8 @@ std::string OpSchema::GetArgumentDox(const std::string &name) const {
 }
 
 DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
-  DALI_ENFORCE(HasArgument(name), "Argument \"" + name + "\" is not supported by operator \"" + this->name() + "\".");
+  DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
+      "\" is not supported by operator \"" + this->name() + "\".");
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).second;
   } else {

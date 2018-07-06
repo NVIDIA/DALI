@@ -29,6 +29,16 @@ def _wait_to_write(arr):
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
 def feed_ndarray(dali_tensor, arr):
+    """
+    Copy contents of DALI tensor to MXNet's NDArray.
+
+    Parameters
+    ----------
+    `dali_tensor` : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
+                    Tensor from which to copy
+    `arr` : mxnet.nd.NDArray
+            Destination of the copy
+    """
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
     assert dali_tensor.shape() == list(arr.shape), \
@@ -41,10 +51,32 @@ def feed_ndarray(dali_tensor, arr):
     dali_tensor.copy_to_external(ptr)
 
 class DALIGenericIterator(object):
+    """
+    General DALI iterator for MXNet. It can return any number of
+    outputs from the DALI pipeline in the form of MXNet's DataBatch
+    of NDArrays.
+
+    Parameters
+    ----------
+    pipelines : list of nvidia.dali.pipeline.Pipeline
+                List of pipelines to use
+    output_map : list of str
+                 List of strings (either "data" or "label") which maps
+                 the output of DALI pipeline to proper field in MXNet's
+                 DataBatch
+    size : int
+           Epoch size.
+    data_name : str, optional, default = 'data'
+                Data name for provided symbols.
+    label_name : str, optional, default = 'softmax_label'
+                 Label name for provided symbols.
+    data_layout : str, optional, default = 'NCHW'
+                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs
+    """
     def __init__(self,
                  pipelines,
                  output_map,
-                 size = -1,
+                 size,
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW'):
@@ -128,21 +160,62 @@ class DALIGenericIterator(object):
         self._counter += self._num_gpus * self.batch_size
         return [db[copy_db_index] for db in self._data_batches]
 
-    next = __next__
+    def next(self):
+        """
+        Returns the next batch of data.
+        """
+        return self.__next__();
 
     def __iter__(self):
         return self
 
     def reset(self):
+        """
+        Resets the iterator after the full epoch.
+        DALI iterators do not support resetting before the end of the epoch
+        and will ignore such request.
+        """
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
 class DALIClassificationIterator(DALIGenericIterator):
+    """
+    DALI iterator for classification tasks for MXNet. It returns 2 outputs
+    (data and label) in the form of MXNet's DataBatch of NDArrays.
+
+    Calling
+
+    .. code-block:: python
+
+       DALIClassificationIterator(pipelines, size, data_name,
+                                  label_name, data_layout)
+
+    is equivalent to calling
+
+    .. code-block:: python
+
+       DALIGenericIterator(pipelines, ["data", "label"],
+                           size, data_name, label_name,
+                           data_layout)
+
+    Parameters
+    ----------
+    pipelines : list of nvidia.dali.pipeline.Pipeline
+                List of pipelines to use
+    size : int
+           Epoch size.
+    data_name : str, optional, default = 'data'
+                Data name for provided symbols.
+    label_name : str, optional, default = 'softmax_label'
+                 Label name for provided symbols.
+    data_layout : str, optional, default = 'NCHW'
+                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs
+    """
     def __init__(self,
                  pipelines,
-                 size = -1,
+                 size,
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW'):

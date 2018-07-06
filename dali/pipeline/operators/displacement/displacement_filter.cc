@@ -21,8 +21,10 @@ DALI_SCHEMA(DisplacementFilter)
   .DocStr("Base schema for displacement operators.")
   .AddOptionalArg("mask",
       R"code(Whether to apply this augmentation to the input image.
-  0 - do not apply this transformation
-  1 - apply this transformation)code", 1, true)
+
+* 0 - do not apply this transformation
+* 1 - apply this transformation
+)code", 1, true)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_NN)
