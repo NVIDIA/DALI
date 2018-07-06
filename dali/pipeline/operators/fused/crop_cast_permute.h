@@ -32,6 +32,7 @@ class CropCastPermute : public Operator<Backend> {
   explicit inline CropCastPermute(const OpSpec &spec) :
     Operator<Backend>(spec),
     output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+    output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
     image_type_(spec.GetArgument<DALIImageType>("image_type")),
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {

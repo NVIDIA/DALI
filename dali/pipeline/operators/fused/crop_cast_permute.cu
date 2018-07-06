@@ -200,6 +200,9 @@ void CropCastPermute<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const 
     input_strides_.template mutable_data<int>()[i] = W*C_;
     crop_offsets_[i] = crop_y * C * W + crop_x * C;
 
+    if (output_layout_ == DALI_SAME) {
+      output_layout_ = input.GetLayout();
+    }
     if (output_layout_ == DALI_NCHW) {
       output_shape[i] = {C, crop_h_, crop_w_};
     } else {
@@ -222,6 +225,16 @@ void CropCastPermute<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const 
     ValidateHelper<float>(output);
   } else if (output_type_ == DALI_FLOAT16) {
     ValidateHelper<float16>(output);
+  } else if (output_type_ == DALI_UINT8) {
+    ValidateHelper<unsigned char>(output);
+  } else if (output_type_ == DALI_UINT32)  {
+    ValidateHelper<unsigned int>(output);
+  } else if (output_type_ == DALI_INT16) {
+    ValidateHelper<int16>(output);
+  } else if (output_type_ == DALI_INT32) {
+    ValidateHelper<int>(output);
+  } else if (output_type_ == DALI_INT64) {
+    ValidateHelper<int64>(output);
   } else {
     DALI_FAIL("Unsupported output type.");
   }
@@ -235,6 +248,16 @@ void CropCastPermute<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     RunHelper<float>(ws, idx);
   } else if (output_type_ == DALI_FLOAT16) {
     RunHelper<float16>(ws, idx);
+  } else if (output_type_ == DALI_UINT8) {
+    RunHelper<unsigned char>(ws, idx);
+  } else if (output_type_ == DALI_UINT32)  {
+    RunHelper<unsigned int>(ws, idx);
+  } else if (output_type_ == DALI_INT16) {
+    RunHelper<int16>(ws, idx);
+  } else if (output_type_ == DALI_INT32) {
+    RunHelper<int>(ws, idx);
+  } else if (output_type_ == DALI_INT64) {
+    RunHelper<int64>(ws, idx);
   } else {
     DALI_FAIL("Unsupported output type.");
   }

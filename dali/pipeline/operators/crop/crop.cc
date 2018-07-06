@@ -35,6 +35,7 @@ DALI_SCHEMA(Crop)
   .AddArg("sizes",
       R"code(`int` or `list of int`
       Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code");
+      the resulting crop will be square with size `(c,c)`)code")
+  .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali
