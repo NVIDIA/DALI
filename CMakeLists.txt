@@ -40,6 +40,14 @@ if (NOT CMAKE_BUILD_TYPE)
     "Build type from [Debug, Release]. For perf testing, build Release" FORCE)
 endif()
 
+# Cmake path
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
+
+# Dependencies
+include(cmake/Dependencies.cmake)
+include(cmake/ProtobufGenCpp.cmake)
+
+# add more flags after they are populated by find_package from Dependencies.cmake
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   message(STATUS "Building in DEBUG mode")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
@@ -48,13 +56,6 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDALI_DEBUG=0")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
 endif()
-
-# Cmake path
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
-
-# Dependencies
-include(cmake/Dependencies.cmake)
-include(cmake/ProtobufGenCpp.cmake)
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
