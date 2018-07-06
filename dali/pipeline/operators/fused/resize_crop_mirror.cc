@@ -42,7 +42,8 @@ DALI_SCHEMA(ResizeCropMirror)
   .AddOptionalArg("crop_pos_y",
       "Vertical position of the crop in image coordinates (0.0 - 1.0)",
       0.5f)
-  .AddOptionalArg("mirror", "Mask for horizontal flip", 0);
+  .AddOptionalArg("mirror", "Mask for horizontal flip", 0)
+  .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
@@ -71,6 +72,7 @@ DALI_SCHEMA(FastResizeCropMirror)
   .AddOptionalArg("crop_pos_y",
       "Vertical position of the crop in image coordinates (0.0 - 1.0)",
       0.5f)
-  .AddOptionalArg("mirror", "Mask for horizontal flip", 0);
+  .AddOptionalArg("mirror", "Mask for horizontal flip", 0)
+  .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

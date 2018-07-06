@@ -45,7 +45,8 @@ DALI_SCHEMA(RandomResizedCrop)
       Size of resized image)code")
   .AddOptionalArg("num_attempts",
       R"code(`int`
-      Maximum number of attempts used to choose random area and aspect ratio)code", 10);
+      Maximum number of attempts used to choose random area and aspect ratio)code", 10)
+  .EnforceInputLayout(DALI_NHWC);
 
 template<>
 struct RandomResizedCrop<CPUBackend>::Params {
