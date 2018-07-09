@@ -16,6 +16,7 @@
 
 namespace dali {
 
+template <>
 const Tensor<CPUBackend>& SupportWorkspace::Input(int idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
   auto tensor_meta = input_index_map_[idx];
@@ -24,6 +25,7 @@ const Tensor<CPUBackend>& SupportWorkspace::Input(int idx) const {
   return *cpu_inputs_[tensor_meta.second];
 }
 
+template <>
 Tensor<CPUBackend>* SupportWorkspace::Output(int idx) {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];

@@ -33,6 +33,7 @@ namespace dali {
 
     // Output is CHW
     output->Resize({C_, H_, W_});
+    output->SetLayout(DALI_NCHW);
     if (output_type_ == DALI_FLOAT) {
       CPURunHelper<float>(input, output);
     } else {
@@ -88,6 +89,7 @@ DALI_SCHEMA(NormalizePermute)
       Mean pixel values for image normalization)code")
   .AddArg("std",
       R"code(`list of float`
-      Standard deviation values for image normalization)code");
+      Standard deviation values for image normalization)code")
+  .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

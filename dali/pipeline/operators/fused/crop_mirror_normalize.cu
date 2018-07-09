@@ -282,6 +282,9 @@ void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, co
   // Resize the output data
   output->Resize(output_shape);
 
+  // Set the layout of the output data
+  output->SetLayout(output_layout_);
+
   // Copy strides to gpu
   input_strides_gpu_.Copy(input_strides_, ws->stream());
 

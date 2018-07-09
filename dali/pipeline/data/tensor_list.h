@@ -40,7 +40,7 @@ typedef vector<Index> Dims;
 template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
-  DLL_PUBLIC TensorList() {}
+  DLL_PUBLIC TensorList() : layout_(DALI_NHWC) {}
   DLL_PUBLIC ~TensorList() = default;
 
   /**
@@ -273,12 +273,21 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
+  inline DALITensorLayout GetLayout() const {
+    return layout_;
+  }
+
+  inline void SetLayout(DALITensorLayout layout) {
+    layout_ = layout;
+  }
+
  protected:
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access
   vector<Dims> shape_;
   vector<Index> offsets_;
+  DALITensorLayout layout_;
 
   USE_BUFFER_MEMBERS();
 };

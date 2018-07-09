@@ -35,7 +35,7 @@ namespace dali {
 template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
-  inline Tensor() {}
+  inline Tensor() : layout_(DALI_NHWC) {}
   inline ~Tensor() = default;
 
   /**
@@ -116,8 +116,8 @@ class Tensor : public Buffer<Backend> {
 
   /**
    * @brief Wraps the data owned by the input tensor. The input
-   * tensor must have a valid type. If sucessful, the tensor 
-   * object will wrap the target data and assume the datatype 
+   * tensor must have a valid type. If sucessful, the tensor
+   * object will wrap the target data and assume the datatype
    * and shape of the data stored in the Tensor.
    *
    * If the input does not store any data, shares_data_ is left
@@ -292,8 +292,17 @@ class Tensor : public Buffer<Backend> {
     return *this;
   }
 
+  inline DALITensorLayout GetLayout() const {
+    return layout_;
+  }
+
+  inline void SetLayout(DALITensorLayout layout) {
+    layout_ = layout;
+  }
+
  protected:
   vector<Index> shape_;
+  DALITensorLayout layout_;
 
   USE_BUFFER_MEMBERS();
 };

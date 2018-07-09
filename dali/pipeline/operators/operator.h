@@ -38,6 +38,37 @@ enum DALIOpType {
   DALI_SUPPORT = 3
 };
 
+template <typename InputType>
+inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
+  auto schema = SchemaRegistry::GetSchema(spec.name());
+  if (schema.EnforceInputLayout()) {
+    DALI_ENFORCE(input.GetLayout() == schema.InputLayout());
+  }
+}
+
+template <typename Workspace>
+inline void CheckInputLayouts(const Workspace *ws, const OpSpec &spec) {
+  for (int i = 0; i < spec.NumRegularInput(); ++i) {
+    auto& input = ws->template Input<CPUBackend>(i);
+    CheckInputLayout(input, spec);
+  }
+}
+
+template <>
+inline void CheckInputLayouts(const DeviceWorkspace *ws, const OpSpec &spec) {
+  for (int i = 0; i < spec.NumRegularInput(); ++i) {
+    if (ws->InputIsType<CPUBackend>(i)) {
+      auto& input = ws->Input<CPUBackend>(i);
+      CheckInputLayout(input, spec);
+    } else if (ws->InputIsType<GPUBackend>(i)) {
+      auto& input = ws->Input<GPUBackend>(i);
+      CheckInputLayout(input, spec);
+    } else {
+      DALI_FAIL("Input has an unkown backend");
+    }
+  }
+}
+
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline.
  *
@@ -141,6 +172,7 @@ class Operator : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
+    CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
 
     for (int i = 0; i < input_sets_; ++i) {
