@@ -35,7 +35,6 @@ COPY Doxyfile    /opt/dali/
 COPY LICENSE     /opt/dali/
 COPY README.md   /opt/dali/
 COPY docs/       /opt/dali/docs/
-COPY examples/   /opt/dali/examples/
 COPY dali/       /opt/dali/dali/
 COPY tools/      /opt/dali/tools/
 
