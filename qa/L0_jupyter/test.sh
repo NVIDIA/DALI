@@ -14,7 +14,7 @@ apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER
 # attempt to run jupyter on all example notebooks
 mkdir -p idx_files
 
-cd examples
+cd docs/examples
 count=$($topdir/qa/setup_packages.py -n -u $pip_packages)
 
 for i in `seq 0 $count`;

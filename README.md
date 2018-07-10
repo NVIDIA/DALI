@@ -104,7 +104,7 @@ pip install dali/python
 
 # Getting started
 
-[`examples`](examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
+[`docs/examples`](docs/examples) directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
 
 # Contributing to DALI
 
