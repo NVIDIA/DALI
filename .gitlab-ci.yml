@@ -22,6 +22,7 @@ stages:
     - build devel
     - trigger
     - test
+    - build docs
 
 before_script:
     - export PYVER=$(echo "${CI_JOB_NAME}" | grep -Eqv "(^|-)py[23]" && echo "" ||
@@ -38,6 +39,7 @@ before_script:
     - export BUILD_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-build"                       && echo "${BUILD_IMAGE_NAME_VERSIONED}"
     - export DEVEL_IMAGE_NAME="${BASE_IMAGE_NAME%%-base}-devel"                                    && echo "${DEVEL_IMAGE_NAME}"
     - export DEVEL_IMAGE_NAME_VERSIONED="${BASE_IMAGE_NAME_VERSIONED}-devel"                       && echo "${DEVEL_IMAGE_NAME_VERSIONED}"
+    - export DOCS_IMAGE_NAME="${BASE_IMAGE_NAME_VERSIONED}-docs"                                   && echo "${DOCS_IMAGE_NAME}"
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
     - export ORIGIN_SSH=git@${ORIGIN1/\//:}                                                        && echo "${ORIGIN_SSH}"
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
@@ -50,7 +52,7 @@ dali_deps:
       GET_SOURCES_ATTEMPTS: 3
     script:
     # build the manylinux1 deps image
-    - docker pull "${DEPS_IMAGE_NAME}" || 
+    - docker pull "${DEPS_IMAGE_NAME}" ||
       docker pull "${CI_REGISTRY_IMAGE}:master-deps" || true
     - docker build --pull
                    --cache-from "${DEPS_IMAGE_NAME}"
@@ -197,6 +199,41 @@ py35-dali:
 
 #py37-dali:
 #  <<: *DEVEL
+
+.docs_template: &DOCS_BUILD
+    stage: build docs
+    variables:
+      GIT_STRATEGY: fetch
+      GIT_SUBMODULE_STRATEGY: recursive
+      GET_SOURCES_ATTEMPTS: 3
+    script:
+    - export CI_PROJECT_NAME=dali
+    - export CONTAINER_NAME="${CI_PROJECT_NAME}.${CI_JOB_ID}.${CI_JOB_NAME}"
+    - docker pull "$BASE_IMAGE_NAME}" || true
+    - docker build -t ${DOCS_IMAGE_NAME}
+                   --build-arg "BASE_IMAGE_NAME=${BASE_IMAGE_NAME_VERSIONED}"
+                   -f Dockerfile.docs .
+    - docker run $(eval ${NV_DOCKER_ARGS})
+             --name "${CONTAINER_NAME}"
+             -v $DATADIR:/data
+             $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
+             $(eval echo ${DOCS_IMAGE_NAME})
+             /bin/bash -c "make html" || RV=$?;
+    - docker cp "${CONTAINER_NAME}:/opt/dali/docs/_build/html/" "html/"
+    - docker rm -f ${CONTAINER_NAME}
+    - docker rmi ${DOCS_IMAGE_NAME}
+    artifacts:
+      name: "${CI_JOB_NAME}"
+      paths:
+      - html/
+      expire_in: 1 month
+    except:
+    - tags
+    tags:
+    - 1GPU
+
+py35-docs:
+   <<: *DOCS_BUILD
 
 .test_template: &TEST_TEMPLATE
     environment: "${CI_JOB_NAME}"
