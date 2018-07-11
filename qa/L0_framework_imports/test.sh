@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision"
+pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch"
 
 topdir=$(pwd)/../..
 # Install dependencies
@@ -17,8 +17,6 @@ case $PYV in
     PYVER_TAG=cp${PYV}-cp${PYV}m
     ;;
 esac
-
-pip install http://download.pytorch.org/whl/cu90/torch-0.4.0-${PYVER_TAG}-linux_x86_64.whl
 
 count=$($topdir/qa/setup_packages.py -n -u $pip_packages)
 
