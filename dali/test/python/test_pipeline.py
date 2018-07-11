@@ -16,7 +16,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
-import numpy as np
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
@@ -407,3 +406,68 @@ def test_type_conversion():
         arg1_cpu = pipe_out[3].asCPU().as_tensor()
         assert_array_equal(orig_cpu, int_cpu)
         assert_array_equal(orig_cpu, arg1_cpu)
+
+def test_crop():
+    class CMNPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(CMNPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.cmn = ops.CropMirrorNormalize(device = "gpu",
+                                                output_layout = types.NHWC,
+                                                output_dtype = types.FLOAT,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [0., 0., 0.],
+                                                std = [1., 1., 1.])
+            self.uniform = ops.Uniform(range = (0.0, 1.0))
+            self.cast = ops.Cast(device = "gpu",
+                                 dtype = types.INT32)
+
+        def define_graph(self):
+            inputs, labels = self.input()
+            images = self.decode(inputs)
+            output = self.cmn(images, crop_pos_x = self.uniform(),
+                              crop_pos_y = self.uniform())
+            output = self.cast(output)
+            return (output, labels.gpu())
+
+    class CropPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(CropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.crop = ops.Crop(device = "gpu",
+                                 sizes = (224, 224),
+                                 image_type = types.RGB)
+            self.uniform = ops.Uniform(range = (0.0, 1.0))
+            self.cast = ops.Cast(device = "gpu",
+                                 dtype = types.INT32)
+
+        def define_graph(self):
+            inputs, labels = self.input()
+            images = self.decode(inputs)
+            output = self.crop(images, crop_pos_x = self.uniform(),
+                               crop_pos_y = self.uniform())
+            output = self.cast(output)
+            return (output, labels.gpu())
+
+    batch_size = 8
+
+    cmn_pipe = CMNPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    cmn_pipe.build()
+    cmn_pipe_out = cmn_pipe.run()
+    cmn_img_batch_cpu = cmn_pipe_out[0].asCPU()
+
+    crop_pipe = CropPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    crop_pipe.build()
+    crop_pipe_out = crop_pipe.run()
+    crop_img_batch_cpu = crop_pipe_out[0].asCPU()
+
+    for b in range(batch_size):
+        img_cmn = cmn_img_batch_cpu.at(b)
+        img_crop = crop_img_batch_cpu.at(b)
+        for i in range(img_cmn.shape[0]):
+            for j in range(img_cmn.shape[1]):
+                for k in range (img_cmn.shape[2]):
+                    assert(img_cmn[i][j][k] == img_crop[i][j][k])
