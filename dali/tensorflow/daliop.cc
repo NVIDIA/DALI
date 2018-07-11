@@ -18,6 +18,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/register_types.h"
+#include "tensorflow/core/framework/tensor_shape.h"
 
 #include "dali/tensorflow/tfallocator.h"
 
@@ -40,7 +41,7 @@ namespace tf = tensorflow;
       } catch (std::runtime_error& e) {                                            \
         std::string error = "DALI " + std::string(#FUNC)                           \
                             + " failed: " + std::string(e.what());                 \
-        std::cout << error << std::endl;                                            \
+        std::cout << error << std::endl;                                           \
         context->SetStatus(tf::errors::Internal(error));                           \
        return;                                                                     \
       }                                                                            \
@@ -56,9 +57,7 @@ tf::TensorShape DaliToShape(int64_t* ns) {
 
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
-  .Attr("batch_size: int = -1")
-  .Attr("height: int = 0")
-  .Attr("width: int = 0")
+  .Attr("shape: shape")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
   .Attr("image_type: {float, int32, half} = DT_FLOAT")
@@ -66,13 +65,14 @@ REGISTER_OP("Dali")
   .Output("batch: image_type")
   .Output("label: label_type")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
-    int batch_size;
-    int height;
-    int width;
-    TF_RETURN_IF_ERROR(c->GetAttr("batch_size", &batch_size));
-    TF_RETURN_IF_ERROR(c->GetAttr("height", &height));
-    TF_RETURN_IF_ERROR(c->GetAttr("width", &width));
-    c->set_output(0, c->MakeShape({batch_size, height, width, 3}));
+    tf::PartialTensorShape shape;
+    TF_RETURN_IF_ERROR(c->GetAttr("shape", &shape));
+    tf::shape_inference::ShapeHandle passed_shape;
+    TF_RETURN_IF_ERROR(
+        c->MakeShapeFromPartialTensorShape(shape, &passed_shape));
+    TF_RETURN_IF_ERROR(
+        c->WithRank(passed_shape, 4, &passed_shape));
+    c->set_output(0, passed_shape);
     return tf::Status::OK();
   });
 
@@ -85,11 +85,10 @@ class DaliOp : public tf::OpKernel {
     std::string serialized_pipeline;
     OP_REQUIRES_OK(context, context->GetAttr("serialized_pipeline", &serialized_pipeline));
 
-    int batch_size;
     int num_threads;
     int device_id;
 
-    OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
+    OP_REQUIRES_OK(context, context->GetAttr("shape", &shape_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     this->device_id_ = device_id;
@@ -98,7 +97,7 @@ class DaliOp : public tf::OpKernel {
     TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
-                   batch_size,
+                   shape_.dim_size(0),
                    num_threads,
                    device_id));
 
@@ -144,6 +143,10 @@ class DaliOp : public tf::OpKernel {
     tf::Tensor* data_output_tensor = NULL;
     tf::Tensor* label_output_tensor = NULL;
     tf::TensorShape data_output_shape = DaliToShape(data_tensor_shape);
+    OP_REQUIRES(context, data_output_shape == shape_,
+        tf::errors::InvalidArgument("DALI pipeline output shape "
+                                    "!= plugin `shape` argument"));
+
     tf::TensorShape label_output_shape = DaliToShape(label_tensor_shape);
     OP_REQUIRES_OK(context,
         context->allocate_output(0, data_output_shape, &data_output_tensor));
@@ -176,6 +179,7 @@ class DaliOp : public tf::OpKernel {
 
  private:
   daliPipelineHandle pipe_handle_;
+  tf::TensorShape shape_;
   int device_id_;
 };
 
