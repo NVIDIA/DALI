@@ -23,8 +23,8 @@ option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
 option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
-option(BUILD_JPEG_TURBO "Build with JpegTurbo" ON)
-option(BUILD_NVJPEG "Build with NvJpeg" ON)
+option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
+option(BUILD_NVJPEG "Build with nvJPEG" ON)
 
 # Helper function to remove elements from a variable
 function (remove TARGET INPUT)

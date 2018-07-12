@@ -1,43 +1,72 @@
 # Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-# For CUDA
-find_package(CUDA REQUIRED)
-if (${CUDA_VERSION_MAJOR} LESS 8)
-  message(FATAL "DALI needs at least CUDA 8.0")
+
+include(cmake/Utils.cmake)
+
+##################################################################
+# Google C++ testing framework
+##################################################################
+if (BUILD_TEST)
+  set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")
+  set(BUILD_GMOCK OFF CACHE INTERNAL "Builds gmock submodule")
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/googletest/googletest/include)
 endif()
+
+##################################################################
+# Google Benchmark
+##################################################################
+if (BUILD_BENCHMARK)
+  set(BENCHMARK_ENABLE_TESTING OFF CACHE INTERNAL "Build benchmark testsuite")
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/benchmark EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/benchmark/include/benchmark)
+endif()
+
+##################################################################
+# CUDA Toolkit libraries (including NVJPEG)
+##################################################################
+# Note: CUDA 8 support is unofficial.  CUDA 9 is officially supported
+find_package(CUDA 8.0 REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # For NVJPEG
 if (BUILD_NVJPEG)
-  find_package(NVJPEG REQUIRED)
+  find_package(NVJPEG 9.0 REQUIRED)
+  if(${CUDA_VERSION} VERSION_LESS ${NVJPEG_VERSION})
+    message(WARNING "Using nvJPEG ${NVJPEG_VERSION} together with CUDA ${CUDA_VERSION} "
+                    "requires NVIDIA drivers compatible with CUDA ${NVJPEG_VERSION} or later")
+  endif()
   include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
   list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
   list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
   add_definitions(-DDALI_USE_NVJPEG)
+else()
+  # Note: Support for disabling nvJPEG is unofficial
+  message(STATUS "Building WITHOUT nvJPEG")
 endif()
 
-# For NPP
+# NVIDIA NPPC library
 find_cuda_helper_libs(nppc_static)
-if (${CUDA_VERSION_MAJOR} EQUAL 8)
-# In CUDA 8 Nppi is a single library
-find_cuda_helper_libs(nppi_static)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY}
-                      ${CUDA_nppi_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a
-                          libnppi_static.a)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a)
+
+# NVIDIA NPPI library
+if (${CUDA_VERSION} VERSION_LESS "9.0")
+  # In CUDA 8, NPPI is a single library
+  find_cuda_helper_libs(nppi_static)
+  list(APPEND DALI_LIBS ${CUDA_nppi_static_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppi_static.a)
 else()
-find_cuda_helper_libs(nppicom_static)
-find_cuda_helper_libs(nppicc_static)
-find_cuda_helper_libs(nppig_static)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY}
-                      ${CUDA_nppicom_static_LIBRARY}
-                      ${CUDA_nppicc_static_LIBRARY}
-                      ${CUDA_nppig_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a
-                          libnppicom_static.a
-                          libnppicc_static.a
-                          libnppig_static.a)
+  find_cuda_helper_libs(nppicom_static)
+  find_cuda_helper_libs(nppicc_static)
+  find_cuda_helper_libs(nppig_static)
+  list(APPEND DALI_LIBS ${CUDA_nppicom_static_LIBRARY}
+                        ${CUDA_nppicc_static_LIBRARY}
+                        ${CUDA_nppig_static_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppicom_static.a
+                            libnppicc_static.a
+                            libnppig_static.a)
 endif()
 
 # CULIBOS needed when using static CUDA libs
@@ -52,89 +81,67 @@ if (BUILD_NVTX)
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
-# Google C++ testing framework
-if (BUILD_TEST)
-  set(BUILD_GTEST ON CACHE INTERNAL "Builds gtest submodule")
-  set(BUILD_GMOCK OFF CACHE INTERNAL "Builds gmock submodule")
-  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
-  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/googletest/googletest/include)
-endif()
-
-# Google Benchmark
-if (BUILD_BENCHMARK)
-  set(BENCHMARK_ENABLE_TESTING OFF CACHE INTERNAL "Build benchmark testsuite")
-  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/benchmark EXCLUDE_FROM_ALL)
-  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/benchmark/include/benchmark)
-endif()
-
-# LibJpegTurbo
+##################################################################
+# libjpeg-turbo
+##################################################################
 if (BUILD_JPEG_TURBO)
-  find_package(JpegTurbo REQUIRED)
-  include_directories(SYSTEM ${JPEG_TURBO_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${JPEG_TURBO_LIBRARY})
+  find_package(JpegTurbo 1.5 REQUIRED)
+  include_directories(SYSTEM ${JpegTurbo_INCLUDE_DIR})
+  list(APPEND DALI_LIBS ${JpegTurbo_LIBRARY})
   list(APPEND DALI_EXCLUDES libturbojpeg.a)
   add_definitions(-DDALI_USE_JPEG_TURBO)
+else()
+  # Note: Support for disabling libjpeg-turbo is unofficial
+  message(STATUS "Building WITHOUT JpegTurbo")
 endif()
 
+##################################################################
 # OpenCV
-# Note: OpenCV 3.* 'imdecode()' is in the imgcodecs library
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
-if (OpenCV_FOUND)
-  string(SUBSTRING ${OpenCV_VERSION} 0 1 OCV_VERSION)
-  if ("${OCV_VERSION}" STREQUAL "3")
-    # Get the imgcodecs library
-    find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
-  else()
-    # For opencv 2.x, image encode/decode functions are in highgui
-    find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui)
-  endif()
-
-  # Check for opencv
-  message(STATUS "Found OpenCV ${OpenCV_VERSION} (libs: ${OpenCV_LIBRARIES})")
+##################################################################
+# For OpenCV 3.x, 'imdecode()' is in the imgcodecs library
+find_package(OpenCV 3.0 QUIET COMPONENTS core imgproc imgcodecs)
+if(NOT OpenCV_FOUND)
+  # Note: OpenCV 2 support is unofficial
+  # For OpenCV 2.x, image encode/decode functions are in highgui
+  find_package(OpenCV 2.0 REQUIRED COMPONENTS core imgproc highgui)
 endif()
+message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"2.0\")")
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
-list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_imgcodecs.a)
+list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a)
 
+##################################################################
 # PyBind
+##################################################################
 if (BUILD_PYTHON)
-  # Build w/ c++11
   set(PYBIND11_CPP_STANDARD -std=c++11)
   add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/pybind11)
 endif()
 
+##################################################################
 # LMDB
+##################################################################
 if (BUILD_LMDB)
-  find_package(LMDB)
-  if (LMDB_FOUND)
-    message(STATUS "Found LMDB ${LMDB_INCLUDE_DIR} : ${LMDB_LIBRARIES}")
-    include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
-    list(APPEND DALI_LIBS ${LMDB_LIBRARIES})
-    list(APPEND DALI_EXCLUDES liblmdb.a)
-  else()
-    message(STATUS "LMDB not found")
-  endif()
+  find_package(LMDB 0.9 REQUIRED)
+  include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
+  list(APPEND DALI_LIBS ${LMDB_LIBRARIES})
+  list(APPEND DALI_EXCLUDES liblmdb.a)
 endif()
 
+##################################################################
 # protobuf
-find_package(Protobuf REQUIRED)
-
-if (PROTOBUF_FOUND)
-  # Determine if we have proto v2.x or 3.x
-  execute_process(COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} --version COMMAND cut -d " " -f 2 COMMAND cut -d . -f 1
-    OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE PROTOBUF_VERSION RESULT_VARIABLE __res)
-  message(STATUS "Found Protobuf version ${PROTOBUF_VERSION} : ${PROTOBUF_INCLUDE_DIRS} : ${PROTOBUF_LIBRARY}")
-
-  if (PROTOBUF_VERSION MATCHES 3)
-    add_definitions(-DDALI_BUILD_PROTO3=1)
-    set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
-  endif()
-  include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
-  list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
-  ################
-  ### Don't exclude protobuf symbols; doing so will lead to segfaults
-  #list(APPEND DALI_EXCLUDES libprotobuf.a)
-  ################
+##################################################################
+find_package(Protobuf 2.0 REQUIRED)
+if(${Protobuf_VERSION} VERSION_LESS "3.0")
+  message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
 else()
-  message(STATUS "Protobuf not found")
+  message(STATUS "Enabling TensorFlow TFRecord file format support")
+  add_definitions(-DDALI_BUILD_PROTO3=1)
+  set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
 endif()
+include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
+list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
+## Don't exclude protobuf symbols here; doing so will lead to segfaults
+## Instead we'll use EXPORT_MACRO DLL_PUBLIC later in dali/*/CMakeLists.txt to
+## tell protobuf how to hide things that don't specifically need to be exported
+#list(APPEND DALI_EXCLUDES libprotobuf.a)
