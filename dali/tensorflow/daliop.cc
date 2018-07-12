@@ -55,6 +55,8 @@ tf::TensorShape DaliToShape(int64_t* ns) {
   return ts;
 }
 
+#define NUM_DIMS 4
+
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
   .Attr("shape: shape")
@@ -71,7 +73,7 @@ REGISTER_OP("Dali")
     TF_RETURN_IF_ERROR(
         c->MakeShapeFromPartialTensorShape(shape, &passed_shape));
     TF_RETURN_IF_ERROR(
-        c->WithRank(passed_shape, 4, &passed_shape));
+        c->WithRank(passed_shape, NUM_DIMS, &passed_shape));
     c->set_output(0, passed_shape);
     return tf::Status::OK();
   });
