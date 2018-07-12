@@ -45,7 +45,6 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Dependencies
 include(cmake/Dependencies.cmake)
-include(cmake/ProtobufGenCpp.cmake)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
