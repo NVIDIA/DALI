@@ -19,9 +19,14 @@ else()
   find_library(LMDB_LIBRARIES NAMES lmdb   PATHS "$ENV{LMDB_DIR}/lib" )
 endif()
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(LMDB DEFAULT_MSG LMDB_INCLUDE_DIR LMDB_LIBRARIES)
-
-if(LMDB_FOUND)
-  mark_as_advanced(LMDB_INCLUDE_DIR LMDB_LIBRARIES)
+if(LMDB_INCLUDE_DIR)
+  # LMBD doesn't use pkg-config file so we need to parse it header to get version
+  caffe_parse_header(${LMDB_INCLUDE_DIR}/lmdb.h
+                     LMDB_VERSION_LINES MDB_VERSION_MAJOR MDB_VERSION_MINOR MDB_VERSION_PATCH)
+  set(LMDB_VERSION "${MDB_VERSION_MAJOR}.${MDB_VERSION_MINOR}.${MDB_VERSION_PATCH}")
 endif()
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LMDB
+    REQUIRED_VARS LMDB_INCLUDE_DIR LMDB_LIBRARIES
+    VERSION_VAR LMDB_VERSION)
