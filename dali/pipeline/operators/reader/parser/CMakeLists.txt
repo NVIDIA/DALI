@@ -19,8 +19,8 @@ if (BUILD_TEST)
 endif()
 
 # caffe, C2
-dali_protobuf_generate_cpp(CAFFE_PROTO_SRCS CAFFE_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/caffe.proto)
-dali_protobuf_generate_cpp(CAFFE2_PROTO_SRCS CAFFE2_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/caffe2.proto)
+protobuf_generate_cpp(CAFFE_PROTO_SRCS CAFFE_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/caffe.proto)
+protobuf_generate_cpp(CAFFE2_PROTO_SRCS CAFFE2_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/caffe2.proto)
 
 add_library(CAFFE_PROTO OBJECT ${CAFFE_PROTO_HEADERS} ${CAFFE_PROTO_SRCS})
 SET_TARGET_PROPERTIES(CAFFE_PROTO PROPERTIES COMPILE_FLAGS "-include dali/api_helper.h")
@@ -29,7 +29,7 @@ SET_TARGET_PROPERTIES(CAFFE2_PROTO PROPERTIES COMPILE_FLAGS "-include dali/api_h
 
 # TF
 if (BUILD_PROTO3)
-  dali_protobuf_generate_cpp(TF_PROTO_SRCS TF_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/example.proto proto/feature.proto)
+  protobuf_generate_cpp(TF_PROTO_SRCS TF_PROTO_HEADERS EXPORT_MACRO DLL_PUBLIC proto/example.proto proto/feature.proto)
   add_library(TF_PROTO OBJECT ${TF_PROTO_HEADERS} ${TF_PROTO_SRCS})
   SET_TARGET_PROPERTIES(TF_PROTO PROPERTIES COMPILE_FLAGS "-include dali/api_helper.h")
 endif()
