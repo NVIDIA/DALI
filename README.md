@@ -14,22 +14,16 @@ Key highlights of DALI include:
  - Portable training workflows with multiple input formats - JPEG, LMDB, RecordIO, TFRecord
  - Extensible for user specific needs through open source license
 
-Note: DALI v0.1 is a pre-release software, which means certain features may not be fully functional, may contain errors or design flaws, and may have reduced or different security, privacy, accessibility, availability, and reliability standards relative to production-quality versions of NVIDIA software and materials. You may use a pre-release software at your own risk, understanding that pre-release software is not intended for use in production or business-critical systems.
-
 # Installing prebuilt DALI packages
 
 ## Prerequisities
 
-* Linux x64
-* [NVIDIA Driver](https://www.nvidia.com/drivers) supporting [CUDA 9.0](https://developer.nvidia.com/cuda-downloads) or later
-  - This corresponds to 384.xx and later driver releases.
-* DALI can work with any of the following Deep Learning frameworks:
-  - [MXNet](http://mxnet.incubator.apache.org)
-    - Version 1.3 beta is required, `mxnet-cu90==1.3.0b20180612` or later
-  - [pyTorch](https://pytorch.org)
-    - Version 0.4
-  - [TensorFlow](https://www.tensorflow.org)
-    - Version 1.7 or newer
+* **Linux x64**
+* **[NVIDIA Driver](https://www.nvidia.com/drivers)** supporting [CUDA 9.0](https://developer.nvidia.com/cuda-downloads) or later (i.e., 384.xx or later driver releases)
+* One or more of the following Deep Learning frameworks:
+  - **[MXNet 1.3 beta](http://mxnet.incubator.apache.org)** `mxnet-cu90==1.3.0b20180612` or later
+  - **[pyTorch 0.4](https://pytorch.org)**
+  - **[TensorFlow 1.7](https://www.tensorflow.org)** or later
 
 ## Installation
 
@@ -39,23 +33,26 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
 
 ## Prerequisities
 
-* Linux
-* [NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)
-* [nvJPEG library](https://developer.nvidia.com/nvjpeg)
-* [protobuf](https://github.com/google/protobuf) version 2 or above (version 3 or above is required for TensorFlow TFRecord file format support)
-* [CMake](https://cmake.org) version 3.5 or above
-* [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo) version 1.5.x or above
-* [OpenCV](https://opencv.org) version 3 or above
-* (Optional) [liblmdb](https://github.com/LMDB/lmdb) version 0.9.x or above
-* DALI can work with any of the following Deep Learning frameworks:
-  - [MXNet](http://mxnet.incubator.apache.org)
-    - Version 1.3 beta is required, `mxnet-cu90==1.3.0b20180612` or later
-  - [pyTorch](https://pytorch.org)
-    - Version 0.4
-  - [TensorFlow](https://www.tensorflow.org)
-    - Version 1.7 or newer
-    - Note: Installing TensorFlow is required to build the TensorFlow plugin for DALI
+* **Linux x64**
+* **[NVIDIA CUDA 9.0](https://developer.nvidia.com/cuda-downloads)**
+  *(CUDA 8.0 compatibility is provided unofficially)*
+* **[nvJPEG library](https://developer.nvidia.com/nvjpeg)**<br/>
+  *(This can be unofficially disabled; see below)*
+* **[protobuf](https://github.com/google/protobuf)** version 2 or later (version 3 or later is required for TensorFlow TFRecord file format support)
+* **[CMake 3.5](https://cmake.org)** or later
+* **[libjpeg-turbo 1.5.x](https://github.com/libjpeg-turbo/libjpeg-turbo)** or later<br/>
+  *(This can be unofficially disabled; see below)*
+* **[OpenCV 3](https://opencv.org)** or later
+  *(OpenCV 2.x compatibility is provided unofficially)*
+* **(Optional) [liblmdb 0.9.x](https://github.com/LMDB/lmdb)** or later
+* One or more of the following Deep Learning frameworks:
+  - **[MXNet 1.3 beta](http://mxnet.incubator.apache.org)** `mxnet-cu90==1.3.0b20180612` or later
+  - **[pyTorch 0.4](https://pytorch.org)**
+  - **[TensorFlow 1.7](https://www.tensorflow.org)** or later<br/>
+  *Note: TensorFlow installation is required to build the TensorFlow plugin for DALI*
 
+> NOTE: Items marked *"unofficial"* are community contributions that are
+> believed to work but not officially tested or maintained by NVIDIA.
 
 ## Get the DALI source
 
@@ -95,6 +92,8 @@ Optional CMake build parameters:
 - `BUILD_LMDB` - build with support for LMDB (default: OFF)
 - `BUILD_NVTX` - build with NVTX profiling enabled (default: OFF)
 - `BUILD_TENSORFLOW` - build TensorFlow plugin (default: OFF)
+- *[Unofficial]* `BUILD_JPEG_TURBO` - build with libjpeg-turbo (default: ON)
+- *[Unofficial]* `BUILD_NVJPEG` - build with nvJPEG (default: ON)
 
 ## Install Python bindings
 
