@@ -72,7 +72,7 @@ RUN OPENCV_VERSION=3.1.0 && \
 # To be extra sure OpenCV doesn't pick up libjpeg-turbo (in which case we'd have no
 # fallback), libjpeg-turbo is built and installed _after_ OpenCV.
 #
-RUN JPEG_TURBO_VERSION=1.5.2 && \
+RUN JPEG_TURBO_VERSION=1.5.3 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     autoreconf -fiv && \
