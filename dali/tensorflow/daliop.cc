@@ -76,7 +76,16 @@ REGISTER_OP("Dali")
         c->WithRank(passed_shape, NUM_DIMS, &passed_shape));
     c->set_output(0, passed_shape);
     return tf::Status::OK();
-  });
+  })
+  .Doc(R"doc(
+DALI TensorFlow plugin
+
+Creates a Dali pipeline for classification tasks from serialized DALI pipeline (given in `serialized_pipeline` parameter).
+Returns 2 TensorFlow tensors with data and label.
+`shape` must match the first DALI Pipeline output tensor shape (must be dim 4, either NCHW or NHWC).
+`image_type` must match the type of the first DALI Pipeline output tensor.
+`label_type` must match the type of the second DALI Pipeline output tensor.
+ )doc");
 
 template <typename Tb, typename Tl>
 class DaliOp : public tf::OpKernel {
