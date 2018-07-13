@@ -3,18 +3,22 @@
 NVIDIA DALI v0.1
 ================
 
+.. overview-begin-marker-do-not-remove
+
 Today’s deep learning applications include complex, multi-stage pre-processing data pipelines that include compute-intensive steps mainly carried out on the CPU. For instance, steps such as load data from disk, decode, crop, random resize, color and spatial augmentations and format conversions are carried out on the CPUs, limiting the performance and scalability of training and inference tasks. In addition, the deep learning frameworks today have multiple data pre-processing implementations, resulting in challenges such as portability of training and inference workflows and code maintainability.
 
 NVIDIA Data Loading Library (DALI) is a collection of highly optimized building blocks and an execution engine to accelerate input data pre-processing for deep learning applications. DALI provides both performance and flexibility of accelerating different data pipelines, as a single library, that can be easily integrated into different deep learning training and inference applications.
 
 Key highlights of DALI include:
 
-- Full data pipeline accelerated from reading disk to getting ready for training/inference
-- Flexibility through configurable graphs and custom operators
-- Support for image classification and segmentation workloads
-- Ease of integration through direct framework plugins and open source bindings
-- Portable training workflows with multiple input formats - JPEG, LMDB, RecordIO, TFRecord
-- Extensible for user specific needs through open source license
+* Full data pipeline accelerated from reading from disk to getting ready for training/inference
+* Flexibility through configurable graphs and custom operators
+* Support for image classification and segmentation workloads
+* Ease of integration through direct framework plugins and open source bindings
+* Portable training workflows with multiple input formats - JPEG, LMDB, RecordIO, TFRecord
+* Extensible for user specific needs through open source license
+
+.. overview-end-marker-do-not-remove
 
 .. installation-begin-marker-do-not-remove
 
@@ -24,8 +28,10 @@ Installing prebuilt DALI packages
 Prerequisities
 ^^^^^^^^^^^^^^
 
-.. |driver link| replace:: **NVIDIA CUDA 9.0**
-.. _driver link: https://developer.nvidia.com/cuda-downloads
+.. |driver link| replace:: **NVIDIA Driver**
+.. _driver link: https://www.nvidia.com/drivers
+.. |cuda link| replace:: **NVIDIA CUDA 9.0**
+.. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |mxnet link| replace:: **MXNet 1.3 beta**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **pyTorch 0.4**
@@ -68,7 +74,7 @@ Prerequisities
 .. _lmdb link: https://github.com/LMDB/lmdb
 
 -  **Linux x64**
--  |driver link|_
+-  |cuda link|_
    *(CUDA 8.0 compatibility is provided unofficially)*
 -  |nvjpeg link|_
    *(This can be unofficially disabled; see below)*
