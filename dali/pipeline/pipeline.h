@@ -318,7 +318,7 @@ class DLL_PUBLIC Pipeline {
     this->max_num_stream_ = max_num_stream;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
     seed_.resize(MAX_SEEDS);
-    current_seed = 0;
+    current_seed_ = 0;
     if (seed != -1) {
       std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
@@ -384,7 +384,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<int> seed_;
   int original_seed_;
-  size_t current_seed;
+  size_t current_seed_;
 
   OpGraph graph_;
   std::unique_ptr<Executor> executor_;
