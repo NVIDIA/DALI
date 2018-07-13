@@ -36,7 +36,8 @@ namespace {
  * kernel, call 'nppSetStream()' prior to calling.
  */
 DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *in_sizes,
-    uint8 **out_batch, const DALISize *out_sizes, DALIInterpType type) {
+                          uint8 **out_batch, const DALISize *out_sizes,
+                          const NppiPoint *resize_param, DALIInterpType type) {
   DALI_ASSERT(N > 0);
   DALI_ASSERT(C == 1 || C == 3);
   DALI_ASSERT(in_sizes != nullptr);
@@ -45,26 +46,57 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
   NppiInterpolationMode npp_type;
   DALI_FORWARD_ERROR(NPPInterpForDALIInterp(type, &npp_type));
 
+#define USE_CROP  0  // currently we are NOT using crop in Resize op
+
+#if USE_CROP
+  // Because the out sizes are all the same for the batch mode, take the first one:
+  const NDLLSize &out_size = out_sizes[0];
+
+  //  and construct the out ROI:
+  const auto cropW = out_size.width;
+  const auto cropH = out_size.height;
+  const NppiRect out_roi = {0, 0, cropW, cropH};
+#endif
+
+  typedef NppStatus (*resizeFunction) (
+                        const Npp8u * pSrc, int nSrcStep, NppiSize oSrcSize, NppiRect oSrcRectROI,
+                        Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI,
+                        int eInterpolation);
+  resizeFunction func = C == 3? nppiResize_8u_C3R : nppiResize_8u_C1R;
+
   for (int i = 0; i < N; ++i) {
     DALI_ASSERT(in_batch[i] != nullptr);
     DALI_ASSERT(out_batch[i] != nullptr);
 
-    // Setup region of interests to whole image
-    NppiRect in_roi, out_roi;
-    in_roi.x = 0; in_roi.y = 0;
-    in_roi.width = in_sizes[i].width;
-    in_roi.height = in_sizes[i].height;
-    out_roi.x = 0; out_roi.y = 0;
-    out_roi.width = out_sizes[i].width;
-    out_roi.height = out_sizes[i].height;
+    const DALISize &in_size  = in_sizes[i];
+    const DALISize &out_size = out_sizes[i];
 
-    if (C == 3) {
-      DALI_CHECK_NPP(nppiResize_8u_C3R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
-              in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
-    } else {
-      DALI_CHECK_NPP(nppiResize_8u_C1R(in_batch[i], in_sizes[i].width*C, in_sizes[i],
-              in_roi, out_batch[i], out_sizes[i].width*C, out_sizes[i], out_roi, npp_type));
-    }
+#if USE_CROP
+    // Because currently nppiResize_8u_C3R/nppiResize_8u_C1R
+    // do not support cropping, to get the results we need we will define and use SrcROI
+
+    // Sizes of resized image are:
+    const NppiPoint *resizeParam = resize_param + 2*i;
+
+    const auto w1 = resizeParam->x;
+    const auto h1 = resizeParam->y;
+
+    // Upper left coordinate or the SrcROI:
+    const auto cropX = in_size.width  * (resizeParam+1)->x / w1;
+    const auto cropY = in_size.height * (resizeParam+1)->y / h1;
+
+    // Width and height of SrcROI:
+    const auto widthROI = in_size.width * cropW / w1;
+    const auto heightROI = in_size.height * cropH / h1;
+
+    const NppiRect in_roi = {cropX, cropY, widthROI, heightROI};
+#else
+    const NppiRect in_roi  = {0, 0, in_size.width, in_size.height};
+    const NppiRect out_roi = {0, 0, out_size.width, out_size.height};
+#endif
+
+    DALI_CHECK_NPP((*func)(in_batch[i], in_size.width*C, in_size, in_roi,
+                           out_batch[i], out_size.width*C, out_size, out_roi, npp_type));
   }
   return DALISuccess;
 }
@@ -73,8 +105,14 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
 
 template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
+
   for (int i = 0; i < batch_size_; ++i) {
-    per_sample_rand_[i] = GetRandomSizes();
+    vector<Index> input_shape = input.tensor_shape(i);
+    DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
+
+    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
   }
 }
 
@@ -102,7 +140,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, sizes(input_t).data(),
         output_ptrs_.data(), sizes(output_t).data(),
-        type_);
+        resizeParam_.data(), interp_type_);
     nppSetStream(old_stream);
 
     // Setup and output the resize attributes if necessary

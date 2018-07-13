@@ -22,6 +22,12 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(ResizeCropMirror, NewResize<GPUBackend>, GPU);
+
+DALI_REGISTER_TYPE(ResizeMapping, DALI_RESIZE_MAPPING);
+DALI_REGISTER_TYPE(PixMapping, DALI_PIX_MAPPING);
+DALI_REGISTER_TYPE(uint32_t, DALI_UINT32);
+
 //  Greatest Common Factor
 int gcf(int a, int b) {
   int t;
@@ -110,24 +116,22 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
       // We are resizing
       const auto input_size = pResize->size(input_t, i);
       const auto out_size = pResize->size(output_t, i);
-      pResize->SetSize(input_size, input_shape, pResize->newSizes(i), out_size);
+
+      pResize->SetSize(input_size, input_shape, i, out_size);
 
       if (pResizeParam) {
         // NewResize is used
-        const int H0 = input_size->height;
-        const int W0 = input_size->width;
         const int H1 = out_size->height;
         const int W1 = out_size->width;
 
-        int cropY, cropX;
-        const bool doingCrop = pResize->CropNeeded(*out_size);
-        if (doingCrop)
-          pResize->DefineCrop(out_size, &cropX, &cropY);
-        else
-          cropY = cropX = 0;
-
-        auto resizeParam = pResizeParam + i * (pMirroring ? N_GRID_PARAMS : 1);
+        int cropY = 0, cropX = 0;
+        auto resizeParam = pResizeParam + i * (pMirroring ? N_GRID_PARAMS : 2);
         if (pMirroring) {
+          // "NewResise" operation is used (Mirroring is not supported in "Resize")
+          pResize->DefineCrop(out_size, &cropX, &cropY, i);
+          const int H0 = input_size->height;
+          const int W0 = input_size->width;
+
           const int lcmH = lcm(H0, H1);
           const int lcmW = lcm(W0, W1);
 
@@ -157,10 +161,10 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
               pTotalSize[idx] = UINT_MAX;
           }
 
-          if (pMirroring)
-            pResize->MirrorNeeded(pMirroring + i);
+          pResize->MirrorNeeded(pMirroring + i, i);
         } else {
           resizeParam[0] = {W1, H1};
+          resizeParam[1] = {cropX, cropY};
         }
       }
 
@@ -276,34 +280,37 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
   if (in_sizes)
     W0 = in_sizes[imagIdx].width;
 
-  SET_RESIZE_PARAM();
+  const uint32_t sx0 = resizeParam[0].x;
+  const uint32_t sy0 = resizeParam[0].y;
+  const uint32_t sx1 = resizeParam[1].x;
+  const uint32_t sy1 = resizeParam[1].y;
 
-  PixMappingHelper helper(sx0 * sy0, NULL, pResizeMapping[imagIdx], area);
+  PixMappingHelper helper(sx0 * sy0, NULL, pResizeMapping[imagIdx], sx1 * sy1);
   helper.constructTable(C, W0, sx0, sy0, sx1, sy1,
                         blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
 
-#define RESIZE_GPU_PREAMBLE()         // empty macro
-#define RESIZE_GPU_CORE(C)            RESIZE_CORE(C)
+static cudaError_t CheckError(const char *pCallID = NULL) {
+  const cudaError_t err = cudaGetLastError();
+  if (cudaSuccess != err) {
+    if (pCallID)
+      printf("CUDA error after %s: %s\n", pCallID, cudaGetErrorString(err));
+    else
+      printf("CUDA error: %s\n", cudaGetErrorString(err));
+  }
 
-#define RESIZE_GPU_N_PREAMBLE()       // empty macro
-#define RESIZE_GPU_N_CORE(C)          RESIZE_N_CORE(C)
+  return err;
+}
 
 __global__ void BatchedCongenericResizeKernel(
-  int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out, int C,
-  const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
-  MappingInfo *const ppMapping[], const ResizeMapping *pResizeMapping,
-  const PixMapping *pPixMapping) {
+        int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out, int C,
+        const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
+        MappingInfo *const ppMapping[], const ResizeMapping *pResizeMapping,
+        const PixMapping *pPixMapping) {
   const int imagIdx = blockIdx.x;
-  const bool mirrorHor = pMirrorInfo && (pMirrorInfo + imagIdx)->x != 0;
-  const bool mirrorVert = pMirrorInfo && (pMirrorInfo + imagIdx)->y != 0;
-  RESIZE_PREPARE();
-  if (ppMapping || pResizeMapping) {
-    const MappingInfo *pMapping = ppMapping ? ppMapping[0] : NULL;
-    AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, RESIZE_GPU_N);
-  } else {
-    AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, RESIZE_GPU);
-  }
+  ResizeFunc(W0, H0, img_in, W, H, img_out, C, resizeParam, pMirrorInfo + imagIdx, imagIdx,
+             threadIdx.x, blockDim.x, threadIdx.y, blockDim.y,
+             ppMapping? ppMapping[0] : NULL, pResizeMapping, pPixMapping);
 }
 
 DALIError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
@@ -314,20 +321,24 @@ DALIError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t str
                      const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping,
                      bool newMapping) {
   if (ppMapping && newMapping) {
-    CHECK_RESIZE_DESCR();
-
-    InitiateResizeTables << < 1, 1, 0, stream >> >
+    InitiateResizeTables <<< 1, 1, 0, stream >>>
          (1, resizeDescr, ppMapping, mapMem, 1);
 
-    ConstructResizeTables << < 1, gridDim, 0, stream >> >
+    if (CheckError("InitiateResizeTables") != cudaSuccess)
+      return DALIErrorCUDA;
+
+    ConstructResizeTables <<< 1, gridDim, 0, stream >>>
          (C, resizeDescr, NULL, sizeIn.width, ppMapping);
+
+    if (CheckError("ConstructResizeTables") != cudaSuccess)
+      return DALIErrorCUDA;
   }
 
-  BatchedCongenericResizeKernel << < N, gridDim, 0, stream >> >
+  BatchedCongenericResizeKernel <<< N, gridDim, 0, stream >>>
          (sizeIn.height, sizeIn.width, in_batch, sizeOut.height, sizeOut.width, out_batch, C,
           resizeDescr, pMirrorInfo, ppMapping, pResizeMapping, pPixMapping);
 
-  return DALISuccess;
+  return CheckError("BatchedCongenericResizeKernel") == cudaSuccess? DALISuccess : DALIErrorCUDA;
 }
 
 __global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
@@ -340,18 +351,11 @@ __global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
   const int H0 = in_sizes[imagIdx].height;
   const int W = out_sizes[imagIdx].width;
   const int H = out_sizes[imagIdx].height;
-  const bool mirrorHor = pMirrorInfo && (pMirrorInfo + imagIdx)->x != 0;
-  const bool mirrorVert = pMirrorInfo && (pMirrorInfo + imagIdx)->y != 0;
 
-  RESIZE_PREPARE();
-  if (ppMapping) {
-    const ResizeMapping *pResizeMapping = NULL;
-    const PixMapping *pPixMapping = NULL;
-    const MappingInfo *pMapping = ppMapping[imagIdx];
-    AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[imagIdx], imgs_out[imagIdx], RESIZE_GPU_N);
-  } else {
-    AUGMENT_RESIZE_GPU_GENERIC(H, W, C, imgs_in[imagIdx], imgs_out[imagIdx], RESIZE_GPU);
-  }
+  ResizeFunc(W0, H0, imgs_in[imagIdx], W, H, imgs_out[imagIdx],
+             C, resizeParam, pMirrorInfo + imagIdx, 0,
+             threadIdx.x, blockDim.x, threadIdx.y, blockDim.y,
+             ppMapping? ppMapping[imagIdx] : NULL);
 }
 
 DALIError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
@@ -361,21 +365,27 @@ DALIError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C
   auto in_sizes = IMG_SIZES(sizes[input_t]);
   auto out_sizes = IMG_SIZES(sizes[output_t]);
   if (ppMapping) {
-    InitiateResizeTables << < nBatchSlice, 1, 0, stream >> >
+    InitiateResizeTables <<< nBatchSlice, 1, 0, stream >>>
              (N, resizeDescr, ppMapping, mapMem, nBatchSlice);
+
+    if (CheckError("InitiateResizeTables") != cudaSuccess)
+      return DALIErrorCUDA;
 
     ConstructResizeTables << < N, gridDim, 0, stream >> >
              (C, resizeDescr, in_sizes, 0, ppMapping);
+
+    if (CheckError("ConstructResizeTables") != cudaSuccess)
+      return DALIErrorCUDA;
   }
 
   const uint8 *const *in = IMG_RASTERS(raster[input_t]);
   uint8 *const *out = IMG_RASTERS(raster[output_t]);
 
   const MirroringInfo *pMirrorInfo = resizeDescr + N_GRID_PARAMS * N;
-  BatchedResizeKernel << < N, gridDim, 0, stream >> >
+  BatchedResizeKernel <<< N, gridDim, 0, stream >>>
               (C, resizeDescr, ppMapping, pMirrorInfo, in_sizes, in, out_sizes, out);
 
-  return DALISuccess;
+  return CheckError("BatchedResizeKernel") == cudaSuccess? DALISuccess : DALIErrorCUDA;
 }
 
 PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, MappingInfo *pMapInfo,
@@ -383,7 +393,7 @@ PixMappingHelper::PixMappingHelper(uint32_t area, ResizeMapping *pMapping, Mappi
                          allocMemoryFunction allocMemFunc, assignElemFunction assignFunc) :
                          area_(area), resizedArea_(resizedArea), allocMemFunc_(allocMemFunc),
                          assignFunc_(assignFunc), pMappingBase_(pMapping),
-                         pMappingClosestBase_(pMapInfo), closestDist_(FLT_MAX) {
+                         pMappingClosestBase_(pMapInfo) {
   numPixMapMax_ = 1;
   numPixMapUsed_ = 0;
 
@@ -533,11 +543,154 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, i
     pixMappingCPU.resize(helper.numUsed());
 }
 
+#define ADD_WEIGHTED_COLOR()                    \
+    if (weight) {                               \
+      pixColor[0] += weight * *pPix;            \
+      if (C > 1) {                              \
+        pixColor[1] += weight * *(pPix + 1);    \
+        pixColor[2] += weight * *(pPix + 2);    \
+      }                                         \
+    }
+
+#define SET_PIXEL_COLOR(out, x, outStep, C, pixColor, area)         \
+    const int32_t to = x * outStep;                                 \
+    out[to] = (pixColor[0] + (area >> 1)) / area;                   \
+    if (C > 1) {                                                    \
+      out[to + 1] = (pixColor[1] + (area >> 1)) / area;             \
+      out[to + 2] = (pixColor[2] + (area >> 1)) / area;             \
+    }
+
+void ResizeFunc(int W0, int H0, const uint8 *img_in, int W, int H, uint8 *img_out, int C,
+                const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
+                int imgIdx, int startW, int stepW, int startH, int stepH,
+                const MappingInfo *pMapping, const ResizeMapping *pResizeMapping,
+                const PixMapping *pPixMapping) {
+  const uint32_t sx0 = resizeParam[0].x;
+  const uint32_t sy0 = resizeParam[0].y;
+  const uint32_t sx1 = resizeParam[1].x;
+  const uint32_t sy1 = resizeParam[1].y;
+  const uint32_t cropX = resizeParam[2].x;
+  const uint32_t cropY = resizeParam[2].y;
+
+  const uint32_t area = sx1 * sy1;
+
+  // Both tables need to be defined, otherwise we will not use
+  // NDLL_INTERP_LINEAR with pre-calculated tables
+  if (!pPixMapping)
+    pResizeMapping = NULL;
+
+  int outStep = C;
+  const uint32_t offset = nYoffset(W, C);
+  int32_t shift = stepH * offset;
+  const uint8 *in = img_in + H0 * nYoffset(W0, C) * imgIdx;
+  uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;
+  if (pMirrorInfo) {
+    pMirrorInfo += imgIdx;
+    if (pMirrorInfo->y)
+      out += (H - 2 * startH - 1) * offset - 2 * (shift *= -1);
+
+    if (pMirrorInfo->x)
+      out += offset + (outStep = -C);
+  }
+
+  if (pMapping) {
+    // Using NDLL_INTERP_NN
+    for (int y = startH; y < H; y += stepH) {
+      out += shift;
+      const uint32_t nY = (y + cropY) * sy1;
+      const auto pBaseY = in + nY / sy0 * nYoffset(W0, C);
+      const auto idx = (nY % sy0) * sx0;
+      for (int x = startW; x < W; x += stepW) {
+        const uint32_t nX = (x + cropX) * sx1;
+        const auto pPix = pBaseY + nX / sx0 * C + pMapping[idx + nX % sx0];
+        SET_PIXEL_COLOR(out, x, outStep, C, pPix, 1);
+      }
+    }
+
+    return;
+  }
+
+  if (pResizeMapping) {
+    // Using NDLL_INTERP_LINEAR with pre-calculated tables
+    for (int y = startH; y < H; y += stepH) {
+      out += shift;
+      const uint32_t nY = (y + cropY) * sy1;
+      const auto pBaseY = in + nY / sy0 * nYoffset(W0, C);
+      const auto idx = (nY % sy0) * sx0;
+      for (int x = startW; x < W; x += stepW) {
+        const uint32_t nX = (x + cropX) * sx1;
+        auto pBase = pBaseY + nX / sx0 * C;
+        auto pResizePix = pResizeMapping + idx + nX % sx0;
+        auto pPixMap = pPixMapping + pResizePix->intersectInfoAddr;
+
+        int pixColor[3] = {0, 0, 0};
+        for (int i = pResizePix->nPixels; i--;) {
+          auto pPix = pBase + (pPixMap + i)->pixAddr;
+          const int weight = (pPixMap + i)->pixArea;
+          ADD_WEIGHTED_COLOR();
+        }
+
+        SET_PIXEL_COLOR(out, x, outStep, C, pixColor, area);
+      }
+    }
+  } else {
+    // Using NDLL_INTERP_LINEAR without pre-calculated tables
+    uint32_t begIdx[2], endIdx[2], extra[2], lenFirst[2];
+    for (int y = startH; y < H; y += stepH) {
+      out += shift;
+      const uint32_t nY = (y + cropY) * sy1;
+      begIdx[1] = nY / sy0;
+      endIdx[1] = (nY + sy1) / sy0;
+      extra[1] = min((nY + sy1) % sy0, sy1);
+      lenFirst[1] = sy0 - nY % sy0;
+      for (int x = startW; x < W; x += stepW) {
+        const uint32_t nX = (x + cropX) * sx1;
+
+        begIdx[0] = nX / sx0;
+        endIdx[0] = (nX + sx1) / sx0;
+        extra[0] = min((nX + sx1) % sx0, sx1);
+        lenFirst[0] = sx0 - nX % sx0;
+        uint32_t rowMult = endIdx[1] > begIdx[1] ? lenFirst[1] : extra[1];
+        uint32_t y0 = begIdx[1];
+
+        int pixColor[3] = {0, 0, 0};
+        while (true) {
+          uint32_t x0 = endIdx[0];
+          const uint8 *pPix = in + ((y0 * W0) + x0) * C;
+          uint32_t weight = rowMult * extra[0];
+          ADD_WEIGHTED_COLOR();
+
+          if (x0 > begIdx[0]) {
+            weight = rowMult * sx0;
+            pPix -= C;
+            while (--x0 > begIdx[0]) {
+              ADD_WEIGHTED_COLOR();
+              pPix -= C;
+            }
+
+            weight = rowMult * lenFirst[0];
+            ADD_WEIGHTED_COLOR();
+          }
+
+          if (++y0 >= endIdx[1]) {
+            if (y0 > endIdx[1] || !(rowMult = extra[1]))
+              break;
+          } else {
+            rowMult = sy0;
+          }
+        }
+
+        SET_PIXEL_COLOR(out, x, outStep, C, pixColor, area);
+      }
+    }
+  }
+}
+
 template <>
 void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   const auto &output = ws->Output<GPUBackend>(idx);
-  const bool use_NN = type_ == DALI_INTERP_NN;
+  const bool use_NN = interp_type_ == DALI_INTERP_NN;
 
   size_t resizeMemory[BATCH_SLICE_NUMB];
   ResizeGridParam *pResizeGrid = resizeParam_.data();
@@ -582,9 +735,9 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     const PixMapping *pPixMapping = NULL;
 #if USE_RESIZE_TABLE_GPU
     if (!use_NN) {
-      if (newMapping || !resizeTbl_.IsValid(sizeIn, sizeOut, C)) {
-          resizeTbl_.constructTable(sizeIn.height, sizeIn.width,
-                          sizeOut.height, sizeOut.width, C, type_);
+      if (newMapping || !resizeTbl_.IsValid(*sizeIn, *sizeOut, C)) {
+          resizeTbl_.constructTable(sizeIn->height, sizeIn->width,
+                          sizeOut->height, sizeOut->width, C, type_);
           resizeTbl_.copyToGPU(s);
       }
 
@@ -608,7 +761,7 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
     }
 
-    DALI_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
+    DALI_CALL(BatchedResize(batch_size_, dim3(32, 16), s, C, RESIZE_PARAM(resizeParamGPU_),
                             sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
   }
 }

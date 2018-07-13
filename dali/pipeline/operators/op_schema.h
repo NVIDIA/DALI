@@ -271,8 +271,8 @@ class DLL_PUBLIC OpSchema {
     return arguments_.find(name) != arguments_.end();
   }
 
-  DLL_PUBLIC inline bool HasOptionalArgument(const std::string &name) const {
-    return optional_arguments_.find(name) != optional_arguments_.end();
+  inline bool HasOptionalArgument(const std::string &name) const {
+    return OptionalArgumentExists(name);
   }
 
   DLL_PUBLIC inline bool HasArgument(const string &name) const {
@@ -281,9 +281,7 @@ class DLL_PUBLIC OpSchema {
 
  private:
   inline bool CheckArgument(const std::string &s) {
-    DALI_ENFORCE(arguments_.find(s) == arguments_.end(),
-                 "Argument \"" + s + "\" already added to the schema");
-    DALI_ENFORCE(!OptionalArgumentExists(s),
+    DALI_ENFORCE(!HasArgument(s),
                  "Argument \"" + s + "\" already added to the schema");
     DALI_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(),
                  "Argument name \"" + s + "\" is reserved for internal use");
@@ -328,7 +326,7 @@ class SchemaRegistry {
   static const OpSchema& GetSchema(const std::string &name) {
     auto &schema_map = registry();
     auto it = schema_map.find(name);
-    DALI_ENFORCE(it != schema_map.end(), "Schema '" +
+    DALI_ENFORCE(it != schema_map.end(), "Schema for operator '" +
         name + "' not registered");
     return it->second;
   }
@@ -375,11 +373,15 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
       v = arg_pair.second.second;
     }
     ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
-    DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s + "\"");
+    DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +
+         "\" of schema \"" + this->name() + "\"");
     return vT->Get();
   } else {
     // get the parent schema that has the optional argument and return from there
     string tmp = GetSchemaWithArg(Name(), s);
+    DALI_ENFORCE(!tmp.empty(), "Optional argument \"" + s + "\" is not defined for schema \""
+        + this->name() + "\"");
+
     const OpSchema& schema = SchemaRegistry::GetSchema(tmp);
     return schema.template GetDefaultValueForOptionalArgument<T>(s);
   }

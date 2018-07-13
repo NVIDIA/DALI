@@ -42,8 +42,9 @@ namespace dali {
  * a string explaining the error can be found by calling 'DALIGetLastError'
  */
 enum DALIError_t {
-  DALISuccess = 0,
-  DALIError = 1
+  DALISuccess,
+  DALIError,
+  DALIErrorCUDA
 };
 
 /**

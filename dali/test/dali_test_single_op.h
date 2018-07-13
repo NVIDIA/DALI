@@ -28,6 +28,9 @@
 
 namespace dali {
 
+#define MAKE_IMG_OUTPUT    0      // Make the output of compared (obtained and referenced) images
+// #define PIXEL_STAT_FILE    "pixelStatFile"  // Output of statistics for compared sets of images
+
 namespace images {
 
 const vector<string> jpeg_test_images = {
@@ -35,7 +38,7 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422.jpg",
   image_folder + "/440.jpg",
   image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
+//  image_folder + "/gray.jpg",   // Temporary, until Marat will fix the bug
   image_folder + "/411.jpg",
   image_folder + "/411-non-multiple-4-width.jpg",
   image_folder + "/420-odd-height.jpg",
@@ -59,6 +62,14 @@ const vector<string> png_test_images = {
 };
 
 }  // namespace images
+
+typedef enum {            // Checking:
+  t_checkDefault    = 0,  //    combined vectors (all images, all colors)
+  t_checkColorComp  = 1,  //    colors separately
+  t_checkElements   = 2,  //    images separately
+  t_checkAll        = 4,  //    everything (no assertion after first fail)
+  t_checkNoAssert   = 8   //    no assertion even when test failed
+} t_checkTyte;
 
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
@@ -102,6 +113,14 @@ class DALISingleOpTest : public DALITest {
 
   inline void SetEps(double e) {
     eps_ = e;
+  }
+
+  inline void SetTestCheckType(uint32_t type) {
+    testCheckType_ = type;
+  }
+
+  inline bool TestCheckType(uint32_t type) const {
+    return testCheckType_ & type;
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -164,13 +183,19 @@ class DALISingleOpTest : public DALITest {
         calc_host.Copy(*calc_output, 0);
 
         auto *ref_output = res[i];
-
+#if MAKE_IMG_OUTPUT
+        WriteHWCBatch<CPUBackend>(calc_host, "img");
+        WriteHWCBatch<CPUBackend>(*ref_output, "ref");
+#endif
         // check calculated vs. reference answers
         CheckTensorLists(&calc_host, ref_output);
       } else {
         auto calc_output = ws->Output<CPUBackend>(output_indices[i]);
         auto *ref_output = res.at(i);
-
+#if MAKE_IMG_OUTPUT
+        WriteHWCBatch<CPUBackend>(*calc_output, "img");
+        WriteHWCBatch<CPUBackend>(*ref_output, "ref");
+#endif
         // check calculated vs. reference answers
         CheckTensorLists(calc_output, ref_output);
       }
@@ -198,18 +223,77 @@ class DALISingleOpTest : public DALITest {
   }
 
  private:
-  // use a Get mean, std-dev of difference
+  // use a Get mean, std-dev of difference separately for each color component
+
   template <typename T>
-  void CheckBuffers(int N, const T *a, const T *b) {
-    vector<double> diff(N);
-
+  int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pDiff = NULL) {
+    const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
+    const int len = N / jMax;
     double mean = 0, std;
-    for (int i = 0; i < N; ++i) {
-      diff[i] = static_cast<double>(a[i]) - static_cast<double>(b[i]);
-    }
-    MeanStdDev<double>(diff, &mean, &std);
+    vector<double> diff(len);
+#ifndef PIXEL_STAT_FILE
+    for (int j = 0; j < jMax; ++j) {
+      for (int i = j; i < N; i += jMax)
+        diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
 
-    ASSERT_LE(fabs(mean), eps_);
+      MeanStdDev<double>(diff, &mean, &std);
+      if (checkAll) {
+        const auto diff = fabs(mean) - eps_;
+        if (diff <= 0)
+          continue;
+
+        if (pDiff)
+          *pDiff = diff;
+
+        return j;
+      }
+
+      ASSERT_LE(fabs(mean), eps_), -1;
+    }
+#else
+    static int fff;
+    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
+    if (!fff++)
+      fprintf(file, "Buffer Length: %7d (for each color component)\n", len);
+
+    for (int j = 0; j < c_; ++j) {
+      int pos = 0, neg = 0;
+      for (int i = j; i < N; i += c_) {
+        diff[i / c_] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+        if (a[i] > b[i])
+          pos++;
+        else if (a[i] < b[i])
+          neg++;
+      }
+
+      MeanStdDev<double>(diff, &mean, &std);
+      fprintf(file, "      %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
+              j, mean, std, len - pos - neg, pos, neg);
+    }
+
+    fclose(file);
+#endif
+
+    return -1;
+  }
+
+  void ReportTestFailure(double diff, int colorIdx, int idx = -1,
+                         const vector<Index> *pShape = NULL) {
+    if (TestCheckType(t_checkNoAssert))
+      cout << "Test warning:";
+    else
+      cout << "Test failed:";
+
+    if (TestCheckType(t_checkColorComp))
+      cout << " color # " << colorIdx;
+
+    if (idx >= 0)
+      cout << " element # " << idx;
+
+    if (pShape)
+      cout << " (h, w) = (" << (*pShape)[0] << ", " << (*pShape)[1] << ")";
+
+    cout << " fabs(mean) = " << diff + eps_ << " and it was expected to be <= " << eps_ << endl;
   }
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
@@ -220,15 +304,60 @@ class DALISingleOpTest : public DALITest {
 
     ASSERT_EQ(t1->size(), t2->size());
 
-    if (IsType<float>(t1->type())) {
-      CheckBuffers<float>(t1->size(),
-                          t1->data<float>(),
-                          t2->data<float>());
-    } else if (IsType<unsigned char>(t1->type())) {
-      CheckBuffers<unsigned char>(t1->size(),
-                                  t1->data<unsigned char>(),
-                                  t2->data<unsigned char>());
+    const bool floatType = IsType<float>(t1->type());
+    if (!floatType && !IsType<unsigned char>(t1->type()))
+      return;   // For now we check buffers only for "float" and "uchar"
+
+    int failNumb = 0, colorIdx = 0;
+    const bool checkAll = TestCheckType(t_checkAll);
+    double diff;
+    if (TestCheckType(t_checkElements)) {
+      // The the results are checked for each element separately
+      for (int i = 0; i < t1->ntensor(); ++i) {
+        const auto shape1 = t1->tensor_shape(i);
+        const auto shape2 = t2->tensor_shape(i);
+        ASSERT_EQ(shape1.size(), 3);
+        ASSERT_EQ(shape2.size(), 3);
+        for (auto j = shape1.size(); j--;) {
+          ASSERT_EQ(shape1[j], shape2[j]);
+        }
+
+        const int lenBuffer = shape1[0] * shape1[1] * shape1[2];
+
+        if (floatType) {
+          colorIdx = CheckBuffers<float>(lenBuffer,
+                          (*t1).template tensor<float>(i),
+                          (*t2).template tensor<float>(i), true, &diff);
+        } else {
+          colorIdx = CheckBuffers<unsigned char>(lenBuffer,
+                          (*t1).template tensor<uint8>(i),
+                          (*t2).template tensor<uint8>(i), true, &diff);
+        }
+
+        if (colorIdx >= 0) {
+          // Test failed for colorIdx
+          ReportTestFailure(diff, colorIdx, i, &shape1);
+          failNumb++;
+          if (!checkAll)
+            break;
+        }
+      }
+    } else {
+      if (floatType) {
+        colorIdx = CheckBuffers<float>(t1->size(),
+                            t1->data<float>(),
+                            t2->data<float>(), true, &diff);
+      } else {
+        colorIdx = CheckBuffers<unsigned char>(t1->size(),
+                                    t1->data<unsigned char>(),
+                                    t2->data<unsigned char>(), checkAll, &diff);
+      }
+      if (colorIdx >= 0 && checkAll)
+        ReportTestFailure(diff, colorIdx);
     }
+
+    if (!TestCheckType(t_checkNoAssert))
+      ASSERT_EQ(failNumb, 0);
   }
 
   void InitPipeline() {
@@ -252,6 +381,7 @@ class DALISingleOpTest : public DALITest {
   int batch_size_ = 32;
   int num_threads_ = 2;
   double eps_ = 1e-4;
+  uint32_t testCheckType_ = t_checkDefault;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;

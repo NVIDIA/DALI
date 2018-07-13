@@ -48,79 +48,7 @@ namespace dali {
 #define N_GRID_PARAMS       3
 #define _countof(x)         sizeof(x)/sizeof(x[0])
 
-#define CHECK_RESIZE_DESCR()                    \
-    DALI_ENFORCE(resizeDescr[0].x > 0);         \
-    DALI_ENFORCE(resizeDescr[0].y > 0);         \
-    DALI_ENFORCE(resizeDescr[1].x > 0);         \
-    DALI_ENFORCE(resizeDescr[1].y > 0);         \
-
-#define SET_RESIZE_PARAM()                      \
-    const uint32_t sx0 = resizeParam[0].x;      \
-    const uint32_t sy0 = resizeParam[0].y;      \
-    const uint32_t sx1 = resizeParam[1].x;      \
-    const uint32_t sy1 = resizeParam[1].y;      \
-    const uint32_t area = sx1 * sy1;
-
-#define RESIZE_PREPARE()                        \
-    SET_RESIZE_PARAM();                         \
-    const uint32_t cropX = resizeParam[2].x;    \
-    const uint32_t cropY = resizeParam[2].y;
-
-#define ADD_WEIGHTED_COLOR()                    \
-    if (weight) {                               \
-      pixColor[0] += weight * *pPix;            \
-      if (C > 1) {                              \
-        pixColor[1] += weight * *(pPix + 1);    \
-        pixColor[2] += weight * *(pPix + 2);    \
-      }                                         \
-    }
-
-#define SET_PIXEL_COLOR()                                           \
-    out[to] = (pixColor[0] + (area >> 1)) / area;                   \
-    if (C > 1) {                                                    \
-      out[to + 1] = (pixColor[1] + (area >> 1)) / area;             \
-      out[to + 2] = (pixColor[2] + (area >> 1)) / area;             \
-    }
-
-#define RESIZE_PREAMBLE()       RESIZE_PREPARE()
-
-#define RESIZE_CORE(C)                                                  \
-    const uint32_t begIdx[2] = {nX / sx0, nY / sy0};                    \
-    const uint32_t endIdx[2] = {(nX + sx1) / sx0, (nY + sy1) / sy0};    \
-    const uint32_t extra[2] =  {min((nX + sx1) % sx0, sx1),             \
-                                min((nY + sy1) % sy0, sy1)};            \
-    const uint32_t lenFirst[2] = {(sx0 - nX % sx0), (sy0 - nY % sy0)};  \
-    uint32_t rowMult = endIdx[1] > begIdx[1]? lenFirst[1] : extra[1];   \
-    uint32_t pixColor[3] = {0, 0, 0};                                   \
-    uint32_t y0 = begIdx[1];                                            \
-    while (true) {                                                      \
-      size_t x0 = endIdx[0];                                            \
-      const uint8 *pPix = in + ((y0 * W0) + x0) * C;                    \
-      size_t weight = rowMult * extra[0];                               \
-      ADD_WEIGHTED_COLOR();                                             \
-                                                                        \
-      if (x0 > begIdx[0]) {                                             \
-        weight = rowMult * sx0;                                         \
-        pPix -= C;                                                      \
-        while (--x0 > begIdx[0]) {                                      \
-          ADD_WEIGHTED_COLOR();                                         \
-          pPix -= C;                                                    \
-        }                                                               \
-                                                                        \
-        weight = rowMult * lenFirst[0];                                 \
-        ADD_WEIGHTED_COLOR();                                           \
-      }                                                                 \
-                                                                        \
-      if (++y0  >= endIdx[1]) {                                         \
-        if (y0 > endIdx[1] || !(rowMult = extra[1]))                    \
-          break;                                                        \
-      } else {                                                          \
-        rowMult = sy0;                                                  \
-      }                                                                 \
-    }                                                                   \
-    SET_PIXEL_COLOR()
-
-#define CC __host__ __device__      // Calling from CUDA
+#define CC __host__ __device__    // Calling from CUDA
 
 typedef struct {
   uint16_t nPixels;               // number of the pixels, intersecting with the resulting pixel
@@ -141,11 +69,16 @@ typedef vector<ResizeMapping> ResizeMappingTableCPU;
 typedef vector<MappingInfo> ResizeMappingCPU;
 typedef vector<PixMapping> ResizeMappingPixDescrCPU;
 
+
+#define nYoffset(W, C)          ((W) * (C))
+
+#define SAME_SIZES(size1, size2)    ((size1)->height == (size2)->height && \
+                                     (size1)->width == (size2)->width)
 class ResizeMappingTable {
  public:
   DALISize io_size[2];
   int C_;
-                                                // Pointers to:
+                                              // Pointers to:
   ResizeMappingTableCPU resizeMappingCPU;     //      ResizeMapping table on CPU
   ResizeMappingPixDescrCPU pixMappingCPU;     //      PixMapping arrays for CPU
   ResizeMappingCPU resizeMappingSimpleCPU;    //      simplified ResizeMapping table on CPU
@@ -163,7 +96,7 @@ class ResizeMappingTable {
     if (!RESIZE_MAPPING_CPU(resizeMappingCPU) || C_ != C)
       return false;
 
-    return SAME_SIZES(io_size[0], in) && SAME_SIZES(io_size[1], out);
+    return SAME_SIZES(io_size, &in) && SAME_SIZES(io_size+1, &out);
   }
 
   inline void copyToGPU(cudaStream_t s) {
@@ -179,84 +112,12 @@ class ResizeMappingTable {
                  uint16_t xSize, uint16_t ySize, bool use_NN);
 };
 
+CC void ResizeFunc(int W0, int H0, const uint8 *img_in, int W, int H, uint8 *img_out, int C,
+                   const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
+                   int imgIdx = 0, int startW = 0, int stepW = 1, int startH = 0, int stepH = 1,
+                   const MappingInfo *pMapping = NULL, const ResizeMapping *pResizeMapping = NULL,
+                   const PixMapping *pPixMapping = NULL);
 
-#define RESIZE_N_PREAMBLE()  RESIZE_PREPARE()
-
-#define RESIZE_N_CORE(C)                                            \
-  auto pBase = in + ((nY / sy0 * W0) + nX / sx0) * C;               \
-  if (!pMapping) {                                                  \
-    auto pResizePix = pResizeMapping + (nY % sy0) * sx0 + nX % sx0; \
-    auto pPixMap = pPixMapping + pResizePix->intersectInfoAddr;     \
-    int pixColor[3] = {0, 0, 0};                                    \
-    for (int i = pResizePix->nPixels; i--;) {                       \
-      auto pPix = pBase + (pPixMap + i)->pixAddr;                   \
-      const int weight = (pPixMap + i)->pixArea;                    \
-      ADD_WEIGHTED_COLOR();                                         \
-    }                                                               \
-    SET_PIXEL_COLOR();                                              \
-  } else {                                                          \
-    auto pPix = pBase + pMapping[(nY % sy0) * sx0 + nX % sx0];      \
-    out[to] = *pPix;                                                \
-    if (C > 1) {                                                    \
-      out[to + 1] = *(pPix + 1);                                    \
-      out[to + 2] = *(pPix + 2);                                    \
-    }                                                               \
-  }
-
-DALIError_t BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-       const DALISize &sizeIn, const uint8 *in_batch, const DALISize &sizeOut, uint8 *out_batch,
-       const ResizeGridParam *pResizeParam, const MirroringInfo *pMirrorParam,
-       MappingInfo * pMapping[], MappingInfo **mapMem, const ResizeMapping *pResizeMapping,
-       const PixMapping *pPixMapping, bool newMapping);
-
-DALIError_t BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
-                          const ResizeGridParam *pResizeParam,
-                          const ImgSizeDescr sizes[], const ImgRasterDescr imgRasterGPU[],
-                          MappingInfo *pMapping[], MappingInfo **mapMem, size_t nBatchSlice);
-
-// Macros for  creation of the CPU/GPU augmentation methods:
-#define AUGMENT_RESIZE(H, W, C, img_in, img_out,                  \
-            AUGMENT_PREAMBLE, AUGMENT_CORE,                       \
-            stepW, stepH, startW, startH, imgIdx, ...)            \
-  AUGMENT_PREAMBLE();                                             \
-  int outStep = C;                                                \
-  const uint32_t offset = nYoffset(W, C);                         \
-  int32_t shift = stepH * offset;                                 \
-  const uint8 *in = img_in + H0 *nYoffset(W0, C) * imgIdx;        \
-  uint8 *out = img_out + (H * imgIdx + startH) * offset - shift;  \
-  if (mirrorVert)                                                 \
-    out += (H - 2 * startH - 1) * offset - 2 * (shift *= -1);     \
-  if (mirrorHor)                                                  \
-    out += offset + (outStep = -C);                               \
-  for (int y = startH; y < H; y += stepH) {                       \
-    out += shift;                                                 \
-    const uint32_t nY = (y + cropY) * sy1;                        \
-    for (int x = startW; x < W; x += stepW) {                     \
-      const uint32_t nX = (x + cropX) * sx1;                      \
-      const int32_t to = x * outStep;                             \
-      AUGMENT_CORE(C);                                            \
-    }                                                             \
-  }
-
-#define AUGMENT_RESIZE_CPU(H, W, C, img_in, img_out, KIND)          \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, 1, 1, 0, 0, 0)
-
-#define AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, imgID)   \
-        AUGMENT_RESIZE(H, W, C, img_in, img_out, KIND ## _PREAMBLE, \
-        KIND ## _CORE, blockDim.x, blockDim.y, threadIdx.x, threadIdx.y, imgID)
-
-#define AUGMENT_RESIZE_GPU_CONGENERIC(H, W, C, img_in, img_out, KIND)   \
-        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, blockIdx.x)
-
-#define AUGMENT_RESIZE_GPU_GENERIC(H, W, C, img_in, img_out, KIND)  \
-        AUGMENT_RESIZE_GPU(H, W, C, img_in, img_out, KIND, 0)
-
-#define nYoffset(W, C)          ((W) * (C))
-
-
-#define SAME_SIZES(size1, size2)    (size1->height == size2->height && \
-                                     size1->width == size2->width)
 template <typename Backend>
 class NewResize : public Resize<Backend> {
  public:
@@ -282,6 +143,7 @@ class NewResize : public Resize<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  virtual uint ResizeInfoNeeded() const     { return t_crop + t_mirrorHor; }
 
  private:
   MappingInfo **CopyResizeTableToGPU(size_t resizeMemory[], cudaStream_t s,
@@ -318,17 +180,12 @@ class NewResize : public Resize<Backend> {
     return mappingPntr_;
   }
 
-  bool PrepareCropAndResize(const DALISize *input_size, DALISize *out_size, int C,
+  bool PrepareCropAndResize(const DALISize *input_size, DALISize *out_size, int idx, int C,
                            ResizeGridParam resizeParam[],
                            ResizeMappingTable *ppResizeTbl = NULL) const {
     DALISize out_resize(*out_size);
     int cropY, cropX;
-    const bool doingCrop = ResizeAttr::CropNeeded(*out_size);
-    if (doingCrop)
-      ResizeAttr::DefineCrop(out_size, &cropX, &cropY);
-    else
-      cropY = cropX = 0;
-
+    ResizeAttr::DefineCrop(out_size, &cropX, &cropY, idx);
     resizeParam[2] = {cropX, cropY};
 
     return CreateResizeGrid(*input_size, out_resize, C, resizeParam, ppResizeTbl);
@@ -355,15 +212,12 @@ class NewResize : public Resize<Backend> {
     }
 
     if (newResize && ppResizeTbl)
-      ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::type_);
+      ppResizeTbl->constructTable(H0, W0, H1, W1, C, ResizeAttr::interp_type_);
 
     return newResize;
   }
 
   bool BatchIsCongeneric(const DALISize *sizeIn, const DALISize *sizeOut, int C) {
-    if (ResizeAttr::random_resize_)
-      return false;
-
       // Check if all input sizes are the same
     const uint32_t imageSize = sizeOut->width * sizeOut->height * C;
 
@@ -387,7 +241,7 @@ class NewResize : public Resize<Backend> {
 
   // Members used in RunBatchedGPU;
   ResizeMappingTable resizeTbl_;
-                                          // Memory allocated for:
+                                           // Memory allocated for:
   vector<ResizeGridParam>resizeParam_;     //     Resizing grid AND mirroring parameters on CPU
   ResizeGridDescr resizeParamGPU_;         //                                            on GPU
   MirroringDescr mirrorParamGPU_;

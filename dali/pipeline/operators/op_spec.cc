@@ -53,7 +53,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
       "Argument " + arg_name + " was already added to the op.");
   const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
   DALI_ENFORCE(schema.HasArgument(arg_name),
-      "Argument " + arg_name + " is not part of the op schema");
+      "Argument '" + arg_name + "' is not part of the op schema '" + schema.name() + "'");
   argument_inputs_[arg_name] = inputs_.size();
   argument_inputs_indexes_.insert(inputs_.size());
   AddInput(inp_name, "cpu", false);
