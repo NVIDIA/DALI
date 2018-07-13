@@ -65,6 +65,7 @@ Prerequisities
     * Version 1.7 or newer
 
 .. note::
+
    Installing TensorFlow is required to build the TensorFlow plugin for DALI
 
 
