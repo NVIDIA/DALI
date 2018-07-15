@@ -37,7 +37,7 @@ if (BUILD_NVJPEG)
     message(WARNING "Using nvJPEG ${NVJPEG_VERSION} together with CUDA ${CUDA_VERSION} "
                     "requires NVIDIA drivers compatible with CUDA ${NVJPEG_VERSION} or later")
   endif()
-  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIRS})
+  include_directories(SYSTEM ${NVJPEG_INCLUDE_DIR})
   list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
   list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
   add_definitions(-DDALI_USE_NVJPEG)
