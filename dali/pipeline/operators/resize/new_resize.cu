@@ -761,7 +761,7 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
     }
 
-    DALI_CALL(BatchedResize(batch_size_, dim3(32, 16), s, C, RESIZE_PARAM(resizeParamGPU_),
+    DALI_CALL(BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
                             sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_)));
   }
 }
