@@ -24,6 +24,15 @@ find_library(JpegTurbo_LIBRARY libturbojpeg.so turbojpeg
     PATHS ${JPEG_TURBO_ROOT_DIR} ${JpegTurbo_LIBRARY_DIRS}
     PATH_SUFFIXES lib lib64)
 
+# if pkg-config has no info about libjpeg-turbo find and parse jconfig.h
+if (NOT DEFINED JpegTurbo_VERSION)
+    find_path(JpegTurbo_CONFIG_INCLUDE_DIR jconfig.h
+    PATHS ${JPEG_TURBO_ROOT_DIR} ${JpegTurbo_INCLUDE_DIRS}
+    PATH_SUFFIXES include)
+    file(STRINGS "${JpegTurbo_CONFIG_INCLUDE_DIR}/jconfig.h" JpegTurbo_VERSION REGEX "^#define LIBJPEG_TURBO_VERSION[ ]+[0-9]+\.[0-9]+\.[0-9]+")
+    string(REGEX REPLACE "^#define LIBJPEG_TURBO_VERSION[ ]+([^\"]*).*" "\\1" JpegTurbo_VERSION "${JpegTurbo_VERSION}")
+endif()
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(JpegTurbo
     REQUIRED_VARS JpegTurbo_INCLUDE_DIR JpegTurbo_LIBRARY
