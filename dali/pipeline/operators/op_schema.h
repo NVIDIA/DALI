@@ -165,9 +165,10 @@ class DLL_PUBLIC OpSchema {
   template <typename T>
   DLL_PUBLIC inline typename std::enable_if<
     !is_vector<T>::value && !is_array<T>::value,
-    OpSchema&>::type
-  AddOptionalArg(const std::string &s, const std::string &doc,
-                 T default_value, bool enable_tensor_input = false) {
+    OpSchema&>::type AddOptionalArg(const std::string &s,
+                                    const std::string &doc,
+                                    T default_value,
+                                    bool enable_tensor_input = false) {
     CheckArgument(s);
     Value * to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(doc, to_store);
@@ -202,7 +203,8 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Sets a parent (which could be used as a storage of default parameters
+   * @brief Sets a parent (which could be used as a storage of default parameters)
+   * Does not support cyclic dependency.
    */
   DLL_PUBLIC inline OpSchema& AddParent(const std::string &parentName) {
     parents_.push_back(parentName);

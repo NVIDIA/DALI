@@ -223,8 +223,8 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   static DALIDataType RegisterType(DALIDataType dtype) {
-    // Lock the mutex to ensure correct setup even if this
-    // method is triggered from threads
+    // Use only when already guarded by the mutex to
+    // avoid races when used from multiple threads
 
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));

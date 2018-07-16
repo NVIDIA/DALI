@@ -29,7 +29,6 @@
 #include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api/c_api.h"
-#include "dali/common.h"
 #include "dali/error_handling.h"
 
 typedef std::chrono::high_resolution_clock Clock;
