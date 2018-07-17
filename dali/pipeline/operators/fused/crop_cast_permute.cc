@@ -28,21 +28,7 @@ DALI_SCHEMA(CropCastPermute)
   .AddOptionalArg("output_layout",
       R"code(`dali.types.DALITensorLayout`
       Output tensor data layout)code", DALI_NCHW)
-  .AddOptionalArg("crop_pos_x",
-      R"code(`float` or `float tensor`
-      Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
-  .AddOptionalArg("crop_pos_y",
-      R"code(`float` or `float tensor`
-      Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
-  .AddOptionalArg("image_type",
-        R"code(`dali.types.DALIImageType`
-        The color space of input and output image)code", DALI_RGB)
-  .AddArg("sizes",
-      R"code(`int` or `list of int`
-      Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code")
+  .AddParent("Crop")  // for image type, crop pos and sizes
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

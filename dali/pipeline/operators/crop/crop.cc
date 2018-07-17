@@ -32,7 +32,7 @@ DALI_SCHEMA(Crop)
   .AddOptionalArg("image_type",
         R"code(`dali.types.DALIImageType`
         The color space of input and output image)code", DALI_RGB)
-  .AddArg("sizes",
+  .AddArg("crop",
       R"code(`int` or `list of int`
       Size of the cropped image. If only a single value `c` is provided,
       the resulting crop will be square with size `(c,c)`)code")

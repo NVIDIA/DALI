@@ -408,9 +408,9 @@ def test_type_conversion():
         assert_array_equal(orig_cpu, arg1_cpu)
 
 def test_crop():
-    class CMNPipe(Pipeline):
+    class CMNvsCropPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
-            super(CMNPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            super(CMNvsCropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.cmn = ops.CropMirrorNormalize(device = "gpu",
@@ -420,25 +420,8 @@ def test_crop():
                                                 image_type = types.RGB,
                                                 mean = [0., 0., 0.],
                                                 std = [1., 1., 1.])
-            self.uniform = ops.Uniform(range = (0.0, 1.0))
-            self.cast = ops.Cast(device = "gpu",
-                                 dtype = types.INT32)
-
-        def define_graph(self):
-            inputs, labels = self.input()
-            images = self.decode(inputs)
-            output = self.cmn(images, crop_pos_x = self.uniform(),
-                              crop_pos_y = self.uniform())
-            output = self.cast(output)
-            return (output, labels.gpu())
-
-    class CropPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id):
-            super(CropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.crop = ops.Crop(device = "gpu",
-                                 sizes = (224, 224),
+                                 crop = (224, 224),
                                  image_type = types.RGB)
             self.uniform = ops.Uniform(range = (0.0, 1.0))
             self.cast = ops.Cast(device = "gpu",
@@ -447,27 +430,25 @@ def test_crop():
         def define_graph(self):
             inputs, labels = self.input()
             images = self.decode(inputs)
-            output = self.crop(images, crop_pos_x = self.uniform(),
-                               crop_pos_y = self.uniform())
-            output = self.cast(output)
-            return (output, labels.gpu())
+            crop_x = self.uniform()
+            crop_y = self.uniform()
+            output_cmn = self.cmn(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
+            output_crop = self.crop(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
+            output_cmn = self.cast(output_cmn)
+            output_crop = self.cast(output_crop)
+            return (output_cmn, output_crop, labels.gpu())
 
     batch_size = 8
+    iterations = 8
 
-    cmn_pipe = CMNPipe(batch_size=batch_size, num_threads=2, device_id = 0)
-    cmn_pipe.build()
-    cmn_pipe_out = cmn_pipe.run()
-    cmn_img_batch_cpu = cmn_pipe_out[0].asCPU()
+    pipe = CMNvsCropPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
 
-    crop_pipe = CropPipe(batch_size=batch_size, num_threads=2, device_id = 0)
-    crop_pipe.build()
-    crop_pipe_out = crop_pipe.run()
-    crop_img_batch_cpu = crop_pipe_out[0].asCPU()
-
-    for b in range(batch_size):
-        img_cmn = cmn_img_batch_cpu.at(b)
-        img_crop = crop_img_batch_cpu.at(b)
-        for i in range(img_cmn.shape[0]):
-            for j in range(img_cmn.shape[1]):
-                for k in range (img_cmn.shape[2]):
-                    assert(img_cmn[i][j][k] == img_crop[i][j][k])
+    for _ in range(iterations):
+        pipe_out = pipe.run()
+        cmn_img_batch_cpu = pipe_out[0].asCPU()
+        crop_img_batch_cpu = pipe_out[1].asCPU()
+        for b in range(batch_size):
+            img_cmn = cmn_img_batch_cpu.at(b)
+            img_crop = crop_img_batch_cpu.at(b)
+            assert(np.array_equal(img_cmn, img_crop))
