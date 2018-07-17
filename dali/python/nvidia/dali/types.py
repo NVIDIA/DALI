@@ -20,12 +20,9 @@ try:
 except ImportError:
     _tfrecord_support = False
 
-def _to_string(val):
-    return "\'" + str(val) + "\'"
-
 def _to_list(func):
     def _to_list_instance(val):
-        if isinstance(val, list):
+        if isinstance(val, (list, tuple)):
             return [func(v) for v in val]
         else:
             return [func(val)]
@@ -39,10 +36,10 @@ _known_types = {
         DALIDataType.INT64 : ("int", int),
         DALIDataType.FLOAT : ("float", float),
         DALIDataType.BOOL : ("bool", bool),
-        DALIDataType.STRING : ("str", _to_string),
+        DALIDataType.STRING : ("str", str),
         DALIDataType._BOOL_VEC : ("bool or list of bool", _to_list(bool)),
         DALIDataType._INT32_VEC : ("int or list of int",_to_list(int)),
-        DALIDataType._STRING_VEC : ("str or list of str", _to_list(_to_string)),
+        DALIDataType._STRING_VEC : ("str or list of str", _to_list(str)),
         DALIDataType._FLOAT_VEC : ("float or list of float", _to_list(float)),
         DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
