@@ -33,7 +33,7 @@ COPY Acknowledgements.txt /opt/dali/
 COPY COPYRIGHT   /opt/dali/
 COPY Doxyfile    /opt/dali/
 COPY LICENSE     /opt/dali/
-COPY README.md   /opt/dali/
+COPY README.rst  /opt/dali/
 COPY docs/       /opt/dali/docs/
 COPY dali/       /opt/dali/dali/
 COPY tools/      /opt/dali/tools/
