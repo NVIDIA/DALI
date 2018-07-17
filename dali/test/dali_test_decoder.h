@@ -6,6 +6,7 @@
 #include "dali/test/dali_test_single_op.h"
 #include <utility>
 #include <vector>
+#include <string>
 
 namespace dali {
 
@@ -42,7 +43,7 @@ class GenericDecoderTest : public DALISingleOpTest {
   virtual const OpSpec DecodingOp() const = 0;
   virtual uint8 TestCheckType() const       { return t_checkDefault; }
 
-  void RunTestDecode(bool jpegData, float eps = 5e-2) {
+  void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
 #ifdef PIXEL_STAT_FILE
     FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
     fprintf(file, "Type of the files: %s   eps = %6.4f\n", jpegData? "JPEG" : "PNG", eps);
@@ -50,10 +51,19 @@ class GenericDecoderTest : public DALISingleOpTest {
     fclose(file);
 #endif
     TensorList<CPUBackend> encoded_data;
-    if (jpegData)
-      EncodedJPEGData(&encoded_data, batch_size_);
-    else
-      EncodedPNGData(&encoded_data, batch_size_);
+    switch (imageType) {
+      case t_jpegImgType:
+        EncodedJPEGData(&encoded_data, batch_size_);
+        break;
+      case t_pngImgType:
+        EncodedPNGData(&encoded_data, batch_size_);
+        break;
+      default: {
+        char buff[32];
+        snprintf(buff, "%d", imageType);
+        DALI_FAIL("Image of type `" + string(buff) + "` cannot be decoded");
+      }
+    }
 
     SetExternalInputs({std::make_pair("encoded", &encoded_data)});
 

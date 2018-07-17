@@ -38,7 +38,8 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422.jpg",
   image_folder + "/440.jpg",
   image_folder + "/444.jpg",
-//  image_folder + "/gray.jpg",   // Temporary, until Marat will fix the bug
+//  image_folder + "/gray.jpg",   // Batched decoding has a bug in nvJPEG when both grayscale
+                                  //  and color images are decoded in the same batch
   image_folder + "/411.jpg",
   image_folder + "/411-non-multiple-4-width.jpg",
   image_folder + "/420-odd-height.jpg",
@@ -69,7 +70,13 @@ typedef enum {            // Checking:
   t_checkElements   = 2,  //    images separately
   t_checkAll        = 4,  //    everything (no assertion after first fail)
   t_checkNoAssert   = 8   //    no assertion even when test failed
-} t_checkTyte;
+} t_checkType;
+
+typedef enum {
+  t_undefinedImgType,
+  t_jpegImgType,
+  t_pngImgType,
+} t_imgType;
 
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,

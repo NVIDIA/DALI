@@ -50,7 +50,7 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
 
 #if USE_CROP
   // Because the out sizes are all the same for the batch mode, take the first one:
-  const NDLLSize &out_size = out_sizes[0];
+  const DALISize &out_size = out_sizes[0];
 
   //  and construct the out ROI:
   const auto cropW = out_size.width;

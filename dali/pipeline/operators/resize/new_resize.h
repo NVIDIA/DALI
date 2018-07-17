@@ -48,7 +48,7 @@ namespace dali {
 #define N_GRID_PARAMS       3
 #define _countof(x)         sizeof(x)/sizeof(x[0])
 
-#define CC __host__ __device__    // Calling from CUDA
+#define CUDA_CALLABLE __host__ __device__    // Calling from CUDA
 
 typedef struct {
   uint16_t nPixels;               // number of the pixels, intersecting with the resulting pixel
@@ -112,8 +112,8 @@ class ResizeMappingTable {
                  uint16_t xSize, uint16_t ySize, bool use_NN);
 };
 
-CC void ResizeFunc(int W0, int H0, const uint8 *img_in, int W, int H, uint8 *img_out, int C,
-                   const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
+CUDA_CALLABLE void ResizeFunc(int W0, int H0, const uint8 *img_in, int W, int H, uint8 *img_out,
+                   int C, const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
                    int imgIdx = 0, int startW = 0, int stepW = 1, int startH = 0, int stepH = 1,
                    const MappingInfo *pMapping = NULL, const ResizeMapping *pResizeMapping = NULL,
                    const PixMapping *pPixMapping = NULL);
@@ -142,7 +142,9 @@ class NewResize : public Resize<Backend> {
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
+    Resize<Backend> ::SetupSharedSampleParams(ws);
+  }
   virtual uint ResizeInfoNeeded() const     { return t_crop + t_mirrorHor; }
 
  private:
@@ -183,7 +185,7 @@ class NewResize : public Resize<Backend> {
   bool PrepareCropAndResize(const DALISize *input_size, DALISize *out_size, int idx, int C,
                            ResizeGridParam resizeParam[],
                            ResizeMappingTable *ppResizeTbl = NULL) const {
-    DALISize out_resize(*out_size);
+    const DALISize out_resize(*out_size);
     int cropY, cropX;
     ResizeAttr::DefineCrop(out_size, &cropX, &cropY, idx);
     resizeParam[2] = {cropX, cropY};

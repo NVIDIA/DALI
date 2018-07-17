@@ -35,11 +35,11 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(HostDecodeTest, Types);
 
 TYPED_TEST(HostDecodeTest, TestJPEGDecode) {
-  this->RunTestDecode(true, 0.00000005);
+  this->RunTestDecode(t_jpegImgType, 0.00000005);
 }
 
 TYPED_TEST(HostDecodeTest, TestPNGDecode) {
-  this->RunTestDecode(false);
+  this->RunTestDecode(t_pngImgType);
 }
 
 }  // namespace dali

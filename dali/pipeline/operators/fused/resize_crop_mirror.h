@@ -121,16 +121,27 @@ class ResizeCropMirrorAttr {
     return meta;
   }
 
+  inline const TransformMeta GetTransfomMeta(const SampleWorkspace *ws, const OpSpec &spec) {
+    auto &input = ws->Input<CPUBackend>(0);
+
+    // enforce that all shapes match
+    for (int i = 1; i < ws->NumInput(); ++i) {
+      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+    }
+
+    return GetTransformMeta(spec, input.shape(), ws, ws->data_idx(), t_crop + t_mirrorHor);
+  }
+
+ protected:
   DALIImageType image_type_;
-
-  // Resize meta-data
-  bool resize_shorter_, resize_x_, resize_y_;
-
+  // Interpolation type
+  DALIInterpType interp_type_;
   // Crop meta-data
   vector<int>crop_;
 
-  // Interpolation type
-  DALIInterpType interp_type_;
+ private:
+  // Resize meta-data
+  bool resize_shorter_, resize_x_, resize_y_;
 };
 
 /**
@@ -152,15 +163,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
 
  protected:
   inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-
-    // enforce that all shapes match
-    for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-    }
-
-    per_thread_meta_[ws->thread_idx()] = GetTransformMeta(spec_, input.shape(), ws, ws->data_idx(),
-                                                          t_crop + t_mirrorHor);
+    per_thread_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
   }
 
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
