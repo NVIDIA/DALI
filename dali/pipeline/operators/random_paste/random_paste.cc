@@ -26,10 +26,12 @@ DALI_SCHEMA(RandomPaste)
   .AllowMultipleInputSets()
   .AddArg("max_ratio",
       R"code(`float`
-      Value of the maximum ratio, must be > 1.)code")
+      Value of the maximum ratio, must be > 1.)code",
+      DALI_FLOAT)
   .AddArg("fill_color",
       R"code(`list of int`
       RGB value of the color to fill the canvas.
-      `(r, g, b)` `int tuple` expected.)code");
+      `(r, g, b)` `int tuple` expected.)code",
+      DALI_INT_VEC);
 
 }  // namespace dali
