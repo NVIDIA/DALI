@@ -60,7 +60,7 @@ class GenericDecoderTest : public DALISingleOpTest {
         break;
       default: {
         char buff[32];
-        snprintf(buff, "%d", imageType);
+        snprintf(buff, sizeof(buff), "%d", imageType);
         DALI_FAIL("Image of type `" + string(buff) + "` cannot be decoded");
       }
     }
