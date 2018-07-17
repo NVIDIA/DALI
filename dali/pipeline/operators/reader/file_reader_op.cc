@@ -25,12 +25,11 @@ DALI_SCHEMA(FileReader)
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root",
-      R"code(`string`
-      Path to a directory containing data files)code")
+      R"code(Path to a directory containing data files.)code",
+      DALI_STRING)
   .AddOptionalArg("file_list",
-      R"code(`string`
-      Path to the file with a list of pairs ``file label``
-      (leave empty to traverse the `file_root` directory to obtain files and labels))code",
+      R"code(Path to the file with a list of pairs ``file label``
+(leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddParent("LoaderBase");
 

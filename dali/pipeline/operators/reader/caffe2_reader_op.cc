@@ -32,25 +32,22 @@ DALI_SCHEMA(Caffe2Reader)
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path",
-      R"code(`string`
-      Path to Caffe2 LMDB directory)code")
+      R"code(Path to Caffe2 LMDB directory.)code",
+      DALI_STRING)
   .AddOptionalArg("num_labels",
-      R"code(`int`
-      Number of classes in dataset. Required when sparse labels are used.)code", 1)
+      R"code(Number of classes in dataset. Required when sparse labels are used.)code", 1)
   .AddOptionalArg("label_type",
-      R"code(`int`
-      Enum describing the type of label stored in dataset.
-      SINGLE_LABEL = 0 : single integer label for multi-class classification
-      MULTI_LABEL_SPARSE = 1 : sparse active label indices for multi-label classification
-      MULTI_LABEL_DENSE = 2 : dense label embedding vector for label embedding regression
-      MULTI_LABEL_WEIGHTED_SPARSE = 3 : sparse active label indices with per-label weights
-      for multi-label classification.)code", 0)
+      R"code(Type of label stored in dataset.
+
+* 0 = SINGLE_LABEL : single integer label for multi-class classification
+* 1 = MULTI_LABEL_SPARSE : sparse active label indices for multi-label classification
+* 2 = MULTI_LABEL_DENSE : dense label embedding vector for label embedding regression
+* 3 = MULTI_LABEL_WEIGHTED_SPARSE : sparse active label indices with per-label weights for multi-label classification.
+)code", 0)
   .AddOptionalArg("additional_inputs",
-      R"code(`int`
-      Additional auxiliary data tensors provided for each sample.)code", 0)
+      R"code(Additional auxiliary data tensors provided for each sample.)code", 0)
   .AddOptionalArg("bbox",
-      R"code(`bool`
-      Denotes if bounding-box information is present.)code", false)
+      R"code(Denotes if bounding-box information is present.)code", false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

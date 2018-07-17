@@ -25,37 +25,32 @@ DALI_SCHEMA(Resize)
   })
   .AllowMultipleInputSets()
   .AddOptionalArg("random_resize",
-      R"code(`bool`
-      Whether to randomly resize images.)code", false)
+      R"code(Whether to randomly resize images.)code", false)
   .AddOptionalArg("warp_resize",
-      R"code(`bool`
-      Whether to modify the aspect ratio of the image.)code", false)
+      R"code(Whether to modify the aspect ratio of the image.)code", false)
   .AddArg("resize_a",
-      R"code(`int`
-      If neither `random_resize` nor `warp_resize` is set - size to which the shorter side of the image is resized.
-      If `warp_image` is set and `random_resize` is not set - size to which height of the image is resized.
-      If `random_resize` is set and `warp_resize` is not set - lower bound for the shorter side of the resized image.
-      If both `random_resize` and `warp_resize` are set - lower bound for resized image's height and width.)code")
+      R"code(If neither `random_resize` nor `warp_resize` is set - size to which the shorter side of the image is resized.
+If `warp_image` is set and `random_resize` is not set - size to which height of the image is resized.
+If `random_resize` is set and `warp_resize` is not set - lower bound for the shorter side of the resized image.
+If both `random_resize` and `warp_resize` are set - lower bound for resized image's height and width.)code",
+      DALI_INT32)
   .AddArg("resize_b",
-      R"code(`int`
-      If neither `random_resize` nor `warp_resize` is set - ignored.
-      If `warp_image` is set and `random_resize` is not set - size to which width of the image is resized.
-      If `random_resize` is set and `warp_resize` is not set - upper bound for the shorter side of the resized image.
-      If both `random_resize` and `warp_resize` are set - upper bound for resized image's height and width.)code")
+      R"code(If neither `random_resize` nor `warp_resize` is set - ignored.
+If `warp_image` is set and `random_resize` is not set - size to which width of the image is resized.
+If `random_resize` is set and `warp_resize` is not set - upper bound for the shorter side of the resized image.
+If both `random_resize` and `warp_resize` are set - upper bound for resized image's height and width.)code",
+      DALI_INT32)
 //  .AddOptionalArg("random_crop", "Whether to randomly choose the position of the crop", false)
 //  .AddOptionalArg("crop", "Size of the cropped image", -1)
 //  .AddOptionalArg("mirror_prob", "Probability of a random horizontal or "
 //      "vertical flip of the image", vector<float>{0.f, 0.f})
   .AddOptionalArg("image_type",
-        R"code(`dali.types.DALIImageType`
-        The color space of input and output image)code", DALI_RGB)
+        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddOptionalArg("interp_type",
-      R"code(`dali.types.DALIInterpType`
-      Type of interpolation used)code",
+      R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
   .AddOptionalArg("save_attrs",
-      R"code(`bool`
-      Save reshape attributes for testing)code", false);
+      R"code(Save reshape attributes for testing.)code", false);
 
 
 resize_t ResizeAttr::GetRandomSizes() const {

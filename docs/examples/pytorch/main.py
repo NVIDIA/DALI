@@ -30,7 +30,7 @@ try:
     import nvidia.dali.ops as ops
     import nvidia.dali.types as types
 except ImportError:
-    raise ImportError("Please install dali from https://www.github.com/nvidia/dali to run this example.")
+    raise ImportError("Please install DALI from https://www.github.com/NVIDIA/DALI to run this example.")
 
 
 model_names = sorted(name for name in models.__dict__

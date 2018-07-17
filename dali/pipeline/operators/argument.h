@@ -32,25 +32,38 @@ class Value {
   virtual std::string ToString() const = 0;
   template <typename T>
   static inline Value * construct(const T& val);
+  DALIDataType GetTypeID() const {
+    return type_;
+  }
+
+ protected:
+  Value() : type_(DALI_NO_TYPE) {}
+
+  void SetTypeID(DALIDataType dtype) {
+    type_ = dtype;
+  }
+
+  DALIDataType type_;
 };
 
 template <typename T>
 class ValueInst : public Value {
  public:
   explicit ValueInst(const T& val) {
-    this->val = val;
+    this->val_ = val;
+    this->type_ = TypeTable::GetTypeID<T>();
   }
 
   std::string ToString() const override {
-    return to_string(val);
+    return to_string(val_);
   }
 
   T Get() const {
-    return val;
+    return val_;
   }
 
  private:
-  T val;
+  T val_;
 };
 
 template <typename T>
@@ -58,19 +71,29 @@ inline Value * Value::construct(const T& val) {
   return new ValueInst<T>(val);
 }
 
-#define INSTANTIATE_VALUE_AS_INT64(T)             \
-  template<>                                      \
-  inline Value * Value::construct(const T& val) { \
-    return new ValueInst<Index>(val);             \
+#define INSTANTIATE_VALUE_AS_INT64(T)                  \
+  template<>                                           \
+  inline Value * Value::construct(const T& val) {      \
+    auto *ret = new ValueInst<Index>(val);             \
+    return ret;                                        \
+  }
+
+#define INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(T)                  \
+  template<>                                                         \
+  inline Value * Value::construct(const T& val) {                    \
+    auto *ret = new ValueInst<Index>(val);                           \
+    /* preserve type information */                                  \
+    ret->SetTypeID(TypeTable::GetTypeID<T>());                       \
+    return ret;                                                      \
   }
 
 INSTANTIATE_VALUE_AS_INT64(int);
 INSTANTIATE_VALUE_AS_INT64(unsigned int);
 INSTANTIATE_VALUE_AS_INT64(uint64_t);
-INSTANTIATE_VALUE_AS_INT64(DALIImageType);
-INSTANTIATE_VALUE_AS_INT64(DALIDataType);
-INSTANTIATE_VALUE_AS_INT64(DALIInterpType);
-INSTANTIATE_VALUE_AS_INT64(DALITensorLayout);
+INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIImageType);
+INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIDataType);
+INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIInterpType);
+INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALITensorLayout);
 
 /**
  * @brief Stores a single argument.
@@ -106,6 +129,8 @@ class Argument {
   virtual std::string ToString() const {
     return get_name();
   }
+
+  virtual DALIDataType GetTypeID() const = 0;
 
   virtual void SerializeToProtobuf(dali_proto::Argument *arg) = 0;
 
@@ -149,6 +174,10 @@ class ArgumentInst : public Argument {
     return ret;
   }
 
+  DALIDataType GetTypeID() const override {
+    return val.GetTypeID();
+  }
+
   void SerializeToProtobuf(dali_proto::Argument *arg) override {
     arg->set_name(Argument::ToString());
     dali::SerializeToProtobuf(val.Get(), arg);
@@ -173,6 +202,10 @@ class ArgumentInst<std::vector<T>> : public Argument {
     ret += ": ";
     ret += val.ToString();
     return ret;
+  }
+
+  DALIDataType GetTypeID() const override {
+    return val.GetTypeID();
   }
 
   void SerializeToProtobuf(dali_proto::Argument *arg) override {
