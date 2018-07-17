@@ -33,6 +33,7 @@
 namespace dali {
 std::mutex TypeTable::mutex_;
 std::unordered_map<std::type_index, DALIDataType> TypeTable::type_map_;
+std::unordered_map<size_t, TypeInfo> TypeTable::type_info_map_;
 int TypeTable::index_ = DALI_DATATYPE_END;
 
 template <>

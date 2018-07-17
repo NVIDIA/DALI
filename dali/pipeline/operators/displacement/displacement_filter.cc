@@ -18,20 +18,18 @@
 namespace dali {
 
 DALI_SCHEMA(DisplacementFilter)
-  .DocStr("Base schema for displacement operators")
+  .DocStr("Base schema for displacement operators.")
   .AddOptionalArg("mask",
-      R"code(`int` or `int tensor`
-      Whether to apply this augmentation to the input image.
-        0 - do not apply this transformation
-        1 - apply this transformation
-        )code", 1)
+      R"code(Whether to apply this augmentation to the input image.
+
+* 0 - do not apply this transformation
+* 1 - apply this transformation
+)code", 1, true)
   .AddOptionalArg("interp_type",
-      R"code(`dali.types.DALIInterpType`
-      Type of interpolation used)code",
+      R"code(Type of interpolation used.)code",
       DALI_INTERP_NN)
   .AddOptionalArg("fill_value",
-      R"code(`float`
-      Color value used for padding pixels.)code",
+      R"code(Color value used for padding pixels.)code",
       0.f);
 
 }  // namespace dali

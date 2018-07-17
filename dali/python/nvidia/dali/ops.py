@@ -18,7 +18,37 @@ import copy
 from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.tensor import TensorReference
+from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value
 from future.utils import with_metaclass
+
+def _docstring_generator(cls):
+    schema = b.GetSchema(cls.__name__)
+    ret = schema.Dox()
+    ret += '\n'
+    ret += """
+Parameters
+----------
+"""
+    for arg in schema.GetArgumentNames():
+        dtype = schema.GetArgumentType(arg)
+        arg_name_doc = "`" + arg + "` : "
+        ret += (arg_name_doc +
+                _type_name_convert_to_string(dtype, schema.IsTensorArgument(arg)))
+        if schema.IsArgumentOptional(arg):
+            default_value_string = schema.GetArgumentDefaultValueString(arg)
+            # Evaluating empty string results in an error
+            # so we need to prevent that
+            if default_value_string:
+                default_value = eval(default_value_string)
+            else:
+                default_value = default_value_string
+            ret += (", optional, default = " +
+                    str(_type_convert_value(dtype, default_value)))
+        indent = '\n' + " " * len(arg_name_doc)
+        ret += indent
+        ret += schema.GetArgumentDox(arg).replace("\n", indent)
+        ret += '\n'
+    return ret
 
 class _OpCounter(object):
     #pylint: disable=too-few-public-methods
@@ -138,7 +168,7 @@ class _OperatorInstance(object):
 class _DaliOperatorMeta(type):
     @property
     def __doc__(self):
-        return self._docstring()
+        return _docstring_generator(self)
 
 def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_DaliOperatorMeta, object)):
@@ -160,11 +190,6 @@ def python_op_factory(name, op_device = "cpu"):
                     if not value:
                         raise RuntimeError("List arguments need to have at least 1 element.")
                 self._spec.AddArg(key, value)
-
-        @classmethod
-        def _docstring(cls):
-            schema = b.GetSchema(cls.__name__)
-            return schema.Dox()
 
         @property
         def spec(self):
@@ -234,11 +259,6 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
             self._spec.AddArg(key, value)
 
         self._features = features
-
-    @classmethod
-    def _docstring(cls):
-        schema = b.GetSchema("TFRecordReader")
-        return schema.Dox()
 
     @property
     def spec(self):

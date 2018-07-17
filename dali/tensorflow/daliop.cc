@@ -20,19 +20,21 @@
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 
-#include "dali/tensorflow/tfallocator.h"
+#define USE_TF_ALLOCATOR 0
 
+#if USE_TF_ALLOCATOR
+#include "dali/tensorflow/tfallocator.h"
+#endif
+
+#include "dali/common.h"
 #include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api/c_api.h"
-#include "dali/common.h"
 #include "dali/error_handling.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
 namespace tf = tensorflow;
-
-#define USE_TF_ALLOCATOR 0
 
 #define TF_DALI_CALL(FUNC)                                                         \
     do {                                                                           \
