@@ -36,11 +36,9 @@ class CropMirrorNormalize : public Operator<Backend> {
     pad_(spec.GetArgument<bool>("pad_output")),
     image_type_(spec.GetArgument<DALIImageType>("image_type")),
     color_(IsColor(image_type_)),
-    C_(color_ ? 3 : 1),
-    mean_vec_(spec.GetRepeatedArgument<float>("mean")),
-    inv_std_vec_(spec.GetRepeatedArgument<float>("std")) {
+    C_(color_ ? 3 : 1) {
     vector<int> temp_crop;
-    GetSingleOrDoubleArg(spec, &temp_crop, "crop");
+    GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
 
     DALI_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
         + to_string(temp_crop.size()) + " given.");
@@ -51,7 +49,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     if (!has_mirror_) {
       mirror_.Resize({batch_size_});
       for (int i = 0; i < batch_size_; ++i) {
-        mirror_.mutable_data<int>()[i] = 0;
+        mirror_.mutable_data<int>()[i] = spec.GetArgument<int>("mirror");
       }
     }
 
@@ -62,9 +60,15 @@ class CropMirrorNormalize : public Operator<Backend> {
                  "Expected NCHW or NHWC.");
     DALI_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
 
+    GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
+    GetSingleOrRepeatedArg(spec, &inv_std_vec_, "std", C_);
     // Validate & save mean & std params
-    DALI_ENFORCE((int)mean_vec_.size() == C_);
-    DALI_ENFORCE((int)inv_std_vec_.size() == C_);
+    DALI_ENFORCE((int)mean_vec_.size() == C_,
+        "Argument \"mean\" expects a list of " + to_string(C_) +
+        " elements, " + to_string(mean_vec_.size()) + " given.");
+    DALI_ENFORCE((int)inv_std_vec_.size() == C_,
+        "Argument \"std\" expects a list of " + to_string(C_) +
+        " elements, " + to_string(inv_std_vec_.size()) + " given.");
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

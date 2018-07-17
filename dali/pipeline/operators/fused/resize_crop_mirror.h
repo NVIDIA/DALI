@@ -22,6 +22,7 @@
 #include "dali/error_handling.h"
 #include "dali/image/transform.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -35,19 +36,7 @@ class ResizeCropMirror : public Operator<CPUBackend> {
   explicit inline ResizeCropMirror(const OpSpec &spec) :
     Operator(spec) {
     vector<int> temp_crop;
-    try {
-      temp_crop = spec.GetRepeatedArgument<int>("crop");
-      if (temp_crop.size() == 1) {
-        temp_crop.push_back(temp_crop.back());
-      }
-    } catch (std::runtime_error e) {
-      try {
-        int temp = spec.GetArgument<int>("crop");
-        temp_crop = {temp, temp};
-      } catch (std::runtime_error e) {
-        DALI_FAIL("Invalid type of argument \"crop\". Expected int or list of int");
-      }
-    }
+    GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
 
     DALI_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
         + to_string(temp_crop.size()) + " given.");

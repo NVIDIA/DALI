@@ -17,6 +17,7 @@
 #include <random>
 
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
+#include "dali/pipeline/operators/common.h"
 #include "dali/util/ocv.h"
 
 namespace dali {
@@ -32,7 +33,7 @@ DALI_SCHEMA(RandomResizedCrop)
       std::vector<float>{3./4., 4./3.})
   .AddOptionalArg("random_area",
       R"code(Range from which to choose random area factor `A`.
-      Before resizing, the cropped image's area will be equal to `A` * original image's area.)code",
+Before resizing, the cropped image's area will be equal to `A` * original image's area.)code",
       std::vector<float>{0.08, 1.0})
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
@@ -64,24 +65,14 @@ void RandomResizedCrop<CPUBackend>::InitParams(const OpSpec &spec) {
   for (size_t i = 0; i < seeds.size(); ++i) {
     params_->rand_gens[i].seed(seeds[i]);
   }
-  std::vector<float> aspect_ratios = spec.GetRepeatedArgument<float>("random_aspect_ratio");
-  std::vector<float> area = spec.GetRepeatedArgument<float>("random_area");
-  DALI_ENFORCE(aspect_ratios.size() == 2,
-      "\"random_aspect_ratio\" argument should be a list of size 2");
-  DALI_ENFORCE(aspect_ratios[0] <= aspect_ratios[1],
-      "Provided empty range");
-  DALI_ENFORCE(area.size() == 2,
-      "\"random_area\" argument should be a list of size 2");
-  DALI_ENFORCE(area[0] <= area[1],
-      "Provided empty range");
   params_->aspect_ratio_dis.resize(batch_size_);
   params_->area_dis.resize(batch_size_);
   params_->uniform.resize(batch_size_);
   for (size_t i = 0; i < params_->aspect_ratio_dis.size(); ++i) {
-    params_->aspect_ratio_dis[i] = std::uniform_real_distribution<float>(aspect_ratios[0],
-                                                                         aspect_ratios[1]);
-    params_->area_dis[i] = std::uniform_real_distribution<float>(area[0],
-                                                                 area[1]);
+    params_->aspect_ratio_dis[i] = std::uniform_real_distribution<float>(aspect_ratios_[0],
+                                                                         aspect_ratios_[1]);
+    params_->area_dis[i] = std::uniform_real_distribution<float>(area_[0],
+                                                                 area_[1]);
     params_->uniform[i] = std::uniform_real_distribution<float>(0, 1);
   }
 
