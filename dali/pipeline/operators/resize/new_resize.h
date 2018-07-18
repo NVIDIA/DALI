@@ -125,7 +125,6 @@ class NewResize : public Resize<Backend> {
     mirrorParamGPU_.mutable_data<MirroringInfo>();
     resizeParam_.resize((N_GRID_PARAMS + 1) * batch_size_);
     mappingPntr_ = NULL;
-    mapMemGPU_ = NULL;
     for (size_t i = 0; i < _countof(mapMem_); ++i) {
       mapMem_[i] = NULL;
       resizeMemory_[i] = 0;
@@ -137,7 +136,6 @@ class NewResize : public Resize<Backend> {
       CUDA_CALL(cudaFree(mapMem_[i]));
 
     CUDA_CALL(cudaFree(mappingPntr_));
-    CUDA_CALL(cudaFree(mapMemGPU_));
   }
 
  protected:
@@ -171,14 +169,14 @@ class NewResize : public Resize<Backend> {
       mapMem[i] = mapMem_[i];
     }
 
-    const size_t len = nSliceNumb * sizeof(mapMemGPU_[0]);
+
     if (!mappingPntr_) {
       const size_t length = nTable * sizeof(mappingPntr_[0]);
       CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mappingPntr_), length));
-      CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&mapMemGPU_), len));
     }
 
-    CUDA_CALL(cudaMemcpyAsync(mapMemGPU_, mapMem, len, cudaMemcpyHostToDevice, s));
+    const size_t len = nSliceNumb * sizeof(mappingPntr_[0]);
+    CUDA_CALL(cudaMemcpyAsync(mappingPntr_, mapMem, len, cudaMemcpyHostToDevice, s));
     return mappingPntr_;
   }
 
@@ -251,7 +249,6 @@ class NewResize : public Resize<Backend> {
   ImgRasterDescr imgsGPU_[2];              //     Input/Output images rasters on GPU
   size_t resizeMemory_[BATCH_SLICE_NUMB];  //     total length of simplified resize tables
   MappingInfo *mapMem_[BATCH_SLICE_NUMB];  //     all resize tables of the batch slices on CPU
-  MappingInfo **mapMemGPU_;                //     all resize tables of the batch slices on GPU
   MappingInfo **mappingPntr_;              //     all resize tables for batch images on GPU
   USE_OPERATOR_MEMBERS();
 };

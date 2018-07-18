@@ -127,7 +127,7 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
         int cropY = 0, cropX = 0;
         auto resizeParam = pResizeParam + i * (pMirroring ? N_GRID_PARAMS : 2);
         if (pMirroring) {
-          // "NewResise" operation is used (Mirroring is not supported in "Resize")
+          // "NewResize" operation is used (Mirroring is not supported in "Resize")
           pResize->DefineCrop(out_size, &cropX, &cropY, i);
           const int H0 = input_size->height;
           const int W0 = input_size->width;
@@ -258,11 +258,24 @@ class PixMappingHelper {
   float centerX_, centerY_;
 };
 
+
+// To split the construction of the resize tables (which are used for DALI_INTERP_NN) on GPUs,
+// we divided the images of the batch into nBatchSlice_ groups according to their indices:
+// i-th image of the batch belongs in (i % nBatchSlice_)-th group.
+
+// Total maximum length of these tables for each such group was calculated in
+// DataDependentSetupGPU and stored in ResizeParamDescr::pTotalSize_
+// The combined memory for these tables was (re-)allocated in NewResize::CopyResizeTableToGPU
+
+// The lengths of all resize tables are calculated in DataDependentSetupGPU, stored in
+// ResizeParamDescr::pResizeParam_ and copied on GPU in NewResize<GPUBackend>::RunImpl
+// by resizeParamGPU_.Copy(...)
+
 __global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDescr,
-                      MappingInfo *mapPntr[], MappingInfo **mappingMem, size_t step) {
+                      MappingInfo *mapPntr[], size_t step) {
   size_t idx = blockIdx.x;
-  mapPntr[idx] = mappingMem[idx];
   if (mapPntr[idx]) {
+    // Divide the memory allocated for all tables of image group between images
     for (size_t i = idx + step; i < nTable; idx = i, i += step)
       mapPntr[i] = mapPntr[idx] +
                    resizeDescr[idx * N_GRID_PARAMS].x * resizeDescr[idx * N_GRID_PARAMS].y;
@@ -305,12 +318,11 @@ void BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, in
                      const DALISize &sizeIn, const uint8 *in_batch, const DALISize &sizeOut,
                      uint8 *out_batch,
                      const ResizeGridParam *resizeDescr, const MirroringInfo *pMirrorInfo,
-                     MappingInfo *ppMapping[], MappingInfo **mapMem,
+                     MappingInfo *ppMapping[],
                      const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping,
                      bool newMapping) {
   if (ppMapping && newMapping) {
-    InitiateResizeTables <<< 1, 1, 0, stream >>>
-            (1, resizeDescr, ppMapping, mapMem, 1);
+    InitiateResizeTables <<< 1, 1, 0, stream >>> (1, resizeDescr, ppMapping, 1);
 
     CUDA_CALL(cudaGetLastError());
 
@@ -346,13 +358,11 @@ __global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
 
 void BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                    const ResizeGridParam *resizeDescr, const ImgSizeDescr sizes[],
-                   const ImgRasterDescr raster[], MappingInfo *ppMapping[],
-                   MappingInfo **mapMem, size_t nBatchSlice) {
+                   const ImgRasterDescr raster[], MappingInfo *ppMapping[], size_t nBatchSlice) {
   auto in_sizes = IMG_SIZES(sizes[input_t]);
   auto out_sizes = IMG_SIZES(sizes[output_t]);
   if (ppMapping) {
-    InitiateResizeTables <<< nBatchSlice, 1, 0, stream >>>
-             (N, resizeDescr, ppMapping, mapMem, nBatchSlice);
+    InitiateResizeTables<<< nBatchSlice, 1, 0, stream >>>(N, resizeDescr, ppMapping, nBatchSlice);
 
     CUDA_CALL(cudaGetLastError());
 
@@ -728,7 +738,7 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
                 *sizeIn, input.template data<uint8>(),
                 *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
                 RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
-                mapPntr, mapMemGPU_, pResizeMapping, pPixMapping, newMapping);
+                mapPntr, pResizeMapping, pPixMapping, newMapping);
   } else {
     resizeParamGPU_.Copy(resizeParam_, s);
 
@@ -740,7 +750,7 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     }
 
     BatchedResize(batch_size_, dim3(32, 32), s, C, RESIZE_PARAM(resizeParamGPU_),
-                  sizesGPU_, imgsGPU_, mapPntr, mapMemGPU_, _countof(mapMem_));
+                  sizesGPU_, imgsGPU_, mapPntr, _countof(mapMem_));
   }
 }
 
