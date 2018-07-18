@@ -402,8 +402,8 @@ def test_type_conversion():
     pipe.build()
     for i in range(10):
         pipe_out = pipe.run()
-        orig_cpu = pipe_out[1].asCPU()
-        int_cpu  = pipe_out[2].asCPU()
-        arg1_cpu = pipe_out[3].asCPU()
+        orig_cpu = pipe_out[1].asCPU().as_tensor()
+        int_cpu  = pipe_out[2].asCPU().as_tensor()
+        arg1_cpu = pipe_out[3].asCPU().as_tensor()
         assert_array_equal(orig_cpu, int_cpu)
         assert_array_equal(orig_cpu, arg1_cpu)
