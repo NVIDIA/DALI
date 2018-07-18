@@ -271,25 +271,23 @@ class PixMappingHelper {
 // ResizeParamDescr::pResizeParam_ and copied on GPU in NewResize<GPUBackend>::RunImpl
 // by resizeParamGPU_.Copy(...)
 
-__global__ void InitiateResizeTables(int nTable, const ResizeGridParam *resizeDescr,
-                      MappingInfo *mapPntr[], size_t step) {
-  size_t idx = blockIdx.x;
-  if (mapPntr[idx]) {
-    // Divide the memory allocated for all tables of image group between images
-    for (size_t i = idx + step; i < nTable; idx = i, i += step)
-      mapPntr[i] = mapPntr[idx] +
-                   resizeDescr[idx * N_GRID_PARAMS].x * resizeDescr[idx * N_GRID_PARAMS].y;
-  } else {
-    // No resize tables for that batch slice will be constructed
-    for (size_t i = idx + step; i < nTable; i += step)
-      mapPntr[i] = NULL;
-  }
-}
+__global__ void ConstructResizeTables(size_t nBatchSlice, const ResizeGridParam *resizeParam,
+                       const DALISize *in_sizes, int C, int W0, MappingInfo *pResizeMapping[]) {
+  int imagIdx = blockIdx.x;
+  size_t idx = imagIdx % nBatchSlice;
+  MappingInfo *resizeMapping = pResizeMapping[idx];
+  if (nBatchSlice > 1) {
+    if (resizeMapping) {
+      for (size_t i = idx + nBatchSlice; i < imagIdx; idx = i, i += nBatchSlice)
+        resizeMapping += resizeParam[idx * N_GRID_PARAMS].x * resizeParam[idx * N_GRID_PARAMS].y;
+    }
 
-__global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
-                       const DALISize *in_sizes, int W0, MappingInfo *pResizeMapping[]) {
-  const int imagIdx = blockIdx.x;
-  auto resizeParam = resizeDescr + N_GRID_PARAMS * imagIdx;
+    pResizeMapping[imagIdx] = resizeMapping;
+    resizeParam += N_GRID_PARAMS * imagIdx;
+  } else {
+    imagIdx = 0;
+  }
+
   if (in_sizes)
     W0 = in_sizes[imagIdx].width;
 
@@ -298,7 +296,7 @@ __global__ void ConstructResizeTables(int C, const ResizeGridParam *resizeDescr,
   const uint32_t sx1 = resizeParam[1].x;
   const uint32_t sy1 = resizeParam[1].y;
 
-  PixMappingHelper helper(sx0 * sy0, NULL, pResizeMapping[imagIdx], sx1 * sy1);
+  PixMappingHelper helper(sx0 * sy0, NULL, resizeMapping, sx1 * sy1);
   helper.constructTable(C, W0, sx0, sy0, sx1, sy1,
                         blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
@@ -316,18 +314,13 @@ __global__ void BatchedCongenericResizeKernel(
 
 void BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                      const DALISize &sizeIn, const uint8 *in_batch, const DALISize &sizeOut,
-                     uint8 *out_batch,
-                     const ResizeGridParam *resizeDescr, const MirroringInfo *pMirrorInfo,
-                     MappingInfo *ppMapping[],
+                     uint8 *out_batch, const ResizeGridParam *resizeDescr,
+                     const MirroringInfo *pMirrorInfo, MappingInfo *ppMapping[],
                      const ResizeMapping *pResizeMapping, const PixMapping *pPixMapping,
                      bool newMapping) {
   if (ppMapping && newMapping) {
-    InitiateResizeTables <<< 1, 1, 0, stream >>> (1, resizeDescr, ppMapping, 1);
-
-    CUDA_CALL(cudaGetLastError());
-
     ConstructResizeTables <<< 1, gridDim, 0, stream >>>
-            (C, resizeDescr, NULL, sizeIn.width, ppMapping);
+            (1, resizeDescr, NULL, C, sizeIn.width, ppMapping);
 
     CUDA_CALL(cudaGetLastError());
   }
@@ -362,12 +355,8 @@ void BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
   auto in_sizes = IMG_SIZES(sizes[input_t]);
   auto out_sizes = IMG_SIZES(sizes[output_t]);
   if (ppMapping) {
-    InitiateResizeTables<<< nBatchSlice, 1, 0, stream >>>(N, resizeDescr, ppMapping, nBatchSlice);
-
-    CUDA_CALL(cudaGetLastError());
-
-    ConstructResizeTables << < N, gridDim, 0, stream >> >
-             (C, resizeDescr, in_sizes, 0, ppMapping);
+    ConstructResizeTables <<< N, gridDim, 0, stream >>>
+             (nBatchSlice, resizeDescr, in_sizes, C, 0, ppMapping);
 
     CUDA_CALL(cudaGetLastError());
   }
@@ -536,7 +525,8 @@ void ResizeMappingTable::constructTable(int H0, int W0, int H1, int W1, int C, i
     pixMappingCPU.resize(helper.numUsed());
 }
 
-inline CUDA_CALLABLE void addWeitedColor(int weight, int C, const uint8 *pPix, int *pixColor) {
+__forceinline__ CUDA_CALLABLE void addWeitedColor(int weight, int C,
+                                                  const uint8 *pPix, int *pixColor) {
   if (weight) {
       pixColor[0] += weight * *pPix;
       if (C > 1) {
@@ -547,7 +537,7 @@ inline CUDA_CALLABLE void addWeitedColor(int weight, int C, const uint8 *pPix, i
 }
 
 template<class T>
-inline CUDA_CALLABLE void setPixelColor(uint8 *out, const int32_t to, int C,
+__forceinline__ CUDA_CALLABLE void setPixelColor(uint8 *out, const int32_t to, int C,
                                         T *pixColor, uint32_t area) {
     out[to] = (pixColor[0] + (area >> 1)) / area;
     if (C > 1) {

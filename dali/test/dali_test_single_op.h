@@ -29,7 +29,9 @@
 namespace dali {
 
 #define MAKE_IMG_OUTPUT    0      // Make the output of compared (obtained and referenced) images
-// #define PIXEL_STAT_FILE    "pixelStatFile"  // Output of statistics for compared sets of images
+#if MAKE_IMG_OUTPUT
+  #define PIXEL_STAT_FILE "pixelStatFile"  // Output of statistics for compared sets of images
+#endif
 
 namespace images {
 

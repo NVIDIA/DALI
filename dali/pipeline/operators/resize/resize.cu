@@ -48,16 +48,6 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
 
 #define USE_CROP  0  // currently we are NOT using crop in Resize op
 
-#if USE_CROP
-  // Because the out sizes are all the same for the batch mode, take the first one:
-  const DALISize &out_size = out_sizes[0];
-
-  //  and construct the out ROI:
-  const auto cropW = out_size.width;
-  const auto cropH = out_size.height;
-  const NppiRect out_roi = {0, 0, cropW, cropH};
-#endif
-
   typedef NppStatus (*resizeFunction) (
                         const Npp8u * pSrc, int nSrcStep, NppiSize oSrcSize, NppiRect oSrcRectROI,
                         Npp8u * pDst, int nDstStep, NppiSize oDstSize, NppiRect oDstRectROI,

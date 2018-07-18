@@ -48,7 +48,10 @@ class ResizeCropMirrorAttr {
                  "are mutually exclusive for schema \"" + spec.name() + "\"");
 
     if (spec.name() != "Resize") {
-      GetSingleOrDoubleArg(spec, &crop_, "crop");
+      vector<int>cropTmp;
+      GetSingleOrDoubleArg(spec, &cropTmp, "crop");
+      crop_[0] = cropTmp[0];
+      crop_[1] = cropTmp[1];
       DALI_ENFORCE(crop_[0] > 0 && crop_[1] > 0);
     }
   }
@@ -137,7 +140,7 @@ class ResizeCropMirrorAttr {
   // Interpolation type
   DALIInterpType interp_type_;
   // Crop meta-data
-  vector<int>crop_;
+  array<int, 2>crop_;
 
  private:
   // Resize meta-data
