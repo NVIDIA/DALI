@@ -18,7 +18,7 @@ import copy
 from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.tensor import TensorReference
-from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value
+from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
 def _docstring_generator(cls):
@@ -42,8 +42,8 @@ Parameters
                 default_value = eval(default_value_string)
             else:
                 default_value = default_value_string
-            if dtype == nvidia.dali.types.DALIDataType.STRING:
-                default_value = "\'" + str(val) + "\'"
+            if dtype == DALIDataType.STRING:
+                default_value = "\'" + str(default_value) + "\'"
             ret += (", optional, default = " +
                     str(_type_convert_value(dtype, default_value)))
         indent = '\n' + " " * len(arg_name_doc)
