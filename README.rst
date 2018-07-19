@@ -91,14 +91,9 @@ Prerequisities
    -  |pytorch link|_
    -  |tf link|_ or later
 
-.. note::
+**Note:** TensorFlow installation is required to build the TensorFlow plugin for DALI
 
-   TensorFlow installation is required to build the TensorFlow plugin for DALI
-
-.. note::
-
-   Items marked *"unofficial"* are community contributions that are
-   believed to work but not officially tested or maintained by NVIDIA.
+**Note:** Items marked *"unofficial"* are community contributions that are believed to work but not officially tested or maintained by NVIDIA.
 
 Get the DALI source
 ^^^^^^^^^^^^^^^^^^^
