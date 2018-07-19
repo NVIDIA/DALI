@@ -35,18 +35,10 @@ class RandomResizedCrop : public Operator<Backend> {
     num_attempts_(spec.GetArgument<int>("num_attempts")),
     interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, &size_, "size", 2);
-    DALI_ENFORCE((int)size_.size() == 2,
-      "Argument \"size\" expects a list of 2 elements, " +
-      to_string(size_.size()) + " given.");
-
     GetSingleOrRepeatedArg(spec, &aspect_ratios_, "random_aspect_ratio", 2);
     GetSingleOrRepeatedArg(spec, &area_, "random_area", 2);
-    DALI_ENFORCE(aspect_ratios_.size() == 2,
-        "\"random_aspect_ratio\" argument should be a list of size 2");
     DALI_ENFORCE(aspect_ratios_[0] <= aspect_ratios_[1],
         "Provided empty range");
-    DALI_ENFORCE(area_.size() == 2,
-        "\"random_area\" argument should be a list of size 2");
     DALI_ENFORCE(area_[0] <= area_[1],
         "Provided empty range");
     InitParams(spec);
