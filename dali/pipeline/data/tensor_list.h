@@ -108,13 +108,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
-    // Tensor view of this TensorList is no longer valid
-    delete tensor_view_;
-    tensor_view_ = nullptr;
-
     // Resize the underlying allocation and save the new shape
     ResizeHelper(new_size);
     shape_ = new_shape;
+
+    // Tensor view of this TensorList is no longer valid
+    if (tensor_view_) {
+      tensor_view_->ShareData(this);
+    }
   }
 
   /**
@@ -133,10 +134,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     DALI_ENFORCE(IsValidType(other->type_), "To share data, "
         "the input TensorList must have a valid data type");
 
-    // Tensor view of this TensorList is no longer valid
-    delete tensor_view_;
-    tensor_view_ = nullptr;
-
     // Save the calling TensorLists meta-data
     data_ = other->data_;
     shape_ = other->shape_;
@@ -145,6 +142,11 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     type_ = other->type_;
     num_bytes_ = other->num_bytes_;
     device_ = other->device_;
+
+    // Tensor view of this TensorList is no longer valid
+    if (tensor_view_) {
+      tensor_view_->ShareData(this);
+    }
 
     // If the other tensor has a non-zero size allocation, mark that
     // we are now sharing an allocation with another buffer
@@ -169,10 +171,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
-    // Tensor view of this TensorList is no longer valid
-    delete tensor_view_;
-    tensor_view_ = nullptr;
-
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_.reset(ptr, [](void *) {});
     num_bytes_ = bytes;
@@ -180,6 +178,11 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shape_.clear();
     offsets_.clear();
     size_ = 0;
+
+    // Tensor view of this TensorList is no longer valid
+    if (tensor_view_) {
+      tensor_view_->ShareData(this);
+    }
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
