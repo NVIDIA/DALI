@@ -65,7 +65,6 @@ class WarpAffineAugment {
   void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
     std::vector<float> tmp;
     GetSingleOrRepeatedArg(spec, &tmp, "matrix", size);
-    DALI_ENFORCE(tmp.size() == size, "Warp affine matrix needs to have 6 elements");
     for (int i = 0; i < size; ++i) {
       p->matrix[i] = tmp[i];
     }

@@ -30,7 +30,6 @@ class Uniform : public Operator<SupportBackend> {
     rng_(spec.GetArgument<int>("seed")) {
     std::vector<float> range;
     GetSingleOrRepeatedArg(spec, &range, "range", 2);
-    DALI_ENFORCE(range.size() == 2, "Range parameter needs to have 2 elements.");
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
   }
 

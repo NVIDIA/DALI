@@ -35,10 +35,13 @@ inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> *arg,
   }
 
   if (arg->size() == 1) {
-    for (int i = 0; i < repeat_count - 1; ++i) {
-      arg->push_back(arg->back());
-    }
+    arg->assign(repeat_count, arg->back());
   }
+
+  DALI_ENFORCE(arg->size() == repeat_count,
+      "Argument \"" + argName + "\" expects either a single value "
+      "or a list of " + to_string(repeat_count) + " elements. " +
+      to_string(arg->size()) + " given.");
 }
 
 }  // namespace dali

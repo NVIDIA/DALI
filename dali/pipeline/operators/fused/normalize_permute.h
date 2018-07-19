@@ -38,12 +38,6 @@ class NormalizePermute : public Operator<Backend> {
     vector<float> mean, std;
     GetSingleOrRepeatedArg(spec, &mean, "mean", C_);
     GetSingleOrRepeatedArg(spec, &std, "std", C_);
-    DALI_ENFORCE((int)mean.size() == C_,
-        "Argument \"mean\" expects a list of " + to_string(C_) +
-        " elements, " + to_string(mean.size()) + " given.");
-    DALI_ENFORCE((int)std.size() == C_,
-        "Argument \"std\" expects a list of " + to_string(C_) +
-        " elements, " + to_string(std.size()) + " given.");
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

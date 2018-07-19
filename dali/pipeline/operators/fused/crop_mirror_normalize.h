@@ -40,8 +40,6 @@ class CropMirrorNormalize : public Operator<Backend> {
     vector<int> temp_crop;
     GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
 
-    DALI_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
-        + to_string(temp_crop.size()) + " given.");
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
 
@@ -62,13 +60,6 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
     GetSingleOrRepeatedArg(spec, &inv_std_vec_, "std", C_);
-    // Validate & save mean & std params
-    DALI_ENFORCE((int)mean_vec_.size() == C_,
-        "Argument \"mean\" expects a list of " + to_string(C_) +
-        " elements, " + to_string(mean_vec_.size()) + " given.");
-    DALI_ENFORCE((int)inv_std_vec_.size() == C_,
-        "Argument \"std\" expects a list of " + to_string(C_) +
-        " elements, " + to_string(inv_std_vec_.size()) + " given.");
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

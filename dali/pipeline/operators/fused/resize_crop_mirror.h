@@ -38,8 +38,6 @@ class ResizeCropMirror : public Operator<CPUBackend> {
     vector<int> temp_crop;
     GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
 
-    DALI_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
-        + to_string(temp_crop.size()) + " given.");
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
     // Validate input parameters
