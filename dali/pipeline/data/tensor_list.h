@@ -282,6 +282,13 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     return true;
   }
 
+  /**
+   * @brief Returns a Tensor which shares the data
+   * with this TensorList. The tensor obtained
+   * through this function is valid only as long
+   * as the parent TensorList did not change its
+   * underlying allocation (e.g. by resizing).
+   */
   Tensor<Backend> * AsTensor() {
     if (tensor_view_ == nullptr) {
       tensor_view_ = new Tensor<Backend>();
