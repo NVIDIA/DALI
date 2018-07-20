@@ -3,32 +3,41 @@
 # - Try to find libjpeg-turbo (more specifically libturbojpeg)
 #
 # The following variables are optionally searched for defaults
-#  JPEG_TURBO_ROOT_DIR:            Base directory where all JPEG_TURBO components are found
+#  JPEG_TURBO_ROOT_DIR:         Base directory where all JPEG_TURBO components are found
 #
 # The following are set after configuration is done:
-#  JPEG_TURBO_FOUND
-#  JPEG_TURBO_INCLUDE_DIRS
-#  JPEG_TURBO_LIBRARIES
-#  JPEG_TURBO_LIBRARYRARY_DIRS
+#  JpegTurbo_FOUND
+#  JpegTurbo_INCLUDE_DIR
+#  JpegTurbo_LIBRARY
+#  JpegTurbo_VERSION
 
-include(FindPackageHandleStandardArgs)
+set(JPEG_TURBO_ROOT_DIR "" CACHE PATH "Folder contains JpegTurbo")
 
-set(JPEG_TURBO_ROOT_DIR "" CACHE PATH "Folder contains JPEG_TURBO")
+find_package(PkgConfig REQUIRED QUIET)
+pkg_check_modules(JpegTurbo REQUIRED QUIET libturbojpeg)
 
-find_path(JPEG_TURBO_INCLUDE_DIR turbojpeg.h
-    PATHS ${JPEG_TURBO_ROOT_DIR}
+find_path(JpegTurbo_INCLUDE_DIR turbojpeg.h
+    PATHS ${JPEG_TURBO_ROOT_DIR} ${JpegTurbo_INCLUDE_DIRS}
     PATH_SUFFIXES include)
 
-find_library(JPEG_TURBO_LIBRARY libturbojpeg.so turbojpeg
-    PATHS ${JPEG_TURBO_ROOT_DIR}
+find_library(JpegTurbo_LIBRARY libturbojpeg.so turbojpeg
+    PATHS ${JPEG_TURBO_ROOT_DIR} ${JpegTurbo_LIBRARY_DIRS}
     PATH_SUFFIXES lib lib64)
 
-find_package_handle_standard_args(JPEG_TURBO DEFAULT_MSG JPEG_TURBO_INCLUDE_DIR JPEG_TURBO_LIBRARY)
+# if pkg-config has no info about libjpeg-turbo find and parse jconfig.h
+if (NOT DEFINED JpegTurbo_VERSION)
+    find_path(JpegTurbo_CONFIG_INCLUDE_DIR jconfig.h
+        PATHS ${JPEG_TURBO_ROOT_DIR} ${JpegTurbo_INCLUDE_DIRS}
+        PATH_SUFFIXES include)
+    file(STRINGS "${JpegTurbo_CONFIG_INCLUDE_DIR}/jconfig.h" JpegTurbo_VERSION REGEX "^#define LIBJPEG_TURBO_VERSION[ ]+[0-9]+\.[0-9]+\.[0-9]+")
+    string(REGEX REPLACE "^#define LIBJPEG_TURBO_VERSION[ ]+([^\"]*).*" "\\1" JpegTurbo_VERSION "${JpegTurbo_VERSION}")
+endif()
 
-if(JPEG_TURBO_FOUND)
-  set(JPEG_TURBO_INCLUDE_DIRS ${JPEG_TURBO_INCLUDE_DIR})
-  set(JPEG_TURBO_LIBRARIES ${JPEG_TURBO_LIBRARY})
-  message(STATUS "Found JPEG_TURBO    (include: ${JPEG_TURBO_INCLUDE_DIRS}, library: ${JPEG_TURBO_LIBRARIES})")
-  mark_as_advanced(JPEG_TURBO_ROOT_DIR JPEG_TURBO_LIBRARY_RELEASE JPEG_TURBO_LIBRARY_DEBUG
-                   JPEG_TURBO_LIBRARY JPEG_TURBO_INCLUDE_DIR)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(JpegTurbo
+    REQUIRED_VARS JpegTurbo_INCLUDE_DIR JpegTurbo_LIBRARY
+    VERSION_VAR JpegTurbo_VERSION)
+
+if(JpegTurbo_FOUND)
+  mark_as_advanced(JPEG_TURBO_ROOT_DIR JpegTurbo_LIBRARY_RELEASE JpegTurbo_LIBRARY_DEBUG)
 endif()

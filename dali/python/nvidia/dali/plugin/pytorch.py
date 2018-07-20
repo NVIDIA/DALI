@@ -34,22 +34,43 @@ to_torch_type = {
 }
 
 def feed_ndarray(dali_tensor, arr):
+    """
+    Copy contents of DALI tensor to pyTorch's Tensor.
+
+    Parameters
+    ----------
+    `dali_tensor` : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
+                    Tensor from which to copy
+    `arr` : torch.Tensor
+            Destination of the copy
+    """
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     #turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     dali_tensor.copy_to_external(c_type_pointer)
-    return arr#.squeeze()
+    return arr
 
 class DALIGenericIterator(object):
+    """
+    General DALI iterator for pyTorch. It can return any number of
+    outputs from the DALI pipeline in the form of pyTorch's Tensors.
+
+    Parameters
+    ----------
+    pipelines : list of nvidia.dali.pipeline.Pipeline
+                List of pipelines to use
+    output_map : list of str
+                 List of strings (either "data" or "label") which maps
+                 the output of DALI pipeline to proper type of tensor
+    size : int
+           Epoch size.
+    """
     def __init__(self,
                  pipelines,
                  output_map,
-                 size = -1,
-                 data_name='data',
-                 label_name='softmax_label',
-                 data_layout='NCHW'):
+                 size):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -104,13 +125,13 @@ class DALIGenericIterator(object):
             label_shape = [x.shape() for x in labels]
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
-                
+
                 data_torch_type = to_torch_type[np.dtype(data[0].dtype())]
                 label_torch_type = to_torch_type[np.dtype(labels[0].dtype())]
-                
+
                 torch_gpu_device = torch.device('cuda', dev_id)
                 torch_cpu_device = torch.device('cpu')
-                
+
                 pyt_data = [torch.zeros(shape, dtype=data_torch_type, device=torch_gpu_device) for shape in data_shape]
                 pyt_labels = [torch.zeros(shape, dtype=label_torch_type, device=torch_cpu_device) for shape in label_shape]
 
@@ -124,31 +145,59 @@ class DALIGenericIterator(object):
             for j, l_arr in enumerate(labels):
                 feed_ndarray(l_arr, pyt_labels[j])
 
-        
+
         copy_db_index = self._current_data_batch
         # Change index for double buffering
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
         return [db[copy_db_index] for db in self._data_batches]
 
-    next = __next__
+    def next(self):
+        """
+        Returns the next batch of data.
+        """
+        return self.__next__();
 
     def __iter__(self):
         return self
 
     def reset(self):
+        """
+        Resets the iterator after the full epoch.
+        DALI iterators do not support resetting before the end of the epoch
+        and will ignore such request.
+        """
         if self._counter > self._size:
             self._counter = self._counter % self._size
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
 class DALIClassificationIterator(DALIGenericIterator):
+    """
+    DALI iterator for classification tasks for pyTorch. It returns 2 outputs
+    (data and label) in the form of pyTorch's Tensor.
+
+    Calling
+
+    .. code-block:: python
+
+       DALIClassificationIterator(pipelines, size)
+
+    is equivalent to calling
+
+    .. code-block:: python
+
+       DALIGenericIterator(pipelines, ["data", "label"], size)
+
+    Parameters
+    ----------
+    pipelines : list of nvidia.dali.pipeline.Pipeline
+                List of pipelines to use
+    size : int
+           Epoch size.
+    """
     def __init__(self,
                  pipelines,
-                 size = -1,
-                 data_name='data',
-                 label_name='softmax_label',
-                 data_layout='NCHW'):
+                 size):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size, data_name, label_name,
-                                                         data_layout)
+                                                         size)

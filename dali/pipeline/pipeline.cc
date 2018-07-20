@@ -151,6 +151,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
+  DeviceGuard d(device_id_);
   output_names_ = output_names;
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
@@ -232,7 +233,6 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     }
   }
 
-  DeviceGuard d(device_id_);
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
   built_ = true;
@@ -321,9 +321,9 @@ void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_)
-    .AddArg("seed", seed_[current_seed])
+    .AddArg("seed", seed_[current_seed_])
     .AddArg("device_id", device_id_);
-  current_seed = (current_seed+1) % MAX_SEEDS;
+  current_seed_ = (current_seed_+1) % MAX_SEEDS;
 }
 
 string Pipeline::SerializeToProtobuf() const {

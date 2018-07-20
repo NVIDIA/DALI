@@ -19,6 +19,7 @@
 #include <vector>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -62,8 +63,8 @@ class WarpAffineAugment {
   Param param;
 
   void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
-    const std::vector<float>& tmp = spec.GetRepeatedArgument<float>("matrix");
-    DALI_ENFORCE(tmp.size() == size, "Warp affine matrix needs to have 6 elements");
+    std::vector<float> tmp;
+    GetSingleOrRepeatedArg(spec, &tmp, "matrix", size);
     for (int i = 0; i < size; ++i) {
       p->matrix[i] = tmp[i];
     }

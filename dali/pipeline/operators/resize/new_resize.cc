@@ -16,14 +16,6 @@
 #include "dali/pipeline/operators/resize/new_resize.h"
 
 namespace dali {
-// DALI_REGISTER_OPERATOR(NewResize, NewResize<CPUBackend>, CPU);
-
-DALI_SCHEMA(NewResize)
-    .DocStr("Resize images. Can do both fixed and random resizes, along with fused"
-              "cropping (random and fixed) and image mirroring.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("ResizeCropMirrorAttr");
 
 template <>
 void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
@@ -62,6 +54,7 @@ template <>
 void NewResize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   per_sample_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
 }
+
 
 }  // namespace dali
 

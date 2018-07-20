@@ -21,9 +21,6 @@
 #include <string>
 
 #include "dali/common.h"
-#include "dali/pipeline/operators/argument.h"
-#include "dali/pipeline/operators/op_spec.h"
-#include "dali/pipeline/operators/reader/parser/parser.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
 
 namespace dali {

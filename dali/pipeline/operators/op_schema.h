@@ -139,11 +139,17 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Adds a required argument to op
+   * @brief Adds a required argument to op with its type
    */
-  DLL_PUBLIC inline OpSchema& AddArg(const std::string &s, const std::string &doc) {
+  DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
+                                     const std::string &doc,
+                                     const DALIDataType dtype,
+                                     bool enable_tensor_input = false) {
     CheckArgument(s);
-    arguments_[s] = doc;
+    arguments_[s] = std::make_pair(doc, dtype);
+    if (enable_tensor_input) {
+      tensor_arguments_.insert(s);
+    }
     return *this;
   }
 
@@ -159,12 +165,16 @@ class DLL_PUBLIC OpSchema {
   template <typename T>
   DLL_PUBLIC inline typename std::enable_if<
     !is_vector<T>::value && !is_array<T>::value,
-    OpSchema&>::type
-  AddOptionalArg(const std::string &s, const std::string &doc, T default_value) {
+    OpSchema&>::type AddOptionalArg(const std::string &s,
+                                    const std::string &doc,
+                                    T default_value,
+                                    bool enable_tensor_input = false) {
     CheckArgument(s);
-    std::string stored_doc = doc + " (default value: `" + to_string(default_value) + "`)";
     Value * to_store = Value::construct(default_value);
-    optional_arguments_[s] = std::make_pair(stored_doc, to_store);
+    optional_arguments_[s] = std::make_pair(doc, to_store);
+    if (enable_tensor_input) {
+      tensor_arguments_.insert(s);
+    }
     return *this;
   }
 
@@ -173,11 +183,13 @@ class DLL_PUBLIC OpSchema {
    */
   template <typename T>
   DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
-                                  std::vector<T> default_value) {
+                                  std::vector<T> default_value, bool enable_tensor_input = false) {
     CheckArgument(s);
-    std::string stored_doc = doc + " (default value: " + to_string(default_value) + ")";
     Value * to_store = Value::construct(std::vector<T>(default_value));
-    optional_arguments_[s] = std::make_pair(stored_doc, to_store);
+    optional_arguments_[s] = std::make_pair(doc, to_store);
+    if (enable_tensor_input) {
+      tensor_arguments_.insert(s);
+    }
     return *this;
   }
 
@@ -191,7 +203,8 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Sets a parent (which could be used as a storage of default parameters
+   * @brief Sets a parent (which could be used as a storage of default parameters)
+   * Does not support cyclic dependency.
    */
   DLL_PUBLIC inline OpSchema& AddParent(const std::string &parentName) {
     parents_.push_back(parentName);
@@ -201,10 +214,6 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline OpSchema& SetName(const std::string &name) {
     name_ = name;
     return *this;
-  }
-
-  DLL_PUBLIC inline string Name() const {
-    return name_;
   }
 
   DLL_PUBLIC inline const vector<std::string>& GetParents() const {
@@ -267,16 +276,20 @@ class DLL_PUBLIC OpSchema {
   template<typename T>
   DLL_PUBLIC inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
-  DLL_PUBLIC inline bool HasRequiredArgument(const std::string &name) const {
-    return arguments_.find(name) != arguments_.end();
-  }
+  DLL_PUBLIC bool HasRequiredArgument(const std::string &name) const;
 
-  inline bool HasOptionalArgument(const std::string &name) const {
-    return OptionalArgumentExists(name);
-  }
+  DLL_PUBLIC bool HasOptionalArgument(const std::string &name) const;
 
   DLL_PUBLIC inline bool HasArgument(const string &name) const {
     return HasRequiredArgument(name) || HasOptionalArgument(name);
+  }
+
+  DLL_PUBLIC std::string GetArgumentDox(const std::string &name) const;
+  DLL_PUBLIC DALIDataType GetArgumentType(const std::string &name) const;
+  DLL_PUBLIC std::string GetArgumentDefaultValueString(const std::string &name) const;
+  DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
+  DLL_PUBLIC inline bool IsTensorArgument(const std::string &name) const {
+    return tensor_arguments_.find(name) != tensor_arguments_.end();
   }
 
  private:
@@ -288,7 +301,7 @@ class DLL_PUBLIC OpSchema {
     return true;
   }
 
-  std::map<std::string, std::string> GetRequiredArguments() const;
+  std::map<std::string, std::pair<std::string, DALIDataType> > GetRequiredArguments() const;
 
   std::map<std::string, std::pair<std::string, Value*>> GetOptionalArguments() const;
 
@@ -305,9 +318,11 @@ class DLL_PUBLIC OpSchema {
   bool enforce_layout_;
   DALITensorLayout layout_;
 
-  std::map<std::string, std::string> arguments_;
+  std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
   std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
+
+  std::set<std::string> tensor_arguments_;
 };
 
 class SchemaRegistry {
@@ -378,7 +393,7 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
     return vT->Get();
   } else {
     // get the parent schema that has the optional argument and return from there
-    string tmp = GetSchemaWithArg(Name(), s);
+    string tmp = GetSchemaWithArg(name(), s);
     DALI_ENFORCE(!tmp.empty(), "Optional argument \"" + s + "\" is not defined for schema \""
         + this->name() + "\"");
 
@@ -394,7 +409,7 @@ bool OpSchema::OptionalArgumentExists(const std::string &s,
     return optional_arguments_.find(s) != optional_arguments_.end();
   } else {
     // recurse through this schema and all parents (through inheritance tree)
-    string tmp = GetSchemaWithArg(Name(), s);
+    string tmp = GetSchemaWithArg(name(), s);
     if (tmp.empty()) return false;
 
     const OpSchema &schema = SchemaRegistry::GetSchema(tmp);

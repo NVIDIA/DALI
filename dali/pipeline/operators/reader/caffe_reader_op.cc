@@ -23,8 +23,8 @@ DALI_SCHEMA(CaffeReader)
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("path",
-      R"code(`string`
-      Path to Caffe LMDB directory)code")
+      R"code(Path to Caffe LMDB directory.)code",
+      DALI_STRING)
   .AddParent("LoaderBase");
 
 }  // namespace dali

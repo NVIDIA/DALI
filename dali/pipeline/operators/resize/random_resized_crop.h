@@ -22,6 +22,7 @@
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/op_spec.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -31,9 +32,15 @@ class RandomResizedCrop : public Operator<Backend> {
   explicit inline RandomResizedCrop(const OpSpec &spec) :
     Operator<Backend>(spec),
     params_(new Params()),
-    size_(spec.GetRepeatedArgument<int>("size")),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
     interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+    GetSingleOrRepeatedArg(spec, &size_, "size", 2);
+    GetSingleOrRepeatedArg(spec, &aspect_ratios_, "random_aspect_ratio", 2);
+    GetSingleOrRepeatedArg(spec, &area_, "random_area", 2);
+    DALI_ENFORCE(aspect_ratios_[0] <= aspect_ratios_[1],
+        "Provided empty range");
+    DALI_ENFORCE(area_[0] <= area_[1],
+        "Provided empty range");
     InitParams(spec);
   }
 
@@ -97,6 +104,9 @@ class RandomResizedCrop : public Operator<Backend> {
   std::vector<int> size_;
   int num_attempts_;
   DALIInterpType interp_type_;
+
+  std::vector<float> aspect_ratios_;
+  std::vector<float> area_;
 };
 
 }  // namespace dali

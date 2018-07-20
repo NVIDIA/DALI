@@ -27,23 +27,17 @@ DALI_SCHEMA(Water)
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AddOptionalArg("ampl_x",
-        R"code(`float`
-        Amplitude of the wave in x direction.)code", 10.f)
+        R"code(Amplitude of the wave in x direction.)code", 10.f)
     .AddOptionalArg("ampl_y",
-        R"code(`float`
-        Amplitude of the wave in y direction.)code", 10.f)
+        R"code(Amplitude of the wave in y direction.)code", 10.f)
     .AddOptionalArg<float>("freq_x",
-        R"code(`float`
-        Frequency of the wave in x direction.)code", 2.0 * M_PI / 128)
+        R"code(Frequency of the wave in x direction.)code", 2.0 * M_PI / 128)
     .AddOptionalArg<float>("freq_y",
-        R"code(`float`
-        Frequence of the wave in y direction.)code", 2.0 * M_PI / 128)
+        R"code(Frequence of the wave in y direction.)code", 2.0 * M_PI / 128)
     .AddOptionalArg("phase_x",
-        R"code(`float`
-        Phase of the wave in x direction.)code", 0.f)
+        R"code(Phase of the wave in x direction.)code", 0.f)
     .AddOptionalArg("phase_y",
-        R"code(`float`
-        Phase of the wave in y direction.)code", 0.f)
+        R"code(Phase of the wave in y direction.)code", 0.f)
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

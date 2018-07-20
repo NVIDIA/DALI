@@ -49,7 +49,7 @@ class ResizeCropMirrorAttr {
 
     if (spec.name() != "Resize") {
       vector<int>cropTmp;
-      GetSingleOrDoubleArg(spec, &cropTmp, "crop");
+      GetSingleOrRepeatedArg(spec, &cropTmp, "crop", 2);
       crop_[0] = cropTmp[0];
       crop_[1] = cropTmp[1];
       DALI_ENFORCE(crop_[0] > 0 && crop_[1] > 0);

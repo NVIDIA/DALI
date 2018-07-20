@@ -19,51 +19,47 @@ namespace dali {
 
 DALI_SCHEMA(CropMirrorNormalize)
   .DocStr(R"code(Perform fused cropping, normalization, format conversion
-          (NHWC to NCHW) if desired, and type casting.
-          Normalization takes input image and produces output using formula
-          ```
-          output = (input - mean) / std
-          ```)code")
+(NHWC to NCHW) if desired, and type casting.
+Normalization takes input image and produces output using formula
+
+..
+
+   output = (input - mean) / std
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("output_dtype",
-      R"code(`dali.types.DALIDataType`
-      Output data type.)code", DALI_FLOAT)
+      R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
-      R"code(`dali.types.DALITensorLayout`
-      Output tensor data layout)code", DALI_NCHW)
+      R"code(Output tensor data layout)code", DALI_NCHW)
   .AddOptionalArg("pad_output",
-      R"code(`bool`
-      Whether to pad the output to number of channels being multiple of 4)code",
+      R"code(Whether to pad the output to number of channels being multiple of 4.)code",
       false)
   .AddOptionalArg("crop_pos_x",
-      R"code(`float` or `float tensor`
-      Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
+      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0).)code",
+      0.5f, true)
   .AddOptionalArg("crop_pos_y",
-      R"code(`float` or `float tensor`
-      Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
+      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0).)code",
+      0.5f, true)
   .AddOptionalArg("mirror",
-      R"code(`int` or `int tensor`
-      Mask for horizontal flip.
-        `0` - do not perform horizontal flip for this image
-        `1` - perform horizontal flip for this image.
-        )code", 0)
+      R"code(Mask for horizontal flip.
+
+- `0` - do not perform horizontal flip for this image
+- `1` - perform horizontal flip for this image.
+)code", 0, true)
   .AddOptionalArg("image_type",
-        R"code(`dali.types.DALIImageType`
-        The color space of input and output image)code", DALI_RGB)
+        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddArg("mean",
-      R"code(`list of float`
-      Mean pixel values for image normalization)code")
+      R"code(Mean pixel values for image normalization.)code",
+      DALI_FLOAT_VEC)
   .AddArg("std",
-      R"code(`list of float`
-      Standard deviation values for image normalization)code")
+      R"code(Standard deviation values for image normalization.)code",
+      DALI_FLOAT_VEC)
   .AddArg("crop",
-      R"code(`int` or `list of int`
-      Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code");
+      R"code(Size of the cropped image. If only a single value `c` is provided,
+the resulting crop will be square with size `(c,c)`)code",
+      DALI_INT_VEC);
 
 
 }  // namespace dali

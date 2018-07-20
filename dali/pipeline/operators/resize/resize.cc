@@ -18,28 +18,21 @@ namespace dali {
 
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("image_type",
-                  R"code(`dali.types.DALIImageType`
-                  The color space of input and output image)code", DALI_RGB)
+        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddOptionalArg("interp_type",
-                  R"code(`dali.types.DALIInterpType`
-                  Type of interpolation used)code", DALI_INTERP_LINEAR)
-  .AddOptionalArg("resize_x",
-                  R"code(`float`
-                  The length of the X dimension of the resized image. "
-                  "This option is mutually exclusive with `resize_shorter`. "
-                  "If the `resize_y` is left at 0, then the op will keep "
-                  "the aspect ratio of the original image)code", 0.f)
-  .AddOptionalArg("resize_y",
-                  R"code(`float`
-                  "The length of the Y dimension of the resized image. "
-                  "This option is mutually exclusive with `resize_shorter`. "
-                  "If the `resize_x` is left at 0, then the op will keep "
-                  "the aspect ratio of the original image)code", 0.f)
-  .AddOptionalArg("resize_shorter",
-                  R"code(`float`
-                  The length of the shorter dimension of the resized image. "
-                  "This option is mutually exclusive with `resize_x` and `resize_y`. "
-                  "The op will keep the aspect ratio of the original image)code", 0.f);
+      R"code(Type of interpolation used.)code",
+      DALI_INTERP_LINEAR)
+  .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_y` is left at 0, then the op will keep "
+      "the aspect ratio of the original image.", 0.f, true)
+  .AddOptionalArg("resize_y", "The length of the Y dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`. "
+      "If the `resize_x` is left at 0, then the op will keep "
+      "the aspect ratio of the original image.", 0.f, true)
+  .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
+      "This option is mutually exclusive with `resize_x` and `resize_y`. "
+      "The op will keep the aspect ratio of the original image.", 0.f, true);
 
 DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")
@@ -51,8 +44,7 @@ DALI_SCHEMA(Resize)
   })
   .AllowMultipleInputSets()
   .AddOptionalArg("save_attrs",
-      R"code(`bool`
-      Save reshape attributes for testing)code", false)
+      R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr");
 
 void ResizeAttr::SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
