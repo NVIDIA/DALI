@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -27,8 +28,8 @@ class Uniform : public Operator<SupportBackend> {
   inline explicit Uniform(const OpSpec &spec) :
     Operator<SupportBackend>(spec),
     rng_(spec.GetArgument<int>("seed")) {
-    std::vector<float> range = spec.GetRepeatedArgument<float>("range");
-    DALI_ENFORCE(range.size() == 2, "Range parameter needs to have 2 elements.");
+    std::vector<float> range;
+    GetSingleOrRepeatedArg(spec, &range, "range", 2);
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
   }
 

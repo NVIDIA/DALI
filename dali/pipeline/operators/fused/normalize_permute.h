@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -34,10 +35,9 @@ class NormalizePermute : public Operator<Backend> {
     DALI_ENFORCE(W_ > 0);
     DALI_ENFORCE(C_ == 3 || C_ == 1);
 
-    vector<float> mean = spec.GetRepeatedArgument<float>("mean");
-    vector<float> std = spec.GetRepeatedArgument<float>("std");
-    DALI_ENFORCE((int)mean.size() == C_);
-    DALI_ENFORCE((int)std.size() == C_);
+    vector<float> mean, std;
+    GetSingleOrRepeatedArg(spec, &mean, "mean", C_);
+    GetSingleOrRepeatedArg(spec, &std, "std", C_);
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {
