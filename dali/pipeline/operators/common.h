@@ -23,7 +23,7 @@
 namespace dali {
 template <typename T>
 inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> *arg,
-                                   const std::string &argName, int repeat_count = 2) {
+                                   const std::string &argName, size_t repeat_count = 2) {
   try {
       *arg = spec.GetRepeatedArgument<T>(argName);
   } catch (std::runtime_error e) {

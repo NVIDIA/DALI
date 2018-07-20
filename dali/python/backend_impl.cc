@@ -295,18 +295,13 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
-    .def("as_tensor",
-        [](TensorList<CPUBackend> &t) -> Tensor<CPUBackend>* {
-          Tensor<CPUBackend> * ret = new Tensor<CPUBackend>();
-          ret->ShareData(&t);
-          return ret;
-        },
+    .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
       )code",
-      py::return_value_policy::take_ownership);
+      py::return_value_policy::reference_internal);
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
     .def("__init__", [](TensorList<GPUBackend> &t) {
@@ -357,18 +352,13 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
-    .def("as_tensor",
-        [](TensorList<GPUBackend> &t) -> Tensor<GPUBackend>* {
-          Tensor<GPUBackend> * ret = new Tensor<GPUBackend>();
-          ret->ShareData(&t);
-          return ret;
-        },
+    .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
       )code",
-      py::return_value_policy::take_ownership);
+      py::return_value_policy::reference_internal);
 }
 
 static vector<string> GetRegisteredCPUOps() {
