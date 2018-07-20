@@ -57,7 +57,7 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   auto spec = OpSpec("Dummy3");
   auto schema = SchemaRegistry::GetSchema("Dummy3");
 
-  ASSERT_TRUE(schema.OptionalArgumentExists("foo"));
+  ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
 }
 
@@ -70,7 +70,7 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto spec = OpSpec("Dummy4");
   auto schema = SchemaRegistry::GetSchema("Dummy4");
 
-  ASSERT_TRUE(schema.OptionalArgumentExists("foo"));
+  ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17);
 }
@@ -86,9 +86,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   auto spec = OpSpec("Dummy5");
   auto schema = SchemaRegistry::GetSchema("Dummy5");
 
-  ASSERT_TRUE(schema.OptionalArgumentExists("foo"));
-  ASSERT_TRUE(schema.OptionalArgumentExists("bar"));
-  ASSERT_TRUE(schema.OptionalArgumentExists("baz"));
+  ASSERT_TRUE(schema.HasOptionalArgument("foo"));
+  ASSERT_TRUE(schema.HasOptionalArgument("bar"));
+  ASSERT_TRUE(schema.HasOptionalArgument("baz"));
 
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17.f);
@@ -107,10 +107,10 @@ DALI_SCHEMA(Dummy7)
 TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   auto schema = SchemaRegistry::GetSchema("Dummy7");
 
-  ASSERT_TRUE(schema.OptionalArgumentExists("foo"));
-  ASSERT_TRUE(schema.OptionalArgumentExists("bar"));
-  ASSERT_TRUE(schema.OptionalArgumentExists("baz"));
-  ASSERT_TRUE(schema.OptionalArgumentExists("dummy"));
+  ASSERT_TRUE(schema.HasOptionalArgument("foo"));
+  ASSERT_TRUE(schema.HasOptionalArgument("bar"));
+  ASSERT_TRUE(schema.HasOptionalArgument("baz"));
+  ASSERT_TRUE(schema.HasOptionalArgument("dummy"));
 
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17.f);

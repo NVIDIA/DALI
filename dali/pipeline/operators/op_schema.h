@@ -220,11 +220,7 @@ class DLL_PUBLIC OpSchema {
     return parents_;
   }
 
-  DLL_PUBLIC inline bool HasParent() const {
-    return parents_.size() > 0;
-  }
-
-  string Dox() const;
+  DLL_PUBLIC string Dox() const;
 
   DLL_PUBLIC inline int MaxNumInput() const {
     return max_num_input_;
@@ -270,17 +266,14 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC inline const OpSchema& GetSchemaWithArgument(const string& name) const;
 
-  DLL_PUBLIC inline bool OptionalArgumentExists(const std::string &s,
-                                                const bool local_only = false) const;
-
   template<typename T>
   DLL_PUBLIC inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
-  DLL_PUBLIC bool HasRequiredArgument(const std::string &name) const;
+  DLL_PUBLIC bool HasRequiredArgument(const std::string &name, const bool local_only = false) const;
 
-  DLL_PUBLIC bool HasOptionalArgument(const std::string &name) const;
+  DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
 
-  DLL_PUBLIC inline bool HasArgument(const string &name) const {
+  DLL_PUBLIC inline bool HasArgument(const std::string &name) const {
     return HasRequiredArgument(name) || HasOptionalArgument(name);
   }
 
@@ -288,9 +281,7 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC DALIDataType GetArgumentType(const std::string &name) const;
   DLL_PUBLIC std::string GetArgumentDefaultValueString(const std::string &name) const;
   DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
-  DLL_PUBLIC inline bool IsTensorArgument(const std::string &name) const {
-    return tensor_arguments_.find(name) != tensor_arguments_.end();
-  }
+  DLL_PUBLIC bool IsTensorArgument(const std::string &name) const;
 
  private:
   inline bool CheckArgument(const std::string &s) {
@@ -356,7 +347,7 @@ inline string GetSchemaWithArg(const string& start, const string& arg) {
   const OpSchema& s = SchemaRegistry::GetSchema(start);
 
   // Found locally, return immediately
-  if (s.OptionalArgumentExists(arg, true)) {
+  if (s.HasOptionalArgument(arg, true)) {
     return start;
   }
   // otherwise, loop over any parents
@@ -376,7 +367,7 @@ inline string GetSchemaWithArg(const string& start, const string& arg) {
 template<typename T>
 inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
   // check if argument exists in this schema
-  const bool argFound = OptionalArgumentExists(s, true);
+  const bool argFound = HasOptionalArgument(s, true);
 
   if (argFound || internal_arguments_.find(s) != internal_arguments_.end()) {
     Value * v;
@@ -399,21 +390,6 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
 
     const OpSchema& schema = SchemaRegistry::GetSchema(tmp);
     return schema.template GetDefaultValueForOptionalArgument<T>(s);
-  }
-}
-
-bool OpSchema::OptionalArgumentExists(const std::string &s,
-                                      const bool local_only) const {
-  // check just this schema for the argument
-  if (local_only) {
-    return optional_arguments_.find(s) != optional_arguments_.end();
-  } else {
-    // recurse through this schema and all parents (through inheritance tree)
-    string tmp = GetSchemaWithArg(name(), s);
-    if (tmp.empty()) return false;
-
-    const OpSchema &schema = SchemaRegistry::GetSchema(tmp);
-    return schema.OptionalArgumentExists(s, true);
   }
 }
 

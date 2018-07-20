@@ -665,7 +665,9 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("GetArgumentType", &OpSchema::GetArgumentType)
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
     .def("GetArgumentNames", &OpSchema::GetArgumentNames)
-    .def("IsArgumentOptional", &OpSchema::HasOptionalArgument)
+    .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
+        "arg_name"_a,
+        "local_only"_a = false)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument);
 
   ExposeTensor(m);
