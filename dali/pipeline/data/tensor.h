@@ -60,6 +60,21 @@ class Tensor : public Buffer<Backend> {
         other.raw_data(), this->size(), stream);
   }
 
+  /**
+   * @brief Loads the Tensor at index idx from the input TensorList.
+   */
+  template <typename InBackend>
+  inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
+    shape_ = other.tensor_shape(idx);
+    size_ = Product(shape_);
+    type_ = other.type();
+    device_ = other.device_id();
+    num_bytes_ = type_.size() * size_;
+    this->Resize(shape_);
+    type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
+        other.raw_tensor(idx), this->size(), stream);
+  }
+
   template <typename InBackend>
   inline void ResizeLike(const Tensor<InBackend> &other) {
     Resize(other.shape());
