@@ -288,9 +288,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Returns a Tensor which shares the data
    * with this TensorList. The tensor obtained
-   * through this function is valid only as long
-   * as the parent TensorList did not change its
-   * underlying allocation (e.g. by resizing).
+   * through this function stays valid for the lifetime
+   * of the parent TensorList.
    */
   Tensor<Backend> * AsTensor() {
     if (tensor_view_ == nullptr) {
