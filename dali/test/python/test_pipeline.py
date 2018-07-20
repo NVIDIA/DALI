@@ -19,6 +19,7 @@ import nvidia.dali.tfrecord as tfrec
 import numpy as np
 from timeit import default_timer as timer
 import numpy as np
+from numpy.testing import assert_array_equal, assert_allclose
 
 caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
 
@@ -350,3 +351,59 @@ def test_warpaffine():
         diff = out - dali_output
         diff[dali_output==[128.,128.,128.]] = 0
         assert(np.max(np.abs(diff)/255.0) < 0.025)
+
+def test_type_conversion():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
+                                                    output_dtype = types.FLOAT,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [128., 128., 128.],
+                                                    std = [1., 1., 1.])
+            self.cmnp_int = ops.CropMirrorNormalize(device = "gpu",
+                                                    output_dtype = types.FLOAT,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [128, 128, 128],
+                                                    std = [1., 1, 1])  # Left 1 of the arguments as float to test whether mixing types works
+            self.cmnp_1arg = ops.CropMirrorNormalize(device = "gpu",
+                                                     output_dtype = types.FLOAT,
+                                                     output_layout = types.NHWC,
+                                                     crop = (224, 224),
+                                                     image_type = types.RGB,
+                                                     mean = 128,
+                                                     std = 1)
+            self.uniform = ops.Uniform(range = (0,1))
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            images = self.decode(self.jpegs)
+            outputs = [ None for i in range(3)]
+            crop_pos_x = self.uniform()
+            crop_pos_y = self.uniform()
+            outputs[0] = self.cmnp_all(images,
+                                       crop_pos_x = crop_pos_x,
+                                       crop_pos_y = crop_pos_y)
+            outputs[1] = self.cmnp_int(images,
+                                       crop_pos_x = crop_pos_x,
+                                       crop_pos_y = crop_pos_y)
+            outputs[2] = self.cmnp_1arg(images,
+                                        crop_pos_x = crop_pos_x,
+                                        crop_pos_y = crop_pos_y)
+            return [self.labels] + outputs
+
+    pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
+    pipe.build()
+    for i in range(10):
+        pipe_out = pipe.run()
+        orig_cpu = pipe_out[1].asCPU().as_tensor()
+        int_cpu  = pipe_out[2].asCPU().as_tensor()
+        arg1_cpu = pipe_out[3].asCPU().as_tensor()
+        assert_array_equal(orig_cpu, int_cpu)
+        assert_array_equal(orig_cpu, arg1_cpu)

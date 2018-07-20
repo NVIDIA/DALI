@@ -16,13 +16,14 @@
 #define DALI_PIPELINE_OPERATORS_COMMON_H_
 
 #include <vector>
+#include <string>
 
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
 template <typename T>
-inline void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char *argName,
-                          bool doubleArg = true) {
+inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> *arg,
+                                   const std::string &argName, int repeat_count = 2) {
   try {
       *arg = spec.GetRepeatedArgument<T>(argName);
   } catch (std::runtime_error e) {
@@ -33,8 +34,14 @@ inline void GetSingleOrDoubleArg(const OpSpec &spec, vector<T> *arg, const char 
       }
   }
 
-  if (doubleArg && arg->size() == 1)
-    arg->push_back(arg->back());
+  if (arg->size() == 1) {
+    arg->assign(repeat_count, arg->back());
+  }
+
+  DALI_ENFORCE(arg->size() == repeat_count,
+      "Argument \"" + argName + "\" expects either a single value "
+      "or a list of " + to_string(repeat_count) + " elements. " +
+      to_string(arg->size()) + " given.");
 }
 
 }  // namespace dali

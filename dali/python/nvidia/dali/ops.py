@@ -18,7 +18,7 @@ import copy
 from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.tensor import TensorReference
-from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value
+from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
 def _docstring_generator(cls):
@@ -42,6 +42,8 @@ Parameters
                 default_value = eval(default_value_string)
             else:
                 default_value = default_value_string
+            if dtype == DALIDataType.STRING:
+                default_value = "\'" + str(default_value) + "\'"
             ret += (", optional, default = " +
                     str(_type_convert_value(dtype, default_value)))
         indent = '\n' + " " * len(arg_name_doc)
@@ -180,16 +182,19 @@ def python_op_factory(name, op_device = "cpu"):
             # the device that our outputs will be stored on
             if "device" in kwargs.keys():
                 self._device = kwargs["device"]
+                del kwargs["device"]
             else:
-                self._spec.AddArg("device", op_device)
                 self._device = op_device
+            self._spec.AddArg("device", self._device)
 
             # Store the specified arguments
             for key, value in kwargs.items():
                 if isinstance(value, list):
                     if not value:
                         raise RuntimeError("List arguments need to have at least 1 element.")
-                self._spec.AddArg(key, value)
+                dtype = self._schema.GetArgumentType(key)
+                converted_value = _type_convert_value(dtype, value)
+                self._spec.AddArg(key, converted_value)
 
         @property
         def spec(self):

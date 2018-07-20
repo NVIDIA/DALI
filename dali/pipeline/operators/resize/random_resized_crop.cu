@@ -33,20 +33,10 @@ struct RandomResizedCrop<GPUBackend>::Params {
 template<>
 void RandomResizedCrop<GPUBackend>::InitParams(const OpSpec &spec) {
   params_->rand_gen.seed(spec.GetArgument<int>("seed"));
-  std::vector<float> aspect_ratios = spec.GetRepeatedArgument<float>("random_aspect_ratio");
-  std::vector<float> area = spec.GetRepeatedArgument<float>("random_area");
-  DALI_ENFORCE(aspect_ratios.size() == 2,
-      "\"random_aspect_ratio\" argument should be a list of size 2");
-  DALI_ENFORCE(aspect_ratios[0] <= aspect_ratios[1],
-      "Provided empty range");
-  DALI_ENFORCE(area.size() == 2,
-      "\"random_area\" argument should be a list of size 2");
-  DALI_ENFORCE(area[0] <= area[1],
-      "Provided empty range");
-  params_->aspect_ratio_dis = std::uniform_real_distribution<float>(aspect_ratios[0],
-                                                                    aspect_ratios[1]);
-  params_->area_dis = std::uniform_real_distribution<float>(area[0],
-                                                            area[1]);
+  params_->aspect_ratio_dis = std::uniform_real_distribution<float>(aspect_ratios_[0],
+                                                                    aspect_ratios_[1]);
+  params_->area_dis = std::uniform_real_distribution<float>(area_[0],
+                                                            area_[1]);
   params_->uniform = std::uniform_real_distribution<float>(0, 1);
 
   params_->crops.resize(batch_size_);
