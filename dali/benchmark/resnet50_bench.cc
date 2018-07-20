@@ -37,7 +37,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, pipelined,
+      0, -1, pipelined,
       async);
 
   TensorList<CPUBackend> data;
