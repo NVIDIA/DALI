@@ -1,3 +1,10 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+
+# caffe_parse_header
+# Reads set of version defines from the header file
+# Usage:
+#   caffe_parse_header(<file> <define1> <define2> <define3> ..)
+#
 # From https://github.com/caffe2/caffe2/blob/d42952c5d7f9192b919cce1b7f7c00e4d825625f/cmake/Utils.cmake
 # Which derives from https://github.com/BVLC/caffe/blob/master/cmake/Utils.cmake
 #
@@ -37,11 +44,6 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-################################################################################################
-# Reads set of version defines from the header file
-# Usage:
-#   caffe_parse_header(<file> <define1> <define2> <define3> ..)
 macro(caffe_parse_header FILENAME FILE_VAR)
   set(vars_regex "")
   set(__parnet_scope OFF)
@@ -81,4 +83,20 @@ macro(caffe_parse_header FILENAME FILE_VAR)
     endif()
   endforeach()
 endmacro()
+
+# check_and_add_cmake_submodule
+# Checks for presence of a git submodule that includes a CMakeLists.txt
+# Usage:
+#   check_and_add_cmake_submodule(<submodule_path> ..)
+macro(check_and_add_cmake_submodule SUBMODULE_PATH)
+  if(NOT EXISTS ${SUBMODULE_PATH}/CMakeLists.txt)
+    message(FATAL_ERROR "File ${SUBMODULE_PATH}/CMakeLists.txt not found. "
+                        "Did you forget to `git clone --recursive`? Try this:\n"
+                        "  cd ${PROJECT_SOURCE_DIR} && \\\n"
+                        "  git submodule sync --recursive && \\\n"
+                        "  git submodule update --init --recursive && \\\n"
+                        "  cd -\n")
+  endif()
+  add_subdirectory(${SUBMODULE_PATH} ${ARGN})
+endmacro(check_and_add_cmake_submodule)
 
