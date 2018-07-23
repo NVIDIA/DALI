@@ -174,7 +174,7 @@ void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, const
 }
 
 template <typename Backend>
-DLL_PUBLIC void WriteHWCBatch(const TensorList<Backend> &tl, const string &suffix) {
+void WriteHWCBatch(const TensorList<Backend> &tl, const string &suffix) {
   WriteBatch<uint8, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImageA);
 }
 
