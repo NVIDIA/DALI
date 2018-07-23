@@ -19,12 +19,6 @@ import torchvision.models as models
 import numpy as np
 
 try:
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.fp16_utils import *
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
     from nvidia.dali.pipeline import Pipeline
     import nvidia.dali.ops as ops
@@ -38,8 +32,10 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')
+parser.add_argument('data', metavar='DIR', nargs='*',
+                    help='path(s) to dataset (if one path is provided, it is assumed\n' +
+                    'to have subdirectories named "train" and "val"; alternatively,\n' +
+                    'train and val paths can be specified directly by providing both paths as arguments)')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -88,10 +84,37 @@ parser.add_argument('--world-size', default=1, type=int,
 parser.add_argument('--rank', default=0, type=int,
                     help='Used for multi-process training. Can either be manually set ' +
                     'or automatically set by using \'python -m multiproc\'.')
+parser.add_argument('-t', '--test', action='store_true',
+                    help='Launch test mode with preset arguments')
 
 cudnn.benchmark = True
 best_prec1 = 0
 args = parser.parse_args()
+args.distributed = args.world_size > 1
+
+# test mode, use default args for sanity test
+if args.test:
+    args.distributed = False
+    args.fp16 = False
+    args.epochs = 1
+    args.start_epoch = 0
+    args.arch = 'resnet50'
+    args.batch_size = 64
+    args.data = []
+    args.prof = True
+    args.data.append('/data/imagenet/train-c2lmdb-480/')
+    args.data.append('/data/imagenet/val-c2lmdb-256/')
+
+if not len(args.data):
+    raise Exception("error: too few arguments")
+
+# make apex optional
+if args.fp16 or args.distributed:
+    try:
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.fp16_utils import *
+    except ImportError:
+        raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 # item() is a recent addition, so this helps with backward compatibility.
 def to_python_float(t):
@@ -133,7 +156,6 @@ class HybridPipe(Pipeline):
 def main():
     global best_prec1, args
 
-    args.distributed = args.world_size > 1
     args.gpu = 0
     if args.distributed:
         args.gpu = args.rank % torch.cuda.device_count()
@@ -189,15 +211,18 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
+    if len(args.data) == 1:
+        traindir = os.path.join(args.data[0], 'train')
+        valdir = os.path.join(args.data[0], 'val')
+    else:
+        traindir = args.data[0]
+        valdir= args.data[1]
 
     pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = traindir)
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
     train_loader = DALIClassificationIterator(pipe, size = int(1281167 / args.world_size) )
-
 
     pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = valdir)
     pipe.build()
@@ -331,13 +356,15 @@ def validate(val_loader, model, criterion):
             output = model(input_var)
             loss = criterion(output, target_var)
 
-        reduced_loss = reduce_tensor(loss.data)
-
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
-        reduced_prec1 = reduce_tensor(prec1)
-        reduced_prec5 = reduce_tensor(prec5)
+        if args.distributed:
+            reduced_loss = reduce_tensor(loss.data)
+            prec1 = reduce_tensor(prec1)
+            prec5 = reduce_tensor(prec5)
+        else:
+            reduced_loss = loss.data
 
         losses.update(to_python_float(reduced_loss), input.size(0))
         top1.update(to_python_float(prec1), input.size(0))
