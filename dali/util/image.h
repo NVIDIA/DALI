@@ -67,55 +67,11 @@ DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names,
 /**
  * @brief Writes the input image as a ppm file
  */
-DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name);
+DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name);
 
-/**
- * @brief Writes all images in a batch
- */
-template <typename Backend>
-DLL_PUBLIC void WriteHWCBatch(const TensorList<Backend> &tl, string suffix) {
-  DALI_ENFORCE(IsType<uint8>(tl.type()));
-  for (int i = 0; i < tl.ntensor(); ++i) {
-    DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
-    int h = tl.tensor_shape(i)[0];
-    int w = tl.tensor_shape(i)[1];
-    int c = tl.tensor_shape(i)[2];
-    WriteHWCImage(tl.template tensor<uint8>(i),
-        h, w, c, std::to_string(i) + "-" + suffix);
-  }
-}
-
-/**
- * @brief Writes an image after applying a scale and bias to get
- * pixel values in the range 0-255
- */
 template <typename T>
-void WriteHWCImageScaleBias(const T *img, int h, int w,
-    int c, float bias, float scale, string file_name) {
-  DALI_ENFORCE(img != nullptr);
-  DALI_ENFORCE(h >= 0);
-  DALI_ENFORCE(w >= 0);
-  DALI_ENFORCE(c >= 0);
-  CUDA_CALL(cudaDeviceSynchronize());
-  Tensor<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Resize({h, w, c});
-  tmp_gpu.template mutable_data<T>();  // make sure the buffer is allocated
-  double_gpu.Resize({h, w, c});
-
-  // Copy the data and convert to double
-  MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
-
-  vector<double> tmp(h*w*c, 0);
-  MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
-  CUDA_CALL(cudaDeviceSynchronize());
-  std::ofstream file(file_name + ".ppm");
-  DALI_ENFORCE(file.is_open());
-
-  file << "P3" << endl;
-  file << w << " " << h << endl;
-  file << "255" << endl;
-
+void outHWCImage(const vector<T> &tmp, int h, int w, int c,
+                 float bias, float scale, std::ofstream &file) {
   for (int i = 0; i < h; ++i) {
     for (int j = 0; j < w; ++j) {
       for (int k = 0; k < c; ++k) {
@@ -126,13 +82,41 @@ void WriteHWCImageScaleBias(const T *img, int h, int w,
   }
 }
 
+template <typename T>
+void outCHWImage(const vector<T> &tmp, int h, int w, int c,
+                 float bias, float scale, std::ofstream &file) {
+  for (int i = 0; i < h; ++i) {
+    for (int j = 0; j < w; ++j) {
+      for (int k = 0; k < c; ++k) {
+        file << int(tmp[k*h*w + i*w + j]*scale + bias) << " ";
+      }
+    }
+    file << endl;
+  }
+}
+
+template <typename T>
+void outHWCImageA(const vector<T> &tmp, int h, int w, int c,
+                 float bias, float scale, std::ofstream &file) {
+  for (int i = 0; i < h; ++i) {
+    for (int j = 0; j < w; ++j) {
+      for (int k = 0; k < 3; ++k)
+        file << int(tmp[i * w * c + j * c + k % c]) << " ";
+    }
+    file << endl;
+  }
+}
+
+typedef void (*outFunc)(const vector<double> &tmp, int h, int w, int c,
+                        float bias, float scale, std::ofstream &file);
+
 /**
  * @brief Writes an image after applying a scale and bias to get
  * pixel values in the range 0-255
  */
 template <typename T>
-void WriteCHWImageScaleBias(const T *img, int h, int w,
-    int c, float bias, float scale, string file_name) {
+void WriteImageScaleBias(const T *img, int h, int w,
+    int c, float bias, float scale, const string &file_name, outFunc pFunc) {
   DALI_ENFORCE(img != nullptr);
   DALI_ENFORCE(h >= 0);
   DALI_ENFORCE(w >= 0);
@@ -147,59 +131,51 @@ void WriteCHWImageScaleBias(const T *img, int h, int w,
   MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
   Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
 
-  vector<double> tmp(h*w*c, 0);
+  vector<double> tmp(h * w * c, 0);
   MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
+  CUDA_CALL(cudaDeviceSynchronize());
   std::ofstream file(file_name + ".ppm");
   DALI_ENFORCE(file.is_open());
 
-  file << "P3" << endl;
+  file << (c == 3? "P3" : "P2") << endl;
   file << w << " " << h << endl;
   file << "255" << endl;
 
-  for (int i = 0; i < h; ++i) {
-    for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < c; ++k) {
-        file << int(tmp[k*h*w + i*w + j]*scale + bias) << " ";
-      }
-    }
-    file << endl;
-  }
+  (*pFunc)(tmp, h, w, c, bias, scale, file);
 }
 
 /**
  * @brief Writes all images in a batch with a scale and bias
  */
 template <typename T, typename Backend>
-void WriteHWCBatch(const TensorList<Backend> &tl, float bias, float scale, string suffix) {
+void WriteBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix,
+                const std::array<int, 3> &permut, outFunc pFunc) {
   DALI_ENFORCE(IsType<T>(tl.type()));
   for (int i = 0; i < tl.ntensor(); ++i) {
     DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
-    int h = tl.tensor_shape(i)[0];
-    int w = tl.tensor_shape(i)[1];
-    int c = tl.tensor_shape(i)[2];
-    WriteHWCImageScaleBias(
+    int h = tl.tensor_shape(i)[permut[0]];
+    int w = tl.tensor_shape(i)[permut[1]];
+    int c = tl.tensor_shape(i)[permut[2]];
+    WriteImageScaleBias(
         tl.template tensor<T>(i),
         h, w, c, bias, scale,
-        std::to_string(i) + "-" + suffix);
+        std::to_string(i) + "-" + suffix, pFunc);
   }
 }
 
-/**
- * @brief Writes all images in a batch with a scale and bias
- */
 template <typename T, typename Backend>
-void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, string suffix) {
-  DALI_ENFORCE(IsType<T>(tl.type()));
-  for (int i = 0; i < tl.ntensor(); ++i) {
-    DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
-    int c = tl.tensor_shape(i)[0];
-    int h = tl.tensor_shape(i)[1];
-    int w = tl.tensor_shape(i)[2];
-    WriteCHWImageScaleBias(
-        tl.template tensor<T>(i),
-        h, w, c, bias, scale,
-        std::to_string(i) + "-" + suffix);
-  }
+void WriteHWCBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix) {
+  WriteBatch(tl, bias, scale, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
+}
+
+template <typename T, typename Backend>
+void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix) {
+  WriteBatch<T, Backend>(tl, bias, scale, suffix, std::array<int, 3>{1, 2, 0}, outCHWImage);
+}
+
+template <typename Backend>
+DLL_PUBLIC void WriteHWCBatch(const TensorList<Backend> &tl, const string &suffix) {
+  WriteBatch<uint8, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImageA);
 }
 
 }  // namespace dali

@@ -142,12 +142,6 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
       .AddInput("jpegs", "cpu")
       .AddOutput("images2", "cpu"));
 
-
-  std::vector<float> mean_vec(this->c_);
-  for (int i = 0; i < this->c_; ++i) {
-    mean_vec[i] = 0.;
-  }
-
   // CropMirrorNormalizePermute + crop multiple sets of images
   pipe.AddOperator(
       OpSpec("CropMirrorNormalize")
@@ -157,8 +151,8 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
       .AddInput("images2", "gpu")
       .AddOutput("cropped2", "gpu")
       .AddArg("crop", vector<int>{64, 64})
-      .AddArg("mean", mean_vec)
-      .AddArg("std", mean_vec)
+      .AddArg("mean", vector<float>(this->c_, 0.))
+      .AddArg("std", vector<float>(this->c_, 1.))
       .AddArg("image_type", this->img_type_)
       .AddArg("num_input_sets", 2));
 
@@ -178,7 +172,8 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
   auto output0 = results.Output<GPUBackend>(0);
   auto output1 = results.Output<GPUBackend>(1);
 
-  // WriteHWCBatch(*output, "image");
+//  WriteCHWBatch<float>(*output0, 0., 1, "img0");
+//  WriteCHWBatch<float>(*output1, 0., 1, "img1");
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyImage(
         output0->template tensor<float>(i),
