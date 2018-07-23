@@ -247,6 +247,12 @@ class DLL_PUBLIC OpSpec {
     return arg_it != argument_inputs_.end();
   }
 
+  /**
+   * @brief Checks the spec to see if an argument has been specified by one of two possible ways
+   */
+  DLL_PUBLIC bool ArgumentDefined(const std::string &name) const {
+    return HasArgument(name) || HasTensorArgument(name);
+  }
 
   /**
    * @brief Lists all arguments specified in this spec.

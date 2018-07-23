@@ -25,7 +25,8 @@ OpSpec& OpSpec::AddInput(const string &name, const string &device, bool regular_
   if (regular_input) {
     // We rely on the fact that regular inputs are first in inputs_ vector
     DALI_ENFORCE(argument_inputs_indexes_.empty(),
-        "All regular inputs need to be added to the op before argument inputs.");
+        "All regular inputs (particularly, `" + name + "`) need to be added to the op `" +
+        this->name() + "` before argument inputs.");
   }
   StrPair name_device_pair = std::make_pair(name, device);
 
@@ -53,7 +54,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
       "Argument " + arg_name + " was already added to the op.");
   const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
   DALI_ENFORCE(schema.HasArgument(arg_name),
-      "Argument " + arg_name + " is not part of the op schema");
+      "Argument '" + arg_name + "' is not part of the op schema '" + schema.name() + "'");
   argument_inputs_[arg_name] = inputs_.size();
   argument_inputs_indexes_.insert(inputs_.size());
   AddInput(inp_name, "cpu", false);

@@ -105,22 +105,24 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   int roi_w, roi_h, roi_x, roi_y;
   roi_w = static_cast<int>(static_cast<float>(crop_w) / rsz_w * W);
   roi_h = static_cast<int>(static_cast<float>(crop_h) / rsz_h * H);
-  roi_x = static_cast<int>(static_cast<float>(crop_x) / rsz_w * W);
-  roi_y = static_cast<int>(static_cast<float>(crop_y) / rsz_h * H);
+  roi_x = static_cast<int>(static_cast<float>(crop_x) / rsz_w * W + 0.5f);
+  roi_y = static_cast<int>(static_cast<float>(crop_y) / rsz_h * H + 0.5f);
 
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
   const cv::Mat cv_img = CreateMatFromPtr(roi_h, roi_w, channel_flag,
-      img + roi_y*W*C + roi_x*C, W*C);
+      img + (roi_y*W + roi_x)*C, W*C);
 
   // Note: We only need an intermediate buffer if we are going to mirror the image.
   // If we are not going to mirror the image, wrap the output pointer in a cv::Mat
   // and do the resize directly into that buffer to avoid the unnescessary memcpy.
   // Then just return.
+  int ocv_type;
+  DALI_FORWARD_ERROR(OCVInterpForDALIInterp(type, &ocv_type));
   if (!mirror) {
     cv::Mat cv_out_img = CreateMatFromPtr(crop_h, crop_w, channel_flag, out_img);
     cv::resize(cv_img, cv_out_img,
         cv::Size(crop_w, crop_h),
-        0, 0, cv::INTER_LINEAR);
+        0, 0, ocv_type);
     return DALISuccess;
   }
 
@@ -132,8 +134,6 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     rsz_img = CreateMatFromPtr(crop_h, crop_w, channel_flag, workspace);
   }
 
-  int ocv_type;
-  DALI_FORWARD_ERROR(OCVInterpForDALIInterp(type, &ocv_type));
   cv::resize(cv_img, rsz_img,
       cv::Size(crop_w, crop_h),
       0, 0, ocv_type);

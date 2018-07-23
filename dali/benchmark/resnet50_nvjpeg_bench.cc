@@ -36,7 +36,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, pipelined,
+      0, -1, pipelined,
       async);
 
   pipe.AddOperator(
@@ -54,17 +54,20 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
     .AddInput("raw_jpegs", "cpu")
     .AddOutput("images", "gpu"));
 
+  // Add uniform RNG
+  pipe.AddOperator(
+      OpSpec("Uniform")
+      .AddArg("device", "support")
+      .AddArg("range", vector<float>{256, 480})
+      .AddOutput("resize", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Resize")
       .AddArg("device", "gpu")
-      .AddArg("random_resize", true)
-      .AddArg("warp_resize", false)
-      .AddArg("resize_a", 256)
-      .AddArg("resize_b", 480)
       .AddArg("image_type", img_type)
       .AddArg("interp_type", DALI_INTERP_LINEAR)
       .AddInput("images", "gpu")
+      .AddArgumentInput("resize_shorter", "resize")
       .AddOutput("resized", "gpu"));
 
   // Add a bached crop+mirror+normalize+permute op

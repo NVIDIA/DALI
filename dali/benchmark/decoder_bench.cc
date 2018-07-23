@@ -32,7 +32,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0,
+      0, -1,
       true,   // pipelined
       true);  // async
 
@@ -104,7 +104,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
   Pipeline pipe(
       batch_size,
       num_thread,
-      0,
+      0, -1,
       true,   // pipelined
       true);  // async
 
@@ -166,7 +166,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { /
   Pipeline pipe(
       batch_size,
       num_thread,
-      0,
+      0, -1,
       true,   // pipelined
       true);  // async
 

@@ -82,8 +82,7 @@ class HybridPipe(Pipeline):
                                          exec_async=async)
         self.input = ops.ExternalSource()
         self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.resize = ops.Resize(device = "gpu", random_resize = True,
-                                 resize_a = 256, resize_b = 480,
+        self.resize = ops.Resize(device = "gpu",
                                  image_type = types.RGB,
                                  interp_type = types.INTERP_LINEAR)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -93,13 +92,14 @@ class HybridPipe(Pipeline):
                                             mean = [128., 128., 128.],
                                             std = [1., 1., 1.])
         self.uniform = ops.Uniform(range = (0., 1.))
+        self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
         self.iter = 0
 
     def define_graph(self):
         self.jpegs = self.input()
         images = self.decode(self.jpegs)
-        resized = self.resize(images)
+        resized = self.resize(images, resize_shorter = self.resize_uniform())
         output = self.cmnp(resized, mirror = self.mirror(),
                            crop_pos_x = self.uniform(),
                            crop_pos_y = self.uniform())

@@ -18,33 +18,32 @@ namespace dali {
 
 DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
+DALI_SCHEMA(ResizeCropMirrorAttr)
+  .AddOptionalArg("crop_pos_x",
+      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0).)code",
+      0.5f, true)
+  .AddOptionalArg("crop_pos_y",
+      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0).)code",
+      0.5f, true)
+  .AddOptionalArg("mirror",
+      R"code(Mask for horizontal flip.
+
+- `0` - do not perform horizontal flip for this image
+- `1` - perform horizontal flip for this image.
+)code", 0, true)
+  .AddParent("ResizeAttr");
+
 DALI_SCHEMA(ResizeCropMirror)
   .DocStr("Perform a fused resize, crop, mirror operation. Handles both fixed"
           " and random resizing and cropping.")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
-      "This option is mutually exclusive with `resize_shorter`. "
-      "If the `resize_y` is left at 0, then the op will keep "
-      "the aspect ratio of the original image.", 0.f, true)
-  .AddOptionalArg("resize_y", "The length of the Y dimension of the resized image. "
-      "This option is mutually exclusive with `resize_shorter`. "
-      "If the `resize_x` is left at 0, then the op will keep "
-      "the aspect ratio of the original image.", 0.f, true)
-  .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
-      "This option is mutually exclusive with `resize_x` and `resize_y`. "
-      "The op will keep the aspect ratio of the original image.", 0.f, true)
   .AddArg("crop",
-      R"code(Size of the cropped image.)code",
+      R"code(Size of the cropped image. If only a single value `c` is provided,
+the resulting crop will be square with size `(c,c)`)code",
       DALI_INT_VEC)
-  .AddOptionalArg("crop_pos_x",
-      "Horizontal position of the crop in image coordinates (0.0 - 1.0).",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      "Vertical position of the crop in image coordinates (0.0 - 1.0).",
-      0.5f, true)
-  .AddOptionalArg("mirror", "Mask for horizontal flip.", 0, true)
+  .AddParent("ResizeCropMirrorAttr")
   .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
@@ -56,27 +55,11 @@ DALI_SCHEMA(FastResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
-      "This option is mutually exclusive with `resize_shorter`. "
-      "If the `resize_y` is left at 0, then the op will keep "
-      "the aspect ratio of the original image.", 0.f, true)
-  .AddOptionalArg("resize_y", "The length of the Y dimension of the resized image. "
-      "This option is mutually exclusive with `resize_shorter`. "
-      "If the `resize_x` is left at 0, then the op will keep "
-      "the aspect ratio of the original image.", 0.f, true)
-  .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
-      "This option is mutually exclusive with `resize_x` and `resize_y`. "
-      "The op will keep the aspect ratio of the original image.", 0.f, true)
   .AddArg("crop",
-      R"code(Size of the cropped image.)code",
+      R"code(Size of the cropped image. If only a single value `c` is provided,
+the resulting crop will be square with size `(c,c)`)code",
       DALI_INT_VEC)
-  .AddOptionalArg("crop_pos_x",
-      "Horizontal position of the crop in image coordinates (0.0 - 1.0).",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      "Vertical position of the crop in image coordinates (0.0 - 1.0).",
-      0.5f, true)
-  .AddOptionalArg("mirror", "Mask for horizontal flip.", 0, true)
+  .AddParent("ResizeCropMirror")
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

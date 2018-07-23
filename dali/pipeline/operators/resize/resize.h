@@ -23,6 +23,7 @@
 #include "dali/pipeline/operators/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/fused/resize_crop_mirror.h"
 
 namespace dali {
 
@@ -49,99 +50,35 @@ class ResizeParamDescr {
   size_t nBatchSlice_;
 };
 
-class ResizeAttr {
+class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
-  explicit inline ResizeAttr(const OpSpec &spec) :
-            rand_gen_(spec.GetArgument<int>("seed")),
-            random_resize_(spec.GetArgument<bool>("random_resize")),
-            warp_resize_(spec.GetArgument<bool>("warp_resize")),
-            image_type_(spec.GetArgument<DALIImageType>("image_type")),
-            color_(IsColor(image_type_)), C_(color_ ? 3 : 1),
-            random_crop_(false),
-            type_(spec.GetArgument<DALIInterpType>("interp_type")) {
-    resize_.first = spec.GetArgument<int>("resize_a");
-    resize_.second = spec.GetArgument<int>("resize_b");
-
-    // GetSingleOrDoubleArg(spec, &crop_, "crop");
-    crop_.resize(2);
-    crop_[0] = -1;
-    crop_[1] = -1;
-    // GetSingleOrDoubleArg(spec, &mirror_prob_, "mirror_prob", false);
-    mirror_prob_.resize(2);
-    mirror_prob_[0] = 0;
-    mirror_prob_[1] = 0;
-
-    // Validate input parameters
-    DALI_ENFORCE(resize_.first > 0 && resize_.second > 0);
-    DALI_ENFORCE(resize_.first <= resize_.second);
-
-    size_t i = mirror_prob_.size();
-    DALI_ENFORCE(i <= 2, "Argument \"mirror_prob\" expects a list of at most 2 elements, "
-                     + to_string(i) + " given.");
-    while (i--)
-      DALI_ENFORCE(mirror_prob_[i] <= 1.f && mirror_prob_[i] >= 0.f);
+  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec),
+            color_(IsColor(image_type_)), C_(color_ ? 3 : 1) {
   }
 
-  void SetSize(DALISize *in_size, const vector<Index> &shape,
-                 const resize_t &rand, DALISize *out_size) const;
+  void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
+               DALISize *out_size, TransformMeta const * meta = NULL) const;
 
   inline vector<DALISize> &sizes(io_type type)            { return sizes_[type]; }
   inline DALISize *size(io_type type, size_t idx)         { return sizes(type).data() + idx; }
-  inline const resize_t &newSizes(size_t idx) const       { return per_sample_rand_[idx]; }
-  inline int randomUniform(int max, int min = 0) const    {
-            return std::uniform_int_distribution<>(min, max)(rand_gen_);
-  }
-
-  void DefineCrop(DALISize *out_size, int *pCropX, int *pCropY) const;
-
-  bool CropNeeded(const DALISize &out_size) const {
-    return 0 < crop_[1] && crop_[1] <= out_size.height &&
-           0 < crop_[0] && crop_[0] <= out_size.width;
-  }
-
-  void MirrorNeeded(NppiPoint *pntr) const {
-    MirrorNeeded(reinterpret_cast<bool *>(&pntr->x), reinterpret_cast<bool *>(&pntr->y));
+  void DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int idx = -1) const;
+  void MirrorNeeded(NppiPoint *pntr, int idx = -1) const  {
+      pntr->x = per_sample_meta_[idx].mirror;
+      pntr->y = 0;  // Vertical mirroring not yet implemented for ResizeCropMirror
   }
 
  protected:
-  resize_t GetRandomSizes() const;
-  void MirrorNeeded(bool *pHorMirror, bool *pVertMirror = NULL) const {
-    if (pHorMirror) {
-      *pHorMirror = mirror_prob_.empty()? false :
-                    std::bernoulli_distribution(mirror_prob_[0])(rand_gen_);
-    }
-
-    if (pVertMirror) {
-      *pVertMirror = mirror_prob_.size() <= 1? false :
-                           std::bernoulli_distribution(mirror_prob_[1])(rand_gen_);
-    }
-  }
+  virtual uint ResizeInfoNeeded() const                   { return 0; }
 
   inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
   inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
-  inline const resize_t &resize() const                   { return resize_; }
-
-  mutable std::mt19937 rand_gen_;
-
-  // Resize meta-data
-  bool random_resize_;
-  bool warp_resize_;
-  resize_t resize_;
 
   // Input/output channels meta-data
-  DALIImageType image_type_;
   bool color_;
   int C_;
 
-  bool random_crop_;
-  vector<int>crop_;
-  vector<float> mirror_prob_;
-
-  // Interpolation type
-  DALIInterpType type_;
-
   // store per-thread data for same resize on multiple data
-  std::vector<resize_t> per_sample_rand_;
+  std::vector<TransformMeta> per_sample_meta_;
 
   vector<const uint8*> input_ptrs_;
   vector<uint8*> output_ptrs_;
@@ -150,19 +87,19 @@ class ResizeAttr {
 };
 
 template <typename Backend>
-class Resize : public Operator<Backend>, public ResizeAttr {
+class Resize : public Operator<Backend>, protected ResizeAttr {
  public:
   explicit inline Resize(const OpSpec &spec) :
     Operator<Backend>(spec), ResizeAttr(spec) {
-      resizeParam_.resize(batch_size_);
+      resizeParam_.resize(batch_size_ * 2);
       // Resize per-image data
       input_ptrs_.resize(batch_size_);
       output_ptrs_.resize(batch_size_);
       sizes_[0].resize(batch_size_);
       sizes_[1].resize(batch_size_);
 
-      // Per set-of-samples random numbers
-      per_sample_rand_.resize(batch_size_);
+      // Per set-of-sample TransformMeta
+      per_sample_meta_.resize(batch_size_);
   }
 
   virtual inline ~Resize() = default;

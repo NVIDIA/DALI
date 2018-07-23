@@ -122,7 +122,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, false);
+      0);
 
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
