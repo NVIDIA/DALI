@@ -20,7 +20,7 @@ Requirements
 .. role:: bash(code)
    :language: bash
 
-- `APEx <https://www.github.com/nvidia/apex>`_
+- `APEx <https://www.github.com/nvidia/apex>`_ - optional, required for fp16 mode or distirbuted (mutli GPU) operation
 - Install PyTorch from source, master branch of `pytorch on github <https://www.github.com/pytorch/pytorch>`_
 - :bash:`pip install -r requirements.txt`
 - Download the ImageNet dataset and move validation images to labeled subfolders
@@ -52,7 +52,7 @@ Usage
    PyTorch ImageNet Training
 
    positional arguments:
-   DIR                         path to dataset
+   DIR                         path/s to dataset (one path assumes train and val inside, two train and val need to be pointed directly)
 
    optional arguments:
    -h, --help                  show this help message and exit
