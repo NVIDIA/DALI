@@ -28,6 +28,13 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto &data = t_data_[ws->data_idx()];
     output->Copy(data, stream);
   }
+  ++samples_processed_;
+
+  if (samples_processed_.load() == batch_size_) {
+    samples_processed_ = 0;
+    busy_ = false;
+    cv_.notify_one();
+  }
 }
 
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);

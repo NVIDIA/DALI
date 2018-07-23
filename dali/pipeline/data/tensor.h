@@ -66,10 +66,8 @@ class Tensor : public Buffer<Backend> {
   template <typename InBackend>
   inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
     shape_ = other.tensor_shape(idx);
-    size_ = Product(shape_);
-    type_ = other.type();
     device_ = other.device_id();
-    num_bytes_ = type_.size() * size_;
+    this->set_type(other.type());
     this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);
