@@ -70,6 +70,29 @@ class DALITest : public ::testing::Test {
     return std::uniform_real_distribution<>(a, b)(rand_gen_);
   }
 
+  void DecodeImage(const unsigned char *data, int data_size, int c, int img_type,
+                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) {
+    cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char*>(data));
+
+    cv::Mat tmp = cv::imdecode(input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
+
+    // if RGB needed, permute from BGR
+    cv::Mat out_img(tmp.rows, tmp.cols, c != 1 ? CV_8UC3 : CV_8UC1);
+    if (img_type == DALI_RGB) {
+      // Convert from BGR to RGB for verification
+      cv::cvtColor(tmp, out_img, CV_BGR2RGB);
+    } else {
+      out_img = tmp;
+    }
+
+    if (out) {
+      out->Resize({tmp.rows, tmp.cols, c});
+      out_dataPntr = out->mutable_data<unsigned char>();
+    }
+
+    std::memcpy(out_dataPntr, out_img.ptr(), out_img.rows * out_img.cols * c);
+  }
+
   inline void DecodeImages(DALIImageType type, const vector<uint8*>& encoded,
                            const vector<int>& encoded_sizes,
                            vector<uint8*> *images, vector<DimPair> *image_dims) {
@@ -185,18 +208,19 @@ class DALITest : public ::testing::Test {
 
   template <typename T>
   void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
+    const size_t N = diff.size();
     // Avoid division by zero
-    ASSERT_NE(diff.size(), 0);
+    ASSERT_NE(N, 0);
 
     double sum = 0, var_sum = 0;
     for (auto &val : diff) {
       sum += val;
     }
-    *mean = sum / diff.size();
+    *mean = sum / N;
     for (auto &val : diff) {
       var_sum += (val - *mean)*(val - *mean);
     }
-    *std = sqrt(var_sum / diff.size());
+    *std = sqrt(var_sum / N);
   }
 
   // From OCV example :

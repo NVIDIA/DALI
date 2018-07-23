@@ -35,20 +35,20 @@ DALIError_t GetPNGImageDims(const uint8 *png, int size, int *h, int *w) {
   DALI_ASSERT(png);
 
   // IHDR needs to be the first chunk
-  const uint8 *IHDR = &png[8];
+  const uint8 *IHDR = png + 8;
 
   // Layout:
   // 4 bytes: chunk size (should be 13 bytes for IHDR)
   // 4 bytes: Chunk Identifier (should be "IHDR")
-  // 4 bytes: Height
   // 4 bytes: Width
+  // 4 bytes: Height
   // 1 byte : Bit Depth
   // 1 byte : Color Type
   // 1 byte : Compression method
   // 1 byte : Filter method
   // 1 byte : Interlace method
-  *h = ReadIntFromPNG(&IHDR[8]);
-  *w = ReadIntFromPNG(&IHDR[12]);
+  *w = ReadIntFromPNG(IHDR + 8);
+  *h = ReadIntFromPNG(IHDR + 12);
 
   return DALISuccess;
 }

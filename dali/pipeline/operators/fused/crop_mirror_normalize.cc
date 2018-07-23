@@ -44,8 +44,10 @@ Normalization takes input image and produces output using formula
       0.5f, true)
   .AddOptionalArg("mirror",
       R"code(Mask for horizontal flip.
- `0` - do not perform horizontal flip for this image
- `1` - perform horizontal flip for this image.)code", 0, true)
+
+- `0` - do not perform horizontal flip for this image
+- `1` - perform horizontal flip for this image.
+)code", 0, true)
   .AddOptionalArg("image_type",
         R"code(The color space of input and output image.)code", DALI_RGB)
   .AddArg("mean",

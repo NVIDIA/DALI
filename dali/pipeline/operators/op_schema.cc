@@ -45,8 +45,7 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
     req_arguments_left.insert(arg_pair.first);
   }
   for (std::string s : vec) {
-    DALI_ENFORCE(required_arguments.find(s) != required_arguments.end() ||
-        OptionalArgumentExists(s) ||
+    DALI_ENFORCE(HasArgument(s) ||
         internal_arguments_.find(s) != internal_arguments_.end(),
         "Got an unexpected argument \"" + s + "\"");
     std::set<std::string>::iterator it = req_arguments_left.find(s);
@@ -130,9 +129,9 @@ std::vector<std::string> OpSchema::GetArgumentNames() const {
   return ret;
 }
 
-bool OpSchema::HasRequiredArgument(const std::string &name) const {
+bool OpSchema::HasRequiredArgument(const std::string &name, const bool local_only) const {
   bool ret = arguments_.find(name) != arguments_.end();
-  if (ret) {
+  if (ret || local_only) {
     return ret;
   }
   for (const auto &p : parents_) {
@@ -142,14 +141,26 @@ bool OpSchema::HasRequiredArgument(const std::string &name) const {
   return ret;
 }
 
-bool OpSchema::HasOptionalArgument(const std::string &name) const {
+bool OpSchema::HasOptionalArgument(const std::string &name, const bool local_only) const {
   bool ret = optional_arguments_.find(name) != optional_arguments_.end();
-  if (ret) {
+  if (ret || local_only) {
     return ret;
   }
   for (const auto &p : parents_) {
     const OpSchema &parent = SchemaRegistry::GetSchema(p);
     ret = ret || parent.HasOptionalArgument(name);
+  }
+  return ret;
+}
+
+bool OpSchema::IsTensorArgument(const std::string &name) const {
+  bool ret = tensor_arguments_.find(name) != tensor_arguments_.end();
+  if (ret) {
+    return ret;
+  }
+  for (const auto &p : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(p);
+    ret = ret || parent.IsTensorArgument(name);
   }
   return ret;
 }
