@@ -208,6 +208,8 @@ class DALISingleOpTest : public DALITest {
         // check calculated vs. reference answers
         CheckTensorLists(calc_output, ref_output);
       }
+
+      delete res[i];
     }
   }
 
@@ -229,6 +231,20 @@ class DALISingleOpTest : public DALITest {
   void DecodedData(TensorList<CPUBackend>* t, int n,
                    DALIImageType type = DALI_RGB) {
     DALITest::MakeImageBatch(n, t, type);
+  }
+
+ protected:
+  inline shared_ptr<Pipeline> GetPipeline() const {
+    return pipeline_;
+  }
+
+  template <typename T>
+  vector<TensorList<CPUBackend> *>CopyToHost(const TensorList<T> &calcOutput) {
+    // copy to host
+    vector<TensorList<CPUBackend> *> outputs(1);
+    outputs[0] = new TensorList<CPUBackend>();
+    outputs[0]->Copy(calcOutput, 0);
+    return outputs;
   }
 
  private:
