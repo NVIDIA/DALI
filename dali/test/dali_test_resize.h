@@ -19,6 +19,10 @@ template <typename ImgType>
 class GenericResizeTest : public DALISingleOpTest {
  public:
   USING_DALI_SINGLE_OP_TEST();
+  inline void SetUp() override {
+    DALISingleOpTest::SetUp();
+    c_ = (IsColor(img_type_) ? 3 : 1);
+  }
 
   void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
     OpSpec operation = DefaultSchema(pName, pDevice);
@@ -47,7 +51,6 @@ class GenericResizeTest : public DALISingleOpTest {
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
-    c_ = (IsColor(img_type_) ? 3 : 1);
     auto cv_type = (c_ == 3) ? CV_8UC3 : CV_8UC1;
 
     // single input - encoded images
