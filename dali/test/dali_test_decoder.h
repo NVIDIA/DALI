@@ -40,7 +40,7 @@ class GenericDecoderTest : public DALISingleOpTest {
   }
 
  protected:
-  virtual const OpSpec DecodingOp() const = 0;
+  virtual const OpSpec DecodingOp() const   { return OpSpec(); }
   virtual uint8 TestCheckType() const       { return t_checkDefault; }
 
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
@@ -75,6 +75,35 @@ class GenericDecoderTest : public DALISingleOpTest {
     SetEps(eps);
     SetTestCheckType(TestCheckType());
     CheckAnswers(&ws, {0});
+  }
+
+  void RunTestDecode(const ImgSetDescr &imgs) {
+    c_ = (IsColor(img_type_) ? 3 : 1);
+    for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
+      Tensor<CPUBackend> t;
+      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
+                               imgs.sizes_[imgIdx],
+                               this->img_type_, &t));
+
+//      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
+//                    std::to_string(imgIdx) + "-img");
+#ifndef NDEBUG
+      cout << imgIdx << ": " << imgs.sizes_[imgIdx]
+           << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
+#endif
+      this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
+    }
+  }
+
+  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int img_id) {
+    // Compare w/ opencv result
+    const auto imgData = imgs.data_[img_id];
+    const auto imgSize = imgs.sizes_[img_id];
+    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
+
+    Tensor<CPUBackend> out;
+    DecodeImage(imgData, imgSize, c_, img_type_, &out);
+    this->CheckBuffers(h*w*c_, out.mutable_data<uint8>(), img, false);
   }
 
   const DALIImageType img_type_ = ImgType::type;

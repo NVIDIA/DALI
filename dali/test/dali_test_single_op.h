@@ -95,18 +95,17 @@ class DALISingleOpTest : public DALITest {
   inline void SetUp() override {
     DALITest::SetUp();
     jpegs_.clear();
-    jpeg_sizes_.clear();
 
     // encoded in jpegs_
-    LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
-    LoadImages(images::png_test_images, &png_, &png_sizes_);
+    LoadJPEGS(images::jpeg_test_images, &jpegs_);
+    LoadImages(images::png_test_images, &png_);
 
     // decoded in images_
-    DecodeImages(DALI_RGB, jpegs_, jpeg_sizes_, &jpeg_decoded_, &jpeg_dims_);
-    DecodeImages(DALI_RGB, png_, png_sizes_, &png_decoded_, &png_dims_);
+    DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
+    DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
 
     // Set the pipeline batch size
-    batch_size_ = 32;
+    SetBatchSize(32);
   }
   inline void TearDown() override {
     DALITest::TearDown();
@@ -218,11 +217,11 @@ class DALISingleOpTest : public DALITest {
    * TODO(slayton): Add different encodings
    */
   void EncodedJPEGData(TensorList<CPUBackend>* t, int n) {
-    DALITest::MakeEncodedBatch(t, n, jpegs_, jpeg_sizes_);
+    DALITest::MakeEncodedBatch(t, n, jpegs_);
   }
 
   void EncodedPNGData(TensorList<CPUBackend>* t, int n) {
-    DALITest::MakeEncodedBatch(t, n, png_, png_sizes_);
+    DALITest::MakeEncodedBatch(t, n, png_);
   }
 
   /**
@@ -247,11 +246,9 @@ class DALISingleOpTest : public DALITest {
     return outputs;
   }
 
- private:
-  // use a Get mean, std-dev of difference separately for each color component
-
   template <typename T>
   int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pDiff = NULL) {
+    // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
     const int len = N / jMax;
     double mean = 0, std;
@@ -396,8 +393,7 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<uint8*> png_;
-  vector<int> png_sizes_;
+  ImgSetDescr png_;
 
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;

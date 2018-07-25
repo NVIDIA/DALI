@@ -43,8 +43,8 @@ class ExecutorTest : public DALITest {
  public:
   void SetUp() override {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(tjpg_test_images, &jpegs_, &jpeg_sizes_);
-    batch_size_ = jpegs_.size();
+    LoadJPEGS(tjpg_test_images, &jpegs_);
+    batch_size_ = jpegs_.nImages();
     DecodeJPEGS(DALI_RGB);
   }
 
@@ -79,9 +79,11 @@ class ExecutorTest : public DALITest {
 
     // Compare w/ opencv result
     cv::Mat ver;
-    cv::Mat jpeg = cv::Mat(1, jpeg_sizes_[img_id], CV_8UC1, jpegs_[img_id]);
+    const auto img_size = jpegs_.sizes_[img_id];
+    const auto img_data = jpegs_.data_[img_id];
+    cv::Mat jpeg = cv::Mat(1, img_size, CV_8UC1, img_data);
 
-    ASSERT_TRUE(CheckIsJPEG(jpegs_[img_id], jpeg_sizes_[img_id]));
+    ASSERT_TRUE(CheckIsJPEG(img_data, img_size));
     int flag = IsColor(img_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
     cv::imdecode(jpeg, flag, &ver);
 
@@ -94,7 +96,7 @@ class ExecutorTest : public DALITest {
     }
 
     // DEBUG
-    // WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
+    WriteHWCImage(ver_img.ptr(), h, w, c_, std::to_string(img_id) + "-ver");
 
     ASSERT_EQ(h, ver_img.rows);
     ASSERT_EQ(w, ver_img.cols);
