@@ -32,7 +32,7 @@ class HostDecodeTest : public GenericDecoderTest<ImgType> {
   }
 
   uint8 TestCheckType() const  override {
-    return t_checkColorComp + t_checkElements; // + t_checkAll + t_checkNoAssert
+    return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert
   }
 };
 
