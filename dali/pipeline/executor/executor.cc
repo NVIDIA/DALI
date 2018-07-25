@@ -94,9 +94,11 @@ void Executor::RunCPU() {
             TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
             SampleWorkspace ws;
             for (int j = 0; j < graph_->NumCPUOp(); ++j) {
-            OperatorBase &op = graph_->cpu_op(j);
-            wsb.cpu_op_data[j].GetSample(&ws, data_idx, tid);
-            op.Run(&ws);
+              OpNode &op_node = graph_->cpu_node(j);
+              OperatorBase &op = *op_node.op;
+              wsb.cpu_op_data[j].GetSample(&ws, data_idx, tid);
+              TimeRange tr("[Executor] Run CPU operator " + op_node.instance_name + " on " + to_string(data_idx));
+              op.Run(&ws);
             }
             }, i, std::placeholders::_1));
     }
@@ -129,8 +131,10 @@ void Executor::RunMixed() {
 
   try {
     for (int i = 0; i < graph_->NumMixedOp(); ++i) {
-      OperatorBase &op = graph_->mixed_op(i);
+      OpNode &op_node = graph_->mixed_node(i);
+      OperatorBase &op = *op_node.op;
       MixedWorkspace &ws = wsb.mixed_op_data[i];
+      TimeRange tr("[Executor] Run Mixed operator " + op_node.instance_name);
       op.Run(&ws);
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
@@ -172,7 +176,8 @@ void Executor::RunGPU() {
   try {
     WorkspaceBlob &wsb = wss_[queue_idx];
     for (int i = 0; i < graph_->NumGPUOp(); ++i) {
-      OperatorBase &op = graph_->gpu_op(i);
+      OpNode &op_node = graph_->gpu_node(i);
+      OperatorBase &op = *op_node.op;
       DeviceWorkspace &ws = wsb.gpu_op_data[i];
       auto parent_events = ws.ParentEvents();
 
@@ -180,6 +185,7 @@ void Executor::RunGPU() {
         CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
       }
 
+      TimeRange tr("[Executor] Run GPU operator " + op_node.instance_name);
       op.Run(&ws);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
