@@ -77,7 +77,8 @@ class GenericDecoderTest : public DALISingleOpTest {
     CheckAnswers(&ws, {0});
   }
 
-  void RunTestDecode(const ImgSetDescr &imgs) {
+  void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
+    SetEps(eps);
     c_ = (IsColor(img_type_) ? 3 : 1);
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
       Tensor<CPUBackend> t;
