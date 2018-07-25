@@ -143,7 +143,7 @@ class NewResize : public Resize<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override {
     Resize<Backend> ::SetupSharedSampleParams(ws);
   }
-  virtual uint ResizeInfoNeeded() const     { return t_crop + t_mirrorHor; }
+  uint ResizeInfoNeeded() const override { return t_crop + t_mirrorHor; }
 
  private:
   MappingInfo **CopyResizeTableToGPU(size_t resizeMemory[], cudaStream_t s,
