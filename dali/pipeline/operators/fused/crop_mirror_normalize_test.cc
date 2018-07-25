@@ -25,7 +25,7 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
   }
 
   void RunTest() {
-    const int batch_size = this->jpegs_.size();
+    const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 

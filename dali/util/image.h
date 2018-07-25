@@ -34,35 +34,40 @@
 
 namespace dali {
 
+struct ImgSetDescr {
+  vector<uint8 *> data_;
+  vector<int> sizes_;
+  inline void clear()             { data_.clear(); sizes_.clear(); }
+  inline size_t nImages() const   { return data_.size(); }
+};
+
 /**
  * Load all images from a list of image names. Assumes names contain
  * full path
  */
-DLL_PUBLIC void LoadImages(const vector<string> &image_names,
-    vector<uint8*> *images, vector<int> *image_sizes);
+DLL_PUBLIC void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs);
 
 /**
  * Loads images from a specified image folder. Assumes the folder contains
  * a file 'image_list.txt' that lists all the different images in the
  * folder
  */
-DLL_PUBLIC void LoadImages(string image_folder, vector<string> *jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
+DLL_PUBLIC void LoadImages(const string &image_folder, vector<string> *jpeg_names,
+                           ImgSetDescr *imgs);
 
 /**
  * Loads jpegs from a specified image folder. Assumes the folder contains
  * a file 'image_list.txt' that lists all the different images in the
  * folder
  */
-DLL_PUBLIC void LoadJPEGS(string image_folder, vector<string> *jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
+DLL_PUBLIC void LoadJPEGS(const string &image_folder, vector<string> *jpeg_names,
+                          ImgSetDescr *imgs);
 
 /**
  * Loads all jpegs from the list of image names. Assumes names contains
  * full path
  */
-DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes);
+DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *imgs);
 
 /**
  * @brief Writes the input image as a ppm file
@@ -70,45 +75,19 @@ DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names,
 DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name);
 
 template <typename T>
-void outHWCImage(const vector<T> &tmp, int h, int w, int c,
-                 float bias, float scale, std::ofstream &file) {
-  for (int i = 0; i < h; ++i) {
-    for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < c; ++k) {
-        file << int(tmp[i*w*c + j*c + k]*scale + bias) << " ";
-      }
-    }
-    file << endl;
-  }
+int outHWCImage(const vector<T> &tmp, int h, int w, int c,
+                int i, int j, int k, float bias, float scale) {
+  return static_cast<int>(tmp[i*w*c + j*c + k]*scale + bias);
 }
 
 template <typename T>
-void outCHWImage(const vector<T> &tmp, int h, int w, int c,
-                 float bias, float scale, std::ofstream &file) {
-  for (int i = 0; i < h; ++i) {
-    for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < c; ++k) {
-        file << int(tmp[k*h*w + i*w + j]*scale + bias) << " ";
-      }
-    }
-    file << endl;
-  }
+int outCHWImage(const vector<T> &tmp, int h, int w, int c,
+                int i, int j, int k, float bias, float scale) {
+  return static_cast<int>(tmp[k*h*w + i*w + j]*scale + bias);
 }
 
-template <typename T>
-void outHWCImageA(const vector<T> &tmp, int h, int w, int c,
-                 float bias, float scale, std::ofstream &file) {
-  for (int i = 0; i < h; ++i) {
-    for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < 3; ++k)
-        file << int(tmp[i * w * c + j * c + k % c]) << " ";
-    }
-    file << endl;
-  }
-}
-
-typedef void (*outFunc)(const vector<double> &tmp, int h, int w, int c,
-                        float bias, float scale, std::ofstream &file);
+typedef int (*outFunc)(const vector<double> &tmp, int h, int w, int c,
+                       int i, int j, int k, float bias, float scale);
 
 /**
  * @brief Writes an image after applying a scale and bias to get
@@ -141,7 +120,14 @@ void WriteImageScaleBias(const T *img, int h, int w,
   file << w << " " << h << endl;
   file << "255" << endl;
 
-  (*pFunc)(tmp, h, w, c, bias, scale, file);
+  for (int i = 0; i < h; ++i) {
+    for (int j = 0; j < w; ++j) {
+      for (int k = 0; k < c; ++k) {
+        file << (*pFunc)(tmp, h, w, c, i, j, k, bias, scale) << " ";
+      }
+    }
+    file << endl;
+  }
 }
 
 /**
@@ -175,7 +161,7 @@ void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, const
 
 template <typename Backend>
 void WriteHWCBatch(const TensorList<Backend> &tl, const string &suffix) {
-  WriteBatch<uint8, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImageA);
+  WriteBatch<uint8, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
 }
 
 }  // namespace dali
