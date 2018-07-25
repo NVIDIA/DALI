@@ -18,16 +18,14 @@ namespace dali {
 
 DALI_SCHEMA(CropCastPermute)
   .DocStr(R"code(Perform a random crop, data type
-          cast and permute (from NHWC to NCHW).)code")
+cast and permute (from NHWC to NCHW).)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("output_dtype",
-      R"code(`dali.types.DALIDataType`
-      Output data type.)code", DALI_NO_TYPE)
+      R"code(Output data type.)code", DALI_NO_TYPE)
   .AddOptionalArg("output_layout",
-      R"code(`dali.types.DALITensorLayout`
-      Output tensor data layout)code", DALI_NCHW)
+      R"code(Output tensor data layout)code", DALI_NCHW)
   .AddParent("Crop")  // for image type, crop pos and sizes
   .EnforceInputLayout(DALI_NHWC);
 

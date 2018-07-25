@@ -37,10 +37,8 @@ class CropCastPermute : public Operator<Backend> {
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {
     vector<int> temp_crop;
-    GetSingleOrDoubleArg(spec, &temp_crop, "crop");
+    GetSingleOrRepeatedArg(spec, &temp_crop, "crop");
 
-    DALI_ENFORCE(temp_crop.size() == 2, "Argument \"crop\" expects a list of at most 2 elements, "
-        + to_string(temp_crop.size()) + " given.");
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
 

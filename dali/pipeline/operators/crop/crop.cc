@@ -22,20 +22,16 @@ DALI_SCHEMA(Crop)
   .NumOutput(1)
   .AllowMultipleInputSets()
   .AddOptionalArg("crop_pos_x",
-      R"code(`float` or `float tensor`
-      Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
+      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
+      0.5f, true)
   .AddOptionalArg("crop_pos_y",
-      R"code(`float` or `float tensor`
-      Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f)
+      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
+      0.5f, true)
   .AddOptionalArg("image_type",
-        R"code(`dali.types.DALIImageType`
-        The color space of input and output image)code", DALI_RGB)
+        R"code(The color space of input and output image)code", DALI_RGB, false)
   .AddArg("crop",
-      R"code(`int` or `list of int`
-      Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
+      R"code(Size of the cropped image. If only a single value `c` is provided,
+ the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali
