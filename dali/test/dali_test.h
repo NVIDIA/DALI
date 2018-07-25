@@ -71,7 +71,7 @@ class DALITest : public ::testing::Test {
   }
 
   void DecodeImage(const unsigned char *data, int data_size, int c, int img_type,
-                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) {
+                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char*>(data));
 
     cv::Mat tmp = cv::imdecode(input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
@@ -211,7 +211,7 @@ class DALITest : public ::testing::Test {
   }
 
   template <typename T>
-  void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
+  void MeanStdDev(const vector<T> &diff, double *mean, double *std) const {
     const size_t N = diff.size();
     // Avoid division by zero
     ASSERT_NE(N, 0);

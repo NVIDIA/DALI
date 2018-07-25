@@ -80,6 +80,13 @@ typedef enum {
   t_pngImgType,
 } t_imgType;
 
+typedef enum {
+  t_loadJPEGs   = 1,
+  t_decodeJPEGs = 2,
+  t_loadPNGs    = 4,
+  t_decodePNGs  = 8
+} t_loadingFlags;
+
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
 // run the pipe using known data, and compare the result to
@@ -96,13 +103,20 @@ class DALISingleOpTest : public DALITest {
     DALITest::SetUp();
     jpegs_.clear();
 
-    // encoded in jpegs_
-    LoadJPEGS(images::jpeg_test_images, &jpegs_);
-    LoadImages(images::png_test_images, &png_);
+    const auto flags = GetImageLoadingFlags();
 
-    // decoded in images_
-    DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
-    DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
+    if (flags & t_loadJPEGs) {
+      LoadJPEGS(images::jpeg_test_images, &jpegs_);
+      if (flags & t_decodeJPEGs)
+        DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
+    }
+
+    if (flags & t_loadPNGs) {
+      LoadImages(images::png_test_images, &png_);
+
+      if (flags & t_decodePNGs)
+        DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
+    }
 
     // Set the pipeline batch size
     SetBatchSize(32);
@@ -237,6 +251,10 @@ class DALISingleOpTest : public DALITest {
     return pipeline_;
   }
 
+  virtual uint32_t GetImageLoadingFlags() const   {
+    return t_loadJPEGs;   // Only loading of JPEG files
+  }
+
   template <typename T>
   vector<TensorList<CPUBackend> *>CopyToHost(const TensorList<T> &calcOutput) {
     // copy to host
@@ -247,7 +265,7 @@ class DALISingleOpTest : public DALITest {
   }
 
   template <typename T>
-  int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pDiff = NULL) {
+  int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pDiff = NULL) const {
     // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
     const int len = N / jMax;
