@@ -96,7 +96,7 @@ class GenericDecoderTest : public DALISingleOpTest {
     }
   }
 
-  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int img_id) {
+  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int img_id) const {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
     const auto imgSize = imgs.sizes_[img_id];

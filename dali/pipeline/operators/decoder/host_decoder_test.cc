@@ -19,6 +19,10 @@ namespace dali {
 template <typename ImgType>
 class HostDecodeTest : public GenericDecoderTest<ImgType> {
  protected:
+  uint32_t GetImageLoadingFlags() const override {
+    return t_loadJPEGs + t_loadPNGs;
+  }
+
   const OpSpec DecodingOp() const override {
     return OpSpec("HostDecoder")
       .AddArg("device", "cpu")
@@ -26,6 +30,7 @@ class HostDecodeTest : public GenericDecoderTest<ImgType> {
       .AddInput("encoded", "cpu")
       .AddOutput("decoded", "cpu");
   }
+
   uint8 TestCheckType() const  override {
     return t_checkColorComp + t_checkElements; // + t_checkAll + t_checkNoAssert
   }
