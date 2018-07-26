@@ -62,8 +62,10 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
 
     DeviceWorkspace ws;
     this->RunOperator(&ws);
-    // WriteCHWBatch<float>(*ws.Output<GPUBackend>(0), 0., 1, "img0");
-    // WriteCHWBatch<float>(*ws.Output<GPUBackend>(1), 0., 1, "img1");
+#if DALI_DEBUG
+    WriteCHWBatch<float>(*ws.Output<GPUBackend>(0), 0., 1, "img0");
+    WriteCHWBatch<float>(*ws.Output<GPUBackend>(1), 0., 1, "img1");
+#endif
     // Comparing ws.Output<GPUBackend>(0) with ws.Output<GPUBackend>(1)
     // which will be constructed in Reference method
     this->CheckAnswers(&ws, {0});

@@ -56,7 +56,9 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     uint8 *host_img = new uint8[h*w*c_];
     CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
 
-//    WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
+#if DALI_DEBUG
+    WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
+#endif
     GenericDecoderTest::VerifyDecode(host_img, h, w, jpegs_, img_id);
     delete [] host_img;
   }
@@ -392,6 +394,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
 TEST_F(ExecutorTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
+  this->SetEps(1.6);
 
   Executor exe(this->batch_size_, this->num_threads_, 0, 1);
 
