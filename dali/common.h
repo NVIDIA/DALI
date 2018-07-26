@@ -141,6 +141,7 @@ struct TimeRange {
   static const uint32_t kBlue1   = 0x268BD2;
   static const uint32_t kCyan    = 0x2AA198;
   static const uint32_t kGreen1  = 0x859900;
+  static const uint32_t knvGreen = 0x76B900;
 
   TimeRange(std::string name, const uint32_t rgb = kBlue) { // NOLINT
 #ifdef DALI_USE_NVTX
