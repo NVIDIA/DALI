@@ -116,7 +116,7 @@ void WriteImageScaleBias(const T *img, int h, int w,
   std::ofstream file(file_name + ".ppm");
   DALI_ENFORCE(file.is_open());
 
-  file << (c == 3? "P3" : "P2") << endl;
+  file << (c == 3? "P3" : "P2") << endl;    // For color/grayscale images, respectively
   file << w << " " << h << endl;
   file << "255" << endl;
 
@@ -135,13 +135,13 @@ void WriteImageScaleBias(const T *img, int h, int w,
  */
 template <typename T, typename Backend>
 void WriteBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix,
-                const std::array<int, 3> &permut, outFunc pFunc) {
+                const std::array<int, 3> &permute, outFunc pFunc) {
   DALI_ENFORCE(IsType<T>(tl.type()));
   for (int i = 0; i < tl.ntensor(); ++i) {
     DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
-    int h = tl.tensor_shape(i)[permut[0]];
-    int w = tl.tensor_shape(i)[permut[1]];
-    int c = tl.tensor_shape(i)[permut[2]];
+    int h = tl.tensor_shape(i)[permute[0]];
+    int w = tl.tensor_shape(i)[permute[1]];
+    int c = tl.tensor_shape(i)[permute[2]];
     WriteImageScaleBias(
         tl.template tensor<T>(i),
         h, w, c, bias, scale,

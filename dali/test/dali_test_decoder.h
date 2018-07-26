@@ -86,11 +86,13 @@ class GenericDecoderTest : public DALISingleOpTest {
                                imgs.sizes_[imgIdx],
                                this->img_type_, &t));
 
-//      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
-//                    std::to_string(imgIdx) + "-img");
+#if DALI_DEBUG
+      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
+                    std::to_string(imgIdx) + "-img");
 #ifndef NDEBUG
       cout << imgIdx << ": " << imgs.sizes_[imgIdx]
            << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
+#endif
 #endif
       this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
     }
