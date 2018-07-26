@@ -365,8 +365,9 @@ class DALISingleOpTest : public DALITest {
         ReportTestFailure(diff, colorIdx);
     }
 
-    if (!TestCheckType(t_checkNoAssert))
+    if (!TestCheckType(t_checkNoAssert)) {
       ASSERT_EQ(failNumb, 0);
+    }
   }
 
   void InitPipeline() {
