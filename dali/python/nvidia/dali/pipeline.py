@@ -239,7 +239,16 @@ class Pipeline(object):
         return self._pipe.Outputs()
 
     def run(self):
-        """Run the pipeline.
+        """Run the pipeline and return the result.
+
+        If the pipeline was created with `exec_async` option set to `True`,
+        this function will also start prefetching the next iteration for
+        faster execution."""
+        self._start_run()
+        return self.outputs()
+
+    def _start_run(self):
+        """Start running the pipeline without waiting for its results.
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
@@ -253,7 +262,6 @@ class Pipeline(object):
         self.iter_setup()
         self._run_cpu()
         self._run_gpu()
-        return self.outputs()
 
     def serialize(self):
         """Serialize the pipeline to a Protobuf string."""

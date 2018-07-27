@@ -464,6 +464,7 @@ PYBIND11_MODULE(backend_impl, m) {
   py::enum_<DALITensorLayout>(types_m, "DALITensorLayout", "Tensor layout")
     .value("NCHW", DALI_NCHW)
     .value("NHWC", DALI_NHWC)
+    .value("SAME", DALI_SAME)
     .export_values();
 
   // Operator node

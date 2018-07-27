@@ -86,7 +86,8 @@ enum DALIImageType {
  */
 enum DALITensorLayout {
   DALI_NCHW = 0,
-  DALI_NHWC = 1
+  DALI_NHWC = 1,
+  DALI_SAME = 2
 };
 
 inline bool IsColor(DALIImageType type) {

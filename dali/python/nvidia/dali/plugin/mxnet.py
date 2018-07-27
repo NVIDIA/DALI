@@ -121,7 +121,9 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            outputs.append(p.run())
+            p._start_run()
+        for p in self._pipes:
+            outputs.append(p.outputs())
         for i in range(self._num_gpus):
             out_data = []
             out_label = []
