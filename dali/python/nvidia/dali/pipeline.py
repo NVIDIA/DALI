@@ -153,6 +153,21 @@ class Pipeline(object):
         return self._pipe.Outputs()
 
     def run(self):
+        """Run the pipeline and return the result.
+
+        If the pipeline was created with `exec_async` option set to `True`,
+        this function will also start prefetching the next iteration for
+        faster execution."""
+        self._start_run()
+        return self.outputs()
+
+    def _start_run(self):
+        """Start running the pipeline without waiting for its results.
+
+        If the pipeline was created with `exec_async` option set to `True`,
+        this function will return without waiting for the execution to end."""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
         if self._first_iter and self._exec_pipelined:
             self.iter_setup()
             self.run_cpu()
@@ -161,7 +176,6 @@ class Pipeline(object):
         self.iter_setup()
         self.run_cpu()
         self.run_gpu()
-        return self.outputs()
 
     def serialize(self):
         if not self._built:

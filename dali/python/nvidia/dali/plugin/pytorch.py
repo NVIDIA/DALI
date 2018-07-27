@@ -81,7 +81,9 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            outputs.append(p.run())
+            p._start_run()
+        for p in self._pipes:
+            outputs.append(p.outputs())
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             out_data = []
