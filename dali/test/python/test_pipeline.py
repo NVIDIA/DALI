@@ -16,7 +16,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
-import numpy as np
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
@@ -407,3 +406,49 @@ def test_type_conversion():
         arg1_cpu = pipe_out[3].asCPU().as_tensor()
         assert_array_equal(orig_cpu, int_cpu)
         assert_array_equal(orig_cpu, arg1_cpu)
+
+def test_crop():
+    class CMNvsCropPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(CMNvsCropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.cmn = ops.CropMirrorNormalize(device = "gpu",
+                                                output_layout = types.NHWC,
+                                                output_dtype = types.FLOAT,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [0., 0., 0.],
+                                                std = [1., 1., 1.])
+            self.crop = ops.Crop(device = "gpu",
+                                 crop = (224, 224),
+                                 image_type = types.RGB)
+            self.uniform = ops.Uniform(range = (0.0, 1.0))
+            self.cast = ops.Cast(device = "gpu",
+                                 dtype = types.INT32)
+
+        def define_graph(self):
+            inputs, labels = self.input()
+            images = self.decode(inputs)
+            crop_x = self.uniform()
+            crop_y = self.uniform()
+            output_cmn = self.cmn(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
+            output_crop = self.crop(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
+            output_cmn = self.cast(output_cmn)
+            output_crop = self.cast(output_crop)
+            return (output_cmn, output_crop, labels.gpu())
+
+    batch_size = 8
+    iterations = 8
+
+    pipe = CMNvsCropPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+
+    for _ in range(iterations):
+        pipe_out = pipe.run()
+        cmn_img_batch_cpu = pipe_out[0].asCPU()
+        crop_img_batch_cpu = pipe_out[1].asCPU()
+        for b in range(batch_size):
+            img_cmn = cmn_img_batch_cpu.at(b)
+            img_crop = crop_img_batch_cpu.at(b)
+            assert(np.array_equal(img_cmn, img_crop))
