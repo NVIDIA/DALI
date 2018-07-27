@@ -152,4 +152,49 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   return DALISuccess;
 }
 
+void CheckParam(const Tensor<CPUBackend> &input, const std::string &opName) {
+  DALI_ENFORCE(input.ndim() == 3);
+  DALI_ENFORCE(IsType<uint8>(input.type()),
+               opName + " expects input data in uint8.");
+  DALI_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
+               opName + " supports hwc rgb & grayscale inputs.");
+}
+
+typedef cv::Vec<uchar, 1> Vec1b;
+
+DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
+                                    const float *matrix, uint8 *out_img) {
+  const int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
+
+  const cv::Mat cv_imgIn = CreateMatFromPtr(H, W, channel_flag, img);
+  cv::Mat cv_imgOut = CreateMatFromPtr(H, W, channel_flag, out_img);
+
+  if (C == 1) {
+    for (int y = 0; y < H; ++y) {
+      for (int x = 0; x < W; ++x) {
+        for (int k = 0; k < C; ++k) {
+          cv_imgOut.at<Vec1b>(y, x)[k] =
+            cv::saturate_cast<uint8>((matrix[0] * cv_imgIn.at<Vec1b>(y, x)[k]) + matrix[1]);
+        }
+      }
+    }
+  } else {
+    for (int y = 0; y < H; ++y) {
+      for (int x = 0; x < W; ++x) {
+        const auto &inpPix = cv_imgIn.at<cv::Vec3b>(y, x);
+        auto matrRow = matrix;
+        for (int k = 0; k < C; ++k, matrRow += 4) {
+          auto val = matrRow[3];
+          for (int n = 0; n < C; ++n)
+            val += inpPix[n] * matrRow[n];
+
+          cv_imgOut.at<cv::Vec3b>(y, x)[k] = cv::saturate_cast<uint8>(val);
+        }
+      }
+    }
+  }
+
+  return DALISuccess;
+}
+
 }  // namespace dali
