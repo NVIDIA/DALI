@@ -22,6 +22,11 @@ Key highlights of DALI include:
 
 .. installation-begin-marker-do-not-remove
 
+Using DALI inside NGC container
+-------------------------------
+
+DALI comes preinstalled in MXNet, pyTorch and TensorFlow containers from `NGC registry <https://ngc.nvidia.com>`_ starting from 18.07 release.
+
 Installing prebuilt DALI packages
 ---------------------------------
 
