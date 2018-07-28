@@ -20,7 +20,7 @@ Requirements
 .. role:: bash(code)
    :language: bash
 
-- `APEx <https://www.github.com/nvidia/apex>`_ - optional, required for fp16 mode or distributed (mutli GPU) operation
+- `APEx <https://www.github.com/nvidia/apex>`_ - optional, required for fp16 mode or distributed (multi-GPU) operation
 - Install PyTorch from source, master branch of `pytorch on github <https://www.github.com/pytorch/pytorch>`_
 - :bash:`pip install -r requirements.txt`
 - Download the ImageNet dataset and move validation images to labeled subfolders
