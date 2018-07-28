@@ -22,6 +22,11 @@ Key highlights of DALI include:
 
 .. installation-begin-marker-do-not-remove
 
+DALI and NGC
+------------
+
+DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch, and MXNet containers in versions 18.07 and later.
+
 Installing prebuilt DALI packages
 ---------------------------------
 
