@@ -16,7 +16,8 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('..'))
 import sphinx_rtd_theme
-
+import re
+from builtins import str
 
 # -- Project information -----------------------------------------------------
 
@@ -24,10 +25,16 @@ project = u'NVIDIA DALI'
 copyright = u'2018, NVIDIA Corporation'
 author = u'NVIDIA Corporation'
 
+version_long = u'0.0.0'
+with open("../VERSION") as f:
+    version_long = f.readline()
+
+version_short = re.match('^[\d]+\.[\d]+', version_long).group(0)
+
 # The short X.Y version
-version = u'0.1'
+version = str(version_short)
 # The full version, including alpha/beta/rc tags
-release = u'0.1.1'
+release = str(version_long)
 
 
 # -- General configuration ---------------------------------------------------

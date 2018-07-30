@@ -32,7 +32,8 @@ set_target_properties(${dali_python_lib} PROPERTIES
 
 # Add install rule
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/dali/python/nvidia" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
-install(FILES "${PROJECT_SOURCE_DIR}/dali/python/setup.py" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
+configure_file("${PROJECT_SOURCE_DIR}/dali/python/setup.py.in" "${PROJECT_BINARY_DIR}/dali/python/setup.py")
+install(FILES "${PROJECT_BINARY_DIR}/dali/python/setup.py" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
 install(FILES "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
 install(FILES "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
 
