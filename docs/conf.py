@@ -16,8 +16,10 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('..'))
 import sphinx_rtd_theme
-import re
 from builtins import str
+import re
+import subprocess
+import os
 
 # -- Project information -----------------------------------------------------
 
@@ -31,11 +33,18 @@ with open("../VERSION") as f:
 
 version_short = re.match('^[\d]+\.[\d]+', version_long).group(0)
 
+git_sha = os.getenv("GIT_SHA")
+
+if not git_sha:
+    try:
+        git_sha = subprocess.check_output(["git", "log", "--pretty=format:'%h'", "-n1"]).decode('ascii').replace("'","").strip()
+    except:
+        git_sha = u'0000000'
+
 # The short X.Y version
-version = str(version_short)
+version = str(version_short + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
-
 
 # -- General configuration ---------------------------------------------------
 

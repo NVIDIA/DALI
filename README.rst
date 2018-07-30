@@ -1,7 +1,7 @@
 |License|
 
 NVIDIA DALI
-================
+===========
 
 .. overview-begin-marker-do-not-remove
 
