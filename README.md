@@ -27,7 +27,7 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
   - [pyTorch](https://pytorch.org)
     - Version 0.4
   - [TensorFlow](https://www.tensorflow.org)
-    - Version 1.8
+    - Version 1.7 or newer
 
 ## Installation
 
@@ -51,7 +51,7 @@ Note: DALI v0.1 is a pre-release software, which means certain features may not 
   - [pyTorch](https://pytorch.org)
     - Version 0.4
   - [TensorFlow](https://www.tensorflow.org)
-    - Version 1.8
+    - Version 1.7 or newer
     - Note: Installing TensorFlow is required to build the TensorFlow plugin for DALI
 
 
