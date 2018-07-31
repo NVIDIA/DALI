@@ -29,6 +29,8 @@ endif()
 
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/mxnet_reader_op.cc")
 
+list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/coco_reader_op.cc")
+
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
