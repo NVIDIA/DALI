@@ -31,7 +31,7 @@ class HostDecodeTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "cpu");
   }
 
-  uint8 TestCheckType() const  override {
+  uint8 GetTestCheckType() const  override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert
   }
 };

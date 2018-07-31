@@ -172,10 +172,8 @@ DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
   if (C == 1) {
     for (int y = 0; y < H; ++y) {
       for (int x = 0; x < W; ++x) {
-        for (int k = 0; k < C; ++k) {
-          cv_imgOut.at<Vec1b>(y, x)[k] =
-            cv::saturate_cast<uint8>((matrix[0] * cv_imgIn.at<Vec1b>(y, x)[k]) + matrix[1]);
-        }
+        cv_imgOut.at<Vec1b>(y, x)[0] =
+            cv::saturate_cast<uint8>((matrix[0] * cv_imgIn.at<Vec1b>(y, x)[0]) + matrix[1]);
       }
     }
   } else {

@@ -285,6 +285,8 @@ class DALITest : public ::testing::Test {
   }
 
  protected:
+  int GetNumColorComp() const          { return c_; }
+
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;
   ImgSetDescr jpegs_;
