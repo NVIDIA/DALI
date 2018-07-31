@@ -129,14 +129,14 @@ To build DALI without LMDB support:
 .. code-block:: bash
 
    cmake ..
-   make -j"$(nproc)" install
+   make -j"$(nproc)"
 
 To build DALI with LMDB support:
 
 .. code-block:: bash
 
    cmake -DBUILD_LMDB=ON ..
-   make -j"$(nproc)" install
+   make -j"$(nproc)"
 
 Optional CMake build parameters:
 

@@ -33,7 +33,7 @@ RUN LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=. \
           -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
           -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
