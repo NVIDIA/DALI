@@ -26,13 +26,9 @@ option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
 
-# Helper function to remove elements from a variable
-function (remove TARGET INPUT)
-  foreach(ITEM ${ARGN})
-    list(REMOVE_ITEM INPUT "${ITEM}")
-  endforeach()
-  set(${TARGET} ${INPUT} PARENT_SCOPE)
-endfunction(remove)
+include(cmake/Utils.cmake)
+
+get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
 
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
