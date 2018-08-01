@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu"
+pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch"
 
 pushd ../..
 topdir=$(pwd)
@@ -30,6 +30,8 @@ do
                    --ExecutePreprocessor.kernel_name=python2 \
                    --ExecutePreprocessor.timeout=300 \
                    --output output.ipynb {}
+    find */* -name "main.py" | xargs -i python2 {} -t
+
     # remove pacakges
     remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages)
     if [ -n "$remove" ]
