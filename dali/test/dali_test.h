@@ -53,11 +53,11 @@ class DALITest : public ::testing::Test {
  public:
   virtual inline void SetUp() {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_, &jpeg_sizes_);
+    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
   }
 
   virtual inline void TearDown() {
-    for (auto &ptr : jpegs_) delete[] ptr;
+    for (auto &ptr : jpegs_.data_) delete[] ptr;
     for (auto &ptr : images_) delete[] ptr;
   }
 
@@ -71,7 +71,7 @@ class DALITest : public ::testing::Test {
   }
 
   void DecodeImage(const unsigned char *data, int data_size, int c, int img_type,
-                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) {
+                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char*>(data));
 
     cv::Mat tmp = cv::imdecode(input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
@@ -93,12 +93,14 @@ class DALITest : public ::testing::Test {
     std::memcpy(out_dataPntr, out_img.ptr(), out_img.rows * out_img.cols * c);
   }
 
-  inline void DecodeImages(DALIImageType type, const vector<uint8*>& encoded,
-                           const vector<int>& encoded_sizes,
+  inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
                            vector<uint8*> *images, vector<DimPair> *image_dims) {
-    images->resize(encoded.size());
-    image_dims->resize(encoded.size());
-    for (size_t i = 0; i < encoded.size(); ++i) {
+    const auto & encoded = imgs.data_;
+    const auto & encoded_sizes = imgs.sizes_;
+    const auto nImgs = imgs.nImages();
+    images->resize(nImgs);
+    image_dims->resize(nImgs);
+    for (size_t i = 0; i < nImgs; ++i) {
       cv::Mat img;
       cv::Mat encode = cv::Mat(1, encoded_sizes[i], CV_8UC1, encoded[i]);
 
@@ -127,7 +129,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void DecodeJPEGS(DALIImageType type) {
-    DecodeImages(type, jpegs_, jpeg_sizes_, &images_, &image_dims_);
+    DecodeImages(type, jpegs_, &images_, &image_dims_);
   }
 
   inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,
@@ -159,13 +161,14 @@ class DALITest : public ::testing::Test {
   }
 
   // Make a batch (in TensorList) of arbitrary raw data
-  inline void MakeEncodedBatch(TensorList<CPUBackend> *tl, int n,
-                        const vector<uint8*> &data,
-                        const vector<int> &data_sizes) {
-    DALI_ENFORCE(data.size() > 0, "data must be populated to create batches");
+  inline void MakeEncodedBatch(TensorList<CPUBackend> *tl, int n, const ImgSetDescr &imgs) {
+    const auto &data = imgs.data_;
+    const auto &data_sizes = imgs.sizes_;
+    const auto nImgs = imgs.nImages();
+    DALI_ENFORCE(nImgs > 0, "data must be populated to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {data_sizes[i % data.size()]};
+      shape[i] = {data_sizes[i % nImgs]};
     }
 
     tl->template mutable_data<uint8>();
@@ -173,41 +176,42 @@ class DALITest : public ::testing::Test {
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-          data[i % data.size()],
-          data_sizes[i % data.size()]);
+          data[i % nImgs],
+          data_sizes[i % nImgs]);
     }
   }
 
   // Make a batch (of vector<Tensor>) of arbitrary raw data
-  inline void MakeEncodedBatch(vector<Tensor<CPUBackend>> *t, int n,
-                            const vector<uint8*> &data,
-                            const vector<int> &data_sizes) {
-    DALI_ENFORCE(data.size() > 0, "data must be populated to create batches");
+  inline void MakeEncodedBatch(vector<Tensor<CPUBackend>> *t, int n, const ImgSetDescr &imgs) {
+    const auto &data = imgs.data_;
+    const auto &data_sizes = imgs.sizes_;
+    const auto nImgs = data.size();
+    DALI_ENFORCE(nImgs > 0, "data must be populated to create batches");
 
     t->resize(n);
     for (int i = 0; i < n; ++i) {
       auto& ti = t->at(i);
       ti = Tensor<CPUBackend>{};
-      ti.Resize({data_sizes[i % data.size()]});
+      ti.Resize({data_sizes[i % nImgs]});
       ti.template mutable_data<uint8>();
 
       std::memcpy(ti.raw_mutable_data(),
-                  data[i % data.size()],
-                  data_sizes[i % data.size()]);
+                  data[i % nImgs],
+                  data_sizes[i % nImgs]);
     }
   }
 
 
   inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
-    MakeEncodedBatch(tl, n, jpegs_, jpeg_sizes_);
+    MakeEncodedBatch(tl, n, jpegs_);
   }
 
   inline void MakeJPEGBatch(vector<Tensor<CPUBackend>> *t, int n) {
-    MakeEncodedBatch(t, n, jpegs_, jpeg_sizes_);
+    MakeEncodedBatch(t, n, jpegs_);
   }
 
   template <typename T>
-  void MeanStdDev(const vector<T> &diff, double *mean, double *std) {
+  void MeanStdDev(const vector<T> &diff, double *mean, double *std) const {
     const size_t N = diff.size();
     // Avoid division by zero
     ASSERT_NE(N, 0);
@@ -281,10 +285,11 @@ class DALITest : public ::testing::Test {
   }
 
  protected:
+  int GetNumColorComp() const          { return c_; }
+
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;
-  vector<uint8*> jpegs_;
-  vector<int> jpeg_sizes_;
+  ImgSetDescr jpegs_;
 
   // Decoded images
   vector<uint8*> images_;

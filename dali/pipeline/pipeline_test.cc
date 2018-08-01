@@ -332,7 +332,7 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
 
 TYPED_TEST(PipelineTest, TestExternalSource) {
   int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.size();
+  int batch_size = this->jpegs_.nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
 
@@ -354,7 +354,7 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
 
 TYPED_TEST(PipelineTest, TestSerialization) {
   int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.size();
+  int batch_size = this->jpegs_.nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
 

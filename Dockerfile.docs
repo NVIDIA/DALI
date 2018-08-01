@@ -1,0 +1,22 @@
+ARG BASE_IMAGE_NAME
+FROM ${BASE_IMAGE_NAME}
+
+ARG PYVER=2.7
+ENV PYVER=${PYVER}
+ARG PYV=27
+ENV PYV=${PYV}
+
+RUN apt-get update && apt-get install -y \
+        pandoc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip install sphinx \
+                sphinx_rtd_theme \
+                nbsphinx \
+                IPython \
+                tensorflow-gpu==1.8.0 \
+                mxnet-cu90 \
+                http://download.pytorch.org/whl/cu90/torch-0.4.0-cp35-cp35m-linux_x86_64.whl \
+                torchvision
+
+WORKDIR /opt/dali/docs

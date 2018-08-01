@@ -11,10 +11,8 @@
 namespace dali {
 
 template <typename ImgType>
-class GenericDecoderTest : public DALISingleOpTest {
+class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  public:
-  USING_DALI_SINGLE_OP_TEST();
-
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs,
             DeviceWorkspace *ws) {
@@ -25,12 +23,12 @@ class GenericDecoderTest : public DALISingleOpTest {
 
     const TensorList<CPUBackend>& encoded_data = *inputs[0];
 
-    c_ = (IsColor(img_type_) ? 3 : 1);
+    const int c = this->GetNumColorComp();
     for (int i = 0; i < encoded_data.ntensor(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = Product(encoded_data.tensor_shape(i));
 
-      DecodeImage(data, data_size, c_, img_type_, &out[i]);
+      this->DecodeImage(data, data_size, c, this->ImageType(), &out[i]);
     }
 
     vector<TensorList<CPUBackend>*> outputs(1);
@@ -40,23 +38,23 @@ class GenericDecoderTest : public DALISingleOpTest {
   }
 
  protected:
-  virtual const OpSpec DecodingOp() const = 0;
-  virtual uint8 TestCheckType() const       { return t_checkDefault; }
+  virtual const OpSpec DecodingOp() const   { return OpSpec(); }
 
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
 #ifdef PIXEL_STAT_FILE
     FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
-    fprintf(file, "Type of the files: %s   eps = %6.4f\n", jpegData? "JPEG" : "PNG", eps);
+    fprintf(file, "Type of the files: %s   eps = %6.4f\n",
+            imageType == t_jpegImgType? "JPEG" : "PNG", eps);
     fprintf(file, " Color#:       mean:        std:          eq.         pos.         neg.\n");
     fclose(file);
 #endif
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
       case t_jpegImgType:
-        EncodedJPEGData(&encoded_data, batch_size_);
+        this->EncodedJPEGData(&encoded_data);
         break;
       case t_pngImgType:
-        EncodedPNGData(&encoded_data, batch_size_);
+        this->EncodedPNGData(&encoded_data);
         break;
       default: {
         char buff[32];
@@ -65,19 +63,41 @@ class GenericDecoderTest : public DALISingleOpTest {
       }
     }
 
-    SetExternalInputs({std::make_pair("encoded", &encoded_data)});
-
-    AddSingleOp(DecodingOp());
-
-    DeviceWorkspace ws;
-    RunOperator(&ws);
-
-    SetEps(eps);
-    SetTestCheckType(TestCheckType());
-    CheckAnswers(&ws, {0});
+    this->SetExternalInputs({std::make_pair("encoded", &encoded_data)});
+    this->RunOperator(DecodingOp(), eps);
   }
 
-  const DALIImageType img_type_ = ImgType::type;
+  void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
+    this->SetEps(eps);
+    for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
+      Tensor<CPUBackend> t;
+      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
+                               imgs.sizes_[imgIdx],
+                               this->img_type_, &t));
+
+#if DALI_DEBUG
+      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
+                    std::to_string(imgIdx) + "-img");
+#ifndef NDEBUG
+      cout << imgIdx << ": " << imgs.sizes_[imgIdx]
+           << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
+#endif
+#endif
+      this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
+    }
+  }
+
+  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int img_id) const {
+    // Compare w/ opencv result
+    const auto imgData = imgs.data_[img_id];
+    const auto imgSize = imgs.sizes_[img_id];
+    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
+
+    Tensor<CPUBackend> out;
+    const int c = this->GetNumColorComp();
+    this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
+    this->CheckBuffers(h*w*c, out.mutable_data<uint8>(), img, false);
+  }
 };
 
 }  // namespace dali

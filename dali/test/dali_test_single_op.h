@@ -80,6 +80,13 @@ typedef enum {
   t_pngImgType,
 } t_imgType;
 
+typedef enum {
+  t_loadJPEGs   = 1,
+  t_decodeJPEGs = 2,
+  t_loadPNGs    = 4,
+  t_decodePNGs  = 8
+} t_loadingFlags;
+
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
 // run the pipe using known data, and compare the result to
@@ -90,23 +97,31 @@ typedef enum {
 //  void SetInputs() - define all external inputs to the graph
 //  void GetOutputs() - retrieve all testable outputs from the graph
 //  bool Compare() - Compare against a (supplied) reference implementation
+template <typename ImgType>
 class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
+    c_ = (IsColor(img_type_) ? 3 : 1);
     jpegs_.clear();
-    jpeg_sizes_.clear();
 
-    // encoded in jpegs_
-    LoadJPEGS(images::jpeg_test_images, &jpegs_, &jpeg_sizes_);
-    LoadImages(images::png_test_images, &png_, &png_sizes_);
+    const auto flags = GetImageLoadingFlags();
 
-    // decoded in images_
-    DecodeImages(DALI_RGB, jpegs_, jpeg_sizes_, &jpeg_decoded_, &jpeg_dims_);
-    DecodeImages(DALI_RGB, png_, png_sizes_, &png_decoded_, &png_dims_);
+    if (flags & t_loadJPEGs) {
+      LoadJPEGS(images::jpeg_test_images, &jpegs_);
+      if (flags & t_decodeJPEGs)
+        DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
+    }
+
+    if (flags & t_loadPNGs) {
+      LoadImages(images::png_test_images, &png_);
+
+      if (flags & t_decodePNGs)
+        DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
+    }
 
     // Set the pipeline batch size
-    batch_size_ = 32;
+    SetBatchSize(32);
   }
   inline void TearDown() override {
     DALITest::TearDown();
@@ -132,19 +147,22 @@ class DALISingleOpTest : public DALITest {
     return testCheckType_ & type;
   }
 
+  virtual uint8 GetTestCheckType() const {
+    return t_checkDefault;
+  }
+
+  void AddOperatorWithOutput(const OpSpec& spec) {
+    // generate the output mapping for this op
+    for (int i = 0; i < spec.NumOutput(); ++i)
+      outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
+
+    pipeline_->AddOperator(spec);
+  }
+
   void AddSingleOp(const OpSpec& spec) {
     spec_ = spec;
     InitPipeline();
-    // generate the output mapping for this op
-    for (int i = 0; i < spec.NumOutput(); ++i) {
-      auto output_name = spec.OutputName(i);
-      auto output_device = spec.OutputDevice(i);
-
-      outputs_.push_back(std::make_pair(output_name, output_device));
-    }
-
-    pipeline_->AddOperator(spec);
-
+    AddOperatorWithOutput(spec);
     pipeline_->Build(outputs_);
   }
 
@@ -159,9 +177,9 @@ class DALISingleOpTest : public DALITest {
   }
 
   void RunOperator(DeviceWorkspace *ws) {
+    SetTestCheckType(GetTestCheckType());
     pipeline_->RunCPU();
     pipeline_->RunGPU();
-
     pipeline_->Outputs(ws);
   }
 
@@ -208,6 +226,8 @@ class DALISingleOpTest : public DALITest {
         // check calculated vs. reference answers
         CheckTensorLists(calc_output, ref_output);
       }
+
+      delete res[i];
     }
   }
 
@@ -215,12 +235,12 @@ class DALISingleOpTest : public DALITest {
    * Provide some encoded data
    * TODO(slayton): Add different encodings
    */
-  void EncodedJPEGData(TensorList<CPUBackend>* t, int n) {
-    DALITest::MakeEncodedBatch(t, n, jpegs_, jpeg_sizes_);
+  void EncodedJPEGData(TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, jpegs_);
   }
 
-  void EncodedPNGData(TensorList<CPUBackend>* t, int n) {
-    DALITest::MakeEncodedBatch(t, n, png_, png_sizes_);
+  void EncodedPNGData(TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, png_);
   }
 
   /**
@@ -231,15 +251,81 @@ class DALISingleOpTest : public DALITest {
     DALITest::MakeImageBatch(n, t, type);
   }
 
- private:
-  // use a Get mean, std-dev of difference separately for each color component
+ protected:
+  inline shared_ptr<Pipeline> GetPipeline() const {
+    return pipeline_;
+  }
+
+  virtual uint32_t GetImageLoadingFlags() const   {
+    return t_loadJPEGs;   // Only loading of JPEG files
+  }
+
+  const OpSpec &GetOperationSpec() const          {
+    return spec_;
+  }
+
+  DALIImageType ImageType() const                 {
+    return img_type_;
+  }
+
+  void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
+    OpSpec operation = DefaultSchema(pName, pDevice);
+    TstBody(operation, eps);
+  }
+
+  void TstBody(const OpSpec &operation, double eps = 2e-1, bool flag = true) {
+#ifdef PIXEL_STAT_FILE
+    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
+    fprintf(file, "Eps = %6.4f\n", eps);
+    fprintf(file, " Color#:       mean:        std:          eq.         pos.         neg.\n");
+    fclose(file);
+#endif
+    TensorList<CPUBackend> data;
+    DecodedData(&data, this->batch_size_, this->img_type_);
+    if (flag)
+      SetExternalInputs({std::make_pair("input", &data)});
+
+    RunOperator(operation, eps);
+  }
+
+  virtual OpSpec DefaultSchema(const string &pName, const string &pDevice = "gpu") const {
+    return OpSpec(pName)
+      .AddArg("device", pDevice)
+      .AddArg("output_type", this->img_type_)
+      .AddInput("input", pDevice)
+      .AddOutput("output", pDevice);
+  }
+
+  void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = NULL) {
+    AddSingleOp(spec);
+
+    DeviceWorkspace ws;
+    if (!pWS)
+      pWS = &ws;
+
+    RunOperator(pWS);
+
+    SetEps(eps);
+    CheckAnswers(pWS, {0});
+  }
 
   template <typename T>
-  int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pDiff = NULL) {
+  vector<TensorList<CPUBackend> *>CopyToHost(const TensorList<T> &calcOutput) {
+    // copy to host
+    vector<TensorList<CPUBackend> *> outputs(1);
+    outputs[0] = new TensorList<CPUBackend>();
+    outputs[0]->Copy(calcOutput, 0);
+    return outputs;
+  }
+
+  template <typename T>
+  int CheckBuffers(int N, const T *a, const T *b, bool checkAll, double *pMean = NULL) const {
+    // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
     const int len = N / jMax;
     double mean = 0, std;
     vector<double> diff(len);
+    int retVal = -1;
 #ifndef PIXEL_STAT_FILE
     for (int j = 0; j < jMax; ++j) {
       for (int i = j; i < N; i += jMax)
@@ -247,12 +333,12 @@ class DALISingleOpTest : public DALITest {
 
       MeanStdDev<double>(diff, &mean, &std);
       if (checkAll) {
-        const auto diff = fabs(mean) - eps_;
+        const auto diff = mean - eps_;
         if (diff <= 0)
           continue;
 
-        if (pDiff)
-          *pDiff = diff;
+        if (pMean)
+          *pMean = mean;
 
         return j;
       }
@@ -260,11 +346,16 @@ class DALISingleOpTest : public DALITest {
       ASSERT_LE(fabs(mean), eps_), -1;
     }
 #else
-    static int fff;
-    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
-    if (!fff++)
-      fprintf(file, "Buffer Length: %7d (for each color component)\n", len);
 
+    static int fff;
+    FILE *file = fopen(PIXEL_STAT_FILE".txt", fff? "a" : "w");
+    if (!fff) {
+      // Header of the pixel statistic table
+      fprintf(file,
+              "ImgID: ClrID:     Mean:        Std:      SameValue:     Bigger:         Less:\n");
+    }
+
+    fprintf(file, "%3d:", fff++);   // Image number
     for (int j = 0; j < c_; ++j) {
       int pos = 0, neg = 0;
       for (int i = j; i < N; i += c_) {
@@ -276,17 +367,30 @@ class DALISingleOpTest : public DALITest {
       }
 
       MeanStdDev<double>(diff, &mean, &std);
-      fprintf(file, "      %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
-              j, mean, std, len - pos - neg, pos, neg);
+      fprintf(file, "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
+              j? "    " : "", j, mean, std, len - pos - neg, pos, neg);
+
+      if (mean > eps_) {
+        if (retVal < 0) {
+          retVal = j;       // First violation of the boundary found
+          if (pMean)        // Keep the color index as a return value
+            *pMean = mean;
+        } else {
+          if (pMean && *pMean < mean) {
+            *pMean = mean;  // More strong violation of the boundary found
+            retVal = j;     // Change the color index as a return value
+          }
+        }
+      }
     }
 
     fclose(file);
 #endif
 
-    return -1;
+    return retVal;
   }
 
-  void ReportTestFailure(double diff, int colorIdx, int idx = -1,
+  void ReportTestFailure(double mean, int colorIdx, int idx = -1,
                          const vector<Index> *pShape = NULL) {
     if (TestCheckType(t_checkNoAssert))
       cout << "Test warning:";
@@ -302,7 +406,7 @@ class DALISingleOpTest : public DALITest {
     if (pShape)
       cout << " (h, w) = (" << (*pShape)[0] << ", " << (*pShape)[1] << ")";
 
-    cout << " fabs(mean) = " << diff + eps_ << " and it was expected to be <= " << eps_ << endl;
+    cout << " fabs(mean) = " << mean << " and it was expected to be <= " << eps_ << endl;
   }
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
@@ -319,7 +423,7 @@ class DALISingleOpTest : public DALITest {
 
     int failNumb = 0, colorIdx = 0;
     const bool checkAll = TestCheckType(t_checkAll);
-    double diff;
+    double mean;
     if (TestCheckType(t_checkElements)) {
       // The the results are checked for each element separately
       for (int i = 0; i < t1->ntensor(); ++i) {
@@ -336,16 +440,16 @@ class DALISingleOpTest : public DALITest {
         if (floatType) {
           colorIdx = CheckBuffers<float>(lenBuffer,
                           (*t1).template tensor<float>(i),
-                          (*t2).template tensor<float>(i), true, &diff);
+                          (*t2).template tensor<float>(i), checkAll, &mean);
         } else {
           colorIdx = CheckBuffers<unsigned char>(lenBuffer,
                           (*t1).template tensor<uint8>(i),
-                          (*t2).template tensor<uint8>(i), true, &diff);
+                          (*t2).template tensor<uint8>(i), checkAll, &mean);
         }
 
         if (colorIdx >= 0) {
           // Test failed for colorIdx
-          ReportTestFailure(diff, colorIdx, i, &shape1);
+          ReportTestFailure(mean, colorIdx, i, &shape1);
           failNumb++;
           if (!checkAll)
             break;
@@ -354,15 +458,15 @@ class DALISingleOpTest : public DALITest {
     } else {
       if (floatType) {
         colorIdx = CheckBuffers<float>(t1->size(),
-                            t1->data<float>(),
-                            t2->data<float>(), true, &diff);
+                          t1->data<float>(),
+                          t2->data<float>(), checkAll, &mean);
       } else {
         colorIdx = CheckBuffers<unsigned char>(t1->size(),
-                                    t1->data<unsigned char>(),
-                                    t2->data<unsigned char>(), checkAll, &diff);
+                          t1->data<unsigned char>(),
+                          t2->data<unsigned char>(), checkAll, &mean);
       }
-      if (colorIdx >= 0 && checkAll)
-        ReportTestFailure(diff, colorIdx);
+      if (colorIdx >= 0)
+        ReportTestFailure(mean, colorIdx);
     }
 
     if (!TestCheckType(t_checkNoAssert)) {
@@ -380,8 +484,7 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<uint8*> png_;
-  vector<int> png_sizes_;
+  ImgSetDescr png_;
 
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;
@@ -392,16 +495,11 @@ class DALISingleOpTest : public DALITest {
   int num_threads_ = 2;
   double eps_ = 1e-4;
   uint32_t testCheckType_ = t_checkDefault;
+  const DALIImageType img_type_ = ImgType::type;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;
 };
-
-#define USING_DALI_SINGLE_OP_TEST() \
-  using DALISingleOpTest::AddSingleOp; \
-  using DALISingleOpTest::SetExternalInputs; \
-  using DALISingleOpTest::EncodedJPEGData; \
-  using DALISingleOpTest::DecodedData;
 
 }  // namespace dali
 

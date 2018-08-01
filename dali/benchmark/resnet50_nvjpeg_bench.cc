@@ -112,7 +112,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  WriteHWCBatch<uint8_t>(*ws.Output<GPUBackend>(0), 0, 1, "img");
+//  WriteHWCBatch(*ws.Output<GPUBackend>(0), "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
