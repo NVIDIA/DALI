@@ -172,11 +172,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
-    DALI_ENFORCE(input.ndim() == 3);
-    DALI_ENFORCE(IsType<uint8>(input.type()),
-        "Expects input data in uint8.");
-    DALI_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
-        "ResizeCropMirror supports hwc rgb & grayscale inputs.");
+    CheckParam(input, "ResizeCropMirror");
 
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
@@ -216,11 +212,7 @@ class FastResizeCropMirror : public ResizeCropMirror<CPUBackend> {
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
-    DALI_ENFORCE(input.ndim() == 3);
-    DALI_ENFORCE(IsType<uint8>(input.type()),
-        "Expects input data in uint8.");
-    DALI_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
-        "FastResizeCropMirror supports hwc rgb & grayscale inputs.");
+    CheckParam(input, "FastResizeCropMirror");
 
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
