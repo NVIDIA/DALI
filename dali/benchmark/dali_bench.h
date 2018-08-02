@@ -36,11 +36,7 @@ class DALIBenchmark : public benchmark::Fixture {
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
   }
 
-  virtual ~DALIBenchmark() {
-    for (auto &ptr : jpegs_.data_) {
-      delete[] ptr;
-    }
-  }
+  virtual ~DALIBenchmark() = default;
 
   int RandInt(int a, int b) {
     return std::uniform_int_distribution<>(a, b)(rand_gen_);

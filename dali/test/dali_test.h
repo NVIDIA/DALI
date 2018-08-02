@@ -57,7 +57,6 @@ class DALITest : public ::testing::Test {
   }
 
   virtual inline void TearDown() {
-    for (auto &ptr : jpegs_.data_) delete[] ptr;
     for (auto &ptr : images_) delete[] ptr;
   }
 

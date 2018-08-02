@@ -34,11 +34,18 @@
 
 namespace dali {
 
-struct ImgSetDescr {
+class ImgSetDescr {
+ public:
+  ~ImgSetDescr()                  { clear(); }
+  inline void clear() {
+    for (auto &ptr : data_) delete[] ptr;
+    data_.clear(); sizes_.clear();
+  }
+
+  inline size_t nImages() const   { return data_.size(); }
+
   vector<uint8 *> data_;
   vector<int> sizes_;
-  inline void clear()             { data_.clear(); sizes_.clear(); }
-  inline size_t nImages() const   { return data_.size(); }
 };
 
 /**
