@@ -168,6 +168,11 @@ Getting started
 
 Documentation for the latest stable release is available `here <https://docs.nvidia.com/deeplearning/sdk/index.html#data-loading>`_. Nightly version of the documentation that stays in sync with the master branch is available `here <https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/index.html>`_.
 
+Additional resources
+--------------------
+
+- GPU Technology Conference 2018 presentation about DALI, T. Gale, S. Layton and P. Tredak: `slides <http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf>`_, `recording <http://on-demand.gputechconf.com/gtc/2018/video/S8906/>`_.
+
 Contributing to DALI
 --------------------
 
