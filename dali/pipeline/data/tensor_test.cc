@@ -87,7 +87,7 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_EQ(t.nbytes(), size*sizeof(float));
+  ASSERT_GE(t.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
 }
 
@@ -111,7 +111,7 @@ TYPED_TEST(TensorTest, TestGetSizeTypeBytes) {
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_EQ(t.nbytes(), size*sizeof(float));
+  ASSERT_GE(t.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
 }
 
@@ -148,7 +148,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
 
   ASSERT_EQ(t.raw_data(), ptr);
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(int16));
+  ASSERT_GE(t.nbytes(), size*sizeof(int16));
   ASSERT_EQ(t.shape(), shape);
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
@@ -187,7 +187,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
 
   ASSERT_NE(t.raw_data(), ptr);
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(double));
+  ASSERT_GE(t.nbytes(), size*sizeof(double));
   ASSERT_EQ(t.shape(), shape);
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_FALSE(t.shares_data());
@@ -224,7 +224,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
 
   ASSERT_EQ(t.raw_data(), ptr);
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(int16));
+  ASSERT_GE(t.nbytes(), size*sizeof(int16));
   ASSERT_EQ(t.shape(), shape);
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
@@ -274,8 +274,8 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
 TYPED_TEST(TensorTest, TestShareData) {
   TensorList<TypeParam> tl;
   auto shape = this->GetRandShapeList();
-  tl.Resize(shape);
   tl.template mutable_data<float>();
+  tl.Resize(shape);
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
@@ -403,6 +403,9 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(ptr, tensor.raw_data());
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor.nbytes());
 
+  // This test doesn't make sense anymore - we could be assigned
+  // an underlying buffer large enough to not require reallocation.
+#if 0
   // Change the type to a larger type
   tensor.template mutable_data<double>();
 
@@ -416,6 +419,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   // The memory should have been re-allocated
   ASSERT_NE(ptr, tensor.raw_data());
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor.nbytes());
+#endif
 }
 
 }  // namespace dali

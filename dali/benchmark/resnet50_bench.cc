@@ -41,6 +41,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       async);
 
   TensorList<CPUBackend> data;
+  data.set_pinned(true);
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
   pipe.SetExternalInput("raw_jpegs", data);
@@ -171,6 +172,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       async);
 
   TensorList<CPUBackend> data;
+  data.set_pinned(true);
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
   pipe.SetExternalInput("raw_jpegs", data);

@@ -59,6 +59,7 @@ TensorList<CPUBackend>* MixedWorkspace::Output(int idx) {
   auto tensor_meta = output_index_map_[idx];
   DALI_ENFORCE(tensor_meta.first, "Output TensorList with given "
       "index does not have the calling backend type (CPUBackend)");
+  cpu_outputs_[tensor_meta.second]->reset_reference_count();
   return cpu_outputs_[tensor_meta.second].get();
 }
 
@@ -68,6 +69,7 @@ TensorList<GPUBackend>* MixedWorkspace::Output(int idx) {
   auto tensor_meta = output_index_map_[idx];
   DALI_ENFORCE(!tensor_meta.first, "Output TensorList with given "
       "index does not have the calling backend type (GPUBackend)");
+  gpu_outputs_[tensor_meta.second]->reset_reference_count();
   return gpu_outputs_[tensor_meta.second].get();
 }
 

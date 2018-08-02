@@ -127,9 +127,6 @@ class TestType2 {
 TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   TensorList<TypeParam> tl;
 
-  // Give the tensor a type
-  tl.template mutable_data<float>();
-
   ASSERT_EQ(tl.size(), 0);
   ASSERT_EQ(tl.nbytes(), 0);
   ASSERT_EQ(tl.raw_data(), nullptr);
@@ -148,10 +145,11 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   }
 
   // Validate the internals
+  ASSERT_NE(tl.template mutable_data<float>(), nullptr);
   ASSERT_NE(tl.raw_data(), nullptr);
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_GE(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
   for (int i = 0; i < num_tensor; ++i) {
@@ -177,8 +175,7 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   // Verify the internals
   ASSERT_EQ(tl.size(), size);
   ASSERT_EQ(tl.ntensor(), num_tensor);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
+  ASSERT_GE(tl.nbytes(), 0);
 
   // Note: We cannot access the underlying pointer yet because
   // the buffer is not in a valid state (it has no type).
@@ -188,7 +185,7 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   ASSERT_NE(tl.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_GE(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
   for (int i = 0; i < num_tensor; ++i) {
@@ -200,9 +197,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   TensorList<TypeParam> tl, sharer;
 
   // Allocate the sharer
-  sharer.template mutable_data<float>();
   auto shape = this->GetRandShape();
   sharer.Resize(shape);
+  sharer.template mutable_data<float>();
 
   // Share the data to give the tl bytes
   tl.ShareData(&sharer);
@@ -218,7 +215,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   // Verify the internals
   ASSERT_EQ(tl.raw_data(), sharer.raw_data());
   ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_GE(tl.nbytes(), size*sizeof(float));
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.ntensor(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
@@ -245,9 +242,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   TensorList<TypeParam> tl, sharer;
 
   // Allocate the sharer
-  sharer.template mutable_data<float>();
   auto shape = this->GetRandShape();
   sharer.Resize(shape);
+  sharer.template mutable_data<float>();
 
   // Share the data to give the tl bytes
   tl.ShareData(&sharer);
@@ -464,6 +461,9 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor_list.nbytes());
 }
 
+// No longer a valid test - could be given an underlying buffer that
+// is large enough to change type without a realloc
+#if 0
 TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   TensorList<TypeParam> tensor_list;
 
@@ -493,6 +493,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   // nbytes should have increased by a factor of 2
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
 }
+#endif
 
 TYPED_TEST(TensorListTest, TestShareData) {
   TensorList<TypeParam> tensor_list;

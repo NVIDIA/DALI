@@ -181,6 +181,10 @@ class Buffer {
     pinned_ = pinned;
   }
 
+  inline bool is_pinned() const {
+    return pinned_;
+  }
+
   /**
    * @brief Returns a device this buffer was allocated on
    * If the backend is CPUBackend, return -1
@@ -214,6 +218,7 @@ class Buffer {
           "Buffer has no type and does not share data, "
           "num_bytes_ should be 0.");
     }
+    auto old_type = type_;
     type_ = new_type;
 
     size_t new_num_bytes = size_ * type_.size();
@@ -224,14 +229,21 @@ class Buffer {
       if (std::is_same<Backend, GPUBackend>::value) {
         CUDA_CALL(cudaGetDevice(&device_));
       }
+      // delete underlying objects, then re-allocate
+      DataDeleter(data_.get(), old_type, size_);
       data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
               type_, size_));
       num_bytes_ = new_num_bytes;
       shares_data_ = false;
+    } else {
+      // not changing underlying allocation, just handle deletion of
+      // old objects
+      DataDeleter(data_.get(), old_type, size_);
     }
 
+    // construct new object(s)
     type_.template Construct<Backend>(data_.get(), size_);
   }
 
@@ -248,11 +260,19 @@ class Buffer {
     // Note: Can't use device guard due to potentially not GPUBackend.
     int current_device = 0;
     if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaGetDevice(&current_device));
+      auto err = cudaGetDevice(&current_device);
+
+      // It's possible that the CUDA driver is unloading / has unloaded
+      // before we get to deleting all buffers. In that case we catch the appropriate
+      // error code and simply return.
+      if (err == cudaErrorCudartUnloading) return;
+
       CUDA_CALL(cudaSetDevice(device_));
     }
-    type.template Destruct<Backend>(ptr, size);
-    Backend::Delete(ptr, size*type.size(), pinned_);
+    if (ptr) {
+      // Only deallocate, underlying data freed elsewhere
+      Backend::Delete(ptr, size*type.size(), pinned_);
+    }
 
     // reset to original calling device for consistency
     if (std::is_same<Backend, GPUBackend>::value) {
@@ -260,9 +280,51 @@ class Buffer {
     }
   }
 
+  void Resize(size_t new_size) {
+    ResizeHelper(new_size);
+  }
+
+  void ShareData(void *ptr, size_t bytes) {
+    data_.reset(ptr, [](void *) {});
+    num_bytes_ = bytes;
+    type_ = TypeInfo::Create<NoType>();
+    size_ = 0;
+
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  void ShareData(void *ptr, size_t bytes, TypeInfo type) {
+    // TODO(tgale): If we wanted to ensure the allocation is not cleaned up
+    // while this object still uses it, we could just keep a copy of
+    // the actual shared_ptr of the TensorList. Is this behavior something
+    // that we are interested in supporting?
+
+    // Reset our pointer to the correct offset inside the tensor list.
+    // This is not the beginning of the allocation, so we pass a noop
+    // deleter to the shared_ptr
+    data_.reset(ptr, [](void *) {});
+    num_bytes_ = bytes;
+
+    if (type.size() == 0) {
+      size_ = 0;
+    } else {
+      size_ = bytes / type.size();
+    }
+    type_ = type;
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
  protected:
+  // Helper to destroy the underlying data of an allocation, not the
+  // allocation itself
+  inline void DataDeleter(void *ptr, TypeInfo type, Index size) {
+    if (ptr) {
+      type.template Destruct<Backend>(ptr, size);
+    }
+  }
+
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");

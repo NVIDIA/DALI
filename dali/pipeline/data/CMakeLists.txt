@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc)
+file(GLOB tmp *.cc *.cu)
 set(DALI_SRCS ${DALI_SRCS} ${tmp})
 file(GLOB tmp *_test.cc *_test.cu)
 remove(DALI_SRCS "${DALI_SRCS}" ${tmp})

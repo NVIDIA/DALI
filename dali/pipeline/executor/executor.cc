@@ -38,7 +38,7 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   SetupDataForGraph(&base_wsb);
 
   // Presize the workspaces based on the hint
-  PresizeData(&base_wsb);
+  // PresizeData(&base_wsb);
 
   // Assign streams to all mixed & gpu ops
   SetupStreamsForGraph(&base_wsb);
@@ -397,6 +397,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     OpNode &node = graph_->cpu_node(i);
     HostWorkspace &ws = wsb->cpu_op_data[i];
     for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+      const string& input_name = node.spec.Input(j);
       // Get each regular input and add them to this op's workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
       DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
@@ -426,12 +427,17 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     }
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      // get the number of consumers for this output
+      const auto& output_name = node.spec.Output(j);
+      auto num_consumers = graph_->TensorConsumerMeta(output_name).size();
+
       // Allocate `batch_size` Tensors for this ops
       // results and add them to the workspace.
       vector<shared_ptr<Tensor<CPUBackend>>> output(batch_size_, nullptr);
       for (auto &tensor_ptr : output) {
         tensor_ptr.reset(new Tensor<CPUBackend>);
         tensor_ptr->set_pinned(false);
+        tensor_ptr->set_num_consumers(num_consumers);
       }
 
       ws.AddOutput(output);
@@ -465,11 +471,17 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     }
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      const auto& output_name = node.spec.Output(j);
+      const auto num_consumers = graph_->TensorConsumerMeta(output_name).size();
       if (node.spec.OutputDevice(j) == "cpu") {
         // Allocate TensorLists for this ops outputs
-        ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+        auto output_ptr = std::make_shared<TensorList<CPUBackend>>();
+        output_ptr->set_num_consumers(num_consumers);
+        ws.AddOutput(output_ptr);
       } else if (node.spec.OutputDevice(j) == "gpu") {
-        ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+        auto output_ptr = std::make_shared<TensorList<GPUBackend>>();
+        output_ptr->set_num_consumers(num_consumers);
+        ws.AddOutput(output_ptr);
       } else {
         DALI_FAIL("Executor encountered mixed op with non-gpu/cpu output.");
       }
@@ -533,11 +545,18 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     }
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      const auto output_name = node.spec.Output(j);
+      const auto num_consumers = graph_->TensorConsumerMeta(output_name).size();
+
       // Allocate TensorLists for this ops output
       if (node.spec.OutputDevice(j) == "gpu") {
-        ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+        auto output_ptr = std::make_shared<TensorList<GPUBackend>>();
+        output_ptr->set_num_consumers(num_consumers);
+        ws.AddOutput(output_ptr);
       } else if (node.spec.OutputDevice(j) == "cpu") {
-        ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+        auto output_ptr = std::make_shared<TensorList<CPUBackend>>();
+        output_ptr->set_num_consumers(num_consumers);
+        ws.AddOutput(output_ptr);
       } else {
         DALI_FAIL("Executor encountered gpu op with non cpu/gpu output.");
       }

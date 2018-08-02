@@ -318,7 +318,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
     .def("asCPU", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
           TensorList<CPUBackend> * ret = new TensorList<CPUBackend>();
           UserStream * us = UserStream::Get();
-          cudaStream_t s = us->GetStream(t);
+          cudaStream_t s = us->GetStream(*t.buffer());
           ret->Copy(t, s);
           CUDA_CALL(cudaStreamSynchronize(s));
           return ret;

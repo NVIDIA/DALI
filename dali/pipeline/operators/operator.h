@@ -178,6 +178,7 @@ class Operator : public OperatorBase {
     for (int i = 0; i < input_sets_; ++i) {
       RunImpl(ws, i);
     }
+    ReleaseInputs(ws);
   }
 
   /**
@@ -190,6 +191,9 @@ class Operator : public OperatorBase {
    * implemented by derived ops.
    */
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
+
+ private:
+  DLL_PUBLIC void ReleaseInputs(Workspace<Backend> *ws);
 };
 
 template<>
@@ -204,6 +208,20 @@ class Operator<MixedBackend> : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override = 0;
+ private:
+  void ReleaseInputs(MixedWorkspace *ws) {
+    for (int i = 0; i < ws->NumInput(); ++i) {
+      if (ws->InputIsType<CPUBackend>(i)) {
+        for (int j = 0; j < batch_size_; ++j) {
+          ws->Input<CPUBackend>(i, j).release(ws->stream());
+        }
+      } else {
+        for (int j = 0; j < batch_size_; ++j) {
+          ws->Input<GPUBackend>(i, j).release(ws->stream());
+        }
+      }
+    }
+  }
 };
 
 // Create registries for CPU & GPU Operators

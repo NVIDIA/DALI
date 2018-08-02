@@ -15,6 +15,7 @@
 #include "dali/pipeline/init.h"
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/global_workspace.h"
 
 namespace dali {
 
