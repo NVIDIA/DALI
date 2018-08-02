@@ -46,6 +46,7 @@ class FileLoader : public Loader<CPUBackend> {
       vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>())
     : Loader<CPUBackend>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
+      image_label_pairs_(image_label_pairs),
       current_index_(0) {
     file_list_ = spec.GetArgument<string>("file_list");
 
@@ -60,7 +61,7 @@ class FileLoader : public Loader<CPUBackend> {
         string image_file;
         int label;
         while (s >> image_file >> label) {
-          auto p = std::make_pair(file_root_ + "/" + image_file, label);
+          auto p = std::make_pair(image_file, label);
           image_label_pairs_.push_back(p);
         }
         DALI_ENFORCE(s.eof(), "Wrong format of file_list.");

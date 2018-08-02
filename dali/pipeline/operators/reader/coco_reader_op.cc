@@ -18,13 +18,21 @@ namespace dali {
 
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 DALI_SCHEMA(COCOReader)
+  .NumInput(0)
+  .NumOutput(2)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
- and an anotation file.)code")
+ and an anotation file. For each image, returns its bboxes as an array of
+ lists containing [x, y, w, h, category_id].)code")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
       DALI_STRING)
   .AddArg("annotations_file",
       R"code(Path to the JSON annotations file.)code",
-      DALI_STRING);
+      DALI_STRING)
+  .AddOptionalArg("file_list",
+      R"code(Path to the file with a list of pairs ``file label``
+(leave empty to traverse the `file_root` directory to obtain files and labels))code",
+      std::string())
+  .AddParent("LoaderBase");
 
 }  // namespace dali
