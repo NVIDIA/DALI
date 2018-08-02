@@ -5,6 +5,8 @@ ARG PYVER=2.7
 ENV PYVER=${PYVER}
 ARG PYV=27
 ENV PYV=${PYV}
+ARG GIT_SHA=0000000
+ENV GIT_SHA=${GIT_SHA}
 
 RUN apt-get update && apt-get install -y \
         pandoc && \
