@@ -48,7 +48,8 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
         .AddOutput("images2", "cpu"));
 
     // CropMirrorNormalizePermute + crop multiple sets of images
-    this->AddSingleOp(OpSpec("CropMirrorNormalize")
+    DeviceWorkspace ws;
+    this->RunOperator(OpSpec("CropMirrorNormalize")
                         .AddArg("device", "gpu")
                         .AddInput("images", "gpu")
                         .AddOutput("cropped1", "gpu")
@@ -58,17 +59,12 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
                         .AddArg("mean", vector<float>(this->c_, 0.))
                         .AddArg("std", vector<float>(this->c_, 1.))
                         .AddArg("image_type", this->img_type_)
-                        .AddArg("num_input_sets", 2));
+                        .AddArg("num_input_sets", 2), 1e-4, &ws);
 
-    DeviceWorkspace ws;
-    this->RunOperator(&ws);
 #if DALI_DEBUG
     WriteCHWBatch<float>(*ws.Output<GPUBackend>(0), 0., 1, "img0");
     WriteCHWBatch<float>(*ws.Output<GPUBackend>(1), 0., 1, "img1");
 #endif
-    // Comparing ws.Output<GPUBackend>(0) with ws.Output<GPUBackend>(1)
-    // which will be constructed in Reference method
-    this->CheckAnswers(&ws, {0});
   }
 };
 

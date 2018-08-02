@@ -19,9 +19,6 @@ namespace dali {
 template <typename ImgType>
 class ResizeCropMirrorTest : public GenericResizeTest<ImgType> {
  protected:
-  // tell compiler we don't want to hide overloaded DefaultSchema
-  using GenericResizeTest<ImgType>::DefaultSchema;
-
   OpSpec DefaultSchema(bool fast_resize = false) {
     const char *op = (fast_resize) ? "FastResizeCropMirror"
                                    : "ResizeCropMirror";
