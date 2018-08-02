@@ -1,4 +1,4 @@
-DALI_0.1.2 {
+DALI_@DALI_VERSION@ {
      global:
          *;
 };
