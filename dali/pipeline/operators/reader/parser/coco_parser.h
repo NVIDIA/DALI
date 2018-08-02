@@ -15,37 +15,39 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_PARSER_COCO_PARSER_H_
 #define DALI_PIPELINE_OPERATORS_READER_PARSER_COCO_PARSER_H_
 
+#include <map>
 #include <string>
+#include <vector>
 
 #include "dali/pipeline/operators/reader/parser/parser.h"
 
 namespace dali {
 
 struct Annotation {
-  Annotation(float x, float y, float w, float h, int category_id)
-      : x(x), y(y), w(w), h(h), category_id(category_id){}
-  float x;
-  float y;
-  float w;
-  float h;
-  int category_id;
+  Annotation(float x, float y, float w, float h, float category_id)
+    : bbox({x, y, w, h, category_id}) {}
 
+  // bbox contains 5 values: x, y, W, H, category_id
+  std::vector<float> bbox;
   friend std::ostream& operator<<(std::ostream& os, Annotation& an);
 };
 
 std::ostream& operator<<(std::ostream& os, Annotation& an) {
-  os << "Annotation(category_id=" << an.category_id
-  << ",bbox = [" << an.x << "," << an.y
-  << "," << an.w << "," << an.h << "])";
+  std::vector<float>& bbox = an.bbox;
+  os << "Annotation(category_id=" << bbox[4]
+  << ",bbox = [" << bbox[0] << "," << bbox[1]
+  << "," << bbox[2] << "," << bbox[3] << "])";
   return os;
 }
 
+using AnnotationMap = std::multimap<int, Annotation>;
 
 class COCOParser: public Parser {
  public:
-  explicit COCOParser(const OpSpec& spec, std::multimap<int, Annotation>& annotations_multimap)
-   : Parser(spec),
-     annotations_multimap_(annotations_multimap) {}
+  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap)
+    : Parser(spec),
+    annotations_multimap_(annotations_multimap) {}
+
   void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
     Index image_size = size - sizeof(int);
     auto *image_output = ws->Output<CPUBackend>(0);
@@ -55,19 +57,30 @@ class COCOParser: public Parser {
 
     auto range = annotations_multimap_.equal_range(image_id);
     auto n_bboxes = std::distance(range.first, range.second);
-    DALI_ENFORCE(n_bboxes > 0, "Annotations not found for image by image_id " + std::to_string(image_id));
+    // DALI_ENFORCE(n_bboxes > 0,
+    //    "Annotations not found for image by image_id " + std::to_string(image_id));
 
     image_output->Resize({image_size});
     image_output->mutable_data<uint8_t>();
-    bbox_output->Resize({n_bboxes});
+    bbox_output->Resize({n_bboxes, 5});
     bbox_output->mutable_data<float>();
 
+    std::memcpy(image_output->raw_mutable_data(),
+                data,
+                image_size);
+
+    int stride = 0;
     for (auto it = range.first; it != range.second; ++it) {
-      Annotation& an = it->second;
+      const Annotation& an = it->second;
+      int i = std::distance(range.first, it);
+      std::memcpy(
+          bbox_output->mutable_data<float>() + an.bbox.size() * i,
+          an.bbox.data(),
+          an.bbox.size() * sizeof (float));
     }
   }
 
-  std::multimap<int, Annotation>& annotations_multimap_;
+  const AnnotationMap& annotations_multimap_;
 };
 
 }  // namespace dali

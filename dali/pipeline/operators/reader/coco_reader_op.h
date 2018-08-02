@@ -17,6 +17,9 @@
 
 #include <fstream>
 #include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
@@ -31,8 +34,7 @@ class COCOReader : public DataReader<CPUBackend> {
   : DataReader<CPUBackend>(spec),
     annotations_filename_(spec.GetArgument<std::string>("annotations_file")) {
     ParseAnnotationFiles();
-    // TODO pass image_id vector to FileLoader
-    loader_.reset(new FileLoader(spec, image_id_pairs));
+    loader_.reset(new FileLoader(spec, image_id_pairs_));
     parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
@@ -53,7 +55,7 @@ class COCOReader : public DataReader<CPUBackend> {
     // Loading raw json into the RAM
     std::ifstream f(annotations_filename_);
     DALI_ENFORCE(f, "Could not open JSON annotations file");
-    std::vector<char> raw_json;
+    std::string raw_json;
     f.seekg(0, std::ios::end);
     raw_json.reserve(f.tellg());
     f.seekg(0, std::ios::beg);
@@ -61,8 +63,9 @@ class COCOReader : public DataReader<CPUBackend> {
                     std::istreambuf_iterator<char>());
 
     // Parsing the JSON into image vector and annotation multimap
-    char *source = reinterpret_cast<char*>(raw_json.data());
-    auto j = nlohmann::json::parse(source);
+    std::stringstream ss;
+    ss << raw_json;
+    auto j = nlohmann::json::parse(ss);
 
     // Parse images
     auto images = j.find("images");
@@ -76,7 +79,7 @@ class COCOReader : public DataReader<CPUBackend> {
       int id = id_it.value().get<int>();
       std::string file_name = file_name_it.value().get<std::string>();
 
-      image_id_pairs.push_back(std::make_pair(file_name, id));
+      image_id_pairs_.push_back(std::make_pair(file_name, id));
     }
 
     // Parse annotations
@@ -98,13 +101,15 @@ class COCOReader : public DataReader<CPUBackend> {
 
       annotations_multimap_.insert(
           std::make_pair(image_id,
-            Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
+            Annotation(bbox[0], bbox[1], bbox[2], bbox[3], static_cast<float>(category_id))));
     }
+
+    f.close();
   }
 
   std::string annotations_filename_;
-  std::multimap<int, Annotation> annotations_multimap_;
-  std::vector<std::pair<std::string, int>> image_id_pairs;
+  AnnotationMap annotations_multimap_;
+  std::vector<std::pair<std::string, int>> image_id_pairs_;
   USE_READER_OPERATOR_MEMBERS(CPUBackend);
 };
 
