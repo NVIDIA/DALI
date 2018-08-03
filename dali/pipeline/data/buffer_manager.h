@@ -21,25 +21,37 @@ namespace dali {
 // is >= bytes requested
 template <typename Backend>
 inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend>>> *buffers,
-                                                size_t nbytes) {
-  int current_idx = 0;
-  size_t current_bytes = 0;
+                                                size_t nbytes,
+                                                bool pinned = false) {
+  int current_idx = -1;
+  size_t current_delta = (size_t) -1;
 
   for (size_t i = 0; i < buffers->size(); ++i) {
     const size_t buffer_size = (*buffers)[i]->nbytes();
-    if (buffer_size >= nbytes && buffer_size < current_bytes) {
+    if (buffer_size >= 0.5 * nbytes &&
+        buffer_size <= 2 * nbytes &&
+        (size_t) abs(buffer_size - nbytes) < current_delta) {
       current_idx = i;
-      current_bytes = buffer_size;
+      current_delta = abs(buffer_size - nbytes);
     }
   }
-
-  // here we have the best fit - get the buffer and remove from vector
-  auto buff = std::move((*buffers)[current_idx]);
-  // remove the (now empty) buffer from the pool
-  // Note: For some reason using buffers.erase(buffers.begin() + current_idx)
-  // causes huge numbers of allocations..
-  std::swap((*buffers)[current_idx], buffers->back());
-  buffers->pop_back();
+  std::unique_ptr<Buffer<Backend>> buff;
+  if (current_idx == -1) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      std::cout << "Did not find the sufficient buffer." << std::endl;
+    }
+    auto b = new Buffer<Backend>;
+    b->set_pinned(pinned);
+    buff.reset(b);
+  } else {
+    // here we have the best fit - get the buffer and remove from vector
+    buff = std::move((*buffers)[current_idx]);
+    // remove the (now empty) buffer from the pool
+    // Note: For some reason using buffers.erase(buffers.begin() + current_idx)
+    // causes huge numbers of allocations..
+    std::swap((*buffers)[current_idx], buffers->back());
+    buffers->pop_back();
+  }
 
   return buff;
 }
@@ -114,19 +126,9 @@ unique_ptr<Buffer<CPUBackend>> LinearBufferManager::AcquireBuffer(const size_t b
                                                                   const bool pinned) {
   if (pinned) {
     std::lock_guard<std::mutex> lock(pinned_buffers_mutex_);
-    if (pinned_buffers_.size() == 0) {
-      auto b = std::unique_ptr<Buffer<CPUBackend>>(new Buffer<CPUBackend>);
-      b->set_pinned(true);
-      pinned_buffers_.push_back(
-          std::move(b));
-    }
-    return LinearSearch(&pinned_buffers_, bytes);
+    return LinearSearch(&pinned_buffers_, bytes, true);
   } else {
     std::lock_guard<std::mutex> lock(cpu_buffers_mutex_);
-    if (cpu_buffers_.size() == 0) {
-      cpu_buffers_.push_back(
-          std::move(std::unique_ptr<Buffer<CPUBackend>>(new Buffer<CPUBackend>)));
-    }
     return LinearSearch(&cpu_buffers_, bytes);
   }
 }
@@ -143,15 +145,19 @@ void LinearBufferManager::ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer, 
 
 unique_ptr<Buffer<GPUBackend>> LinearBufferManager::AcquireBuffer(const size_t bytes) {
   std::lock_guard<std::mutex> lock(gpu_buffers_mutex_);
-  if (gpu_buffers_.size() == 0) {
-    auto b = std::unique_ptr<Buffer<GPUBackend>>(new Buffer<GPUBackend>);
-    gpu_buffers_.push_back(std::move(b));
+  std::cout << "Acquiring buffer of size " << bytes << std::endl;
+  std::cout << "Size of buffer queue: " << gpu_buffers_.size() << std::endl;
+  auto buf = LinearSearch(&gpu_buffers_, bytes);
+  std::cout << "I will give buffer " << buf->data_.get() << std::endl;
+  if (buf->data_.get()) {
+    std::cout << "Buffer " << buf->data_.get() << " has " << buf->capacity() << " bytes." << std::endl;
   }
-  return LinearSearch(&gpu_buffers_, bytes);
+  return buf;
 }
 
 void LinearBufferManager::ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer) {
   std::lock_guard<std::mutex> lock(gpu_buffers_mutex_);
+  std::cout << "Releasing buffer " << buffer->get()->data_.get() << std::endl;
   gpu_buffers_.push_back(std::move(*buffer));
 }
 

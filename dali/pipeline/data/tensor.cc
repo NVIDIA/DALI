@@ -26,8 +26,7 @@ void Tensor<Backend>::acquire_buffer() {
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
-    buffer_->set_type(type_);
-    buffer_->Resize(num_elems);
+    buffer_->ResizeAndSetType(num_elems, type_);
   }
 }
 
@@ -58,6 +57,12 @@ inline void Tensor<Backend>::Resize(const vector<Index> &shape) {
 
 template <typename Backend>
 void Tensor<Backend>::release(cudaStream_t s) const {
+  std::cout << "Releasing T " << this << std::endl;
+  std::cout << "Current T ref count: " << reference_count_ << std::endl;
+  if (reference_count_ == 0) {
+    std::cout << "This T cannot be released, ignoring" << std::endl;
+    return;
+  }
   reference_count_--;
   if (reference_count_ == 0) {
     if (s != nullptr) CUDA_CALL(cudaStreamSynchronize(s));

@@ -145,6 +145,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   using dali::OperatorBase::Run;
 
   void Run(MixedWorkspace *ws) override {
+    std::cout << "Operator " << spec_.name() << " starts!" << std::endl;
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));

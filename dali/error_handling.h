@@ -244,6 +244,15 @@ inline dali::string GetStacktrace() {
 }
 #endif  // DALI_USE_STACKTRACE && DALI_DEBUG
 
+#define DALI_WARN(str)                                              \
+  do {                                                              \
+    dali::string file = __FILE__;                                   \
+    dali::string line = std::to_string(__LINE__);                   \
+    dali::string error_str = "[" + file + ":" + line + "] " + str;  \
+    error_str += dali::GetStacktrace();                             \
+    std::cout  << error_str << std::endl;                            \
+  } while (0)
+
 #define DALI_FAIL(str)                                              \
   do {                                                              \
     dali::string file = __FILE__;                                   \

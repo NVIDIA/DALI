@@ -385,9 +385,14 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     }
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      // get the number of consumers for this output
+      const auto& output_name = node.spec.Output(j);
+      auto num_consumers = graph_->TensorConsumerMeta(output_name).size();
+
       // Allocate tensors for output
       shared_ptr<Tensor<CPUBackend>> output(new Tensor<CPUBackend>);
       output->set_pinned(false);
+      output->set_num_consumers(num_consumers);
       ws.AddOutput(output);
     }
   }
@@ -669,7 +674,7 @@ void Executor::SetupOutputQueuesForGraph() {
       DALI_ENFORCE(!tensor_meta.is_support,
           "Outputs of support ops cannot be outputs.");  // TODO(ptredak): lift this restriction
       cpu_outputs_.push_back(TensorListPool<CPUBackend>(
-              queue_depth_, batch_size_, bytes_per_sample_hint_));
+              queue_depth_, batch_size_, bytes_per_sample_hint_, 0));
       DALI_ENFORCE(type_idx_map_.insert({name, cpu_outputs_.size()-1}).second,
           "Output tensor meta insertion failed. Duplicate output name '" +
           name + "' exists.");
@@ -678,7 +683,7 @@ void Executor::SetupOutputQueuesForGraph() {
       gpu_output_events_.push_back(EventList());
     } else {
       gpu_outputs_.push_back(TensorListPool<GPUBackend>(
-              queue_depth_, batch_size_, bytes_per_sample_hint_));
+              queue_depth_, batch_size_, bytes_per_sample_hint_, 0));
       DALI_ENFORCE(type_idx_map_.insert({name, gpu_outputs_.size()-1}).second,
           "Output tensor meta insertion failed. Duplicate output name '" +
           name + "' exists.");

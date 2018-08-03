@@ -42,6 +42,7 @@ template <typename Backend>
 class DLL_PUBLIC TensorList {
  public:
   DLL_PUBLIC TensorList() : layout_(DALI_NHWC),
+                            num_consumers_(-1),
                             pinned_(false),
                             tensor_view_(nullptr) {
     buffer_.reset();
@@ -79,7 +80,7 @@ class DLL_PUBLIC TensorList {
 
     vector<Dims> new_shape(other.size());
     for (size_t i = 0; i < other.size(); ++i) {
-      assert(type() == other[i].type());
+      assert(this->type() == other[i].type());
       new_shape[i] = other[i].shape();
     }
 
@@ -351,10 +352,17 @@ class DLL_PUBLIC TensorList {
     num_consumers_ = num;
   }
 
+  DLL_PUBLIC int get_num_consumers() const {
+    return num_consumers_;
+  }
+
   DLL_PUBLIC void release(cudaStream_t s = nullptr) const;
   DLL_PUBLIC void force_release();
 
   DLL_PUBLIC void reset_reference_count() {
+    std::cout << "Resetting reference count on TL " << this << " num_consumers: " << num_consumers_ << std::endl;
+    DALI_ENFORCE(num_consumers_ >= 0, "Number of consumers must be greater than 0.");
+    std::cout << "Setting refcount of TL " << this << " to " << num_consumers_ << std::endl;
     reference_count_ = num_consumers_;
   }
 

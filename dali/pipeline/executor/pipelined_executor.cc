@@ -183,6 +183,10 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int support_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
+    auto new_output = tvp.Get(queue_idx);
+    const auto& current_output = wsb->support_op_data[support_op_id].Output<CPUBackend>(output_idx);
+    int num_consumers = current_output->get_num_consumers();
+    new_output->set_num_consumers(num_consumers);
     wsb->support_op_data[support_op_id].SetOutput(
         output_idx, tvp.Get(queue_idx));
 
@@ -213,6 +217,12 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int cpu_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
+    auto new_output = tvp.Get(queue_idx);
+    for (size_t k = 0; k < new_output.size(); ++k) {
+      const auto& current_output = wsb->cpu_op_data[cpu_op_id].Output<CPUBackend>(output_idx, k);
+      int num_consumers = current_output->get_num_consumers();
+      new_output[k]->set_num_consumers(num_consumers);
+    }
     wsb->cpu_op_data[cpu_op_id].SetOutput(
         output_idx, tvp.Get(queue_idx));
 
@@ -242,6 +252,9 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int mixed_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
+    const auto& current_output = wsb->mixed_op_data[mixed_op_id].Output<CPUBackend>(output_idx);
+    int num_consumers = current_output->get_num_consumers();
+    tlp.Get(queue_idx)->set_num_consumers(num_consumers);
     wsb->mixed_op_data[mixed_op_id].SetOutput(
         output_idx, tlp.Get(queue_idx));
 
@@ -265,6 +278,9 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int mixed_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
+    const auto& current_output = wsb->mixed_op_data[mixed_op_id].Output<GPUBackend>(output_idx);
+    int num_consumers = current_output->get_num_consumers();
+    tlp.Get(queue_idx)->set_num_consumers(num_consumers);
     wsb->mixed_op_data[mixed_op_id].SetOutput(
         output_idx, tlp.Get(queue_idx));
 

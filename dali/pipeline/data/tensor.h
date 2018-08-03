@@ -36,7 +36,9 @@ namespace dali {
 template <typename Backend>
 class Tensor {
  public:
-  DLL_PUBLIC inline Tensor() : layout_(DALI_NHWC), pinned_(false) {
+  DLL_PUBLIC inline Tensor() : layout_(DALI_NHWC),
+                               num_consumers_(-1),
+                               pinned_(false) {
     buffer_.reset();
   }
   DLL_PUBLIC virtual inline ~Tensor() = default;
@@ -354,6 +356,10 @@ class Tensor {
     num_consumers_ = num;
   }
 
+  DLL_PUBLIC int get_num_consumers() const {
+    return num_consumers_;
+  }
+
   DLL_PUBLIC int device_id() const {
     if (!buffer_.get()) return -1;
     return buffer_->device_id();
@@ -363,6 +369,7 @@ class Tensor {
   DLL_PUBLIC void force_release();
 
   DLL_PUBLIC void reset_reference_count() {
+    DALI_ENFORCE(num_consumers_ > 0, "Number of consumers must be greater than 0.");
     reference_count_ = num_consumers_;
   }
 

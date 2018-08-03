@@ -105,10 +105,11 @@ class DLL_PUBLIC Executor {
   template <typename Backend>
   class TensorListPool {
    public:
-    inline TensorListPool(int size, int batch_size, size_t bytes_hint) {
+    inline TensorListPool(int size, int batch_size, size_t bytes_hint, int num_consumers = -1) {
       for (int i = 0; i < size; ++i) {
         tls_.push_back(std::make_shared<TensorList<Backend>>());
         tls_.back()->Resize({{batch_size*(Index)bytes_hint}});
+        tls_.back()->set_num_consumers(num_consumers);
       }
     }
 

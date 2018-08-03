@@ -79,7 +79,12 @@ class Buffer {
                     device_(-1)
     {}
 
-  virtual ~Buffer() = default;
+  virtual ~Buffer()// = default;
+  {
+    if (std::is_same<Backend, GPUBackend>::value) {
+    std::cout << "Freeing buffer holding " << num_bytes_ << " bytes" << std::endl;
+    }
+  }
 
   /**
    * @brief Returns a typed pointer to the underlying storage. If the
@@ -280,8 +285,21 @@ class Buffer {
     }
   }
 
+  /**
+   * @brief Resize the buffer
+   */
   void Resize(size_t new_size) {
     ResizeHelper(new_size);
+  }
+
+  /**
+   * @brief Resize the buffer and at the same time
+   * set the new type. This prevents reallocation
+   * if buffer held a valid type before.
+   */
+  void ResizeAndSetType(size_t new_size, TypeInfo new_type) {
+    size_ = new_size;
+    set_type(new_type);
   }
 
   void ShareData(void *ptr, size_t bytes) {
@@ -316,6 +334,7 @@ class Buffer {
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
+  shared_ptr<void> data_;  // Pointer to underlying storage
  protected:
   // Helper to destroy the underlying data of an allocation, not the
   // allocation itself
@@ -327,7 +346,8 @@ class Buffer {
 
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
-    DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
+    DALI_ENFORCE(new_size >= 0,
+        "Size of buffer has to be positive, got " + to_string(new_size));
 
     if (!IsValidType(type_)) {
       // If the type has not been set yet, we just set the size of the
@@ -344,6 +364,7 @@ class Buffer {
       return;
     }
 
+    size_ = new_size;
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
@@ -363,16 +384,13 @@ class Buffer {
       // If we were sharing data, we aren't anymore
       shares_data_ = false;
     }
-
-    size_ = new_size;
   }
 
-  const double alloc_mult = 1.5;
+  const double alloc_mult = 1.0;
 
   Backend backend_;
 
   TypeInfo type_;  // Data type of underlying storage
-  shared_ptr<void> data_;  // Pointer to underlying storage
   Index size_;  // The number of elements in the buffer
   bool shares_data_;
 

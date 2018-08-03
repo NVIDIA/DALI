@@ -62,11 +62,14 @@ class GPUAllocator : public AllocatorBase {
 
   virtual void New(void **ptr, size_t bytes) {
     CUDA_CALL(cudaMalloc(ptr, bytes));
+    std::cout << "Allocating " << bytes << " bytes in " << *ptr << ", ends in address " << reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(*ptr) + bytes) << std::endl;
+    DALI_WARN("GPU allocation");
   }
 
   virtual void Delete(void *ptr, size_t /* unused */) {
     if (ptr != nullptr) {
       CUDA_CALL(cudaFree(ptr));
+      std::cout << "Freeing " << ptr << std::endl;
     }
   }
 };

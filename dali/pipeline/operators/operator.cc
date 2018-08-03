@@ -36,11 +36,15 @@ void Operator<CPUBackend>::ReleaseInputs(SampleWorkspace *ws) {
 
 template <>
 void Operator<GPUBackend>::ReleaseInputs(DeviceWorkspace *ws) {
+  std::cout << "Releasing inputs from " << spec_.name() << std::endl;
   for (int i = 0; i < ws->NumInput(); ++i) {
+    std::cout << "Releasing input " << i << std::endl;
     if (ws->InputIsType<CPUBackend>(i)) {
       ws->Input<CPUBackend>(i).release(ws->stream());
     } else {
+      std::cout << "GPU input!" << std::endl;
       ws->Input<GPUBackend>(i).release(ws->stream());
+      std::cout << "Done with GPU input!" << std::endl;
     }
   }
 }
