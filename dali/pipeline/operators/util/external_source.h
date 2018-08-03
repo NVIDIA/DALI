@@ -41,10 +41,7 @@ class ExternalSource : public Operator<Backend> {
     output_name_ = spec.Output(0);
   }
 
-  inline ~ExternalSource() {
-    busy_ = false;
-    cv_.notify_all();
-  }
+  inline ~ExternalSource() = default;
 
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";
