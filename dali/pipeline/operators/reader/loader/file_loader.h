@@ -34,8 +34,6 @@ namespace dali {
 
 namespace filesystem {
 
-void assemble_file_list(const std::string& path, int label,
-                        std::vector<std::pair<std::string, int>> *file_label_pairs);
 vector<std::pair<string, int>> traverse_directories(const std::string& path);
 
 }  // namespace filesystem

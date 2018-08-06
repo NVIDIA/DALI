@@ -22,25 +22,29 @@
 
 namespace dali {
 
-void filesystem::assemble_file_list(const std::string& path, int label,
+inline void assemble_file_list(const std::string& path, const std::string& curr_entry, int label,
                         std::vector<std::pair<std::string, int>> *file_label_pairs) {
-  DIR *dir = opendir(path.c_str());
+
+  std::string curr_dir_path = path + "/" + curr_entry;
+  DIR *dir = opendir(curr_dir_path.c_str());
+
   struct dirent *entry;
 
   const std::vector<std::string> valid_extensions({".jpg", ".jpeg", ".png", ".bmp"});
 
   while ((entry = readdir(dir))) {
-    std::string full_path = path + "/" + std::string{entry->d_name};
+    std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
     struct stat s;
     stat(full_path.c_str(), &s);
     if (S_ISREG(s.st_mode)) {
-      std::string full_path_lowercase = full_path;
-      std::transform(full_path_lowercase.begin(), full_path_lowercase.end(),
-                     full_path_lowercase.begin(), ::tolower);
+      std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
+      std::string file_name_lowercase = std::string{entry->d_name};
+      std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
+                     file_name_lowercase.begin(), ::tolower);
       for (const std::string& s : valid_extensions) {
-        size_t pos = full_path_lowercase.rfind(s);
-        if (pos != std::string::npos && pos + s.size() == full_path_lowercase.size()) {
-          file_label_pairs->push_back(std::make_pair(full_path, label));
+        size_t pos = file_name_lowercase.rfind(s);
+        if (pos != std::string::npos && pos + s.size() == file_name_lowercase.size()) {
+          file_label_pairs->push_back(std::make_pair(rel_path, label));
           break;
         }
       }
@@ -49,12 +53,12 @@ void filesystem::assemble_file_list(const std::string& path, int label,
   closedir(dir);
 }
 
-vector<std::pair<string, int>> filesystem::traverse_directories(const std::string& path) {
+vector<std::pair<string, int>> filesystem::traverse_directories(const std::string& file_root) {
   // open the root
-  DIR *dir = opendir(path.c_str());
+  DIR *dir = opendir(file_root.c_str());
 
   DALI_ENFORCE(dir != nullptr,
-      "Directory " + path + " could not be opened.");
+      "Directory " + file_root + " could not be opened.");
 
   struct dirent *entry;
   int dir_count = 0;
@@ -63,13 +67,14 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
 
   while ((entry = readdir(dir))) {
     struct stat s;
-    std::string full_path = path + "/" + std::string(entry->d_name);
+    std::string entry_name(entry->d_name);
+    std::string full_path = file_root + "/" + entry_name;
     int ret = stat(full_path.c_str(), &s);
     DALI_ENFORCE(ret == 0,
         "Could not access " + full_path + " during directory traversal.");
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
     if (S_ISDIR(s.st_mode)) {
-      assemble_file_list(full_path, dir_count, &file_label_pairs);
+      assemble_file_list(file_root, entry_name, dir_count, &file_label_pairs);
       dir_count++;
     }
   }
