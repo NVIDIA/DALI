@@ -88,7 +88,7 @@ make_wheel_record() {
 }
 
 DEPS_LIST=(
-    "dali/libdali.so"
+    "lib/libdali.so"
     "/usr/local/lib/libturbojpeg.so.0"
 )
 
