@@ -32,7 +32,8 @@ class COCOReader : public DataReader<CPUBackend> {
  public:
   explicit COCOReader(const OpSpec& spec)
   : DataReader<CPUBackend>(spec),
-    annotations_filename_(spec.GetArgument<std::string>("annotations_file")) {
+    annotations_filename_(spec.GetArgument<std::string>("annotations_file")),
+    ltrb_(spec.GetArgument<bool>("ltrb")) {
     ParseAnnotationFiles();
     loader_.reset(new FileLoader(spec, image_id_pairs_));
     parser_.reset(new COCOParser(spec, annotations_multimap_));
@@ -99,9 +100,14 @@ class COCOReader : public DataReader<CPUBackend> {
       int category_id = category_id_it.value().get<int>();
       std::vector<float> bbox = bbox_it.value().get<std::vector<float>>();
 
+      if (ltrb_) {
+        bbox[2] += bbox[0];
+        bbox[3] += bbox[1];
+      }
+
       annotations_multimap_.insert(
           std::make_pair(image_id,
-            Annotation(bbox[0], bbox[1], bbox[2], bbox[3], static_cast<float>(category_id))));
+            Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
     }
 
     f.close();
@@ -110,6 +116,7 @@ class COCOReader : public DataReader<CPUBackend> {
   std::string annotations_filename_;
   AnnotationMap annotations_multimap_;
   std::vector<std::pair<std::string, int>> image_id_pairs_;
+  bool ltrb_;
   USE_READER_OPERATOR_MEMBERS(CPUBackend);
 };
 
