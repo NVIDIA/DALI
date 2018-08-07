@@ -24,17 +24,19 @@
 namespace dali {
 
 struct Annotation {
-  Annotation(float x, float y, float w, float h, float category_id)
-    : bbox({x, y, w, h, category_id}) {}
+  Annotation(float x, float y, float w, float h, int category_id)
+    : bbox({x, y, w, h}),
+      category_id(category_id) {}
 
   // bbox contains 5 values: x, y, W, H, category_id
   std::vector<float> bbox;
+  int category_id;
   friend std::ostream& operator<<(std::ostream& os, Annotation& an);
 };
 
 std::ostream& operator<<(std::ostream& os, Annotation& an) {
   std::vector<float>& bbox = an.bbox;
-  os << "Annotation(category_id=" << bbox[4]
+  os << "Annotation(category_id=" << an.category_id
   << ",bbox = [" << bbox[0] << "," << bbox[1]
   << "," << bbox[2] << "," << bbox[3] << "])";
   return os;
@@ -52,6 +54,7 @@ class COCOParser: public Parser {
     Index image_size = size - sizeof(int);
     auto *image_output = ws->Output<CPUBackend>(0);
     auto *bbox_output = ws->Output<CPUBackend>(1);
+    auto *label_output = ws->Output<CPUBackend>(2);
     int image_id =
          *reinterpret_cast<const int*>(data + image_size);
 
@@ -62,8 +65,10 @@ class COCOParser: public Parser {
 
     image_output->Resize({image_size});
     image_output->mutable_data<uint8_t>();
-    bbox_output->Resize({n_bboxes, 5});
+    bbox_output->Resize({n_bboxes, 4});
     bbox_output->mutable_data<float>();
+    label_output->Resize({n_bboxes, 1});
+    label_output->mutable_data<int>();
 
     std::memcpy(image_output->raw_mutable_data(),
                 data,
@@ -77,6 +82,7 @@ class COCOParser: public Parser {
           bbox_output->mutable_data<float>() + an.bbox.size() * i,
           an.bbox.data(),
           an.bbox.size() * sizeof (float));
+      label_output->mutable_data<int>()[i] = an.category_id;
     }
   }
 

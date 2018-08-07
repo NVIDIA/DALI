@@ -19,10 +19,10 @@ namespace dali {
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 DALI_SCHEMA(COCOReader)
   .NumInput(0)
-  .NumOutput(2)
+  .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
- and an anotation file. For each image, returns its bboxes as an array of
- lists containing [x, y, w, h, category_id].)code")
+ and an anotation file. For each image, with `n` bboxes,returns its bboxes as (n,4)
+ Tensor (`n` * `[x, y, w, h]`, or `n`) and labels as `(n,1)` Tensor (`n` * `category_id`).)code")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
       DALI_STRING)
@@ -33,6 +33,9 @@ DALI_SCHEMA(COCOReader)
       R"code(Path to the file with a list of pairs ``file label``
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
+  .AddOptionalArg("ltrb",
+      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
+      false)
   .AddParent("LoaderBase");
 
 }  // namespace dali
