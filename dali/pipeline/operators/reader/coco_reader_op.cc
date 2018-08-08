@@ -36,6 +36,9 @@ DALI_SCHEMA(COCOReader)
   .AddOptionalArg("ltrb",
       R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
       false)
+  .AddOptionalArg("ratio",
+      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
+      false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

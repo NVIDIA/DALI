@@ -18,6 +18,7 @@
 #include <fstream>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -33,7 +34,8 @@ class COCOReader : public DataReader<CPUBackend> {
   explicit COCOReader(const OpSpec& spec)
   : DataReader<CPUBackend>(spec),
     annotations_filename_(spec.GetArgument<std::string>("annotations_file")),
-    ltrb_(spec.GetArgument<bool>("ltrb")) {
+    ltrb_(spec.GetArgument<bool>("ltrb")),
+    ratio_(spec.GetArgument<bool>("ratio")) {
     ParseAnnotationFiles();
     loader_.reset(new FileLoader(spec, image_id_pairs_));
     parser_.reset(new COCOParser(spec, annotations_multimap_));
@@ -68,6 +70,9 @@ class COCOReader : public DataReader<CPUBackend> {
     ss << raw_json;
     auto j = nlohmann::json::parse(ss);
 
+    // mapping each image_id to its WH dimension
+    std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
+
     // Parse images
     auto images = j.find("images");
     DALI_ENFORCE(images != j.end(), "`images` not found in JSON annotions file");
@@ -76,11 +81,19 @@ class COCOReader : public DataReader<CPUBackend> {
       DALI_ENFORCE(id_it != im.end(), "`id` not found in JSON annotions file");
       auto file_name_it = im.find("file_name");
       DALI_ENFORCE(file_name_it != im.end(), "`file_name` not found in JSON annotions file");
+      auto width_it = im.find("width");
+      DALI_ENFORCE(width_it != im.end(), "`width` not found in JSON annotions file");
+      auto height_it = im.find("height");
+      DALI_ENFORCE(height_it != im.end(), "`height` not found in JSON annotions file");
 
       int id = id_it.value().get<int>();
       std::string file_name = file_name_it.value().get<std::string>();
 
       image_id_pairs_.push_back(std::make_pair(file_name, id));
+
+      int width = width_it.value().get<int>();
+      int height = height_it.value().get<int>();
+      image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
     }
 
     // Parse annotations
@@ -105,6 +118,17 @@ class COCOReader : public DataReader<CPUBackend> {
         bbox[3] += bbox[1];
       }
 
+      if (ratio_) {
+        auto wh_it = image_id_to_wh.find(image_id);
+        DALI_ENFORCE(wh_it != image_id_to_wh.end(),
+            "annotation has an invalid image_id: " + std::to_string(image_id));
+        auto wh = wh_it->second;
+        bbox[0] /= static_cast<float>(wh.first);
+        bbox[1] /= static_cast<float>(wh.second);
+        bbox[2] /= static_cast<float>(wh.first);
+        bbox[3] /= static_cast<float>(wh.second);
+      }
+
       annotations_multimap_.insert(
           std::make_pair(image_id,
             Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
@@ -117,6 +141,7 @@ class COCOReader : public DataReader<CPUBackend> {
   AnnotationMap annotations_multimap_;
   std::vector<std::pair<std::string, int>> image_id_pairs_;
   bool ltrb_;
+  bool ratio_;
   USE_READER_OPERATOR_MEMBERS(CPUBackend);
 };
 
