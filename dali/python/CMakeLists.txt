@@ -30,14 +30,12 @@ target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
 set_target_properties(${dali_python_lib} PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali)
 
-# Add install rule
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/dali/python/nvidia" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
-configure_file("${PROJECT_SOURCE_DIR}/dali/python/setup.py.in" "${PROJECT_BINARY_DIR}/dali/python/setup.py")
-install(FILES "${PROJECT_BINARY_DIR}/dali/python/setup.py" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
-install(FILES "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
-install(FILES "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" DESTINATION "${PROJECT_BINARY_DIR}/dali/python")
-
-# Get the COPYRIGHT, LICENSE, and Acknowledgements
-install(FILES "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" DESTINATION "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
-install(FILES "${PROJECT_SOURCE_DIR}/COPYRIGHT" DESTINATION "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
-install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
+# Add the COPYRIGHT, LICENSE, and Acknowledgements
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/dali/python/nvidia" "${PROJECT_BINARY_DIR}/dali/python")
+configure_file("${PROJECT_SOURCE_DIR}/dali/python/setup.py.in" "${PROJECT_BINARY_DIR}/stage/setup.py")
+copy_post_build(${dali_python_lib} "${PROJECT_BINARY_DIR}/stage/setup.py" "${PROJECT_BINARY_DIR}/dali/python")
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" "${PROJECT_BINARY_DIR}/dali/python")
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "${PROJECT_BINARY_DIR}/dali/python")
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
+copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")

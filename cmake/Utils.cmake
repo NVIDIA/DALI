@@ -116,3 +116,13 @@ macro(get_dali_version FILENAME FILE_VAR)
   endif()
   message("-- DALI version: " ${${FILE_VAR}})
 endmacro()
+
+# add a post-build step to the provided target which copies
+# files or directories recursively from SRC to DSTrunnable
+macro(copy_post_build TARGET_NAME SRC DST)
+    add_custom_command(
+    TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND cp -r
+            "${SRC}"
+            "${DST}")
+endmacro(copy_post_build)

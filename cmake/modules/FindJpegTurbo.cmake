@@ -15,8 +15,9 @@ set(JPEG_TURBO_ROOT_DIR "" CACHE PATH "Folder contains JpegTurbo")
 
 find_package(PkgConfig QUIET)
 if (PkgConfig_FOUND)
-    # use pkg-config only if it has been found
-    pkg_check_modules(JpegTurbo REQUIRED QUIET libturbojpeg)
+    # use pkg-config only if it has been found, if it fails it fall back to
+    # JPEG_TURBO_ROOT_DIR hint
+    pkg_check_modules(JpegTurbo QUIET libturbojpeg)
 endif()
 
 find_path(JpegTurbo_INCLUDE_DIR turbojpeg.h
