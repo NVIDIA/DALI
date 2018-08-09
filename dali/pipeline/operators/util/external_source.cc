@@ -28,9 +28,9 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto &data = t_data_[ws->data_idx()];
     output->Copy(data, stream);
   }
-  ++samples_processed_;
 
-  if (samples_processed_.load() == batch_size_) {
+  std::unique_lock<std::mutex> l(samples_processed_m_);
+  if (++samples_processed_ >= batch_size_) {
     samples_processed_ = 0;
     busy_ = false;
     cv_.notify_one();

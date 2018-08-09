@@ -97,6 +97,7 @@ class ExternalSource : public Operator<Backend> {
   bool busy_;
   std::condition_variable cv_;
   std::mutex m_;
+  std::mutex samples_processed_m_;
 };
 
 }  // namespace dali
