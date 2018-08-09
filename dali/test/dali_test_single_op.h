@@ -31,6 +31,7 @@ namespace dali {
 #define MAKE_IMG_OUTPUT    0      // Make the output of compared (obtained and referenced) images
 #if MAKE_IMG_OUTPUT
   #define PIXEL_STAT_FILE "pixelStatFile"  // Output of statistics for compared sets of images
+                                           // Use "" to make the output in stdout
 #endif
 
 namespace images {
@@ -86,6 +87,28 @@ typedef enum {
   t_loadPNGs    = 4,
   t_decodePNGs  = 8
 } t_loadingFlags;
+
+typedef enum {
+  t_intParam,
+  t_floatParam,
+  t_stringParam,
+  t_floatVector
+} t_paramType;
+
+typedef struct  {
+  const char *m_Name;
+  const char *m_val;
+  t_paramType type;
+} OpArg;
+
+class opDescr {
+ public:
+  explicit opDescr(const char *name, double eps = 0.0, const vector<OpArg> *argPntr = NULL) :
+                   opName(name), epsVal(eps), args(argPntr) {}
+  const char *opName;
+  double epsVal;
+  const vector<OpArg> *args;
+};
 
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
@@ -157,6 +180,14 @@ class DALISingleOpTest : public DALITest {
       outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
 
     pipeline_->AddOperator(spec);
+  }
+
+  void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
+                             const string &pInput = "input", const string &pOutput = "outputCPU") {
+    OpSpec spec(descr.opName);
+    AddOperatorWithOutput(AddArguments(&spec, descr.args)
+                            .AddInput(pInput, pDevice)
+                            .AddOutput(pOutput, pDevice));
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -274,12 +305,6 @@ class DALISingleOpTest : public DALITest {
   }
 
   void TstBody(const OpSpec &operation, double eps = 2e-1, bool flag = true) {
-#ifdef PIXEL_STAT_FILE
-    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
-    fprintf(file, "Eps = %6.4f\n", eps);
-    fprintf(file, " Color#:       mean:        std:          eq.         pos.         neg.\n");
-    fclose(file);
-#endif
     TensorList<CPUBackend> data;
     DecodedData(&data, this->batch_size_, this->img_type_);
     if (flag)
@@ -294,6 +319,50 @@ class DALISingleOpTest : public DALITest {
       .AddArg("output_type", this->img_type_)
       .AddInput("input", pDevice)
       .AddOutput("output", pDevice);
+  }
+
+  OpSpec AddArguments(OpSpec *spec, const vector<OpArg> *args) const {
+    if (!args || args->empty())
+      return *spec;
+
+    for (auto param : *args) {
+      auto val = param.m_val;
+      auto name = param.m_Name;
+      switch (param.type) {
+        case t_intParam:
+          spec->AddArg(name, atoi(val));
+          break;
+        case t_floatParam:
+          spec->AddArg(name, strtof(val, NULL));
+          break;
+        case t_stringParam:
+          spec->AddArg(name, val);
+          break;
+        case t_floatVector: {
+          const auto len = strlen(val);
+          vector<float> vect;
+          char *pEnd, *pTmp = new char[len+1];
+          memcpy(pEnd = pTmp, val, len);
+          pEnd[len] = '\0';
+          while (pEnd[0]) {
+            if (pEnd[0] == ',')
+              pEnd++;
+
+            vect.push_back(strtof(pEnd, &pEnd));
+          }
+
+          delete [] pTmp;
+          spec->AddArg(name, vect);
+        }
+      }
+    }
+
+    return *spec;
+  }
+
+  void RunOperator(const opDescr &descr) {
+    OpSpec spec(DefaultSchema(descr.opName));
+    RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
 
   void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = NULL) {
@@ -323,7 +392,7 @@ class DALISingleOpTest : public DALITest {
     // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
     const int len = N / jMax;
-    double mean = 0, std;
+    double mean = 0, std = 0;
     vector<double> diff(len);
     int retVal = -1;
 #ifndef PIXEL_STAT_FILE
@@ -346,16 +415,31 @@ class DALISingleOpTest : public DALITest {
       ASSERT_LE(fabs(mean), eps_), -1;
     }
 #else
-
-    static int fff;
-    FILE *file = fopen(PIXEL_STAT_FILE".txt", fff? "a" : "w");
+    static int fff = 0;
+    FILE *file = NULL;
     if (!fff) {
       // Header of the pixel statistic table
-      fprintf(file,
-              "ImgID: ClrID:     Mean:        Std:      SameValue:     Bigger:         Less:\n");
+      const char *pHeader =
+        "\nImgID: ClrID:     Mean:        Std:      SameValue:     Bigger:         Less:";
+
+      if (strlen(PIXEL_STAT_FILE)) {
+        file = fopen(PIXEL_STAT_FILE".txt", fff ? "a" : "w");
+        fprintf(file, "%s", pHeader);
+      } else {
+        cout << pHeader;
+      }
     }
 
-    fprintf(file, "%3d:", fff++);   // Image number
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "%s%3d:", (fff % 32? "" : "\n"), fff);
+    fff++;
+
+    // Image number
+    if (file)
+      fprintf(file, "%s", buffer);
+    else
+      cout << buffer;
+
     for (int j = 0; j < c_; ++j) {
       int pos = 0, neg = 0;
       for (int i = j; i < N; i += c_) {
@@ -367,8 +451,14 @@ class DALISingleOpTest : public DALITest {
       }
 
       MeanStdDev<double>(diff, &mean, &std);
-      fprintf(file, "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
-              j? "    " : "", j, mean, std, len - pos - neg, pos, neg);
+      snprintf(buffer, sizeof(buffer),
+               "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
+               j? "    " : "", j, mean, std, len - pos - neg, pos, neg);
+
+      if (file)
+        fprintf(file, "%s", buffer);
+      else
+        cout << buffer;
 
       if (mean > eps_) {
         if (retVal < 0) {
@@ -384,14 +474,15 @@ class DALISingleOpTest : public DALITest {
       }
     }
 
-    fclose(file);
+    if (file)
+      fclose(file);
 #endif
 
     return retVal;
   }
 
   void ReportTestFailure(double mean, int colorIdx, int idx = -1,
-                         const vector<Index> *pShape = NULL) {
+                         const vector<Index> *pShape = NULL) const {
     if (TestCheckType(t_checkNoAssert))
       cout << "Test warning:";
     else
@@ -410,7 +501,7 @@ class DALISingleOpTest : public DALITest {
   }
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
-                        const TensorList<CPUBackend> *t2) {
+                        const TensorList<CPUBackend> *t2) const {
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
     ASSERT_EQ(t1->ntensor(), t2->ntensor());

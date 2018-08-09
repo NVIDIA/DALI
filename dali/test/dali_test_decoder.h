@@ -41,13 +41,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
   virtual const OpSpec DecodingOp() const   { return OpSpec(); }
 
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
-#ifdef PIXEL_STAT_FILE
-    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
-    fprintf(file, "Type of the files: %s   eps = %6.4f\n",
-            imageType == t_jpegImgType? "JPEG" : "PNG", eps);
-    fprintf(file, " Color#:       mean:        std:          eq.         pos.         neg.\n");
-    fclose(file);
-#endif
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
       case t_jpegImgType:
