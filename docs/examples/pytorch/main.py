@@ -26,16 +26,19 @@ try:
 except ImportError:
     raise ImportError("Please install DALI from https://www.github.com/NVIDIA/DALI to run this example.")
 
+try:
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.fp16_utils import *
+except ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR', nargs='*',
-                    help='path(s) to dataset (if one path is provided, it is assumed\n' +
-                    'to have subdirectories named "train" and "val"; alternatively,\n' +
-                    'train and val paths can be specified directly by providing both paths as arguments)')
+parser.add_argument('data', metavar='DIR',
+                    help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -63,138 +66,114 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
-parser.add_argument('--num-classes', default=1000, type=int,
-                    help='number of classes to be trained')
 
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
-parser.add_argument('--loss-scale', type=float, default=1,
-                    help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--static-loss-scale', type=float, default=1,
+                    help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--dynamic-loss-scale', action='store_true',
+                    help='Use dynamic loss scaling.  If supplied, this argument supersedes ' +
+                    '--static-loss-scale.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
-parser.add_argument('--dist-url', default='file://sync.file', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
-
-parser.add_argument('--world-size', default=1, type=int,
-                    help='Number of GPUs to use. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('--rank', default=0, type=int,
-                    help='Used for multi-process training. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('-t', '--test', action='store_true',
-                    help='Launch test mode with preset arguments')
+parser.add_argument("--local_rank", default=0, type=int)
 
 cudnn.benchmark = True
-best_prec1 = 0
-args = parser.parse_args()
-args.distributed = args.world_size > 1
 
-# test mode, use default args for sanity test
-if args.test:
-    args.distributed = False
-    args.fp16 = False
-    args.epochs = 1
-    args.start_epoch = 0
-    args.arch = 'resnet50'
-    args.batch_size = 64
-    args.data = []
-    args.prof = True
-    args.data.append('/data/imagenet/train-c2lmdb-480/')
-    args.data.append('/data/imagenet/val-c2lmdb-256/')
-
-if not len(args.data):
-    raise Exception("error: too few arguments")
-
-# make apex optional
-if args.fp16 or args.distributed:
-    try:
-        from apex.parallel import DistributedDataParallel as DDP
-        from apex.fp16_utils import *
-    except ImportError:
-        raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-# item() is a recent addition, so this helps with backward compatibility.
-def to_python_float(t):
-    if hasattr(t, 'item'):
-        return t.item()
-    else:
-        return t[0]
-
-#Dali based pipeline for imagenet, assuems c2 based lmdb:
-class HybridPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data_dir):
-        super(HybridPipe, self).__init__(batch_size,
-                                         num_threads,
-                                         device_id)
-        self.input = ops.Caffe2Reader(path = data_dir, shard_id = args.rank, num_shards = args.world_size)
-        self.decode= ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.rrc = ops.RandomResizedCrop(device = "gpu", size = (224, 224))
+class HybridTrainPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
+        super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
+        self.input = ops.CaffeReader(path = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = True)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.rrc = ops.RandomResizedCrop(device = "gpu", size = (crop, crop))
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                             output_dtype = types.FLOAT,
                                             output_layout = types.NCHW,
+                                            crop = (crop, crop),
                                             image_type = types.RGB,
-                                            crop = (224, 224),
-                                            mean = [0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                            std = [0.229 * 255, 0.224 * 255, 0.225 * 255])
-
+                                            mean = [0.485 * 255,0.456 * 255,0.406 * 255],
+                                            std = [0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability = 0.5)
 
     def define_graph(self):
         rng = self.coin()
-        self.jpegs, self.labels = self.input(name="Reader")
+        self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
         images = self.rrc(images)
         output = self.cmnp(images, mirror = rng)
         return [output, self.labels]
 
-    def iter_setup(self):
-        pass
+class HybridValPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
+        super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
+        self.input = ops.CaffeReader(path = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = False)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                            output_dtype = types.FLOAT,
+                                            output_layout = types.NCHW,
+                                            crop = (crop, crop),
+                                            image_type = types.RGB,
+                                            mean = [0.485 * 255,0.456 * 255,0.406 * 255],
+                                            std = [0.229 * 255,0.224 * 255,0.225 * 255])
 
+    def define_graph(self):
+        self.jpegs, self.labels = self.input(name = "Reader")
+        images = self.decode(self.jpegs)
+        output = self.cmnp(images)
+        return [output, self.labels]
+
+best_prec1 = 0
+args = parser.parse_args()
 def main():
     global best_prec1, args
 
+    args.distributed = False
+    if 'WORLD_SIZE' in os.environ:
+        args.distributed = int(os.environ['WORLD_SIZE']) > 1
+
     args.gpu = 0
-    if args.distributed:
-        args.gpu = args.rank % torch.cuda.device_count()
-
+    args.world_size = 1
 
     if args.distributed:
+        args.gpu = args.local_rank % torch.cuda.device_count()
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size, rank=args.rank)
+        torch.distributed.init_process_group(backend='nccl',
+                                             init_method='env://')
+        args.world_size = torch.distributed.get_world_size()
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
+    if args.static_loss_scale != 1.0:
+        if not args.fp16:
+            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
+
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True, num_classes=args.num_classes)
+        model = models.__dict__[args.arch](pretrained=True)
     else:
         print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](num_classes=args.num_classes)
+        model = models.__dict__[args.arch]()
 
     model = model.cuda()
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        model = DDP(model)
-
-    global model_params, master_params
-    if args.fp16:
-        model_params, master_params = prep_param_lists(model)
-    else:
-        master_params = list(model.parameters())
+        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
+        model = DDP(model, shared_param=True)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
-    optimizer = torch.optim.SGD(master_params, args.lr,
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+    if args.fp16:
+        optimizer = FP16_Optimizer(optimizer,
+                                   static_loss_scale=args.static_loss_scale,
+                                   dynamic_loss_scale=args.dynamic_loss_scale)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -211,20 +190,21 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # Data loading code
-    if len(args.data) == 1:
-        traindir = os.path.join(args.data[0], 'train')
-        valdir = os.path.join(args.data[0], 'val')
-    else:
-        traindir = args.data[0]
-        valdir= args.data[1]
+    traindir = os.path.join(args.data, 'train')
+    valdir = os.path.join(args.data, 'val')
 
-    pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = traindir)
+    if(args.arch == "inception_v3"):
+        crop_size = 299
+    else:
+        crop_size = 224
+
+    pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = traindir, crop = crop_size)
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
     train_loader = DALIClassificationIterator(pipe, size = int(1281167 / args.world_size) )
 
-    pipe = HybridPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.rank, data_dir = valdir)
+    pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = valdir, crop = crop_size)
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
@@ -235,8 +215,6 @@ def main():
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-        adjust_learning_rate(optimizer, epoch)
-
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
         if args.prof:
@@ -245,7 +223,7 @@ def main():
         prec1 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
-        if args.rank == 0:
+        if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
             save_checkpoint({
@@ -255,10 +233,6 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
-
-        # reset DALI iterators
-        train_loader.reset()
-        val_loader.reset()
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
@@ -272,12 +246,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
     end = time.time()
 
     for i, data in enumerate(train_loader):
-        if i>100 and args.prof:
-            break
-
         input = data[0][0][0]
         target = data[0][1][0].cuda().long()
+        train_loader_len = train_loader._size / args.batch_size
 
+        adjust_learning_rate(optimizer, epoch, i, train_loader_len)
+
+        if args.prof:
+            if i > 10:
+                break
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -302,35 +279,32 @@ def train(train_loader, model, criterion, optimizer, epoch):
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
 
-        loss = loss*args.loss_scale
         # compute gradient and do SGD step
+        optimizer.zero_grad()
         if args.fp16:
-            model.zero_grad()
-            loss.backward()
-            model_grads_to_master_grads(model_params, master_params)
-            if args.loss_scale != 1:
-                for param in master_params:
-                    param.grad.data = param.grad.data/args.loss_scale
-            optimizer.step()
-            master_params_to_model_params(model_params, master_params)
+            optimizer.backward(loss)
         else:
-            optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+        optimizer.step()
 
+        torch.cuda.synchronize()
         # measure elapsed time
         batch_time.update(time.time() - end)
 
         end = time.time()
 
-        if args.rank == 0 and i % args.print_freq == 0 and i > 1:
+        if args.local_rank == 0 and i % args.print_freq == 0 and i > 1:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {3:.3f} ({4:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   epoch, i, int(train_loader._size/args.batch_size), batch_time=batch_time,
+                   epoch, i, train_loader_len,
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
+                   batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
 
@@ -348,6 +322,9 @@ def validate(val_loader, model, criterion):
     for i, data in enumerate(val_loader):
         input = data[0][0][0]
         target = data[0][1][0].cuda().long()
+        val_loader_len = val_loader._size / args.batch_size
+
+        target = target.cuda(async=True)
         input_var = Variable(input)
         target_var = Variable(target)
 
@@ -374,13 +351,17 @@ def validate(val_loader, model, criterion):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if args.rank == 0 and i % args.print_freq == 0:
+        if args.local_rank == 0 and i % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {2:.3f} ({3:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   i, int(val_loader._size/args.batch_size), batch_time=batch_time, loss=losses,
+                   i, val_loader_len,
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
+                   batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
@@ -396,8 +377,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 
 class AverageMeter(object):
-    """#Computes and stores the average and current value
-"""
+    """Computes and stores the average and current value"""
     def __init__(self):
         self.reset()
 
@@ -414,19 +394,29 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
-    """#Sets the learning rate to the initial LR decayed by 10 every 30 epochs
-"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+def adjust_learning_rate(optimizer, epoch, step, len_epoch):
+    """LR schedule that should yield 76% converged accuracy with batch size 256"""
+    factor = epoch // 30
+
+    if epoch >= 80:
+        factor = factor + 1
+
+    lr = args.lr*(0.1**factor)
+
+    """Warmup"""
+    if epoch < 5:
+        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
+
+    if(args.local_rank == 0 and step % args.print_freq == 0 and step > 1):
+        print("Epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
 
 def accuracy(output, target, topk=(1,)):
-    """#Computes the precision@k for the specified values of k
-"""
+    """Computes the precision@k for the specified values of k"""
     maxk = max(topk)
-
     batch_size = target.size(0)
 
     _, pred = output.topk(maxk, 1, True, True)
