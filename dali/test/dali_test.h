@@ -226,6 +226,12 @@ class DALITest : public ::testing::Test {
     *std = sqrt(var_sum / N);
   }
 
+  template <typename T>
+  void MeanStdDevColorNorm(const vector<T> &diff, double *mean, double *std) const {
+    MeanStdDev(diff, mean, std);
+    *mean /= (255. / 100.);    // normalizing to the color range and use percents
+  }
+
   // From OCV example :
   // docs.opencv.org/2.4/doc/tutorials/gpu/gpu-basics-similarity/gpu-basics-similarity.html
   cv::Scalar MSSIM(uint8 *a, uint8 *b, int h, int w, int c) {
