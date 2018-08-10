@@ -43,8 +43,9 @@ before_script:
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
     - export ORIGIN_SSH=git@${ORIGIN1/\//:}                                                        && echo "${ORIGIN_SSH}"
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
-    - export GIT_SHA=$(git remote add upstream https://github.com/NVIDIA/DALI.git
-                        && git fetch upstream && git merge-base HEAD upstream/master)              && echo "${GIT_SHA}"
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
 
 dali_deps:
