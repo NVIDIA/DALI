@@ -28,15 +28,15 @@ TYPED_TEST(ColorTest, Brightness) {
 }
 
 TYPED_TEST(ColorTest, Contrast) {
-  this->RunTest({"Contrast", "contrast", "1.3", 0.46});
+  this->RunTest({"Contrast", "contrast", "1.3", 0.18});
 }
 
 TYPED_TEST(ColorTest, Saturation) {
-  this->RunTest({"Saturation", "saturation", "3.", 0.65});
+  this->RunTest({"Saturation", "saturation", "3.", 0.26});
 }
 
 TYPED_TEST(ColorTest, Hue) {
-  this->RunTest({"Hue", "hue", "31.456", 0.68});
+  this->RunTest({"Hue", "hue", "31.456", 0.27});
 }
 
 }  // namespace dali

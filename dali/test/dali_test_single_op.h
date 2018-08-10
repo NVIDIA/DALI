@@ -400,7 +400,7 @@ class DALISingleOpTest : public DALITest {
       for (int i = j; i < N; i += jMax)
         diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
 
-      MeanStdDev<double>(diff, &mean, &std);
+      MeanStdDevColorNorm<double>(diff, &mean, &std);
       if (checkAll) {
         const auto diff = mean - eps_;
         if (diff <= 0)
@@ -412,7 +412,7 @@ class DALISingleOpTest : public DALITest {
         return j;
       }
 
-      ASSERT_LE(fabs(mean), eps_), -1;
+      ASSERT_LE(mean, eps_), -1;
     }
 #else
     static int fff = 0;
@@ -450,7 +450,7 @@ class DALISingleOpTest : public DALITest {
           neg++;
       }
 
-      MeanStdDev<double>(diff, &mean, &std);
+      MeanStdDevColorNorm<double>(diff, &mean, &std);
       snprintf(buffer, sizeof(buffer),
                "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
                j? "    " : "", j, mean, std, len - pos - neg, pos, neg);
@@ -484,9 +484,9 @@ class DALISingleOpTest : public DALITest {
   void ReportTestFailure(double mean, int colorIdx, int idx = -1,
                          const vector<Index> *pShape = NULL) const {
     if (TestCheckType(t_checkNoAssert))
-      cout << "Test warning:";
+      cout << "\nTest warning:";
     else
-      cout << "Test failed:";
+      cout << "\nTest failed:";
 
     if (TestCheckType(t_checkColorComp))
       cout << " color # " << colorIdx;
@@ -497,7 +497,7 @@ class DALISingleOpTest : public DALITest {
     if (pShape)
       cout << " (h, w) = (" << (*pShape)[0] << ", " << (*pShape)[1] << ")";
 
-    cout << " fabs(mean) = " << mean << " and it was expected to be <= " << eps_ << endl;
+    cout << " mean = " << mean << " and it was expected to be <= " << eps_ << endl;
   }
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,

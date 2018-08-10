@@ -163,7 +163,7 @@ void CheckParam(const Tensor<CPUBackend> &input, const std::string &opName) {
 typedef cv::Vec<uchar, 1> Vec1b;
 
 DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
-                                    const float *matrix, uint8 *out_img) {
+                                    const float *matr, uint8 *out_img) {
   const int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
 
   const cv::Mat cv_imgIn = CreateMatFromPtr(H, W, channel_flag, img);
@@ -173,21 +173,22 @@ DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
     for (int y = 0; y < H; ++y) {
       for (int x = 0; x < W; ++x) {
         cv_imgOut.at<Vec1b>(y, x)[0] =
-            cv::saturate_cast<uint8>((matrix[0] * cv_imgIn.at<Vec1b>(y, x)[0]) + matrix[1]);
+            cv::saturate_cast<uint8>((matr[0] * cv_imgIn.at<Vec1b>(y, x)[0]) + matr[1]);
       }
     }
   } else {
     for (int y = 0; y < H; ++y) {
       for (int x = 0; x < W; ++x) {
+        // Using direct calculation because they are 25% faster
+        // than two loops which could be used here
         const auto &inpPix = cv_imgIn.at<cv::Vec3b>(y, x);
-        auto matrRow = matrix;
-        for (int k = 0; k < C; ++k, matrRow += 4) {
-          auto val = matrRow[3];
-          for (int n = 0; n < C; ++n)
-            val += inpPix[n] * matrRow[n];
-
-          cv_imgOut.at<cv::Vec3b>(y, x)[k] = cv::saturate_cast<uint8>(val);
-        }
+        auto &outPix = cv_imgOut.at<cv::Vec3b>(y, x);
+        outPix[0] = cv::saturate_cast<uint8>
+          (inpPix[0] * matr[0] + inpPix[1] * matr[1] + inpPix[2] * matr[2] + matr[3]);
+        outPix[1] = cv::saturate_cast<uint8>
+          (inpPix[0] * matr[4] + inpPix[1] * matr[5] + inpPix[2] * matr[6] + matr[7]);
+        outPix[2] = cv::saturate_cast<uint8>
+          (inpPix[0] * matr[8] + inpPix[1] * matr[9] + inpPix[2] * matr[10] + matr[11]);
       }
     }
   }

@@ -47,7 +47,7 @@ class PipelineTest : public DALITest {
       abs_diff[i] = abs(static_cast<double>(tmp_cpu[i]) - static_cast<double>(ground_truth[i]));
     }
     double mean, std;
-    DALITest::MeanStdDev(abs_diff, &mean, &std);
+    DALITest::MeanStdDevColorNorm(abs_diff, &mean, &std);
 
 #ifndef NDEBUG
     cout << "num: " << abs_diff.size() << endl;
