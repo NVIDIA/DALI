@@ -43,9 +43,6 @@ before_script:
     - export ORIGIN1="${CI_REPOSITORY_URL##*@}"
     - export ORIGIN_SSH=git@${ORIGIN1/\//:}                                                        && echo "${ORIGIN_SSH}"
     - export ORIGIN_HTTPS=https://${ORIGIN1}                                                       && echo "${ORIGIN_HTTPS}"
-    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
-    - git fetch upstream
-    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
 
 dali_deps:
@@ -54,6 +51,9 @@ dali_deps:
       GIT_STRATEGY: fetch
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     # build the manylinux1 deps image
     - docker pull "${DEPS_IMAGE_NAME}" ||
       docker pull "${CI_REGISTRY_IMAGE}:master-deps" || true
@@ -72,6 +72,9 @@ dali_deps:
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - echo -e "Dockerfile*\n"
               ".git*\n"
               ".dockerignore\n"
@@ -124,6 +127,9 @@ py36-wheel:
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - echo -e "Dockerfile*\n"
               ".git*\n"
               ".dockerignore\n"
@@ -167,6 +173,9 @@ py35-base:
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - export CI_PROJECT_NAME=dali
     - echo -e "FROM ${BASE_IMAGE_NAME_VERSIONED}\n"
               "COPY CMakeLists.txt /opt/${CI_PROJECT_NAME}/\n"
@@ -210,6 +219,9 @@ py35-dali:
       GIT_SUBMODULE_STRATEGY: recursive
       GET_SOURCES_ATTEMPTS: 3
     script:
+    - git remote add upstream https://github.com/NVIDIA/DALI.git || true
+    - git fetch upstream
+    - export GIT_SHA=$(git merge-base HEAD upstream/master)                                        && echo "${GIT_SHA}"
     - export CI_PROJECT_NAME=dali
     - export CONTAINER_NAME="${CI_PROJECT_NAME}.${CI_JOB_ID}.${CI_JOB_NAME}"
     - docker pull "$BASE_IMAGE_NAME}" || true
