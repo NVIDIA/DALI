@@ -12,8 +12,7 @@ void Tensor<Backend>::acquire_buffer() {
 
   // already have a buffer, nothing else to do
   if (buffer_.get() != nullptr) {
-    buffer_->set_type(type_);
-    buffer_->Resize(Product(shape_));
+    buffer_->ResizeAndSetType(Product(shape_), type_);
     return;
   }
 

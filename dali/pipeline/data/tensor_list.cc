@@ -10,35 +10,21 @@ namespace dali {
 // Acquire a buffer from the global workspace.
 // Should only ever be called from mutable_data
 template <typename Backend>
-void TensorList<Backend>::acquire_buffer() {
-  //std::cout << "acquire buffer TL" << std::endl;
-  // Can't allocate an invalid type
-  if (!IsValidType(type_)) return;
-  //std::cout << "I have valid type" << std::endl;
+void TensorList<Backend>::acquire_buffer(size_t buffer_size) {
+  //size_t num_elems = 0;
+  //for (size_t i = 0; i < shape_.size(); ++i) {
+    //num_elems += Product(shape_[i]);
+  //}
+  //size_t elem_size = type_.size();
 
-  // already have a buffer, nothing else to do
-  if (buffer_.get() != nullptr) {
-    //std::cout << "I already have a buffer" << std::endl;
-    return;
-  }
+  //size_t buffer_size = num_elems * elem_size;
+  //std::cout << "I need " << buffer_size << " bytes" << std::endl;
 
-  //std::cout << "I did not have a buffer, getting one" << std::endl;
-
-  size_t num_elems = 0;
-  for (size_t i = 0; i < shape_.size(); ++i) {
-    num_elems += Product(shape_[i]);
-  }
-  //std::cout << "I need " << num_elems << " elements" << std::endl;
-  size_t elem_size = type_.size();
-
-  size_t buffer_size = num_elems * elem_size;
-  std::cout << "I need " << buffer_size << " bytes" << std::endl;
-
-  if (buffer_size > 0) {
+  if (buffer_.get() == nullptr && buffer_size > 0) {
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
-    buffer_->ResizeAndSetType(num_elems, type_);
+    //buffer_->ResizeAndSetType(num_elems, type_);
   }
 }
 
@@ -72,15 +58,12 @@ void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
   DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
   std::cout << "Resizing TL " << this << " to " << new_size << " bytes." << std::endl;
-  // if we have a buffer already, resize it, otherwise store metadata and leave
-  if (buffer_.get()) {
-    buffer_->Resize(new_size);
-  }
+
+  acquire_buffer();
+  buffer_->Resize(new_size);
   std::cout << "Done resizing TL " << this << " to " << new_size << " bytes." << std::endl;
 
   std::cout << "TL " << this << " acquires buffer." << std::endl;
-  // check if metadata change allows acquire
-  acquire_buffer();
 
   // Tensor view of this TensorList is no longer valid
   if (tensor_view_) {

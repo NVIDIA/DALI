@@ -298,8 +298,14 @@ class Buffer {
    * if buffer held a valid type before.
    */
   void ResizeAndSetType(size_t new_size, TypeInfo new_type) {
+    // Set the size to the new size
+    // (without actually resizing),
+    // so that setting type does not
+    // reallocate a bigger chunk of
+    // memory than required
     size_ = new_size;
     set_type(new_type);
+    Resize(new_size);
   }
 
   void ShareData(void *ptr, size_t bytes) {

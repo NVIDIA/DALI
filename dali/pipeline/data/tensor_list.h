@@ -61,14 +61,26 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
+   * @brief Sets this TensorList to match the shape and the type
+   * of the input.
+   */
+  template <typename InBackend>
+    inline void MakeLike(const TensorList<InBackend> &other) {
+      acquire_buffer(other.nbytes());
+      Resize({});
+      set_type(other.type());
+      ResizeLike(other);
+    }
+
+  /**
    * @brief Copies the input TensorList, resizing this TensorList and
    * changing the underlying data type if needed.
    */
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
+    acquire_buffer(other.nbytes());
     this->set_type(other.type());
     ResizeLike(other);
-    acquire_buffer();
     buffer_->type().template Copy<Backend, SrcBackend>(raw_mutable_data(),
         other.raw_data(), buffer_->size(), stream);
   }
@@ -386,7 +398,7 @@ class DLL_PUBLIC TensorList {
     layout_ = layout;
   }
  private:
-  void acquire_buffer();
+  void acquire_buffer(size_t buffer_size);
 
  protected:
   // We store a set of dimension for each tensor in the list.
