@@ -36,8 +36,7 @@ class SampleWorkspace;
 
 /**
  * @brief HostWorkspace stores all data that a cpu op operates on.
- * HostWorkspace differs from BatchWorkspace in that the input data
- * in a mixed workspace is per-sample, and the outputs are contiguous.
+ * The input data and the output data are per-sample (i.e. stored as vectors of cpu `Tensor`).
  */
 class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:

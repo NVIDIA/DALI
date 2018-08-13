@@ -45,7 +45,7 @@ class DLL_PUBLIC DeviceWorkspace : public WorkspaceBase<DeviceInputType, DeviceO
   DLL_PUBLIC ~DeviceWorkspace() = default;
 
   /**
-   * @brief Clears the contents of the workspaces, reseting it
+   * @brief Clears the contents of the workspaces, resetting it
    * to a default state.
    */
   DLL_PUBLIC inline void Clear() {

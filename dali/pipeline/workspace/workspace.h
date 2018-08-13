@@ -306,7 +306,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   vector<InputType<GPUBackend>> gpu_inputs_;
   vector<OutputType<GPUBackend>> gpu_outputs_;
 
-  // Maps from a TensorVector position in its typed vector
+  // Maps from a Tensor position in its typed vector
   // to its absolute position in the workspaces outputs
   vector<int> cpu_inputs_index_, gpu_inputs_index_;
   vector<int> cpu_outputs_index_, gpu_outputs_index_;
