@@ -41,6 +41,10 @@ if not git_sha:
     except:
         git_sha = u'0000000'
 
+
+
+git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
+
 # The short X.Y version
 version = str(version_short + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
