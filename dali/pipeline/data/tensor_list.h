@@ -398,7 +398,7 @@ class DLL_PUBLIC TensorList {
     layout_ = layout;
   }
  private:
-  void acquire_buffer(size_t buffer_size);
+  void acquire_buffer(size_t buffer_size = 0);
 
  protected:
   // We store a set of dimension for each tensor in the list.

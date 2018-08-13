@@ -235,7 +235,6 @@ class Buffer {
         CUDA_CALL(cudaGetDevice(&device_));
       }
       // delete underlying objects, then re-allocate
-      DataDeleter(data_.get(), old_type, size_);
       data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
@@ -243,13 +242,7 @@ class Buffer {
       num_bytes_ = new_num_bytes;
       shares_data_ = false;
     } else {
-      // not changing underlying allocation, just handle deletion of
-      // old objects
-      DataDeleter(data_.get(), old_type, size_);
     }
-
-    // construct new object(s)
-    type_.template Construct<Backend>(data_.get(), size_);
   }
 
   /**
@@ -342,14 +335,6 @@ class Buffer {
 
   shared_ptr<void> data_;  // Pointer to underlying storage
  protected:
-  // Helper to destroy the underlying data of an allocation, not the
-  // allocation itself
-  inline void DataDeleter(void *ptr, TypeInfo type, Index size) {
-    if (ptr) {
-      type.template Destruct<Backend>(ptr, size);
-    }
-  }
-
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0,
@@ -383,9 +368,6 @@ class Buffer {
               this, std::placeholders::_1,
               type_, new_size));
       num_bytes_ = new_num_bytes;
-
-      // Call the constructor for the underlying datatype
-      type_.template Construct<Backend>(data_.get(), new_size);
 
       // If we were sharing data, we aren't anymore
       shares_data_ = false;
