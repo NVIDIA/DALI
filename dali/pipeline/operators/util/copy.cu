@@ -21,8 +21,7 @@ template<>
 void Copy<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
   auto output = ws->Output<GPUBackend>(idx);
-  output->set_type(input.type());
-  output->ResizeLike(input);
+  output->MakeLike(input);
   CUDA_CALL(cudaMemcpyAsync(
           output->raw_mutable_data(),
           input.raw_data(),

@@ -127,9 +127,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           // Create the Tensor and wrap the data
           new (&t) Tensor<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.Resize(i_shape);
+          t.ShareData(info.ptr, bytes, type, i_shape);
         },
       R"code(
       Tensor residing in the CPU memory.
@@ -232,9 +230,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           // Create the Tensor and wrap the data
           new (&t) TensorList<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.Resize(i_shape);
+          t.ShareData(info.ptr, bytes, type, i_shape);
         },
       R"code(
       List of tensors residing in the CPU memory.

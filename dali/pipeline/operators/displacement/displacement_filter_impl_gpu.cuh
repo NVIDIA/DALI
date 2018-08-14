@@ -441,7 +441,7 @@ class DisplacementFilter<GPUBackend, Displacement,
                                   const U* in, U* out,
                                   const int N, const int pitch,
                                   const int C, const uint64_t maxPower2) {
-    void * param_ptr = params_gpu_.capacity() > 0 ? params_gpu_.raw_mutable_data() : nullptr;
+    const void * param_ptr = params_gpu_.raw_data();
     if (maxPower2 >= sizeof(uint32_t)/sizeof(U)) {
       switch (C) {
         case 1:

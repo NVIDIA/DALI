@@ -49,8 +49,7 @@ class MakeContiguous : public Operator<MixedBackend> {
 
     if (ws->OutputIsType<CPUBackend>(0)) {
       auto output = ws->Output<CPUBackend>(0);
-      output->Resize(output_shape);
-      output->set_type(type);
+      output->set_type_and_size(type, output_shape);
 
       for (int i = 0; i < batch_size_; ++i) {
         auto &input = ws->Input<CPUBackend>(0, i);
@@ -63,13 +62,11 @@ class MakeContiguous : public Operator<MixedBackend> {
       }
     } else {
       auto output = ws->Output<GPUBackend>(0);
-      output->Resize(output_shape);
-      output->set_type(type);
+      output->set_type_and_size(type, output_shape);
 
       if (coalesced) {
         TimeRange tm("coalesced", TimeRange::kBlue);
-        cpu_output_buff.ResizeLike(*output);
-        cpu_output_buff.set_type(type);
+        cpu_output_buff.MakeLike(*output);
         for (int i = 0; i < batch_size_; ++i) {
           auto &input = ws->Input<CPUBackend>(0, i);
           memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());

@@ -198,9 +198,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
     // Resize the output (contiguous)
     auto *output = ws->Output<GPUBackend>(0);
-    output->Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
-    output->set_type(type);
+    output->set_type_and_size(type, output_shape_);
 
     if (use_batched_decode_) {
       int images_in_batch = idx_in_batch;

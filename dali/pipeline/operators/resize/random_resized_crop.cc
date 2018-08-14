@@ -93,8 +93,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
 
   auto *output = ws->Output<CPUBackend>(idx);
 
-  output->set_type(input.type());
-  output->Resize({newH, newW, C});
+  output->set_type_and_size(input.type(),{newH, newW, C});
 
   const CropInfo &crop = params_->crops[ws->data_idx()];
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;

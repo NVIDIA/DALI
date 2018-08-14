@@ -138,7 +138,7 @@ class DLL_PUBLIC TypeInfo {
   template <typename T>
   inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
   CopyFunc(void *dst, const void *src, Index n) {
-    DALI_FAIL("Type " +
+    DALI_FAIL("Type " + name() +
         " is not trivially copyable and cannot be used in a DALI tensor.");
   }
 

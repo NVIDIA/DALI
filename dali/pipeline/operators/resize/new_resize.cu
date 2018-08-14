@@ -65,11 +65,9 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                " supports only hwc rgb & grayscale inputs.");
 
   if (out_size)
-    output->Resize({out_size->height, out_size->width, C});
+    output->set_type_and_size(input.type(), {out_size->height, out_size->width, C});
   else
-    output->Resize(shape);
-
-  output->set_type(input.type());
+    output->set_type_and_size(input.type(), shape);
 
   if (!ppInRaster)
     return;
@@ -186,8 +184,7 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
   }
 
   // Resize the output
-  output->Resize(output_shape);
-  output->set_type(input.type());
+  output->set_type_and_size(input.type(), output_shape);
 
   CollectPointersForExecution(reshapeBatch ? 1 : batch_size, input, inPtrs, output, outPtrs);
   return newResize;

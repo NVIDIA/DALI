@@ -10,42 +10,48 @@ namespace dali {
 // Acquire a buffer from the global workspace.
 // Should only ever be called from mutable_data
 template <typename Backend>
-void TensorList<Backend>::acquire_buffer(size_t buffer_size) {
-  //size_t num_elems = 0;
-  //for (size_t i = 0; i < shape_.size(); ++i) {
-    //num_elems += Product(shape_[i]);
-  //}
-  //size_t elem_size = type_.size();
+void TensorList<Backend>::acquire_buffer() {
+  if (shares_data()) {
+    buffer_.reset();
+  }
 
-  //size_t buffer_size = num_elems * elem_size;
-  //std::cout << "I need " << buffer_size << " bytes" << std::endl;
+  DALI_ENFORCE(IsValidType(type_),
+      "TensorList needs to have a valid type before acquiring buffer.");
 
+  size_t buffer_size = size() * type_.size();
+  std::cout << "I need " << buffer_size << " bytes" << std::endl;
+
+  // If we do not already have a buffer
+  // we need to get one from the GlobalWorkspace
   if (buffer_.get() == nullptr && buffer_size > 0) {
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
-    //buffer_->ResizeAndSetType(num_elems, type_);
+  }
+
+  bool changed = buffer_->Resize(buffer_size);
+
+  // Tensor view of this TensorList is no longer valid
+  if (tensor_view_ && changed) {
+    tensor_view_->ShareData(this);
   }
 }
 
 
 template <typename Backend>
-void TensorList<Backend>::set_type(TypeInfo type) {
-  type_ = type;
-
-  // if we have a buffer, set new type. Otherwise leave.
-  if (buffer_.get()) {
-    buffer_->set_type(type);
-  }
-
-  // check if metadata change allows acquire
+void TensorList<Backend>::set_type_and_size(TypeInfo new_type, const vector<Dims> &new_shape) {
+  DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
+  set_shape(new_shape);
+  type_ = new_type;
   acquire_buffer();
 }
 
 template <typename Backend>
-void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
+void TensorList<Backend>::set_shape(const vector<Dims> &new_shape) {
+  if (shape_ == new_shape) return;
+
   shape_ = new_shape;
-  // Calculate the new size
+
   Index num_tensor = new_shape.size(), new_size = 0;
   offsets_.resize(num_tensor);
   for (Index i = 0; i < num_tensor; ++i) {
@@ -55,20 +61,22 @@ void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
     offsets_[i] = new_size;
     new_size += tensor_size;
   }
-  DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
+  size_ = new_size;
+  DALI_ENFORCE(size_ >= 0, "Invalid negative buffer size.");
+}
 
-  std::cout << "Resizing TL " << this << " to " << new_size << " bytes." << std::endl;
+template <typename Backend>
+void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
+  set_shape(new_shape);
 
-  acquire_buffer();
-  buffer_->Resize(new_size);
-  std::cout << "Done resizing TL " << this << " to " << new_size << " bytes." << std::endl;
+  std::cout << "Resizing TL " << this << " to " << size_ << " elements." << std::endl;
 
-  std::cout << "TL " << this << " acquires buffer." << std::endl;
-
-  // Tensor view of this TensorList is no longer valid
-  if (tensor_view_) {
-    tensor_view_->ShareData(this);
+  if (IsValidType(type_)) {
+    std::cout << "TL " << this << " acquires buffer." << std::endl;
+    acquire_buffer();
   }
+  std::cout << "Done resizing TL " << this << " to " << size_ << " elements." << std::endl;
+
 }
 
 template <typename Backend>
@@ -84,20 +92,18 @@ void TensorList<Backend>::release(cudaStream_t s) const {
     std::cout << "Ref count reached 0, releasing to global workspace" << std::endl;
     if (s != nullptr) CUDA_CALL(cudaStreamSynchronize(s));
 
-    if (shares_data_) return;
-
-    GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
-
+    if (!shares_data()) {
+      GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
+    }
     buffer_.reset();
   }
 }
 
 template <typename Backend>
 void TensorList<Backend>::force_release() {
-  if (shares_data_) return;
-
-  GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
-
+  if (!shares_data()) {
+    GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
+  }
   buffer_.reset();
 }
 

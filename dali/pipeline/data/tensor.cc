@@ -7,51 +7,51 @@ namespace dali {
 
 template <typename Backend>
 void Tensor<Backend>::acquire_buffer() {
-  // not a valid type, don't try to acquire
-  if (!IsValidType(type_)) return;
-
-  // already have a buffer, nothing else to do
-  if (buffer_.get() != nullptr) {
-    buffer_->ResizeAndSetType(Product(shape_), type_);
-    return;
+  if (shares_data()) {
+    buffer_.reset();
   }
 
-  auto num_elems = Product(shape_);
-  auto elem_size = type_.size();
+  DALI_ENFORCE(IsValidType(type_),
+      "Tensor needs to have a valid type before acquiring buffer.");
 
-  auto buffer_size = num_elems * elem_size;
+  size_t buffer_size = size() * type_.size();
+  std::cout << "I need " << buffer_size << " bytes" << std::endl;
 
-  if (buffer_size > 0) {
+  // If we do not already have a buffer
+  // we need to get one from the GlobalWorkspace
+  if (buffer_.get() == nullptr && buffer_size > 0) {
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
-    buffer_->ResizeAndSetType(num_elems, type_);
   }
+
+  buffer_->Resize(buffer_size);
 }
 
 template <typename Backend>
-void Tensor<Backend>::set_type(TypeInfo type) {
-  type_ = type;
-
-  // If we don't have a buffer already, get
-  if (buffer_.get()) {
-    buffer_->set_type(type);
-  }
-
-  // If we didn't already have a buffer, acquire one now
+void Tensor<Backend>::set_type_and_size(TypeInfo new_type, const vector<Index> &new_shape) {
+  DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
+  set_shape(new_shape);
+  type_ = new_type;
   acquire_buffer();
+}
+
+template <typename Backend>
+void Tensor<Backend>::set_shape(const vector<Index> &new_shape) {
+  if (shape_ == new_shape) return;
+
+  shape_ = new_shape;
+
+  DALI_ENFORCE(size() >= 0, "Invalid negative buffer size.");
 }
 
 template <typename Backend>
 inline void Tensor<Backend>::Resize(const vector<Index> &shape) {
-  shape_ = shape;
+  set_shape(shape);
 
-  if (buffer_.get()) {
-    buffer_->Resize(Product(shape_));
+  if (IsValidType(type_)) {
+    acquire_buffer();
   }
-
-  // If we didn't already have a buffer, acquire one now
-  acquire_buffer();
 }
 
 template <typename Backend>
@@ -66,27 +66,18 @@ void Tensor<Backend>::release(cudaStream_t s) const {
   if (reference_count_ == 0) {
     if (s != nullptr) CUDA_CALL(cudaStreamSynchronize(s));
 
-    // If we're sharing data from somewhere else, no need to release
-    // the buffer, just delete it - actual allcoations are handled
-    // elsewhere
-    if (shares_data_) {
-      return;
+    if (!shares_data()) {
+      GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
     }
-    // Release the buffer back into the global pool for re-use
-    GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
-
     buffer_.reset();
   }
 }
 
 template <typename Backend>
 void Tensor<Backend>::force_release() {
-  if (shares_data_) {
-    return;
+  if (!shares_data()) {
+    GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
   }
-  // Release the buffer back into the global pool for re-use
-  GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
-
   buffer_.reset();
 }
 

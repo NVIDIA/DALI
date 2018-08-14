@@ -48,11 +48,9 @@ class Tensor {
    */
   template <typename T>
   DLL_PUBLIC inline void Copy(const vector<T> &data, cudaStream_t stream) {
-    set_type(TypeInfo::Create<T>());
-    Resize({(Index)data.size()});
-    acquire_buffer();
-    buffer_->type().template Copy<Backend, CPUBackend>(raw_mutable_data(),
-        data.data(), buffer_->size(), stream);
+    set_type_and_size(TypeInfo::Create<T>(), {(Index)data.size()});
+    type_.template Copy<Backend, CPUBackend>(raw_mutable_data(),
+        data.data(), size(), stream);
   }
 
   /**
@@ -60,13 +58,9 @@ class Tensor {
    */
   template <typename InBackend>
   DLL_PUBLIC inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
-    set_type(other.type());
-    ResizeLike(other);
-    acquire_buffer();
-    // buffer_->template mutable_data
-    // buffer_->set_type(other.type());
-    buffer_->type().template Copy<Backend, InBackend>(raw_mutable_data(),
-        other.raw_data(), buffer_->size(), stream);
+    set_type_and_size(other.type(), other.shape());
+    type_.template Copy<Backend, InBackend>(raw_mutable_data(),
+        other.raw_data(), size(), stream);
   }
 
   /**
@@ -112,7 +106,6 @@ class Tensor {
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *tl, int idx) {
     buffer_.reset(new Buffer<Backend>);
-    shares_data_ = true;
 
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
@@ -123,10 +116,10 @@ class Tensor {
 
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(idx);
-    set_type(tl->type());
+    type_ = tl->type();
     auto size = Product(shape_);
     auto num_bytes = tl->type().size() * size;
-    buffer_->ShareData(tl->raw_mutable_tensor(idx), num_bytes, tl->type());
+    buffer_->ShareData(tl->raw_mutable_tensor(idx), num_bytes);
   }
 
   /**
@@ -134,13 +127,9 @@ class Tensor {
    * tensor must have a valid type. If sucessful, the tensor
    * object will wrap the target data and assume the datatype
    * and shape of the data stored in the Tensor.
-   *
-   * If the input does not store any data, shares_data_ is left
-   * as false.
    */
   DLL_PUBLIC inline void ShareData(Tensor<Backend> *t) {
     buffer_.reset(new Buffer<Backend>);
-    shares_data_ = true;
 
     DALI_ENFORCE(t != nullptr, "Input Tensor is nullptr");
     DALI_ENFORCE(IsValidType(t->type()), "To share data, "
@@ -148,11 +137,11 @@ class Tensor {
 
     // Save the tensor meta-data
     shape_ = t->shape_;
-    set_type(t->type());
+    type_ = t->type();
     auto size = t->size();
-    auto num_bytes = t->nbytes();
+    auto num_bytes = size * type_.size();
 
-    buffer_->ShareData(t->raw_mutable_data(), num_bytes, type());
+    buffer_->ShareData(t->raw_mutable_data(), num_bytes);
   }
 
   /**
@@ -170,17 +159,35 @@ class Tensor {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes) {
+  DLL_PUBLIC void ShareData(void *ptr, const size_t bytes) {
     buffer_.reset(new Buffer<Backend>);
-    shares_data_ = true;
 
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     shape_.clear();
+    type_ = TypeInfo();
     buffer_->ShareData(ptr, bytes);
   }
 
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data.
+   *
+   * This function sets the Tensor's type and shape.
+   *
+   * The Tensor object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the Tensor.
+   */
+  DLL_PUBLIC void ShareData(void *ptr, const size_t bytes,
+                                   const TypeInfo &type, const vector<Index> &shape) {
+    ShareData(ptr, bytes);
+    set_shape(shape);
+    type_ = type;
+  }
   /**
    * @brief Wraps a TensorList
    * TensorList has to be a valid tensor
@@ -191,7 +198,6 @@ class Tensor {
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *tl) {
     buffer_.reset(new Buffer<Backend>);
-    shares_data_ = true;
 
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
@@ -203,10 +209,10 @@ class Tensor {
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(0);
     shape_.insert(shape_.begin(), tl->ntensor());
-    set_type(tl->type());
+    type_ = tl->type();
     auto size = Product(shape_);
     auto num_bytes = type().size() * size;
-    buffer_->ShareData(tl->raw_mutable_tensor(0), num_bytes, type());
+    buffer_->ShareData(tl->raw_mutable_tensor(0), num_bytes);
   }
 
   /**
@@ -227,10 +233,8 @@ class Tensor {
    * @brief Returns the size of the dimension at the given index
    */
   DLL_PUBLIC inline virtual Index dim(int idx) const {
-#ifndef NDEBUG
     DALI_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
     DALI_ENFORCE(idx >= 0, "negative index not supported");
-#endif
     return shape_[idx];
   }
 
@@ -293,13 +297,15 @@ class Tensor {
   template <typename T>
   DLL_PUBLIC const T *data() const {
     if (!buffer_.get()) return nullptr;
+    DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
+        "Calling type does not match TensorList's data type: requested " +
+        TypeTable::GetTypeName<T>() + " vs stored " + type_.name());
     return buffer_->template data<T>();
   }
 
   template <typename T>
   DLL_PUBLIC T *mutable_data() {
-    set_type(TypeInfo::Create<T>());
-    acquire_buffer();
+    set_type_and_size(TypeInfo::Create<T>(), shape());
     if (!buffer_.get()) return nullptr;
     return buffer_->template mutable_data<T>();
   }
@@ -321,23 +327,15 @@ class Tensor {
     return type_;
   }
 
-  DLL_PUBLIC size_t nbytes() const {
-    if (!buffer_.get()) {
-      return 0;
-    }
-    return buffer_->nbytes();
-  }
-
-  DLL_PUBLIC size_t capacity() const {
-    if (!buffer_.get()) return 0;
-    return buffer_->capacity();
-  }
-
   DLL_PUBLIC Index size() const {
     return Product(shape_);
   }
 
-  DLL_PUBLIC void set_type(TypeInfo type);
+  DLL_PUBLIC size_t nbytes() const {
+    return size() * type_.size();
+  }
+
+  DLL_PUBLIC void set_type_and_size(TypeInfo type, const vector<Index> &shape);
 
   DLL_PUBLIC void set_pinned(bool pinned) {
     // buffer_->set_pinned(pinned);
@@ -345,6 +343,9 @@ class Tensor {
   }
 
   DLL_PUBLIC bool shares_data() const {
+    if (buffer_.get() == nullptr) {
+      return false;
+    }
     return buffer_->shares_data();
   }
 
@@ -374,7 +375,20 @@ class Tensor {
   }
 
  private:
+  /**
+   * @brief Acquire buffer from the global workspace.
+   * After acquisition, buffer is resized to fit the
+   * parent TensorList's data.
+   */
   DLL_PUBLIC void acquire_buffer();
+
+  /**
+   * @brief Set a new shape for this TensorList.
+   * This function only changes the metadata
+   * and does not actually change the underlying
+   * allocation.
+   */
+  DLL_PUBLIC void set_shape(const vector<Index> &new_shape);
 
  protected:
   vector<Index> shape_;
@@ -390,7 +404,6 @@ class Tensor {
   mutable int reference_count_;
 
   bool pinned_;
-  bool shares_data_ = false;
   TypeInfo type_;
 };
 

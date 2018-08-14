@@ -27,7 +27,7 @@ inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend
   size_t current_delta = (size_t) -1;
 
   for (size_t i = 0; i < buffers->size(); ++i) {
-    const size_t buffer_size = (*buffers)[i]->nbytes();
+    const size_t buffer_size = (*buffers)[i]->capacity();
     if (buffer_size >= 0.5 * nbytes &&
         buffer_size <= 2 * nbytes &&
         (size_t) abs(buffer_size - nbytes) < current_delta) {

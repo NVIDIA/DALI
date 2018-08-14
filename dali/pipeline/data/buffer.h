@@ -87,94 +87,45 @@ class Buffer {
   }
 
   /**
-   * @brief Returns a typed pointer to the underlying storage. If the
-   * buffer has not been allocated because it does not yet have a type,
-   * the calling type is taken to be the type of the data and the memory
-   * is allocated.
-   *
-   * If the buffer already has a valid type, and the calling type does
-   * not match, the type of the buffer is reset and the underlying
-   * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the
-   * new data type.
+   * @brief Returns a typed pointer to the underlying storage.
    */
   template <typename T>
   inline T* mutable_data() {
-    // Note: Call to 'set_type' will immediately return if the calling
-    // type matches the current type of the buffer.
-    TypeInfo calling_type;
-    calling_type.SetType<T>();
-    set_type(calling_type);
     return static_cast<T*>(data_.get());
   }
 
   /**
    * @brief Returns a const, typed pointer to the underlying storage.
-   * The calling type must match the underlying type of the buffer.
    */
   template <typename T>
   inline const T* data() const {
-    DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' must be called "
-        "on non-const buffer to set valid type");
-    DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
-        "Calling type does not match buffer data type: " +
-        TypeTable::GetTypeName<T>() + " v. " + type_.name());
     return static_cast<T*>(data_.get());
   }
 
   /**
    * @brief Return an un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
-    DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
-        "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
 
   /**
    * @brief Return an const, un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
-    DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
-        "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
 
   /**
-   * @brief Returns the size in elements of the underlying data
+   * @brief Returns the current size of the buffer in bytes.
    */
   inline Index size() const { return size_; }
 
   /**
-   * @brief Returns the size in bytes of the underlying data
-   */
-  inline size_t nbytes() const {
-    // Note: This returns the number of bytes occupied by the current
-    // number of elements stored in the buffer. This is not neccessarily
-    // the number of bytes of the underlying allocation (num_bytes_)
-    return size_*type_.size();
-  }
-
-  /**
-   * @brief Returns the real size of the allocation
+   * @brief Returns the real size of the allocation.
    */
   inline size_t capacity() const {
     return num_bytes_;
-  }
-
-  /**
-   * @brief Returns the TypeInfo object that keeps track of the
-   * datatype of the underlying storage.
-   */
-  inline TypeInfo type() const {
-    return type_;
   }
 
   /**
@@ -199,53 +150,6 @@ class Buffer {
   }
 
   /**
-   * @brief Sets the type of the buffer. If the buffer has not been
-   * allocated because it does not yet have a type, the calling type
-   * is taken to be the type of the data and the memory is allocated.
-   *
-   * If the buffer already has a valid type, and the calling type does
-   * not match, the type of the buffer is reset and the underlying
-   * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the
-   * new data type.
-   */
-  inline void set_type(TypeInfo new_type) {
-    DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
-    if (new_type == type_) return;
-
-    if (!IsValidType(type_)) {
-      // If the buffer has no type, set the type to the
-      // calling type and allocate the buffer
-      DALI_ENFORCE((data_ == nullptr) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "data_ should be nullptr.");
-      DALI_ENFORCE((num_bytes_ == 0) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "num_bytes_ should be 0.");
-    }
-    auto old_type = type_;
-    type_ = new_type;
-
-    size_t new_num_bytes = size_ * type_.size();
-    if (new_num_bytes > num_bytes_) {
-      new_num_bytes *= alloc_mult;
-
-      // re-allocating: get the device
-      if (std::is_same<Backend, GPUBackend>::value) {
-        CUDA_CALL(cudaGetDevice(&device_));
-      }
-      // delete underlying objects, then re-allocate
-      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, size_));
-      num_bytes_ = new_num_bytes;
-      shares_data_ = false;
-    } else {
-    }
-  }
-
-  /**
    * @brief Returns a bool indicating if the list shares its underlying storage.
    */
   inline bool shares_data() const { return shares_data_; }
@@ -253,7 +157,7 @@ class Buffer {
   // Helper function for cleaning up data storage. This unfortunately
   // has to be public so that we can bind it into the deleter of our
   // shared pointers
-  void DeleterHelper(void *ptr, TypeInfo type, Index size) {
+  void DeleterHelper(void *ptr, Index size) {
     // change to correct device for deletion
     // Note: Can't use device guard due to potentially not GPUBackend.
     int current_device = 0;
@@ -269,7 +173,7 @@ class Buffer {
     }
     if (ptr) {
       // Only deallocate, underlying data freed elsewhere
-      Backend::Delete(ptr, size*type.size(), pinned_);
+      Backend::Delete(ptr, size, pinned_);
     }
 
     // reset to original calling device for consistency
@@ -279,55 +183,19 @@ class Buffer {
   }
 
   /**
-   * @brief Resize the buffer
+   * @brief Resize the buffer.
+   * Returns whether the underlying allocation
+   * changed.
    */
-  void Resize(size_t new_size) {
-    ResizeHelper(new_size);
-  }
-
-  /**
-   * @brief Resize the buffer and at the same time
-   * set the new type. This prevents reallocation
-   * if buffer held a valid type before.
-   */
-  void ResizeAndSetType(size_t new_size, TypeInfo new_type) {
-    // Set the size to the new size
-    // (without actually resizing),
-    // so that setting type does not
-    // reallocate a bigger chunk of
-    // memory than required
-    size_ = new_size;
-    set_type(new_type);
-    Resize(new_size);
+  bool Resize(size_t new_size) {
+    return ResizeHelper(new_size);
   }
 
   void ShareData(void *ptr, size_t bytes) {
     data_.reset(ptr, [](void *) {});
     num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
     size_ = 0;
 
-    shares_data_ = num_bytes_ > 0 ? true : false;
-  }
-
-  void ShareData(void *ptr, size_t bytes, TypeInfo type) {
-    // TODO(tgale): If we wanted to ensure the allocation is not cleaned up
-    // while this object still uses it, we could just keep a copy of
-    // the actual shared_ptr of the TensorList. Is this behavior something
-    // that we are interested in supporting?
-
-    // Reset our pointer to the correct offset inside the tensor list.
-    // This is not the beginning of the allocation, so we pass a noop
-    // deleter to the shared_ptr
-    data_.reset(ptr, [](void *) {});
-    num_bytes_ = bytes;
-
-    if (type.size() == 0) {
-      size_ = 0;
-    } else {
-      size_ = bytes / type.size();
-    }
-    type_ = type;
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
 
@@ -336,55 +204,39 @@ class Buffer {
   shared_ptr<void> data_;  // Pointer to underlying storage
  protected:
   // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size) {
+  inline bool ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0,
         "Size of buffer has to be positive, got " + to_string(new_size));
 
-    if (!IsValidType(type_)) {
-      // If the type has not been set yet, we just set the size of the
-      // buffer and do not allocate any memory. Any previous size is
-      // overwritten.
-      DALI_ENFORCE((data_ == nullptr) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "data_ should be nullptr.");
-      DALI_ENFORCE((num_bytes_ == 0) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "num_bytes_ should be 0.");
-
-      size_ = new_size;
-      return;
-    }
-
     size_ = new_size;
-    size_t new_num_bytes = new_size * type_.size();
-    if (new_num_bytes > num_bytes_) {
-      new_num_bytes *= alloc_mult;
+    if ((size_t)new_size > num_bytes_) {
+      new_size *= alloc_mult;
       // re-allocating: get the device
       if (std::is_same<Backend, GPUBackend>::value) {
         CUDA_CALL(cudaGetDevice(&device_));
       }
-      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
+      data_.reset(Backend::New(new_size, pinned_), std::bind(
               &Buffer<Backend>::DeleterHelper,
               this, std::placeholders::_1,
-              type_, new_size));
-      num_bytes_ = new_num_bytes;
+              new_size));
+      num_bytes_ = new_size;
 
       // If we were sharing data, we aren't anymore
       shares_data_ = false;
+
+      return true;
     }
+    return false;
   }
 
   const double alloc_mult = 1.0;
 
   Backend backend_;
 
-  TypeInfo type_;  // Data type of underlying storage
-  Index size_;  // The number of elements in the buffer
+  Index size_;  // current size of the buffer
   bool shares_data_;
 
-  // To keep track of the true size
-  // of the underlying allocation
-  size_t num_bytes_;
+  size_t num_bytes_;  // the size of the allocation
 
   bool pinned_;  // Whether the allocation uses pinned memory
 
@@ -397,7 +249,6 @@ class Buffer {
 #define USE_BUFFER_MEMBERS()                    \
   using Buffer<Backend>::ResizeHelper;          \
   using Buffer<Backend>::backend_;              \
-  using Buffer<Backend>::type_;                 \
   using Buffer<Backend>::data_;                 \
   using Buffer<Backend>::size_;                 \
   using Buffer<Backend>::shares_data_;          \
