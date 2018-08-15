@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/color/color_twist.h"
-#include <vector>
-#include <string>
+#include "dali/image/transform.h"
 
 namespace dali {
 
@@ -71,5 +70,42 @@ Values >= 0 are supported. For example:
 * `1` - no change to image's saturation
 )code", 1.f, true)
     .AddParent("ColorTransformBase");
+
+template <>
+void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  const auto &input = ws->Input<CPUBackend>(idx);
+  auto output = ws->Output<CPUBackend>(idx);
+  const auto &input_shape = input.shape();
+
+  CheckParam(input, "Color augmentation");
+
+  const auto H = input_shape[0];
+  const auto W = input_shape[1];
+  const auto C = input_shape[2];
+
+  output->ResizeLike(input);
+
+  auto pImgInp = input.template data<uint8>();
+  auto pImgOut = output->template mutable_data<uint8>();
+
+  if (!augments_.empty()) {
+    float matrix[nDim][nDim];
+    float *m = reinterpret_cast<float *>(matrix);
+    IdentityMatrix(m);
+    for (size_t j = 0; j < augments_.size(); ++j) {
+      augments_[j]->Prepare(0, spec_, ws);
+      (*augments_[j])(m);
+    }
+
+    MakeColorTransformation(pImgInp, H, W, C, m, pImgOut);
+  } else {
+    memcpy(pImgOut, pImgInp, H * W * C);
+  }
+}
+
+DALI_REGISTER_OPERATOR(Brightness, BrightnessAdjust<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Contrast, ContrastAdjust<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Hue, HueAdjust<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Saturation, SaturationAdjust<CPUBackend>, CPU);
 
 }  // namespace dali

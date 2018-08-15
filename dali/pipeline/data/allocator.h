@@ -75,7 +75,7 @@ DALI_DECLARE_OPTYPE_REGISTRY(GPUAllocator, GPUAllocator);
 
 #define DALI_REGISTER_GPU_ALLOCATOR(OpName, OpType) \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
-      dali::GPUAllocator, dali::GPUAllocator)
+      dali::GPUAllocator, dali::GPUAllocator, NULL)
 
 
 /**
@@ -99,7 +99,7 @@ DALI_DECLARE_OPTYPE_REGISTRY(CPUAllocator, CPUAllocator);
 
 #define DALI_REGISTER_CPU_ALLOCATOR(OpName, OpType) \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,     \
-      dali::CPUAllocator, dali::CPUAllocator)
+      dali::CPUAllocator, dali::CPUAllocator, NULL)
 
 /**
  * @brief Pinned memory CPU allocator

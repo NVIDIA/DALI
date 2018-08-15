@@ -32,7 +32,7 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
   void TestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_jpegImgType, 2.0);
+    this->RunTestDecode(t_jpegImgType, 0.7);
   }
 
  private:
