@@ -26,6 +26,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
+#include "dali/image/png.h"
 
 
 namespace dali {
@@ -161,25 +162,33 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       EncodedImageInfo info;
 
       // Get necessary image information
-      NVJPEG_CALL(nvjpegGetImageInfo(handle_,
+      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
                                      static_cast<const unsigned char*>(data), in_size,
                                      &info.c, &info.subsampling,
-                                     info.widths, info.heights));
+                                     info.widths, info.heights);
+      // Fallback for png
+      if (ret == NVJPEG_STATUS_BAD_JPEG && CheckIsPNG(static_cast<const uint8*>(data), in_size)) {
+        GetPNGImageDims(static_cast<const uint8*>(data), in_size, info.heights, info.widths);
+        info.nvjpeg_support = false;
+      } else {
+        // Handle errors
+        NVJPEG_CALL(ret);
+
+        // note if we can't use nvjpeg for this image but it is jpeg
+        if (!SupportedSubsampling(info.subsampling)) {
+          info.nvjpeg_support = false;
+        } else {
+          // Store the index for batched api
+          batched_image_idx_[i] = idx_in_batch;
+          info.nvjpeg_support = true;
+          idx_in_batch++;
+        }
+      }
 
       // Store pertinent info for later
       const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
       output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
-
-      // note if we can't use nvjpeg for this image
-      if (!SupportedSubsampling(info.subsampling)) {
-        output_info_[i].nvjpeg_support = false;
-      } else {
-        // Store the index for batched api
-        batched_image_idx_[i] = idx_in_batch;
-        output_info_[i].nvjpeg_support = true;
-        idx_in_batch++;
-      }
     }
 
     // Resize the output (contiguous)
