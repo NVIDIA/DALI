@@ -191,10 +191,11 @@ class Buffer {
     return ResizeHelper(new_size);
   }
 
-  void ShareData(void *ptr, size_t bytes) {
+  void ShareData(void *ptr, size_t bytes, int device_id) {
     data_.reset(ptr, [](void *) {});
     num_bytes_ = bytes;
     size_ = 0;
+    device_ = device_id;
 
     shares_data_ = num_bytes_ > 0 ? true : false;
   }

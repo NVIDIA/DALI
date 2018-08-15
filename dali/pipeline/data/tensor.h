@@ -119,7 +119,7 @@ class Tensor {
     type_ = tl->type();
     auto size = Product(shape_);
     auto num_bytes = tl->type().size() * size;
-    buffer_->ShareData(tl->raw_mutable_tensor(idx), num_bytes);
+    buffer_->ShareData(tl->raw_mutable_tensor(idx), num_bytes, tl->device_id());
   }
 
   /**
@@ -141,7 +141,7 @@ class Tensor {
     auto size = t->size();
     auto num_bytes = size * type_.size();
 
-    buffer_->ShareData(t->raw_mutable_data(), num_bytes);
+    buffer_->ShareData(t->raw_mutable_data(), num_bytes, t->device_id());
   }
 
   /**
@@ -167,7 +167,7 @@ class Tensor {
     // Save our new pointer and bytes. Reset our type, shape, and size
     shape_.clear();
     type_ = TypeInfo();
-    buffer_->ShareData(ptr, bytes);
+    buffer_->ShareData(ptr, bytes, -1);
   }
 
   /**
@@ -212,7 +212,7 @@ class Tensor {
     type_ = tl->type();
     auto size = Product(shape_);
     auto num_bytes = type().size() * size;
-    buffer_->ShareData(tl->raw_mutable_tensor(0), num_bytes);
+    buffer_->ShareData(tl->raw_mutable_tensor(0), num_bytes, tl->device_id());
   }
 
   /**

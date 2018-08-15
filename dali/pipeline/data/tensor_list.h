@@ -131,7 +131,7 @@ class DLL_PUBLIC TensorList {
     offsets_ = other->offsets_;
     type_ = other->type();
 
-    buffer_->ShareData(other->raw_mutable_tensor(0), other->nbytes());
+    buffer_->ShareData(other->raw_mutable_tensor(0), other->nbytes(), other->device_id());
 
     DALI_ENFORCE(buffer_.get() != nullptr);
 
@@ -165,7 +165,7 @@ class DLL_PUBLIC TensorList {
     shape_.clear();
     offsets_.clear();
 
-    buffer_->ShareData(ptr, bytes);
+    buffer_->ShareData(ptr, bytes, -1);
 
     // Tensor view of this TensorList is no longer valid
     if (tensor_view_) {
