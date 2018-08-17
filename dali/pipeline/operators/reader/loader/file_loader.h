@@ -53,6 +53,9 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
   // open the root
   DIR *dir = opendir(path.c_str());
 
+  DALI_ENFORCE(dir != nullptr,
+      "Directory " + path + " could not be opened.");
+
   struct dirent *entry;
   int dir_count = 0;
 
