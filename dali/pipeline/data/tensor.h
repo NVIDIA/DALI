@@ -370,7 +370,7 @@ class Tensor {
   DLL_PUBLIC void force_release();
 
   DLL_PUBLIC void reset_reference_count() {
-    DALI_ENFORCE(num_consumers_ > 0, "Number of consumers must be greater than 0.");
+    DALI_ENFORCE(num_consumers_ >= 0, "Number of consumers must be greater than 0.");
     reference_count_ = num_consumers_;
   }
 
