@@ -36,18 +36,18 @@ class PipelineTest : public DALITest {
     DALITest::DecodeJPEGS(DALI_RGB);
   }
 
-  template <typename T>
-  inline void CompareData(const T* data, const T* ground_truth, int n) {
+  template<typename T>
+  inline void CompareData(const T *data, const T *ground_truth, int n) {
     CUDA_CALL(cudaDeviceSynchronize());
     vector<T> tmp_cpu(n);
-    CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T)*n, cudaMemcpyDefault));
+    CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T) * n, cudaMemcpyDefault));
 
     vector<double> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
       abs_diff[i] = abs(static_cast<double>(tmp_cpu[i]) - static_cast<double>(ground_truth[i]));
     }
     double mean, std;
-    DALITest::MeanStdDev(abs_diff, &mean, &std);
+    DALITest::MeanStdDevColorNorm(abs_diff, &mean, &std);
 
 #ifndef NDEBUG
     cout << "num: " << abs_diff.size() << endl;
@@ -57,6 +57,140 @@ class PipelineTest : public DALITest {
 
     ASSERT_LT(mean, 0.000001);
     ASSERT_LT(std, 0.000001);
+  }
+
+  void RunTestEnforce(const string &dev1, const string &dev2) {
+    Pipeline pipe(1, 1, 0);
+
+    // Inputs must be know to the pipeline, i.e. ops
+    // must be added in a topological ordering.
+    ASSERT_THROW(
+      pipe.AddOperator(
+        OpSpec("Copy")
+          .AddArg("device", dev1)
+          .AddInput("data", dev1)
+          .AddOutput("copy_out", dev1)),
+      std::runtime_error);
+
+    pipe.AddOperator(
+      OpSpec("ExternalSource")
+        .AddArg("device", "gpu")
+        .AddOutput("data", "gpu"));
+
+    // For dev1 = "cpu": Inputs to CPU ops must be on CPU,
+    //                   we do not auto-copy them from gpu to cpu.
+    // For dev1 = "gpu": CPU inputs to GPU ops must be on CPU,
+    //                   we will not copy them back to the host.
+    ASSERT_THROW(
+      pipe.AddOperator(
+        OpSpec("Copy")
+          .AddArg("device", dev1)
+          .AddInput("data", dev2)
+          .AddOutput("copy_out", dev1)),
+      std::runtime_error);
+
+    if (dev1 == "cpu") {
+      // Inputs to CPU ops must already exist on CPU,
+      // we do not auto-copy them from gpu to cpu.
+      ASSERT_THROW(
+        pipe.AddOperator(
+          OpSpec("Copy")
+            .AddArg("device", dev1)
+            .AddInput("data", dev1)
+            .AddOutput("copy_out", dev1)),
+        std::runtime_error);
+    }
+
+    pipe.AddOperator(
+      OpSpec("ExternalSource")
+        .AddArg("device", dev1)
+        .AddOutput("data_2", dev1));
+
+    pipe.AddOperator(
+      OpSpec("ExternalSource")
+        .AddArg("device", dev1)
+        .AddOutput("data_3", dev1));
+
+    // Outputs must have unique names.
+    ASSERT_THROW(
+      pipe.AddOperator(
+        OpSpec("Copy")
+          .AddArg("device", dev1)
+          .AddInput("data_2", dev1)
+          .AddOutput("data_3", dev1)),
+      std::runtime_error);
+
+    if (dev1 == "gpu") {
+      pipe.AddOperator(
+        OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddOutput("data_4", "cpu"));
+    }
+    // All data must have unique names regardless
+    // of the device they exist on.
+    ASSERT_THROW(
+      pipe.AddOperator(
+        OpSpec("Copy")
+          .AddArg("device", dev1)
+          .AddInput("data_2", dev1)
+          .AddOutput("data", dev1)),
+      std::runtime_error);
+
+
+    // CPU ops can only produce CPU outputs
+    ASSERT_THROW(
+      pipe.AddOperator(
+        OpSpec("Copy")
+          .AddArg("device", dev1)
+          .AddInput("data_2", dev1)
+          .AddOutput("data_4", dev2)),
+      std::runtime_error);
+  }
+
+  void RunTestTrigger(const string &dev) {
+    Pipeline pipe(1, 1, 0);
+
+    pipe.AddExternalInput("data");
+
+    pipe.AddOperator(
+      OpSpec("Copy")
+        .AddArg("device", "gpu")
+        .AddInput("data", dev)
+        .AddOutput("data_copy", "gpu"));
+
+    vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
+    pipe.Build(outputs);
+
+    OpGraph &graph = this->GetGraph(&pipe);
+
+      // Validate the graph
+    ASSERT_EQ(graph.NumCPUOp(), 1);
+    ASSERT_EQ(graph.NumMixedOp(), 1);
+    ASSERT_EQ(graph.NumGPUOp(), 1);
+
+    ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
+
+    // Validate the source op
+    auto &node = graph.node(0);
+    ASSERT_EQ(node.id, 0);
+    ASSERT_EQ(node.children.size(), 1);
+    ASSERT_EQ(node.parents.size(), 0);
+    ASSERT_EQ(node.children.count(1), 1);
+
+    // Validate the MakeContiguous op
+    auto &node2 = graph.node(1);
+    ASSERT_EQ(node2.id, 1);
+    ASSERT_EQ(node2.children.size(), 1);
+    ASSERT_EQ(node2.parents.size(), 1);
+    ASSERT_EQ(node2.parents.count(0), 1);
+    ASSERT_EQ(node2.children.count(2), 1);
+
+    // Validate the copy op
+    auto &node3 = graph.node(2);
+    ASSERT_EQ(node3.id, 2);
+    ASSERT_EQ(node3.children.size(), 0);
+    ASSERT_EQ(node3.parents.size(), 1);
+    ASSERT_EQ(node3.parents.count(1), 1);
   }
 
   inline OpGraph& GetGraph(Pipeline *pipe) {
@@ -91,248 +225,24 @@ TEST_F(PipelineTestOnce, TestInputNotKnown) {
 }
 
 TEST_F(PipelineTestOnce, TestEnforceCPUOpConstraints) {
-  Pipeline pipe(1, 1, 0);
-
-  // Inputs must be know to the pipeline, i.e. ops
-  // must be added in a topological ordering.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")),
-      std::runtime_error);
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "gpu")
-      .AddOutput("data", "gpu"));
-
-  // Inputs to CPU ops must be on CPU
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data", "gpu")
-          .AddOutput("copy_out", "cpu")),
-      std::runtime_error);
-
-  // Inputs to CPU ops must already exist on CPU,
-  // we do not auto-copy them from gpu to cpu.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")),
-      std::runtime_error);
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "cpu")
-      .AddOutput("data_2", "cpu"));
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "cpu")
-      .AddOutput("data_3", "cpu"));
-
-  // Outputs must have unique names.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_2", "cpu")
-          .AddOutput("data_3", "cpu")),
-      std::runtime_error);
-
-  // All data must have unique names regardless
-  // of the device they exist on.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_2", "cpu")
-          .AddOutput("data", "cpu")),
-      std::runtime_error);
-
-  // CPU ops can only produce CPU outputs
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_2", "cpu")
-          .AddOutput("data_4", "gpu")),
-      std::runtime_error);
+  RunTestEnforce("cpu", "gpu");
 }
 
 TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
-  Pipeline pipe(1, 1, 0);
-
-  // Inputs must be know to the pipeline, i.e. ops
-  // must be added in a topological ordering.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data", "gpu")
-          .AddOutput("copy_out", "gpu")),
-      std::runtime_error);
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "gpu")
-      .AddOutput("data", "gpu"));
-
-  // CPU inputs to GPU ops must be on CPU, we will
-  // not copy them back to the host.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data", "cpu")
-          .AddOutput("copy_out", "gpu")),
-      std::runtime_error);
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "gpu")
-      .AddOutput("data_2", "gpu"));
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "gpu")
-      .AddOutput("data_3", "gpu"));
-
-  // Outputs must have unique names.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data_2", "gpu")
-          .AddOutput("data_3", "gpu")),
-      std::runtime_error);
-
-  pipe.AddOperator(
-      OpSpec("ExternalSource")
-      .AddArg("device", "cpu")
-      .AddOutput("data_4", "cpu"));
-
-  // All data must have unique names regardless
-  // of the device they exist on.
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data_2", "gpu")
-          .AddOutput("data_4", "gpu")),
-      std::runtime_error);
-
-  // GPU ops can only produce GPU outputs
-  ASSERT_THROW(
-      pipe.AddOperator(
-          OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data_2", "gpu")
-          .AddOutput("data_4", "cpu")),
-      std::runtime_error);
+  RunTestEnforce("gpu", "cpu");
 }
 
 TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
-  Pipeline pipe(1, 1, 0);
-
-  pipe.AddExternalInput("data");
-
-  pipe.AddOperator(
-      OpSpec("Copy")
-      .AddArg("device", "gpu")
-      .AddInput("data", "cpu")
-      .AddOutput("data_copy", "gpu"));
-
-  vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
-  pipe.Build(outputs);
-
-  OpGraph &graph = this->GetGraph(&pipe);
-
-  // Validate the graph
-  ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumMixedOp(), 1);
-  ASSERT_EQ(graph.NumGPUOp(), 1);
-
-  ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
-
-  // Validate the source op
-  auto& node = graph.node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(node.children.count(1), 1);
-
-  // Validate the MakeContiguous op
-  auto& node2 = graph.node(1);
-  ASSERT_EQ(node2.id, 1);
-  ASSERT_EQ(node2.children.size(), 1);
-  ASSERT_EQ(node2.parents.size(), 1);
-  ASSERT_EQ(node2.parents.count(0), 1);
-  ASSERT_EQ(node2.children.count(2), 1);
-
-  // Validate the copy op
-  auto& node3 = graph.node(2);
-  ASSERT_EQ(node3.id, 2);
-  ASSERT_EQ(node3.children.size(), 0);
-  ASSERT_EQ(node3.parents.size(), 1);
-  ASSERT_EQ(node3.parents.count(1), 1);
+  RunTestTrigger("cpu");
 }
 
 TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
-  Pipeline pipe(1, 1, 0);
-
-  pipe.AddExternalInput("data");
-
-  pipe.AddOperator(
-      OpSpec("Copy")
-      .AddArg("device", "gpu")
-      .AddInput("data", "gpu")
-      .AddOutput("data_copy", "gpu"));
-
-  vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
-  pipe.Build(outputs);
-
-  OpGraph &graph = this->GetGraph(&pipe);
-
-  // Validate the graph
-  ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumMixedOp(), 1);
-  ASSERT_EQ(graph.NumGPUOp(), 1);
-
-  ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
-
-  // Validate the source op
-  auto& node = graph.node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(node.children.count(1), 1);
-
-  // Validate the MakeContiguous op
-  auto& node2 = graph.node(1);
-  ASSERT_EQ(node2.id, 1);
-  ASSERT_EQ(node2.children.size(), 1);
-  ASSERT_EQ(node2.parents.size(), 1);
-  ASSERT_EQ(node2.parents.count(0), 1);
-  ASSERT_EQ(node2.children.count(2), 1);
-
-  // Validate the copy op
-  auto& node3 = graph.node(2);
-  ASSERT_EQ(node3.id, 2);
-  ASSERT_EQ(node3.children.size(), 0);
-  ASSERT_EQ(node3.parents.size(), 1);
-  ASSERT_EQ(node3.parents.count(1), 1);
+  RunTestTrigger("gpu");
 }
 
 TYPED_TEST(PipelineTest, TestExternalSource) {
   int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.size();
+  int batch_size = this->jpegs_.nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
 
@@ -354,7 +264,7 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
 
 TYPED_TEST(PipelineTest, TestSerialization) {
   int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.size();
+  int batch_size = this->jpegs_.nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
 

@@ -12,22 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_decoder.h"
+#include "dali/test/dali_test_matching.h"
 
 namespace dali {
 
-// Fixture for jpeg decode testing. Templated
-// to make googletest run our tests grayscale & rgb
 template <typename ImgType>
-class JpegDecodeTest : public GenericDecoderTest<ImgType> {
+class ColorTest : public GenericMatchingTest<ImgType> {
 };
 
-// Run RGB & grayscale tests
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(JpegDecodeTest, Types);
+typedef ::testing::Types<RGB> Types;
+TYPED_TEST_CASE(ColorTest, Types);
 
-TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
-  this->RunTestDecode(this->jpegs_, 1.5);
+TYPED_TEST(ColorTest, Brightness) {
+  this->RunTest({"Brightness", "brightness", "3.", 1e-4});
+}
+
+TYPED_TEST(ColorTest, Contrast) {
+  this->RunTest({"Contrast", "contrast", "1.3", 0.18});
+}
+
+TYPED_TEST(ColorTest, Saturation) {
+  this->RunTest({"Saturation", "saturation", "3.", 0.26});
+}
+
+TYPED_TEST(ColorTest, Hue) {
+  this->RunTest({"Hue", "hue", "31.456", 0.27});
 }
 
 }  // namespace dali

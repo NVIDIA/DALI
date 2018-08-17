@@ -73,11 +73,11 @@ DALI_DEFINE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 // Some registration macros
 #define DALI_REGISTER_CPU_DUMMY(OpName, OpType)        \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,        \
-      CPUDummy, DummyBase<CPUBackend>)
+      CPUDummy, DummyBase<CPUBackend>, "CPU")
 
 #define DALI_REGISTER_GPU_DUMMY(OpName, OpType)         \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,         \
-      GPUDummy, DummyBase<GPUBackend>)
+      GPUDummy, DummyBase<GPUBackend>, "GPU")
 
 
 // Register the classes

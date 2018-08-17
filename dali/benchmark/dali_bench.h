@@ -33,14 +33,10 @@ class DALIBenchmark : public benchmark::Fixture {
  public:
   DALIBenchmark() {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_, &jpeg_sizes_);
+    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
   }
 
-  virtual ~DALIBenchmark() {
-    for (auto &ptr : jpegs_) {
-      delete[] ptr;
-    }
-  }
+  virtual ~DALIBenchmark() = default;
 
   int RandInt(int a, int b) {
     return std::uniform_int_distribution<>(a, b)(rand_gen_);
@@ -52,10 +48,11 @@ class DALIBenchmark : public benchmark::Fixture {
   }
 
   inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
-    DALI_ENFORCE(jpegs_.size() > 0, "jpegs must be loaded to create batches");
+    const auto nImgs = jpegs_.nImages();
+    DALI_ENFORCE(nImgs > 0, "jpegs must be loaded to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {jpeg_sizes_[i % jpegs_.size()]};
+      shape[i] = {jpegs_.sizes_[i % nImgs]};
     }
 
     tl->template mutable_data<uint8>();
@@ -63,16 +60,14 @@ class DALIBenchmark : public benchmark::Fixture {
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-          jpegs_[i % jpegs_.size()],
-          jpeg_sizes_[i % jpegs_.size()]);
+          jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
     }
   }
 
  protected:
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;
-  vector<uint8*> jpegs_;
-  vector<int> jpeg_sizes_;
+  ImgSetDescr jpegs_;
 };
 
 }  // namespace dali
