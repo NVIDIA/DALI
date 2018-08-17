@@ -25,7 +25,9 @@ void Tensor<Backend>::acquire_buffer() {
     DALI_ENFORCE(buffer_.get() != nullptr);
   }
 
-  buffer_->Resize(buffer_size);
+  if (buffer_.get() != nullptr) {
+    buffer_->Resize(buffer_size);
+  }
 }
 
 template <typename Backend>

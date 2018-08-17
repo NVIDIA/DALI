@@ -29,11 +29,13 @@ void TensorList<Backend>::acquire_buffer() {
     DALI_ENFORCE(buffer_.get() != nullptr);
   }
 
-  bool changed = buffer_->Resize(buffer_size);
+  if (buffer_.get() != nullptr) {
+    bool changed = buffer_->Resize(buffer_size);
 
-  // Tensor view of this TensorList is no longer valid
-  if (tensor_view_ && changed) {
-    tensor_view_->ShareData(this);
+    // Tensor view of this TensorList is no longer valid
+    if (tensor_view_ && changed) {
+      tensor_view_->ShareData(this);
+    }
   }
 }
 
