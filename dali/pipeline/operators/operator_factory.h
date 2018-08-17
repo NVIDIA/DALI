@@ -37,11 +37,11 @@ class OperatorRegistry {
 
   OperatorRegistry() {}
 
-  void Register(const std::string &name, Creator creator, const char *devName = NULL) {
-    std::lock_guard<std::mutex> lock(mutex_);
+  void Register(const std::string &name, Creator creator, const std::string &devName = "") {
+      std::lock_guard<std::mutex> lock(mutex_);
     DALI_ENFORCE(registry_.count(name) == 0,
         "Operator \"" + name + "\" already registered" +
-        (devName? (" for " + string(devName)) : "") + ".");
+        (devName != ""? (" for " + devName) : "") + ".");
     registry_[name] = creator;
   }
 
@@ -72,7 +72,7 @@ class Registerer {
  public:
   Registerer(const std::string &name,
       OperatorRegistry<OpType> *registry,
-      typename OperatorRegistry<OpType>::Creator creator, const char *devName = NULL) {
+      typename OperatorRegistry<OpType>::Creator creator, const std::string &devName = "") {
     registry->Register(name, creator, devName);
   }
 

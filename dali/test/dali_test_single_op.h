@@ -365,7 +365,7 @@ class DALISingleOpTest : public DALITest {
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
 
-  void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = NULL) {
+  void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = nullptr) {
     AddSingleOp(spec);
 
     DeviceWorkspace ws;
