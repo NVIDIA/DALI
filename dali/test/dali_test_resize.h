@@ -16,39 +16,12 @@ typedef enum {
 } t_resizeOptions;
 
 template <typename ImgType>
-class GenericResizeTest : public DALISingleOpTest {
+class GenericResizeTest : public DALISingleOpTest<ImgType> {
  public:
-  USING_DALI_SINGLE_OP_TEST();
-
-  void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
-    OpSpec operation = DefaultSchema(pName, pDevice);
-    TstBody(GetOperationSpec(operation), eps);
-  }
-
-  void TstBody(const OpSpec &operation, double eps = 2e-1) {
-#ifdef PIXEL_STAT_FILE
-    FILE *file = fopen(PIXEL_STAT_FILE".txt", "a");
-    fprintf(file, "Eps = %6.4f\n", eps);
-    fprintf(file, " Color#:       mean:        std:          eq.         pos.         neg.\n");
-    fclose(file);
-#endif
-    TensorList<CPUBackend> data;
-    this->DecodedData(&data, this->batch_size_, this->img_type_);
-    this->SetExternalInputs({std::make_pair("input", &data)});
-
-    this->AddSingleOp(operation);
-
-    DeviceWorkspace ws;
-    this->RunOperator(&ws);
-
-    this->SetEps(eps);
-    this->CheckAnswers(&ws, {0});
-  }
-
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
-    c_ = (IsColor(img_type_) ? 3 : 1);
-    auto cv_type = (c_ == 3) ? CV_8UC3 : CV_8UC1;
+    const int c = this->GetNumColorComp();
+    auto cv_type = (c == 3) ? CV_8UC3 : CV_8UC1;
 
     // single input - encoded images
     // single output - decoded images
@@ -59,25 +32,25 @@ class GenericResizeTest : public DALISingleOpTest {
 
     int resize_a = 0, resize_b = 0;
     bool warp_resize = true;
-
+    const OpSpec &spec = this->GetOperationSpec();
     const bool useExternSizes = (resizeOptions & t_externSizes) &&
-                                spec_.GetArgument<bool>("save_attrs");
+                                spec.GetArgument<bool>("save_attrs");
     if (!useExternSizes) {
       if (resizeOptions & t_externSizes)
         assert(false);  // Can't handle these right now
 
-      resize_a = spec_.GetArgument<float>("resize_x");
+      resize_a = spec.GetArgument<float>("resize_x");
       warp_resize = resize_a != 0;
       if (warp_resize)
-        resize_b = spec_.GetArgument<float>("resize_y");
+        resize_b = spec.GetArgument<float>("resize_y");
       else
-        resize_a = spec_.GetArgument<float>("resize_shorter");
+        resize_a = spec.GetArgument<float>("resize_shorter");
     }
 
     int crop_h = 0, crop_w = 0;
     if (resizeOptions & t_cropping) {
       // Perform a crop
-      const vector<int> crop = spec_.GetRepeatedArgument<int>("crop");
+      const vector<int> crop = spec.GetRepeatedArgument<int>("crop");
       crop_h = crop.at(0), crop_w = crop.at(1);
     }
 
@@ -122,11 +95,11 @@ class GenericResizeTest : public DALISingleOpTest {
         const int crop_x = (rsz_w - crop_w) / 2;
 
         crop_img.create(crop_h, crop_w, cv_type);
-        const int crop_offset = (crop_y * rsz_w + crop_x) * c_;
+        const int crop_offset = (crop_y * rsz_w + crop_x) * c;
         uint8 *crop_ptr = rsz_img.ptr() + crop_offset;
 
-        CUDA_CALL(cudaMemcpy2D(crop_img.ptr(), crop_w * c_,
-                               crop_ptr, rsz_w * c_, crop_w * c_, crop_h,
+        CUDA_CALL(cudaMemcpy2D(crop_img.ptr(), crop_w * c,
+                               crop_ptr, rsz_w * c, crop_w * c, crop_h,
                                cudaMemcpyHostToHost));
       }
 
@@ -137,10 +110,10 @@ class GenericResizeTest : public DALISingleOpTest {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c_});
+      out[i].Resize({finalImg->rows, finalImg->cols, c});
       auto *out_data = out[i].mutable_data<unsigned char>();
 
-      std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c_);
+      std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
     }
 
     vector<TensorList<CPUBackend>*> outputs(1);
@@ -151,17 +124,6 @@ class GenericResizeTest : public DALISingleOpTest {
 
  protected:
   virtual uint32_t getResizeOptions() const         { return t_cropping /*+ t_mirroring*/; }
-  virtual OpSpec DefaultSchema(const string &pName, const string &pDevice = "gpu") const {
-    return OpSpec(pName)
-      .AddArg("device", pDevice)
-      .AddArg("output_type", this->img_type_)
-      .AddInput("input", pDevice)
-      .AddOutput("output", pDevice);
-  }
-
-  virtual const OpSpec &GetOperationSpec(const OpSpec &op) const { return op; }
-
-  const DALIImageType img_type_ = ImgType::type;
 };
 
 }  // namespace dali

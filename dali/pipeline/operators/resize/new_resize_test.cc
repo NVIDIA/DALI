@@ -13,14 +13,14 @@ TYPED_TEST_CASE(NewResizeTest, Types);
 TYPED_TEST(NewResizeTest, TestFixedResizeAndCrop) {
   this->TstBody(this->DefaultSchema("ResizeCropMirror")
                   .AddArg("resize_shorter", 480.f)
-                  .AddArg("crop", vector<int>{224, 224}), 0.85);
+                  .AddArg("crop", vector<int>{224, 224}), 0.33);
 }
 
 TYPED_TEST(NewResizeTest, TestFixedResizeAndCropWarp) {
   this->TstBody(this->DefaultSchema("ResizeCropMirror")
                   .AddArg("resize_x", 480.f)
                   .AddArg("resize_y", 480.f)
-                  .AddArg("crop", vector<int>{224, 224}), 0.85);
+                  .AddArg("crop", vector<int>{224, 224}), 0.33);
 }
 
 }  // namespace dali

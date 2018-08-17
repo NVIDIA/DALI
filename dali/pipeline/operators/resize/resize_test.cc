@@ -27,24 +27,24 @@ TYPED_TEST_CASE(ResizeTest, Types);
 
 TYPED_TEST(ResizeTest, TestResizeShorter) {
   this->TstBody(this->DefaultSchema("Resize")
-                      .AddArg("resize_shorter", 480.f), 14.0);
+                      .AddArg("resize_shorter", 480.f), 5.5);
 }
 
 TYPED_TEST(ResizeTest, TestResizeShorter_A) {
   this->TstBody(this->DefaultSchema("Resize")
-                      .AddArg("resize_shorter", 224.f), 14.0);
+                      .AddArg("resize_shorter", 224.f), 5.5);
 }
 
 TYPED_TEST(ResizeTest, TestResizeXY) {
   this->TstBody(this->DefaultSchema("Resize")
                       .AddArg("resize_x", 224.f)
-                      .AddArg("resize_y", 224.f), 14.0);
+                      .AddArg("resize_y", 224.f), 5.5);
 }
 
 TYPED_TEST(ResizeTest, TestResizeXY_A) {
   this->TstBody(this->DefaultSchema("Resize")
                       .AddArg("resize_x", 240.f)
-                      .AddArg("resize_y", 480.f), 14.0);
+                      .AddArg("resize_y", 480.f), 5.5);
 }
 
 }  // namespace dali
