@@ -41,6 +41,10 @@ if not git_sha:
     except:
         git_sha = u'0000000'
 
+
+
+git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
+
 # The short X.Y version
 version = str(version_short + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
@@ -59,6 +63,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
+    'sphinx.ext.ifconfig',
+    'sphinx.ext.extlinks',
     'nbsphinx'
 ]
 
@@ -183,3 +189,6 @@ texinfo_documents = [
 
 
 # -- Extension configuration -------------------------------------------------
+extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
+                      'issue '),
+            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
