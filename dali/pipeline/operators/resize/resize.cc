@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/resize/resize.h"
+#include <opencv2/opencv.hpp>
+#include "dali/util/ocv.h"
 
 namespace dali {
 
@@ -66,14 +68,51 @@ void ResizeAttr::DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int id
   out_size->width  = crop_[1];
 }
 
-template <>
-void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *) {
-  DALI_FAIL("Not implemented");
+template<>
+Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), ResizeAttr(spec) {
+  per_sample_meta_.resize(num_threads_);
+
+// Checking the value of interp_type_
+  int ocv_interp_type;
+  DALI_ENFORCE(OCVInterpForDALIInterp(interp_type_, &ocv_interp_type) == DALISuccess,
+               "Unknown interpolation type");
 }
 
 template <>
-void Resize<CPUBackend>::RunImpl(SampleWorkspace *, const int) {
-  DALI_FAIL("Not implemented");
+void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+  per_sample_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
 }
+
+template <>
+void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  const auto &input = ws->Input<CPUBackend>(idx);
+  auto output = ws->Output<CPUBackend>(idx);
+  const auto &input_shape = input.shape();
+
+  CheckParam(input, "Resize<CPUBackend>");
+
+  const TransformMeta &meta = per_sample_meta_[ws->thread_idx()];
+
+  // Resize the output & run
+  output->Resize({meta.rsz_h, meta.rsz_w, meta.C});
+
+  auto pImgInp = input.template data<uint8>();
+  auto pImgOut = output->template mutable_data<uint8>();
+
+  const auto H = input_shape[0];
+  const auto W = input_shape[1];
+  const auto C = input_shape[2];
+
+  const auto cvImgType = C == 3? CV_8UC3 : CV_8UC1;
+  cv::Mat inputMat(H, W, cvImgType, const_cast<unsigned char*>(pImgInp));
+
+  // perform the resize
+  cv::Mat rsz_img(meta.rsz_h, meta.rsz_w, cvImgType, const_cast<unsigned char*>(pImgOut));
+  int ocv_interp_type;
+  OCVInterpForDALIInterp(interp_type_, &ocv_interp_type);
+  cv::resize(inputMat, rsz_img, cv::Size(meta.rsz_w, meta.rsz_h), 0, 0, ocv_interp_type);
+}
+
+DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
 
 }  // namespace dali

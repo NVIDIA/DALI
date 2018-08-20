@@ -47,7 +47,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     return this->CopyToHost(*ws->Output<GPUBackend>(1));
   }
 
-  uint8 GetTestCheckType() const  override {
+  uint32_t GetTestCheckType() const  override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
@@ -59,13 +59,13 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     RunTest(aaa);
   }
 
-  void RunTest(const char *opName, const OpArg params[] = NULL,
+  void RunTest(const char *opName, const OpArg params[] = nullptr,
                 int nParam = 0, double eps = 0.001) {
     if (params && nParam > 0) {
       vector<OpArg> args(params, params + nParam);
       RunTest(opDescr(opName, eps, &args));
     } else {
-      RunTest(opDescr(opName, eps, NULL));
+      RunTest(opDescr(opName, eps, nullptr));
     }
   }
 };

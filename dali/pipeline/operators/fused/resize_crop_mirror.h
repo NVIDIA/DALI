@@ -63,6 +63,7 @@ class ResizeCropMirrorAttr {
     int mirror;
   };
 
+ protected:
   inline const TransformMeta GetTransformMeta(const OpSpec &spec, const vector<Index> &input_shape,
                         const ArgumentWorkspace *ws, const Index index, const uint flag = 0) {
     TransformMeta meta;
@@ -104,8 +105,8 @@ class ResizeCropMirrorAttr {
 
     if (flag & t_crop) {
       // Crop
-      float crop_x_image_coord = spec.GetArgument<float>("crop_pos_x", ws, index);
-      float crop_y_image_coord = spec.GetArgument<float>("crop_pos_y", ws, index);
+      auto crop_x_image_coord = spec.GetArgument<float>("crop_pos_x", ws, index);
+      auto crop_y_image_coord = spec.GetArgument<float>("crop_pos_y", ws, index);
 
       DALI_ENFORCE(crop_x_image_coord >= 0.f && crop_x_image_coord <= 1.f,
                    "Crop coordinates need to be in range [0.0, 1.0]");
@@ -132,21 +133,27 @@ class ResizeCropMirrorAttr {
       DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
     }
 
-    return GetTransformMeta(spec, input.shape(), ws, ws->data_idx(), t_crop + t_mirrorHor);
+    return GetTransformMeta(spec, input.shape(), ws, ws->data_idx(), ResizeInfoNeeded());
   }
 
- protected:
+  DALIInterpType getInterpType() const        { return interp_type_; }
+  virtual uint ResizeInfoNeeded() const       { return t_crop + t_mirrorHor; }
+
   DALIImageType image_type_;
   // Interpolation type
   DALIInterpType interp_type_;
   // Crop meta-data
-  array<int, 2>crop_;
+  array<int, 2>crop_ = {{0}};
 
  private:
   // Resize meta-data
   bool resize_shorter_, resize_x_, resize_y_;
 };
 
+typedef DALIError_t (*resizeCropMirroHost)(const uint8 *img, int H, int W, int C,
+                                 int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
+                                 int crop_w, int mirror, uint8 *out_img, DALIInterpType type,
+                                 uint8 *workspace);
 /**
  * @brief Performs fused resize+crop+mirror
  */
@@ -162,7 +169,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     per_thread_meta_.resize(num_threads_);
   }
 
-  virtual inline ~ResizeCropMirror() = default;
+  ~ResizeCropMirror() override = default;
 
  protected:
   inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
@@ -170,6 +177,10 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   }
 
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
+    RunResizeImpl(ws, idx, ResizeCropMirrorHost);
+  }
+
+  inline void RunResizeImpl(SampleWorkspace *ws, const int idx, resizeCropMirroHost func) {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
     CheckParam(input, "ResizeCropMirror");
@@ -180,7 +191,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     output->Resize({crop_[0], crop_[1], meta.C});
 
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
-    DALI_CALL(ResizeCropMirrorHost(
+    DALI_CALL((*func)(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
         meta.rsz_h, meta.rsz_w,
@@ -206,35 +217,12 @@ class FastResizeCropMirror : public ResizeCropMirror<CPUBackend> {
   explicit inline FastResizeCropMirror(const OpSpec &spec) :
     ResizeCropMirror<CPUBackend>(spec) {}
 
-  virtual inline ~FastResizeCropMirror() = default;
+  inline ~FastResizeCropMirror() override = default;
 
  protected:
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
-    CheckParam(input, "FastResizeCropMirror");
-
-    const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
-
-    // Resize the output & run
-    output->Resize({crop_[0], crop_[1], meta.C});
-    tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
-    DALI_CALL(FastResizeCropMirrorHost(
-        input.template data<uint8>(),
-        meta.H, meta.W, meta.C,
-        meta.rsz_h, meta.rsz_w,
-        meta.crop_y, meta.crop_x,
-        crop_[0], crop_[1],
-        meta.mirror,
-        output->template mutable_data<uint8>(),
-        interp_type_,
-        tl_workspace_[ws->thread_idx()].data()));
+    RunResizeImpl(ws, idx, FastResizeCropMirrorHost);
   }
-
-  using ResizeCropMirror<Backend>::tl_workspace_;
-  using ResizeCropMirror<Backend>::per_thread_meta_;
-  using ResizeCropMirror<Backend>::crop_;
-  using ResizeCropMirror<Backend>::interp_type_;
 };
 
 }  // namespace dali
