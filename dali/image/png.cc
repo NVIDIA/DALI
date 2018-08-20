@@ -19,9 +19,10 @@
 namespace dali {
 
 bool CheckIsPNG(const uint8_t *png, int size) {
+  DALI_ASSERT(png);
   // first bytes should be: 89 50 4E 47 0D 0A 1A 0A (hex)
   //                        137 80 78 71 13 10 26 10 (decimal)
-  return (png[0] == 137 && png[1] == 80 && png[2] == 78 && png[3] == 71 &&
+  return (size >= 8 && png[0] == 137 && png[1] == 80 && png[2] == 78 && png[3] == 71 &&
           png[4] == 13 && png[5] == 10 && png[6] == 26 && png[7] == 10);
 }
 
@@ -32,25 +33,38 @@ int ReadIntFromPNG(const uint8 *chunk) {
 }
 
 DALIError_t GetPNGImageDims(const uint8 *png, int size, int *h, int *w) {
+  DALIError_t ret = DALIError;
   DALI_ASSERT(png);
 
-  // IHDR needs to be the first chunk
-  const uint8 *IHDR = png + 8;
+  *w = 0;
+  *h = 0;
+  if (size >= 16) {
+    // IHDR needs to be the first chunk
+    const uint8 *IHDR = png + 8;
+    const uint8 *png_dimens = IHDR;
+    if (IHDR[4] != 'I' || IHDR[5] != 'H' || IHDR[6] != 'D' || IHDR[7] != 'R') {
+        // no IHDR, older PNGs format
+        png_dimens = png;
+    }
 
-  // Layout:
-  // 4 bytes: chunk size (should be 13 bytes for IHDR)
-  // 4 bytes: Chunk Identifier (should be "IHDR")
-  // 4 bytes: Width
-  // 4 bytes: Height
-  // 1 byte : Bit Depth
-  // 1 byte : Color Type
-  // 1 byte : Compression method
-  // 1 byte : Filter method
-  // 1 byte : Interlace method
-  *w = ReadIntFromPNG(IHDR + 8);
-  *h = ReadIntFromPNG(IHDR + 12);
+    if (size >= png_dimens - png + 16) {
+        // Layout:
+        // 4 bytes: chunk size (should be 13 bytes for IHDR)
+        // 4 bytes: Chunk Identifier (should be "IHDR")
+        // 4 bytes: Width
+        // 4 bytes: Height
+        // 1 byte : Bit Depth
+        // 1 byte : Color Type
+        // 1 byte : Compression method
+        // 1 byte : Filter method
+        // 1 byte : Interlace method
+        *w = ReadIntFromPNG(png_dimens + 8);
+        *h = ReadIntFromPNG(png_dimens + 12);
+        ret = DALISuccess;
+    }
+  }
 
-  return DALISuccess;
+  return ret;
 }
 
 DALIError_t DecodePNGHost(const uint8_t *png, int size, DALIImageType image_type,
