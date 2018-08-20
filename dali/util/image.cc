@@ -16,8 +16,8 @@
 
 namespace dali {
 
-void LoadImages(const string image_folder, vector<string> *image_names,
-    vector<uint8*> *images, vector<int> *image_sizes) {
+void LoadImages(const string &image_folder, vector<string> *image_names,
+                ImgSetDescr *imgs) {
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
   DALI_ENFORCE(file.is_open());
@@ -28,22 +28,10 @@ void LoadImages(const string image_folder, vector<string> *image_names,
     image_names->push_back(image_folder + "/" + img);
   }
 
-  for (auto img_name : *image_names) {
-    std::ifstream img_file(img_name);
-    DALI_ENFORCE(img_file.is_open());
-
-    img_file.seekg(0, std::ios::end);
-    int img_size = static_cast<int>(img_file.tellg());
-    img_file.seekg(0, std::ios::beg);
-
-    images->push_back(new uint8[img_size]);
-    image_sizes->push_back(img_size);
-    img_file.read(reinterpret_cast<char*>((*images)[images->size()-1]), img_size);
-  }
+  LoadImages(*image_names, imgs);
 }
 
-void LoadImages(const vector<string> &image_names,
-    vector<uint8*> *images, vector<int> *image_sizes) {
+void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
   for (auto img_name : image_names) {
     std::ifstream img_file(img_name);
     DALI_ENFORCE(img_file.is_open());
@@ -52,23 +40,22 @@ void LoadImages(const vector<string> &image_names,
     int img_size = static_cast<int>(img_file.tellg());
     img_file.seekg(0, std::ios::beg);
 
-    images->push_back(new uint8[img_size]);
-    image_sizes->push_back(img_size);
-    img_file.read(reinterpret_cast<char*>((*images)[images->size()-1]), img_size);
+    auto data = new uint8[img_size];
+    imgs->data_.push_back(data);
+    imgs->sizes_.push_back(img_size);
+    img_file.read(reinterpret_cast<char*>(data), img_size);
   }
 }
 
-void LoadJPEGS(const string image_folder, vector<string> *jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes) {
-  LoadImages(image_folder, jpeg_names, jpegs, jpeg_sizes);
+void LoadJPEGS(const string &image_folder, vector<string> *jpeg_names, ImgSetDescr *jpegs) {
+  LoadImages(image_folder, jpeg_names, jpegs);
 }
 
-void LoadJPEGS(const vector<string> &jpeg_names,
-    vector<uint8*> *jpegs, vector<int> *jpeg_sizes) {
-  LoadImages(jpeg_names, jpegs, jpeg_sizes);
+void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *jpegs) {
+  LoadImages(jpeg_names, jpegs);
 }
 
-void LoadFromFile(string file_name, uint8 **image, int *h, int *w, int *c) {
+void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c) {
   std::ifstream file(file_name + ".txt");
   DALI_ENFORCE(file.is_open());
 
@@ -86,30 +73,8 @@ void LoadFromFile(string file_name, uint8 **image, int *h, int *w, int *c) {
   }
 }
 
-void WriteHWCImage(const uint8 *img, int h, int w, int c, string file_name) {
-  DALI_ENFORCE(img != nullptr);
-  DALI_ENFORCE(h >= 0);
-  DALI_ENFORCE(w >= 0);
-  DALI_ENFORCE(c >= 0);
-  CUDA_CALL(cudaDeviceSynchronize());
-  vector<uint8> tmp(h*w*c, 0);
-  MemCopy(tmp.data(), img, h*w*c);
-  std::ofstream file(file_name + ".ppm");
-  DALI_ENFORCE(file.is_open());
-
-  file << "P3" << endl;
-  file << w << " " << h << endl;
-  file << "255" << endl;
-
-  for (int i = 0; i < h; ++i) {
-    for (int j = 0; j < w; ++j) {
-      for (int k = 0; k < 3; ++k) {
-        int c_id = k % c;
-        file << int(tmp[i*w*c + j*c + c_id]) << " ";
-      }
-    }
-    file << endl;
-  }
+void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name) {
+  WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
 }
 
 }  // namespace dali

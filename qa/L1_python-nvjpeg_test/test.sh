@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose opencv-python numpy"
+pip_packages=""
 
 pushd ../..
 topdir=$(pwd)
@@ -24,7 +24,7 @@ do
       pip install $inst
     fi
     # test code
-    nosetests --verbose test_pipeline.py
+    python test_data_containers.py
     # remove pacakges
     remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages)
     if [ -n "$remove" ]
