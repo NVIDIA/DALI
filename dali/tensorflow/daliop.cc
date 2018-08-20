@@ -64,8 +64,8 @@ REGISTER_OP("Dali")
   .Attr("shape: shape")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  .Attr("image_type: {float, int32, half} = DT_FLOAT")
-  .Attr("label_type: {float, int32, half} = DT_INT32")
+  .Attr("image_type: {float, int32, int64, half} = DT_FLOAT")
+  .Attr("label_type: {float, int32, int64} = DT_INT64")
   .Output("batch: image_type")
   .Output("label: label_type")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
@@ -196,6 +196,8 @@ class DaliOp : public tf::OpKernel {
   int device_id_;
 };
 
+using tf::int64;
+
 #define REGISTER_KERNEL(type_b, type_l) \
   REGISTER_KERNEL_BUILDER(              \
       Name("Dali")                      \
@@ -216,8 +218,14 @@ REGISTER_KERNEL(float, float);
 REGISTER_KERNEL(int, int);
 REGISTER_KERNEL(float, int);
 REGISTER_KERNEL(int, float);
+REGISTER_KERNEL(int64, float);
+REGISTER_KERNEL(int64, int);
+REGISTER_KERNEL(float, int64);
+REGISTER_KERNEL(int, int64);
+REGISTER_KERNEL(int64, int64);
 REGISTER_KERNEL_FP16(float);
 REGISTER_KERNEL_FP16(int);
+REGISTER_KERNEL_FP16(int64);
 
 #undef REGISTER_KERNEL
 #undef REGISTER_KERNEL_FP16
