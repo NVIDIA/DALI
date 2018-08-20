@@ -16,6 +16,11 @@ NVIDIA DALI documentation
       You are currently viewing unstable developer preview of the documentation. To see the documentation for the latest stable release click `here <https://docs.nvidia.com/deeplearning/sdk/index.html#data-loading>`_
 
 .. toctree::
+   :hidden:
+
+   Documentation home <self>
+
+.. toctree::
    :maxdepth: 2
    :caption: User Guide
 

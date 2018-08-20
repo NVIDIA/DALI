@@ -30,7 +30,7 @@ Requirements
 Training
 --------
 
-To train a model, run :fileref:`docs/examples/pytorch/main.py` :issue:`100` with the desired model architecture and the path to the ImageNet dataset:
+To train a model, run :fileref:`docs/examples/pytorch/main.py` with the desired model architecture and the path to the ImageNet dataset:
 
 .. code-block:: bash
 
