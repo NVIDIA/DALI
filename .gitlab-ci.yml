@@ -453,3 +453,7 @@ L0_jupyter--py27--V100_R384_1GPU:
 L1_jupyter_plugins--py27--V100_R384_8GPU:
   <<: *L1_TEST
   <<: *V100_R384_8GPU
+
+L1_python-nvjpeg_test--py27--V100_R384_1GPU:
+  <<: *L1_TEST
+  <<: *P100_R384_4GPU
