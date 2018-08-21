@@ -16,33 +16,39 @@
 
 namespace dali {
 
-// Values of eps for different tests
-//      first column:   average deviation is calculated combined for all images
-//      second column:  average deviation is calculated separately for each image
-static double testEps[] = {
-                    0.7, 1.8,
-                    2.1, 4.2,
-                    2.8, 5.6,
-                    1.8, 3.4,
-                    1.5, 2.9,
-                    3.4, 5.3,
-                    3.4, 5.3,
-                    2.4, 4.1,
-                    0.8, 2.1,
-                    2.4, 4.9,
-                    3.2, 6.4,
-                    2.0, 4.0,
+// Values of eps for different tests and different methods for calculation of average deviation
+// When flag t_checkElements is NOT set, the average deviation is calculated COMBINED for ALL
+//      images of the batch - the eps from first column will be used.
+// When flag t_checkElements is set, the average deviation is calculated SEPARATELY for EACH image
+//      of the batch - the eps from second column will be used.
+
+static double testEps[] = {     //     TEST:
+                    0.7, 1.8,   // ResizeShorter_LINEAR
+                    2.1, 4.2,   // ResizeShorter_A_LINEAR
+                    2.8, 5.6,   // ResizeXY_LINEAR
+                    1.8, 3.4,   // ResizeXY_A_LINEAR
+                    1.5, 2.9,   // ResizeShorter_NN
+                    3.4, 5.3,   // ResizeShorter_A_NN
+                    3.4, 5.3,   // ResizeXY_NN
+                    2.4, 4.1,   // ResizeXY_A_NN
+                    0.8, 2.1,   // ResizeShorter_CUBIC
+                    2.4, 4.9,   // ResizeShorter_A_CUBIC
+                    3.2, 6.4,   // ResizeXY_CUBIC
+                    2.0, 4.0,   // ResizeXY_A_CUBIC
 };
 
 template <typename ImgType>
 class ResizeTest : public GenericResizeTest<ImgType>  {
  protected:
-  uint32_t getResizeOptions() const override          { return 0/*t_externSizes*/; }
-  int getInterpType() const  override                 { return m_interpType; }
+  inline uint32_t getResizeOptions() const override   { return 0/*t_externSizes*/; }
+  inline int getInterpType() const  override          { return m_interpType; }
   inline void setInterpType(int interpType)           { m_interpType = interpType; }
   double *testEpsValues() const override              { return testEps; }
+  inline void SetTestCheckType(uint32_t checkType)    { m_testCheckType = checkType; }
+  uint32_t GetTestCheckType() const  override         { return m_testCheckType; }
  private:
   int m_interpType = cv::INTER_LINEAR;
+  int m_testCheckType = t_checkDefault;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -81,37 +87,40 @@ enum {
 };
 
 // Macro which allows to create pair of identical CPU/GPU tests
-#define TYPED_TESTS(testName, idx, testArgs)                                  \
-        TYPED_TEST(ResizeTest, testName##_##idx##_GPU) {                      \
-          this->setInterpType(interpType[idx].cvInterp);                      \
-          this->TstBody(this->DefaultSchema("Resize", "gpu")                  \
-                          .AddArg("interp_type", interpType[idx].daliInterp)  \
-                          testArgs, this->getEps(t_##testName##_##idx)); }  \
-        TYPED_TEST(ResizeTest, testName##_##idx##_CPU) {                      \
-          this->setInterpType(interpType[idx].cvInterp);                      \
-          this->TstBody(this->DefaultSchema("Resize", "cpu")                  \
-                          .AddArg("interp_type", interpType[idx].daliInterp)  \
+#define TESTS_WITH_CHECK(testName, interp, testArgs, checkType)                 \
+        TYPED_TEST(ResizeTest, testName##_##checkType##_##interp##_GPU) {       \
+          this->setInterpType(interpType[interp].cvInterp);                     \
+          this->SetTestCheckType(t_check##checkType);                           \
+          this->TstBody(this->DefaultSchema("Resize", "gpu")                    \
+                          .AddArg("interp_type", interpType[interp].daliInterp) \
+                          testArgs, this->getEps(t_##testName##_##interp)); }   \
+        TYPED_TEST(ResizeTest, testName##_##checkType##_##interp##_CPU) {       \
+          this->setInterpType(interpType[interp].cvInterp);                     \
+          this->SetTestCheckType(t_check##checkType);                           \
+          this->TstBody(this->DefaultSchema("Resize", "cpu")                    \
+                          .AddArg("interp_type", interpType[interp].daliInterp) \
                           testArgs, 1e-5); }
 
+// Macro which allows to create pair of identical tests for t_checkDefault/t_checkElements types
+// of checking of average deviation of color values
+#define TYPED_TESTS(testName, interp, testArgs)                         \
+            TESTS_WITH_CHECK(testName, interp, testArgs, Default)       \
+            TESTS_WITH_CHECK(testName, interp, testArgs, Elements)
+
 TYPED_TESTS(ResizeShorter,   LINEAR, .AddArg("resize_shorter", 480.f))
-
 TYPED_TESTS(ResizeShorter_A, LINEAR, .AddArg("resize_shorter", 224.f))
-
 TYPED_TESTS(ResizeXY,        LINEAR, .AddArg("resize_x", 224.f)         \
                                      .AddArg("resize_y", 224.f))
 TYPED_TESTS(ResizeXY_A,      LINEAR, .AddArg("resize_x", 240.f)         \
                                      .AddArg("resize_y", 480.f))
 TYPED_TESTS(ResizeShorter,       NN, .AddArg("resize_shorter", 480.f))
-
 TYPED_TESTS(ResizeShorter_A,     NN, .AddArg("resize_shorter", 224.f))
 TYPED_TESTS(ResizeXY,            NN, .AddArg("resize_x", 224.f)         \
                                      .AddArg("resize_y", 224.f))
 TYPED_TESTS(ResizeXY_A,          NN, .AddArg("resize_x", 240.f)         \
                                      .AddArg("resize_y", 480.f))
 TYPED_TESTS(ResizeShorter,    CUBIC, .AddArg("resize_shorter", 480.f))
-
 TYPED_TESTS(ResizeShorter_A,  CUBIC, .AddArg("resize_shorter", 224.f))
-
 TYPED_TESTS(ResizeXY,         CUBIC, .AddArg("resize_x", 224.f)         \
                                      .AddArg("resize_y", 224.f))
 TYPED_TESTS(ResizeXY_A,       CUBIC, .AddArg("resize_x", 240.f)         \
