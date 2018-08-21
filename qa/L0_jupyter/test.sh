@@ -28,7 +28,7 @@ do
     # test code
     ls *.ipynb | xargs -i jupyter nbconvert \
                    --to notebook --execute \
-                   --ExecutePreprocessor.kernel_name=python2 \
+                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                    --ExecutePreprocessor.timeout=300 \
                    --output output.ipynb {}
     # remove pacakges
