@@ -84,7 +84,7 @@ cudnn.benchmark = True
 class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
-        self.input = ops.CaffeReader(path = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = True)
+        self.input = ops.FileReader(file_root = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = True)
         self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.rrc = ops.RandomResizedCrop(device = "gpu", size = (crop, crop))
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -107,8 +107,9 @@ class HybridTrainPipe(Pipeline):
 class HybridValPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
         super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
-        self.input = ops.CaffeReader(path = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = False)
+        self.input = ops.FileReader(file_root = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = False)
         self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.res = ops.Resize(device = "gpu", resize_shorter = crop + 1)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                             output_dtype = types.FLOAT,
                                             output_layout = types.NCHW,
@@ -120,6 +121,7 @@ class HybridValPipe(Pipeline):
     def define_graph(self):
         self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
+        images = self.res(images)
         output = self.cmnp(images)
         return [output, self.labels]
 
