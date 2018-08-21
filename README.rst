@@ -30,8 +30,8 @@ DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorF
 Installing prebuilt DALI packages
 ---------------------------------
 
-Prerequisities
-^^^^^^^^^^^^^^
+Prerequisites
+^^^^^^^^^^^^^
 
 .. |driver link| replace:: **NVIDIA Driver**
 .. _driver link: https://www.nvidia.com/drivers
@@ -62,8 +62,8 @@ Installation
 Compiling DALI from source
 --------------------------
 
-Prerequisities
-^^^^^^^^^^^^^^
+Prerequisites
+^^^^^^^^^^^^^
 
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
