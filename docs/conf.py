@@ -41,10 +41,22 @@ if not git_sha:
     except:
         git_sha = u'0000000'
 
-# The short X.Y version
-version = str(version_short + u"-" + git_sha)
+
+
+git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
+
+version = str(version_long + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
+
+# hack: version is used for html creation, so put the version picker
+# link here as well:
+version = version + """<br/>
+Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = -1">
+    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/">Current release</option>
+    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/">master (unstable)</option>
+    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-archived/index.html">Older releases</option>
+</select>"""
 
 # -- General configuration ---------------------------------------------------
 
@@ -59,6 +71,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
+    'sphinx.ext.ifconfig',
+    'sphinx.ext.extlinks',
     'nbsphinx'
 ]
 
@@ -183,3 +197,6 @@ texinfo_documents = [
 
 
 # -- Extension configuration -------------------------------------------------
+extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
+                      'issue '),
+            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
