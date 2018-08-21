@@ -355,7 +355,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
     .def("at",
         [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
           std::unique_ptr<Tensor<GPUBackend>> ptr(new Tensor<GPUBackend>());
-          ptr->ShareData(this, id);
+          ptr->ShareData(&t, id);
           return ptr;
         },
       R"code(
