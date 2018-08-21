@@ -72,6 +72,7 @@ TYPED_TEST(ParserTest, BasicTest) {
   workspace.GetSample(ws, 0, 0);
 
   shared_ptr<Tensor<CPUBackend>> t(new Tensor<CPUBackend>());
+  t->set_num_consumers(0);
   ws->AddOutput(t);
 
   IntArrayParser<CPUBackend> parser(OpSpec("temp"));

@@ -87,7 +87,8 @@ class DLL_PUBLIC TensorList {
 
     vector<Dims> new_shape(other.size());
     for (size_t i = 0; i < other.size(); ++i) {
-      assert(this->type() == other[i].type());
+      DALI_ENFORCE(type == other[i].type(),
+          "Cannot make a TensorList out of Tensors that do not share the common type.");
       new_shape[i] = other[i].shape();
     }
 
@@ -130,6 +131,7 @@ class DLL_PUBLIC TensorList {
     shape_ = other->shape_;
     offsets_ = other->offsets_;
     type_ = other->type();
+    size_ = other->size();
 
     buffer_->ShareData(other->raw_mutable_tensor(0), other->nbytes(), other->device_id());
 

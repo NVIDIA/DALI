@@ -300,7 +300,9 @@ ConstructResizeTables(size_t nBatchSlice, const ResizeGridParam *resizeParam,
                         blockDim.x, blockDim.y, threadIdx.x, threadIdx.y);
 }
 
-__global__ void BatchedCongenericResizeKernel(
+__global__ void
+__launch_bounds__(1024, 1)
+BatchedCongenericResizeKernel(
         int H0, int W0, const uint8 *img_in, int H, int W, uint8 *img_out, int C,
         const ResizeGridParam *resizeParam, const MirroringInfo *pMirrorInfo,
         MappingInfo *const ppMapping[], const ResizeMapping *pResizeMapping,
@@ -331,7 +333,9 @@ void BatchedCongenericResize(int N, const dim3 &gridDim, cudaStream_t stream, in
   CUDA_CALL(cudaGetLastError());
 }
 
-__global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
+__global__ void
+__launch_bounds__(1024, 1)
+BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
                        MappingInfo *const ppMapping[], const MirroringInfo *pMirrorInfo,
                        const DALISize *in_sizes, const uint8 *const imgs_in[],
                        const DALISize *out_sizes, uint8 *const imgs_out[]) {
