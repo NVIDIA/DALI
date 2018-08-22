@@ -55,8 +55,8 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     OpArg arg = {paramOp.paramName, paramOp.paramVal, t_floatParam};
     vector<OpArg> args;
     args.push_back(arg);
-    opDescr aaa(paramOp.opName, paramOp.epsVal, &args);
-    RunTest(aaa);
+    opDescr finalDesc(paramOp.opName, paramOp.epsVal, &args);
+    RunTest(finalDesc);
   }
 
   void RunTest(const char *opName, const OpArg params[] = NULL,
