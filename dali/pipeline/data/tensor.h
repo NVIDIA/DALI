@@ -230,6 +230,9 @@ class Tensor : public Buffer<Backend> {
    */
   inline void Squeeze() {
     shape_.erase(std::remove(shape_.begin(), shape_.end(), 1), shape_.end());
+    if (shape_.empty()) {
+      shape_.push_back(1);
+    }
   }
 
   /**
