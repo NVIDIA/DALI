@@ -73,40 +73,39 @@ class ResizeCropMirrorAttr {
 
     if (resize_shorter_) {
       // resize_shorter set
-      int shorter_side_size = spec.GetArgument<float>("resize_shorter", ws, index);
+      const int shorter_side_size = spec.GetArgument<float>("resize_shorter", ws, index);
       if (meta.H < meta.W) {
-        float scale = shorter_side_size/static_cast<float>(meta.H);
+        const float scale = shorter_side_size/static_cast<float>(meta.H);
         meta.rsz_h = shorter_side_size;
         meta.rsz_w = scale * meta.W;
       } else {
-        float scale = shorter_side_size/static_cast<float>(meta.W);
+        const float scale = shorter_side_size/static_cast<float>(meta.W);
         meta.rsz_h = scale * meta.H;
         meta.rsz_w = shorter_side_size;
       }
     } else {
       if (resize_x_) {
+        meta.rsz_w = spec.GetArgument<float>("resize_x", ws, index);
         if (resize_y_) {
           // resize_x and resize_y set
           meta.rsz_h = spec.GetArgument<float>("resize_y", ws, index);
-          meta.rsz_w = spec.GetArgument<float>("resize_x", ws, index);
         } else {
           // resize_x set only
-          meta.rsz_w = spec.GetArgument<float>("resize_x", ws, index);
-          float scale = static_cast<float>(meta.rsz_w) / meta.W;
+          const float scale = static_cast<float>(meta.rsz_w) / meta.W;
           meta.rsz_h = scale * meta.H;
         }
       } else {
         // resize_y set only
         meta.rsz_h = spec.GetArgument<float>("resize_y", ws, index);
-        float scale = static_cast<float>(meta.rsz_h) / meta.H;
+        const float scale = static_cast<float>(meta.rsz_h) / meta.H;
         meta.rsz_w = scale * meta.W;
       }
     }
 
     if (flag & t_crop) {
       // Crop
-      auto crop_x_image_coord = spec.GetArgument<float>("crop_pos_x", ws, index);
-      auto crop_y_image_coord = spec.GetArgument<float>("crop_pos_y", ws, index);
+      const auto crop_x_image_coord = spec.GetArgument<float>("crop_pos_x", ws, index);
+      const auto crop_y_image_coord = spec.GetArgument<float>("crop_pos_y", ws, index);
 
       DALI_ENFORCE(crop_x_image_coord >= 0.f && crop_x_image_coord <= 1.f,
                    "Crop coordinates need to be in range [0.0, 1.0]");
