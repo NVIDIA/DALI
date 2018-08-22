@@ -46,6 +46,8 @@ class RecordIOLoader : public IndexedFileLoader {
         "RecordIOReader supports only a single index file");
     const std::string& path = index_uris[0];
     std::ifstream index_file(path);
+    DALI_ENFORCE(index_file.good(),
+        "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
     size_t index, offset;
     while (index_file >> index >> offset) {
