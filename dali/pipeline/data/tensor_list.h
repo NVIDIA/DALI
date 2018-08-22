@@ -404,6 +404,7 @@ class DLL_PUBLIC TensorList {
   inline void SetLayout(DALITensorLayout layout) {
     layout_ = layout;
   }
+
  private:
   /**
    * @brief Acquire buffer from the global workspace.

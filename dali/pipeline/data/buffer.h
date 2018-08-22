@@ -203,6 +203,7 @@ class Buffer {
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
   shared_ptr<void> data_;  // Pointer to underlying storage
+
  protected:
   // Helper to resize the underlying allocation
   inline bool ResizeHelper(Index new_size) {

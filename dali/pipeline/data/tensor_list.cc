@@ -91,7 +91,6 @@ void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
     acquire_buffer();
   }
   std::cout << "Done resizing TL " << this << " to " << size_ << " elements." << std::endl;
-
 }
 
 template <typename Backend>

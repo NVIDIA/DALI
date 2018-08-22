@@ -211,6 +211,7 @@ class Operator<MixedBackend> : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override = 0;
+
  private:
   void ReleaseInputs(MixedWorkspace *ws) {
     for (int i = 0; i < ws->NumInput(); ++i) {
