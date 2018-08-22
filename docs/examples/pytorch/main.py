@@ -234,6 +234,10 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
+        # reset DALI iterators
+        train_loader.reset()
+        val_loader.reset()
+
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
