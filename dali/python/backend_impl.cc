@@ -364,7 +364,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code",
-      py::keep_alive<0,1>())
+      py::keep_alive<0, 1>())
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
