@@ -105,11 +105,11 @@ class HybridTrainPipe(Pipeline):
         return [output, self.labels]
 
 class HybridValPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop, size):
         super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
         self.input = ops.FileReader(file_root = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = False)
         self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.res = ops.Resize(device = "gpu", resize_shorter = crop + 1)
+        self.res = ops.Resize(device = "gpu", resize_shorter = size)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                             output_dtype = types.FLOAT,
                                             output_layout = types.NCHW,
@@ -197,8 +197,10 @@ def main():
 
     if(args.arch == "inception_v3"):
         crop_size = 299
+        val_size = 320 # I chose this value arbitrarily, we can adjust.
     else:
         crop_size = 224
+        val_size = 256
 
     pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = traindir, crop = crop_size)
     pipe.build()
@@ -206,7 +208,7 @@ def main():
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
     train_loader = DALIClassificationIterator(pipe, size = int(1281167 / args.world_size) )
 
-    pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = valdir, crop = crop_size)
+    pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = valdir, crop = crop_size, size = val_size)
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
