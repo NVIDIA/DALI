@@ -18,7 +18,6 @@
 #include <atomic>
 #include <string>
 #include <vector>
-#include <queue>
 #include <condition_variable>
 #include <mutex>
 
