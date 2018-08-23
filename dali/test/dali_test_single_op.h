@@ -357,7 +357,6 @@ class DALISingleOpTest : public DALITest {
         }
         default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
                            "used for \"" + std::string(name) + "\"");
-
       }
     }
 
