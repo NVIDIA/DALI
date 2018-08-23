@@ -50,9 +50,9 @@ endif()
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
 # Define symbol version script for libdali.so
-set(exports_map_path "${PROJECT_BINARY_DIR}")
+set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(dali_lib_exports "lib${dali_lib}.map")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${PROJECT_BINARY_DIR}/${dali_lib_exports}")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
 target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
 add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
 add_dependencies(${dali_lib} ${dali_lib_exports})
@@ -66,11 +66,18 @@ target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
-# libdali installation paths
-install(TARGETS ${dali_lib} DESTINATION lib)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR} DESTINATION
-  include FILES_MATCHING PATTERN "*.h" PATTERN "*_test.h" EXCLUDE)
+# install libdali to build dir
+set_target_properties(${dali_lib} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
 
+# filter all *.h which don't have 'test' in name, create pairs 'src dst' string with sed and call xargs
+# with install command to copy with dest recursive dir creation
+add_custom_command(
+    TARGET ${dali_lib} POST_BUILD
+    COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
+    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${CMAKE_BINARY_DIR}/include/dali\\2,'
+    | xargs -n 2 install -D)
 
 ################################################
 # Build test suite
@@ -151,4 +158,3 @@ if (BUILD_PYTHON)
   # Get all python srcs
   add_subdirectory(python)
 endif()
-
