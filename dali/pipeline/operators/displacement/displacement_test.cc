@@ -28,9 +28,9 @@ TYPED_TEST(DisplacementTest, Sphere) {
 }
 
 TYPED_TEST(DisplacementTest, Water) {
-  const OpArg params[] = {{"ampl_x", "2.", t_floatParam},
-                          {"ampl_y", "3.", t_floatParam},
-                          {"phase_x", "0.2", t_floatParam}};
+  const OpArg params[] = {{"ampl_x", "2.", DALI_FLOAT},
+                          {"ampl_y", "3.", DALI_FLOAT},
+                          {"phase_x", "0.2", DALI_FLOAT}};
   this->RunTest("Water", params, sizeof(params)/sizeof(params[0]));
 }
 
@@ -44,7 +44,7 @@ TYPED_TEST(DisplacementTest, Jitter) {
 
 TYPED_TEST(DisplacementTest, WarpAffine) {
   vector<float> matrix{1.0, 0.8, 0.0, 0.0, 1.2, 0.0};
-  const OpArg params = {"matrix", "1.0, 0.8, 0.0, 0.0, 1.2, 0.0", t_floatVector};
+  const OpArg params = {"matrix", "1.0, 0.8, 0.0, 0.0, 1.2, 0.0", DALI_FLOAT_VEC};
   this->RunTest("WarpAffine", &params, 1);
 }
 

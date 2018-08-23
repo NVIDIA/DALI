@@ -52,7 +52,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
   }
 
   void RunTest(const singleParamOpDescr &paramOp) {
-    OpArg arg = {paramOp.paramName, paramOp.paramVal, t_floatParam};
+    OpArg arg = {paramOp.paramName, paramOp.paramVal, DALI_FLOAT};
     vector<OpArg> args;
     args.push_back(arg);
     opDescr aaa(paramOp.opName, paramOp.epsVal, &args);

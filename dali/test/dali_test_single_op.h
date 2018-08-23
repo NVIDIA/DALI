@@ -41,8 +41,7 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422.jpg",
   image_folder + "/440.jpg",
   image_folder + "/444.jpg",
-//  image_folder + "/gray.jpg",   // Batched decoding has a bug in nvJPEG when both grayscale
-                                //  and color images are decoded in the same batch
+  image_folder + "/gray.jpg",
   image_folder + "/411.jpg",
   image_folder + "/411-non-multiple-4-width.jpg",
   image_folder + "/420-odd-height.jpg",
@@ -89,17 +88,10 @@ typedef enum {
   t_decodePNGs  = 8
 } t_loadingFlags;
 
-typedef enum {
-  t_intParam,
-  t_floatParam,
-  t_stringParam,
-  t_floatVector
-} t_paramType;
-
 typedef struct  {
   const char *m_Name;
   const char *m_val;
-  t_paramType type;
+  DALIDataType type;
 } OpArg;
 
 class opDescr {
@@ -331,16 +323,16 @@ class DALISingleOpTest : public DALITest {
       auto val = param.m_val;
       auto name = param.m_Name;
       switch (param.type) {
-        case t_intParam:
+        case DALI_INT32:
           spec->AddArg(name, strtol(val, nullptr, 10));
           break;
-        case t_floatParam:
+        case DALI_FLOAT:
           spec->AddArg(name, strtof(val, nullptr));
           break;
-        case t_stringParam:
+        case DALI_STRING:
           spec->AddArg(name, val);
           break;
-        case t_floatVector: {
+        case DALI_FLOAT_VEC: {
           const auto len = strlen(val);
           vector<float> vect;
           char *pEnd, *pTmp = new char[len+1];
@@ -355,7 +347,10 @@ class DALISingleOpTest : public DALITest {
 
           delete [] pTmp;
           spec->AddArg(name, vect);
+          break;
         }
+        default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
+                           "used for \"" + std::string(name) + "\"");
       }
     }
 
