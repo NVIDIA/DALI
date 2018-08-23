@@ -51,6 +51,8 @@ static std::string FormatStrFromType(TypeInfo type) {
     return py::format_descriptor<double>::format();
   } else if (IsType<bool>(type)) {
     return py::format_descriptor<bool>::format();
+  } else if (IsType<float16>(type)) {
+    return "f2";
   } else {
     DALI_FAIL("Cannot convert type " + type.name() +
         " to format descriptor string");
