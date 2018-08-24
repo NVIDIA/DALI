@@ -20,7 +20,7 @@ template <typename ImgType>
 class DisplacementTest : public GenericMatchingTest<ImgType> {
 };
 
-typedef ::testing::Types<RGB/*, BGR, Gray*/> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(DisplacementTest, Types);
 
 TYPED_TEST(DisplacementTest, Sphere) {
@@ -49,7 +49,13 @@ TYPED_TEST(DisplacementTest, WarpAffine) {
 }
 
 TYPED_TEST(DisplacementTest, Rotate) {
-  this->RunTest({"Rotate", "angle", "10", 0.001});
+  this->RunTest({"Rotate", {"angle", "10", DALI_FLOAT}, 0.001});
+}
+
+TYPED_TEST(DisplacementTest, Flip) {
+  const OpArg params[] = {{"horizontal", "True", DALI_BOOL},
+                          {"vertical", "True", DALI_BOOL}};
+  this->RunTest("Flip", params, 2);
 }
 
 TYPED_TEST(DisplacementTest, Flip) {
