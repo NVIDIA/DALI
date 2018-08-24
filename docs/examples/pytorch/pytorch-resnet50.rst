@@ -10,9 +10,9 @@ To run use the following commands
 
 .. code-block:: bash
 
-   ln -s /path/to/train/lmdb/ train
-   ln -s /path/to/validation/lmdb/ val
-   python -m apex.parallel.multiproc main.py -a resnet50 -b 128 --fp16 .
+   ln -s /path/to/train/jpeg/ train
+   ln -s /path/to/validation/jpeg/ val
+   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 128 --static-loss-scale 128.0 --workers 4 --lr=0.4 ./
 
 Requirements
 ------------
