@@ -26,7 +26,7 @@
 namespace dali {
 
 /**
- * @brief In addition to the functionality provided by Executor, 
+ * @brief In addition to the functionality provided by Executor,
  * the PipelinedExecutor enables pipelined execution by queueing
  * the outputs of each stage (that aren't pipeline outputs - these
  * are already queued by the Executor), and increasing the queue
@@ -41,9 +41,7 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
     Executor(batch_size, num_thread, device_id, bytes_per_sample_hint,
-        set_affinity, max_num_stream) {
-    Executor::queue_depth_ = 3;
-  }
+        set_affinity, max_num_stream) {}
 
   DLL_PUBLIC virtual ~PipelinedExecutor() = default;
 
