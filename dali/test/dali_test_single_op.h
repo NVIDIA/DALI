@@ -349,6 +349,9 @@ class DALISingleOpTest : public DALITest {
           spec->AddArg(name, vect);
           break;
         }
+        case DALI_BOOL:
+          spec->AddArg(name, strcmp(val, "True") == 0);
+          break;
         default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
                            "used for \"" + std::string(name) + "\"");
       }

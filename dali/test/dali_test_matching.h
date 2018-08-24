@@ -12,8 +12,7 @@ namespace dali {
 
 typedef struct {
   const char *opName;
-  const char *paramName;
-  const char *paramVal;
+  OpArg opArg;
   double epsVal;
 } singleParamOpDescr;
 
@@ -52,11 +51,10 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
   }
 
   void RunTest(const singleParamOpDescr &paramOp) {
-    OpArg arg = {paramOp.paramName, paramOp.paramVal, DALI_FLOAT};
     vector<OpArg> args;
-    args.push_back(arg);
-    opDescr aaa(paramOp.opName, paramOp.epsVal, &args);
-    RunTest(aaa);
+    args.push_back(paramOp.opArg);
+    opDescr finalDesc(paramOp.opName, paramOp.epsVal, &args);
+    RunTest(finalDesc);
   }
 
   void RunTest(const char *opName, const OpArg params[] = nullptr,

@@ -27,10 +27,10 @@ do
     # test code
     find */* -name "*.ipynb" | xargs -i jupyter nbconvert \
                    --to notebook --execute \
-                   --ExecutePreprocessor.kernel_name=python2 \
-                   --ExecutePreprocessor.timeout=300 \
+                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                   --ExecutePreprocessor.timeout=600 \
                    --output output.ipynb {}
-    find */* -name "main.py" | xargs -i python2 {} -t
+    find */* -name "main.py" | xargs -i python${PYVER:0:1} {} -t
 
     # remove pacakges
     remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages)
