@@ -38,12 +38,20 @@ void assemble_file_list(const std::string& path, int label,
   DIR *dir = opendir(path.c_str());
   struct dirent *entry;
 
+  const std::vector<std::string> valid_extensions({".jpg", ".jpeg", ".png", ".bmp"});
+
   while ((entry = readdir(dir))) {
     std::string full_path = path + "/" + std::string{entry->d_name};
     struct stat s;
     stat(full_path.c_str(), &s);
     if (S_ISREG(s.st_mode)) {
-      file_label_pairs->push_back(std::make_pair(full_path, label));
+      for (const std::string& s : valid_extensions) {
+        size_t pos = full_path.rfind(s);
+        if (pos != std::string::npos && pos + s.size() == full_path.size()) {
+          file_label_pairs->push_back(std::make_pair(full_path, label));
+          break;
+        }
+      }
     }
   }
   closedir(dir);
