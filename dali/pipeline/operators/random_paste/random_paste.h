@@ -37,6 +37,7 @@ class RandomPaste : public Operator<Backend> {
       DALI_ENFORCE(rgb_.size() == 3, "Argument `fill_color` expects a list of 3 elements, "
           + to_string(rgb_.size()) + " given.");
 
+      rand_gen_.seed(spec.GetArgument<int>("seed"));
       input_ptrs_.Resize({batch_size_});
       output_ptrs_.Resize({batch_size_});
       // 6 values: in_H, in_W, out_H, out_W, paste_y, paste_x

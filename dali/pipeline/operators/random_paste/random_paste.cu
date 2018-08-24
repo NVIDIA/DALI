@@ -48,20 +48,22 @@ __global__ void BatchedRandomPaste(
 
   for (int h = threadIdx.y; h < out_H; h += blockDim.y) {
     for (int w = threadIdx.x; w < out_W; w += blockDim.x) {
-      for (int c = 0; c < C; ++c) {
-        int out_idx = h*out_W*C + w*C + c;
-        if (h >= paste_y
-            && h < paste_y + in_H
-            && w >= paste_x
-            && w < paste_x + in_W) {
-          // copy image
-          // TODO(spanev): benchmark outside of the loop
-          int in_idx = (h - paste_y)*in_W*C + (w - paste_x)*C + c;
+      int out_idx = h*out_W*C + w*C;
+      if (h >= paste_y
+        && h < paste_y + in_H
+        && w >= paste_x
+        && w < paste_x + in_W) {
+        for (int c = 0; c < C; ++c) {
+            // copy image
+            // TODO(spanev): benchmark outside of the loop
+            int in_idx = (h - paste_y)*in_W*C + (w - paste_x)*C + c;
 
-          output_ptr[out_idx] = input_ptr[in_idx];
-        } else {
+            output_ptr[out_idx + c] = input_ptr[in_idx];
+        }
+      } else {
+        for (int c = 0; c < C; ++c) {
           // color
-          output_ptr[out_idx] = rgb[c];
+          output_ptr[out_idx + c] = rgb[c];
         }
       }
     }
