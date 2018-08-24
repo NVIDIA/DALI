@@ -24,6 +24,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
@@ -45,6 +46,7 @@ void assemble_file_list(const std::string& path, int label,
     struct stat s;
     stat(full_path.c_str(), &s);
     if (S_ISREG(s.st_mode)) {
+      std::transform(full_path.begin(), full_path.end(), full_path.begin(), ::tolower);
       for (const std::string& s : valid_extensions) {
         size_t pos = full_path.rfind(s);
         if (pos != std::string::npos && pos + s.size() == full_path.size()) {
