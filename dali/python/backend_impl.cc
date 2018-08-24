@@ -352,6 +352,19 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
+    .def("at",
+        [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
+          std::unique_ptr<Tensor<GPUBackend>> ptr(new Tensor<GPUBackend>());
+          ptr->ShareData(&t, id);
+          return ptr;
+        },
+      R"code(
+      Returns a tensor at given position in the list.
+
+      Parameters
+      ----------
+      )code",
+      py::keep_alive<0, 1>())
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.

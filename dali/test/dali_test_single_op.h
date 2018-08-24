@@ -92,7 +92,8 @@ typedef enum {
   t_intParam,
   t_floatParam,
   t_stringParam,
-  t_floatVector
+  t_floatVector,
+  t_boolParam
 } t_paramType;
 
 typedef struct  {
@@ -353,6 +354,13 @@ class DALISingleOpTest : public DALITest {
 
           delete [] pTmp;
           spec->AddArg(name, vect);
+          break;
+        }
+        case t_boolParam: {
+          bool b;
+          std::istringstream(val) >> std::nouppercase >> std::boolalpha >> b;
+          spec->AddArg(name, b);
+          break;
         }
       }
     }
