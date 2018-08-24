@@ -28,7 +28,6 @@ void Tensor<Backend>::acquire_buffer() {
       "Tensor needs to have a valid type before acquiring buffer.");
 
   size_t buffer_size = size() * type_.size();
-  std::cout << "I need " << buffer_size << " bytes" << std::endl;
 
   // If we do not already have a buffer
   // we need to get one from the GlobalWorkspace

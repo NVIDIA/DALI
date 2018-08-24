@@ -369,6 +369,14 @@ class DLL_PUBLIC TensorList {
 
   DLL_PUBLIC void set_num_consumers(int num) {
     num_consumers_ = num;
+
+    if (num == 0) {
+      // It is an output, it will always need a buffer
+      if (buffer_.get() == nullptr) {
+        buffer_.reset(new Buffer<Backend>());
+        buffer_->set_pinned(pinned_);
+      }
+    }
   }
 
   DLL_PUBLIC int get_num_consumers() const {

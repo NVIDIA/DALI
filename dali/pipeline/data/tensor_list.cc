@@ -32,11 +32,11 @@ void TensorList<Backend>::acquire_buffer() {
       "TensorList needs to have a valid type before acquiring buffer.");
 
   size_t buffer_size = size() * type_.size();
-  std::cout << "I need " << buffer_size << " bytes" << std::endl;
 
   // If we do not already have a buffer
   // we need to get one from the GlobalWorkspace
   if (buffer_.get() == nullptr && buffer_size > 0) {
+  std::cout << "[" << std::this_thread::get_id() << "] " << "I need " << buffer_size << " bytes and don't have a buffer yet" << std::endl;
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);

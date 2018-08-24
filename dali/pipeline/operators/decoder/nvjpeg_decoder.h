@@ -21,6 +21,7 @@
 #include <array>
 #include <map>
 #include <vector>
+#include <thread>
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -44,12 +45,14 @@ namespace dali {
 namespace memory {
 
 int DeviceNew(void **ptr, size_t size) {
+  std::cout << "[" << std::this_thread::get_id() << "] nvJPEG new" << std::endl;
   *ptr = GPUBackend::New(size, false);
 
   return 0;
 }
 
 int DeviceDelete(void *ptr) {
+  std::cout << "[" << std::this_thread::get_id() << "] nvJPEG delete" << std::endl;
   GPUBackend::Delete(ptr, 0, false);
 
   return 0;
