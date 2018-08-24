@@ -26,19 +26,15 @@ try:
 except ImportError:
     raise ImportError("Please install DALI from https://www.github.com/NVIDIA/DALI to run this example.")
 
-try:
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.fp16_utils import *
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')
+parser.add_argument('data', metavar='DIR', nargs='*',
+                    help='path(s) to dataset (if one path is provided, it is assumed\n' +
+                    'to have subdirectories named "train" and "val"; alternatively,\n' +
+                    'train and val paths can be specified directly by providing both paths as arguments)')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -76,6 +72,8 @@ parser.add_argument('--dynamic-loss-scale', action='store_true',
                     '--static-loss-scale.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
+parser.add_argument('-t', '--test', action='store_true',
+                    help='Launch test mode with preset arguments')
 
 parser.add_argument("--local_rank", default=0, type=int)
 
@@ -127,12 +125,43 @@ class HybridValPipe(Pipeline):
 
 best_prec1 = 0
 args = parser.parse_args()
+
+# test mode, use default args for sanity test
+if args.test:
+    args.fp16 = False
+    args.epochs = 1
+    args.start_epoch = 0
+    args.arch = 'resnet50'
+    args.batch_size = 64
+    args.data = []
+    args.prof = True
+    args.data.append('/data/imagenet/train-jpeg/')
+    args.data.append('/data/imagenet/val-jpeg/')
+
+if not len(args.data):
+    raise Exception("error: too few arguments")
+
+args.distributed = False
+if 'WORLD_SIZE' in os.environ:
+    args.distributed = int(os.environ['WORLD_SIZE']) > 1
+
+# make apex optional
+if args.fp16 or args.distributed:
+    try:
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.fp16_utils import *
+    except ImportError:
+        raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+
+# item() is a recent addition, so this helps with backward compatibility.
+def to_python_float(t):
+    if hasattr(t, 'item'):
+        return t.item()
+    else:
+        return t[0]
+
 def main():
     global best_prec1, args
-
-    args.distributed = False
-    if 'WORLD_SIZE' in os.environ:
-        args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
     args.gpu = 0
     args.world_size = 1
@@ -192,8 +221,12 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
+    if len(args.data) == 1:
+        traindir = os.path.join(args.data[0], 'train')
+        valdir = os.path.join(args.data[0], 'val')
+    else:
+        traindir = args.data[0]
+        valdir= args.data[1]
 
     if(args.arch == "inception_v3"):
         crop_size = 299
