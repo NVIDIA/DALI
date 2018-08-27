@@ -3,7 +3,7 @@ ImageNet training in PyTorch
 
 This implements training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
 
-This version has been modified to use DALI. It assumes that the imagenet dataset is in a Caffe lmdb format.
+This version has been modified to use DALI. It assumes that the dataset is raw JPEGs from the ImageNet dataset.
 This version has been modified to use the DistributedDataParallel module in APEx instead of the one in upstream PyTorch. Please install APEx from `here <https://www.github.com/nvidia/apex>`_.
 
 To run use the following commands
