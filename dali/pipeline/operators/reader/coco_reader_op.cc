@@ -21,8 +21,8 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
- and an anotation file. For each image, with `n` bboxes,returns its bboxes as (n,4)
- Tensor (`n` * `[x, y, w, h] or [left, top, right, bottom]`, or `n`) and labels as `(n,1)` Tensor (`n` * `category_id`).)code")
+ and an anotation file. For each image, with `m` bboxes,returns its bboxes as (m,4)
+ Tensor (`m` * `[x, y, w, h] or [left, top, right, bottom]`, or `m`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
       DALI_STRING)
