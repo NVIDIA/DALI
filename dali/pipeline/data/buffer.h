@@ -188,11 +188,11 @@ class Buffer {
 
   void ShareData(void *ptr, size_t bytes, int device_id) {
     data_.reset(ptr, [](void *) {});
-    num_bytes_ = bytes;
-    size_ = 0;
+    num_bytes_ = 0;
+    size_ = bytes;
     device_ = device_id;
 
-    shares_data_ = num_bytes_ > 0 ? true : false;
+    shares_data_ = bytes > 0;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
