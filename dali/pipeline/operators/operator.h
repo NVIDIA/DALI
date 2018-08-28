@@ -172,9 +172,6 @@ class Operator : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
-    if (std::is_same<Backend, GPUBackend>::value) {
-    std::cout << "Operator " << spec_.name() << " starts!" << std::endl;
-    }
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
 

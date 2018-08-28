@@ -387,9 +387,7 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC void force_release();
 
   DLL_PUBLIC void reset_reference_count() {
-    std::cout << "Resetting reference count on TL " << this << " num_consumers: " << num_consumers_ << std::endl;
     DALI_ENFORCE(num_consumers_ >= 0, "Number of consumers must be greater than 0.");
-    std::cout << "Setting refcount of TL " << this << " to " << num_consumers_ << std::endl;
     reference_count_ = num_consumers_;
   }
 

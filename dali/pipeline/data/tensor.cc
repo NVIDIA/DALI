@@ -70,10 +70,7 @@ inline void Tensor<Backend>::Resize(const vector<Index> &shape) {
 
 template <typename Backend>
 void Tensor<Backend>::release(cudaStream_t s) const {
-  std::cout << "Releasing T " << this << std::endl;
-  std::cout << "Current T ref count: " << reference_count_ << std::endl;
   if (reference_count_ == 0) {
-    std::cout << "This T cannot be released, ignoring" << std::endl;
     return;
   }
   reference_count_--;

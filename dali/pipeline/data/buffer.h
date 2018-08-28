@@ -79,12 +79,7 @@ class Buffer {
                     device_(-1)
     {}
 
-  virtual ~Buffer()// = default;
-  {
-    if (std::is_same<Backend, GPUBackend>::value) {
-    std::cout << "Freeing buffer holding " << num_bytes_ << " bytes" << std::endl;
-    }
-  }
+  virtual ~Buffer() = default;
 
   /**
    * @brief Returns a typed pointer to the underlying storage.

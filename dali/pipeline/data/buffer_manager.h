@@ -20,7 +20,6 @@
 #include <set>
 #include <utility>
 #include <vector>
-#include <thread>
 
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/data/allocator_manager.h"
@@ -51,9 +50,6 @@ inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend
   }
   std::unique_ptr<Buffer<Backend>> buff;
   if (current_idx == -1) {
-    if (std::is_same<Backend, GPUBackend>::value) {
-      std::cout << "Did not find the sufficient buffer." << std::endl;
-    }
     auto b = new Buffer<Backend>;
     b->set_pinned(pinned);
     buff.reset(b);
@@ -159,19 +155,12 @@ void LinearBufferManager::ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer, 
 
 unique_ptr<Buffer<GPUBackend>> LinearBufferManager::AcquireBuffer(const size_t bytes) {
   std::lock_guard<std::mutex> lock(gpu_buffers_mutex_);
-  std::cout << "[" << std::this_thread::get_id() << "] " << "Acquiring buffer of size " << bytes << std::endl;
-  std::cout << "Size of buffer queue: " << gpu_buffers_.size() << std::endl;
   auto buf = LinearSearch(&gpu_buffers_, bytes);
-  std::cout << "[" << std::this_thread::get_id() << "] " << "I will give buffer " << buf->data_.get() << std::endl;
-  if (buf->data_.get()) {
-    std::cout << "[" << std::this_thread::get_id() << "] " << "Buffer " << buf->data_.get() << " has " << buf->capacity() << " bytes." << std::endl;
-  }
   return buf;
 }
 
 void LinearBufferManager::ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer) {
   std::lock_guard<std::mutex> lock(gpu_buffers_mutex_);
-  std::cout << "[" << std::this_thread::get_id() << "] " << "Releasing buffer " << buffer->get()->data_.get() << std::endl;
   gpu_buffers_.push_back(std::move(*buffer));
 }
 

@@ -36,7 +36,6 @@ void TensorList<Backend>::acquire_buffer() {
   // If we do not already have a buffer
   // we need to get one from the GlobalWorkspace
   if (buffer_.get() == nullptr && buffer_size > 0) {
-  std::cout << "[" << std::this_thread::get_id() << "] " << "I need " << buffer_size << " bytes and don't have a buffer yet" << std::endl;
     buffer_ = std::move(
         GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
@@ -84,26 +83,18 @@ template <typename Backend>
 void TensorList<Backend>::Resize(const vector<Dims> &new_shape) {
   set_shape(new_shape);
 
-  std::cout << "Resizing TL " << this << " to " << size_ << " elements." << std::endl;
-
   if (IsValidType(type_)) {
-    std::cout << "TL " << this << " acquires buffer." << std::endl;
     acquire_buffer();
   }
-  std::cout << "Done resizing TL " << this << " to " << size_ << " elements." << std::endl;
 }
 
 template <typename Backend>
 void TensorList<Backend>::release(cudaStream_t s) const {
-  std::cout << "Releasing TL " << this << std::endl;
-  std::cout << "Current TL ref count: " << reference_count_ << std::endl;
   if (reference_count_ == 0) {
-    std::cout << "This TL cannot be released, ignoring" << std::endl;
     return;
   }
   reference_count_--;
   if (reference_count_ == 0) {
-    std::cout << "Ref count reached 0, releasing to global workspace" << std::endl;
     if (s != nullptr) CUDA_CALL(cudaStreamSynchronize(s));
 
     if (!shares_data()) {

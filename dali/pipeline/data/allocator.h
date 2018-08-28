@@ -16,7 +16,6 @@
 #define DALI_PIPELINE_DATA_ALLOCATOR_H_
 
 #include <cuda.h>
-#include <thread>
 
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator_factory.h"
@@ -63,14 +62,11 @@ class GPUAllocator : public AllocatorBase {
 
   virtual void New(void **ptr, size_t bytes) {
     CUDA_CALL(cudaMalloc(ptr, bytes));
-    std::cout << "[" << std::this_thread::get_id() << "] Allocating " << bytes << " bytes in " << *ptr << ", ends in address " << reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(*ptr) + bytes) << std::endl;
-    DALI_WARN("GPU allocation");
   }
 
   virtual void Delete(void *ptr, size_t /* unused */) {
     if (ptr != nullptr) {
       CUDA_CALL(cudaFree(ptr));
-      std::cout << "[" << std::this_thread::get_id() <<"] Freeing " << ptr << std::endl;
     }
   }
 };

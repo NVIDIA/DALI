@@ -21,7 +21,6 @@
 #include <array>
 #include <map>
 #include <vector>
-#include <thread>
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -45,14 +44,12 @@ namespace dali {
 namespace memory {
 
 int DeviceNew(void **ptr, size_t size) {
-  std::cout << "[" << std::this_thread::get_id() << "] nvJPEG new" << std::endl;
   *ptr = GPUBackend::New(size, false);
 
   return 0;
 }
 
 int DeviceDelete(void *ptr) {
-  std::cout << "[" << std::this_thread::get_id() << "] nvJPEG delete" << std::endl;
   GPUBackend::Delete(ptr, 0, false);
 
   return 0;
@@ -148,7 +145,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   using dali::OperatorBase::Run;
 
   void Run(MixedWorkspace *ws) override {
-    std::cout << "Operator " << spec_.name() << " starts!" << std::endl;
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
