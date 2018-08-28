@@ -271,7 +271,9 @@ class PixMappingHelper {
 // ResizeParamDescr::pResizeParam_ and copied on GPU in NewResize<GPUBackend>::RunImpl
 // by resizeParamGPU_.Copy(...)
 
-__global__ void ConstructResizeTables(size_t nBatchSlice, const ResizeGridParam *resizeParam,
+__global__ void
+__launch_bounds__(1024, 1)
+ConstructResizeTables(size_t nBatchSlice, const ResizeGridParam *resizeParam,
                        const DALISize *in_sizes, int C, int W0, MappingInfo *pResizeMapping[]) {
   int imagIdx = blockIdx.x;
   size_t idx = imagIdx % nBatchSlice;

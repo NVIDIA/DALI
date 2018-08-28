@@ -51,12 +51,12 @@ struct Gray {
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
  public:
-  virtual inline void SetUp() {
+  inline void SetUp() override {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
   }
 
-  virtual inline void TearDown() {
+  inline void TearDown() override {
     for (auto &ptr : images_) delete[] ptr;
   }
 
@@ -70,7 +70,7 @@ class DALITest : public ::testing::Test {
   }
 
   void DecodeImage(const unsigned char *data, int data_size, int c, int img_type,
-                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = NULL) const {
+                          Tensor<CPUBackend> *out, unsigned char *out_dataPntr = nullptr) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char*>(data));
 
     cv::Mat tmp = cv::imdecode(input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
@@ -94,6 +94,9 @@ class DALITest : public ::testing::Test {
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
                            vector<uint8*> *images, vector<DimPair> *image_dims) {
+    c_ = IsColor(type) ? 3 : 1;
+    const int flag = IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+    const auto cType = IsColor(type) ? CV_8UC3 : CV_8UC1;
     const auto & encoded = imgs.data_;
     const auto & encoded_sizes = imgs.sizes_;
     const auto nImgs = imgs.nImages();
@@ -103,12 +106,11 @@ class DALITest : public ::testing::Test {
       cv::Mat img;
       cv::Mat encode = cv::Mat(1, encoded_sizes[i], CV_8UC1, encoded[i]);
 
-      int flag = IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
       cv::imdecode(encode, flag, &img);
 
-      int h = img.rows;
-      int w = img.cols;
-      cv::Mat out_img(h, w, IsColor(type) ? CV_8UC3 : CV_8UC1);
+      const int h = (*image_dims)[i].h = img.rows;
+      const int w = (*image_dims)[i].w = img.cols;
+      cv::Mat out_img(h, w, cType);
       if (type == DALI_RGB) {
         // Convert from BGR to RGB for verification
         cv::cvtColor(img, out_img, CV_BGR2RGB);
@@ -118,12 +120,8 @@ class DALITest : public ::testing::Test {
 
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
-      c_ = IsColor(type) ? 3 : 1;
       (*images)[i] = new uint8[h*w*c_];
       std::memcpy((*images)[i], out_img.ptr(), h*w*c_);
-
-      (*image_dims)[i].h = h;
-      (*image_dims)[i].w = w;
     }
   }
 
@@ -135,7 +133,7 @@ class DALITest : public ::testing::Test {
                                const vector<uint8*> &images,
                                const vector<DimPair> &image_dims,
                                const int c) {
-    DALI_ENFORCE(images.size() > 0, "Images must be populated to create batches");
+    DALI_ENFORCE(!images.empty(), "Images must be populated to create batches");
     vector<Dims> shape(n);
     for (int i = 0; i < n; ++i) {
       shape[i] = {image_dims[i % images.size()].h,
@@ -153,9 +151,9 @@ class DALITest : public ::testing::Test {
 
   inline void MakeImageBatch(int n, TensorList<CPUBackend> *tl,
                              DALIImageType type = DALI_RGB) {
-    if (images_.size() == 0) {
+    if (images_.empty())
       DecodeJPEGS(type);
-    }
+
     MakeDecodedBatch(n, tl, images_, image_dims_, c_);
   }
 

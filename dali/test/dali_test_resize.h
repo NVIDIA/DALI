@@ -62,7 +62,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       // determine resize parameters
       if (useExternSizes) {
-        const int *t = ws->Output<CPUBackend>(1)->tensor<int>(i);
+        const auto *t = ws->Output<CPUBackend>(1)->tensor<int>(i);
         rsz_h = t[0];
         rsz_w = t[1];
       } else {
@@ -80,11 +80,11 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         }
       }
 
-      cv::Mat input = cv::Mat(H, W, cv_type, const_cast<unsigned char*>(data));
+      cv::Mat input(H, W, cv_type, const_cast<unsigned char*>(data));
 
       // perform the resize
       cv::Mat rsz_img;
-      cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, cv::INTER_LINEAR);
+      cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
 
       cv::Mat crop_img;
       cv::Mat const *finalImg = &rsz_img;
@@ -118,12 +118,21 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     vector<TensorList<CPUBackend>*> outputs(1);
     outputs[0] = new TensorList<CPUBackend>();
-    outputs[0]->Copy(out, 0);
+    outputs[0]->Copy(out, nullptr);
     return outputs;
   }
 
  protected:
+  virtual int getInterpType() const                 { return cv::INTER_LINEAR; }
   virtual uint32_t getResizeOptions() const         { return t_cropping /*+ t_mirroring*/; }
+  int CurrentCheckTypeID() const {
+    return (this->GetTestCheckType() & t_checkElements) == t_checkElements? 1 : 0;
+  }
+  virtual double *testEpsValues() const             { return nullptr; }
+  virtual double getEps(int testId) const {
+    const int numCheckTypes = 2;
+    return *(testEpsValues() + testId * numCheckTypes + this->CurrentCheckTypeID());
+  }
 };
 
 }  // namespace dali
