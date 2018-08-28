@@ -41,7 +41,9 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1) :
     Executor(batch_size, num_thread, device_id, bytes_per_sample_hint,
-        set_affinity, max_num_stream) {}
+        set_affinity, max_num_stream) {
+    Executor::queue_depth_ = 3;
+  }
 
   DLL_PUBLIC virtual ~PipelinedExecutor() = default;
 
