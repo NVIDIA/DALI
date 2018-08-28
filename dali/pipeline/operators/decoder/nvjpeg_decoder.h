@@ -26,7 +26,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
-#include "dali/image/png.h"
+#include "dali/image/generic_image.h"
 
 
 namespace dali {
@@ -167,9 +167,13 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                      &info.c, &info.subsampling,
                                      info.widths, info.heights);
       // Fallback for png
-      if (ret == NVJPEG_STATUS_BAD_JPEG && CheckIsPNG(static_cast<const uint8*>(data), in_size)) {
-        GetPNGImageDims(static_cast<const uint8*>(data), in_size, info.heights, info.widths);
-        info.nvjpeg_support = false;
+      if (ret == NVJPEG_STATUS_BAD_JPEG) {
+        if (DALISuccess == GetImageDims(static_cast<const uint8*>(data),
+                                      in_size, info.heights, info.widths)) {
+          info.nvjpeg_support = false;
+        } else {
+          DALI_FAIL("Unsupported image format - DALI supports JPEG, PNG and BMP formats.");
+        }
       } else {
         // Handle errors
         NVJPEG_CALL(ret);

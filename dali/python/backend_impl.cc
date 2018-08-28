@@ -51,6 +51,8 @@ static std::string FormatStrFromType(TypeInfo type) {
     return py::format_descriptor<double>::format();
   } else if (IsType<bool>(type)) {
     return py::format_descriptor<bool>::format();
+  } else if (IsType<float16>(type)) {
+    return "f2";
   } else {
     DALI_FAIL("Cannot convert type " + type.name() +
         " to format descriptor string");
@@ -74,6 +76,8 @@ static TypeInfo TypeFromFormatStr(std::string format) {
     return TypeInfo::Create<double>();
   } else if (format == py::format_descriptor<bool>::format()) {
     return TypeInfo::Create<bool>();
+  } else if (format == "f2") {
+    return TypeInfo::Create<float16>();
   } else {
     DALI_FAIL("Cannot create type for unknow format string: " + format);
   }
