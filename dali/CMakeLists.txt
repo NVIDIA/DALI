@@ -158,4 +158,3 @@ if (BUILD_PYTHON)
   # Get all python srcs
   add_subdirectory(python)
 endif()
-

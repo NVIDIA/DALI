@@ -24,19 +24,19 @@ typedef ::testing::Types<RGB> Types;
 TYPED_TEST_CASE(ColorTest, Types);
 
 TYPED_TEST(ColorTest, Brightness) {
-  this->RunTest({"Brightness", "brightness", "3.", 1e-4});
+  this->RunTest({"Brightness", {"brightness", "3.", DALI_FLOAT}, 1e-4});
 }
 
 TYPED_TEST(ColorTest, Contrast) {
-  this->RunTest({"Contrast", "contrast", "1.3", 0.18});
+  this->RunTest({"Contrast", {"contrast", "1.3", DALI_FLOAT}, 0.18});
 }
 
 TYPED_TEST(ColorTest, Saturation) {
-  this->RunTest({"Saturation", "saturation", "3.", 0.26});
+  this->RunTest({"Saturation", {"saturation", "3.", DALI_FLOAT}, 0.33});
 }
 
 TYPED_TEST(ColorTest, Hue) {
-  this->RunTest({"Hue", "hue", "31.456", 0.27});
+  this->RunTest({"Hue", {"hue", "31.456", DALI_FLOAT}, 0.39});
 }
 
 }  // namespace dali
