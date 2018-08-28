@@ -30,6 +30,26 @@ namespace dali {
 
 #define LINEAR_SEARCH
 
+class BufferManagerBase {
+ public:
+  static constexpr double buffer_size_threshold = 2.0;
+
+  explicit BufferManagerBase(int device) : device_(device) {}
+  virtual ~BufferManagerBase() = default;
+
+  virtual unique_ptr<Buffer<CPUBackend>> AcquireBuffer(const size_t nbytes, const bool pinned) = 0;
+  virtual unique_ptr<Buffer<GPUBackend>> AcquireBuffer(const size_t nbytes) = 0;
+
+  virtual void ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer, const bool pinned) = 0;
+  virtual void ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer) = 0;
+
+ protected:
+  int device_;
+
+  // locks to ensure thread-safety of buffer lists
+  std::mutex cpu_buffers_mutex_, pinned_buffers_mutex_, gpu_buffers_mutex_;
+};
+
 // Linear search over available buffers to get the smallest available that
 // is >= bytes requested
 template <typename Backend>
@@ -41,8 +61,8 @@ inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend
 
   for (size_t i = 0; i < buffers->size(); ++i) {
     const size_t buffer_size = (*buffers)[i]->capacity();
-    if (buffer_size >= 0.5 * nbytes &&
-        buffer_size <= 2 * nbytes &&
+    if (buffer_size >= (1.0/BufferManagerBase::buffer_size_threshold) * nbytes &&
+        buffer_size <= BufferManagerBase::buffer_size_threshold * nbytes &&
         (size_t) abs(buffer_size - nbytes) < current_delta) {
       current_idx = i;
       current_delta = abs(buffer_size - nbytes);
@@ -65,24 +85,6 @@ inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend
 
   return buff;
 }
-
-class BufferManagerBase {
- public:
-  explicit BufferManagerBase(int device) : device_(device) {}
-  ~BufferManagerBase() = default;
-
-  virtual unique_ptr<Buffer<CPUBackend>> AcquireBuffer(const size_t nbytes, const bool pinned) = 0;
-  virtual unique_ptr<Buffer<GPUBackend>> AcquireBuffer(const size_t nbytes) = 0;
-
-  virtual void ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer, const bool pinned) = 0;
-  virtual void ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer) = 0;
-
- protected:
-  int device_;
-
-  // locks to ensure thread-safety of buffer lists
-  std::mutex cpu_buffers_mutex_, pinned_buffers_mutex_, gpu_buffers_mutex_;
-};
 
 class LinearBufferManager : public BufferManagerBase {
  public:
