@@ -82,6 +82,15 @@ class TFRecordPipeline(CommonPipeline):
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
 
+class COCOReaderPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
+        super(COCOReaderPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.input = ops.COCOReader(file_root = data_paths[0], annotations_file=data_paths[1])
+
+    def define_graph(self):
+        images, bb, labels = self.input(name="Reader")
+        return self.base_define_graph(images, labels)
+
 test_data = {
             FileReadPipeline: [["/data/imagenet/", "/data/imagenet/train-jpeg_map.txt", 1281167],
                                ["/data/imagenet/", "/data/imagenet/val-jpeg_map.txt", 50000]],
@@ -91,7 +100,9 @@ test_data = {
                                  ["/data/imagenet/val-lmdb-256x256", 50000]],
             Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480", 1281167],
                                   ["/data/imagenet/val-c2lmdb-256", 50000]],
-            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*", 1281167]]
+            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*", 1281167]],
+            COCOReaderPipeline: [["/data/coco/coco-2017/coco2017/train2017", "/data/coco/coco-2017/coco2017/annotations/instances_train2017.json", 118288],
+                                ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json", 5001]]
             }
 
 N = 4               # number of GPUs
@@ -122,6 +133,6 @@ for pipe_name in test_data.keys():
             for pipe in pipes:
                 pipe.outputs()
             if j % LOG_INTERVAL == 0:
-                print (pipe_name.__name__, j, "/", iters)
+                print (pipe_name.__name__, j + 1, "/", iters)
 
         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
