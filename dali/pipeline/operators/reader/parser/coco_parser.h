@@ -60,8 +60,6 @@ class COCOParser: public Parser {
 
     auto range = annotations_multimap_.equal_range(image_id);
     auto n_bboxes = std::distance(range.first, range.second);
-    // DALI_ENFORCE(n_bboxes > 0,
-    //    "Annotations not found for image by image_id " + std::to_string(image_id));
 
     image_output->Resize({image_size});
     image_output->mutable_data<uint8_t>();
