@@ -27,6 +27,15 @@
 #include "dali/pipeline/operators/reader/parser/coco_parser.h"
 #include "dali/util/json.h"
 
+#define FIND_IN_JSON(im, it, field)   \
+      auto it = im.find("field");     \
+      DALI_ENFORCE(it != im.end(), "`field` not found in JSON annotions file");
+
+#define GET_FORM_JSON(im, field, type)      \
+      ({auto it_##field = im.find("field");   \
+      DALI_ENFORCE(it_##field != im.end(), "`field` not found in JSON annotions file"); \
+      it_##field.value().get<type>();})     
+
 namespace dali {
 
 class COCOReader : public DataReader<CPUBackend> {
@@ -74,44 +83,25 @@ class COCOReader : public DataReader<CPUBackend> {
     std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
 
     // Parse images
-    auto images = j.find("images");
-    DALI_ENFORCE(images != j.end(), "`images` not found in JSON annotions file");
+    FIND_IN_JSON(j, images, images);
     for (auto& im : *images) {
-      auto id_it = im.find("id");
-      DALI_ENFORCE(id_it != im.end(), "`id` not found in JSON annotions file");
-      auto file_name_it = im.find("file_name");
-      DALI_ENFORCE(file_name_it != im.end(), "`file_name` not found in JSON annotions file");
-      auto width_it = im.find("width");
-      DALI_ENFORCE(width_it != im.end(), "`width` not found in JSON annotions file");
-      auto height_it = im.find("height");
-      DALI_ENFORCE(height_it != im.end(), "`height` not found in JSON annotions file");
-
-      int id = id_it.value().get<int>();
-      std::string file_name = file_name_it.value().get<std::string>();
+      int id = GET_FORM_JSON(im, id, int);
+      std::string file_name = GET_FORM_JSON(im, file_name, std::string);
+      int width = GET_FORM_JSON(im, width, int);
+      int height = GET_FORM_JSON(im, height, int);
 
       image_id_pairs_.push_back(std::make_pair(file_name, id));
-
-      int width = width_it.value().get<int>();
-      int height = height_it.value().get<int>();
       image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
     }
 
     // Parse annotations
-    auto annotations = j.find("annotations");
-    DALI_ENFORCE(annotations != j.end(), "`annotations` not found in JSON annotions file");
+    FIND_IN_JSON(j, annotations, annotations);
     int annotation_size = (*annotations).size();
 
     for (auto& an : *annotations) {
-      auto image_id_it = an.find("image_id");
-      DALI_ENFORCE(image_id_it != an.end(), "`image_id` not found in JSON annotions file");
-      auto category_id_it = an.find("category_id");
-      DALI_ENFORCE(category_id_it != an.end(), "`category_id` not found in JSON annotions file");
-      auto bbox_it = an.find("bbox");
-      DALI_ENFORCE(bbox_it != an.end(), "`bbox` not found in JSON annotions file");
-
-      int image_id = image_id_it.value().get<int>();
-      int category_id = category_id_it.value().get<int>();
-      std::vector<float> bbox = bbox_it.value().get<std::vector<float>>();
+      int image_id = GET_FORM_JSON(an, image_id, int);
+      int category_id = GET_FORM_JSON(an, category_id, int);
+      std::vector<float> bbox = GET_FORM_JSON(an, bbox, std::vector<float>);
 
       if (ltrb_) {
         bbox[2] += bbox[0];
