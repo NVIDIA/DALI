@@ -28,7 +28,7 @@ DALI_SCHEMA(COCOReader)
       DALI_STRING)
   .AddArg("annotations_file",
       R"code(Path to the JSON annotations file.)code",
-      DALI_STRING)
+      DALI_STRING_VEC)
   .AddOptionalArg("file_list",
       R"code(Path to the file with a list of pairs ``file label``
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",

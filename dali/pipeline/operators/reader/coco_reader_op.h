@@ -42,7 +42,7 @@ class COCOReader : public DataReader<CPUBackend> {
  public:
   explicit COCOReader(const OpSpec& spec)
   : DataReader<CPUBackend>(spec),
-    annotations_filename_(spec.GetArgument<std::string>("annotations_file")),
+    annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
     ltrb_(spec.GetArgument<bool>("ltrb")),
     ratio_(spec.GetArgument<bool>("ratio")) {
     ParseAnnotationFiles();
@@ -64,70 +64,72 @@ class COCOReader : public DataReader<CPUBackend> {
 
  protected:
   void ParseAnnotationFiles() {
-    // Loading raw json into the RAM
-    std::ifstream f(annotations_filename_);
-    DALI_ENFORCE(f, "Could not open JSON annotations file");
-    std::string raw_json;
-    f.seekg(0, std::ios::end);
-    raw_json.reserve(f.tellg());
-    f.seekg(0, std::ios::beg);
-    raw_json.assign((std::istreambuf_iterator<char>(f)),
-                    std::istreambuf_iterator<char>());
+    for (auto& file_name : annotations_filename_) {
+      // Loading raw json into the RAM
+      std::ifstream f(file_name);
+      DALI_ENFORCE(f, "Could not open JSON annotations file");
+      std::string raw_json;
+      f.seekg(0, std::ios::end);
+      raw_json.reserve(f.tellg());
+      f.seekg(0, std::ios::beg);
+      raw_json.assign((std::istreambuf_iterator<char>(f)),
+                      std::istreambuf_iterator<char>());
 
-    // Parsing the JSON into image vector and annotation multimap
-    std::stringstream ss;
-    ss << raw_json;
-    auto j = nlohmann::json::parse(ss);
+      // Parsing the JSON into image vector and annotation multimap
+      std::stringstream ss;
+      ss << raw_json;
+      auto j = nlohmann::json::parse(ss);
 
-    // mapping each image_id to its WH dimension
-    std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
+      // mapping each image_id to its WH dimension
+      std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
 
-    // Parse images
-    FIND_IN_JSON(j, images, images);
-    for (auto& im : *images) {
-      int id = GET_FORM_JSON(im, id, int);
-      std::string file_name = GET_FORM_JSON(im, file_name, std::string);
-      int width = GET_FORM_JSON(im, width, int);
-      int height = GET_FORM_JSON(im, height, int);
+      // Parse images
+      FIND_IN_JSON(j, images, images);
+      for (auto& im : *images) {
+        int id = GET_FORM_JSON(im, id, int);
+        std::string file_name = GET_FORM_JSON(im, file_name, std::string);
+        int width = GET_FORM_JSON(im, width, int);
+        int height = GET_FORM_JSON(im, height, int);
 
-      image_id_pairs_.push_back(std::make_pair(file_name, id));
-      image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
-    }
-
-    // Parse annotations
-    FIND_IN_JSON(j, annotations, annotations);
-    int annotation_size = (*annotations).size();
-
-    for (auto& an : *annotations) {
-      int image_id = GET_FORM_JSON(an, image_id, int);
-      int category_id = GET_FORM_JSON(an, category_id, int);
-      std::vector<float> bbox = GET_FORM_JSON(an, bbox, std::vector<float>);
-
-      if (ltrb_) {
-        bbox[2] += bbox[0];
-        bbox[3] += bbox[1];
+        image_id_pairs_.push_back(std::make_pair(file_name, id));
+        image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
       }
 
-      if (ratio_) {
-        auto wh_it = image_id_to_wh.find(image_id);
-        DALI_ENFORCE(wh_it != image_id_to_wh.end(),
-            "annotation has an invalid image_id: " + std::to_string(image_id));
-        auto wh = wh_it->second;
-        bbox[0] /= static_cast<float>(wh.first);
-        bbox[1] /= static_cast<float>(wh.second);
-        bbox[2] /= static_cast<float>(wh.first);
-        bbox[3] /= static_cast<float>(wh.second);
+      // Parse annotations
+      FIND_IN_JSON(j, annotations, annotations);
+      int annotation_size = (*annotations).size();
+
+      for (auto& an : *annotations) {
+        int image_id = GET_FORM_JSON(an, image_id, int);
+        int category_id = GET_FORM_JSON(an, category_id, int);
+        std::vector<float> bbox = GET_FORM_JSON(an, bbox, std::vector<float>);
+
+        if (ltrb_) {
+          bbox[2] += bbox[0];
+          bbox[3] += bbox[1];
+        }
+
+        if (ratio_) {
+          auto wh_it = image_id_to_wh.find(image_id);
+          DALI_ENFORCE(wh_it != image_id_to_wh.end(),
+              "annotation has an invalid image_id: " + std::to_string(image_id));
+          auto wh = wh_it->second;
+          bbox[0] /= static_cast<float>(wh.first);
+          bbox[1] /= static_cast<float>(wh.second);
+          bbox[2] /= static_cast<float>(wh.first);
+          bbox[3] /= static_cast<float>(wh.second);
+        }
+
+        annotations_multimap_.insert(
+            std::make_pair(image_id,
+              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
       }
 
-      annotations_multimap_.insert(
-          std::make_pair(image_id,
-            Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
+      f.close();
     }
-
-    f.close();
   }
 
-  std::string annotations_filename_;
+  std::vector<std::string> annotations_filename_;
   AnnotationMap annotations_multimap_;
   std::vector<std::pair<std::string, int>> image_id_pairs_;
   bool ltrb_;
