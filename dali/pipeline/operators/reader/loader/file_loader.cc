@@ -24,7 +24,6 @@ namespace dali {
 
 inline void assemble_file_list(const std::string& path, const std::string& curr_entry, int label,
                         std::vector<std::pair<std::string, int>> *file_label_pairs) {
-
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
