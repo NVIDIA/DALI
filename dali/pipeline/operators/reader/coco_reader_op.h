@@ -27,14 +27,14 @@
 #include "dali/pipeline/operators/reader/parser/coco_parser.h"
 #include "dali/util/json.h"
 
-#define FIND_IN_JSON(im, it, field)   \
-      auto it = im.find("field");     \
-      DALI_ENFORCE(it != im.end(), "`field` not found in JSON annotions file");
+#define FIND_IN_JSON(im, it, field)             \
+      auto it = im.find(#field);               \
+      DALI_ENFORCE(it != im.end(), "`" #field "` not found in JSON annotions file");
 
-#define GET_FROM_JSON(im, field, type)      \
-      ({auto it_##field = im.find("field");   \
-      DALI_ENFORCE(it_##field != im.end(), "`field` not found in JSON annotions file"); \
-      it_##field.value().get<type>();})     
+#define GET_FROM_JSON(im, field, type)          \
+      ({auto it_##field = im.find(#field);     \
+      DALI_ENFORCE(it_##field != im.end(), "`" #field "` not found in JSON annotions file"); \
+      it_##field.value().get<type>();})
 
 namespace dali {
 
@@ -87,11 +87,11 @@ class COCOReader : public DataReader<CPUBackend> {
       FIND_IN_JSON(j, images, images);
       for (auto& im : *images) {
         int id = GET_FROM_JSON(im, id, int);
-        std::string file_name = GET_FROM_JSON(im, file_name, std::string);
+        std::string image_file_name = GET_FROM_JSON(im, file_name, std::string);
         int width = GET_FROM_JSON(im, width, int);
         int height = GET_FROM_JSON(im, height, int);
 
-        image_id_pairs_.push_back(std::make_pair(file_name, id));
+        image_id_pairs_.push_back(std::make_pair(image_file_name, id));
         image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
       }
 

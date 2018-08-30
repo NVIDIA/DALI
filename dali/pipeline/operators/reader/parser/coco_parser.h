@@ -24,6 +24,11 @@
 namespace dali {
 
 struct Annotation {
+  /*
+   * Currently, only bboxes and labels are supported,
+   * while key points and segmentation masks need to be handled
+   * somehow in the future
+   */
   Annotation(float x, float y, float w, float h, int category_id)
     : bbox({x, y, w, h}),
       category_id(category_id) {}

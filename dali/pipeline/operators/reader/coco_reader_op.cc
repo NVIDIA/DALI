@@ -21,13 +21,13 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
- and an anotation file. For each image, with `m` bboxes, returns its bboxes as (m,4)
+ and an anotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
  Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
       DALI_STRING)
   .AddArg("annotations_file",
-      R"code(Path to the JSON annotations file.)code",
+      R"code(List of paths to the JSON annotations files.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("file_list",
       R"code(Path to the file with a list of pairs ``file label``
