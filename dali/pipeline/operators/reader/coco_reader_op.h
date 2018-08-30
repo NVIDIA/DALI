@@ -31,7 +31,7 @@
       auto it = im.find("field");     \
       DALI_ENFORCE(it != im.end(), "`field` not found in JSON annotions file");
 
-#define GET_FORM_JSON(im, field, type)      \
+#define GET_FROM_JSON(im, field, type)      \
       ({auto it_##field = im.find("field");   \
       DALI_ENFORCE(it_##field != im.end(), "`field` not found in JSON annotions file"); \
       it_##field.value().get<type>();})     
@@ -86,10 +86,10 @@ class COCOReader : public DataReader<CPUBackend> {
       // Parse images
       FIND_IN_JSON(j, images, images);
       for (auto& im : *images) {
-        int id = GET_FORM_JSON(im, id, int);
-        std::string file_name = GET_FORM_JSON(im, file_name, std::string);
-        int width = GET_FORM_JSON(im, width, int);
-        int height = GET_FORM_JSON(im, height, int);
+        int id = GET_FROM_JSON(im, id, int);
+        std::string file_name = GET_FROM_JSON(im, file_name, std::string);
+        int width = GET_FROM_JSON(im, width, int);
+        int height = GET_FROM_JSON(im, height, int);
 
         image_id_pairs_.push_back(std::make_pair(file_name, id));
         image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
@@ -100,9 +100,9 @@ class COCOReader : public DataReader<CPUBackend> {
       int annotation_size = (*annotations).size();
 
       for (auto& an : *annotations) {
-        int image_id = GET_FORM_JSON(an, image_id, int);
-        int category_id = GET_FORM_JSON(an, category_id, int);
-        std::vector<float> bbox = GET_FORM_JSON(an, bbox, std::vector<float>);
+        int image_id = GET_FROM_JSON(an, image_id, int);
+        int category_id = GET_FROM_JSON(an, category_id, int);
+        std::vector<float> bbox = GET_FROM_JSON(an, bbox, std::vector<float>);
 
         if (ltrb_) {
           bbox[2] += bbox[0];
