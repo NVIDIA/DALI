@@ -39,7 +39,7 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
   bool batched_ = false;
 };
 
-typedef ::testing::Types<RGB/*, BGR, Gray*/> Types;
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(nvjpegDecodeTest, Types);
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode) {
