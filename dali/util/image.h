@@ -80,6 +80,8 @@ DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *imgs);
  * @brief Writes the input image as a ppm file
  */
 DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name);
+DLL_PUBLIC void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix,
+                           float bias = 0.f, float scale = 1.f);
 
 template <typename T>
 int outHWCImage(const vector<T> &tmp, int h, int w, int c,
@@ -158,7 +160,7 @@ void WriteBatch(const TensorList<Backend> &tl, float bias, float scale, const st
 
 template <typename T, typename Backend>
 void WriteHWCBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix) {
-  WriteBatch(tl, bias, scale, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
+  WriteBatch<T, Backend>(tl, bias, scale, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
 }
 
 template <typename T, typename Backend>
