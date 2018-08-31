@@ -457,6 +457,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("DATA_TYPE", DALI_DATA_TYPE)
     .value("INTERP_TYPE", DALI_INTERP_TYPE)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
+    .value("NUMPY_BUF", DALI_NUMPY_BUF)
     .export_values();
 
   // DALIImageType
@@ -637,6 +638,29 @@ PYBIND11_MODULE(backend_impl, m) {
 #ifdef DALI_BUILD_PROTO3
     DALI_OPSPEC_ADDARG(TFFeature)
 #endif
+    .def("AddArg",
+        [](OpSpec *spec, const string& name, py::buffer &b) {
+        py::buffer_info info = b.request();
+
+        std::vector<Index> i_shape;
+        for (auto &dim : info.shape) {
+          i_shape.push_back(dim);
+        }
+
+        // Validate the stride
+        ssize_t dim_prod = 1;
+        for (int i = info.strides.size()-1; i >= 0; --i) {
+          DALI_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
+              "Strided data not supported. Detected on dimension " + std::to_string(i));
+          dim_prod *= info.shape[i];
+        }
+
+        TypeInfo type = TypeFromFormatStr(info.format);
+        (*spec).AddArg(name + "_shape", i_shape)
+               .AddArg(name + "_dtype", type.id())
+               .AddArg(name + "_data", info.ptr);
+        return *spec;
+      }, py::return_value_policy::reference_internal)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           DALI_FAIL("Unsupported argument type with name " + name);

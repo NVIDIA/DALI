@@ -102,6 +102,21 @@ class DLL_PUBLIC TensorList {
     }
   }
 
+  template <typename SrcBackend>
+  DLL_PUBLIC inline void Copy(const Tensor<SrcBackend> &other, Index i, cudaStream_t stream) {
+    DALI_ENFORCE(shape()[i] == other.shape(),
+        "Shape of the source Tensor must match the shape of destination Tensor, got: "
+        + to_string(other.shape()) + " vs expected " + to_string(shape()[i]));
+    DALI_ENFORCE(other.type() == type(),
+        "Type of the source Tensor must match the type of destination Tensor, got: "
+        + other.type().name() + " vs expected " + type().name());
+
+    type_.template Copy<SrcBackend, Backend>(
+        raw_mutable_tensor(i),
+        other.raw_data(),
+        other.size(), stream);
+  }
+
   /**
    * @brief Resize function to allocate a list of tensors. The input vector
    * contains a set of dimensions for each tensor to be allocated in the

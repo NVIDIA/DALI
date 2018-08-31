@@ -229,9 +229,11 @@ def python_op_factory(name, op_device = "cpu"):
     Operator.__name__ = str(name)
     return Operator
 
+_wrapper_ops = ["Constant"]
 _cpugpu_ops = (set(b.RegisteredCPUOps())
             .union(set(b.RegisteredGPUOps()))
-            .union(set(b.RegisteredMixedOps())))
+            .union(set(b.RegisteredMixedOps()))
+            .union(set(_wrapper_ops)))
 _support_ops = set(b.RegisteredSupportOps())
 for op_name in _cpugpu_ops:
     setattr(sys.modules[__name__], op_name,

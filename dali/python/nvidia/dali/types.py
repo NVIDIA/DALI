@@ -14,6 +14,7 @@
 
 #pylint: disable=no-name-in-module,unused-import
 from nvidia.dali.backend_impl.types import *
+import numpy as np
 try:
     from nvidia.dali import tfrecord as tfrec
     _tfrecord_support = True
@@ -45,6 +46,7 @@ _known_types = {
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
         DALIDataType.TENSOR_LAYOUT : ("nvidia.dali.types.DALITensorLayout", lambda x: DALITensorLayout(int(x))),
+        DALIDataType.NUMPY_BUF : ("NumPy array", lambda x: np.array(x)),
         }
 if _tfrecord_support:
     _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)

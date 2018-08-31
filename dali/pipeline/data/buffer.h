@@ -192,7 +192,7 @@ class Buffer {
     size_ = bytes;
     device_ = device_id;
 
-    shares_data_ = bytes > 0;
+    shares_data_ = true;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
