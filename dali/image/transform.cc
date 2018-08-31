@@ -21,7 +21,7 @@ namespace dali {
 
 // Note: User is responsible for avoiding division by 0 w/ the std deviation
 DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
+    int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h,
     int crop_w, int mirror, uint8 *out_img, DALIInterpType type,
     uint8 *workspace) {
   DALI_ASSERT(img != nullptr);
@@ -31,7 +31,10 @@ DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   DALI_ASSERT((C == 3) || (C == 1));
   DALI_ASSERT(rsz_h > 0);
   DALI_ASSERT(rsz_w > 0);
+
   // Crop must be valid
+  const auto crop_y = crop.first;
+  const auto crop_x = crop.second;
   DALI_ASSERT(crop_y >= 0);
   DALI_ASSERT(crop_x >= 0);
   DALI_ASSERT(crop_h > 0);
@@ -81,7 +84,7 @@ DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
 }
 
 DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h,
+    int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h,
     int crop_w, int mirror, uint8 *out_img, DALIInterpType type,
     uint8 *workspace) {
   DALI_ASSERT(img != nullptr);
@@ -91,7 +94,10 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   DALI_ASSERT((C == 3) || (C == 1));
   DALI_ASSERT(rsz_h > 0);
   DALI_ASSERT(rsz_w > 0);
+
   // Crop must be valid
+  const auto crop_y = crop.first;
+  const auto crop_x = crop.second;
   DALI_ASSERT(crop_y >= 0);
   DALI_ASSERT(crop_x >= 0);
   DALI_ASSERT(crop_h > 0);
