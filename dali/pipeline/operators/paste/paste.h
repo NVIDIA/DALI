@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_RANDOM_PASTE_RANDOM_PASTE_H_
-#define DALI_PIPELINE_OPERATORS_RANDOM_PASTE_RANDOM_PASTE_H_
+#ifndef DALI_PIPELINE_OPERATORS_PASTE_PASTE_H_
+#define DALI_PIPELINE_OPERATORS_PASTE_PASTE_H_
 
 #include <cstring>
 #include <utility>
@@ -28,23 +28,21 @@
 namespace dali {
 
 template <typename Backend>
-class RandomPaste : public Operator<Backend> {
+class Paste : public Operator<Backend> {
  public:
-  explicit inline RandomPaste(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    max_ratio_(spec.GetArgument<float>("max_ratio")),
-    rgb_(spec.GetRepeatedArgument<int>("fill_color")) {
-      DALI_ENFORCE(rgb_.size() == 3, "Argument `fill_color` expects a list of 3 elements, "
-          + to_string(rgb_.size()) + " given.");
+  // 6 values: in_H, in_W, out_H, out_W, paste_y, paste_x
+  static const int NUM_INDICES = 6;
 
-      rand_gen_.seed(spec.GetArgument<int>("seed"));
-      input_ptrs_.Resize({batch_size_});
-      output_ptrs_.Resize({batch_size_});
-      // 6 values: in_H, in_W, out_H, out_W, paste_y, paste_x
-      in_out_dims_paste_yx_.Resize({batch_size_ * 6});
+  explicit inline Paste(const OpSpec &spec) :
+    Operator<Backend>(spec),
+    C_(spec.GetArgument<int>("n_channels")) {
+    GetSingleOrRepeatedArg(spec, &rgb_, "fill_value", C_);
+    input_ptrs_.Resize({batch_size_});
+    output_ptrs_.Resize({batch_size_});
+    in_out_dims_paste_yx_.Resize({batch_size_ * NUM_INDICES});
   }
 
-  virtual inline ~RandomPaste() = default;
+  virtual inline ~Paste() = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
@@ -56,17 +54,15 @@ class RandomPaste : public Operator<Backend> {
   void RunHelper(Workspace<Backend> *ws);
 
   // Op parameters
-  float max_ratio_;
   std::vector<int> rgb_;
   int C_;
 
   Tensor<CPUBackend> input_ptrs_, output_ptrs_, in_out_dims_paste_yx_;
   Tensor<GPUBackend> input_ptrs_gpu_, output_ptrs_gpu_, in_out_dims_paste_yx_gpu_;
-  std::mt19937 rand_gen_;
 
   USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_RANDOM_PASTE_RANDOM_PASTE_H_
+#endif  // DALI_PIPELINE_OPERATORS_PASTE_PASTE_H_

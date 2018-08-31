@@ -21,7 +21,7 @@ add_subdirectory(reader)
 add_subdirectory(resize)
 add_subdirectory(support)
 add_subdirectory(util)
-add_subdirectory(random_paste)
+add_subdirectory(paste)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)

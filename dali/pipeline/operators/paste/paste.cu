@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/random_paste/random_paste.h"
+#include "dali/pipeline/operators/paste/paste.h"
 
 #include <utility>
 #include <vector>
@@ -22,7 +22,7 @@ namespace dali {
 
 namespace {
 
-__global__ void BatchedRandomPaste(
+__global__ void BatchedPaste(
     const int N,
     const int C,
     const uint8 r,
@@ -74,8 +74,8 @@ __global__ void BatchedRandomPaste(
 
 
 template<>
-void RandomPaste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
-  BatchedRandomPaste<<<batch_size_, dim3(32, 32), 0, ws->stream()>>>(
+void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
+  BatchedPaste<<<batch_size_, dim3(32, 32), 0, ws->stream()>>>(
       batch_size_,
       C_,
       static_cast<uint8>(rgb_[0]),
@@ -87,12 +87,12 @@ void RandomPaste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
 }
 
 template<>
-void RandomPaste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   // No setup shared between input sets
 }
 
 template<>
-void RandomPaste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
+void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
   auto output = ws->Output<GPUBackend>(idx);
 
@@ -107,20 +107,21 @@ void RandomPaste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int i
     int W = input_shape[1];
     C_ = input_shape[2];
 
-    float ratio = std::uniform_real_distribution<>(1, max_ratio_)(rand_gen_);
+    float ratio = spec_.GetArgument<float>("ratio", ws, i);
 
     int new_H = static_cast<int>(ratio * H);
     int new_W = static_cast<int>(ratio * W);
     output_shape[i] = {new_H, new_W, C_};
 
-    int paste_y = std::uniform_int_distribution<>(0, new_H - H)(rand_gen_);
-    int paste_x = std::uniform_int_distribution<>(0, new_W - W)(rand_gen_);
+    int paste_y = spec_.GetArgument<float>("paste_y", ws, i) * (new_H - H);
+    int paste_x = spec_.GetArgument<float>("paste_x", ws, i) * (new_W - W);
 
     int sample_dims_paste_yx[] = {H, W, new_H, new_W, paste_y, paste_x};
-    int *sample_data = in_out_dims_paste_yx_.template mutable_data<int>() + (i*6);
-    std::copy(sample_dims_paste_yx, sample_dims_paste_yx + 6, sample_data);
+    int *sample_data = in_out_dims_paste_yx_.template mutable_data<int>() + (i*NUM_INDICES);
+    std::copy(sample_dims_paste_yx, sample_dims_paste_yx + NUM_INDICES, sample_data);
   }
 
+  output->set_type(input.type());
   output->Resize(output_shape);
   output->SetLayout(DALI_NHWC);
 
@@ -138,13 +139,13 @@ void RandomPaste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int i
 }
 
 template<>
-void RandomPaste<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+void Paste<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   if (idx != 0)
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));
   SetupSampleParams(ws, idx);
   RunHelper(ws);
 }
 
-DALI_REGISTER_OPERATOR(RandomPaste, RandomPaste<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(Paste, Paste<GPUBackend>, GPU);
 
 }  // namespace dali
