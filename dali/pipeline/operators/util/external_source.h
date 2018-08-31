@@ -15,8 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_UTIL_EXTERNAL_SOURCE_H_
 #define DALI_PIPELINE_OPERATORS_UTIL_EXTERNAL_SOURCE_H_
 
+#include <atomic>
 #include <string>
 #include <vector>
+#include <condition_variable>
+#include <mutex>
 
 #include "dali/pipeline/operators/operator.h"
 
@@ -31,11 +34,13 @@ template <typename Backend>
 class ExternalSource : public Operator<Backend> {
  public:
   inline explicit ExternalSource(const OpSpec &spec) :
-    Operator<Backend>(spec) {
+    Operator<Backend>(spec),
+    samples_processed_(0),
+    busy_(false) {
     output_name_ = spec.Output(0);
   }
 
-  virtual inline ~ExternalSource() = default;
+  inline ~ExternalSource() = default;
 
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";
@@ -49,8 +54,11 @@ class ExternalSource : public Operator<Backend> {
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait(lock,  [this]{return !this->busy_;});
     tl_data_.Copy(tl, 0);
     data_in_tl_ = true;
+    busy_ = true;
   }
 
   /**
@@ -61,11 +69,16 @@ class ExternalSource : public Operator<Backend> {
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
+
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait(lock,  [this]{return !this->busy_;});
+
     t_data_.resize(t.size());
     for (size_t i = 0; i < t.size(); ++i) {
       t_data_[i].Copy(t[i], 0);
     }
     data_in_tl_ = false;
+    busy_ = true;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
@@ -75,8 +88,15 @@ class ExternalSource : public Operator<Backend> {
 
   string output_name_;
   TensorList<Backend> tl_data_;
-  vector<Tensor<Backend>> t_data_;
-  bool data_in_tl_ = true;
+  std::vector<Tensor<Backend>> t_data_;
+  bool data_in_tl_;
+
+  std::atomic<int> samples_processed_;
+
+  bool busy_;
+  std::condition_variable cv_;
+  std::mutex m_;
+  std::mutex samples_processed_m_;
 };
 
 }  // namespace dali
