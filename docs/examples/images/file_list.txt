@@ -19,4 +19,3 @@ kitten/cat_7.jpg 1
 kitten/cat_8.jpg 1
 kitten/cat_9.jpg 1
 kitten/cat_10.jpg 1
-

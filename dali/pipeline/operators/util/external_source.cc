@@ -20,19 +20,30 @@ template<>
 void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   // Wrap the output tensor around our data
   auto output = ws->Output<CPUBackend>(idx);
+  cudaStream_t stream = ws->has_stream() ? ws->stream() : 0;
   if (data_in_tl_) {
-    output->ShareData(&tl_data_, ws->data_idx());
+    output->Copy(tl_data_, ws->data_idx(), stream);
   } else {
     DALI_ENFORCE_VALID_INDEX(ws->data_idx(), t_data_.size());
     auto &data = t_data_[ws->data_idx()];
-    output->ShareData(&data);
+    output->Copy(data, stream);
+  }
+
+  std::unique_lock<std::mutex> l(samples_processed_m_);
+  if (++samples_processed_ >= batch_size_) {
+    samples_processed_ = 0;
+    busy_ = false;
+    cv_.notify_one();
   }
 }
 
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
 DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline)code")
+  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline,
+           see :meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
+           :meth:`nvidia.dali.pipeline.Pipeline.iter_setup`. Currenlty this operator is not
+           supported in TensorFlow.)code")
   .NumInput(0)
   .NumOutput(1);
 
