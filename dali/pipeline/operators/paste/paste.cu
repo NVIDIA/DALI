@@ -22,16 +22,28 @@ namespace dali {
 
 namespace {
 
-__global__ void BatchedPaste(
+__global__
+__launch_bounds__(512, 1)
+void BatchedPaste(
     const int N,
     const int C,
-    const uint8 r,
-    const uint8 g,
-    const uint8 b,
-    const uint8* const * in_batch,
-    uint8* const* out_batch,
-    const int* in_out_dims_paste_yx) {
+    const uint8* const __restrict__ fill_value,
+    const uint8* const * const __restrict__ in_batch,
+    uint8* const* const __restrict__ out_batch,
+    const int* const __restrict__ in_out_dims_paste_yx) {
   const int n = blockIdx.x;
+
+  constexpr int nWaves = 16;
+  constexpr int blockSize = 512;
+  constexpr int nThreadsPerWave = blockSize / nWaves;
+  constexpr int MAX_C = 1024;
+
+  __shared__ uint8 rgb[MAX_C];
+  __shared__ int jump[MAX_C];
+  for (int i = threadIdx.x; i < C; ++i) {
+    rgb[i] = fill_value[i % C];
+    jump[i] = (i + nThreadsPerWave) % C;
+  }
 
   const int offset = n*6;
   const int in_H = in_out_dims_paste_yx[offset];
@@ -41,30 +53,48 @@ __global__ void BatchedPaste(
   const int paste_y = in_out_dims_paste_yx[offset + 4];
   const int paste_x = in_out_dims_paste_yx[offset + 5];
 
-  const uint8 rgb[] = {r, g, b};
-
-  const uint8* input_ptr = in_batch[n];
+  const uint8* const input_ptr = in_batch[n];
   uint8 * const output_ptr = out_batch[n];
 
-  for (int h = threadIdx.y; h < out_H; h += blockDim.y) {
-    for (int w = threadIdx.x; w < out_W; w += blockDim.x) {
-      int out_idx = h*out_W*C + w*C;
-      if (h >= paste_y
-        && h < paste_y + in_H
-        && w >= paste_x
-        && w < paste_x + in_W) {
-        for (int c = 0; c < C; ++c) {
-            // copy image
-            // TODO(spanev): benchmark outside of the loop
-            int in_idx = (h - paste_y)*in_W*C + (w - paste_x)*C + c;
+  __syncthreads();
 
-            output_ptr[out_idx + c] = input_ptr[in_idx];
-        }
-      } else {
-        for (int c = 0; c < C; ++c) {
-          // color
-          output_ptr[out_idx + c] = rgb[c];
-        }
+  const int myWave = threadIdx.x / nThreadsPerWave;
+  const int myId = threadIdx.x % nThreadsPerWave;
+
+  const int paste_x_stride = paste_x * C;
+  const int in_stride = in_W * C;
+  const int startC = myId % C;
+
+  for (int h = myWave; h < out_H; h += nWaves) {
+    const int H = h * out_W * C;
+    const int in_h = h - paste_y;
+    const bool h_in_range = in_h >= 0 && in_h < in_H;
+    if (h_in_range) {
+      int c = startC;
+      for (int i = myId; i < paste_x * C; i += nThreadsPerWave) {
+        const int out_idx = H + i;
+        output_ptr[out_idx] = rgb[c];
+        c = jump[c];
+      }
+      const int current_in_stride = in_h*in_stride - paste_x_stride;
+      for (int i = myId + paste_x * C; i < (paste_x + in_W) * C; i += nThreadsPerWave) {
+        const int out_idx = H + i;
+        const int in_idx = current_in_stride + i;
+
+        output_ptr[out_idx] = input_ptr[in_idx];
+      }
+      c = startC;
+      for (int i = myId + (paste_x + in_W) * C; i < out_W * C; i += nThreadsPerWave) {
+        const int out_idx = H + i;
+        output_ptr[out_idx] = rgb[c];
+        c = jump[c];
+      }
+    } else {
+      int c = startC;
+      for (int i = myId; i < out_W * C; i += nThreadsPerWave) {
+        const int out_idx = H + i;
+        output_ptr[out_idx] = rgb[c];
+        c = jump[c];
       }
     }
   }
@@ -75,12 +105,10 @@ __global__ void BatchedPaste(
 
 template<>
 void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
-  BatchedPaste<<<batch_size_, dim3(32, 32), 0, ws->stream()>>>(
+  BatchedPaste<<<batch_size_, 512, 0, ws->stream()>>>(
       batch_size_,
       C_,
-      static_cast<uint8>(rgb_[0]),
-      static_cast<uint8>(rgb_[1]),
-      static_cast<uint8>(rgb_[2]),
+      fill_value_.template data<uint8>(),
       input_ptrs_gpu_.template data<const uint8*>(),
       output_ptrs_gpu_.template data<uint8*>(),
       in_out_dims_paste_yx_gpu_.template data<int>());

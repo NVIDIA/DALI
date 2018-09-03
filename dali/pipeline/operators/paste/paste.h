@@ -36,7 +36,15 @@ class Paste : public Operator<Backend> {
   explicit inline Paste(const OpSpec &spec) :
     Operator<Backend>(spec),
     C_(spec.GetArgument<int>("n_channels")) {
-    GetSingleOrRepeatedArg(spec, &rgb_, "fill_value", C_);
+    // Kind of arbitrary, we need to set some limit here
+    // because we use static shared memory for storing
+    // fill value array
+    DALI_ENFORCE(C_ <= 1024,
+      "n_channels of more than 128 is not supported");
+    std::vector<uint8> rgb;
+    GetSingleOrRepeatedArg(spec, &rgb, "fill_value", C_);
+    fill_value_.Copy(rgb, 0);
+
     input_ptrs_.Resize({batch_size_});
     output_ptrs_.Resize({batch_size_});
     in_out_dims_paste_yx_.Resize({batch_size_ * NUM_INDICES});
@@ -54,8 +62,8 @@ class Paste : public Operator<Backend> {
   void RunHelper(Workspace<Backend> *ws);
 
   // Op parameters
-  std::vector<int> rgb_;
   int C_;
+  Tensor<Backend> fill_value_;
 
   Tensor<CPUBackend> input_ptrs_, output_ptrs_, in_out_dims_paste_yx_;
   Tensor<GPUBackend> input_ptrs_gpu_, output_ptrs_gpu_, in_out_dims_paste_yx_gpu_;
