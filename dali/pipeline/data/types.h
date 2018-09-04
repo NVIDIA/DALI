@@ -120,7 +120,7 @@ class DLL_PUBLIC TypeInfo {
     return type_size_;
   }
 
-  DLL_PUBLIC inline string name() const {
+  DLL_PUBLIC inline const string &name() const {
     return name_;
   }
 
