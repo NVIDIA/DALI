@@ -61,11 +61,13 @@ inline unique_ptr<Buffer<Backend>> LinearSearch(vector<unique_ptr<Buffer<Backend
 
   for (size_t i = 0; i < buffers->size(); ++i) {
     const size_t buffer_size = (*buffers)[i]->capacity();
+    const size_t size_diff = abs(static_cast<int64_t>(buffer_size) -
+                                 static_cast<int64_t>(nbytes));
     if (buffer_size >= (1.0/BufferManagerBase::buffer_size_threshold) * nbytes &&
         buffer_size <= BufferManagerBase::buffer_size_threshold * nbytes &&
-        (size_t) abs(buffer_size - nbytes) < current_delta) {
+        size_diff < current_delta) {
       current_idx = i;
-      current_delta = abs(buffer_size - nbytes);
+      current_delta = size_diff;
     }
   }
   std::unique_ptr<Buffer<Backend>> buff;
