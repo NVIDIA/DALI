@@ -20,10 +20,12 @@
 
 namespace dali {
 
+#define PASTE_BLOCKSIZE 512
+
 namespace {
 
 __global__
-__launch_bounds__(512, 1)
+__launch_bounds__(PASTE_BLOCKSIZE, 1)
 void BatchedPaste(
     const int N,
     const int C,
@@ -33,14 +35,14 @@ void BatchedPaste(
     const int* const __restrict__ in_out_dims_paste_yx) {
   const int n = blockIdx.x;
 
-  constexpr int nWaves = 16;
-  constexpr int blockSize = 512;
-  constexpr int nThreadsPerWave = blockSize / nWaves;
+  constexpr int blockSize = PASTE_BLOCKSIZE;
+  constexpr int nThreadsPerWave = 32;  // 1 warp per row
+  constexpr int nWaves = blockSize / nThreadsPerWave;
   constexpr int MAX_C = 1024;
 
   __shared__ uint8 rgb[MAX_C];
   __shared__ int jump[MAX_C];
-  for (int i = threadIdx.x; i < C; ++i) {
+  for (int i = threadIdx.x; i < C; i += blockDim.x) {
     rgb[i] = fill_value[i % C];
     jump[i] = (i + nThreadsPerWave) % C;
   }
@@ -77,7 +79,7 @@ void BatchedPaste(
         c = jump[c];
       }
       const int current_in_stride = in_h*in_stride - paste_x_stride;
-      for (int i = myId + paste_x * C; i < (paste_x + in_W) * C; i += nThreadsPerWave) {
+      for (int i = myId + paste_x_stride; i < paste_x_stride + in_W * C; i += nThreadsPerWave) {
         const int out_idx = H + i;
         const int in_idx = current_in_stride + i;
 
@@ -105,7 +107,7 @@ void BatchedPaste(
 
 template<>
 void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
-  BatchedPaste<<<batch_size_, 512, 0, ws->stream()>>>(
+  BatchedPaste<<<batch_size_, PASTE_BLOCKSIZE, 0, ws->stream()>>>(
       batch_size_,
       C_,
       fill_value_.template data<uint8>(),
