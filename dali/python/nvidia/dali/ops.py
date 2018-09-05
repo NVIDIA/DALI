@@ -115,7 +115,7 @@ class _OperatorInstance(object):
                     TensorReference. Received input type {}"""
                     .format(type(inputs[0]).__name__))
         # Argument inputs
-        for k in kwargs.keys():
+        for k in sorted(kwargs.keys()):
             if k not in ["name"]:
                 if not isinstance(kwargs[k], TensorReference):
                     raise TypeError(

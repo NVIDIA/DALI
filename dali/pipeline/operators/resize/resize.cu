@@ -94,6 +94,19 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
 }  // namespace
 
 template<>
+Resize<GPUBackend>::Resize(const OpSpec &spec) : Operator<GPUBackend>(spec), ResizeAttr(spec) {
+  resizeParam_ = new  vector<NppiPoint>(batch_size_ * 2);
+  // Resize per-image data
+  input_ptrs_.resize(batch_size_);
+  output_ptrs_.resize(batch_size_);
+  sizes_[0].resize(batch_size_);
+  sizes_[1].resize(batch_size_);
+
+  // Per set-of-sample TransformMeta
+  per_sample_meta_.resize(batch_size_);
+}
+
+template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
@@ -119,7 +132,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
     auto output = ws->Output<GPUBackend>(outputs_per_idx * idx);
 
-    ResizeParamDescr resizeDescr(this, resizeParam_.data());
+    ResizeParamDescr resizeDescr(this, resizeParam_->data());
     DataDependentSetupGPU(input, output, batch_size_, false,
                             inputImages(), outputImages(), NULL, &resizeDescr);
 
@@ -130,7 +143,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, sizes(input_t).data(),
         output_ptrs_.data(), sizes(output_t).data(),
-        resizeParam_.data(), interp_type_);
+        resizeParam_->data(), getInterpType());
     nppSetStream(old_stream);
 
     // Setup and output the resize attributes if necessary

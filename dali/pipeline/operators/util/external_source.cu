@@ -19,8 +19,11 @@ namespace dali {
 template<>
 void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   DALI_ENFORCE(data_in_tl_, "Cannot feed non-contiguous data to GPU op.");
+
   auto output = ws->Output<GPUBackend>(idx);
-  output->ShareData(&tl_data_);
+  output->Copy(tl_data_, (ws->has_stream() ? ws->stream() : 0));
+  busy_ = false;
+  cv_.notify_all();
 }
 
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
