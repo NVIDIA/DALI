@@ -88,20 +88,52 @@ typedef enum {
   t_decodePNGs  = 8
 } t_loadingFlags;
 
-typedef struct  {
+typedef struct {
   const char *m_Name;
   const char *m_val;
-  DALIDataType type;
+  const DALIDataType type;
 } OpArg;
 
 class opDescr {
  public:
-  explicit opDescr(const char *name, double eps = 0.0, const vector<OpArg> *argPntr = nullptr) :
-                   opName(name), epsVal(eps), args(argPntr) {}
-  const char *opName;
-  double epsVal;
+  explicit opDescr(const char *name, double eps = 0.0, bool addImgType = false,
+                   const vector<OpArg> *argPntr = nullptr) :
+                   opName(name), opAddImgType(addImgType), epsVal(eps), args(argPntr) {}
+  const char *opName;         // the name of the operator
+  const bool opAddImgType;    // the image_type argument needs to be added to the list of
+                              // the operator's arguments
+  const double epsVal;
   const vector<OpArg> *args;
 };
+
+template <typename T>
+void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataType dataType) {
+  const auto len = strlen(val);
+  vector<T> vect;
+  char *pEnd, *pTmp = new char[len + 1];
+  memcpy(pEnd = pTmp, val, len);
+  pEnd[len] = '\0';
+  T value;
+  while (pEnd[0]) {
+    if (pEnd[0] == ',')
+      pEnd++;
+
+    switch (dataType) {
+      case DALI_FLOAT_VEC:  value = strtof(pEnd, &pEnd);
+                            break;
+      case DALI_INT_VEC:    value = strtol(pEnd, &pEnd, 10);
+                            break;
+      default:  DALI_FAIL("Unknown type of vector \"" + std::string(val) + "\" "
+                          "used for \"" + std::string(name) + "\"");
+    }
+
+    vect.push_back(value);
+  }
+
+  delete [] pTmp;
+  spec->AddArg(name, vect);
+}
+
 
 // Define a virtual base class for single operator tests,
 // where we want to add a single operator to a pipeline,
@@ -118,7 +150,7 @@ class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
-    c_ = (IsColor(img_type_) ? 3 : 1);
+    c_ = (IsColor(ImageType()) ? 3 : 1);
     jpegs_.clear();
 
     const auto flags = GetImageLoadingFlags();
@@ -178,6 +210,9 @@ class DALISingleOpTest : public DALITest {
   void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
                              const string &pInput = "input", const string &pOutput = "outputCPU") {
     OpSpec spec(descr.opName);
+    if (descr.opAddImgType)
+      spec = spec.AddArg("image_type", ImageType());
+
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
                             .AddInput(pInput, pDevice)
                             .AddOutput(pOutput, pDevice));
@@ -221,37 +256,24 @@ class DALISingleOpTest : public DALITest {
     // outputs_ contains map of idx -> (name, device)
     vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
 
+    TensorList<CPUBackend> calc_host, *calc_output = &calc_host;
     // get outputs from pipeline, copy to host if necessary
     for (size_t i = 0; i < output_indices.size(); ++i) {
       auto output_device = outputs_[i].second;
 
       if (output_device == "gpu") {
-        // output on GPU
-        auto calc_output = ws->Output<GPUBackend>(output_indices[i]);
-
         // copy to host
-        TensorList<CPUBackend> calc_host;
-        calc_host.Copy(*calc_output, nullptr);
-
-        auto *ref_output = res[i];
-#if MAKE_IMG_OUTPUT
-        WriteHWCBatch<CPUBackend>(calc_host, "img");
-        WriteHWCBatch<CPUBackend>(*ref_output, "ref");
-#endif
-        // check calculated vs. reference answers
-        CheckTensorLists(&calc_host, ref_output);
+        calc_output->Copy(*ws->Output<GPUBackend>(output_indices[i]), nullptr);
       } else {
-        auto calc_output = ws->Output<CPUBackend>(output_indices[i]);
-        auto *ref_output = res.at(i);
-#if MAKE_IMG_OUTPUT
-        WriteHWCBatch<CPUBackend>(*calc_output, "img");
-        WriteHWCBatch<CPUBackend>(*ref_output, "ref");
-#endif
-        // check calculated vs. reference answers
-        CheckTensorLists(calc_output, ref_output);
+        calc_output = ws->Output<CPUBackend>(output_indices[i]);
       }
 
-      delete res[i];
+      auto ref_output = res[i];
+      calc_output->SetLayout(ref_output->GetLayout());
+
+      // check calculated vs. reference answers
+      CheckTensorLists(calc_output, ref_output);
+      delete ref_output;
     }
   }
 
@@ -299,7 +321,7 @@ class DALISingleOpTest : public DALITest {
 
   void TstBody(const OpSpec &operation, double eps = 2e-1, bool flag = true) {
     TensorList<CPUBackend> data;
-    DecodedData(&data, this->batch_size_, this->img_type_);
+    DecodedData(&data, this->batch_size_, this->ImageType());
     if (flag)
       SetExternalInputs({std::make_pair("input", &data)});
 
@@ -309,8 +331,8 @@ class DALISingleOpTest : public DALITest {
   virtual OpSpec DefaultSchema(const string &pName, const string &pDevice = "gpu") const {
     return OpSpec(pName)
       .AddArg("device", pDevice)
-      .AddArg("image_type", this->img_type_)
-      .AddArg("output_type", this->img_type_)
+      .AddArg("image_type", this->ImageType())
+      .AddArg("output_type", this->ImageType())
       .AddInput("input", pDevice)
       .AddOutput("output", pDevice);
   }
@@ -332,25 +354,17 @@ class DALISingleOpTest : public DALITest {
         case DALI_STRING:
           spec->AddArg(name, val);
           break;
-        case DALI_FLOAT_VEC: {
-          const auto len = strlen(val);
-          vector<float> vect;
-          char *pEnd, *pTmp = new char[len+1];
-          memcpy(pEnd = pTmp, val, len);
-          pEnd[len] = '\0';
-          while (pEnd[0]) {
-            if (pEnd[0] == ',')
-              pEnd++;
-
-            vect.push_back(strtof(pEnd, &pEnd));
-          }
-
-          delete [] pTmp;
-          spec->AddArg(name, vect);
+        case DALI_BOOL: {
+          bool b;
+          std::istringstream(val) >> std::nouppercase >> std::boolalpha >> b;
+          spec->AddArg(name, b);
           break;
         }
-        case DALI_BOOL:
-          spec->AddArg(name, strcmp(val, "True") == 0);
+        case DALI_FLOAT_VEC:
+          StringToVector<float>(name, val, spec, param.type);
+          break;
+        case DALI_INT_VEC:
+          StringToVector<int>(name, val, spec, param.type);
           break;
         default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
                            "used for \"" + std::string(name) + "\"");
@@ -362,6 +376,9 @@ class DALISingleOpTest : public DALITest {
 
   void RunOperator(const opDescr &descr) {
     OpSpec spec(DefaultSchema(descr.opName));
+    if (descr.opAddImgType && !spec.HasArgument("image_type"))
+      spec = spec.AddArg("image_type", ImageType());
+
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
 
@@ -603,10 +620,14 @@ class DALISingleOpTest : public DALITest {
 
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
                         const TensorList<CPUBackend> *t2) const {
+#if MAKE_IMG_OUTPUT
+    WriteBatch(*t1, "img");
+    WriteBatch(*t2, "ref");
+#endif
+
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
     ASSERT_EQ(t1->ntensor(), t2->ntensor());
-
     ASSERT_EQ(t1->size(), t2->size());
 
     const bool floatType = IsType<float>(t1->type());

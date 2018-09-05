@@ -53,9 +53,7 @@ class ResizeParamDescr {
 
 class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
-  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec),
-            color_(IsColor(image_type_)), C_(color_ ? 3 : 1) {
-  }
+  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
 
   void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
                DALISize *out_size, TransformMeta const * meta = nullptr) const;
@@ -73,10 +71,6 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
 
   inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
   inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
-
-  // Input/output channels meta-data
-  bool color_;
-  int C_;
 
   // store per-thread data for same resize on multiple data
   std::vector<TransformMeta> per_sample_meta_;

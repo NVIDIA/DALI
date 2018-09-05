@@ -43,7 +43,6 @@ TYPED_TEST(DisplacementTest, Jitter) {
 */
 
 TYPED_TEST(DisplacementTest, WarpAffine) {
-  vector<float> matrix{1.0, 0.8, 0.0, 0.0, 1.2, 0.0};
   const OpArg params = {"matrix", "1.0, 0.8, 0.0, 0.0, 1.2, 0.0", DALI_FLOAT_VEC};
   this->RunTest("WarpAffine", &params, 1);
 }

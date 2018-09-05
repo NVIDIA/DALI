@@ -105,12 +105,7 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
-    Argument * arg = Argument::Store(name, val);
-    DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
-        "AddArg failed. Argument with name \"" + name +
-        "\" already exists. ");
-    arguments_[name] = arg;
-    return *this;
+    return AddInitializedArg(name, Argument::Store(name, val));
   }
 
   /**

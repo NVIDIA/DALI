@@ -12,24 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
-#ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-#define DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-
-#include "dali/pipeline/operators/crop/crop.h"
+#include "dali/test/dali_test_matching.h"
 
 namespace dali {
 
-template <typename Backend>
-class CropCastPermute : public Crop<Backend> {
- public:
-  explicit inline CropCastPermute(const OpSpec &spec) : Crop<Backend>(spec) {
-    this->output_type_ = spec.GetArgument<DALIDataType>("output_dtype");
-    this->output_layout_ = spec.GetArgument<DALITensorLayout>("output_layout");
-  }
+template <typename ImgType>
+class CropTest : public GenericMatchingTest<ImgType> {
 };
 
+typedef ::testing::Types<RGB, BGR, Gray> Types;
+TYPED_TEST_CASE(CropTest, Types);
+
+const bool addImageType = true;
+
+TYPED_TEST(CropTest, CropNumber) {
+  this->RunTest({"Crop", {"crop", "224", DALI_INT32}}, addImageType);
+}
+
+TYPED_TEST(CropTest, CropVector) {
+  this->RunTest({"Crop", {"crop", "224, 256", DALI_INT_VEC}}, addImageType);
+}
+
 }  // namespace dali
-
-#endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-
