@@ -28,102 +28,118 @@
 
 namespace dali {
 
+/**
+ * @brief Class containing all global parameters,
+ * shared by all Pipelines.
+ */
 class GlobalWorkspace {
  public:
-  static GlobalWorkspace *Get();
-  static GlobalWorkspace *Get(int device);
+  static GlobalWorkspace &Get();
 
-  ~GlobalWorkspace() {
-    return;
-  }
+  ~GlobalWorkspace() = default;
 
-  // allocator stuff
-  void SetAllocators(const OpSpec &cpu_allocator,
-                     const OpSpec &pinned_cpu_allocator,
-                     const OpSpec &gpu_allocator) {
-    AllocatorManager::SetCPUAllocator(cpu_allocator);
-    AllocatorManager::SetPinnedCPUAllocator(pinned_cpu_allocator);
-    AllocatorManager::SetGPUAllocator(gpu_allocator);
-  }
+  void Init(const OpSpec &cpu_allocator,
+            const OpSpec &pinned_cpu_allocator,
+            const OpSpec &gpu_allocator);
 
-  // set the indidivual allocators
-  void SetCPUAllocator(const OpSpec& allocator) {
-    AllocatorManager::SetCPUAllocator(allocator);
-  }
-  void SetPinnedCPUAllocator(const OpSpec& allocator) {
-    AllocatorManager::SetPinnedCPUAllocator(allocator);
-  }
-  void SetGPUAllocator(const OpSpec& allocator) {
-    AllocatorManager::SetGPUAllocator(allocator);
-  }
-
-  // get the individual allocators
-  CPUAllocator& GetCPUAllocator() {
-    return AllocatorManager::GetCPUAllocator();
-  }
-  CPUAllocator& GetPinnedCPUAllocator() {
-    return AllocatorManager::GetPinnedCPUAllocator();
-  }
-  GPUAllocator& GetGPUAllocator() {
-    return AllocatorManager::GetGPUAllocator();
-  }
-
-  // Actual allocations
   void *AllocateHost(const size_t bytes, const bool pinned) {
-    void *ptr = nullptr;
-    if (!pinned) {
-      GetCPUAllocator().New(&ptr, bytes);
-    } else {
-      GetPinnedCPUAllocator().New(&ptr, bytes);
-    }
-    return ptr;
+    const auto * g = GetDeviceWorkspace();
+    DALI_ENFORCE(g != nullptr,
+        "Unknown error during memory allocation.");
+    return g->AllocateHost(bytes, pinned);
   }
 
   void FreeHost(void *ptr, const size_t bytes, const bool pinned) {
-    if (!pinned) {
-      GetCPUAllocator().Delete(ptr, bytes);
-    } else {
-      GetPinnedCPUAllocator().Delete(ptr, bytes);
+    const auto * g = GetDeviceWorkspace();
+    if (g == nullptr) {
+      // Application teardown,
+      // just leave
+      return;
     }
+    return g->FreeHost(ptr, bytes, pinned);
   }
 
-  void *AllocateGPU(const size_t bytes, const bool pinned = false);
-  void FreeGPU(void *ptr, const size_t bytes, const bool pinned = false);
+  void *AllocateGPU(const size_t bytes, const bool pinned = false) {
+    const auto * g = GetDeviceWorkspace();
+    DALI_ENFORCE(g != nullptr,
+        "Unknown error during memory allocation.");
+    return g->AllocateGPU(bytes, pinned);
+  }
+  void FreeGPU(void *ptr, const size_t bytes, const bool pinned = false) {
+    const auto * g = GetDeviceWorkspace();
+    if (g == nullptr) {
+      // Application teardown,
+      // just leave
+      return;
+    }
+    return g->FreeGPU(ptr, bytes, pinned);
+  }
 
   template <typename Backend>
-  unique_ptr<Buffer<Backend>> AcquireBuffer(size_t size, bool pinned);
+  unique_ptr<Buffer<Backend>> AcquireBuffer(size_t size, bool pinned) {
+    auto * g = GetDeviceWorkspace();
+    DALI_ENFORCE(g != nullptr,
+        "Unknown error during memory allocation.");
+    return g->AcquireBuffer<Backend>(size, pinned);
+  }
 
   template <typename Backend>
-  void ReleaseBuffer(unique_ptr<Buffer<Backend>> *buffer, bool pinned);
+  void ReleaseBuffer(unique_ptr<Buffer<Backend>> *buffer, bool pinned) {
+    auto * g = GetDeviceWorkspace();
+    if (g == nullptr) {
+      // Application teardown,
+      // just leave
+      return;
+    }
+    return g->ReleaseBuffer<Backend>(buffer, pinned);
+  }
 
  private:
-  explicit GlobalWorkspace(int device);
+  /**
+   * @brief Class containing all data shared
+   * by Pipelines using the same device, for
+   * example GPU memory pool.
+   */
+  class GlobalDeviceWorkspace {
+   public:
+    GlobalDeviceWorkspace(int device, const AllocatorManager &mgr) :
+      device_(device),
+      alloc_mgr_(mgr) {
+      buffer_manager_.reset(new LinearBufferManager(device));
+    }
 
-  int device_;
+    ~GlobalDeviceWorkspace() = default;
 
-  // Buffer manager
-  unique_ptr<BufferManagerBase> buffer_manager_;
+    void *AllocateHost(const size_t bytes, const bool pinned) const;
+
+    void FreeHost(void *ptr, const size_t bytes, const bool pinned) const;
+
+    void *AllocateGPU(const size_t bytes, const bool pinned = false) const;
+    void FreeGPU(void *ptr, const size_t bytes, const bool pinned = false) const;
+
+    template <typename Backend>
+    unique_ptr<Buffer<Backend>> AcquireBuffer(size_t size, bool pinned);
+
+    template <typename Backend>
+    void ReleaseBuffer(unique_ptr<Buffer<Backend>> *buffer, bool pinned);
+
+   private:
+    int device_;
+
+    AllocatorManager alloc_mgr_;
+    // Buffer manager
+    unique_ptr<BufferManagerBase> buffer_manager_;
+  };
+
+  GlobalWorkspace() : init_(false) {}
+  GlobalDeviceWorkspace *GetDeviceWorkspace();
+
+  AllocatorManager default_allocator_mgr_;
+  std::map<int, std::unique_ptr<GlobalDeviceWorkspace>> workspaces_;
+  std::mutex workspace_mutex_;
+  std::mutex init_mutex_;
+  bool init_;
 };
-
-template <>
-inline unique_ptr<Buffer<CPUBackend>> GlobalWorkspace::AcquireBuffer(size_t size, bool pinned) {
-  return buffer_manager_->AcquireBuffer(size, pinned);
-}
-
-template <>
-inline unique_ptr<Buffer<GPUBackend>> GlobalWorkspace::AcquireBuffer(size_t size, bool pinned) {
-  return buffer_manager_->AcquireBuffer(size);
-}
-
-template <>
-inline void GlobalWorkspace::ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer, bool pinned) {
-  buffer_manager_->ReleaseBuffer(buffer, pinned);
-}
-
-template <>
-inline void GlobalWorkspace::ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer, bool pinned) {
-  buffer_manager_->ReleaseBuffer(buffer);
-}
 
 }  // namespace dali
 

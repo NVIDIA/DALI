@@ -25,66 +25,46 @@ namespace dali {
 
 class AllocatorManager {
  public:
-  static void SetAllocators(const OpSpec &cpu_allocator,
-                            const OpSpec &pinned_cpu_allocator,
-                            const OpSpec &gpu_allocator) {
-    // Lock so we can give a good error if the user calls this from multiple threads.
-    std::lock_guard<std::mutex> lock(mutex_);
-    DALI_ENFORCE(cpu_allocator_ == nullptr, "DALI CPU allocator already set");
-    DALI_ENFORCE(pinned_cpu_allocator_ == nullptr, "DALI Pinned CPU allocator already set");
-    DALI_ENFORCE(gpu_allocator_ == nullptr, "DALI GPU allocator already set");
-    cpu_allocator_ = CPUAllocatorRegistry::Registry()
-      .Create(cpu_allocator.name(), cpu_allocator);
-    pinned_cpu_allocator_ = CPUAllocatorRegistry::Registry()
-      .Create(pinned_cpu_allocator.name(), pinned_cpu_allocator);
-    gpu_allocator_ = GPUAllocatorRegistry::Registry()
-      .Create(gpu_allocator.name(), gpu_allocator);
-  }
+  AllocatorManager() {}
+  ~AllocatorManager() = default;
 
-  static CPUAllocator& GetCPUAllocator() {
+  CPUAllocator& GetCPUAllocator() const {
     DALI_ENFORCE(cpu_allocator_ != nullptr,
         "DALI CPU allocator not set. Did you forget to call DALIInit?");
     return *cpu_allocator_.get();
   }
 
-  static CPUAllocator& GetPinnedCPUAllocator() {
-    DALI_ENFORCE(cpu_allocator_ != nullptr,
+  CPUAllocator& GetPinnedCPUAllocator() const {
+    DALI_ENFORCE(pinned_cpu_allocator_ != nullptr,
         "DALI Pinned CPU allocator not set. Did you forget to call DALIInit?");
     return *pinned_cpu_allocator_.get();
   }
 
-  static GPUAllocator& GetGPUAllocator() {
+  GPUAllocator& GetGPUAllocator() const {
     DALI_ENFORCE(gpu_allocator_ != nullptr,
         "DALI GPU allocator not set. Did you forget to call DALIInit?");
     return *gpu_allocator_.get();
   }
 
-  static void SetCPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+  void SetCPUAllocator(const OpSpec& allocator) {
     cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(allocator.name(), allocator);
   }
 
-  static void SetPinnedCPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+  void SetPinnedCPUAllocator(const OpSpec& allocator) {
     pinned_cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(allocator.name(), allocator);
   }
 
-  static void SetGPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+  void SetGPUAllocator(const OpSpec& allocator) {
     gpu_allocator_ = GPUAllocatorRegistry::Registry()
       .Create(allocator.name(), allocator);
   }
 
  private:
-  // AllocatorManager should be accessed through its static members
-  AllocatorManager() {}
-
-  static unique_ptr<CPUAllocator> cpu_allocator_;
-  static unique_ptr<CPUAllocator> pinned_cpu_allocator_;
-  static unique_ptr<GPUAllocator> gpu_allocator_;
-  static std::mutex mutex_;
+  shared_ptr<CPUAllocator> cpu_allocator_;
+  shared_ptr<CPUAllocator> pinned_cpu_allocator_;
+  shared_ptr<GPUAllocator> gpu_allocator_;
 };
 
 }  // namespace dali

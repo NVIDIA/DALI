@@ -28,11 +28,6 @@ DLL_PUBLIC void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator);
 
-DLL_PUBLIC void DALISetCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void DALISetPinnedCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void DALISetGPUAllocator(const OpSpec& allocator);
-
-
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_INIT_H_

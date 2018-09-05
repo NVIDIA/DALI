@@ -33,7 +33,7 @@ void Tensor<Backend>::acquire_buffer() {
   // we need to get one from the GlobalWorkspace
   if (buffer_.get() == nullptr && buffer_size > 0) {
     buffer_ = std::move(
-        GlobalWorkspace::Get()->template AcquireBuffer<Backend>(buffer_size, pinned_));
+        GlobalWorkspace::Get().template AcquireBuffer<Backend>(buffer_size, pinned_));
     DALI_ENFORCE(buffer_.get() != nullptr);
   }
 
@@ -78,7 +78,7 @@ void Tensor<Backend>::release(cudaStream_t s) const {
     if (s != nullptr) CUDA_CALL(cudaStreamSynchronize(s));
 
     if (!shares_data()) {
-      GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
+      GlobalWorkspace::Get().ReleaseBuffer<Backend>(&buffer_, pinned_);
     }
     buffer_.reset();
   }
@@ -87,7 +87,7 @@ void Tensor<Backend>::release(cudaStream_t s) const {
 template <typename Backend>
 void Tensor<Backend>::force_release() {
   if (!shares_data()) {
-    GlobalWorkspace::Get()->ReleaseBuffer<Backend>(&buffer_, pinned_);
+    GlobalWorkspace::Get().ReleaseBuffer<Backend>(&buffer_, pinned_);
   }
   buffer_.reset();
 }

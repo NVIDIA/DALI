@@ -25,16 +25,4 @@ void DALIInit(const OpSpec &cpu_allocator,
   InitializeBackends(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
 }
 
-void DALISetCPUAllocator(const OpSpec& allocator) {
-  SetCPUAllocator(allocator);
-}
-
-void DALISetPinnedCPUAllocator(const OpSpec& allocator) {
-  SetPinnedCPUAllocator(allocator);
-}
-
-void DALISetGPUAllocator(const OpSpec& allocator) {
-  SetGPUAllocator(allocator);
-}
-
 }  // namespace dali

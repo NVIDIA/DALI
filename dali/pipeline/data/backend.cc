@@ -27,49 +27,27 @@
 
 namespace dali {
 
-#define MAP_INSERT_OR_UPDATE(VALUE)                     \
-  int dev;                                              \
-  CUDA_CALL(cudaGetDevice(&dev));                       \
-  auto it = gpu_allocators_.find(dev);                  \
-  if (it != gpu_allocators_.end()) {                    \
-    it->second = VALUE;                                 \
-  } else {                                              \
-    gpu_allocators_.insert(std::make_pair(dev, VALUE)); \
-  }
-
 // Sets the allocator ptrs for all backends
 void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &pinned_cpu_allocator,
     const OpSpec &gpu_allocator) {
-  GlobalWorkspace::Get()->SetAllocators(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
-}
-
-void SetCPUAllocator(const OpSpec& allocator) {
-  GlobalWorkspace::Get()->SetCPUAllocator(allocator);
-}
-
-void SetPinnedCPUAllocator(const OpSpec& allocator) {
-  GlobalWorkspace::Get()->SetPinnedCPUAllocator(allocator);
-}
-
-void SetGPUAllocator(const OpSpec& allocator) {
-  GlobalWorkspace::Get()->SetGPUAllocator(allocator);
+  GlobalWorkspace::Get().Init(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
 }
 
 void* GPUBackend::New(size_t bytes, bool) {
-  return GlobalWorkspace::Get()->AllocateGPU(bytes);
+  return GlobalWorkspace::Get().AllocateGPU(bytes);
 }
 
 void GPUBackend::Delete(void *ptr, size_t bytes, bool) {
-  GlobalWorkspace::Get()->FreeGPU(ptr, bytes);
+  GlobalWorkspace::Get().FreeGPU(ptr, bytes);
 }
 
 void* CPUBackend::New(size_t bytes, bool pinned) {
-  return GlobalWorkspace::Get()->AllocateHost(bytes, pinned);
+  return GlobalWorkspace::Get().AllocateHost(bytes, pinned);
 }
 
 void CPUBackend::Delete(void *ptr, size_t bytes, bool pinned) {
-  return GlobalWorkspace::Get()->FreeHost(ptr, bytes, pinned);
+  return GlobalWorkspace::Get().FreeHost(ptr, bytes, pinned);
 }
 
 }  // namespace dali

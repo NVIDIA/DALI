@@ -25,35 +25,93 @@
 namespace dali {
 
 std::map<int, std::mutex> mutexes_;
-std::map<int, std::unique_ptr<GlobalWorkspace>> workspaces_;
 
-GlobalWorkspace *GlobalWorkspace::Get(int device) {
-  // Will automagically call default constructor under the hood for
-  // un-initialised entries.
-  std::lock_guard<std::mutex> lock(mutexes_[device]);
+GlobalWorkspace::GlobalDeviceWorkspace *GlobalWorkspace::GetDeviceWorkspace() {
+  int device;
+  auto err = cudaGetDevice(&device);
+
+  if (err == cudaErrorCudartUnloading) {
+    // Application teardown,
+    // just leave
+    return nullptr;
+  }
+
+  std::lock_guard<std::mutex> lock(workspace_mutex_);
 
   // Lazily allocate new workspaces as new devices come in
   if (!workspaces_.count(device)) {
-    workspaces_[device] = std::unique_ptr<GlobalWorkspace>(new GlobalWorkspace(device));
+    workspaces_[device] =
+      std::unique_ptr<GlobalDeviceWorkspace>(new GlobalDeviceWorkspace(
+            device,
+            default_allocator_mgr_));
   }
 
   return workspaces_[device].get();
 }
 
-GlobalWorkspace *GlobalWorkspace::Get() {
-  int device;
-  auto err = cudaGetDevice(&device);
-
-  if (err == cudaErrorCudartUnloading) {
-    return nullptr;
+// Actual allocations
+void *GlobalWorkspace::GlobalDeviceWorkspace::AllocateHost(const size_t bytes,
+                                                           const bool pinned) const {
+  void *ptr = nullptr;
+  if (!pinned) {
+    alloc_mgr_.GetCPUAllocator().New(&ptr, bytes);
+  } else {
+    alloc_mgr_.GetPinnedCPUAllocator().New(&ptr, bytes);
   }
-
-  return GlobalWorkspace::Get(device);
+  return ptr;
 }
 
-GlobalWorkspace::GlobalWorkspace(int device)
-  : device_(device) {
-    buffer_manager_.reset(new LinearBufferManager(device));
+void GlobalWorkspace::GlobalDeviceWorkspace::FreeHost(void *ptr,
+                                                      const size_t bytes,
+                                                      const bool pinned) const {
+  if (!pinned) {
+    alloc_mgr_.GetCPUAllocator().Delete(ptr, bytes);
+  } else {
+    alloc_mgr_.GetPinnedCPUAllocator().Delete(ptr, bytes);
+  }
+}
+
+template <>
+unique_ptr<Buffer<CPUBackend>>
+GlobalWorkspace::GlobalDeviceWorkspace::AcquireBuffer(size_t size, bool pinned) {
+  return buffer_manager_->AcquireBuffer(size, pinned);
+}
+
+template <>
+unique_ptr<Buffer<GPUBackend>>
+GlobalWorkspace::GlobalDeviceWorkspace::AcquireBuffer(size_t size, bool /* unused */) {
+  return buffer_manager_->AcquireBuffer(size);
+}
+
+template <>
+void
+GlobalWorkspace::GlobalDeviceWorkspace::ReleaseBuffer(unique_ptr<Buffer<CPUBackend>> *buffer,
+                                                      bool pinned) {
+  buffer_manager_->ReleaseBuffer(buffer, pinned);
+}
+
+template <>
+void
+GlobalWorkspace::GlobalDeviceWorkspace::ReleaseBuffer(unique_ptr<Buffer<GPUBackend>> *buffer,
+                                                      bool /* unused */) {
+  buffer_manager_->ReleaseBuffer(buffer);
+}
+
+GlobalWorkspace &GlobalWorkspace::Get() {
+  static GlobalWorkspace gw;
+  return gw;
+}
+
+void GlobalWorkspace::Init(const OpSpec &cpu_allocator,
+                           const OpSpec &pinned_cpu_allocator,
+                           const OpSpec &gpu_allocator) {
+  std::lock_guard<std::mutex> lock(init_mutex_);
+  DALI_ENFORCE(init_ == false,
+      "GlobalWorkspace may be initialized only once!");
+  default_allocator_mgr_.SetCPUAllocator(cpu_allocator);
+  default_allocator_mgr_.SetPinnedCPUAllocator(pinned_cpu_allocator);
+  default_allocator_mgr_.SetGPUAllocator(gpu_allocator);
+  init_ = true;
 }
 
 }  // namespace dali

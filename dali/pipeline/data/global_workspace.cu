@@ -21,15 +21,18 @@
 
 namespace dali {
 
-void *GlobalWorkspace::AllocateGPU(const size_t bytes, const bool pinned) {
+void *GlobalWorkspace::GlobalDeviceWorkspace::AllocateGPU(const size_t bytes,
+                                                          const bool pinned) const {
   void *ptr = nullptr;
-  GetGPUAllocator().New(&ptr, bytes);
+  alloc_mgr_.GetGPUAllocator().New(&ptr, bytes);
 
   return ptr;
 }
 
-void GlobalWorkspace::FreeGPU(void *ptr, const size_t bytes, const bool pinned) {
-  GetGPUAllocator().Delete(ptr, bytes);
+void GlobalWorkspace::GlobalDeviceWorkspace::FreeGPU(void *ptr,
+                                                     const size_t bytes,
+                                                     const bool pinned) const {
+  alloc_mgr_.GetGPUAllocator().Delete(ptr, bytes);
 }
 
 }  // namespace dali
