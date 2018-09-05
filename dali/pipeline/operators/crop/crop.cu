@@ -92,6 +92,8 @@ template<>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
+  ValidateHelper<Out>(output);
+
   DALI_CALL((BatchedCrop<Out>(
       input_ptrs_gpu_.template data<const uint8*>(),
       input_strides_gpu_.template data<int>(),
@@ -169,43 +171,15 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
   input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
   input_strides_gpu_.Copy(input_strides_, ws->stream());
-
-  // Validate
-  if (output_type_ == DALI_FLOAT) {
-    ValidateHelper<float>(output);
-  } else if (output_type_ == DALI_FLOAT16) {
-    ValidateHelper<float16>(output);
-  } else if (output_type_ == DALI_UINT8) {
-    ValidateHelper<unsigned char>(output);
-  } else if (output_type_ == DALI_INT16) {
-    ValidateHelper<int16>(output);
-  } else if (output_type_ == DALI_INT32) {
-    ValidateHelper<int>(output);
-  } else if (output_type_ == DALI_INT64) {
-    ValidateHelper<int64>(output);
-  } else {
-    DALI_FAIL("Unsupported output type.");
-  }
 }
 
 template <>
 void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   DataDependentSetup(ws, idx);
-  if (output_type_ == DALI_FLOAT) {
-    RunHelper<float>(ws, idx);
-  } else if (output_type_ == DALI_FLOAT16) {
+  if (output_type_ == DALI_FLOAT16)
     RunHelper<float16>(ws, idx);
-  } else if (output_type_ == DALI_UINT8) {
-    RunHelper<unsigned char>(ws, idx);
-  } else if (output_type_ == DALI_INT16) {
-    RunHelper<int16>(ws, idx);
-  } else if (output_type_ == DALI_INT32) {
-    RunHelper<int>(ws, idx);
-  } else if (output_type_ == DALI_INT64) {
-    RunHelper<int64>(ws, idx);
-  } else {
-    DALI_FAIL("Unsupported output type.");
-  }
+  else
+    CallRunHelper(ws, idx);
 }
 
 // Register operator

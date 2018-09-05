@@ -137,6 +137,22 @@ class Crop : public Operator<Backend>, protected CropAttr {
     output_layout_ = DALI_SAME;
   }
 
+  void CallRunHelper(Workspace<Backend> *ws, const int idx) {
+    if (output_type_ == DALI_FLOAT) {
+      RunHelper<float>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      RunHelper<unsigned char>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      RunHelper<int16>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      RunHelper<int>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      RunHelper<int64>(ws, idx);
+    } else {
+      DALI_FAIL("Unsupported output type.");
+    }
+  }
+
   Tensor<CPUBackend> input_ptrs_, input_strides_;
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
   vector<int> crop_offsets_;

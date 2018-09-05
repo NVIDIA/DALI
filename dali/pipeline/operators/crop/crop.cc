@@ -17,7 +17,6 @@
 #include "dali/util/half.hpp"
 
 namespace dali {
-typedef half_float::half _float16;
 
 DALI_SCHEMA(Crop)
     .DocStr(R"code(Perform a random crop.)code")
@@ -106,21 +105,7 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   auto output = ws->Output<CPUBackend>(idx);
 
   // Validate
-  if (output_type_ == DALI_FLOAT) {
-    ValidateHelper<float>(&input, output);
-  } else if (output_type_ == DALI_FLOAT16) {
-    ValidateHelper<_float16>(&input, output);
-  } else if (output_type_ == DALI_UINT8) {
-    ValidateHelper<unsigned char>(&input, output);
-  } else if (output_type_ == DALI_INT16) {
-    ValidateHelper<int16>(&input, output);
-  } else if (output_type_ == DALI_INT32) {
-    ValidateHelper<int>(&input, output);
-  } else if (output_type_ == DALI_INT64) {
-    ValidateHelper<int64>(&input, output);
-  } else {
-    DALI_FAIL("Unsupported output type.");
-  }
+  ValidateHelper<Out>(&input, output);
 
   const int dataIdx = ws->thread_idx();
   const int H = per_sample_dimensions_[dataIdx].first;
@@ -145,22 +130,10 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   output->SetLayout(outLayout);
 
   CheckParam(input, "CropCPUBackend");
-
-  if (output_type_ == DALI_FLOAT) {
-    RunHelper<float>(ws, idx);
-  } else if (output_type_ == DALI_FLOAT16) {
-    RunHelper<_float16>(ws, idx);
-  } else if (output_type_ == DALI_UINT8) {
-    RunHelper<unsigned char>(ws, idx);
-  } else if (output_type_ == DALI_INT16) {
-    RunHelper<int16>(ws, idx);
-  } else if (output_type_ == DALI_INT32) {
-    RunHelper<int>(ws, idx);
-  } else if (output_type_ == DALI_INT64) {
-    RunHelper<int64>(ws, idx);
-  } else {
-    DALI_FAIL("Unsupported output type.");
-  }
+  if (output_type_ == DALI_FLOAT16)
+    RunHelper<half_float::half>(ws, idx);
+  else
+    CallRunHelper(ws, idx);
 }
 
 template<>
