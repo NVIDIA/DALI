@@ -176,6 +176,16 @@ class Operator : public OperatorBase {
     SetupSharedSampleParams(ws);
 
     for (int i = 0; i < input_sets_; ++i) {
+      if (std::is_same<Backend, GPUBackend>::value) {
+        // Before we start working on the next input set, we need
+        // to wait until the last one is finished. Otherwise for some ops
+        // we risk overwriting data used by the kernel called for previous
+        // image. Doing it for all ops is a compromise between performance
+        // (which should not be greatly affected) and robustness (guarding
+        // against this potential problem for newly added ops)
+        if (idx != 0)
+          CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+      }
       RunImpl(ws, i);
     }
   }
