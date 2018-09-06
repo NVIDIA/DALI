@@ -49,18 +49,19 @@ DALIError_t GetBMPImageDims(const uint8 *bmp, int size, int *h, int *w) {
     DALIError_t ret = DALIError;
     DALI_ASSERT(bmp);
 
-    unsigned head_size = bmp[14] | bmp[15] << 4 | bmp[16] << 8 | bmp[17] << 12;
+    // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
+    unsigned header_size = bmp[14] | bmp[15] << 8 | bmp[16] << 16 | bmp[17] << 24;
     *h = 0;
     *w = 0;
-    if (size >= 22 && head_size == 12) {
-        *w = (unsigned int)(bmp[18] | bmp[19] << 4) && 0xFFFF;
-        *h = (unsigned int)(bmp[20] | bmp[21] << 4) && 0xFFFF;
+    // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
+    if (size >= 22 && header_size == 12) {
+        *w = (unsigned int)(bmp[18] | bmp[19] << 8) & 0xFFFF;
+        *h = (unsigned int)(bmp[20] | bmp[21] << 8) & 0xFFFF;
         ret = DALISuccess;
-    } else if (size >= 26 && head_size >= 40) {
-        *w = (unsigned int)(static_cast<int>(bmp[18] | bmp[19] << 4 |
-             bmp[20] << 8 | bmp[21] << 12));
-        *h = (unsigned int)abs(static_cast<int>(bmp[22] | bmp[23] << 4 |
-             bmp[24] << 8 | bmp[25] << 12));
+    // BITMAPINFOHEADER and later: | 32u header | 32s width | 32s height | ...
+    } else if (size >= 26 && header_size >= 40) {
+        *w = static_cast<int>(bmp[18] | bmp[19] << 8 | bmp[20] << 16 | bmp[21] << 24);
+        *h = abs(static_cast<int>(bmp[22] | bmp[23] << 8 | bmp[24] << 16 | bmp[25] << 24));
         ret = DALISuccess;
     }
 
