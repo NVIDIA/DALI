@@ -307,11 +307,6 @@ void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, co
 
 template<>
 void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  // Before we start working on the next input set, we need
-  // to wait until the last one is finished. Otherwise we risk
-  // overwriting data used by the kernel called for previous image
-  if (idx != 0)
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
   DataDependentSetup(ws, idx);
   if (output_type_ == DALI_FLOAT) {
     RunHelper<float>(ws, idx);
