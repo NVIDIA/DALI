@@ -13,3 +13,5 @@ valgrind-out.txt
 .dockerignore
 wheelhouse
 compile
+.idea
+cmake-build-*
