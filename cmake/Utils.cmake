@@ -119,9 +119,17 @@ endmacro()
 
 # add a post-build step to the provided target which copies
 # files or directories recursively from SRC to DSTrunnable
+# create phony target first (if not exists with given name yet)
+# and add comand attached to it
 macro(copy_post_build TARGET_NAME SRC DST)
+    if (NOT (TARGET install_${TARGET_NAME}))
+        add_custom_target(install_${TARGET_NAME} ALL
+             DEPENDS ${TARGET_NAME}
+        )
+    endif()
+
     add_custom_command(
-    TARGET ${TARGET_NAME} POST_BUILD
+    TARGET install_${TARGET_NAME}
     COMMAND cp -r
             "${SRC}"
             "${DST}")
