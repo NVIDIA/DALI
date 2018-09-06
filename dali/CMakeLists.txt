@@ -73,11 +73,16 @@ set_target_properties(${dali_lib} PROPERTIES
 
 # filter all *.h which don't have 'test' in name, create pairs 'src dst' string with sed and call xargs
 # with install command to copy with dest recursive dir creation
+add_custom_target(install_headers ALL
+    DEPENDS ${dali_lib}
+)
+  
 add_custom_command(
-    TARGET ${dali_lib} POST_BUILD
+    TARGET install_headers
     COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
     | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${CMAKE_BINARY_DIR}/include/dali\\2,'
-    | xargs -n 2 install -D)
+    | xargs -n 2 install -D
+  )
 
 ################################################
 # Build test suite
