@@ -257,10 +257,10 @@ template <typename T, typename A>
 struct is_vector<std::vector<T, A> >: std::true_type {};
 
 template <typename T>
-struct is_array: std::false_type {};
+struct is_std_array: std::false_type {};
 
 template <typename T, size_t A>
-struct is_array<std::array<T, A> >: std::true_type {};
+struct is_std_array<std::array<T, A> >: std::true_type {};
 
 }  // namespace dali
 
