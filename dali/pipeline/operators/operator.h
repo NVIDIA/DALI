@@ -183,8 +183,7 @@ class Operator : public OperatorBase {
         // image. Doing it for all ops is a compromise between performance
         // (which should not be greatly affected) and robustness (guarding
         // against this potential problem for newly added ops)
-        if (idx != 0)
-          CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+        SyncHelper(i, ws);
       }
       RunImpl(ws, i);
     }
@@ -200,6 +199,21 @@ class Operator : public OperatorBase {
    * implemented by derived ops.
    */
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
+
+private:
+  // SINFAE for Run is not possible as we want it to be virtual
+  template <typename B = Backend>
+  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
+  SyncHelper(int i, Workspace<B> *ws) {
+    if (i != 0) {
+        CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    }
+  }
+
+  template <typename B = Backend>
+  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
+  SyncHelper(int /*unused*/, Workspace<B> */*unused*/) {}
+
 };
 
 template<>
