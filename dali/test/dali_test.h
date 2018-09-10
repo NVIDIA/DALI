@@ -55,6 +55,7 @@ class DALITest : public ::testing::Test {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
     LoadImages(image_folder, &png_names_, &png_);
+    LoadImages(image_folder, &tiff_names_, &tiff_);
   }
 
   inline void TearDown() override {
@@ -90,7 +91,7 @@ class DALITest : public ::testing::Test {
       out_dataPntr = out->mutable_data<unsigned char>();
     }
 
-    std::memcpy(out_dataPntr, out_img.ptr(), out_img.rows * out_img.cols * c);
+    std::memcpy(out_dataPntr, out_img.ptr(), static_cast<size_t>(out_img.rows) * out_img.cols * c);
   }
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
