@@ -26,6 +26,7 @@ DALI and NGC
 ------------
 
 DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch, and MXNet containers in versions 18.07 and later.
+More info can be found `here <https://docs.nvidia.com/deeplearning/sdk/dali-install-guide/index.html#dali-ngc>`_.
 
 Installing prebuilt DALI packages
 ---------------------------------
@@ -39,14 +40,14 @@ Prerequisites
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |mxnet link| replace:: **MXNet 1.3 beta**
 .. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **pyTorch 0.4**
+.. |pytorch link| replace:: **PyTorch 0.4**
 .. _pytorch link: https://pytorch.org
 .. |tf link| replace:: **TensorFlow 1.7**
 .. _tf link: https://www.tensorflow.org
 
 -  **Linux x64**
 -  |driver link|_ supporting `CUDA 9.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 384.xx or later driver releases)
--  One or more of the following Deep Learning frameworks:
+-  One or more of the following deep learning frameworks:
 
    -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later
    -  |pytorch link|_
@@ -187,7 +188,7 @@ Getting started
 .. |examples link| replace:: ``docs/examples``
 .. _examples link: docs/examples
 
-|examples link|_ directory contains a series of examples (in the form of Jupyter notebooks) of different features of DALI. It also contains examples of how to use DALI to interface with DL frameworks.
+The |examples link|_ directory contains a series of examples (in the form of Jupyter notebooks) highlighting different features of DALI. It also contains examples of how to use DALI to interface with deep learning frameworks.
 
 Documentation for the latest stable release is available `here <https://docs.nvidia.com/deeplearning/sdk/index.html#data-loading>`_. Nightly version of the documentation that stays in sync with the master branch is available `here <https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/index.html>`_.
 
@@ -199,7 +200,15 @@ Additional resources
 Contributing to DALI
 --------------------
 
-Contributions to DALI are more than welcome. To make the pull request process smooth, please follow these `guidelines <CONTRIBUTING.md>`_.
+Contributions to DALI are more than welcome. To contribute to DALI and make pull requests, follow the guidelines outlined in the `Contributing <CONTRIBUTING.md>`_ document.
+
+Reporting problems, asking questions
+-----------------------------------
+
+We appreciate any feedback, questions or bug reporting regarding this project. When help with code is needed, follow the process outlined in the Stack Overflow (https://stackoverflow.com/help/mcve) document. Ensure posted examples are:
+- minimal – use as little code as possible that still produces the same problem
+- complete – provide all parts needed to reproduce the problem. Check if you can strip external dependency and still show the problem. The less time we spend on reproducing problems the more time we have to fix it
+- verifiable – test the code you're about to provide to make sure it reproduces the problem. Remove all other problems that are not related to your request/question.
 
 Contributors
 ------------
