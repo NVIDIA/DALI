@@ -16,13 +16,16 @@
 
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
+#include "tiff.h"
 
 namespace dali {
+
+namespace {
 
 bool CheckIsGIF(const uint8_t *gif, int size) {
     DALI_ASSERT(gif);
     return (size >= 10 && gif[0] == 'G' && gif[1] == 'I' && gif[2] == 'F' && gif[3] == '8' &&
-    (gif[4] == '7' || gif[4] == '9') && gif[5] == 'a');
+            (gif[4] == '7' || gif[4] == '9') && gif[5] == 'a');
 }
 
 // OpenCV doesn't handle gif images so we don't need it now
@@ -40,6 +43,7 @@ DALIError_t GetGIFImageDims(const uint8 *gif, int size, int *h, int *w) {
     return ret;
 }
 #endif
+
 
 bool CheckIsBMP(const uint8_t *bmp, int size) {
     return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
@@ -67,6 +71,9 @@ DALIError_t GetBMPImageDims(const uint8 *bmp, int size, int *h, int *w) {
     return ret;
 }
 
+} // namespace
+
+
 DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
     DALI_ASSERT(data);
     if (CheckIsPNG(data, size)) {
@@ -80,7 +87,10 @@ DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
     #endif
     } else if (CheckIsBMP(data, size)) {
         return GetBMPImageDims(data, size, h, w);
+    } else if (CheckIsTiff(data)) {
+        return GetTiffImageDims(data, size, h, w);
     }
+
     // Not supported
     return DALIError;
 }

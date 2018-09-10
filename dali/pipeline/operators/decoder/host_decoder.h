@@ -22,6 +22,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/image/jpeg.h"
 #include "dali/image/png.h"
+#include "dali/image/tiff.h"
 
 namespace dali {
 
@@ -43,28 +44,35 @@ class HostDecoder : public Operator<CPUBackend> {
     // Verify input
     DALI_ENFORCE(input.ndim() == 1,
         "Input must be 1D encoded jpeg string.");
-    DALI_ENFORCE(IsType<uint8>(input.type()),
+    DALI_ENFORCE(IsType<unsigned char>(input.type()),
         "Input must be stored as uint8 data.");
 
+    auto input_data = input.data<unsigned char>();
+    auto input_size = input.size();
+
     // determine what format the image is.
-    if (CheckIsJPEG(input.data<uint8>(), input.size())) {
+    if (CheckIsJPEG(input_data, input_size)) {
       // JPEG: Pass to TurboJPEG-based decode
-      DALI_CALL(DecodeJPEGHost(input.data<uint8>(),
-                               input.size(),
+      DALI_CALL(DecodeJPEGHost(input_data,
+                               input_size,
                                output_type_,
                                output));
-    } else if (CheckIsPNG(input.data<uint8>(), input.size())) {
-      // PNG: Pass to OCV-based decode without extra copy
-      DALI_CALL(DecodePNGHost(input.data<uint8>(),
-                              input.size(),
-                              output_type_,
-                              output));
+    } else if (CheckIsPNG(input_data, input_size)) {
+        // PNG: Pass to OCV-based decode without extra copy
+        DALI_CALL(DecodePNGHost(input_data,
+                                input_size,
+                                output_type_,
+                                output));
+    } else if (CheckIsTiff(input_data)) {
+
+        DALI_CALL(DecodeTiffHost(input_data, input_size, output_type_, output));
+
     } else {
       // all other cases use openCV (for now)
 
       // Decode image to tmp cv::Mat
       cv::Mat tmp = cv::imdecode(
-          cv::Mat(1, input.size(), CV_8UC1, const_cast<void*>(input.raw_data())),
+          cv::Mat(1, input_size, CV_8UC1, const_cast<void*>(input.raw_data())),
           IsColor(output_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
       // if RGB needed, permute from BGR
@@ -76,7 +84,7 @@ class HostDecoder : public Operator<CPUBackend> {
       const int W = tmp.cols;
       const int H = tmp.rows;
       output->Resize({H, W, c_});
-      unsigned char *out_data = output->mutable_data<unsigned char>();
+      auto *out_data = output->mutable_data<unsigned char>();
 
       // Copy to final output
       std::memcpy(out_data,

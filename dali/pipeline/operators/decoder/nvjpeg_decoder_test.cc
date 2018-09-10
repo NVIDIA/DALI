@@ -40,6 +40,12 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(t_pngImgType, 0.7);
   }
 
+  void TiffTestDecode(bool batched, int num_threads) {
+    batched_=batched;
+    this->SetNumThreads(num_threads);
+    this->RunTestDecode(t_tiffImgType, .7);
+  }
+
  private:
   bool batched_ = false;
 };
@@ -109,6 +115,38 @@ TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode3T) {
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode4T) {
   this->PngTestDecode(true, 4);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSingleTiffDecode) {
+  this->TiffTestDecode(false, 1);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSingleTiffDecode2T) {
+  this->TiffTestDecode(false, 2);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSingleTiffDecode3T) {
+  this->TiffTestDecode(false, 3);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSingleTiffDecode4T) {
+  this->TiffTestDecode(false, 4);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedTiffDecode) {
+  this->TiffTestDecode(true, 1);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedTiffDecode2T) {
+  this->TiffTestDecode(true, 2);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedTiffDecode3T) {
+  this->TiffTestDecode(true, 3);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedTiffDecode4T) {
+  this->TiffTestDecode(true, 4);
 }
 
 }  // namespace dali
