@@ -20,7 +20,7 @@ template <typename ImgType>
 class HostDecodeTest : public GenericDecoderTest<ImgType> {
  protected:
   uint32_t GetImageLoadingFlags() const override {
-    return t_loadJPEGs + t_loadPNGs + t_loadTiffs;
+    return t_loadJPEGs + t_loadPNGs;
   }
 
   const OpSpec DecodingOp() const override {
@@ -45,10 +45,6 @@ TYPED_TEST(HostDecodeTest, TestJPEGDecode) {
 
 TYPED_TEST(HostDecodeTest, TestPNGDecode) {
   this->RunTestDecode(t_pngImgType);
-}
-
-TYPED_TEST(HostDecodeTest, TestTiffDecode) {
-  this->RunTestDecode(t_tiffImgType);
 }
 
 }  // namespace dali
