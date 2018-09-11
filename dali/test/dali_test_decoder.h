@@ -49,9 +49,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       case t_pngImgType:
         this->EncodedPNGData(&encoded_data);
         break;
-      case t_tiffImgType:
-        this->EncodedTiffData(&encoded_data);
-        break;
       default: {
         char buff[32];
         snprintf(buff, sizeof(buff), "%d", imageType);
