@@ -458,8 +458,13 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
       HostWorkspace &src_ws = wsb->cpu_op_data[parent_idx];
       auto input = src_ws.SharedCPUOutput(input_src_idx);
-      for (auto t : input) {
-        t->set_pinned(true);
+      // Use pinned memory only when it is useful
+      if (node.spec.name() == "MakeContiguous" &&
+          node.spec.NumOutput() == 1 &&
+          node.spec.OutputDevice(0) == "gpu") {
+        for (auto t : input) {
+          t->set_pinned(true);
+        }
       }
       ws.AddInput(input);
     }
