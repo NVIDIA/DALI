@@ -200,7 +200,7 @@ class Operator : public OperatorBase {
    */
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
 
-private:
+ private:
   // SINFAE for Run is not possible as we want it to be virtual
   template <typename B = Backend>
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
@@ -213,7 +213,6 @@ private:
   template <typename B = Backend>
   typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
   SyncHelper(int /*unused*/, Workspace<B> */*unused*/) {}
-
 };
 
 template<>
