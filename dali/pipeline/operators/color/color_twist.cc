@@ -71,6 +71,37 @@ Values >= 0 are supported. For example:
 )code", 1.f, true)
     .AddParent("ColorTransformBase");
 
+    DALI_SCHEMA(ColorTwist)
+    .DocStr(R"code(Combination of hue, saturation, contrast and brightness.)code")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddOptionalArg("hue",
+        R"code(Hue change in angles.)code", 0.f, true)
+    .AddOptionalArg("saturation",
+        R"code(Saturation change factor.
+Values >= 0 are supported. For example:
+
+* `0` - completely desaturated image
+* `1` - no change to image's saturation
+)code", 1.f, true)
+    .AddOptionalArg("contrast",
+        R"code(Contrast change factor.
+Values >= 0 are accepted. For example:
+
+* `0` - gray image,
+* `1` - no change
+* `2` - increase contrast twice
+)code", 1.f, true)
+    .AddOptionalArg("brightness",
+        R"code(Brightness change factor.
+Values >= 0 are accepted. For example:
+* `0` - black image,
+* `1` - no change
+* `2` - increase brightness twice
+
+)code", 1.f, true)
+    .AddParent("ColorTransformBase");
+
 template <>
 void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
@@ -107,5 +138,6 @@ DALI_REGISTER_OPERATOR(Brightness, BrightnessAdjust<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Contrast, ContrastAdjust<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Hue, HueAdjust<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Saturation, SaturationAdjust<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistAdjust<CPUBackend>, CPU);
 
 }  // namespace dali
