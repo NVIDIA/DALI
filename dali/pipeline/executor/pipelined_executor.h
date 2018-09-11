@@ -65,6 +65,7 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
         for (int j = 0; j < batch_size; ++j) {
           tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
           tvs_[i].back()->Resize({(Index)bytes_hint});
+          tvs_[i].back()->set_pinned(false);
         }
       }
     }
