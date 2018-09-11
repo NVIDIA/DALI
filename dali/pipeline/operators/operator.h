@@ -176,6 +176,15 @@ class Operator : public OperatorBase {
     SetupSharedSampleParams(ws);
 
     for (int i = 0; i < input_sets_; ++i) {
+      if (std::is_same<Backend, GPUBackend>::value) {
+        // Before we start working on the next input set, we need
+        // to wait until the last one is finished. Otherwise for some ops
+        // we risk overwriting data used by the kernel called for previous
+        // image. Doing it for all ops is a compromise between performance
+        // (which should not be greatly affected) and robustness (guarding
+        // against this potential problem for newly added ops)
+        SyncHelper(i, ws);
+      }
       RunImpl(ws, i);
     }
     ReleaseInputs(ws);
@@ -194,6 +203,19 @@ class Operator : public OperatorBase {
 
  private:
   DLL_PUBLIC void ReleaseInputs(Workspace<Backend> *ws);
+
+  // SFINAE for Run is not possible as we want it to be virtual
+  template <typename B = Backend>
+  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
+  SyncHelper(int i, Workspace<B> *ws) {
+    if (i != 0) {
+        CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    }
+  }
+
+  template <typename B = Backend>
+  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
+  SyncHelper(int /* unused */, Workspace<B> * /* unused */) {}
 };
 
 template<>
