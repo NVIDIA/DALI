@@ -138,6 +138,19 @@ To build DALI with LMDB support:
    cmake -DBUILD_LMDB=ON ..
    make -j"$(nproc)"
 
+To build DALI using clang (experimental):
+
+.. note::
+
+   This build is experimental and it is not maintained and tested
+   like the default configuration. It is not guaranteed to work. 
+   We recommend using gcc for production builds.
+
+.. code-block:: bash
+   
+   cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
+   make -j"$(nproc)"
+
 Optional CMake build parameters:
 
 -  ``BUILD_PYTHON`` - build Python bindings (default: ON)
