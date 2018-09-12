@@ -172,7 +172,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                       in_size, info.heights, info.widths)) {
           info.nvjpeg_support = false;
         } else {
-          DALI_FAIL("Unsupported image format - DALI supports JPEG, PNG and BMP formats.");
+          DALI_FAIL("Unsupported image format - DALI supports JPEG, PNG, TIFF and BMP formats.");
         }
       } else {
         // Handle errors

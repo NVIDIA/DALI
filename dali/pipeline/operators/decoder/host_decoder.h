@@ -22,6 +22,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/image/jpeg.h"
 #include "dali/image/png.h"
+#include "dali/image/tiff.h"
 
 namespace dali {
 
@@ -56,6 +57,11 @@ class HostDecoder : public Operator<CPUBackend> {
     } else if (CheckIsPNG(input.data<uint8>(), input.size())) {
       // PNG: Pass to OCV-based decode without extra copy
       DALI_CALL(DecodePNGHost(input.data<uint8>(),
+                              input.size(),
+                              output_type_,
+                              output));
+    } else if (CheckIsTiff(input.data<unsigned char>())) {
+      DALI_CALL(DecodeTiffHost(input.data<unsigned char>(),
                               input.size(),
                               output_type_,
                               output));

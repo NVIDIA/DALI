@@ -16,6 +16,7 @@
 
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
+#include "tiff.h"
 
 namespace dali {
 
@@ -81,6 +82,8 @@ DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
     #endif
     } else if (CheckIsBMP(data, size)) {
         return GetBMPImageDims(data, size, h, w);
+    } else if (CheckIsTiff(data)) {
+        return GetTiffImageDims(data, size, h, w);
     }
     // Not supported
     return DALIError;

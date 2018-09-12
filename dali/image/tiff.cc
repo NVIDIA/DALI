@@ -13,9 +13,10 @@ cv::Mat DecodeTiff(const unsigned char *tiff, int size, DALIImageType image_type
 } // namespace
 
 bool CheckIsTiff(const unsigned char *tiff) {
+    assert(tiff);
 
-    std::vector<int> header_intel = {77, 77, 42, 0};
-    std::vector<int> header_motorola = {73, 73, 0, 42};
+    std::vector<int> header_intel = {77, 77, 0, 42};
+    std::vector<int> header_motorola = {73, 73, 42, 0};
 
     auto check_header = [&](const std::vector<int> &header) -> bool {
         for (unsigned int i = 0; i < header.size(); i++) {
