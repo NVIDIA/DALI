@@ -36,7 +36,7 @@ namespace dali {
 
 namespace images {
 
-const vector<string> jpeg_test_images = {
+const std::vector<std::string> jpeg_test_images = {
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
   image_folder + "/440.jpg",
@@ -50,7 +50,7 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422-odd-width.jpg"
 };
 
-const vector<string> png_test_images = {
+const std::vector<std::string> png_test_images = {
   image_folder + "/png/000000000139.png",
   image_folder + "/png/000000000285.png",
   image_folder + "/png/000000000632.png",
@@ -62,6 +62,13 @@ const vector<string> png_test_images = {
   image_folder + "/png/000000000885.png",
   image_folder + "/png/000000001000.png",
   image_folder + "/png/000000001268.png"
+};
+
+const std::vector<std::string> tiff_test_images = {
+  image_folder + "/tiff/420.tiff",
+  image_folder + "/tiff/422.tiff",
+  image_folder + "/tiff/444.tif",
+  image_folder + "/tiff/notif.tif",
 };
 
 }  // namespace images
@@ -79,6 +86,7 @@ typedef enum {
   t_undefinedImgType,
   t_jpegImgType,
   t_pngImgType,
+  t_tiffImgType,
 } t_imgType;
 
 typedef enum {
@@ -86,6 +94,8 @@ typedef enum {
   t_decodeJPEGs = 2,
   t_loadPNGs    = 4,
   t_decodePNGs  = 8,
+  t_loadTiffs   = 16,
+  t_decodeTiffs = 32,
 } t_loadingFlags;
 
 typedef struct  {
@@ -126,14 +136,21 @@ class DALISingleOpTest : public DALITest {
     if (flags & t_loadJPEGs) {
       LoadJPEGS(images::jpeg_test_images, &jpegs_);
       if (flags & t_decodeJPEGs)
-        DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
+        DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
     }
 
     if (flags & t_loadPNGs) {
       LoadImages(images::png_test_images, &png_);
 
       if (flags & t_decodePNGs)
-        DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
+        DecodeImages(img_type_, png_, &png_decoded_, &png_dims_);
+    }
+
+    if (flags & t_loadTiffs) {
+        LoadImages(images::tiff_test_images, &tiff_);
+        if(flags & t_decodeTiffs) {
+            DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
+        }
     }
 
     // Set the pipeline batch size
@@ -265,6 +282,10 @@ class DALISingleOpTest : public DALITest {
 
   void EncodedPNGData(TensorList<CPUBackend>* t) {
     DALITest::MakeEncodedBatch(t, batch_size_, png_);
+  }
+
+  void EncodedTiffData(TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, tiff_);
   }
 
 
@@ -679,8 +700,8 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<uint8*> jpeg_decoded_, png_decoded_;
-  vector<DimPair> jpeg_dims_, png_dims_;
+  vector<uint8*> jpeg_decoded_, png_decoded_, tiff_decoded_;
+  vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_;
 
 
  protected:

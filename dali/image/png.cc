@@ -35,6 +35,7 @@ int ReadIntFromPNG(const uint8 *chunk) {
 DALIError_t GetPNGImageDims(const uint8 *png, int size, int *h, int *w) {
   DALIError_t ret = DALIError;
   DALI_ASSERT(png);
+  DALI_ASSERT(CheckIsPNG(png, size));
 
   *w = 0;
   *h = 0;
