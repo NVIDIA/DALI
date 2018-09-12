@@ -54,6 +54,7 @@ class DALITest : public ::testing::Test {
   inline void SetUp() override {
     rand_gen_.seed(time(nullptr));
     LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
+    LoadImages(image_folder, &png_names_, &png_);
   }
 
   inline void TearDown() override {
@@ -291,8 +292,8 @@ class DALITest : public ::testing::Test {
   int GetNumColorComp() const          { return c_; }
 
   std::mt19937 rand_gen_;
-  vector<string> jpeg_names_;
-  ImgSetDescr jpegs_;
+  vector<string> jpeg_names_, png_names_;
+  ImgSetDescr jpegs_, png_;
 
   // Decoded images
   vector<uint8*> images_;

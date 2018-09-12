@@ -85,7 +85,7 @@ typedef enum {
   t_loadJPEGs   = 1,
   t_decodeJPEGs = 2,
   t_loadPNGs    = 4,
-  t_decodePNGs  = 8
+  t_decodePNGs  = 8,
 } t_loadingFlags;
 
 typedef struct  {
@@ -266,6 +266,7 @@ class DALISingleOpTest : public DALITest {
   void EncodedPNGData(TensorList<CPUBackend>* t) {
     DALITest::MakeEncodedBatch(t, batch_size_, png_);
   }
+
 
   /**
    * Provide decoded (i.e. decoded JPEG) data
@@ -677,8 +678,6 @@ class DALISingleOpTest : public DALITest {
   vector<TensorList<CPUBackend>*> input_data_;
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
-
-  ImgSetDescr png_;
 
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;
