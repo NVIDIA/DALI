@@ -94,9 +94,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     ReadIndexFile(index_uris);
     size_t num_indices = indices_.size();
     current_index_ = num_indices/num_shards_ * shard_id_;
-    max_index_ = (shard_id_ != num_shards_ - 1)
-      ? num_indices/num_shards_ * (shard_id_ + 1)
-      : num_indices;
+    max_index_ = num_indices * (shard_id_ + 1) / num_shards_;
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
     current_file_.reset(FileStream::Open(uris_[current_file_index_]));
