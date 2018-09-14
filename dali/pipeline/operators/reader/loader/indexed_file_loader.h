@@ -38,7 +38,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    if (current_index_ == max_index_) {
+    if (current_index_ == indices_.size()) {
       Reset();
     }
     int64 seek_pos, size;
@@ -94,7 +94,6 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     ReadIndexFile(index_uris);
     size_t num_indices = indices_.size();
     current_index_ = num_indices/num_shards_ * shard_id_;
-    max_index_ = num_indices * (shard_id_ + 1) / num_shards_;
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
     current_file_.reset(FileStream::Open(uris_[current_file_index_]));
@@ -102,8 +101,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   }
 
   void Reset() {
-    size_t num_indices = indices_.size();
-    current_index_ = num_indices/num_shards_ * shard_id_;
+    current_index_ = 0;
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
@@ -118,7 +116,6 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   std::vector<std::string> uris_;
   std::vector<std::tuple<int64, int64, size_t>> indices_;
   size_t current_index_;
-  size_t max_index_;
   size_t current_file_index_;
   std::unique_ptr<FileStream> current_file_;
 };
