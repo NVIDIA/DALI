@@ -81,7 +81,6 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
     if (!(width_read && height_read)) {
         return DALIError;
     }
-
     return DALISuccess;
 }
 
