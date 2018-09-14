@@ -138,13 +138,25 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
     C_ = input_shape[2];
 
     float ratio = spec_.GetArgument<float>("ratio", ws, i);
+    DALI_ENFORCE(ratio >= 1.,
+      "ratio of less than 1 is not supported");
 
     int new_H = static_cast<int>(ratio * H);
     int new_W = static_cast<int>(ratio * W);
     output_shape[i] = {new_H, new_W, C_};
 
-    int paste_y = spec_.GetArgument<float>("paste_y", ws, i) * (new_H - H);
-    int paste_x = spec_.GetArgument<float>("paste_x", ws, i) * (new_W - W);
+    float paste_x_ = spec_.GetArgument<float>("paste_x", ws, i);
+    float paste_y_ = spec_.GetArgument<float>("paste_y", ws, i);
+    DALI_ENFORCE(paste_x_ >= 0,
+      "paste_x of less than 0 is not supported");
+    DALI_ENFORCE(paste_x_ <= 1,
+      "paste_x_ of more than 1 is not supported");
+    DALI_ENFORCE(paste_y_ >= 0,
+      "paste_y_ of less than 0 is not supported");
+    DALI_ENFORCE(paste_y_ <= 1,
+      "paste_y_ of more than 1 is not supported");
+    int paste_x = paste_x_ * (new_W - W);
+    int paste_y = paste_y_ * (new_H - H);
 
     int sample_dims_paste_yx[] = {H, W, new_H, new_W, paste_y, paste_x};
     int *sample_data = in_out_dims_paste_yx_.template mutable_data<int>() + (i*NUM_INDICES);
