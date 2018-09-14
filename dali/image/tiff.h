@@ -43,7 +43,7 @@ public:
 
         stream_.seekg(offset);
         ValueType ret;
-        stream_.read(reinterpret_cast<char *>(&ret), sizeof(ret));
+        stream_.read(reinterpret_cast<char *>(&ret), sizeof(ValueType));
         if (little_endian_) {
             convert_le(&ret);
         }
@@ -54,6 +54,11 @@ public:
 
 private:
 
+    /**
+     * Converts given value in big-endian representation to little-endian
+     * @tparam T
+     * @param value pointer to given value
+     */
     template<typename T>
     void convert_le(T *value) {
         static_assert(std::is_integral<T>::value, "Converting floating point value unsupported");

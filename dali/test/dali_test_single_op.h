@@ -67,7 +67,6 @@ const std::vector<std::string> png_test_images = {
 const std::vector<std::string> tiff_test_images = {
   image_folder + "/tiff/420.tiff",
   image_folder + "/tiff/422.tiff",
-  image_folder + "/tiff/444.tif",
   image_folder + "/tiff/notif.tif",
 };
 
