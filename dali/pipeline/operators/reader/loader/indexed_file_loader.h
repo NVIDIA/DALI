@@ -38,7 +38,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
     }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    if (current_index_ >= indices_.size()) {
+    if (current_index_ == indices_.size()) {
       Reset();
     }
     int64 seek_pos, size;
@@ -101,8 +101,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
   }
 
   void Reset() {
-    size_t num_indices = indices_.size();
-    current_index_ = num_indices/num_shards_ * shard_id_;
+    current_index_ = 0;
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
