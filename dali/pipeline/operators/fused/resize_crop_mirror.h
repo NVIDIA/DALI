@@ -56,7 +56,7 @@ class ResizeCropMirrorAttr {
     }
   }
 
-  using TransformMeta = struct {
+  struct TransformMeta {
     int H, W, C;
     int rsz_h, rsz_w;
     int crop_x, crop_y;

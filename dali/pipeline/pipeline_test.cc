@@ -44,7 +44,8 @@ class PipelineTest : public DALITest {
 
     vector<double> abs_diff(n, 0);
     for (int i = 0; i < n; ++i) {
-      abs_diff[i] = abs(static_cast<double>(tmp_cpu[i]) - static_cast<double>(ground_truth[i]));
+      abs_diff[i] = std::abs(static_cast<double>(tmp_cpu[i])
+          - static_cast<double>(ground_truth[i]));
     }
     double mean, std;
     DALITest::MeanStdDevColorNorm(abs_diff, &mean, &std);
