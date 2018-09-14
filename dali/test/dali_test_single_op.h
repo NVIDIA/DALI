@@ -147,7 +147,7 @@ class DALISingleOpTest : public DALITest {
 
     if (flags & t_loadTiffs) {
         LoadImages(images::tiff_test_images, &tiff_);
-        if(flags & t_decodeTiffs) {
+        if (flags & t_decodeTiffs) {
             DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
         }
     }

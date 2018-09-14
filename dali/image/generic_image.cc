@@ -16,7 +16,7 @@
 
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
-#include "tiff.h"
+#include "dali/image/tiff.h"
 
 namespace dali {
 

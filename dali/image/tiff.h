@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TIFF_H
-#define DALI_TIFF_H
+#ifndef DALI_IMAGE_TIFF_H_
+#define DALI_IMAGE_TIFF_H_
 
 #include <opencv2/opencv.hpp>
+
+#include <string>
+
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -26,9 +30,8 @@ namespace dali {
 
 
 class tiff_buffer {
-public:
-
-    tiff_buffer(std::string buffer, bool little_endian = false) :
+ public:
+    explicit tiff_buffer(std::string buffer, bool little_endian = false) :
             little_endian_(little_endian) {
         stream_ = std::istringstream(buffer);
         buffer_size_ = buffer.length();
@@ -52,8 +55,7 @@ public:
     }
 
 
-private:
-
+ private:
     /**
      * Converts given value in big-endian representation to little-endian
      * @tparam T
@@ -96,8 +98,9 @@ extern DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h,
  * @brief Decodes 'tiff' into the buffer pointed to by 'image'
  */
 extern DALIError_t
-DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type, Tensor<CPUBackend> *output);
+DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type,
+               Tensor <CPUBackend> *output);
 
-} // namespace dali
+}  // namespace dali
 
-#endif //DALI_TIFF_H
+#endif  // DALI_IMAGE_TIFF_H_

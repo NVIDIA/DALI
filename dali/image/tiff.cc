@@ -1,4 +1,18 @@
-#include "tiff.h"
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/image/tiff.h"
 
 namespace dali {
 
@@ -32,7 +46,7 @@ bool is_little_endian(const unsigned char *tiff) {
     return check_header(tiff, header_intel);
 }
 
-} // namespace
+}  // namespace
 
 bool CheckIsTiff(const unsigned char *tiff) {
     assert(tiff);
@@ -85,7 +99,8 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
 }
 
 
-DALIError_t DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type, Tensor<CPUBackend> *output) {
+DALIError_t DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type,
+                           Tensor<CPUBackend> *output) {
     assert(CheckIsTiff(tiff));
     auto tiff_mat = DecodeTiff(tiff, size, image_type);
     auto height = tiff_mat.rows;
@@ -102,10 +117,10 @@ DALIError_t DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType im
     // force allocation
     output->mutable_data<uint8>();
 
-    std::memcpy(output->raw_mutable_data(), tiff_mat.ptr(), static_cast<size_t>(height) * width * channels);
-
+    std::memcpy(output->raw_mutable_data(), tiff_mat.ptr(),
+                static_cast<size_t>(height) * width * channels);
 
     return DALISuccess;
 }
 
-} // namespace dali
+}  // namespace dali

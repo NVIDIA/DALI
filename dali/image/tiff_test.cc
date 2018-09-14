@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "tiff.h"
-#include <dali/test/dali_test.h>
-
 #include <sstream>
-
-using namespace std;
+#include "dali/test/dali_test.h"
+#include "dali/image/tiff.h"
 
 namespace dali {
 
 class TiffDecoderTest : public DALITest {
-protected:
-    std::string bin = {'\x41', '\x42', '\x43', '\x44', '\x45', '\x46', '\x47', '\x48', '\x49', '\x4a', '\x4b', '\x4c',
-                       '\x4d', '\x4e', '\x4f', '\x50'};
+ protected:
+    std::string bin = {'\x41', '\x42', '\x43', '\x44', '\x45', '\x46', '\x47', '\x48', '\x49',
+                       '\x4a', '\x4b', '\x4c', '\x4d', '\x4e', '\x4f', '\x50'};
 };
 
 TEST_F(TiffDecoderTest, TiffBufferBigEndianTest) {
