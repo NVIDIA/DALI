@@ -57,6 +57,7 @@ bool CheckIsTiff(const unsigned char *tiff) {
 
 
 DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w) {
+    assert(h && w && tiff);
     assert(CheckIsTiff(tiff));
 
     tiff_buffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
