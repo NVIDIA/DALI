@@ -164,7 +164,7 @@ class DLL_PUBLIC OpSchema {
    */
   template <typename T>
   DLL_PUBLIC inline typename std::enable_if<
-    !is_vector<T>::value && !is_array<T>::value,
+    !is_vector<T>::value && !is_std_array<T>::value,
     OpSchema&>::type AddOptionalArg(const std::string &s,
                                     const std::string &doc,
                                     T default_value,

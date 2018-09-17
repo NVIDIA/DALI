@@ -49,7 +49,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
                  "are mutually exclusive for schema \"" + spec.name() + "\"");
   }
 
-  using TransformMeta = struct {
+  struct TransformMeta {
     int H, W, C;
     int rsz_h, rsz_w;
     std::pair<int, int> crop;

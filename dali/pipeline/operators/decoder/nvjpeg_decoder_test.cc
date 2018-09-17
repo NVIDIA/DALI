@@ -28,11 +28,16 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "gpu");
   }
 
- protected:
-  void TestDecode(bool batched, int num_threads) {
+  void JpegTestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
+  }
+
+  void PngTestDecode(bool batched, int num_threads) {
+    batched_ = batched;
+    this->SetNumThreads(num_threads);
+    this->RunTestDecode(t_pngImgType, 0.7);
   }
 
  private:
@@ -43,35 +48,67 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(nvjpegDecodeTest, Types);
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode) {
-  this->TestDecode(false, 1);
+  this->JpegTestDecode(false, 1);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode2T) {
-  this->TestDecode(false, 2);
+  this->JpegTestDecode(false, 2);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode3T) {
-  this->TestDecode(false, 3);
+  this->JpegTestDecode(false, 3);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode4T) {
-  this->TestDecode(false, 4);
+  this->JpegTestDecode(false, 4);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode) {
-  this->TestDecode(true, 1);
+  this->JpegTestDecode(true, 1);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode2T) {
-  this->TestDecode(true, 2);
+  this->JpegTestDecode(true, 2);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode3T) {
-  this->TestDecode(true, 3);
+  this->JpegTestDecode(true, 3);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode4T) {
-  this->TestDecode(true, 4);
+  this->JpegTestDecode(true, 4);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode) {
+  this->PngTestDecode(false, 1);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode2T) {
+  this->PngTestDecode(false, 2);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode3T) {
+  this->PngTestDecode(false, 3);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode4T) {
+  this->PngTestDecode(false, 4);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode) {
+  this->PngTestDecode(true, 1);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode2T) {
+  this->PngTestDecode(true, 2);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode3T) {
+  this->PngTestDecode(true, 3);
+}
+
+TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode4T) {
+  this->PngTestDecode(true, 4);
 }
 
 }  // namespace dali

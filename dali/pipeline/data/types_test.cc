@@ -29,6 +29,10 @@ class TypesTest : public DALITest {
   std::string TypeName();
 };
 
+namespace {
+  static constexpr size_t DUMMY_ARRAY_SIZE = 42;
+}
+
 #define TYPENAME_FUNC(type)                     \
   template <>                                   \
   std::string TypesTest<type>::TypeName() {     \
@@ -44,6 +48,16 @@ TYPENAME_FUNC(float);
 TYPENAME_FUNC(double);
 TYPENAME_FUNC(bool);
 
+template <>
+std::string TypesTest<std::vector<uint8>>::TypeName() {
+  return "list of uint8";
+}
+
+template <>
+std::string TypesTest<std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>::TypeName() {
+  return "list of list of uint8";
+}
+
 typedef ::testing::Types<uint8,
                          int16,
                          int32,
@@ -51,7 +65,10 @@ typedef ::testing::Types<uint8,
                          float16,
                          float,
                          double,
-                         bool> TestTypes;
+                         bool,
+                         std::vector<uint8>,
+                         std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>
+                         > TestTypes;
 
 TYPED_TEST_CASE(TypesTest, TestTypes);
 
