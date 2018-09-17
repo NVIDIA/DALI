@@ -18,23 +18,25 @@ namespace dali {
 
 namespace {
 
-const std::vector<int> header_intel = {77, 77, 0, 42};
-const std::vector<int> header_motorola = {73, 73, 42, 0};
-const int COUNT_SIZE = 2;
-const int ENTRY_SIZE = 12;
-const int WIDTH_TAG = 256;
-const int HEIGHT_TAG = 257;
-const int TYPE_WORD = 3;
-const int TYPE_DWORD = 4;
+constexpr std::array<int, 4> header_intel = {77, 77, 0, 42};
+constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
+constexpr int COUNT_SIZE = 2;
+constexpr int ENTRY_SIZE = 12;
+constexpr int WIDTH_TAG = 256;
+constexpr int HEIGHT_TAG = 257;
+constexpr int TYPE_WORD = 3;
+constexpr int TYPE_DWORD = 4;
 
 
 cv::Mat DecodeTiff(const unsigned char *tiff, int size, DALIImageType image_type) {
+    assert(tiff);
     std::vector<char> buf(tiff, tiff + size);
     return cv::imdecode(buf, image_type == DALI_GRAY ? 0 : 1);
 }
 
 
-bool check_header(const unsigned char *tiff, const std::vector<int> &header) {
+bool check_header(const unsigned char *tiff, const std::array<int, 4> &header) {
+    assert(tiff);
     for (unsigned int i = 0; i < header.size(); i++) {
         if (tiff[i] != header[i]) {
             return false;
@@ -45,6 +47,7 @@ bool check_header(const unsigned char *tiff, const std::vector<int> &header) {
 
 
 bool is_little_endian(const unsigned char *tiff) {
+    assert(tiff);
     return check_header(tiff, header_intel);
 }
 
@@ -63,18 +66,18 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
     tiff_buffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
                        is_little_endian(tiff));
 
-    auto ifd_offset = buffer.read<uint32_t>(4);
-    auto entry_count = buffer.read<uint16_t>(ifd_offset);
+    const auto ifd_offset = buffer.read<uint32_t>(4);
+    const auto entry_count = buffer.read<uint16_t>(ifd_offset);
     bool width_read = false, height_read = false;
 
     for (int entry_idx = 0;
          entry_idx < entry_count && !(width_read && height_read);
          entry_idx++) {
-        auto entry_offset = ifd_offset + COUNT_SIZE + entry_idx * ENTRY_SIZE;
-        auto tag_id = buffer.read<uint16_t>(entry_offset);
+        const auto entry_offset = ifd_offset + COUNT_SIZE + entry_idx * ENTRY_SIZE;
+        const auto tag_id = buffer.read<uint16_t>(entry_offset);
         if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG) {
-            auto value_type = buffer.read<uint16_t>(entry_offset + 2);
-            auto value_count = buffer.read<uint32_t>(entry_offset + 4);
+            const auto value_type = buffer.read<uint16_t>(entry_offset + 2);
+            const auto value_count = buffer.read<uint32_t>(entry_offset + 4);
             assert(value_count == 1);
 
             int value;
@@ -87,10 +90,10 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
             }
 
             if (tag_id == WIDTH_TAG) {
-                *w = static_cast<int>(value);
+                *w = value;
                 width_read = true;
             } else {
-                *h = static_cast<int>(value);
+                *h = value;
                 height_read = true;
             }
         }
@@ -104,11 +107,12 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
 
 DALIError_t DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type,
                            Tensor<CPUBackend> *output) {
+    assert(tiff && output);
     assert(CheckIsTiff(tiff));
     auto tiff_mat = DecodeTiff(tiff, size, image_type);
-    auto height = tiff_mat.rows;
-    auto width = tiff_mat.cols;
-    auto channels = (image_type == DALI_GRAY) ? 1 : 3;
+    const auto height = tiff_mat.rows;
+    const auto width = tiff_mat.cols;
+    const auto channels = (image_type == DALI_GRAY) ? 1 : 3;
 
     // if RGB needed, permute from BGR
     if (image_type == DALI_RGB) {

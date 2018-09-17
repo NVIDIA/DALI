@@ -58,7 +58,7 @@ class tiff_buffer {
         ValueType ret;
         stream_.read(reinterpret_cast<char *>(&ret), sizeof(ValueType));
         if (little_endian_) {
-            convert_le(&ret);
+            to_little_endian(&ret);
         }
         assert(stream_.good());
         return ret;
@@ -72,7 +72,7 @@ class tiff_buffer {
      * @param value pointer to given value
      */
     template<typename T>
-    void convert_le(T *value) {
+    void to_little_endian(T *value) {
         static_assert(std::is_integral<T>::value, "Converting floating point value unsupported");
 
         char *value_bytes = reinterpret_cast<char *>(value);
