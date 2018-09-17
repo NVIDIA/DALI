@@ -78,23 +78,33 @@ Prerequisites
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
 
--  **Linux x64**
--  |cuda link|_
-   *(CUDA 8.0 compatibility is provided unofficially)*
--  |nvjpeg link|_
-   *(This can be unofficially disabled; see below)*
--  |protobuf link|_ version 2 or later (version 3 or later is required for TensorFlow TFRecord file format support)
--  |cmake link|_ or later
--  |jpegturbo link|_ or later
-   *(This can be unofficially disabled; see below)*
--  |opencv link|_ or later
-   *(OpenCV 2.x compatibility is provided unofficially)*
--  **(Optional)** |lmdb link|_ or later
--  One or more of the following Deep Learning frameworks:
+.. table::
+   :align: center
 
-   -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later
-   -  |pytorch link|_
-   -  |tf link|_ or later
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | **Linux x64**                          |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially*                                           |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |nvjpeg link|_                         | *This can be unofficially disabled. See below*                                              |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |protobuf link|_                       | | version 2 or later                                                                        |
+   |                                        | | (version 3 or later is required for TensorFlow TFRecord file format support)              |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |cmake link|_ or later                 |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below*                                              |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |opencv link|_ or later                | | We recommend using version 3.4+, however previous versions are also compatible.           |
+   |                                        | | *OpenCV 2.x compatibility is provided unofficially*                                       |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | **(Optional)** |lmdb link|_ or later   |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | One or more of the following Deep Learning frameworks:                                                                               |
+   |      -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later                                                                        |
+   |      -  |pytorch link|_                                                                                                              |
+   |      -  |tf link|_ or later                                                                                                          |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
 
 .. note::
 
@@ -136,6 +146,19 @@ To build DALI with LMDB support:
 .. code-block:: bash
 
    cmake -DBUILD_LMDB=ON ..
+   make -j"$(nproc)"
+
+To build DALI using clang (experimental):
+
+.. note::
+
+   This build is experimental and it is not maintained and tested
+   like the default configuration. It is not guaranteed to work. 
+   We recommend using gcc for production builds.
+
+.. code-block:: bash
+   
+   cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
    make -j"$(nproc)"
 
 Optional CMake build parameters:
