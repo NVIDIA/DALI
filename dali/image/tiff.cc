@@ -24,6 +24,8 @@ const int COUNT_SIZE = 2;
 const int ENTRY_SIZE = 12;
 const int WIDTH_TAG = 256;
 const int HEIGHT_TAG = 257;
+const int TYPE_WORD = 3;
+const int TYPE_DWORD = 4;
 
 
 cv::Mat DecodeTiff(const unsigned char *tiff, int size, DALIImageType image_type) {
@@ -60,25 +62,25 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
     tiff_buffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
                        is_little_endian(tiff));
 
-    auto ifd_offset = buffer.read<unsigned int>(4);
-    auto entry_count = buffer.read<unsigned short>(ifd_offset);
+    auto ifd_offset = buffer.read<uint32_t>(4);
+    auto entry_count = buffer.read<uint16_t>(ifd_offset);
     bool width_read = false, height_read = false;
 
     for (int entry_idx = 0;
          entry_idx < entry_count && !(width_read && height_read);
          entry_idx++) {
         auto entry_offset = ifd_offset + COUNT_SIZE + entry_idx * ENTRY_SIZE;
-        auto tag_id = buffer.read<unsigned short>(entry_offset);
+        auto tag_id = buffer.read<uint16_t>(entry_offset);
         if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG) {
-            auto value_type = buffer.read<unsigned short>(entry_offset + 2);
-            auto value_count = buffer.read<unsigned int>(entry_offset + 4);
+            auto value_type = buffer.read<uint16_t>(entry_offset + 2);
+            auto value_count = buffer.read<uint32_t>(entry_offset + 4);
             assert(value_count == 1);
 
-            unsigned long value;
-            if (value_type == 3) {
-                value = buffer.read<unsigned short>(entry_offset + 8);
-            } else if (value_type == 4) {
-                value = buffer.read<unsigned long>(entry_offset + 8);
+            int value;
+            if (value_type == TYPE_WORD) {
+                value = buffer.read<uint16_t>(entry_offset + 8);
+            } else if (value_type == TYPE_DWORD) {
+                value = buffer.read<uint32_t>(entry_offset + 8);
             } else {
                 return DALIError;
             }

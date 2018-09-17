@@ -48,12 +48,12 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DDALI_DEBUG=1")
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -O2 -DDALI_DEBUG=0")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -DDALI_DEBUG=0")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
 endif()
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
 
 # Add ptx & bin flags for cuda
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \

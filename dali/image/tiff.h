@@ -29,15 +29,25 @@
 namespace dali {
 
 
+/**
+ * Class, that handles byte buffer for tiff image
+ */
 class tiff_buffer {
  public:
-    explicit tiff_buffer(std::string buffer, bool little_endian = false) :
+    explicit tiff_buffer(const std::string &buffer, bool little_endian = false) :
             little_endian_(little_endian) {
         stream_ = std::istringstream(buffer);
         buffer_size_ = buffer.length();
     }
 
 
+    /**
+     * Reads value of given type (byte length), at given offset in the buffer.
+     * This function guarantees, that such value can be read.
+     * @tparam ValueType Type of return value
+     * @param offset Offset (in bytes) from beginning of the buffer
+     * @return value
+     */
     template<typename ValueType>
     ValueType read(unsigned int offset = 0) {
         assert(stream_.good());
