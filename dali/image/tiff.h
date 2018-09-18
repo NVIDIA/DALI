@@ -32,9 +32,9 @@ namespace dali {
 /**
  * Class, that handles byte buffer for tiff image
  */
-class tiff_buffer {
+class TiffBuffer {
  public:
-    explicit tiff_buffer(const std::string &buffer, bool little_endian = false) :
+    explicit TiffBuffer(const std::string &buffer, bool little_endian = false) :
             little_endian_(little_endian) {
         stream_ = std::istringstream(buffer);
         buffer_size_ = buffer.length();
@@ -49,7 +49,7 @@ class tiff_buffer {
      * @return value
      */
     template<typename ValueType>
-    ValueType read(unsigned int offset = 0) {
+    ValueType Read(unsigned int offset = 0) {
         assert(stream_.good());
         assert(offset + sizeof(ValueType) < buffer_size_);
         static_assert(std::is_integral<ValueType>::value, "Only integral values supported");

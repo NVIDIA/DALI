@@ -25,39 +25,39 @@ class TiffDecoderTest : public DALITest {
 };
 
 TEST_F(TiffDecoderTest, TiffBufferBigEndianTest) {
-    tiff_buffer buf(bin);
-    EXPECT_EQ(65, buf.read<int8_t>());
-    EXPECT_EQ(16961, buf.read<int16_t>());
-    EXPECT_EQ(1145258561, buf.read<int32_t>());
-    EXPECT_EQ(5208208757389214273, buf.read<int64_t>());
-    EXPECT_EQ(65, buf.read<uint8_t>());
-    EXPECT_EQ(16961, buf.read<uint16_t>());
-    EXPECT_EQ(1145258561, buf.read<uint32_t>());
-    EXPECT_EQ(5208208757389214273, buf.read<uint64_t>());
+    TiffBuffer buf(bin);
+    EXPECT_EQ(65, buf.Read<int8_t>());
+    EXPECT_EQ(16961, buf.Read<int16_t>());
+    EXPECT_EQ(1145258561, buf.Read<int32_t>());
+    EXPECT_EQ(5208208757389214273, buf.Read<int64_t>());
+    EXPECT_EQ(65, buf.Read<uint8_t>());
+    EXPECT_EQ(16961, buf.Read<uint16_t>());
+    EXPECT_EQ(1145258561, buf.Read<uint32_t>());
+    EXPECT_EQ(5208208757389214273, buf.Read<uint64_t>());
 }
 
 
 TEST_F(TiffDecoderTest, TiffBufferLittleEndianTest) {
-    tiff_buffer buf(bin, true);
-    EXPECT_EQ(65, buf.read<int8_t>());
-    EXPECT_EQ(16706, buf.read<int16_t>());
-    EXPECT_EQ(1094861636, buf.read<int32_t>());
-    EXPECT_EQ(4702394921427289928, buf.read<int64_t>());
-    EXPECT_EQ(65, buf.read<uint8_t>());
-    EXPECT_EQ(16706, buf.read<uint16_t>());
-    EXPECT_EQ(1094861636, buf.read<uint32_t>());
-    EXPECT_EQ(4702394921427289928, buf.read<uint64_t>());
+    TiffBuffer buf(bin, true);
+    EXPECT_EQ(65, buf.Read<int8_t>());
+    EXPECT_EQ(16706, buf.Read<int16_t>());
+    EXPECT_EQ(1094861636, buf.Read<int32_t>());
+    EXPECT_EQ(4702394921427289928, buf.Read<int64_t>());
+    EXPECT_EQ(65, buf.Read<uint8_t>());
+    EXPECT_EQ(16706, buf.Read<uint16_t>());
+    EXPECT_EQ(1094861636, buf.Read<uint32_t>());
+    EXPECT_EQ(4702394921427289928, buf.Read<uint64_t>());
 }
 
 
 TEST_F(TiffDecoderTest, TiffBufferOffsetTest) {
-    tiff_buffer buf_big(bin);
-    EXPECT_EQ(75, buf_big.read<int8_t>(10));
-    EXPECT_EQ(19274, buf_big.read<int16_t>(9));
-    tiff_buffer buf_little(bin, true);
-    EXPECT_EQ(75, buf_little.read<int8_t>(10));
-    EXPECT_EQ(1145390663, buf_little.read<int32_t>(3));
-    EXPECT_EQ(4774735094265366601, buf_little.read<int64_t>(1));
+    TiffBuffer buf_big(bin);
+    EXPECT_EQ(75, buf_big.Read<int8_t>(10));
+    EXPECT_EQ(19274, buf_big.Read<int16_t>(9));
+    TiffBuffer buf_little(bin, true);
+    EXPECT_EQ(75, buf_little.Read<int8_t>(10));
+    EXPECT_EQ(1145390663, buf_little.Read<int32_t>(3));
+    EXPECT_EQ(4774735094265366601, buf_little.Read<int64_t>(1));
 }
 
 }  // namespace dali

@@ -63,28 +63,28 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
     assert(h && w && tiff);
     assert(CheckIsTiff(tiff));
 
-    tiff_buffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
+    TiffBuffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
                        is_little_endian(tiff));
 
-    const auto ifd_offset = buffer.read<uint32_t>(4);
-    const auto entry_count = buffer.read<uint16_t>(ifd_offset);
+    const auto ifd_offset = buffer.Read<uint32_t>(4);
+    const auto entry_count = buffer.Read<uint16_t>(ifd_offset);
     bool width_read = false, height_read = false;
 
     for (int entry_idx = 0;
          entry_idx < entry_count && !(width_read && height_read);
          entry_idx++) {
         const auto entry_offset = ifd_offset + COUNT_SIZE + entry_idx * ENTRY_SIZE;
-        const auto tag_id = buffer.read<uint16_t>(entry_offset);
+        const auto tag_id = buffer.Read<uint16_t>(entry_offset);
         if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG) {
-            const auto value_type = buffer.read<uint16_t>(entry_offset + 2);
-            const auto value_count = buffer.read<uint32_t>(entry_offset + 4);
+            const auto value_type = buffer.Read<uint16_t>(entry_offset + 2);
+            const auto value_count = buffer.Read<uint32_t>(entry_offset + 4);
             assert(value_count == 1);
 
             int value;
             if (value_type == TYPE_WORD) {
-                value = buffer.read<uint16_t>(entry_offset + 8);
+                value = buffer.Read<uint16_t>(entry_offset + 8);
             } else if (value_type == TYPE_DWORD) {
-                value = buffer.read<uint32_t>(entry_offset + 8);
+                value = buffer.Read<uint32_t>(entry_offset + 8);
             } else {
                 return DALIError;
             }
