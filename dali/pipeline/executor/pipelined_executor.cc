@@ -233,6 +233,15 @@ void PipelinedExecutor::SetStageOutputsForIter(
         int input_idx = info.con_and_idx[j].second;
         wsb->mixed_op_data[mixed_op_id].SetInput(
           input_idx, tvp.Get(queue_idx));
+        const OpNode &node = graph_->mixed_node(mixed_op_id);
+        // Use pinned memory only when it is useful
+        if (node.spec.name() == "MakeContiguous" &&
+            node.spec.NumOutput() == 1 &&
+            node.spec.OutputDevice(0) == "gpu") {
+          for (auto& v : tvp.Get(queue_idx)) {
+            v->set_pinned(true);
+          }
+        }
       } else if (graph_->NodeType(node_id) == DALI_CPU) {
         int cpu_op_id = graph_->NodeIdx(node_id);
         int input_idx = info.con_and_idx[j].second;

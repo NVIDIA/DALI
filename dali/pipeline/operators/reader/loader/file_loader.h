@@ -69,9 +69,9 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
       "Directory " + path + " could not be opened.");
 
   struct dirent *entry;
-  int dir_count = 0;
 
   std::vector<std::pair<std::string, int>> file_label_pairs;
+  std::vector<std::string> dir_path_list;
 
   while ((entry = readdir(dir))) {
     struct stat s;
@@ -81,11 +81,17 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path) {
         "Could not access " + full_path + " during directory traversal.");
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
     if (S_ISDIR(s.st_mode)) {
-      assemble_file_list(full_path, dir_count, &file_label_pairs);
-      dir_count++;
+      dir_path_list.push_back(full_path);
     }
   }
-  printf("read %lu files from %d directories\n", file_label_pairs.size(), dir_count);
+  // sort directories to preserve class alphabetic order, as readdir could
+  // return unordered dir list. Otherwise file reader for training and validation
+  // could return directories with the same names in completely different order
+  std::sort(dir_path_list.begin(), dir_path_list.end());
+  for (unsigned dir_count = 0; dir_count < dir_path_list.size(); ++dir_count) {
+      assemble_file_list(dir_path_list[dir_count], dir_count, &file_label_pairs);
+  }
+  printf("read %lu files from %lu directories\n", file_label_pairs.size(), dir_path_list.size());
 
   closedir(dir);
 

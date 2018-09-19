@@ -151,6 +151,13 @@ class DLL_PUBLIC TypeInfo {
   string name_;
 };
 
+template <typename T>
+struct TypeNameHelper {
+  static string GetTypeName() {
+    return typeid(T).name();
+  }
+};
+
 /**
  * @brief Keeps track of mappings between types and unique identifiers.
  */
@@ -164,18 +171,8 @@ class DLL_PUBLIC TypeTable {
   }
 
   template <typename T>
-  DLL_PUBLIC static typename std::enable_if<
-    !is_vector<T>::value &&
-    !is_array<T>::value,
-    string>::type GetTypeName() {
-    return typeid(T).name();
-  }
-
-  template <typename T>
-  DLL_PUBLIC static typename std::enable_if<
-    is_vector<T>::value || is_array<T>::value,
-    string>::type GetTypeName() {
-    return "list of " + GetTypeName<typename T::value_type>();
+  DLL_PUBLIC static string GetTypeName() {
+    return TypeNameHelper<T>::GetTypeName();
   }
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
@@ -215,6 +212,21 @@ class DLL_PUBLIC TypeTable {
   // so we need to use size_t instead of DALIDataType
   static std::unordered_map<size_t, TypeInfo> type_info_map_;
   static int index_;
+};
+
+
+template <typename T, typename A>
+struct TypeNameHelper<std::vector<T, A> > {
+  static string GetTypeName() {
+    return "list of " + TypeTable::GetTypeName<T>();
+  }
+};
+
+template <typename T, size_t N>
+struct TypeNameHelper<std::array<T, N> > {
+  static string GetTypeName() {
+    return "list of " + TypeTable::GetTypeName<T>();
+  }
 };
 
 template <typename T>

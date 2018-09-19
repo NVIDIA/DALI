@@ -53,14 +53,14 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # OpenCV
-RUN OPENCV_VERSION=3.1.0 && \
+RUN OPENCV_VERSION=3.4.3 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && \
+    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
           -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF \
-          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF . && \
+          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF .. && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 

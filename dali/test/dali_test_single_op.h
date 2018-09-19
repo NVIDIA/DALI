@@ -85,7 +85,7 @@ typedef enum {
   t_loadJPEGs   = 1,
   t_decodeJPEGs = 2,
   t_loadPNGs    = 4,
-  t_decodePNGs  = 8
+  t_decodePNGs  = 8,
 } t_loadingFlags;
 
 typedef struct  {
@@ -266,6 +266,7 @@ class DALISingleOpTest : public DALITest {
   void EncodedPNGData(TensorList<CPUBackend>* t) {
     DALITest::MakeEncodedBatch(t, batch_size_, png_);
   }
+
 
   /**
    * Provide decoded (i.e. decoded JPEG) data
@@ -470,7 +471,7 @@ class DALISingleOpTest : public DALITest {
         for (int j = 0; j < jMax; ++j) {    // loop over the colors
           if (shiftHor == 0) {
             for (int i = j; i < N; i += jMax)
-              diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+              diff[i / jMax] = std::abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
 
             ASSERT_EQ(N/jMax, len), -1;
           } else {
@@ -478,7 +479,7 @@ class DALISingleOpTest : public DALITest {
             for (int y = 0; y < hMax; ++y) {
               for (int x = 0; x < wMax; ++x) {
                 const int idx = (W * y + x) * c_;
-                diff[i++] = abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
+                diff[i++] = std::abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
               }
             }
 
@@ -677,8 +678,6 @@ class DALISingleOpTest : public DALITest {
   vector<TensorList<CPUBackend>*> input_data_;
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
-
-  ImgSetDescr png_;
 
   vector<uint8*> jpeg_decoded_, png_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_;

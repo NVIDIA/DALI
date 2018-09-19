@@ -76,7 +76,12 @@ REGISTER_OP("Dali")
         c->MakeShapeFromPartialTensorShape(shape, &passed_shape));
     TF_RETURN_IF_ERROR(
         c->WithRank(passed_shape, NUM_DIMS, &passed_shape));
+    tf::shape_inference::ShapeHandle label_shape;
+    TF_RETURN_IF_ERROR(
+        c->MakeShapeFromPartialTensorShape(tf::PartialTensorShape {shape.dim_size(0)},
+                                           &label_shape));
     c->set_output(0, passed_shape);
+    c->set_output(1, label_shape);
     return tf::Status::OK();
   })
   .Doc(R"doc(
