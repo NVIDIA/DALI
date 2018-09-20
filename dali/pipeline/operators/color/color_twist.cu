@@ -67,5 +67,6 @@ DALI_REGISTER_OPERATOR(Brightness, BrightnessAdjust<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(Contrast, ContrastAdjust<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(Hue, HueAdjust<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(Saturation, SaturationAdjust<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistAdjust<GPUBackend>, GPU);
 
 }  // namespace dali
