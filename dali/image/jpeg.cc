@@ -54,7 +54,10 @@ void PrintSubsampling(int sampling) {
 }
 #endif  // DALI_USE_JPEG_TURBO
 
-// Based on https://github.com/scardine/image_size
+// Slightly modified from  https://github.com/apache/incubator-mxnet/blob/master/plugin/opencv/cv_api.cc
+// http://www.64lines.com/jpeg-width-height
+// Gets the JPEG size from the array of data passed to the function, file reference: http://www.obrador.com/essentialjpeg/headerinfo.htm
+// Final adjustments based on https://github.com/scardine/image_size
 bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width) {
   // Check for valid JPEG image
   unsigned int i = 0;  // Keeps track of the position within the file
