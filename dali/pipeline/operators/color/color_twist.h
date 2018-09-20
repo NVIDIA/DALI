@@ -242,6 +242,19 @@ class SaturationAdjust : public ColorTwistBase<Backend> {
   virtual ~SaturationAdjust() = default;
 };
 
+template<typename Backend>
+class ColorTwistAdjust : public ColorTwistBase<Backend> {
+ public:
+  inline explicit ColorTwistAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
+    this->augments_.push_back(new Hue());
+    this->augments_.push_back(new Saturation());
+    this->augments_.push_back(new Contrast());
+    this->augments_.push_back(new Brightness());
+  }
+
+  virtual ~ColorTwistAdjust() = default;
+};
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_COLOR_COLOR_TWIST_H_
