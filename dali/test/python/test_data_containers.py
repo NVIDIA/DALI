@@ -84,7 +84,7 @@ class TFRecordPipeline(CommonPipeline):
 
 test_data = {
             FileReadPipeline: [["/data/imagenet/train-jpeg"],
-                               ["/data/imagenet/val-jpeg"]]
+                               ["/data/imagenet/val-jpeg"]],
             MXNetReaderPipeline: [["/data/imagenet/train-480-val-256-recordio/train.rec", "/data/imagenet/train-480-val-256-recordio/train.idx"],
                                    ["/data/imagenet/train-480-val-256-recordio/val.rec", "/data/imagenet/train-480-val-256-recordio/val.idx"]],
             CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"],
@@ -105,7 +105,7 @@ for pipe_name in test_data.keys():
         [pipe.build() for pipe in pipes]
 
         iters = pipes[0].epoch_size("Reader")
-        assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes)
+        assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
         iters_tmp = iters
         iters = iters // BATCH_SIZE
         if iters_tmp != iters * BATCH_SIZE:
