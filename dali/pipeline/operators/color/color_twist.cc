@@ -71,7 +71,7 @@ Values >= 0 are supported. For example:
 )code", 1.f, true)
     .AddParent("ColorTransformBase");
 
-    DALI_SCHEMA(ColorTwist)
+DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Combination of hue, saturation, contrast and brightness.)code")
     .NumInput(1)
     .NumOutput(1)
@@ -95,6 +95,7 @@ Values >= 0 are accepted. For example:
     .AddOptionalArg("brightness",
         R"code(Brightness change factor.
 Values >= 0 are accepted. For example:
+
 * `0` - black image,
 * `1` - no change
 * `2` - increase brightness twice
