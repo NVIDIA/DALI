@@ -23,11 +23,13 @@ class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
 
-        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode_host = ops.HostDecoder(device = "cpu", output_type = types.RGB)
 
     def base_define_graph(self, inputs, labels):
-        images = self.decode(inputs)
-        return (images, labels)
+        images_gpu = self.decode_gpu(inputs)
+        images_host = self.decode_host(inputs)
+        return (images_gpu, images_host, labels)
 
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
