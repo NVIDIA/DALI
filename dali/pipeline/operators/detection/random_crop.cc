@@ -166,14 +166,9 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>*
 
   int out_idx = 0;
   for (int h = bounds[1]; h < bounds[3]; ++h) {
-    for (int w = bounds[0]; w < bounds[2]; ++w) {
-      for (int c = 0; c < C; ++c) {
-        const int idx = h * W * C + w * C + c;
-
-        out_data[out_idx] = img.data<uint8_t>()[idx];
-        out_idx++;
-      }
-    }
+    const int idx = h * W * C + bounds[0] * C;
+    memcpy(out_data + out_idx, img.data<uint8_t>() + idx, (bounds[2] - bounds[0]) * C);
+    out_idx += (bounds[2] - bounds[0]) * C;
   }
 }
 
