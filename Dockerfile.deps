@@ -12,6 +12,8 @@
 ARG FROM_IMAGE_NAME=gitlab-dl.nvidia.com:5005/dali/manylinux:manylinux3_x86_64
 FROM ${FROM_IMAGE_NAME}
 
+ARG USE_CUDA_VERSION=9
+
 # Install yum Dependencies
 RUN yum install -y zip
 
@@ -81,18 +83,37 @@ RUN JPEG_TURBO_VERSION=1.5.3 && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # CUDA
-RUN CUDA_VERSION=9.0 && \
+# 9.x
+RUN if [ ${USE_CUDA_VERSION} == "9" ] ; then \
+    CUDA_VERSION=9.0 && \
     CUDA_BUILD=9.0.176_384.81 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
     chmod +x cuda_${CUDA_BUILD}_linux-run && \
     ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_${CUDA_BUILD}_linux-run
+    rm -f cuda_${CUDA_BUILD}_linux-run; \
+    else :;\
+    fi
 
+# 10.x
+RUN if [ ${USE_CUDA_VERSION} == "10" ] ; then \
+    CUDA_VERSION=10.0 && \
+    CUDA_BUILD=10.0.130_410.48 && \
+    curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
+    chmod +x cuda_${CUDA_BUILD}_linux && \
+    ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_${CUDA_BUILD}_linux; \
+    else :;\
+    fi
+
+# CUDA 10 has nvJpeg embedded, no need to download it separately
 # NVJPEG
-RUN NVJPEG_VERSION=0.1.4 && \
+RUN if [ ${USE_CUDA_VERSION} == "9" ] ; then \
+    NVJPEG_VERSION=0.1.4 && \
     NVJPEG_BUILD=9.0-v${NVJPEG_VERSION} && \
     curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
     cd /cuda-linux64-nvjpeg/ && \
     mv lib64/libnvjpeg*.a* /usr/local/lib/ && \
     mv include/nvjpeg.h /usr/local/include/ && \
-    rm -rf /cuda-linux64-nvjpeg
+    rm -rf /cuda-linux64-nvjpeg; \
+    else :;\
+    fi
