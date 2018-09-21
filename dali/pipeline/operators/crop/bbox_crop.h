@@ -27,23 +27,12 @@
 
 namespace dali {
 
-template <typename Backend>
-class BBoxCrop : public Operator<CPUBackend> {
-  using Overlaps = std::vector<float>;
-  using BBox = Rectangle;
-  using BBoxes = std::vector<Bbox>;
-  using Crop = Rectangle;
+class BBoxCrop : public Operator<CPUBackend>
+{ 
+  const static unsigned int bbox_size_ = 4;
 
- struct Rectangle
+  struct Rectangle
  {
-    explicit Rectangle()
-     : left_(-1)
-     , top_(-1)
-     , right_(-1)
-     , bottom_(-1)
-   {
-   }
-
    explicit Rectangle(float left,
                  float top,
                  float right,
@@ -55,22 +44,20 @@ class BBoxCrop : public Operator<CPUBackend> {
    {
    }
 
-   bool Contains(float x, float y)
+   bool Contains(float x, float y) const
    {
-     return x_center >= crop.left_ 
-            && x_center =< crop.right_ 
-            && y_center >= crop.top_ 
-            && y_center =< crop._bottom;
+     return x >= left_ &&
+            x <= right_ &&
+            y >= top_ && 
+            y <= bottom_;
    }
 
    const float left_, top_, right_, bottom_;
   };
 
-  const static bbox_size = 4;
-
- public:
   explicit inline BBoxCrop(const OpSpec &spec)
-    : num_attempts_(spec.GetArgument<int>("num_attempts")),
+    : Operator<CPUBackend>(spec)
+    , num_attempts_(spec.GetArgument<int>("num_attempts"))
     , thresholds_({0.1, 0.3, 0.5, 0.7, 0.9})
   {
     //TODO: @pribalta Pass thresholds as argument?
@@ -82,157 +69,153 @@ class BBoxCrop : public Operator<CPUBackend> {
   virtual ~BBoxCrop() = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override
+  void RunImpl(SampleWorkspace *ws, const int idx)
   {
     const auto& image = ws->Input<CPUBackend>(0);
-    const auto& bboxes = ws->Input<CPUBackend>(1);
+    const auto& bounding_boxes = ws->Input<CPUBackend>(1);
 
-    const auto minimum_overlap = SelectMinimumOverlap();
+    // TODO if overlap is 0 we bail
+    
+    const auto prospective_crop = FindProspectiveCrop(image,
+                                                bounding_boxes,
+                                                SelectMinimumOverlap());
 
-    if (minimum_overlap > 0.0)
-    {
-      const auto crop_candidate = FindCropCandidate(image, bboxes, overlap);
-
-      // TODO what if no candidate is found?
-
-      // TODO Write crop parameters    
-
-      WriteBBoxesToOutput(ws, crop_candidate.second);
-    }
-    else
-    {
-      ws->Output<CPUBackend>(0)->Copy(images, 0);
-      ws->Output<CPUBackend>(1)->Copy(bboxes, 0);
-    }
+    WriteCropToOutput(ws, prospective_crop.first);
+    WriteBoxesToOutput(ws, prospective_crop.second);  
   }
 
- private:
-  void WriteBBoxesToOutput(Workspace<Backend> *ws, const BBoxes& valid_bboxes)
+  void WriteCropToOutput(SampleWorkspace *ws, const Rectangle& crop)
+  {
+    // Copy the anchor to output 0
+    auto *anchor_out = ws->Output<CPUBackend>(0);
+    anchor_out->Resize({2});
+
+    auto *anchor_out_data = anchor_out->mutable_data<float>();
+    anchor_out_data[0] = crop.left_;
+    anchor_out_data[1] = crop.top_;
+
+    // Copy the offsets to output 1
+    auto *offsets_out = ws->Output<CPUBackend>(1);
+    offsets_out->Resize({2});
+
+    auto *offsets_out_data = offsets_out->mutable_data<float>();
+    offsets_out_data[0] = crop.right_ - crop.left_;
+    offsets_out_data[1] = crop.bottom_ - crop.top_;
+  }
+
+  void WriteBoxesToOutput(SampleWorkspace *ws, const std::vector<Rectangle>& bounding_boxes)
   {
     auto *bbox_out = ws->Output<CPUBackend>(1);
-
-    bbox_out->Resize({crop_candidate.second.size(), bbox_size});
+    bbox_out->Resize({static_cast<int>(bounding_boxes.size()), bbox_size_});
+    
     auto *bbox_out_data = bbox_out->mutable_data<float>();
-
-    for (int i = 0; i < valid_bboxes.size(); ++i)
+    for (size_t i = 0; i < bounding_boxes.size(); ++i)
     {
-      auto *output = bbox_out_data + i * bbox_size;
-      output[0] = valid_bboxes[i].left_; 
-      output[1] = valid_bboxes[i].top_; 
-      output[2] = valid_bboxes[i].right_; 
-      output[3] = valid_bboxes[i].bottom_; 
+      auto *output = bbox_out_data + i * bbox_size_;
+      output[0] = bounding_boxes[i].left_; 
+      output[1] = bounding_boxes[i].top_; 
+      output[2] = bounding_boxes[i].right_; 
+      output[3] = bounding_boxes[i].bottom_; 
     }
   }
 
-  Bboxes FilterBboxByCentroid(const Crop& crop, const Tensor<Backend>& bboxes)
+  float SelectMinimumOverlap()
   {
-    Bboxes result;
-    result.reserve(bboxes.dim(0));
-
-    // Discard bboxes whose centroid is not in the cropped area
-    for (int i = 0; i < bboxes.dim(0); ++i)
-    {
-      const auto* bbox = bboxes.data<float>() + (i * bbox_size);
-
-      const float x_center = 0.5 * (bbox[0] + bbox[2]);
-      const float y_center = 0.5 * (bbox[1] + bbox[3]);
-
-      if (crop.Contains(x_center, y_center)
-      {
-        result.emplace_back(BBox(bbox[0],
-                                 bbox[1],
-                                 bbox[2],
-                                 bbox[3]));
-      }
-
-      return result;
-    }
+    static std::uniform_int_distribution<> sampler(0, thresholds_.size());
+     return thresholds_[sampler(rd_)];
+  }
+  
+  float Rescale(unsigned int k)
+  {
+    static std::uniform_real_distribution<> sampler(0.3, 1.0);
+    return sampler(rd_) * k;
   }
 
-  Crop CropPatch(float width, float height) const
+  float ValidAspectRatio(float width, float height) const
+  {
+    const float aspect_ratio = width / height;
+    return aspect_ratio >= 0.5 && aspect_ratio <= 2;
+  }
+  
+  Rectangle SamplePatch(float height, float width)
   {
     std::uniform_real_distribution<float> width_sampler(0., 1. - width),
                                           height_sampler(0., 1. - height);
 
     const auto left_offset = width_sampler(rd_);
     const auto height_offset = height_sampler(rd_);
-
-    // Crop is LEFT/TOP/RIGHT/BOTTOM
-    return Crop(left_offset,
-                height_offset,
-                left_offset + width,
-                height_offset + height);
+    
+    // Patch is LEFT/TOP/RIGHT/BOTTOM
+    return Rectangle(left_offset,
+                     height_offset,
+                     left_offset + width,
+                     height_offset + height);
   }
 
-  float ValidAspectRatio(float width, float height) const
+  std::vector<Rectangle> DiscardBoundingBoxesByCentroid(const Rectangle& crop, const Tensor<CPUBackend>& bounding_boxes)
   {
-    const float aspect_ratio = width / height;
+    std::vector<Rectangle> result;
+    result.reserve(bounding_boxes.dim(0));
 
-    return aspect_ratio >= 0.5 && aspect_ratio <= 2;
+    // Discard bboxes whose centroid is not in the cropped area
+    for (int i = 0; i < bounding_boxes.dim(0); ++i)
+    {
+      const auto* box = bounding_boxes.data<float>() + (i * bbox_size_);
+
+      const float x_center = 0.5 * (box[0] + box[2]);
+      const float y_center = 0.5 * (box[1] + box[3]);
+
+      if (crop.Contains(x_center, y_center))
+      {
+        result.emplace_back(Rectangle(box[0], box[1], box[2], box[3]));
+      }
+    }
+
+    return result;
   }
 
-  float SelectMinimumOverlap() const
-  {
-    static std::uniform_int_distribution<> sampler(0, thresholds_.size());
-
-    return thresholds_(sampler(rd_));
-  }
-
-  float Rescale(unsigned int k) const
-  {
-    static std::uniform_real_distribution<> sampler(0.3, 1.0);
-
-    return sampler(rd_) * k;
-  }
-
-  float CalculateOverlap(const Crop& crop_candidate, const BBox& bbox)
+  float CalculateOverlap(const Rectangle& crop_candidate, const Rectangle& box)
   {
     // TODO
     return 0.0;
   }
 
-  bool ValidOverlap(const Crop& crop_candidate, const BBoxes& bboxes, float minimum_overlap)
+  bool ValidOverlap(const Rectangle& crop_candidate, const std::vector<Rectangle>& bounding_boxes, float minimum_overlap)
   {
-    for (const auto& bbox : bboxes)
+    for (const auto& box : bounding_boxes)
     {
-      if (CalculateOverlap(crop_candidate, bbox) <= minimum_overlap)
+      if (CalculateOverlap(crop_candidate, box) <= minimum_overlap)
       {
         return false;
       }
     }
-
-    return true;
+     return true;
   }
 
-  std::pair<Crop, BBoxes> FindCropCandidate(const Tensor<Backend>& image,
-                        const Tensor<Backend>& bboxes,
-                        float minimum_overlap)
+  std::pair<Rectangle, std::vector<Rectangle>> FindProspectiveCrop(const Tensor<CPUBackend>& image, const Tensor<CPUBackend>& bounding_boxes, float minimum_overlap)
   {
-    for (int i = 0; i < num_attempts_; ++i)
+    for (size_t i = 0; i < num_attempts_; ++i)
     {
-      // Input is HWC
-      const auto target_height = Rescale(image.dim(0));
-      const auto target_width = Rescale(image.dim(1));
-      
-      if (ValidAspectRatio(target_width, target_height))
+      // Image is HWC
+      const auto rescaled_height = Rescale(image.dim(0));
+      const auto rescaled_width = Rescale(image.dim(1));
+
+      if (ValidAspectRatio(rescaled_height, rescaled_width))
       {
-        const auto candidate_crop = CropPatch(target_width, target_height);
+        const auto candidate_crop = SamplePatch(rescaled_height, rescaled_width);
+        const auto candidate_bounding_boxes = DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
-        auto candidate_bboxes = FilterBboxByCentroid(candidate_crop, bboxes);
-
-        // TODO: Need to rescale and clamp the boxes
-
-        if (ValidOverlap(crop_candidate, candidate_bboxes, minimum_overlap))
+        if (ValidOverlap(candidate_crop, candidate_bounding_boxes, minimum_overlap))
         {
-          return std::make_pair(crop_candidate, candidate_bboxes);
+          return std::make_pair(candidate_crop, candidate_bounding_boxes);
         }
       }
     }
-
-    return std::make_pair({}, {});
+    
+    // TODO what if we dont find anything?
   }
 
-  const unsigned int num_attemtps_;
+  const unsigned int num_attempts_;
   const std::vector<float> thresholds_;
   std::random_device rd_;
 };
@@ -240,4 +223,5 @@ class BBoxCrop : public Operator<CPUBackend> {
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_CROP_CROP_H_
+
 
