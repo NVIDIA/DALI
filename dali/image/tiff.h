@@ -35,8 +35,8 @@ namespace dali {
 class TiffBuffer {
  public:
     explicit TiffBuffer(const std::string &buffer, bool little_endian = false) :
+            stream_(buffer),
             little_endian_(little_endian) {
-        stream_ = std::istringstream(buffer);
         buffer_size_ = buffer.length();
     }
 
@@ -50,8 +50,8 @@ class TiffBuffer {
      */
     template<typename ValueType>
     ValueType Read(unsigned int offset = 0) {
-        assert(stream_.good());
-        assert(offset + sizeof(ValueType) < buffer_size_);
+        DALI_ENFORCE(stream_.good());
+        DALI_ENFORCE(offset + sizeof(ValueType) < buffer_size_);
         static_assert(std::is_integral<ValueType>::value, "Only integral values supported");
 
         stream_.seekg(offset);
@@ -60,7 +60,7 @@ class TiffBuffer {
         if (little_endian_) {
             to_little_endian(&ret);
         }
-        assert(stream_.good());
+        DALI_ENFORCE(stream_.good());
         return ret;
     }
 

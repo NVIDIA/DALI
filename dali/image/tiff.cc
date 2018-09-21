@@ -29,14 +29,14 @@ constexpr int TYPE_DWORD = 4;
 
 
 cv::Mat DecodeTiff(const unsigned char *tiff, int size, DALIImageType image_type) {
-    assert(tiff);
+    DALI_ENFORCE(tiff);
     std::vector<char> buf(tiff, tiff + size);
     return cv::imdecode(buf, image_type == DALI_GRAY ? 0 : 1);
 }
 
 
 bool check_header(const unsigned char *tiff, const std::array<int, 4> &header) {
-    assert(tiff);
+    DALI_ENFORCE(tiff);
     for (unsigned int i = 0; i < header.size(); i++) {
         if (tiff[i] != header[i]) {
             return false;
@@ -47,21 +47,21 @@ bool check_header(const unsigned char *tiff, const std::array<int, 4> &header) {
 
 
 bool is_little_endian(const unsigned char *tiff) {
-    assert(tiff);
+    DALI_ENFORCE(tiff);
     return check_header(tiff, header_intel);
 }
 
 }  // namespace
 
 bool CheckIsTiff(const unsigned char *tiff) {
-    assert(tiff);
+    DALI_ENFORCE(tiff);
     return check_header(tiff, header_intel) || check_header(tiff, header_motorola);
 }
 
 
 DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w) {
-    assert(h && w && tiff);
-    assert(CheckIsTiff(tiff));
+    DALI_ENFORCE(h && w && tiff);
+    DALI_ENFORCE(CheckIsTiff(tiff));
 
     TiffBuffer buffer(std::string(reinterpret_cast<const char *>(tiff), static_cast<size_t>(size)),
                        is_little_endian(tiff));
@@ -78,7 +78,7 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
         if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG) {
             const auto value_type = buffer.Read<uint16_t>(entry_offset + 2);
             const auto value_count = buffer.Read<uint32_t>(entry_offset + 4);
-            assert(value_count == 1);
+            DALI_ENFORCE(value_count == 1);
 
             int value;
             if (value_type == TYPE_WORD) {
@@ -107,8 +107,8 @@ DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w
 
 DALIError_t DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type,
                            Tensor<CPUBackend> *output) {
-    assert(tiff && output);
-    assert(CheckIsTiff(tiff));
+    DALI_ENFORCE(tiff && output);
+    DALI_ENFORCE(CheckIsTiff(tiff));
     auto tiff_mat = DecodeTiff(tiff, size, image_type);
     const auto height = tiff_mat.rows;
     const auto width = tiff_mat.cols;
