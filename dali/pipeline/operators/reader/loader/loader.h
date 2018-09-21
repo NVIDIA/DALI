@@ -30,6 +30,10 @@
 
 namespace dali {
 
+DLL_PUBLIC size_t start_index(const size_t shard_id,
+                              const size_t shard_num,
+                              const size_t size);
+
 template <class Backend>
 class Loader {
  public:
