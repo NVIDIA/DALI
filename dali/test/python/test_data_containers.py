@@ -46,7 +46,7 @@ class CaffeReadPipeline(CommonPipeline):
         self.input = ops.CaffeReader(path = data_paths[0])
 
     def define_graph(self):
-        images, labels = self.input()
+        images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
 
 class Caffe2ReadPipeline(CommonPipeline):
@@ -55,16 +55,16 @@ class Caffe2ReadPipeline(CommonPipeline):
         self.input = ops.Caffe2Reader(path = data_paths[0])
 
     def define_graph(self):
-        images, labels = self.input()
+        images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
 
 class FileReadPipeline(CommonPipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
             super(FileReadPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.FileReader(file_root = data_paths[0], file_list = data_paths[1])
+            self.input = ops.FileReader(file_root = data_paths[0])
 
         def define_graph(self):
-            images, labels = self.input()
+            images, labels = self.input(name="Reader")
             return self.base_define_graph(images, labels)
 
 class TFRecordPipeline(CommonPipeline):
@@ -79,7 +79,7 @@ class TFRecordPipeline(CommonPipeline):
                                         })
 
     def define_graph(self):
-        inputs = self.input()
+        inputs = self.input(name="Reader")
         images = inputs["image/encoded"]
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
@@ -114,7 +114,11 @@ LOG_INTERVAL = 200 // BATCH_SIZE + 1
 for pipe_name in test_data.keys():
     data_set_len = len(test_data[pipe_name])
     for i, data_set in enumerate(test_data[pipe_name]):
-        iters = data_set[-1]
+        pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=4, device_id = n, num_gpus = N, data_paths = data_set) for n in range(N)]
+        [pipe.build() for pipe in pipes]
+
+        iters = pipes[0].epoch_size("Reader")
+        assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
         iters_tmp = iters
         iters = iters // BATCH_SIZE
         if iters_tmp != iters * BATCH_SIZE:
@@ -125,8 +129,6 @@ for pipe_name in test_data.keys():
         if iters_tmp != iters * N:
             iters += 1
 
-        pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=4, device_id = n, num_gpus = N, data_paths = data_set) for n in range(N)]
-        [pipe.build() for pipe in pipes]
         print ("RUN {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
         print (data_set)
         for j in range(iters):
