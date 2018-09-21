@@ -239,13 +239,13 @@ def main():
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    train_loader = DALIClassificationIterator(pipe, size = int(1281167 / args.world_size) )
+    train_loader = DALIClassificationIterator(pipe, size = int(pipe.epoch_size("Reader") / args.world_size) )
 
     pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = valdir, crop = crop_size, size = val_size)
     pipe.build()
     test_run = pipe.run()
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    val_loader = DALIClassificationIterator(pipe, size = int(50000 / args.world_size) )
+    val_loader = DALIClassificationIterator(pipe, size = int(pipe.epoch_size("Reader") / args.world_size) )
 
     if args.evaluate:
         validate(val_loader, model, criterion)
