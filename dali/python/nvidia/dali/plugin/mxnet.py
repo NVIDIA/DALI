@@ -116,7 +116,7 @@ class DALIGenericIterator(object):
             batch = self._first_batch
             self._first_batch = None
             return batch
-        if self._counter > self._size:
+        if self._counter >= self._size:
             raise StopIteration
         # Gather outputs
         outputs = []
@@ -177,7 +177,7 @@ class DALIGenericIterator(object):
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
-        if self._counter > self._size:
+        if self._counter >= self._size:
             self._counter = self._counter % self._size
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
