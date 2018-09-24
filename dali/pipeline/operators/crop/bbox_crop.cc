@@ -21,9 +21,16 @@ DALI_SCHEMA(BBoxCrop)
   .NumInput(2)
   .NumOutput(3)
   .AllowMultipleInputSets()
-  .AddOptionalArg("num_attempts",
-      R"code(Maximum number of attempts used to choose random prospective crop area.)code",
-      10)
+  .AddOptionalArg("overlap_thresholds",
+    R"code(Minimum overlap (IoU) in order not to discard bounding boxes after crop.
+    Selected at random from provided values.)code",
+    std::vector<float>{0.})
+  .AddOptionalArg("random_aspect_ratio",
+      R"code(Range from which to choose random aspect ratio.)code",
+      std::vector<float>{1., 1.})
+  .AddOptionalArg("crop_scaling",
+    R"code(Range for which to choose the crop size.)code",
+    std::vector<float>{1.,1.})
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali
