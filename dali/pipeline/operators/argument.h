@@ -134,7 +134,7 @@ class Argument {
 
   virtual DALIDataType GetTypeID() const = 0;
 
-  virtual void SerializeToProtobuf(dali_proto::Argument *arg) = 0;
+  virtual void SerializeToProtobuf(DaliProtoPriv *arg) = 0;
 
   template<typename T>
   T Get();
@@ -180,7 +180,7 @@ class ArgumentInst : public Argument {
     return val.GetTypeID();
   }
 
-  void SerializeToProtobuf(dali_proto::Argument *arg) override {
+  void SerializeToProtobuf(DaliProtoPriv *arg) override {
     arg->set_name(Argument::ToString());
     dali::SerializeToProtobuf(val.Get(), arg);
   }
@@ -210,7 +210,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
     return val.GetTypeID();
   }
 
-  void SerializeToProtobuf(dali_proto::Argument *arg) override {
+  void SerializeToProtobuf(DaliProtoPriv *arg) override {
     const std::vector<T>& vec = val.Get();
     DALI_ENFORCE(vec.size() > 0, "List arguments need to have at least 1 element.");
     arg->set_name(Argument::ToString());
@@ -219,8 +219,8 @@ class ArgumentInst<std::vector<T>> : public Argument {
     for (size_t i = 0; i < vec.size(); ++i) {
       ArgumentInst<T> tmp("element " + to_string(i),
                           vec[i]);
-      auto* extra_arg = arg->add_extra_args();
-      tmp.SerializeToProtobuf(extra_arg);
+      auto extra_arg = arg->add_extra_args();
+      tmp.SerializeToProtobuf(&extra_arg);
     }
   }
 
@@ -228,7 +228,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
   ValueInst<std::vector<T> > val;
 };
 
-DLL_PUBLIC Argument *DeserializeProtobuf(const dali_proto::Argument& arg);
+DLL_PUBLIC Argument *DeserializeProtobuf(const DaliProtoPriv arg);
 
 template<typename T>
 T Argument::Get() {
