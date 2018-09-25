@@ -77,4 +77,41 @@ void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_nam
   WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
 }
 
+void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bias, float scale) {
+  const auto type = tl.type();
+  const auto layout = tl.GetLayout();
+
+  if (IsType<uint8>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<uint8>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<uint8>(tl, bias, scale, suffix);
+  } else if (IsType<int16>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<int16>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<int16>(tl, bias, scale, suffix);
+  } else if (IsType<int32>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<int32>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<int32>(tl, bias, scale, suffix);
+  } else if (IsType<int64>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<int64>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<int64>(tl, bias, scale, suffix);
+  } else if (IsType<float16>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<float16>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<float16>(tl, bias, scale, suffix);
+  } else if (IsType<float>(type)) {
+    if (layout == DALI_NCHW)
+      WriteCHWBatch<float>(tl, bias, scale, suffix);
+    else
+      WriteHWCBatch<float>(tl, bias, scale, suffix);
+  }
+}
+
 }  // namespace dali

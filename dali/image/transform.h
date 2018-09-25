@@ -16,6 +16,7 @@
 #define DALI_IMAGE_TRANSFORM_H_
 
 #include <string>
+#include <utility>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/tensor.h"
@@ -41,7 +42,7 @@ namespace dali {
  * & GPU versions.
  */
 DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_x, int crop_y, int crop_h, int crop_w,
+    int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h, int crop_w,
     int mirror, uint8 *out_img, DALIInterpType type = DALI_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
@@ -63,11 +64,11 @@ DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
  * of the memory pointed to by 'workspace' should be crop_h*crop_w*C bytes
  */
 DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
-    int rsz_h, int rsz_w, int crop_y, int crop_x, int crop_h, int crop_w,
+    int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h, int crop_w,
     int mirror, uint8 *out_img, DALIInterpType type = DALI_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
-void CheckParam(const Tensor<CPUBackend> &input,  const std::string &pOperator);
+void CheckParam(const Tensor<CPUBackend> &input, const std::string &pOperator);
 
 DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
                                     const float *matrix, uint8 *out_img);

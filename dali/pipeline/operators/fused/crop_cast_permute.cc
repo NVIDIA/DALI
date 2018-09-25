@@ -30,4 +30,7 @@ cast and permute (from NHWC to NCHW).)code")
   .AddParent("Crop")  // for image type, crop pos and sizes
   .EnforceInputLayout(DALI_NHWC);
 
+// Register operator
+DALI_REGISTER_OPERATOR(CropCastPermute, CropCastPermute<CPUBackend>, CPU);
+
 }  // namespace dali
