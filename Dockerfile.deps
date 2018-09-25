@@ -110,5 +110,8 @@ RUN if [ ${USE_CUDA_VERSION} == "9" ] ; then \
         ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
         rm -f cuda_${CUDA_BUILD}_linux; \
     # CUDA 10 has nvJpeg embedded, no need to download it separately
-    else :;\
+    else \
+        echo "**************************************************************" && \
+        echo "Wrong value of 'USE_CUDA_VERSION', only 9 and 10 are supported" && \
+        echo "**************************************************************" && exit 1 ;\
     fi
