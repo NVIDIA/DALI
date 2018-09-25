@@ -30,4 +30,15 @@ DALI_SCHEMA(LoaderBase)
       R"code(Hint for how much memory to allocate per image.)code", 1048576);
 
 
+size_t start_index(const size_t shard_id,
+                   const size_t shard_num,
+                   const size_t size) {
+  const size_t remainder = size % shard_num;
+  if (shard_id < remainder) {
+    return (size / shard_num) *shard_id + shard_id;
+  } else {
+    return (size / shard_num) * shard_id + remainder;
+  }
+}
+
 }  // namespace dali

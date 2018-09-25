@@ -132,8 +132,7 @@ class FileLoader : public Loader<CPUBackend> {
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
 
-    int samples_per_shard = Size() / num_shards_;
-    current_index_ = shard_id_ * samples_per_shard;
+    current_index_ = start_index(shard_id_, num_shards_, Size());
   }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
