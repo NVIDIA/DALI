@@ -82,8 +82,7 @@ class LMDBReader : public Loader<CPUBackend> {
 
     // work out how many entries to move forward to handle sharding
     if (shard_id_ == 0) return;
-    int samples_per_shard = Size() / num_shards_;
-    int start_idx = shard_id_ * samples_per_shard;
+    int start_idx = start_index(shard_id_, num_shards_, Size());
 
     for (int i = 0; i < start_idx; ++i) {
       bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
