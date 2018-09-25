@@ -32,7 +32,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     // Decode the images
     pipe->AddOperator(
       OpSpec("HostDecoder")
-        .AddArg("output_type", this->img_type_)
+        .AddArg("output_type", this->ImageType())
         .AddInput("jpegs", "cpu")
         .AddOutput("input", "cpu"));
 
@@ -41,29 +41,32 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     this->RunOperator(descr);
   }
 
-  vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
-    return this->CopyToHost(*ws->Output<GPUBackend>(1));
+  virtual vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
+    auto from = ws->Output<GPUBackend>(1);
+    auto reference = this->CopyToHost(*from);
+    reference[0]->SetLayout(from->GetLayout());
+    return reference;
   }
 
   uint32_t GetTestCheckType() const  override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
-  void RunTest(const singleParamOpDescr &paramOp) {
+  void RunTest(const singleParamOpDescr &paramOp, bool addImgType = false) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
-    opDescr finalDesc(paramOp.opName, paramOp.epsVal, &args);
+    opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
     RunTest(finalDesc);
   }
 
   void RunTest(const char *opName, const OpArg params[] = nullptr,
-                int nParam = 0, double eps = 0.001) {
+                int nParam = 0, bool addImgType = false, double eps = 0.001) {
     if (params && nParam > 0) {
       vector<OpArg> args(params, params + nParam);
-      RunTest(opDescr(opName, eps, &args));
+      RunTest(opDescr(opName, eps, addImgType, &args));
     } else {
-      RunTest(opDescr(opName, eps, nullptr));
+      RunTest(opDescr(opName, eps, addImgType, nullptr));
     }
   }
 };
