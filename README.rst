@@ -38,7 +38,7 @@ Prerequisites
 .. _driver link: https://www.nvidia.com/drivers
 .. |cuda link| replace:: **NVIDIA CUDA 9.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |mxnet link| replace:: **MXNet 1.3 beta**
+.. |mxnet link| replace:: **MXNet 1.3**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **PyTorch 0.4**
 .. _pytorch link: https://pytorch.org
@@ -102,7 +102,7 @@ Prerequisites
    | **(Optional)** |lmdb link|_ or later   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
-   |      -  |mxnet link|_ ``mxnet-cu90==1.3.0`` or later                                                                        |
+   |      -  |mxnet link|_ ``mxnet-cu90==1.3.0`` or later                                                                                 |
    |      -  |pytorch link|_                                                                                                              |
    |      -  |tf link|_ or later                                                                                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
