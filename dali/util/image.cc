@@ -16,45 +16,6 @@
 
 namespace dali {
 
-void LoadImages(const string &image_folder, vector<string> *image_names,
-                ImgSetDescr *imgs) {
-  const string image_list = image_folder + "/image_list.txt";
-  std::ifstream file(image_list);
-  DALI_ENFORCE(file.is_open());
-
-  string img;
-  while (file >> img) {
-    DALI_ENFORCE(img.size());
-    image_names->push_back(image_folder + "/" + img);
-  }
-
-  LoadImages(*image_names, imgs);
-}
-
-void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
-  for (auto img_name : image_names) {
-    std::ifstream img_file(img_name);
-    DALI_ENFORCE(img_file.is_open());
-
-    img_file.seekg(0, std::ios::end);
-    int img_size = static_cast<int>(img_file.tellg());
-    img_file.seekg(0, std::ios::beg);
-
-    auto data = new uint8[img_size];
-    imgs->data_.push_back(data);
-    imgs->sizes_.push_back(img_size);
-    img_file.read(reinterpret_cast<char*>(data), img_size);
-  }
-}
-
-void LoadJPEGS(const string &image_folder, vector<string> *jpeg_names, ImgSetDescr *jpegs) {
-  LoadImages(image_folder, jpeg_names, jpegs);
-}
-
-void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *jpegs) {
-  LoadImages(jpeg_names, jpegs);
-}
-
 void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c) {
   std::ifstream file(file_name + ".txt");
   DALI_ENFORCE(file.is_open());
@@ -73,45 +34,28 @@ void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c
   }
 }
 
+int idxHWC(int h, int w, int c, int i, int j, int k) {
+  return (i * w + j) * c + k;
+}
+
+int idxCHW(int h, int w, int c, int i, int j, int k) {
+  return (k * h + i) * w + j;
+}
+
 void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name) {
-  WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
+  WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, idxHWC);
 }
 
 void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bias, float scale) {
   const auto type = tl.type();
   const auto layout = tl.GetLayout();
 
-  if (IsType<uint8>(type)) {
+  DALI_IMAGE_TYPE_SWITCH(type.id(), imgType,
     if (layout == DALI_NCHW)
-      WriteCHWBatch<uint8>(tl, bias, scale, suffix);
+      WriteCHWBatch<imgType>(tl, bias, scale, suffix);
     else
-      WriteHWCBatch<uint8>(tl, bias, scale, suffix);
-  } else if (IsType<int16>(type)) {
-    if (layout == DALI_NCHW)
-      WriteCHWBatch<int16>(tl, bias, scale, suffix);
-    else
-      WriteHWCBatch<int16>(tl, bias, scale, suffix);
-  } else if (IsType<int32>(type)) {
-    if (layout == DALI_NCHW)
-      WriteCHWBatch<int32>(tl, bias, scale, suffix);
-    else
-      WriteHWCBatch<int32>(tl, bias, scale, suffix);
-  } else if (IsType<int64>(type)) {
-    if (layout == DALI_NCHW)
-      WriteCHWBatch<int64>(tl, bias, scale, suffix);
-    else
-      WriteHWCBatch<int64>(tl, bias, scale, suffix);
-  } else if (IsType<float16>(type)) {
-    if (layout == DALI_NCHW)
-      WriteCHWBatch<float16>(tl, bias, scale, suffix);
-    else
-      WriteHWCBatch<float16>(tl, bias, scale, suffix);
-  } else if (IsType<float>(type)) {
-    if (layout == DALI_NCHW)
-      WriteCHWBatch<float>(tl, bias, scale, suffix);
-    else
-      WriteHWCBatch<float>(tl, bias, scale, suffix);
-  }
+      WriteHWCBatch<imgType>(tl, bias, scale, suffix);
+  )
 }
 
 }  // namespace dali

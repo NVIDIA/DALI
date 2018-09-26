@@ -28,87 +28,92 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(bool batched, int num_threads) {
+  void TestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_jpegImgType, 0.7);
+    this->RunTestDecode(ImageType(), 0.7);
   }
 
-  void PngTestDecode(bool batched, int num_threads) {
-    batched_ = batched;
-    this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_pngImgType, 0.7);
-  }
+  uint32_t GetImageLoadingFlags() const override { return 1 << ImageType(); }
 
+  t_imgType virtual ImageType() const            { return t_jpegImgType; }
  private:
   bool batched_ = false;
 };
 
-typedef ::testing::Types<RGB, BGR, Gray> Types;
+template <typename ImgType>
+class nvjpegDecodeTestPNG : public nvjpegDecodeTest<ImgType> {
+ protected:
+  t_imgType ImageType() const  override           { return t_pngImgType; }
+};
+
+
+typedef ::testing::Types<RGB, BGR/*, Gray */> Types;
 TYPED_TEST_CASE(nvjpegDecodeTest, Types);
+TYPED_TEST_CASE(nvjpegDecodeTestPNG, Types);
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode) {
-  this->JpegTestDecode(false, 1);
+  this->TestDecode(false, 1);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode2T) {
-  this->JpegTestDecode(false, 2);
+  this->TestDecode(false, 2);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode3T) {
-  this->JpegTestDecode(false, 3);
+  this->TestDecode(false, 3);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode4T) {
-  this->JpegTestDecode(false, 4);
+  this->TestDecode(false, 4);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode) {
-  this->JpegTestDecode(true, 1);
+  this->TestDecode(true, 1);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode2T) {
-  this->JpegTestDecode(true, 2);
+  this->TestDecode(true, 2);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode3T) {
-  this->JpegTestDecode(true, 3);
+  this->TestDecode(true, 3);
 }
 
 TYPED_TEST(nvjpegDecodeTest, TestBatchedJPEGDecode4T) {
-  this->JpegTestDecode(true, 4);
+  this->TestDecode(true, 4);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode) {
-  this->PngTestDecode(false, 1);
+TYPED_TEST(nvjpegDecodeTestPNG, TestSinglePNGDecode) {
+  this->TestDecode(false, 1);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode2T) {
-  this->PngTestDecode(false, 2);
+TYPED_TEST(nvjpegDecodeTestPNG, TestSinglePNGDecode2T) {
+  this->TestDecode(false, 2);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode3T) {
-  this->PngTestDecode(false, 3);
+TYPED_TEST(nvjpegDecodeTestPNG, TestSinglePNGDecode3T) {
+  this->TestDecode(false, 3);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestSinglePNGDecode4T) {
-  this->PngTestDecode(false, 4);
+TYPED_TEST(nvjpegDecodeTestPNG, TestSinglePNGDecode4T) {
+  this->TestDecode(false, 4);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode) {
-  this->PngTestDecode(true, 1);
+TYPED_TEST(nvjpegDecodeTestPNG, TestBatchedPNGDecode) {
+  this->TestDecode(true, 1);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode2T) {
-  this->PngTestDecode(true, 2);
+TYPED_TEST(nvjpegDecodeTestPNG, TestBatchedPNGDecode2T) {
+  this->TestDecode(true, 2);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode3T) {
-  this->PngTestDecode(true, 3);
+TYPED_TEST(nvjpegDecodeTestPNG, TestBatchedPNGDecode3T) {
+  this->TestDecode(true, 3);
 }
 
-TYPED_TEST(nvjpegDecodeTest, TestBatchedPNGDecode4T) {
-  this->PngTestDecode(true, 4);
+TYPED_TEST(nvjpegDecodeTestPNG, TestBatchedPNGDecode4T) {
+  this->TestDecode(true, 4);
 }
 
 }  // namespace dali

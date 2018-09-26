@@ -307,9 +307,9 @@ DLL_PUBLIC inline bool IsValidType(TypeInfo type) {
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
 #define DALI_REGISTER_TYPE(Type, dtype)                           \
-  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()               \
+  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()    \
     DALI_TYPENAME_REGISTERER(Type);                               \
-  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()           \
+  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()\
     DALI_TYPEID_REGISTERER(Type, dtype);
 
 // Instantiate some basic types
@@ -342,111 +342,37 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
  * type - DALIDataType
  * DType becomes a type corresponding to given DALIDataType
  */
-#define DALI_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
-  switch (type) {                                    \
-    case DALI_NO_TYPE:                               \
-      DALI_FAIL("Invalid type.");                    \
-    case DALI_UINT8:                                 \
-      {                                              \
-        typedef uint8 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT16:                                 \
-      {                                              \
-        typedef int16 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT64:                                 \
-      {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT16:                               \
-      {                                              \
-        typedef float16 DType;                       \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT:                                 \
-      {                                              \
-        typedef float DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT64:                               \
-      {                                              \
-        typedef double DType;                        \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_BOOL:                                  \
-      {                                              \
-        typedef bool DType;                          \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    default:                                         \
-      DALI_FAIL("Unknown type");                     \
+
+#define DALI_CASE(DalyType, CType, DType, ...)                      \
+        case DalyType: { typedef CType DType; {__VA_ARGS__;} } break;
+
+#define DALI_TYPE_SWITCH_BASE(AdditionalCases, type, DType, ...)    \
+  switch (type) {                                                   \
+    case DALI_NO_TYPE:                                              \
+      DALI_FAIL("Invalid type.");                                   \
+    DALI_CASE(DALI_UINT8, uint8, DType, __VA_ARGS__)                \
+    DALI_CASE(DALI_INT16, int16, DType, __VA_ARGS__)                \
+    DALI_CASE(DALI_INT32, int32, DType, __VA_ARGS__)                \
+    DALI_CASE(DALI_INT64, int64, DType, __VA_ARGS__)                \
+    DALI_CASE(DALI_FLOAT, float, DType, __VA_ARGS__)                \
+    AdditionalCases                                                 \
+    default:                                                        \
+      DALI_FAIL("Unknown type");                                    \
   }
 
-#define DALI_TYPE_SWITCH(type, DType, ...)           \
-  switch (type) {                                    \
-    case DALI_NO_TYPE:                               \
-      DALI_FAIL("Invalid type.");                    \
-    case DALI_UINT8:                                 \
-      {                                              \
-        typedef uint8 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT16:                                 \
-      {                                              \
-        typedef int16 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT64:                                 \
-      {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT:                                 \
-      {                                              \
-        typedef float DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT64:                               \
-      {                                              \
-        typedef double DType;                        \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_BOOL:                                  \
-      {                                              \
-        typedef bool DType;                          \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    default:                                         \
-      DALI_FAIL("Unknown type");                     \
-  }
+#define DALI_TYPE_SWITCH(type, DType, ...)                          \
+    DALI_TYPE_SWITCH_BASE(                                          \
+      DALI_CASE(DALI_FLOAT64, double, DType, __VA_ARGS__)           \
+      DALI_CASE(DALI_BOOL, bool, DType, __VA_ARGS__), type, DType, __VA_ARGS__)
+
+#define DALI_IMAGE_TYPE_SWITCH(type, DType, ...)                    \
+    DALI_TYPE_SWITCH_BASE(                                          \
+      DALI_CASE(DALI_FLOAT16, float16, DType, __VA_ARGS__), type, DType, __VA_ARGS__)
+
+
+#define DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(type, DType, ...)         \
+    DALI_TYPE_SWITCH_BASE(, type, DType, __VA_ARGS__)
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_DATA_TYPES_H_

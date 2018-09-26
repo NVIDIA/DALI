@@ -95,8 +95,8 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   ValidateHelper<Out>(output);
 
   DALI_CALL((BatchedCrop<Out>(
-      input_ptrs_gpu_.template data<const uint8*>(),
-      input_strides_gpu_.template data<int>(),
+      InputImgsBatch(),
+      InputStridesBatch(),
       batch_size_, crop_[0], crop_[1], C_, output_layout_,
       output->template mutable_data<Out>(),
       ws->stream())));
@@ -126,7 +126,7 @@ void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
 
 template<>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
-  auto &input = ws->Input<GPUBackend>(idx);
+  const auto &input = ws->Input<GPUBackend>(idx);
   auto output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()),
                "Expected input data as uint8.");

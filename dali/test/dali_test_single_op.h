@@ -29,26 +29,13 @@
 namespace dali {
 
 #define MAKE_IMG_OUTPUT    0      // Make the output of compared (obtained and referenced) images
+#define IMG_OUTPUT_ON_FAIL 0
 #if MAKE_IMG_OUTPUT
   #define PIXEL_STAT_FILE "pixelStatFile"  // Output of statistics for compared sets of images
                                            // Use "" to make the output in stdout
 #endif
 
 namespace images {
-
-const vector<string> jpeg_test_images = {
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/440.jpg",
-  image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
-  image_folder + "/411.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
-};
 
 const vector<string> png_test_images = {
   image_folder + "/png/000000000139.png",
@@ -61,7 +48,8 @@ const vector<string> png_test_images = {
   image_folder + "/png/000000000872.png",
   image_folder + "/png/000000000885.png",
   image_folder + "/png/000000001000.png",
-  image_folder + "/png/000000001268.png"
+  image_folder + "/png/000000001268.png",
+  image_folder + "/png/jpeg.png"
 };
 
 }  // namespace images
@@ -76,16 +64,10 @@ typedef enum {            // Checking:
 } t_checkType;
 
 typedef enum {
-  t_undefinedImgType,
-  t_jpegImgType,
-  t_pngImgType,
-} t_imgType;
-
-typedef enum {
-  t_loadJPEGs   = 1,
-  t_decodeJPEGs = 2,
-  t_loadPNGs    = 4,
-  t_decodePNGs  = 8,
+  t_loadJPEGs   = 1 << t_jpegImgType,
+  t_decodeJPEGs = t_loadJPEGs << 8,
+  t_loadPNGs    = 1 << t_pngImgType,
+  t_decodePNGs  = t_loadPNGs  << 8
 } t_loadingFlags;
 
 typedef struct {
@@ -93,6 +75,11 @@ typedef struct {
   const char *m_val;
   const DALIDataType type;
 } OpArg;
+
+int CheckBuffers(const TensorList<CPUBackend> *t1, const TensorList<CPUBackend> *t2,
+                 int idx, uint32_t testCheckType, int C, double eps, double *pMean = nullptr,
+                 const vector<Index> *shape = nullptr, DALITensorLayout layout = DALI_SAME,
+                 bool checkBestMatch = false);
 
 class opDescr {
  public:
@@ -149,30 +136,28 @@ template <typename ImgType>
 class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
+    const char *subDir[] = {"", "/png"};
     DALITest::SetUp();
     c_ = (IsColor(ImageType()) ? 3 : 1);
-    jpegs_.clear();
+    imageDecrs_[t_jpegImgType].clear();
 
     const auto flags = GetImageLoadingFlags();
 
-    if (flags & t_loadJPEGs) {
-      LoadJPEGS(images::jpeg_test_images, &jpegs_);
-      if (flags & t_decodeJPEGs)
-        DecodeImages(DALI_RGB, jpegs_, &jpeg_decoded_, &jpeg_dims_);
-    }
+    for (int j = t_undefinedImgType; ++j < kLastImgType;) {
+      const uint32_t mask = 1 << j;
+      if (flags & mask) {
+        if (j != t_pngImgType)
+          imageDecrs_[j].LoadImages(image_folder + subDir[j]);
+        else
+          imageDecrs_[j].LoadImages("", &images::png_test_images);
 
-    if (flags & t_loadPNGs) {
-      LoadImages(images::png_test_images, &png_);
-
-      if (flags & t_decodePNGs)
-        DecodeImages(DALI_RGB, png_, &png_decoded_, &png_dims_);
+        if (flags & (mask << 8))
+          DecodeImages(ImageType(), static_cast<t_imgType>(j));
+      }
     }
 
     // Set the pipeline batch size
     SetBatchSize(32);
-  }
-  inline void TearDown() override {
-    DALITest::TearDown();
   }
 
   inline void SetBatchSize(int b) {
@@ -187,12 +172,16 @@ class DALISingleOpTest : public DALITest {
     eps_ = e;
   }
 
+  inline double GetEps() const {
+    return eps_;
+  }
+
   inline void SetTestCheckType(uint32_t type) {
     testCheckType_ = type;
   }
 
   inline bool TestCheckType(uint32_t type) const {
-    return testCheckType_ & type;
+    return GetTestCheckType() & type;
   }
 
   virtual uint32_t GetTestCheckType() const {
@@ -213,9 +202,13 @@ class DALISingleOpTest : public DALITest {
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
 
-    AddOperatorWithOutput(AddArguments(&spec, descr.args)
-                            .AddInput(pInput, pDevice)
-                            .AddOutput(pOutput, pDevice));
+    AddArguments(&spec, descr.args);
+
+    spec.AddInput(pInput, pDevice);
+    AddArgumentInputs(&spec);
+    spec.AddOutput(pOutput, pDevice);
+
+    AddOperatorWithOutput(spec);
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -253,6 +246,7 @@ class DALISingleOpTest : public DALITest {
    */
   void CheckAnswers(DeviceWorkspace *ws,
                     const vector<int>& output_indices) {
+    CUDA_CALL(cudaDeviceSynchronize());
     // outputs_ contains map of idx -> (name, device)
     vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
 
@@ -264,16 +258,17 @@ class DALISingleOpTest : public DALITest {
       if (output_device == "gpu") {
         // copy to host
         calc_output->Copy(*ws->Output<GPUBackend>(output_indices[i]), nullptr);
+        CUDA_CALL(cudaDeviceSynchronize());
       } else {
         calc_output = ws->Output<CPUBackend>(output_indices[i]);
       }
 
-      auto ref_output = res[i];
-      calc_output->SetLayout(ref_output->GetLayout());
+      if (res[i]->type().id() == DALI_FLOAT16)
+          calc_output->set_type(res[i]->type());
 
       // check calculated vs. reference answers
-      CheckTensorLists(calc_output, ref_output);
-      delete ref_output;
+      CheckTensorLists(calc_output, res[i]);
+      delete res[i];
     }
   }
 
@@ -281,14 +276,9 @@ class DALISingleOpTest : public DALITest {
    * Provide some encoded data
    * TODO(slayton): Add different encodings
    */
-  void EncodedJPEGData(TensorList<CPUBackend>* t) {
-    DALITest::MakeEncodedBatch(t, batch_size_, jpegs_);
+  void EncodedData(t_imgType imageType, TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, imageType);
   }
-
-  void EncodedPNGData(TensorList<CPUBackend>* t) {
-    DALITest::MakeEncodedBatch(t, batch_size_, png_);
-  }
-
 
   /**
    * Provide decoded (i.e. decoded JPEG) data
@@ -375,12 +365,29 @@ class DALISingleOpTest : public DALITest {
     return *spec;
   }
 
+  virtual bool AddParam(int idxParam, vector<OpArg> *argc)    { return false; }
+  virtual bool AddArgumentInput(int idxParam, OpSpec *spec)   { return false; }
+
+  inline void AddParameters(vector<OpArg> *args) {
+    // Adding more parameters, if caller will provide any of them
+    int idx = 0;
+    while (AddParam(idx++, args)) {}
+  }
+
+  inline void AddArgumentInputs(OpSpec *spec) {
+    // Adding more inputs, if caller will provide any of them
+    int idxParam = 0;
+    while (AddArgumentInput(idxParam++, spec)) {}
+  }
+
   void RunOperator(const opDescr &descr) {
     OpSpec spec(DefaultSchema(descr.opName));
     if (descr.opAddImgType && !spec.HasArgument("image_type"))
       spec = spec.AddArg("image_type", ImageType());
 
-    RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
+    AddArguments(&spec, descr.args);
+    AddArgumentInputs(&spec);
+    RunOperator(spec, descr.epsVal);
   }
 
   void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = nullptr) {
@@ -402,206 +409,14 @@ class DALISingleOpTest : public DALITest {
     vector<TensorList<CPUBackend> *> outputs(1);
     outputs[0] = new TensorList<CPUBackend>();
     outputs[0]->Copy(calcOutput, 0);
+    outputs[0]->SetLayout(calcOutput.GetLayout());
     return outputs;
   }
 
-  template <typename T>
-  int CheckBuffers(int lenRaster, const T *img1, const T *img2, bool checkAll,
-                   double *pMean = nullptr, const vector<Index> *shape = nullptr) const {
-#ifdef PIXEL_STAT_FILE
-    static int imgNumb;
-    FILE *file = strlen(PIXEL_STAT_FILE)? fopen(PIXEL_STAT_FILE".txt", imgNumb? "a" : "w") : NULL;
-    if (!imgNumb % 32) {
-      // Header of the pixel statistic table
-      const char *pHeader =
-        "\nImgID: ClrID:     Mean:        Std:      SameValue:     Bigger:         Less:\n";
-
-      if (file)
-        fprintf(file, "%s", pHeader);
-      else
-        cout << pHeader;
-    }
-
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%3d:", imgNumb);
-
-    // Image number
-    if (file)
-      fprintf(file, "%s", buffer);
-    else
-      cout << buffer;
-
-    bool firstLine = true;
-#endif
-
-    // use a Get mean, std-dev of difference separately for each color component
-    const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
-    const int length = lenRaster / jMax;
-
-    const int checkBest = shape? 1 : 0;
-
-    int shiftHorFrom, shiftHorTo, shiftVertFrom, shiftVertTo;
-    shiftHorFrom = shiftVertFrom = -checkBest;
-    shiftHorTo = shiftVertTo = checkBest;
-
-    const auto H = checkBest? (*shape)[0] : 0;
-    const auto W = checkBest? (*shape)[1] : 0;
-    int retValBest = -1;
-    double bestMean = 100.;
-
-    for (int shiftVert = shiftVertFrom; shiftVert <= shiftVertTo; ++shiftVert) {
-      for (int shiftHor = shiftHorFrom; shiftHor <= shiftHorTo; ++shiftHor) {
-        // Calculate the length of the vector to store the delta of images
-        int len = length;
-        const T *a = img1;
-        const T *b = img2;
-        auto hMax = H;
-        auto wMax = W;
-        int N = lenRaster;
-        if (shiftVert) {
-          const auto lengthReduction = W * c_;
-          len -= lengthReduction / jMax;
-          N -= lengthReduction;
-          if (shiftVert > 0)
-            a += lengthReduction;
-          else
-            b += lengthReduction;
-
-          hMax--;
-        }
-
-        if (shiftHor) {
-          len -= (H - (shiftVert? 1 : 0)) * c_ / jMax;
-          if (shiftHor > 0)
-            a++;
-          else
-            b++;
-
-          wMax--;
-        }
-
-        vector<double> diff(len);
-        double mean = 0, std = 0;
-        int retVal = -1;
-        double worstMean = -1.;
-#ifndef PIXEL_STAT_FILE
-        for (int j = 0; j < jMax; ++j) {    // loop over the colors
-          if (shiftHor == 0) {
-            for (int i = j; i < N; i += jMax)
-              diff[i / jMax] = std::abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
-
-            ASSERT_EQ(N/jMax, len), -1;
-          } else {
-            int i = 0;
-            for (int y = 0; y < hMax; ++y) {
-              for (int x = 0; x < wMax; ++x) {
-                const int idx = (W * y + x) * c_;
-                diff[i++] = std::abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
-              }
-            }
-
-            a++;    // to next color component
-            b++;
-            ASSERT_EQ(i, len), -1;
-          }
-
-          MeanStdDevColorNorm<double>(diff, &mean, &std);
-          if (mean <= eps_)
-            continue;
-
-          if (checkAll) {
-            if (worstMean < mean) {
-              worstMean = mean;  // More strong violation of the boundary found
-              retVal = j;        // Change the color index as a return value
-            }
-            continue;
-          }
-
-          if (!checkBest) {
-            ASSERT_LE(mean, eps_), -1;
-          }
-        }
-#else
-
-        for (int j = 0; j < jMax; ++j) {
-          int pos = 0, neg = 0;
-          if (shiftHor == 0) {
-            for (int i = j; i < N; i += jMax) {
-              diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
-              if (a[i] > b[i])
-                pos++;
-              else if (a[i] < b[i])
-                neg++;
-            }
-            ASSERT_EQ(N/jMax, len), -1;
-          } else {
-            int i = 0;
-            for (int y = 0; y < hMax; ++y) {
-              for (int x = 0; x < wMax; ++x) {
-                const int idx = (W * y + x) * c_;
-                diff[i++] = abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
-                if (a[i] > b[i])
-                  pos++;
-                else if (a[i] < b[i])
-                  neg++;
-              }
-            }
-
-            a++;    // to next color component
-            b++;
-            ASSERT_EQ(i, len), -1;
-          }
-
-          MeanStdDevColorNorm<double>(diff, &mean, &std);
-          snprintf(buffer, sizeof(buffer),
-                   "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
-                   firstLine? "" : "    ", j, mean, std, len - pos - neg, pos, neg);
-
-          firstLine = false;
-          if (file)
-            fprintf(file, "%s", buffer);
-          else
-            cout << buffer;
-
-          if (mean <= eps_)
-            continue;
-
-          if (worstMean < mean) {
-            worstMean = mean;  // More strong violation of the boundary found
-            retVal = j;        // Change the color index as a return value
-          }
-        }
-
-
-#endif
-        if (bestMean > worstMean) {
-          bestMean = worstMean;
-          retValBest = retVal;
-        }
-      }
-    }
-
-#ifdef PIXEL_STAT_FILE
-    imgNumb++;    // change image number
-    if (file)
-      fclose(file);
-#endif
-
-    if (bestMean <= eps_)
-      return -1;
-
-    if (!checkAll) {
-      ASSERT_LE(bestMean, eps_), -1;
-    }
-
-    if (pMean)
-        *pMean = bestMean;
-
-    return retValBest;
-  }
-
+ private:
   void ReportTestFailure(double mean, int colorIdx, int idx = -1,
-                         const vector<Index> *pShape = nullptr) const {
+                         const vector<Index> *pShape = nullptr,
+                         DALITensorLayout layout = DALI_SAME) const {
     if (TestCheckType(t_checkNoAssert))
       cout << "\nTest warning:";
     else
@@ -613,12 +428,15 @@ class DALISingleOpTest : public DALITest {
     if (idx >= 0)
       cout << " element # " << idx;
 
-    if (pShape)
-      cout << " (h, w) = (" << (*pShape)[0] << ", " << (*pShape)[1] << ")";
+    if (pShape) {
+      const int idx = layout == DALI_NHWC? 0 : 1;
+      cout << " (h, w) = (" << (*pShape)[idx] << ", " << (*pShape)[idx + 1] << ")";
+    }
 
     cout << " mean = " << mean << " and it was expected to be <= " << eps_ << endl;
   }
 
+ public:
   void CheckTensorLists(const TensorList<CPUBackend> *t1,
                         const TensorList<CPUBackend> *t2) const {
 #if MAKE_IMG_OUTPUT
@@ -628,13 +446,17 @@ class DALISingleOpTest : public DALITest {
 
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
+    ASSERT_EQ(t1->GetLayout(), t2->GetLayout());
     ASSERT_EQ(t1->ntensor(), t2->ntensor());
     ASSERT_EQ(t1->size(), t2->size());
 
-    const bool floatType = IsType<float>(t1->type());
-    if (!floatType && !IsType<unsigned char>(t1->type()))
-      return;   // For now we check buffers only for "float" and "uchar"
+#ifdef PIXEL_STAT_FILE
+    if (!strlen(PIXEL_STAT_FILE)) {
+      cout << endl;
+    }
+#endif
 
+    const auto layout = t1->GetLayout();
     int failNumb = 0, colorIdx = 0;
     const bool checkAll = TestCheckType(t_checkAll);
     double mean;
@@ -651,69 +473,265 @@ class DALISingleOpTest : public DALITest {
           ASSERT_EQ(shape1[j], shape2[j]);
         }
 
-        const int lenBuffer = shape1[0] * shape1[1] * shape1[2];
-
-        if (floatType) {
-          colorIdx = CheckBuffers<float>(lenBuffer,
-                          (*t1).template tensor<float>(i), (*t2).template tensor<float>(i),
-                          checkAll, &mean, checkBestMatch? &shape1 : nullptr);
-        } else {
-          colorIdx = CheckBuffers<unsigned char>(lenBuffer,
-                          (*t1).template tensor<uint8>(i), (*t2).template tensor<uint8>(i),
-                          checkAll, &mean, checkBestMatch? &shape1 : nullptr);
-        }
-
+        colorIdx = CheckBuffers(t1, t2, i, GetTestCheckType(), c_, eps_, &mean,
+                                 &shape1, layout, checkBestMatch);
         if (colorIdx >= 0) {
           // Test failed for colorIdx
-          ReportTestFailure(mean, colorIdx, i, &shape1);
+          ReportTestFailure(mean, colorIdx, i, &shape1, layout);
           failNumb++;
           if (!checkAll)
             break;
         }
       }
     } else {
-      if (floatType) {
-        colorIdx = CheckBuffers<float>(t1->size(),
-                          t1->data<float>(),
-                          t2->data<float>(), checkAll, &mean);
-      } else {
-        colorIdx = CheckBuffers<unsigned char>(t1->size(),
-                          t1->data<unsigned char>(),
-                          t2->data<unsigned char>(), checkAll, &mean);
-      }
-      if (colorIdx >= 0)
+      colorIdx = CheckBuffers(t1, t2, -1, GetTestCheckType(), c_, eps_, &mean);
+      if (colorIdx >= 0) {
         ReportTestFailure(mean, colorIdx);
+        failNumb++;
+      }
     }
+
+#if IMG_OUTPUT_ON_FAIL && !MAKE_IMG_OUTPUT
+    if (failNumb) {
+      WriteBatch(*t1, "img");
+      WriteBatch(*t2, "ref");
+    }
+#endif
 
     if (!TestCheckType(t_checkNoAssert)) {
       ASSERT_EQ(failNumb, 0);
     }
   }
 
+ private:
   void InitPipeline() {
     if (!pipeline_.get()) {
       pipeline_.reset(new Pipeline(batch_size_, num_threads_, 0));
     }
   }
+
   vector<std::pair<string, TensorList<CPUBackend>*>> inputs_;
   vector<TensorList<CPUBackend>*> input_data_;
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<uint8*> jpeg_decoded_, png_decoded_;
-  vector<DimPair> jpeg_dims_, png_dims_;
 
-
- protected:
   int batch_size_ = 32;
   int num_threads_ = 2;
   double eps_ = 1e-4;
   uint32_t testCheckType_ = t_checkDefault;
+
+ protected:
   const DALIImageType img_type_ = ImgType::type;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;
 };
+
+template <typename T>
+int CheckBuffers(int lenRaster, const T *img1, const T *img2, uint32_t testCheckType,
+                 int C, double eps, double *pMean = nullptr, const vector<Index> *shape = nullptr,
+                 DALITensorLayout layout = DALI_SAME, bool checkBestMatch = false) {
+#ifdef PIXEL_STAT_FILE
+  static int imgNumb;
+  FILE *file = strlen(PIXEL_STAT_FILE)? fopen(PIXEL_STAT_FILE".txt", imgNumb? "a" : "w") : NULL;
+  if (!imgNumb % 32) {
+    // Header of the pixel statistic table
+    const char *pHeader =
+      "\nImgID: ClrID:     Mean:        Std:      SameValue:     Bigger:         Less:\n";
+
+    if (file)
+      fprintf(file, "%s", pHeader);
+    else
+      cout << pHeader;
+  }
+
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%3d:", imgNumb);
+
+  // Image number
+  if (file)
+    fprintf(file, "%s", buffer);
+  else
+    cout << buffer;
+
+  bool firstLine = true;
+#endif
+
+  // use a Get mean, std-dev of difference separately for each image OR color component
+  const bool splitRaster = testCheckType & (t_checkElements + t_checkColorComp);
+  if (splitRaster && !shape) {
+    // When the buffer of the image rasters will be splitted and
+    // analyzed separately for each image, the shape should be defined
+    DALI_FAIL("Shape should be defined");
+  }
+
+  const int jMax = splitRaster?  C : 1;
+  const int length = lenRaster / jMax;
+
+  const int checkBest = splitRaster && checkBestMatch? 1 : 0;
+
+  int shiftHorFrom, shiftHorTo, shiftVertFrom, shiftVertTo;
+  shiftHorFrom = shiftVertFrom = -checkBest;
+  shiftHorTo = shiftVertTo = checkBest;
+
+  const int idx = layout == DALI_NHWC? 0 : 1;
+  const int H = shape? (*shape)[idx] : 0;
+  const int W = shape? (*shape)[idx + 1] : 0;
+
+  outIdx pFunc = layout == DALI_NHWC? idxHWC : idxCHW;
+  int retValBest = -1;
+  double bestMean = 100.;
+
+  for (int shiftVert = shiftVertFrom; shiftVert <= shiftVertTo; ++shiftVert) {
+    for (int shiftHor = shiftHorFrom; shiftHor <= shiftHorTo; ++shiftHor) {
+      // Calculate the length of the vector to store the delta of images
+      int len = length;
+      const T *a = img1;
+      const T *b = img2;
+      auto hMax = H;
+      auto wMax = W;
+      int N = lenRaster;
+      if (shiftVert) {
+        const auto lengthReduction = W * C;
+        len -= lengthReduction / jMax;
+        N -= lengthReduction;
+        if (shiftVert > 0)
+          a += lengthReduction;
+        else
+          b += lengthReduction;
+
+        hMax--;
+      }
+
+      if (shiftHor) {
+        len -= (H - (shiftVert? 1 : 0)) * C / jMax;
+        if (shiftHor > 0)
+          a++;
+        else
+          b++;
+
+        wMax--;
+      }
+
+      vector<double> diff(len);
+      double mean = 0, std = 0;
+      int retVal = -1;
+      double worstMean = -1.;
+#ifndef PIXEL_STAT_FILE
+      for (int j = 0; j < jMax; ++j) {    // loop over the colors
+        int i = 0;
+        if (splitRaster) {
+          for (int y = 0; y < H; ++y) {
+            for (int x = 0; x < W; ++x) {
+              const auto idx = (*pFunc)(H, W, C, y, x, j);
+              diff[i++] = abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
+            }
+          }
+        } else {
+          while (i < lenRaster) {
+            diff[i] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+            i++;
+          }
+        }
+
+        if (testCheckType & t_checkColorComp || j == jMax - 1) {
+          // The image difference is ready
+          ASSERT_EQ(i, len), -1;
+          MeanStdDevColorNorm<double>(diff, &mean, &std);
+          if (mean <= eps)
+            continue;
+
+          if (testCheckType & t_checkAll) {
+            if (worstMean < mean) {
+              worstMean = mean;  // More strong violation of the boundary found
+              retVal = j;        // Change the color index as a return value
+            }
+            continue;
+          }
+
+          if (!checkBest) {
+            ASSERT_LE(mean, eps), -1;
+          }
+        }
+      }
+#else
+
+      for (int j = 0; j < jMax; ++j) {
+        int pos = 0, neg = 0;
+        int i = 0;
+        if (splitRaster) {
+          for (int y = 0; y < H; ++y) {
+            for (int x = 0; x < W; ++x) {
+              const auto idx = (*pFunc)(H, W, C, y, x, j);
+              diff[i++] = abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
+              if (a[idx] > b[idx])
+                pos++;
+              else if (a[idx] < b[idx])
+                neg++;
+            }
+          }
+        } else {
+          while (i < lenRaster) {
+            diff[i] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+            if (a[i] > b[i])
+              pos++;
+            else if (a[i] < b[i])
+              neg++;
+
+            i++;
+          }
+        }
+
+        if (testCheckType & t_checkColorComp || j == jMax - 1) {
+          // The image difference is ready
+          ASSERT_EQ(i, len), -1;
+          MeanStdDevColorNorm<double>(diff, &mean, &std);
+          snprintf(buffer, sizeof(buffer),
+                   "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
+                   firstLine ? "" : "    ", j, mean, std, len - pos - neg, pos, neg);
+
+          firstLine = false;
+          if (file)
+            fprintf(file, "%s", buffer);
+          else
+            cout << buffer;
+
+          if (mean <= eps)
+            continue;
+
+          if (worstMean < mean) {
+            worstMean = mean;  // More strong violation of the boundary found
+            retVal = j;        // Change the color index as a return value
+          }
+        }
+      }
+#endif
+      if (bestMean > worstMean) {
+        bestMean = worstMean;
+        retValBest = retVal;
+      }
+    }
+  }
+
+#ifdef PIXEL_STAT_FILE
+  imgNumb++;    // change image number
+  if (file)
+    fclose(file);
+#endif
+
+  if (bestMean <= eps)
+    return -1;
+
+  if (!(testCheckType & t_checkAll)) {
+    ASSERT_LE(bestMean, eps), -1;
+  }
+
+  if (pMean)
+    *pMean = bestMean;
+
+  return retValBest;
+}
 
 }  // namespace dali
 

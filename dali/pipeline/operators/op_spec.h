@@ -51,7 +51,7 @@ class DLL_PUBLIC OpSpec {
    * @brief Returns a full tensor name
    * given its name and device
    */
-  DLL_PUBLIC static std::string TensorName(std::string name, std::string device) {
+  DLL_PUBLIC static std::string TensorName(const std::string &name, const std::string &device) {
     return name + "_" + device;
   }
 
@@ -445,8 +445,6 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
 INSTANTIATE_ARGUMENT_AS_INT64(int);
 INSTANTIATE_ARGUMENT_AS_INT64(unsigned int);
 INSTANTIATE_ARGUMENT_AS_INT64(uint64_t);
-INSTANTIATE_ARGUMENT_AS_INT64(int8_t);
-INSTANTIATE_ARGUMENT_AS_INT64(uint8_t);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIImageType);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIDataType);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIInterpType);

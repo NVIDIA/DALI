@@ -26,13 +26,12 @@ class CoinFlip : public Operator<SupportBackend> {
   inline explicit CoinFlip(const OpSpec &spec) :
     Operator<SupportBackend>(spec),
     dis_(spec.GetArgument<float>("probability")),
-    rng_(spec.GetArgument<int>("seed")) {}
+    rng_(spec.GetArgument<int>("seed")),
+    batch_size_(spec.GetArgument<int>("batch_size")) {}
 
   virtual inline ~CoinFlip() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(CoinFlip);
-
-  USE_OPERATOR_MEMBERS();
 
  protected:
   void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;
@@ -40,6 +39,7 @@ class CoinFlip : public Operator<SupportBackend> {
  private:
   std::bernoulli_distribution dis_;
   std::mt19937 rng_;
+  int batch_size_;
 };
 
 }  // namespace dali

@@ -20,7 +20,7 @@ template <typename ImgType>
 class GenericMatchingTest : public DALISingleOpTest<ImgType> {
  protected:
   void RunTest(const opDescr &descr) {
-    const int batch_size = this->jpegs_.nImages();
+    const int batch_size = this->Imgs(t_jpegImgType).nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
@@ -36,26 +36,36 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
         .AddInput("jpegs", "cpu")
         .AddOutput("input", "cpu"));
 
+    if (MirroringNeeded()) {
+      // When mirroring is used
+      pipe->AddOperator(
+        OpSpec("CoinFlip")
+          .AddArg("device", "support")
+          .AddArg("probability", 0.5f)
+          .AddOutput("mirror", "cpu"));
+    }
+
     // Launching the same transformation on CPU (outputIdx 0) and GPU (outputIdx 1)
     this->AddOperatorWithOutput(descr);
     this->RunOperator(descr);
   }
 
-  virtual vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
-    auto from = ws->Output<GPUBackend>(1);
-    auto reference = this->CopyToHost(*from);
-    reference[0]->SetLayout(from->GetLayout());
-    return reference;
+  vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
+    if (OpType() == DALI_GPU)
+      return this->CopyToHost(*ws->Output<GPUBackend>(1));
+    else
+      return this->CopyToHost(*ws->Output<CPUBackend>(1));
   }
 
-  uint32_t GetTestCheckType() const  override {
+  uint32_t GetTestCheckType() const override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
   void RunTest(const singleParamOpDescr &paramOp, bool addImgType = false) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
+    this->AddParameters(&args);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
     RunTest(finalDesc);
   }
@@ -64,11 +74,30 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
                 int nParam = 0, bool addImgType = false, double eps = 0.001) {
     if (params && nParam > 0) {
       vector<OpArg> args(params, params + nParam);
+      this->AddParameters(&args);
       RunTest(opDescr(opName, eps, addImgType, &args));
     } else {
       RunTest(opDescr(opName, eps, addImgType, nullptr));
     }
   }
+
+  inline DALIOpType OpType() const                { return m_nOpType; }
+  inline void setOpType(DALIOpType opType)        { m_nOpType = opType; }
+  virtual bool MirroringNeeded() const            { return false; }
+
+  bool AddArgumentInput(int idxParam, OpSpec *spec) override {
+    // This method should be overwritten when
+    //   a) Mirroring is NOT used for the test OR
+    //   b) more argument inputs are used
+
+    if (MirroringNeeded())
+      spec->AddArgumentInput("mirror", "mirror");
+
+    return false;
+  }
+
+ private:
+  DALIOpType m_nOpType = DALI_GPU;
 };
 
 }  // namespace dali

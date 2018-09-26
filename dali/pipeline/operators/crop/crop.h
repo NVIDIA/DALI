@@ -95,21 +95,36 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
+  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
+
+  virtual int GetPad() const                      { return C_; }
+
+  inline const uint8 * const *InputImgsBatch() const {
+    return input_ptrs_gpu_.template data<const uint8*>();
+  }
+
+  inline const int *InputStridesBatch() const {
+    return input_strides_gpu_.template data<int>();
+  }
+
+  template <typename Out>
+  void ValidateHelper(TensorList<Backend> *output);
+
+  template <typename Out>
+  Tensor<Backend> *PrepareCropParam(Workspace<Backend> *ws, const int idx,
+                 const unsigned char **input_ptr, int *pStride, Out **pOutput_ptr) const;
+
  private:
   template <typename Out>
   void RunHelper(Workspace<Backend> *ws, const int idx);
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
-  template <typename Out>
-  void ValidateHelper(const Tensor<Backend> *input, Tensor<Backend> *output);
 
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
+    const int pad_C = GetPad();
     if (*pOutLayout == DALI_NCHW)
-      return {C_, crop_[0], crop_[1]};
+      return {pad_C, crop_[0], crop_[1]};
     else
-      return {crop_[0], crop_[1], C_};
+      return {crop_[0], crop_[1], pad_C};
   }
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws, const vector<Index> &inputShape,
@@ -121,7 +136,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
     per_sample_dimensions_[threaIdx] = std::make_pair(H, W);
 
-    int C = inputShape[2];
+    const int C = inputShape[2];
     DALI_ENFORCE(C == C_,
                  "Input channel dimension does not match "
                  "the output image type. Expected input with "
@@ -138,19 +153,8 @@ class Crop : public Operator<Backend>, protected CropAttr {
   }
 
   void CallRunHelper(Workspace<Backend> *ws, const int idx) {
-    if (output_type_ == DALI_FLOAT) {
-      RunHelper<float>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      RunHelper<unsigned char>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      RunHelper<int16>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      RunHelper<int>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      RunHelper<int64>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
+    DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(output_type_, imgType,
+                                      RunHelper<imgType>(ws, idx));
   }
 
   Tensor<CPUBackend> input_ptrs_, input_strides_;

@@ -54,8 +54,7 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
-    this->ResizeLike(other);
+    CopyAttributes(other);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
@@ -314,6 +313,13 @@ class Tensor : public Buffer<Backend> {
 
   inline void SetLayout(DALITensorLayout layout) {
     layout_ = layout;
+  }
+
+  template <typename InBackend>
+  DLL_PUBLIC inline void CopyAttributes(const Tensor<InBackend> &other) {
+    this->set_type(other.type());
+    ResizeLike(other);
+    SetLayout(other.GetLayout());
   }
 
  protected:

@@ -78,8 +78,7 @@ void CropKernel(
   }
 }
 
-template<typename Out>
-DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const Out *out_img) {
+DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const void *out_img) {
   DALI_ASSERT(H > 0);
   DALI_ASSERT(W > 0);
   DALI_ASSERT(C == 1 || C == 3);
@@ -90,38 +89,45 @@ DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const Out *ou
 
 template<>
 template<typename Out>
-void Crop<CPUBackend>::ValidateHelper(const Tensor<CPUBackend> *input, Tensor<CPUBackend> *output) {
-  // Validate parameters
-  DALI_CALL(ValidateCrop(
-    input->template data<uint8>(),
-    crop_[0], crop_[1], C_,
-    output->template mutable_data<Out>()));
-}
-
-template<>
-template<typename Out>
-void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
+Tensor<CPUBackend> *Crop<CPUBackend>::PrepareCropParam(SampleWorkspace *ws, const int idx,
+      const unsigned char **input_ptr, int *pStride, Out **pOutput_ptr) const {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
 
   // Validate
-  ValidateHelper<Out>(&input, output);
+  DALI_CALL(ValidateCrop(
+    input.template data<uint8>(),
+    crop_[0], crop_[1], C_,
+    output->template mutable_data<Out>()));
 
   const int dataIdx = ws->thread_idx();
-  const int H = per_sample_dimensions_[dataIdx].first;
   const int W = per_sample_dimensions_[dataIdx].second;
 
   const int crop_y = per_sample_crop_[dataIdx].first;
   const int crop_x = per_sample_crop_[dataIdx].second;
 
-  CropKernel<Out>(C_, crop_[0], crop_[1],
-                              input.template data<uint8>() + (crop_y * W + crop_x) * C_,
-                              W * C_, output_layout_,
-                              output->template mutable_data<Out>());
+  *input_ptr = input.template data<uint8>() + (crop_y * W + crop_x) * C_;
+  *pStride = W * C_;
+  *pOutput_ptr = output->template mutable_data<Out>();
+  return output;
 }
 
 template<>
-void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+template<typename Out>
+void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
+  const unsigned char *input_ptr;
+  int stride;
+  Out *output_ptr;
+
+  PrepareCropParam<Out>(ws, idx, &input_ptr, &stride, &output_ptr);
+  CropKernel<Out>(C_, crop_[0], crop_[1],
+                  input_ptr,
+                  stride, output_layout_,
+                  output_ptr);
+}
+
+template<>
+void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
 
@@ -130,6 +136,11 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   output->SetLayout(outLayout);
 
   CheckParam(input, "CropCPUBackend");
+}
+
+template<>
+void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  DataDependentSetup(ws, idx);
   if (output_type_ == DALI_FLOAT16)
     RunHelper<half_float::half>(ws, idx);
   else

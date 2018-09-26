@@ -44,10 +44,8 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
       case t_jpegImgType:
-        this->EncodedJPEGData(&encoded_data);
-        break;
       case t_pngImgType:
-        this->EncodedPNGData(&encoded_data);
+        this->EncodedData(imageType, &encoded_data);
         break;
       default: {
         char buff[32];
@@ -61,35 +59,48 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
   }
 
   void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
+    const auto c = this->GetNumColorComp();
+    const auto nImages = imgs.nImages();
+    ImgSetDescr decodedImgsTst, decodedImgsRef;
     this->SetEps(eps);
-    for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
-      Tensor<CPUBackend> t;
-      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
-                               imgs.sizes_[imgIdx],
-                               this->img_type_, &t));
+    for (size_t imgIdx = 0; imgIdx < nImages; ++imgIdx) {
+      const auto imgData = imgs.data(imgIdx);
+      const auto imgSize = imgs.size(imgIdx);
 
-#if DALI_DEBUG
-      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
-                    std::to_string(imgIdx) + "-img");
-#ifndef NDEBUG
-      cout << imgIdx << ": " << imgs.sizes_[imgIdx]
-           << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
-#endif
-#endif
-      this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
+      // Decoding image in two ways
+      Tensor<CPUBackend> t, out;
+      const auto imgType =  this->ImageType();
+      DALI_CALL(DecodeJPEGHost(imgData, imgSize, imgType, &t));
+      this->DecodeImage(imgData, imgSize, c, imgType, &out);
+
+      // Save the results for comparison
+      decodedImgsTst.addImage(t.dim(0), t.dim(1), c, t.data<uint8_t>());
+      decodedImgsRef.addImage(out.dim(0), out.dim(1), c, out.mutable_data<uint8>());
     }
+
+    // Prepare data for comparison:
+    TensorList<CPUBackend> tlTst, tlRef;
+    this->MakeEncodedBatch(&tlTst, nImages, decodedImgsTst);
+    this->MakeEncodedBatch(&tlRef, nImages, decodedImgsRef);
+
+    // Compare decoding results
+    this->CheckTensorLists(&tlTst, &tlRef);
   }
 
-  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int img_id) const {
+  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs, int imgIdx) const {
     // Compare w/ opencv result
-    const auto imgData = imgs.data_[img_id];
-    const auto imgSize = imgs.sizes_[img_id];
+    const auto imgData = imgs.data(imgIdx);
+    const auto imgSize = imgs.size(imgIdx);
     ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
 
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();
     this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
-    this->CheckBuffers(h*w*c, out.mutable_data<uint8>(), img, false);
+
+    const auto imgSizeDecoded = h * w * c;
+    ASSERT_TRUE(imgSizeDecoded == out.size());
+    CheckBuffers<uint8>(imgSizeDecoded, out.mutable_data<uint8>(),
+                        img, t_checkDefault, c, this->GetEps());
   }
 };
 
