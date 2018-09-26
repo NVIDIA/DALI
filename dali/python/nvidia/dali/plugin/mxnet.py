@@ -167,8 +167,7 @@ class DALIGenericIterator(object):
         self._counter += self._num_gpus * self.batch_size
 
         # padding the last batch
-        if not self._fill_last_batch:
-            if self._counter > self._size:
+        if (not self._fill_last_batch) and (self._counter > self._size):
                 # this is the last batch and we need to pad
                 overflow = self._counter - self._size
                 overflow_per_device = overflow // self._num_gpus
@@ -178,9 +177,6 @@ class DALIGenericIterator(object):
                         self._data_batches[i][copy_db_index].pad = overflow_per_device
                     else:
                         self._data_batches[i][copy_db_index].pad = overflow_per_device + 1
-            else:
-                for db in self._data_batches:
-                    db[copy_db_index].pad = 0
         else:
             for db in self._data_batches:
                 db[copy_db_index].pad = 0
