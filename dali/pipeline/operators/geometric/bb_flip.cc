@@ -4,13 +4,14 @@ namespace dali {
 
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
 
+
 DALI_SCHEMA(BbFlip)
-                .DocStr("PTEEREFEREE")
+                .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
+                        Input: Bounding box coordinates; in either (x1,y1,w,h) or (x1,y1,x2,y2) format)code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg("myarg",
-                        R"code(Size of the cropped image. If only a single value `c` is provided,
-the resulting crop will be square with size `(c,c)`)code",
-                        DALI_RGB);
+                .AddOptionalArg("coordinates_type",
+                                R"code(True for width and height)code",
+                                DALI_BOOL);
 
 } // namespace dali

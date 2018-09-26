@@ -129,7 +129,7 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
     const OpSpec DecodingOp() const noexcept {
         return OpSpec("BbFlip")
-                .AddArg("myarg", this->img_type_)
+//                .AddArg("coordinates_type", )
                 .AddInput("myinput", "cpu")
                 .AddOutput("myoutput", "cpu");
     }
