@@ -6,24 +6,10 @@
 
 namespace dali {
 
-//template<typename Backend>
-//class BbFlip : public Operator<Backend> {
-// public:
-//    BbFlip(const OpSpec &spec) :
-//            Operator<Backend>(spec) {
-//
-//    }
-//    void RunImpl(Workspace<Backend> *ws, int idx = 0) {}
-//    USE_OPERATOR_MEMBERS();
-//};
-
-
-//template <typename Backend>
 class BbFlip : public Operator<CPUBackend> {
  public:
     explicit inline BbFlip(const OpSpec &spec) :
-            Operator<CPUBackend>(spec),
-            output_type_(spec.GetArgument<DALIImageType>("myarg")) {
+            Operator<CPUBackend>(spec) {
     }
 
 
@@ -33,12 +19,43 @@ class BbFlip : public Operator<CPUBackend> {
  protected:
 
     inline void RunImpl(SampleWorkspace *ws, const int idx) override {
+        auto &input = ws->Input<CPUBackend>(idx);
+        auto input_data = input.data<float>();
+
+        DALI_ENFORCE(input.size() == BB_TYPE_SIZE, "Bounding box in wrong format");
+        DALI_ENFORCE(input.type().id() == DALI_FLOAT || input.type().id() == DALI_FLOAT16,
+                     "Bounding box in wrong format");
+        DALI_ENFORCE([](const float *data, size_t size) -> bool {
+            for (int i = 0; i < size; i++) {
+                if (data[i] < 0)
+                    return false;
+            }
+            return true;
+        }(input_data, input.size()), "Not all bounding box parameters are non-negative");
+
+
+        auto output = ws->Output<CPUBackend>(idx);
+        // XXX: Setting type of output (i.e. Buffer -> buffer.h)
+        //      explicitly is required for further processing
+        //      It can also be achieved with mutable_data<>()
+        //      function.
+        output->set_type(TypeInfo::Create<float>());
+        output->Resize({BB_TYPE_SIZE});
+        auto output_data = output->mutable_data<float>();
+
+//        output_data[0] = (1.0f - input_data[0]) - input_data[2];
+//        output_data[1] = input_data[1];
+//        output_data[2] = input_data[2];
+//        output_data[3] = input_data[3];
+
+        std::vector<float> data = {.4, .2, .4, .3};
+        std::memcpy(output_data, data.data(), BB_TYPE_SIZE * sizeof(float));
     }
 
 
  private:
-    DALIImageType output_type_;
-//    USE_OPERATOR_MEMBERS();
+    const int BB_TYPE_SIZE = 4; // Bounding box is always vector of 4 floats
+    //    USE_OPERATOR_MEMBERS();
 };
 
 } // namespace dali
