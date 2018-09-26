@@ -31,11 +31,12 @@ class BBoxCrop : public Operator<CPUBackend> {
   static const unsigned int kAttempts = 100;
   static const unsigned int kBboxSize = 4;
 
+ protected:
   struct Bounds {
     explicit Bounds(std::vector<float> &&bounds)
         : min_(bounds[0]), max_(bounds[1]) {
-      DALI_ENFORCE(bounds.size() == 2);
-      DALI_ENFORCE(min_ <= max_);
+      DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
+      DALI_ENFORCE(min_ <= max_, "Bounds should be provided as: [min, max]");
     }
 
     bool Contains(float k) const { return k >= min_ && k <= max_; }
@@ -77,6 +78,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   using BoundingBox = Rectangle;
   using BoundingBoxes = std::vector<Rectangle>;
 
+ public:
   explicit inline BBoxCrop(const OpSpec &spec)
       : Operator<CPUBackend>(spec),
         thresholds_{[&spec]() {
@@ -90,9 +92,12 @@ class BBoxCrop : public Operator<CPUBackend> {
         }()}
 
   {
+    DALI_ENFORCE(!thresholds_.empty(),
+                 "At least one threshold value must be provided");
+
     for (const auto &threshold : thresholds_) {
-      DALI_ENFORCE(0.0 <= threshold);
-      DALI_ENFORCE(threshold <= 1.0);
+      DALI_ENFORCE(0.0 <= threshold, "Threshold value must be >= 0.0");
+      DALI_ENFORCE(threshold <= 1.0, "Threshold value must be <= 1.0");
     }
   }
 
@@ -236,6 +241,8 @@ class BBoxCrop : public Operator<CPUBackend> {
   const std::vector<float> thresholds_;
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
+
+ private:
   std::random_device rd_;
 };
 
