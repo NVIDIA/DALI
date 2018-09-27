@@ -10,8 +10,8 @@ DALI_SCHEMA(BbFlip)
                         Input: Bounding box coordinates; in either (x1,y1,w,h) or (x1,y1,x2,y2) format)code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg("coordinates_type",
-                                R"code(True for width and height)code",
-                                DALI_BOOL);
+                .AddArg("coordinates_type",
+                        R"code(True for width and height)code",
+                        DALI_BOOL);
 
 } // namespace dali
