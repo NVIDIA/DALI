@@ -82,24 +82,24 @@ cudnn.benchmark = True
 class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
-        self.input = ops.FileReader(file_root = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = True)
-        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.rrc = ops.RandomResizedCrop(device = "gpu", size = (crop, crop))
-        self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                            output_dtype = types.FLOAT,
-                                            output_layout = types.NCHW,
-                                            crop = (crop, crop),
-                                            image_type = types.RGB,
-                                            mean = [0.485 * 255,0.456 * 255,0.406 * 255],
-                                            std = [0.229 * 255,0.224 * 255,0.225 * 255])
-        self.coin = ops.CoinFlip(probability = 0.5)
+        self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
+        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.rrc = ops.RandomResizedCrop(device="gpu", size =(crop, crop))
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                            std=[0.229 * 255,0.224 * 255,0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
 
     def define_graph(self):
         rng = self.coin()
-        self.jpegs, self.labels = self.input(name = "Reader")
+        self.jpegs, self.labels = self.input(name="Reader")
         images = self.decode(self.jpegs)
         images = self.rrc(images)
-        output = self.cmnp(images, mirror = rng)
+        output = self.cmnp(images, mirror=rng)
         return [output, self.labels]
 
 class HybridValPipe(Pipeline):
@@ -235,17 +235,15 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = traindir, crop = crop_size)
+    pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=traindir, crop=crop_size)
     pipe.build()
     test_run = pipe.run()
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    train_loader = DALIClassificationIterator(pipe, size = int(pipe.epoch_size("Reader") / args.world_size) )
+    train_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
-    pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id = args.local_rank, data_dir = valdir, crop = crop_size, size = val_size)
+    pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=valdir, crop=crop_size, size=val_size)
     pipe.build()
     test_run = pipe.run()
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    val_loader = DALIClassificationIterator(pipe, size = int(pipe.epoch_size("Reader") / args.world_size) )
+    val_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
     if args.evaluate:
         validate(val_loader, model, criterion)
