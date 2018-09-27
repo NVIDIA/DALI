@@ -136,12 +136,16 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
  private:
-  const RoiMap *test_data_=nullptr;
+  const RoiMap *test_data_ = nullptr;
   std::vector<std::vector<long int>> new_batch_size_;
 
 };
 
-typedef ::testing::Types<Gray> Types;
+// XXX: `DALISingleOpTest` assumes, that input to the operator
+//      is always image and is templated by ImageType.
+//      Therefore this test had to be TYPED, regardless
+//      of the fact, that it's unnecessary.
+typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(BbFlipTest, Types);
 
 TYPED_TEST(BbFlipTest, WidthHeightRepresentation) {

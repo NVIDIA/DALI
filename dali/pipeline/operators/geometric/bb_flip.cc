@@ -43,8 +43,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   DALI_ENFORCE([](const float *data, size_t size, bool coors_type_wh) -> bool {
       if (!coors_type_wh) return true; // Assert not applicable for 2-point representation
       for (size_t i = 0; i < size; i += 4) {
-        cout << data[i] << "\t" << data[i + 1] << "\t" << data[i + 2] << "\t" << data[i + 3]
-             << endl;
         if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0)
           return false;
       }
