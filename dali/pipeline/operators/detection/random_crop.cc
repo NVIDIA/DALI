@@ -70,10 +70,10 @@ namespace detail {
 // calculate IoU of every box1 vs. every box2 : O(N^2)
 Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
                            const Tensor<CPUBackend>& box2) {
-	Tensor<CPUBackend> ious;
+  Tensor<CPUBackend> ious;
   ious.set_pinned(false);
 
-	int N = box1.dim(0);
+  int N = box1.dim(0);
   // Note: We know M=1 in this use-case
   //int M = box2.dim(0);
   const int M = 1;
