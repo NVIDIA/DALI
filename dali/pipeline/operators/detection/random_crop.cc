@@ -16,6 +16,7 @@
 #include <vector>
 #include <random>
 #include <utility>
+#include <chrono>
 
 #include "dali/pipeline/operators/detection/random_crop.h"
 #include "dali/pipeline/operators/common.h"
@@ -70,14 +71,17 @@ namespace detail {
 Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
                            const Tensor<CPUBackend>& box2) {
 	Tensor<CPUBackend> ious;
+  ious.set_pinned(false);
 
 	int N = box1.dim(0);
-  int M = box2.dim(0);
+  // Note: We know M=1 in this use-case
+  //int M = box2.dim(0);
+  const int M = 1;
 
   const float* box1_data = box1.data<float>();
   const float* box2_data = box2.data<float>();
 
-  ious.Resize({N, M});
+  ious.Resize({N, 1});
   float *ious_data = ious.mutable_data<float>();
 
   std::vector<std::pair<float, float>> lt, rb;
@@ -89,27 +93,25 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
     **/
   for (int i = 0; i < N; ++i) {
     const float *b1 = box1_data + i * box1.dim(1);
-    for (int j = 0; j < M; j++) {
-      const float *b2 = box2_data + j * box2.dim(1);
+    const float *b2 = box2_data;
 
-      // want the maximum top, left
-      float l = std::max(b1[0], b2[0]);
-      float t = std::max(b1[1], b2[1]);
+    // want the maximum top, left
+    float l = std::max(b1[0], b2[0]);
+    float t = std::max(b1[1], b2[1]);
 
-      // minimum bottom, right
-      float r = std::min(b1[2], b2[2]);
-      float b = std::min(b1[3], b2[3]);
+    // minimum bottom, right
+    float r = std::min(b1[2], b2[2]);
+    float b = std::min(b1[3], b2[3]);
 
-      lt.push_back(std::make_pair(l, t));
-      rb.push_back(std::make_pair(r, b));
-    }
+    lt.push_back(std::make_pair(l, t));
+    rb.push_back(std::make_pair(r, b));
   }
 
   // delta = rb - lt
   // delta[delta < 0] = 0
   // intersect = delta[:,:,0] * delta[:,:, 1]
-  vector<float> intersect(N*M);
-  for (int i = 0; i < N * M; ++i) {
+  vector<float> intersect(N);
+  for (int i = 0; i < N; ++i) {
     float first_elem = rb[i].first - lt[i].first;
     float second_elem = rb[i].second - lt[i].second;
 
@@ -123,7 +125,7 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
 
   // delta1 = be1[:, :, 2:] - be1[:, :, :2]
   // area1 = delta1[:, :, 0] * delta[:, :, 1]
-  vector<float> area1(N), area2(M);
+  vector<float> area1(N);
   for (int i = 0; i < N; ++i) {
     const float* box = box1_data + i * 4;
     // area is (b-t) * (r-l)
@@ -131,21 +133,16 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
   }
   // delta2 = be2[:, :, 2:] - be2[:, :, :2]
   // area2 = delta2[:, :, 0] * delta[:, :, 2]
-  for (int i = 0; i < M; ++i) {
-    const float* box = box2_data + i * 4;
+  const float* box = box2_data;
     // area is (b-t) * (r-l)
-    area2[i] = (box[3] - box[1]) * (box[2] - box[0]);
-  }
+  auto area2 = (box[3] - box[1]) * (box[2] - box[0]);
 
   // iou = intersect / (area1 + area2 - intersect)
   for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < M; ++j) {
-      // index into N*M arrays
-      auto idx = i * M + j;
-
-      ious_data[idx] = intersect[idx] / (area1[i] + area2[j] - intersect[idx]);
-      // printf("ious: %d : %f\n", idx, ious_data[idx]);
-    }
+    // index into N*M arrays
+    auto idx = i;
+    ious_data[idx] = intersect[idx] / (area1[i] + area2 - intersect[idx]);
+    // printf("ious: %d : %f\n", idx, ious_data[idx]);
   }
   return ious;
 }
@@ -189,6 +186,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
   // [1x4]
   Tensor<CPUBackend> crop_attempt;
+  crop_attempt.set_pinned(false);
   crop_attempt.Resize({1, 4});
   float *crop_ptr = crop_attempt.mutable_data<float>();
 
@@ -247,6 +245,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       // printf("crop: [%f, %f, %f, %f]\n", left, top, right, bottom);
 
       // returns ious : [N, M]
+
       Tensor<CPUBackend> ious = detail::cpu_iou(bboxes, crop_attempt);
       const float *ious_data = ious.data<float>();
 
