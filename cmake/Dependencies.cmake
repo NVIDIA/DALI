@@ -46,8 +46,6 @@ endif()
 
 # NVIDIA NPPC library
 find_cuda_helper_libs(nppc_static)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # NVIDIA NPPI library
 if (${CUDA_VERSION} VERSION_LESS "9.0")
@@ -66,6 +64,8 @@ else()
                             libnppicc_static.a
                             libnppig_static.a)
 endif()
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
 find_cuda_helper_libs(culibos)
