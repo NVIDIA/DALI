@@ -45,7 +45,7 @@ std::unordered_map<Roi, Roi, RoiHash> wh_rois = {
         {{.0,  .0,  .2, .3}, {.8,  .0,  .2, .3}},
         {{.0,  .0,  .1, .1}, {.9,  .0,  .1, .1}},
         {{.5,  .5,  .1, .1}, {.0,  .5,  .1, .1}},
-        {{.0,  .6,  .7, .7}, {.3,  .6,  .7, .7}},
+        {{.0,  .6,  .7, .4}, {.3,  .6,  .7, .4}},
         {{.6,  .2,  .3, .3}, {.1,  .2,  .3, .3}},
         {{.4,  .3,  .5, .5}, {.1,  .3,  .5, .5}},
         {{.25, .25, .5, .5}, {.25, .25, .5, .5}},
@@ -53,11 +53,11 @@ std::unordered_map<Roi, Roi, RoiHash> wh_rois = {
 
 std::unordered_map<Roi, Roi, RoiHash> two_pt_rois = {
         {{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5}},
-        {{.0,  .0,  .5,  .5},  {.5,  .5,  1.,  1.}},
+        {{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5}},
         {{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3}},
         {{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3}},
         {{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1}},
-        {{.5,  .5,  .6,  .6},  {.0,  .5,  .1,  .6}},
+        {{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6}},
         {{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9}},
         {{.6,  .2,  .3,  .3},  {.1,  .2,  .4,  .5}},
         {{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8}},
@@ -67,6 +67,22 @@ std::unordered_map<Roi, Roi, RoiHash> two_pt_rois = {
 
 using RoiMap = std::unordered_map<Roi, Roi, RoiHash>;
 
+
+/**
+ * Flatten RoiMap, so that it is a vector of continuous floats
+ * @param keys if true, the continuous float will be obtained from map keys
+ *             if false - from map values
+ * @return flattened vector
+ */
+std::vector<float> flatten(const RoiMap &roi_map, bool keys) {
+  std::vector<float> ret;
+  for (const auto &it : roi_map) {
+    auto _it = keys ? it.first.roi : it.second.roi;
+    ret.insert(ret.end(), _it, _it + BB_STRUCT_SIZE);
+  }
+  return ret;
+}
+
 } // namespace
 
 template<typename ImageType>
@@ -75,35 +91,38 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
   std::vector<TensorList<CPUBackend> *>
   Reference(const std::vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
 
-    std::vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
-    out[0].Resize({4});
-    auto *out_data = out[0].mutable_data<float>();
+    TensorList<CPUBackend> batch;
+    batch.Resize(new_batch_size_);
+    auto *out_data = batch.mutable_data<float>();
 
-    auto roi = test_data_->begin()->second.roi;
-    std::memcpy(out_data, roi, 4 * sizeof(float));
+    auto rois = flatten(*test_data_, false);
+    std::memcpy(out_data, rois.data(), BB_STRUCT_SIZE * sizeof(float) * test_data_->size());
 
-    vector<TensorList<CPUBackend> *> outputs(1);
-    outputs[0] = new TensorList<CPUBackend>();
-    outputs[0]->Copy(out, nullptr);
+    vector<TensorList<CPUBackend> *> ret(1);
+    ret[0] = new TensorList<CPUBackend>();
+    ret[0]->Copy(batch, nullptr);
 
-    return outputs;
+    return ret;
   }
 
 
   template<typename Backend>
-  void LoadBbData(TensorList<Backend> &tensor_list, const RoiMap *input_data,
-                  int batch_size) noexcept {
+  void LoadBbData(TensorList<Backend> &batch, const RoiMap *input_data) noexcept {
     test_data_ = input_data;
-    this->SetBatchSize(batch_size);
-    tensor_list.set_type(TypeInfo::Create<float>());
-    std::vector<std::vector<long int>> sz = {std::vector<long int>(batch_size, 4)};
-    tensor_list.Resize({{4}});
 
-    auto roi = test_data_->begin()->first.roi;
+    auto batch_size = input_data->size();
+    this->SetBatchSize(static_cast<int>(batch_size));
+    batch.set_type(TypeInfo::Create<float>());
+    new_batch_size_ = std::vector<std::vector<long int>>(batch_size);
+    for (auto &sz : new_batch_size_) {
+      sz = {BB_STRUCT_SIZE};
+    }
+    batch.Resize(new_batch_size_);
 
-    auto ptr = tensor_list.template mutable_tensor<float>(0);
-    auto buffer = tensor_list.template data<float>();
-    std::memcpy(ptr, roi, BB_STRUCT_SIZE * sizeof(float));
+    auto rois = flatten(*test_data_, true);
+
+    auto ptr = batch.template mutable_data<float>();
+    std::memcpy(ptr, rois.data(), BB_STRUCT_SIZE * sizeof(float) * batch_size);
   }
 
 
@@ -117,7 +136,8 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
  private:
-  const RoiMap *test_data_;
+  const RoiMap *test_data_=nullptr;
+  std::vector<std::vector<long int>> new_batch_size_;
 
 };
 
@@ -125,9 +145,8 @@ typedef ::testing::Types<Gray> Types;
 TYPED_TEST_CASE(BbFlipTest, Types);
 
 TYPED_TEST(BbFlipTest, WidthHeightRepresentation) {
-
   TensorList<CPUBackend> bb_test_data;
-  this->LoadBbData(bb_test_data, &wh_rois, 1);
+  this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
   this->RunOperator(this->DecodingOp(true), .01);
 }
@@ -135,7 +154,7 @@ TYPED_TEST(BbFlipTest, WidthHeightRepresentation) {
 
 TYPED_TEST(BbFlipTest, TwoPointRepresentation) {
   TensorList<CPUBackend> bb_test_data;
-  this->LoadBbData(bb_test_data, &two_pt_rois, 1);
+  this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
   this->RunOperator(this->DecodingOp(false), .01);
 }
