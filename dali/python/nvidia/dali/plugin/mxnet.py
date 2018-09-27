@@ -89,7 +89,7 @@ class DALIGenericIterator(object):
         self._num_gpus = len(pipelines)
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self.batch_size = pipelines[0].batch_size
-        self._size = size
+        self._size = int(size)
         self._pipes = pipelines
         self._fill_last_batch = fill_last_batch
         # Build all pipelines
