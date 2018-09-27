@@ -1,4 +1,18 @@
-#include "bb_flip.h"
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/pipeline/operators/geometric/bb_flip.h"
 
 namespace dali {
 
@@ -24,7 +38,6 @@ BbFlip::BbFlip(const dali::OpSpec &spec) :
 
 
 void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
-
   auto &input = ws->Input<CPUBackend>(idx);
   auto input_data = input.data<float>();
 
@@ -68,7 +81,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   output_data[1] = input_data[1];
   output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
   output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
-
 }
 
-} // namespace dali
+}  // namespace dali

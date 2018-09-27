@@ -1,3 +1,17 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "dali/test/dali_test_single_op.h"
 
 namespace dali {
@@ -34,7 +48,7 @@ struct RoiHash {
 
 
 bool operator==(const Roi &lh, const Roi &rh) noexcept {
-  return RoiHash{}(lh) == RoiHash{}(rh);
+  return RoiHash{}(lh) == RoiHash{}(rh);  //NOLINT
 }
 
 
@@ -62,7 +76,6 @@ std::unordered_map<Roi, Roi, RoiHash> two_pt_rois = {
         {{.6,  .2,  .3,  .3},  {.1,  .2,  .4,  .5}},
         {{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8}},
         {{.25, .25, .75, .75}, {.25, .25, .75, .75}},
-
 };
 
 using RoiMap = std::unordered_map<Roi, Roi, RoiHash>;
@@ -83,14 +96,13 @@ std::vector<float> flatten(const RoiMap &roi_map, bool keys) {
   return ret;
 }
 
-} // namespace
+}  // namespace
 
 template<typename ImageType>
 class BbFlipTest : public DALISingleOpTest<ImageType> {
  protected:
   std::vector<TensorList<CPUBackend> *>
   Reference(const std::vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
-
     TensorList<CPUBackend> batch;
     batch.Resize(new_batch_size_);
     auto *out_data = batch.mutable_data<float>();
@@ -107,13 +119,13 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
   template<typename Backend>
-  void LoadBbData(TensorList<Backend> &batch, const RoiMap *input_data) noexcept {
+  void LoadBbData(TensorList<Backend> &batch, const RoiMap *input_data) noexcept {  // NOLINT
     test_data_ = input_data;
 
     auto batch_size = input_data->size();
     this->SetBatchSize(static_cast<int>(batch_size));
     batch.set_type(TypeInfo::Create<float>());
-    new_batch_size_ = std::vector<std::vector<long int>>(batch_size);
+    new_batch_size_ = std::vector<std::vector<long int>>(batch_size);  //NOLINT
     for (auto &sz : new_batch_size_) {
       sz = {BB_STRUCT_SIZE};
     }
@@ -127,7 +139,6 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
   const OpSpec DecodingOp(bool wh_coordinates_type) const noexcept {
-
     return OpSpec("BbFlip")
             .AddArg("coordinates_type", wh_coordinates_type)
             .AddInput("bb_input", "cpu")
@@ -137,8 +148,7 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
  private:
   const RoiMap *test_data_ = nullptr;
-  std::vector<std::vector<long int>> new_batch_size_;
-
+  std::vector<std::vector<long int>> new_batch_size_;  //NOLINT
 };
 
 // XXX: `DALISingleOpTest` assumes, that input to the operator
@@ -163,4 +173,4 @@ TYPED_TEST(BbFlipTest, TwoPointRepresentation) {
   this->RunOperator(this->DecodingOp(false), .01);
 }
 
-} // namespace dali
+}  // namespace dali
