@@ -12,11 +12,8 @@ import torch.distributed as dist
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import torchvision.models as models
 
-import numpy as np
 
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
@@ -81,7 +78,7 @@ cudnn.benchmark = True
 
 class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
-        super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
+        super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
         self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
         self.rrc = ops.RandomResizedCrop(device="gpu", size =(crop, crop))
@@ -104,20 +101,20 @@ class HybridTrainPipe(Pipeline):
 
 class HybridValPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop, size):
-        super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed = 12 + device_id)
-        self.input = ops.FileReader(file_root = data_dir, shard_id = args.local_rank, num_shards = args.world_size, random_shuffle = False)
-        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.res = ops.Resize(device = "gpu", resize_shorter = size)
-        self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                            output_dtype = types.FLOAT,
-                                            output_layout = types.NCHW,
-                                            crop = (crop, crop),
-                                            image_type = types.RGB,
-                                            mean = [0.485 * 255,0.456 * 255,0.406 * 255],
-                                            std = [0.229 * 255,0.224 * 255,0.225 * 255])
+        super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
+        self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=False)
+        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.res = ops.Resize(device="gpu", resize_shorter=size)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                            std=[0.229 * 255,0.224 * 255,0.225 * 255])
 
     def define_graph(self):
-        self.jpegs, self.labels = self.input(name = "Reader")
+        self.jpegs, self.labels = self.input(name="Reader")
         images = self.decode(self.jpegs)
         images = self.res(images)
         output = self.cmnp(images)
@@ -210,7 +207,7 @@ def main():
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
+            checkpoint = torch.load(args.resume, map_location=lambda storage, loc: storage.cuda(args.gpu))
             args.start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
@@ -237,12 +234,14 @@ def main():
 
     pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=traindir, crop=crop_size)
     pipe.build()
-    test_run = pipe.run()
+    # Test-run to validate pipe.
+    test_run_train_pipe = pipe.run()
     train_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
     pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=valdir, crop=crop_size, size=val_size)
     pipe.build()
-    test_run = pipe.run()
+    # Test-run to validate pipe.
+    test_run_test_pipe = pipe.run()
     val_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
     if args.evaluate:
@@ -266,7 +265,7 @@ def main():
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_prec1': best_prec1,
-                'optimizer' : optimizer.state_dict(),
+                'optimizer': optimizer.state_dict(),
             }, is_best)
 
         # reset DALI iterators
@@ -440,11 +439,11 @@ def adjust_learning_rate(optimizer, epoch, step, len_epoch):
     if epoch >= 80:
         factor = factor + 1
 
-    lr = args.lr*(0.1**factor)
+    lr = args.lr * (0.1 ** factor)
 
     """Warmup"""
     if epoch < 5:
-        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
+        lr = lr * float(1 + step + epoch * len_epoch) / (5. * len_epoch)
 
     if(args.local_rank == 0 and step % args.print_freq == 0 and step > 1):
         print("Epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
