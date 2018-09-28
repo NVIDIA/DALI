@@ -16,38 +16,68 @@
 
 namespace dali {
 
-template <typename ImgType>
+
+template<typename ImgType>
 class HostDecodeTest : public GenericDecoderTest<ImgType> {
  protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_loadJPEGs + t_loadPNGs + t_loadTiffs;
-  }
-
   const OpSpec DecodingOp() const override {
     return OpSpec("HostDecoder")
-      .AddArg("device", "cpu")
-      .AddArg("output_type", this->img_type_)
-      .AddInput("encoded", "cpu")
-      .AddOutput("decoded", "cpu");
+            .AddArg("device", "cpu")
+            .AddArg("output_type", this->img_type_)
+            .AddInput("encoded", "cpu")
+            .AddOutput("decoded", "cpu");
   }
 
-  uint32_t GetTestCheckType() const  override {
+
+  uint32_t GetTestCheckType() const override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecodeTest, Types);
 
-TYPED_TEST(HostDecodeTest, TestJPEGDecode) {
+
+template<typename ImageType>
+class HostDecodeTestJpeg : public HostDecodeTest<ImageType> {
+ protected:
+  uint32_t GetImageLoadingFlags() const override {
+    return t_jpegImgType;
+  }
+};
+
+TYPED_TEST_CASE(HostDecodeTestJpeg, Types);
+
+TYPED_TEST(HostDecodeTestJpeg, TestJpegDecode) {
   this->RunTestDecode(t_jpegImgType, 0.65);
 }
 
-TYPED_TEST(HostDecodeTest, TestPNGDecode) {
+
+template<typename ImageType>
+class HostDecodeTestPng : public HostDecodeTest<ImageType> {
+ protected:
+  uint32_t GetImageLoadingFlags() const override {
+    return t_pngImgType;
+  }
+};
+
+TYPED_TEST_CASE(HostDecodeTestPng, Types);
+
+TYPED_TEST(HostDecodeTestPng, TestPngDecode) {
   this->RunTestDecode(t_pngImgType);
 }
 
-TYPED_TEST(HostDecodeTest, TestTiffDecode) {
+
+template<typename ImageType>
+class HostDecodeTestTiff : public HostDecodeTest<ImageType> {
+ protected:
+  uint32_t GetImageLoadingFlags() const override {
+    return t_tiffImgType;
+  }
+};
+
+TYPED_TEST_CASE(HostDecodeTestTiff, Types);
+
+TYPED_TEST(HostDecodeTestTiff, TestTiffDecode) {
   this->RunTestDecode(t_tiffImgType);
 }
 
