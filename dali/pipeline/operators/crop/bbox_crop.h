@@ -50,13 +50,11 @@ class BBoxCrop : public Operator<CPUBackend> {
           top_(top),
           right_(right),
           bottom_(bottom),
-          area_((right - left) * (bottom - top)) {
-      DALI_ENFORCE(left_ <= right_);
-      DALI_ENFORCE(top_ <= bottom_);
-    }
+          area_(right * bottom) {}
 
     bool Contains(float x, float y) const {
-      return x >= left_ && x <= right_ && y >= top_ && y <= bottom_;
+      return x >= left_ && (x - left_) <= right_ && y >= top_ &&
+             (y - top_) <= bottom_;
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
@@ -137,7 +135,7 @@ class BBoxCrop : public Operator<CPUBackend> {
 
   void WriteBoxesToOutput(SampleWorkspace *ws,
                           const BoundingBoxes &bounding_boxes) {
-    auto *bbox_out = ws->Output<CPUBackend>(1);
+    auto *bbox_out = ws->Output<CPUBackend>(2);
     bbox_out->Resize({static_cast<int>(bounding_boxes.size()), kBboxSize});
 
     auto *bbox_out_data = bbox_out->mutable_data<float>();
@@ -165,16 +163,18 @@ class BBoxCrop : public Operator<CPUBackend> {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 
-  Rectangle SamplePatch(float height, float width) {
-    std::uniform_real_distribution<float> width_sampler(0., 1. - width),
-        height_sampler(0., 1. - height);
+  Rectangle SamplePatch(float scaled_height, float scaled_width, float height,
+                        float width) {
+    std::uniform_real_distribution<float> width_sampler(0.,
+                                                        width - scaled_width);
+    std::uniform_real_distribution<float> height_sampler(
+        0., height - scaled_height);
 
     const auto left_offset = width_sampler(rd_);
     const auto height_offset = height_sampler(rd_);
 
     // Crop is LEFT/TOP/RIGHT/BOTTOM
-    return Crop(left_offset, height_offset, left_offset + width,
-                height_offset + height);
+    return Crop(left_offset, height_offset, scaled_width, scaled_height);
   }
 
   std::vector<Rectangle> DiscardBoundingBoxesByCentroid(
@@ -186,8 +186,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     for (int i = 0; i < bounding_boxes.dim(0); ++i) {
       const auto *box = bounding_boxes.data<float>() + (i * kBboxSize);
 
-      const float x_center = 0.5 * (box[0] + box[2]);
-      const float y_center = 0.5 * (box[1] + box[3]);
+      const float x_center = 0.5 * box[2] + box[0];
+      const float y_center = 0.5 * box[3] + box[1];
 
       if (crop.Contains(x_center, y_center)) {
         result.emplace_back(BoundingBox(box[0], box[1], box[2], box[3]));
@@ -195,6 +195,30 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
 
     return result;
+  }
+
+  BoundingBoxes ClampBoundingBoxes(const Crop &crop,
+                                   const BoundingBoxes &boxes) {
+    BoundingBoxes clamped_boxes;
+    clamped_boxes.reserve(boxes.size());
+
+    const auto crop_x_right = crop.left_ + crop.right_;
+    const auto crop_x_bottom = crop.top_ + crop.bottom_;
+
+    for (const auto &box : boxes) {
+      const auto left = std::max(crop.left_, box.left_);
+      const auto top = std::max(crop.top_, box.top_);
+
+      const auto box_x_right = box.left_ + box.right_;
+      const auto box_x_bottom = box.top_ + box.bottom_;
+
+      const auto right = std::min(crop_x_right, box_x_right) - left;
+      const auto bottom = std::min(crop_x_bottom, box_x_bottom) - top;
+
+      clamped_boxes.emplace_back(BoundingBox(left, top, right, bottom));
+    }
+
+    return clamped_boxes;
   }
 
   std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
@@ -207,8 +231,8 @@ class BBoxCrop : public Operator<CPUBackend> {
         const auto rescaled_width = Rescale(image.dim(1));
 
         if (ValidAspectRatio(rescaled_height, rescaled_width)) {
-          const auto candidate_crop =
-              SamplePatch(rescaled_height, rescaled_width);
+          const auto candidate_crop = SamplePatch(
+              rescaled_height, rescaled_width, image.dim(0), image.dim(1));
 
           const auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
@@ -219,7 +243,9 @@ class BBoxCrop : public Operator<CPUBackend> {
                     return candidate_crop.IntersectionOverUnion(box) >=
                            minimum_overlap;
                   })) {
-            return std::make_pair(candidate_crop, candidate_boxes);
+            return std::make_pair(
+                candidate_crop,
+                ClampBoundingBoxes(candidate_crop, candidate_boxes));
           }
         }
       }
