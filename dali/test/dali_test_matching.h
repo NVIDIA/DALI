@@ -41,8 +41,8 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     this->RunOperator(descr);
   }
 
-  virtual vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
+  vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     auto from = ws->Output<GPUBackend>(1);
     auto reference = this->CopyToHost(*from);
     reference[0]->SetLayout(from->GetLayout());
