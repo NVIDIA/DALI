@@ -35,7 +35,6 @@ class WarpAffineAugment {
   template <typename T>
   DISPLACEMENT_IMPL
   Point<T> operator()(int h, int w, int c, int H, int W, int C) {
-    Point<T> p;
     T hp = h;
     T wp = w;
     if (use_image_center) {
@@ -49,9 +48,7 @@ class WarpAffineAugment {
       newY += H/2.0f;
     }
 
-    p.x = newX >= 0 && newX < W ? newX : -1;
-    p.y = newY >= 0 && newY < H ? newY : -1;
-    return p;
+    return CreatePointLimited(newX, newY, W, H);
   }
 
   void Cleanup() {}
