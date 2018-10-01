@@ -24,14 +24,12 @@ template <DALITensorLayout Layout, typename Out>
 __global__ void BatchedCropCastPermuteKernel(
     const int N,
     const int C,
-    const int* height_ptr,
-    const int* width_ptr,
+    const int H,
+    const int W,
     const uint8* const * img_ptrs,
     const int* in_strides,
     Out* out) {
   const int n = blockIdx.x;
-  const int H = height_ptr[n];
-  const int W = width_ptr[n];
   const int nStride = C * H * W;
   int in_stride = in_strides[n];
   const uint8* input_ptr = img_ptrs[n];
@@ -67,7 +65,7 @@ __global__ void BatchedCropCastPermuteKernel(
 template <DALITensorLayout L, typename Out>
 DALIError_t BatchedCropCastPermute(const uint8 * const *in_batch,
     const int *in_strides,
-    int N, int* H, int* W, int C,
+    int N, int H, int W, int C,
     Out *out_batch, cudaStream_t stream) {
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(out_batch != nullptr);
@@ -79,16 +77,16 @@ DALIError_t BatchedCropCastPermute(const uint8 * const *in_batch,
 template <typename Out>
 DALIError_t ValidateBatchedCropCastPermute(const uint8 * const *in_batch,
     const int *in_strides,
-    int N, int* H, int* W, int C, Out *out_batch) {
-  // DALI_ASSERT(N > 0);
-  // DALI_ASSERT(H > 0);
+    int N, int H, int W, int C, Out *out_batch) {
+  DALI_ASSERT(N > 0);
+  DALI_ASSERT(H > 0);
   DALI_ASSERT(W > 0);
   DALI_ASSERT(C == 1 || C == 3);
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(in_strides != nullptr);
   for (int i = 0; i < N; ++i) {
     DALI_ASSERT(in_batch[i] != nullptr);
-    // DALI_ASSERT(in_strides[i] >= C*W);
+    DALI_ASSERT(in_strides[i] >= C*W);
   }
   return DALISuccess;
 }
@@ -103,14 +101,14 @@ void CropCastPermute<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int
     DALI_CALL((BatchedCropCastPermute<DALI_NCHW, Out>(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),
-            batch_size_, crop_size_h_.data(), crop_size_w_.data(), C_,
+            batch_size_, crop_h_, crop_w_, C_,
             output->template mutable_data<Out>(),
             ws->stream())));
   } else {
     DALI_CALL((BatchedCropCastPermute<DALI_NHWC, Out>(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),
-            batch_size_, crop_size_h_.data(), crop_size_w_.data(), C_,
+            batch_size_, crop_h_, crop_w_, C_,
             output->template mutable_data<Out>(),
             ws->stream())));
   }
@@ -123,7 +121,7 @@ void CropCastPermute<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output)
   DALI_CALL(ValidateBatchedCropCastPermute(
           input_ptrs_.template mutable_data<const uint8*>(),
           input_strides_.template data<int>(),
-          batch_size_, crop_size_h_.data(), crop_size_w_.data(), C_,
+          batch_size_, crop_h_, crop_w_, C_,
           output->template mutable_data<Out>()));
 }
 
@@ -209,9 +207,6 @@ void CropCastPermute<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const 
     } else {
       output_shape[i] = {crop_h_, crop_w_, C};
     }
-
-    crop_size_w_[i] = crop_w_;
-    crop_size_h_[i] = crop_h_;
   }
 
   output->Resize(output_shape);
@@ -242,94 +237,10 @@ void CropCastPermute<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const 
   }
 }
 
-template<>
-void CropCastPermute<GPUBackend>::MultipleInputDataDependedSetup(DeviceWorkspace *ws, const int idx) {
-    auto &images = ws->Input<GPUBackend>(num_inputs_ * idx);
-    auto &crop_begin = ws->Input<GPUBackend>(num_inputs_ * idx + 1);
-    auto &crop_size = ws->Input<GPUBackend>(num_inputs_ * idx + 2);
-    auto output = ws->Output<GPUBackend>(idx);
-
-    DALI_ENFORCE(IsType<uint8>(images.type()),
-      "Expected input data as uint8.");
-
-  std::vector<Dims> output_shape(batch_size_);
-  for (int i = 0; i < batch_size_; ++i) {
-    std::vector<Index> input_shape = images.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3,
-         "Expects 3-dimensional image input.");
-
-    int H = input_shape[0];
-    int W = input_shape[1];
-    int C = input_shape[2];
-
-    DALI_ENFORCE(H == per_sample_dimensions_[i].first &&
-        W == per_sample_dimensions_[i].second,
-        "Corresponding images in different input sets need to have the same height and width");
-
-    DALI_ENFORCE(C == C_,
-            "Input channel dimension does not match "
-            "the output image type. Expected input with "
-            + to_string(C_) + " channels, got " + to_string(C) + ".");
-
-    const float* crop_begin_data = crop_begin.template tensor<float>(i);
-
-    crop_begin_x_[i] = input_shape[0] * crop_begin_data[1];
-    crop_begin_y_[i] = input_shape[1] * crop_begin_data[0];
-
-    input_strides_.template mutable_data<int>()[i] = W*C_;
-    crop_offsets_[i] = crop_begin_y_[i] * C * W + crop_begin_x_[i] * C;
-
-    const float* crop_size_data = crop_size.template tensor<float>(i);
-
-    crop_size_w_[i] = input_shape[0] * crop_size_data[1];
-    crop_size_h_[i] = input_shape[1] * crop_size_data[0];
-
-    if (output_layout_ == DALI_SAME) {
-      output_layout_ = images.GetLayout();
-    }
-    if (output_layout_ == DALI_NCHW) {
-      output_shape[i] = {C, crop_size_h_[i], crop_size_w_[i]};
-    } else {
-      output_shape[i] = {crop_size_h_[i], crop_size_w_[i], C};
-    }
-  }
-
-  output->Resize(output_shape);
-
-  // Calculate input pointers and copy to gpu
-  for (int i = 0; i < batch_size_; ++i) {
-    input_ptrs_.template mutable_data<const uint8*>()[i] =
-      images.template tensor<uint8>(i) + crop_offsets_[i];
-  }
-  input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
-  input_strides_gpu_.Copy(input_strides_, ws->stream());
-
-  // Validate
-  if (output_type_ == DALI_FLOAT) {
-    ValidateHelper<float>(output);
-  } else if (output_type_ == DALI_FLOAT16) {
-    ValidateHelper<float16>(output);
-  } else if (output_type_ == DALI_UINT8) {
-    ValidateHelper<unsigned char>(output);
-  } else if (output_type_ == DALI_INT16) {
-    ValidateHelper<int16>(output);
-  } else if (output_type_ == DALI_INT32) {
-    ValidateHelper<int>(output);
-  } else if (output_type_ == DALI_INT64) {
-    ValidateHelper<int64>(output);
-  } else {
-    DALI_FAIL("Unsupported output type.");
-  }
-}
 
 template <>
 void CropCastPermute<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  if (num_inputs_ == 1) {
-    DataDependentSetup(ws, idx);
-  } else {
-    MultipleInputDataDependedSetup(ws, idx);
-  }
-
+  DataDependentSetup(ws, idx);
   if (output_type_ == DALI_FLOAT) {
     RunHelper<float>(ws, idx);
   } else if (output_type_ == DALI_FLOAT16) {
