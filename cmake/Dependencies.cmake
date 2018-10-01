@@ -139,7 +139,5 @@ else()
 endif()
 include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
-## Don't exclude protobuf symbols here; doing so will lead to segfaults
-## Instead we'll use EXPORT_MACRO DLL_PUBLIC later in dali/*/CMakeLists.txt to
-## tell protobuf how to hide things that don't specifically need to be exported
-#list(APPEND DALI_EXCLUDES libprotobuf.a)
+# hide things from the protobuf, all we export is only is API generated from our proto files
+list(APPEND DALI_EXCLUDES libprotobuf.a)

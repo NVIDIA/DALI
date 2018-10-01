@@ -27,7 +27,6 @@
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -91,56 +90,11 @@ class DLL_PUBLIC Pipeline {
          max_num_stream);
   }
 
-  DLL_PUBLIC inline Pipeline(const string &serialized_pipe,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe,
       int batch_size = -1, int num_threads = -1, int device_id = -1,
       bool pipelined_execution = true, bool async_execution = true,
       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) : built_(false) {
-    dali_proto::PipelineDef def;
-    def.ParseFromString(serialized_pipe);
-
-    // If not given, take parameters from the
-    // serialized pipeline
-    if (batch_size == -1) {
-      this->batch_size_ = def.batch_size();
-    } else {
-      this->batch_size_ = batch_size;
-    }
-    if (device_id == -1) {
-      this->device_id_ = def.device_id();
-    } else {
-      this->device_id_ = device_id;
-    }
-    if (num_threads == -1) {
-      this->num_threads_ = def.num_threads();
-    } else {
-      this->num_threads_ = num_threads;
-    }
-
-    Init(this->batch_size_, this->num_threads_,
-         this->device_id_, def.seed(),
-         pipelined_execution,
-         async_execution,
-         bytes_per_sample_hint,
-         set_affinity,
-         max_num_stream);
-
-    // from serialized pipeline, construct new pipeline
-    // All external inputs
-    for (auto& ex : def.external_inputs()) {
-      this->AddExternalInput(ex);
-    }
-    // all operators
-    for (auto& op_def : def.op()) {
-      OpSpec spec{op_def};
-
-      this->AddOperator(spec, op_def.inst_name());
-    }
-    // output names
-    for (auto& output : def.pipe_outputs()) {
-      this->output_names_.push_back(std::make_pair(output.name(), output.device()));
-    }
-  }
+      int max_num_stream = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 

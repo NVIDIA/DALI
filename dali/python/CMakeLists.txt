@@ -23,7 +23,7 @@ if (BUILD_TENSORFLOW)
   add_dependencies(${dali_python_lib} ${customop_lib})
 endif()
 
-# Link libdali.so and libcudart_static.a into backend_impl (dali_python_lib)
+# Link libdali.so, libprotobuf.a and libcudart_static.a into backend_impl (dali_python_lib)
 target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
 
 # Set output directory for backend_impl
