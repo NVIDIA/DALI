@@ -12,30 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 #define DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 
-#include "dali/pipeline/operators/crop/crop.h"
+#include <vector>
+#include <utility>
+
+#include "dali/common.h"
+#include "dali/error_handling.h"
+#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropCastPermute : public Crop<Backend> {
+class CropCastPermute : public Operator<Backend> {
  public:
-<<<<<<< efd5137bb7a8723a046abd2a05b16ecb2a5ec01f
-  explicit inline CropCastPermute(const OpSpec &spec) : Crop<Backend>(spec) {
-    this->output_type_ = spec.GetArgument<DALIDataType>("output_dtype");
-    this->output_layout_ = spec.GetArgument<DALITensorLayout>("output_layout");
-  }
-=======
-  explicit inline CropCastPermute(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
-    output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
-    image_type_(spec.GetArgument<DALIImageType>("image_type")),
-    color_(IsColor(image_type_)),
-    C_(color_ ? 3 : 1) {
+  explicit inline CropCastPermute(const OpSpec &spec)
+      : Operator<Backend>(spec),
+        output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+        output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
+        image_type_(spec.GetArgument<DALIImageType>("image_type")),
+        color_(IsColor(image_type_)),
+        C_(color_ ? 3 : 1) {
     vector<int> temp_crop;
     GetSingleOrRepeatedArg(spec, &temp_crop, "crop");
 
@@ -87,10 +86,8 @@ class CropCastPermute : public Crop<Backend> {
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
   USE_OPERATOR_MEMBERS();
->>>>>>> Revert "Initial set of changes to enable 3-input crop"
 };
 
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-

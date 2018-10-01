@@ -14,10 +14,11 @@
 
 #include "dali/pipeline/operators/fused/crop_cast_permute.h"
 
+#include <utility>
+#include <vector>
+
 namespace dali {
 
-<<<<<<< d92c23f7b790889b7f02b203612567a7a25d4e1c
-=======
 namespace {
 
 template <DALITensorLayout Layout, typename Out>
@@ -259,7 +260,6 @@ void CropCastPermute<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 }
 
 
->>>>>>> Initial set of changes to enable 3-input crop
 // Register operator
 DALI_REGISTER_OPERATOR(CropCastPermute, CropCastPermute<GPUBackend>, GPU);
 
