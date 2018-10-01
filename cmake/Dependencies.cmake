@@ -106,7 +106,9 @@ endif()
 message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"2.0\")")
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
-list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a)
+list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;
+                          liblibwebp.a;libittnotify.a;liblibpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;
+                          liblibjpeg-turbo.a)
 
 ##################################################################
 # PyBind
@@ -141,3 +143,8 @@ include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
 # hide things from the protobuf, all we export is only is API generated from our proto files
 list(APPEND DALI_EXCLUDES libprotobuf.a)
+
+##################################################################
+# Exclude stdlib
+##################################################################
+list(APPEND DALI_EXCLUDES libsupc++.a;libstdc++.a;libstdc++_nonshared.a;)
