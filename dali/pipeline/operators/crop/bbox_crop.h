@@ -23,7 +23,6 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/fused/crop_cast_permute.h"
 
 namespace dali {
 

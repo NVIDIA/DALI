@@ -41,11 +41,12 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path);
 class FileLoader : public Loader<CPUBackend> {
  public:
   explicit inline FileLoader(const OpSpec& spec,
-      vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>())
-    : Loader<CPUBackend>(spec),
-      file_root_(spec.GetArgument<string>("file_root")),
-      image_label_pairs_(image_label_pairs),
-      current_index_(0) {
+                             vector<std::pair<string, int>> image_label_pairs =
+                                 std::vector<std::pair<string, int>>())
+      : Loader<CPUBackend>(spec),
+        file_root_(spec.GetArgument<string>("file_root")),
+        image_label_pairs_(image_label_pairs),
+        current_index_(0) {
     file_list_ = spec.GetArgument<string>("file_list");
 
     if (image_label_pairs_.empty()) {

@@ -107,7 +107,7 @@ test_data = {
                                 ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json", 5001]]
             }
 
-N = 4               # number of GPUs
+N = 1               # number of GPUs
 BATCH_SIZE = 2048   # batch size
 LOG_INTERVAL = 200 // BATCH_SIZE + 1
 
