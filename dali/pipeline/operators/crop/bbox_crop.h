@@ -34,6 +34,12 @@ class BBoxCrop : public Operator<CPUBackend> {
   struct Bounds {
     explicit Bounds(std::vector<float> &&bounds)
         : min_(bounds[0]), max_(bounds[1]) {
+      DALI_ENFORCE(
+          min_ >= 0 && min_ <= 1.0,
+          "Min should be in [0.0-1.0]. Received: " + std::to_string(min_));
+      DALI_ENFORCE(
+          max_ >= 0 && max_ <= 1.0,
+          "Max should be in [0.0-1.0]. Received: " + std::to_string(max_));
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min_ <= max_, "Bounds should be provided as: [min, max]");
     }
@@ -58,11 +64,12 @@ class BBoxCrop : public Operator<CPUBackend> {
 
     float IntersectionOverUnion(const Rectangle &other) const {
       const float x_left = std::max(left_, other.left_);
-      const float x_right = std::max(right_, other.right_);
-      const float y_top = std::min(top_, other.top_);
+      const float x_right = std::min(right_, other.right_);
+      const float y_top = std::max(top_, other.top_);
       const float y_bottom = std::min(bottom_, other.bottom_);
 
-      const float intersection_area = (x_left - x_right) * (y_bottom - y_top);
+      const float intersection_area =
+          std::max(0.f, (x_right - x_left) * (y_top - y_bottom));
 
       return intersection_area /
              static_cast<float>(area_ + other.area_ - intersection_area);
@@ -78,23 +85,22 @@ class BBoxCrop : public Operator<CPUBackend> {
  public:
   explicit inline BBoxCrop(const OpSpec &spec)
       : Operator<CPUBackend>(spec),
-        thresholds_{[&spec]() {
-          return spec.GetRepeatedArgument<float>("thresholds");
-        }()},
-        scaling_bounds_{[&spec]() {
-          return Bounds(spec.GetRepeatedArgument<float>("scaling"));
-        }()},
-        aspect_ratio_bounds_{[&spec]() {
-          return Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"));
-        }()}
+        thresholds_{spec.GetRepeatedArgument<float>("thresholds")},
+        scaling_bounds_{Bounds(spec.GetRepeatedArgument<float>("scaling"))},
+        aspect_ratio_bounds_{
+            Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))}
 
   {
     DALI_ENFORCE(!thresholds_.empty(),
                  "At least one threshold value must be provided");
 
     for (const auto &threshold : thresholds_) {
-      DALI_ENFORCE(0.0 <= threshold, "Threshold value must be >= 0.0");
-      DALI_ENFORCE(threshold <= 1.0, "Threshold value must be <= 1.0");
+      DALI_ENFORCE(0.0 <= threshold,
+                   "Threshold value must be >= 0.0. Received: " +
+                       std::to_string(threshold));
+      DALI_ENFORCE(threshold <= 1.0,
+                   "Threshold value must be <= 1.0. Received: " +
+                       std::to_string(threshold));
     }
   }
 
