@@ -17,7 +17,7 @@
 
 #include <map>
 #include <string>
-#include <vector>
+#include <array>
 
 #include "dali/pipeline/operators/reader/parser/parser.h"
 
@@ -34,13 +34,13 @@ struct Annotation {
       category_id(category_id) {}
 
   // bbox contains 5 values: x, y, W, H, category_id
-  std::vector<float> bbox;
+  std::array<float, 4> bbox;
   int category_id;
   friend std::ostream& operator<<(std::ostream& os, Annotation& an);
 };
 
 std::ostream& operator<<(std::ostream& os, Annotation& an) {
-  std::vector<float>& bbox = an.bbox;
+  std::array<float, 4>& bbox = an.bbox;
   os << "Annotation(category_id=" << an.category_id
   << ",bbox = [" << bbox[0] << "," << bbox[1]
   << "," << bbox[2] << "," << bbox[3] << "])";
@@ -60,8 +60,9 @@ class COCOParser: public Parser {
     auto *image_output = ws->Output<CPUBackend>(0);
     auto *bbox_output = ws->Output<CPUBackend>(1);
     auto *label_output = ws->Output<CPUBackend>(2);
-    int image_id =
-         *reinterpret_cast<const int*>(data + image_size);
+    int image_id;
+    // we cannot do just static_cast as it is UB and data + image_size may be unalligned to int
+    memcpy(&image_id, data + image_size, sizeof(int));
 
     auto range = annotations_multimap_.equal_range(image_id);
     auto n_bboxes = std::distance(range.first, range.second);

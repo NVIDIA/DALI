@@ -27,14 +27,19 @@
 #include "dali/pipeline/operators/reader/parser/coco_parser.h"
 #include "dali/util/json.h"
 
-#define FIND_IN_JSON(im, it, field)             \
-      auto it = im.find(#field);               \
-      DALI_ENFORCE(it != im.end(), "`" #field "` not found in JSON annotions file");
+template <typename I>
+nlohmann::json::const_iterator find_in_json(const I &im, std::string field) {
+  auto it = im.find(field);
+  DALI_ENFORCE(it != im.end(), "`" + field + "` not found in JSON annotions file");
+  return it;
+}
 
-#define GET_FROM_JSON(im, field, type)          \
-      ({auto it_##field = im.find(#field);     \
-      DALI_ENFORCE(it_##field != im.end(), "`" #field "` not found in JSON annotions file"); \
-      it_##field.value().get<type>();})
+template <typename T, typename I>
+T get_from_json(const I &im, std::string field) {
+  auto it = im.find(field);
+  DALI_ENFORCE(it != im.end(), "`" + field + "` not found in JSON annotions file");
+  return it.value();
+}
 
 namespace dali {
 
@@ -84,25 +89,25 @@ class COCOReader : public DataReader<CPUBackend> {
       std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
 
       // Parse images
-      FIND_IN_JSON(j, images, images);
+      auto images = find_in_json(j, "images");
       for (auto& im : *images) {
-        int id = GET_FROM_JSON(im, id, int);
-        std::string image_file_name = GET_FROM_JSON(im, file_name, std::string);
-        int width = GET_FROM_JSON(im, width, int);
-        int height = GET_FROM_JSON(im, height, int);
+        auto id = get_from_json<int>(im, "id");
+        auto image_file_name = get_from_json<std::string>(im, "file_name");
+        auto width = get_from_json<int>(im, "width");
+        auto height = get_from_json<int>(im, "height");
 
         image_id_pairs_.push_back(std::make_pair(image_file_name, id));
         image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
       }
 
       // Parse annotations
-      FIND_IN_JSON(j, annotations, annotations);
+      auto annotations = find_in_json(j, "annotations");
       int annotation_size = (*annotations).size();
 
       for (auto& an : *annotations) {
-        int image_id = GET_FROM_JSON(an, image_id, int);
-        int category_id = GET_FROM_JSON(an, category_id, int);
-        std::vector<float> bbox = GET_FROM_JSON(an, bbox, std::vector<float>);
+        auto image_id = get_from_json<int>(an, "image_id");
+        auto category_id = get_from_json<int>(an, "category_id");
+        auto bbox = get_from_json<std::array<float, 4>>(an, "bbox");
 
         if (ltrb_) {
           bbox[2] += bbox[0];
