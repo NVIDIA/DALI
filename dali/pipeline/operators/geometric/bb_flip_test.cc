@@ -18,7 +18,7 @@ namespace dali {
 
 namespace {
 
-const int BB_STRUCT_SIZE = 4;
+const int kBbStructSize = 4;
 
 /**
  * Roi can be represented in two ways:
@@ -31,69 +31,55 @@ const int BB_STRUCT_SIZE = 4;
  * (i.e. 0.0-1.0)
  */
 struct Roi {
-  float roi[BB_STRUCT_SIZE];
+  float roi[kBbStructSize];
 };
+
+const int kTestDataSize = 10;
+
+std::array<std::pair<Roi, Roi>, kTestDataSize> wh_rois{
+        {
+                {{.2, .2, .4, .3}, {.4, .2, .4, .3}},
+                {{.0, .0, .5, .5}, {.5, .0, .5, .5}},
+                {{.3, .2, .1, .1}, {.6, .2, .1, .1}},
+                {{.0, .0, .2, .3}, {.8, .0, .2, .3}},
+                {{.0, .0, .1, .1}, {.9, .0, .1, .1}},
+                {{.5, .5, .1, .1}, {.0, .5, .1, .1}},
+                {{.0, .6, .7, .4}, {.3, .6, .7, .4}},
+                {{.6, .2, .3, .3}, {.1, .2, .3, .3}},
+                {{.4, .3, .5, .5}, {.1, .3, .5, .5}},
+                {{.25, .25, .5, .5}, {.25, .25, .5, .5}},
+        }
+};
+
+std::array<std::pair<Roi, Roi>, kTestDataSize> two_pt_rois{
+        {
+                {{.2, .2, .6, .5}, {.4, .2, .8, .5}},
+                {{.0, .0, .5, .5}, {.5, .0, 1., .5}},
+                {{.3, .2, .4, .3}, {.6, .2, .7, .3}},
+                {{.0, .0, .2, .3}, {.8, .0, 1., .3}},
+                {{.0, .0, .1, .1}, {.9, .0, 1., .1}},
+                {{.5, .5, .6, .6}, {.4, .5, .5, .6}},
+                {{.0, .6, .7, .9}, {.3, .6, 1., .9}},
+                {{.6, .2, .3, .3}, {.1, .2, .4, .5}},
+                {{.4, .3, .9, .8}, {.1, .3, .6, .8}},
+                {{.25, .25, .75, .75}, {.25, .25, .75, .75}},
+        }
+};
+
+using TestData = std::array<std::pair<Roi, Roi>, kTestDataSize>;
 
 /**
- * Functor for calculating Roi hash
+ * Injects either input values of test std::arrays (i.e. left-hand
+ * Rois) or anticipated output values, which is the reference data.
+ * @param input If true, left-hand Rois will be injected.
  */
-struct RoiHash {
-  std::size_t operator()(Roi const &roi) const noexcept {
-    std::stringstream ss;
-    ss << std::to_string(roi.roi[0]) << std::to_string(roi.roi[1])
-       << std::to_string(roi.roi[2]) << std::to_string(roi.roi[3]);
-    return std::hash<std::string>{}(ss.str());
+template<typename DataType>
+void InjectTestData(const TestData &test_data, DataType *destination, bool input) {
+  for (const auto &it : test_data) {
+    auto _it = input ? it.first.roi : it.second.roi;
+    std::memcpy(destination, _it, kBbStructSize * sizeof(DataType));
+    destination += kBbStructSize;
   }
-};
-
-
-bool operator==(const Roi &lh, const Roi &rh) noexcept {
-  return RoiHash{}(lh) == RoiHash{}(rh);  //NOLINT
-}
-
-
-std::unordered_map<Roi, Roi, RoiHash> wh_rois = {
-        {{.2,  .2,  .4, .3}, {.4,  .2,  .4, .3}},
-        {{.0,  .0,  .5, .5}, {.5,  .0,  .5, .5}},
-        {{.3,  .2,  .1, .1}, {.6,  .2,  .1, .1}},
-        {{.0,  .0,  .2, .3}, {.8,  .0,  .2, .3}},
-        {{.0,  .0,  .1, .1}, {.9,  .0,  .1, .1}},
-        {{.5,  .5,  .1, .1}, {.0,  .5,  .1, .1}},
-        {{.0,  .6,  .7, .4}, {.3,  .6,  .7, .4}},
-        {{.6,  .2,  .3, .3}, {.1,  .2,  .3, .3}},
-        {{.4,  .3,  .5, .5}, {.1,  .3,  .5, .5}},
-        {{.25, .25, .5, .5}, {.25, .25, .5, .5}},
-};
-
-std::unordered_map<Roi, Roi, RoiHash> two_pt_rois = {
-        {{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5}},
-        {{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5}},
-        {{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3}},
-        {{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3}},
-        {{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1}},
-        {{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6}},
-        {{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9}},
-        {{.6,  .2,  .3,  .3},  {.1,  .2,  .4,  .5}},
-        {{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8}},
-        {{.25, .25, .75, .75}, {.25, .25, .75, .75}},
-};
-
-using RoiMap = std::unordered_map<Roi, Roi, RoiHash>;
-
-
-/**
- * Flatten RoiMap, so that it is a vector of continuous floats
- * @param keys if true, the continuous float will be obtained from map keys
- *             if false - from map values
- * @return flattened vector
- */
-std::vector<float> flatten(const RoiMap &roi_map, bool keys) {
-  std::vector<float> ret;
-  for (const auto &it : roi_map) {
-    auto _it = keys ? it.first.roi : it.second.roi;
-    ret.insert(ret.end(), _it, _it + BB_STRUCT_SIZE);
-  }
-  return ret;
 }
 
 }  // namespace
@@ -103,23 +89,21 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
  protected:
   std::vector<TensorList<CPUBackend> *>
   Reference(const std::vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
-    TensorList<CPUBackend> batch;
-    batch.Resize(new_batch_size_);
-    auto *out_data = batch.mutable_data<float>();
+    auto batch = new TensorList<CPUBackend>();
+    batch->Resize(new_batch_size_);
+    auto *batch_data = batch->template mutable_data<float>();
 
-    auto rois = flatten(*test_data_, false);
-    std::memcpy(out_data, rois.data(), BB_STRUCT_SIZE * sizeof(float) * test_data_->size());
+    InjectTestData(*test_data_, batch_data, false);
 
     vector<TensorList<CPUBackend> *> ret(1);
-    ret[0] = new TensorList<CPUBackend>();
-    ret[0]->Copy(batch, nullptr);
+    ret[0] = batch;
 
     return ret;
   }
 
 
   template<typename Backend>
-  void LoadBbData(TensorList<Backend> &batch, const RoiMap *input_data) noexcept {  // NOLINT
+  void LoadBbData(TensorList<Backend> &batch, const TestData *input_data) noexcept {  // NOLINT
     test_data_ = input_data;
 
     auto batch_size = input_data->size();
@@ -127,14 +111,13 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
     batch.set_type(TypeInfo::Create<float>());
     new_batch_size_ = std::vector<std::vector<long int>>(batch_size);  //NOLINT
     for (auto &sz : new_batch_size_) {
-      sz = {BB_STRUCT_SIZE};
+      sz = {kBbStructSize};
     }
     batch.Resize(new_batch_size_);
 
-    auto rois = flatten(*test_data_, true);
+    auto batch_data = batch.template mutable_data<float>();
 
-    auto ptr = batch.template mutable_data<float>();
-    std::memcpy(ptr, rois.data(), BB_STRUCT_SIZE * sizeof(float) * batch_size);
+    InjectTestData(*test_data_, batch_data, true);
   }
 
 
@@ -147,7 +130,7 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
  private:
-  const RoiMap *test_data_ = nullptr;
+  const TestData *test_data_ = nullptr;
   std::vector<std::vector<long int>> new_batch_size_;  //NOLINT
 };
 
