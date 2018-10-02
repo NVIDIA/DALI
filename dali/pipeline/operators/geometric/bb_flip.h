@@ -46,6 +46,11 @@ class BbFlip : public Operator<CPUBackend> {
    * If `coordinates_type_wh_` is true, then we deal with 1st type. Otherwise, the 2nd one.
    */
   const bool coordinates_type_wh_;
+
+  /**
+   * If true, flip is performed along vertical (x) axis
+   */
+  const bool flip_type_vertical_;
 };
 
 }  // namespace dali

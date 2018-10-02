@@ -16,6 +16,7 @@
 
 namespace dali {
 
+
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
 
 
@@ -29,12 +30,17 @@ DALI_SCHEMA(BbFlip)
                 .AddArg("coordinates_type",
                         R"code(True, for width-height representation.
                                False for two-point (ltrb) representation.)code",
+                        DALI_BOOL)
+                .AddArg("flip_type",
+                        R"code(True, for vertical flip (along vertical axis).
+                               False for horizontal flip)code",
                         DALI_BOOL);
 
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
-        coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")) {
+        coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")),
+        flip_type_vertical_(spec.GetArgument<bool>("flip_type")) {
 }
 
 
@@ -56,8 +62,9 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   DALI_ENFORCE([](const float *data, size_t size, bool coors_type_wh) -> bool {
       if (!coors_type_wh) return true;  // Assert not applicable for 2-point representation
       for (size_t i = 0; i < size; i += 4) {
-        if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0)
+        if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
           return false;
+        }
       }
       return true;
   }(input_data, input.size(), coordinates_type_wh_), "Incorrect width or height");
@@ -74,11 +81,12 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
 
   const auto x = input_data[0];
+  const auto y = input_data[1];
   const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
   const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
 
-  output_data[0] = (1.0f - x) - w;
-  output_data[1] = input_data[1];
+  output_data[0] = flip_type_vertical_ ? (1.0f - x) - w : x;
+  output_data[1] = flip_type_vertical_ ? y : (1.0f - y) - h;
   output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
   output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
 }
