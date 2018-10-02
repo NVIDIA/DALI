@@ -174,7 +174,31 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 }
 
 template <>
+void Crop<GPUBackend>::MultipleInputSetup(DeviceWorkspace *ws, int idx)
+{
+  const static int kInputCount = 3;
+
+  const auto &crop_begin = ws->Input<CPUBackend>(kInputCount * idx + 1);
+  const auto &crop_size = ws->Input<CPUBackend>(kInputCount * idx + 2);
+
+  for (int i = 0; i < batch_size_; i++)
+  {
+    const float *crop_begin_data = crop_begin.template tensor<float>(i);
+    const float *crop_size_data = crop_size.template tensor<float>(i);
+
+    per_sample_crop_[i] =
+        std::make_pair(crop_begin_data[1], crop_begin_data[0]);
+    per_sample_dimensions_[i] =
+        std::make_pair(crop_size_data[1], crop_size_data[0]);
+  }
+}
+
+template <>
 void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+  if (ws->NumInput() ==3) {
+    MultipleInputSetup(ws, idx);
+  }
+
   DataDependentSetup(ws, idx);
   if (output_type_ == DALI_FLOAT16)
     RunHelper<float16>(ws, idx);

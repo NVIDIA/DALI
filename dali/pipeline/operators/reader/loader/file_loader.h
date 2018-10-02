@@ -34,93 +34,37 @@ namespace dali {
 
 namespace filesystem {
 
-void assemble_file_list(const std::string& path, int label,
-                        std::vector<std::pair<std::string, int>> *file_label_pairs) {
-  DIR *dir = opendir(path.c_str());
-  struct dirent *entry;
-
-  const std::vector<std::string> valid_extensions({".jpg", ".jpeg", ".png", ".bmp"});
-
-  while ((entry = readdir(dir))) {
-    std::string full_path = path + "/" + std::string{entry->d_name};
-    struct stat s;
-    stat(full_path.c_str(), &s);
-    if (S_ISREG(s.st_mode)) {
-      std::string full_path_lowercase = full_path;
-      std::transform(full_path_lowercase.begin(), full_path_lowercase.end(),
-                     full_path_lowercase.begin(), ::tolower);
-      for (const std::string& s : valid_extensions) {
-        size_t pos = full_path_lowercase.rfind(s);
-        if (pos != std::string::npos && pos + s.size() == full_path_lowercase.size()) {
-          file_label_pairs->push_back(std::make_pair(full_path, label));
-          break;
-        }
-      }
-    }
-  }
-  closedir(dir);
-}
-
-vector<std::pair<string, int>> traverse_directories(const std::string& path) {
-  // open the root
-  DIR *dir = opendir(path.c_str());
-
-  DALI_ENFORCE(dir != nullptr,
-      "Directory " + path + " could not be opened.");
-
-  struct dirent *entry;
-
-  std::vector<std::pair<std::string, int>> file_label_pairs;
-  std::vector<std::string> dir_path_list;
-
-  while ((entry = readdir(dir))) {
-    struct stat s;
-    std::string full_path = path + "/" + std::string(entry->d_name);
-    int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-    if (S_ISDIR(s.st_mode)) {
-      dir_path_list.push_back(full_path);
-    }
-  }
-  // sort directories to preserve class alphabetic order, as readdir could
-  // return unordered dir list. Otherwise file reader for training and validation
-  // could return directories with the same names in completely different order
-  std::sort(dir_path_list.begin(), dir_path_list.end());
-  for (unsigned dir_count = 0; dir_count < dir_path_list.size(); ++dir_count) {
-      assemble_file_list(dir_path_list[dir_count], dir_count, &file_label_pairs);
-  }
-  printf("read %lu files from %lu directories\n", file_label_pairs.size(), dir_path_list.size());
-
-  closedir(dir);
-
-  return file_label_pairs;
-}
+vector<std::pair<string, int>> traverse_directories(const std::string& path);
 
 }  // namespace filesystem
 
 class FileLoader : public Loader<CPUBackend> {
  public:
-  explicit FileLoader(const OpSpec& spec)
-    : Loader<CPUBackend>(spec),
-      file_root_(spec.GetArgument<string>("file_root")),
-      current_index_(0) {
+  explicit inline FileLoader(const OpSpec& spec,
+                             vector<std::pair<string, int>> image_label_pairs =
+                                 std::vector<std::pair<string, int>>())
+      : Loader<CPUBackend>(spec),
+        file_root_(spec.GetArgument<string>("file_root")),
+        image_label_pairs_(image_label_pairs),
+        current_index_(0) {
     file_list_ = spec.GetArgument<string>("file_list");
-    if (file_list_ == "") {
-      image_label_pairs_ = filesystem::traverse_directories(file_root_);
-    } else {
-      // load (path, label) pairs from list
-      std::ifstream s(file_list_);
-      DALI_ENFORCE(s.is_open());
 
-      string image_file;
-      int label;
-      while (s >> image_file >> label) {
-        auto p = std::make_pair(file_root_ + "/" + image_file, label);
-        image_label_pairs_.push_back(p);
+    if (image_label_pairs_.empty()) {
+      if (file_list_ == "") {
+        image_label_pairs_ = filesystem::traverse_directories(file_root_);
+      } else {
+        // load (path, label) pairs from list
+        std::ifstream s(file_list_);
+        DALI_ENFORCE(s.is_open());
+
+        string image_file;
+        int label;
+        while (s >> image_file >> label) {
+          auto p = std::make_pair(image_file, label);
+          image_label_pairs_.push_back(p);
+        }
+        DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
       }
-      DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
     }
 
     DALI_ENFORCE(Size() > 0, "No files found.");
@@ -135,33 +79,9 @@ class FileLoader : public Loader<CPUBackend> {
     current_index_ = start_index(shard_id_, num_shards_, Size());
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) override {
-    auto image_pair = image_label_pairs_[current_index_++];
+  void ReadSample(Tensor<CPUBackend>* tensor);
 
-    // handle wrap-around
-    if (current_index_ == Size()) {
-      current_index_ = 0;
-    }
-
-    FileStream *current_image = FileStream::Open(image_pair.first);
-    Index image_size = current_image->Size();
-
-    // resize tensor to hold [image, label]
-    tensor->Resize({image_size + static_cast<Index>(sizeof(int))});
-
-    // copy the image
-    current_image->Read(tensor->mutable_data<uint8_t>(), image_size);
-
-    // close the file handle
-    current_image->Close();
-
-    // copy the label
-    *(reinterpret_cast<int*>(&tensor->mutable_data<uint8_t>()[image_size])) = image_pair.second;
-  }
-
-  Index Size() override {
-    return static_cast<Index>(image_label_pairs_.size());
-  }
+  Index Size() override;
 
  protected:
   using Loader<CPUBackend>::shard_id_;

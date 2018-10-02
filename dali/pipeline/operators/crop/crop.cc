@@ -20,37 +20,37 @@ namespace dali {
 
 DALI_SCHEMA(Crop)
     .DocStr(R"code(Perform a random crop.)code")
-    .NumInput(1)
+    .NumInput(1, 3)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddOptionalArg("crop_pos_x",
-                    R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-                    0.5f, true)
-    .AddOptionalArg("crop_pos_y",
-                    R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-                    0.5f, true)
+    .AddOptionalArg(
+        "crop_pos_x",
+        R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
+        0.5f, true)
+    .AddOptionalArg(
+        "crop_pos_y",
+        R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
+        0.5f, true)
     .AddOptionalArg("image_type",
-                    R"code(The color space of input and output image)code", DALI_RGB, false)
-    .AddArg("crop",
-            R"code(Size of the cropped image. If only a single value `c` is provided,
- the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
+                    R"code(The color space of input and output image)code",
+                    DALI_RGB, false)
+    .AddArg(
+        "crop",
+        R"code(Size of the cropped image. If only a single value `c` is provided,
+ the resulting crop will be square with size `(c,c)`)code",
+        DALI_INT_VEC)
     .EnforceInputLayout(DALI_NHWC);
 
-
-template<>
-Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
+template <>
+Crop<CPUBackend>::Crop(const OpSpec &spec)
+    : Operator<CPUBackend>(spec), CropAttr(spec) {
   Init(num_threads_);
 }
 
-template<typename Out>
-void CropKernel(
-  const int C,
-  const int H,
-  const int W,
-  const unsigned char *input_ptr,
-  const int in_stride,
-  DALITensorLayout layout,
-  Out *output_ptr) {
+template <typename Out>
+void CropKernel(const int C, const int H, const int W,
+                const unsigned char *input_ptr, const int in_stride,
+                DALITensorLayout layout, Out *output_ptr) {
   if (layout == DALI_NCHW) {
     for (int c = 0; c < C; ++c) {
       for (int h = 0; h < H; ++h) {
@@ -78,8 +78,9 @@ void CropKernel(
   }
 }
 
-template<typename Out>
-DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const Out *out_img) {
+template <typename Out>
+DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C,
+                         const Out *out_img) {
   DALI_ASSERT(H > 0);
   DALI_ASSERT(W > 0);
   DALI_ASSERT(C == 1 || C == 3);
@@ -88,18 +89,17 @@ DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const Out *ou
   return DALISuccess;
 }
 
-template<>
-template<typename Out>
-void Crop<CPUBackend>::ValidateHelper(const Tensor<CPUBackend> *input, Tensor<CPUBackend> *output) {
+template <>
+template <typename Out>
+void Crop<CPUBackend>::ValidateHelper(const Tensor<CPUBackend> *input,
+                                      Tensor<CPUBackend> *output) {
   // Validate parameters
-  DALI_CALL(ValidateCrop(
-    input->template data<uint8>(),
-    crop_[0], crop_[1], C_,
-    output->template mutable_data<Out>()));
+  DALI_CALL(ValidateCrop(input->template data<uint8>(), crop_[0], crop_[1], C_,
+                         output->template mutable_data<Out>()));
 }
 
-template<>
-template<typename Out>
+template <>
+template <typename Out>
 void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
@@ -115,12 +115,30 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   const int crop_x = per_sample_crop_[dataIdx].second;
 
   CropKernel<Out>(C_, crop_[0], crop_[1],
-                              input.template data<uint8>() + (crop_y * W + crop_x) * C_,
-                              W * C_, output_layout_,
-                              output->template mutable_data<Out>());
+                  input.template data<uint8>() + (crop_y * W + crop_x) * C_,
+                  W * C_, output_layout_, output->template mutable_data<Out>());
 }
 
-template<>
+template <>
+void Crop<CPUBackend>::MultipleInputSetup(SampleWorkspace *ws, int idx) {
+  const static int kInputCount = 3;
+
+  const auto &crop_begin = ws->Input<CPUBackend>(kInputCount * idx + 1);
+  const auto &crop_size = ws->Input<CPUBackend>(kInputCount * idx + 2);
+
+  const float *crop_begin_data = crop_begin.template data<float>();
+  const float *crop_size_data = crop_size.template data<float>();
+
+  for (int i = 0; i < batch_size_; i++) {
+    per_sample_crop_[i].first = crop_begin_data[1];
+    per_sample_crop_[i].second = crop_begin_data[0];
+
+    per_sample_dimensions_[i].first = crop_size_data[1];
+    per_sample_dimensions_[i].second = crop_size_data[0];
+  }
+}
+
+template <>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
@@ -136,14 +154,15 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     CallRunHelper(ws, idx);
 }
 
-template<>
+template <>
 void Crop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   if (output_type_ == DALI_NO_TYPE) {
     const auto &input = ws->Input<CPUBackend>(0);
     output_type_ = input.type().id();
   }
 
-  SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(), ws->data_idx());
+  SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(),
+                          ws->data_idx());
 }
 
 // Register operator

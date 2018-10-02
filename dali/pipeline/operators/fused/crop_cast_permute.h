@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 #define DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 
@@ -32,4 +31,3 @@ class CropCastPermute : public Crop<Backend> {
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-
