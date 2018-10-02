@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_single_op.h"
-
 #include <tuple>
+#include "dali/test/dali_test_single_op.h"
 
 namespace dali {
 
