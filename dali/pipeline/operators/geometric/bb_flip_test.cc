@@ -14,11 +14,13 @@
 
 #include "dali/test/dali_test_single_op.h"
 
+#include <tuple>
+
 namespace dali {
 
 namespace {
 
-const int kBbStructSize = 4;
+constexpr int kBbStructSize = 4;
 
 /**
  * Roi can be represented in two ways:
@@ -30,53 +32,99 @@ const int kBbStructSize = 4;
  * Both of them have coordinates in image coordinate system
  * (i.e. 0.0-1.0)
  */
-struct Roi {
-  float roi[kBbStructSize];
-};
+using Roi = std::array<float, kBbStructSize>;
 
-const int kTestDataSize = 10;
+constexpr int kTestDataSize = 10;
 
-std::array<std::pair<Roi, Roi>, kTestDataSize> wh_rois{
+/**
+ * Test data for BbFlip operator. Data consists of:
+ * 0 -> reference data input
+ * 1 -> reference data horizontally flipped
+ * 2 -> reference data vertically flipped
+ */
+using TestData = std::array<std::tuple<Roi, Roi, Roi>, kTestDataSize>;
+
+// XXX: Looks hideous, but that's the only way in C++11
+constexpr TestData wh_rois{
         {
-                {{.2, .2, .4, .3}, {.4, .2, .4, .3}},
-                {{.0, .0, .5, .5}, {.5, .0, .5, .5}},
-                {{.3, .2, .1, .1}, {.6, .2, .1, .1}},
-                {{.0, .0, .2, .3}, {.8, .0, .2, .3}},
-                {{.0, .0, .1, .1}, {.9, .0, .1, .1}},
-                {{.5, .5, .1, .1}, {.0, .5, .1, .1}},
-                {{.0, .6, .7, .4}, {.3, .6, .7, .4}},
-                {{.6, .2, .3, .3}, {.1, .2, .3, .3}},
-                {{.4, .3, .5, .5}, {.1, .3, .5, .5}},
-                {{.25, .25, .5, .5}, {.25, .25, .5, .5}},
+                std::tuple<Roi, Roi, Roi>{{.2, .2, .4, .3},
+                                          {.4, .2, .4, .3},
+                                          {.2, .5, .4, .3}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .5, .5},
+                                          {.5, .0, .5, .5},
+                                          {.0, .5, .5, .5}},
+                std::tuple<Roi, Roi, Roi>{{.3, .2, .1, .1},
+                                          {.6, .2, .1, .1},
+                                          {.3, .7, .1, .1}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .2, .3},
+                                          {.8, .0, .2, .3},
+                                          {.0, .7, .2, .3}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .1, .1},
+                                          {.9, .0, .1, .1},
+                                          {.0, .9, .1, .1}},
+                std::tuple<Roi, Roi, Roi>{{.5, .5, .1, .1},
+                                          {.0, .5, .1, .1},
+                                          {.5, .4, .1, .1}},
+                std::tuple<Roi, Roi, Roi>{{.0, .6, .7, .4},
+                                          {.3, .6, .7, .4},
+                                          {.0, .0, .7, .4}},
+                std::tuple<Roi, Roi, Roi>{{.6, .2, .3, .3},
+                                          {.1, .2, .3, .3},
+                                          {.6, .5, .3, .3}},
+                std::tuple<Roi, Roi, Roi>{{.4, .3, .5, .5},
+                                          {.1, .3, .5, .5},
+                                          {.4, .2, .5, .5}},
+                std::tuple<Roi, Roi, Roi>{{.25, .25, .5, .5},
+                                          {.25, .25, .5, .5},
+                                          {.25, .25, .5, .5}},
         }
 };
 
-std::array<std::pair<Roi, Roi>, kTestDataSize> two_pt_rois{
+constexpr TestData two_pt_rois{
         {
-                {{.2, .2, .6, .5}, {.4, .2, .8, .5}},
-                {{.0, .0, .5, .5}, {.5, .0, 1., .5}},
-                {{.3, .2, .4, .3}, {.6, .2, .7, .3}},
-                {{.0, .0, .2, .3}, {.8, .0, 1., .3}},
-                {{.0, .0, .1, .1}, {.9, .0, 1., .1}},
-                {{.5, .5, .6, .6}, {.4, .5, .5, .6}},
-                {{.0, .6, .7, .9}, {.3, .6, 1., .9}},
-                {{.6, .2, .3, .3}, {.1, .2, .4, .5}},
-                {{.4, .3, .9, .8}, {.1, .3, .6, .8}},
-                {{.25, .25, .75, .75}, {.25, .25, .75, .75}},
+                std::tuple<Roi, Roi, Roi>{{.2, .2, .6, .5},
+                                          {.4, .2, .8, .5},
+                                          {.2, .5, .6, .8}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .5, .5},
+                                          {.5, .0, 1., .5},
+                                          {.0, .5, .5, 1.}},
+                std::tuple<Roi, Roi, Roi>{{.3, .2, .4, .3},
+                                          {.6, .2, .7, .3},
+                                          {.3, .7, .4, .8}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .2, .3},
+                                          {.8, .0, 1., .3},
+                                          {.0, .7, .2, 1.}},
+                std::tuple<Roi, Roi, Roi>{{.0, .0, .1, .1},
+                                          {.9, .0, 1., .1},
+                                          {.0, .9, .1, 1.}},
+                std::tuple<Roi, Roi, Roi>{{.5, .5, .6, .6},
+                                          {.4, .5, .5, .6},
+                                          {.5, .4, .6, .5}},
+                std::tuple<Roi, Roi, Roi>{{.0, .6, .7, .9},
+                                          {.3, .6, 1., .9},
+                                          {.0, .0, .7, .4}},
+                std::tuple<Roi, Roi, Roi>{{.6, .2, .3, .3},
+                                          {.1, .2, .4, .5},
+                                          {.6, .5, .9, .8}},
+                std::tuple<Roi, Roi, Roi>{{.4, .3, .9, .8},
+                                          {.1, .3, .6, .8},
+                                          {.4, .2, .9, .7}},
+                std::tuple<Roi, Roi, Roi>{{.25, .25, .75, .75},
+                                          {.25, .25, .75, .75},
+                                          {.25, .25, .75, .75}},
         }
 };
 
-using TestData = std::array<std::pair<Roi, Roi>, kTestDataSize>;
 
 /**
  * Injects either input values of test std::arrays (i.e. left-hand
  * Rois) or anticipated output values, which is the reference data.
  * @param input If true, left-hand Rois will be injected.
  */
-template<typename DataType>
-void InjectTestData(const TestData &test_data, DataType *destination, bool input) {
+template<typename DataType, int DataIdx>
+void InjectTestData(const TestData &test_data, DataType *destination) {
   for (const auto &it : test_data) {
-    auto _it = input ? it.first.roi : it.second.roi;
+    auto _it = std::get<DataIdx>(it).data();
     std::memcpy(destination, _it, kBbStructSize * sizeof(DataType));
     destination += kBbStructSize;
   }
@@ -89,11 +137,16 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
  protected:
   std::vector<TensorList<CPUBackend> *>
   Reference(const std::vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
+    using DataType = float;
     auto batch = new TensorList<CPUBackend>();
     batch->Resize(new_batch_size_);
-    auto *batch_data = batch->template mutable_data<float>();
+    auto *batch_data = batch->template mutable_data<DataType>();
 
-    InjectTestData(*test_data_, batch_data, false);
+    if (flip_type_vertical_) {
+      InjectTestData<DataType, 1>(*test_data_, batch_data);
+    } else {
+      InjectTestData<DataType, 2>(*test_data_, batch_data);
+    }
 
     vector<TensorList<CPUBackend> *> ret(1);
     ret[0] = batch;
@@ -117,13 +170,15 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
     auto batch_data = batch.template mutable_data<float>();
 
-    InjectTestData(*test_data_, batch_data, true);
+    InjectTestData<float, 0>(*test_data_, batch_data);
   }
 
 
-  const OpSpec DecodingOp(bool wh_coordinates_type) const noexcept {
+  const OpSpec GetOperatorSpec(bool wh_coordinates_type, bool vertical_flip) noexcept {
+    flip_type_vertical_ = vertical_flip;
     return OpSpec("BbFlip")
             .AddArg("coordinates_type", wh_coordinates_type)
+            .AddArg("flip_type", vertical_flip)
             .AddInput("bb_input", "cpu")
             .AddOutput("bb_output", "cpu");
   }
@@ -132,6 +187,7 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
  private:
   const TestData *test_data_ = nullptr;
   std::vector<std::vector<long int>> new_batch_size_;  //NOLINT
+  bool flip_type_vertical_;
 };
 
 // XXX: `DALISingleOpTest` assumes, that input to the operator
@@ -141,19 +197,35 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(BbFlipTest, Types);
 
-TYPED_TEST(BbFlipTest, WidthHeightRepresentation) {
+TYPED_TEST(BbFlipTest, VerticalWHTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->DecodingOp(true), .01);
+  this->RunOperator(this->GetOperatorSpec(true, true), .01);
 }
 
 
-TYPED_TEST(BbFlipTest, TwoPointRepresentation) {
+TYPED_TEST(BbFlipTest, Vertical2PTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->DecodingOp(false), .01);
+  this->RunOperator(this->GetOperatorSpec(false, true), .01);
+}
+
+
+TYPED_TEST(BbFlipTest, HorizontalWHTest) {
+  TensorList<CPUBackend> bb_test_data;
+  this->LoadBbData(bb_test_data, &wh_rois);
+  this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
+  this->RunOperator(this->GetOperatorSpec(true, false), .01);
+}
+
+
+TYPED_TEST(BbFlipTest, Horizontal2PTest) {
+  TensorList<CPUBackend> bb_test_data;
+  this->LoadBbData(bb_test_data, &two_pt_rois);
+  this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
+  this->RunOperator(this->GetOperatorSpec(false, false), .01);
 }
 
 }  // namespace dali
