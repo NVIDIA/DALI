@@ -40,7 +40,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     cpu_thread_(device_id, set_affinity),
     mixed_thread_(device_id, set_affinity),
     gpu_thread_(device_id, set_affinity),
-    device_id_(device_id) {}
+    device_id_(device_id) {
+    Executor::queue_depth_ = 2;
+  }
 
   DLL_PUBLIC virtual ~AsyncPipelinedExecutor() {
     cpu_thread_.ForceStop();

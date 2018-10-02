@@ -13,6 +13,7 @@ valgrind-out.txt
 .dockerignore
 wheelhouse
 compile
+compile_debug
 .idea
 cmake-build-*
 data
