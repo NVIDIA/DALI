@@ -17,21 +17,28 @@
 namespace dali {
 
 DALI_SCHEMA(BBoxCrop)
-  .DocStr(R"code(Perform a prospective crop from bounding boxes.)code")
-  .NumInput(2)
-  .NumOutput(3)
-  .AllowMultipleInputSets()
-  .AddOptionalArg("thresholds",
-    R"code(Minimum overlap (IoU) in order not to discard bounding boxes after crop.
-    Selected at random from provided values.)code",
-    std::vector<float>{0.})
-  .AddOptionalArg("aspect_ratio",
-      R"code(Range from which to choose random aspect ratio.)code",
-      std::vector<float>{1., 1.})
-  .AddOptionalArg("scaling",
-    R"code(Range for which to choose the crop size.)code",
-    std::vector<float>{1.,1.})
-  .EnforceInputLayout(DALI_NHWC);
+    .DocStr(
+        R"code(Perform a prospective crop to an image while keeping bounding boxes consistent.
+        Crop is provided as two Tensors: `Begin` which contains the starting coordinates for the `crop` in `(x,y)` format,
+        and 'Size' which contains the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
+        where each bounding box is represented as `[x,y,w,h]`.)code")
+    .NumInput(2)
+    .NumOutput(3)
+    .AllowMultipleInputSets()
+    .AddOptionalArg(
+        "thresholds",
+        R"code(Minimum overlap (IoU) with new crop to keep bounding boxes from being discarded.
+    Selected at random for every sample from provided values.)code",
+        std::vector<float>{0.})
+    .AddOptionalArg(
+        "aspect_ratio",
+        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Values should be `(0.0-1.0)`.)code",
+        std::vector<float>{1., 1.})
+    .AddOptionalArg(
+        "scaling",
+        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Values should be `(0.0-1.0)`.)code",
+        std::vector<float>{1., 1.})
+    .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(BBoxCrop, BBoxCrop, CPU);
 
