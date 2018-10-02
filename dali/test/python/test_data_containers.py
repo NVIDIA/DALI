@@ -84,7 +84,17 @@ class TFRecordPipeline(CommonPipeline):
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
 
+class COCOReaderPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
+        super(COCOReaderPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.input = ops.COCOReader(file_root = data_paths[0], annotations_file=data_paths[1])
+
+    def define_graph(self):
+        images, bb, labels = self.input(name="Reader")
+        return self.base_define_graph(images, labels)
+
 test_data = {
+
             FileReadPipeline: [["/data/imagenet/train-jpeg"],
                                ["/data/imagenet/val-jpeg"]],
             MXNetReaderPipeline: [["/data/imagenet/train-480-val-256-recordio/train.rec", "/data/imagenet/train-480-val-256-recordio/train.idx"],
@@ -93,7 +103,9 @@ test_data = {
                                  ["/data/imagenet/val-lmdb-256x256"]],
             Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"],
                                   ["/data/imagenet/val-c2lmdb-256"]],
-            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]]
+            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
+            COCOReaderPipeline: [["/data/coco/coco-2017/coco2017/train2017", "/data/coco/coco-2017/coco2017/annotations/instances_train2017.json"],
+                                ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json"]]
             }
 
 N = 1               # number of GPUs
@@ -126,6 +138,6 @@ for pipe_name in test_data.keys():
             for pipe in pipes:
                 pipe.outputs()
             if j % LOG_INTERVAL == 0:
-                print (pipe_name.__name__, j, "/", iters)
+                print (pipe_name.__name__, j + 1, "/", iters)
 
         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
