@@ -36,11 +36,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     explicit Bounds(std::vector<float> &&bounds)
         : min_(bounds[0]), max_(bounds[1]) {
       DALI_ENFORCE(
-          min_ >= 0 && min_ <= 1.0,
-          "Min should be in [0.0-1.0]. Received: " + std::to_string(min_));
-      DALI_ENFORCE(
-          max_ >= 0 && max_ <= 1.0,
-          "Max should be in [0.0-1.0]. Received: " + std::to_string(max_));
+          min_ >= 0,
+          "Min should be at least 0.0. Received: " + std::to_string(min_));
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min_ <= max_, "Bounds should be provided as: [min, max]");
     }

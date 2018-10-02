@@ -124,6 +124,13 @@ TEST(BBoxCropTest, test_that_provided_aspect_ratio_bounds_are_min_and_max2) {
   EXPECT_NO_THROW(BBoxCropInspector inspector(spec));
 }
 
+TEST(BBoxCropTest, test_that_provided_aspect_ratio_min_must_be_at_least_zero) {
+  auto spec = DefaultSpec();
+  spec.AddArg("aspect_ratio", std::vector<float>{-0.1, 2.0});
+
+  EXPECT_ANY_THROW(BBoxCropInspector inspector(spec));
+}
+
 TEST(BBoxCropTest, test_that_default_bounds_for_scaling_is_1) {
   auto spec = DefaultSpec();
   BBoxCropInspector inspector(spec);
@@ -158,5 +165,12 @@ TEST(BBoxCropTest, test_that_provided_scaling_bounds_are_min_and_max2) {
   spec.AddArg("scaling", std::vector<float>{0.1, 2.0});
 
   EXPECT_NO_THROW(BBoxCropInspector inspector(spec));
+}
+
+TEST(BBoxCropTest, test_that_provided_scaling_min_must_be_at_least_zero) {
+  auto spec = DefaultSpec();
+  spec.AddArg("scaling", std::vector<float>{-0.1, 2.0});
+
+  EXPECT_ANY_THROW(BBoxCropInspector inspector(spec));
 }
 }

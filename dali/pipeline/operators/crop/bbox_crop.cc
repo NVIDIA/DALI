@@ -14,7 +14,8 @@
 
 #include "dali/pipeline/operators/crop/bbox_crop.h"
 
-namespace dali {
+namespace dali
+{
 
 DALI_SCHEMA(BBoxCrop)
     .DocStr(
@@ -32,14 +33,14 @@ DALI_SCHEMA(BBoxCrop)
         std::vector<float>{0.})
     .AddOptionalArg(
         "aspect_ratio",
-        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Values should be `(0.0-1.0)`.)code",
+        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.)code",
         std::vector<float>{1., 1.})
     .AddOptionalArg(
         "scaling",
-        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Values should be `(0.0-1.0)`.)code",
+        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`.)code",
         std::vector<float>{1., 1.})
     .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(BBoxCrop, BBoxCrop, CPU);
 
-}  // namespace dali
+} // namespace dali
