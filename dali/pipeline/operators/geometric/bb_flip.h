@@ -31,7 +31,7 @@ class BbFlip : public Operator<CPUBackend> {
   void RunImpl(SampleWorkspace *ws, const int idx) override;
 
  private:
-  const int BB_TYPE_SIZE = 4;  /// Bounding box is always vector of 4 floats
+  const int kBbTypeSize = 4;  /// Bounding box is always vector of 4 floats
 
   /**
    * Bounding box can be represented in two ways:
@@ -45,7 +45,7 @@ class BbFlip : public Operator<CPUBackend> {
    *
    * If `coordinates_type_wh_` is true, then we deal with 1st type. Otherwise, the 2nd one.
    */
-  bool coordinates_type_wh_;
+  const bool coordinates_type_wh_;
 };
 
 }  // namespace dali
