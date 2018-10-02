@@ -45,6 +45,10 @@
 	#if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L) && !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
 	#endif
+	#define HALF_POP_WARNINGS 1
+	// struct vs class, see: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=49174
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wmismatched-tags" 
 /*#elif defined(__INTEL_COMPILER)								//Intel C++
 	#if __INTEL_COMPILER >= 1100 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)		????????
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
@@ -1014,6 +1018,7 @@ namespace half_float
 
     // Copy constructor overriding the one above
     // It avoids half->float->half path
+	HALF_CONSTEXPR
     CAFFE_UTIL_HD
     half(const half& rhs) :
       data_(rhs.data_) {}
@@ -3113,7 +3118,11 @@ namespace std
 #undef HALF_NOEXCEPT
 #undef HALF_NOTHROW
 #ifdef HALF_POP_WARNINGS
-	#pragma warning(pop)
+	#if defined(__clang__)
+		#pragma clang diagnostic pop	
+	#elif defined(_MSC_VER)
+		#pragma warning(pop)
+	#endif
 	#undef HALF_POP_WARNINGS
 #endif
 
