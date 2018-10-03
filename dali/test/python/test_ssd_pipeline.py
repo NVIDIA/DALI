@@ -26,7 +26,8 @@ class CommonPipeline(Pipeline):
         self.prospective_crop = ops.BBoxCrop(device='cpu',
                                              thresholds=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
                                              aspect_ratio=[0.5, 2.0],
-                                             scaling=[0.3, 1.0])
+                                             scaling=[0.3, 1.0],
+                                             ltrb=False)
         self.crop = ops.Crop(device='cpu')
 
     def base_define_graph(self, inputs, labels, bboxes):
@@ -48,6 +49,7 @@ class COCOReaderPipeline(CommonPipeline):
 test_data = {
             COCOReaderPipeline: [["/data/coco/coco-2017/coco2017/train2017", "/data/coco/coco-2017/coco2017/annotations/instances_train2017.json", 118288],
                                 ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json", 5001]]
+
             }
 
 N = 1               # number of GPUs
