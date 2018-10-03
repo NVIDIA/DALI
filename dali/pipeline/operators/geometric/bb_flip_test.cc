@@ -43,7 +43,6 @@ constexpr int kTestDataSize = 10;
  */
 using TestData = std::array<std::tuple<Roi, Roi, Roi>, kTestDataSize>;
 
-// XXX: Looks hideous, but that's the only way in C++11
 constexpr TestData wh_rois{
         {
                 std::tuple<Roi, Roi, Roi>{{.2, .2, .4, .3},
@@ -118,7 +117,8 @@ constexpr TestData two_pt_rois{
 /**
  * Injects either input values of test std::arrays (i.e. left-hand
  * Rois) or anticipated output values, which is the reference data.
- * @param input If true, left-hand Rois will be injected.
+ * @tparam DataIdx Index of tuple contained in TestData. Specifies
+ *                 which values to inject
  */
 template<typename DataType, int DataIdx>
 void InjectTestData(const TestData &test_data, DataType *destination) {
