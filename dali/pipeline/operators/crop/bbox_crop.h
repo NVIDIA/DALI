@@ -35,9 +35,8 @@ class BBoxCrop : public Operator<CPUBackend> {
   struct Bounds {
     explicit Bounds(std::vector<float> &&bounds)
         : min_(bounds[0]), max_(bounds[1]) {
-      DALI_ENFORCE(
-          min_ >= 0,
-          "Min should be at least 0.0. Received: " + std::to_string(min_));
+      DALI_ENFORCE(min_ >= 0, "Min should be at least 0.0. Received: " +
+                                  std::to_string(min_));
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min_ <= max_, "Bounds should be provided as: [min, max]");
     }
@@ -60,14 +59,17 @@ class BBoxCrop : public Operator<CPUBackend> {
              (y - top_) <= bottom_;
     }
 
-    float IntersectionOverUnion(const Rectangle &other) const {
-      const float x_left = std::max(left_, other.left_);
-      const float x_right = std::min(right_, other.right_);
-      const float y_top = std::max(top_, other.top_);
-      const float y_bottom = std::min(bottom_, other.bottom_);
+    Rectangle ClampTo(const Rectangle &other) const {
+      const auto left = std::max(other.left_, left_);
+      const auto top = std::max(other.top_, top_);
+      const auto right = std::min(other.right_, right_);
+      const auto bottom = std::min(other.bottom_, bottom_);
 
-      const float intersection_area =
-          std::max(0.f, (x_right - x_left) * (y_top - y_bottom));
+      return Rectangle(left, top, right, bottom);
+    }
+
+    float IntersectionOverUnion(const Rectangle &other) const {
+      const float intersection_area = ClampTo(other).area_;
 
       return intersection_area /
              static_cast<float>(area_ + other.area_ - intersection_area);
@@ -193,35 +195,11 @@ class BBoxCrop : public Operator<CPUBackend> {
       const float y_center = 0.5 * box[3] + box[1];
 
       if (crop.Contains(x_center, y_center)) {
-        result.emplace_back(BoundingBox(box[0], box[1], box[2], box[3]));
+        result.emplace_back(box[0], box[1], box[2], box[3]);
       }
     }
 
     return result;
-  }
-
-  BoundingBoxes ClampBoundingBoxes(const Crop &crop,
-                                   const BoundingBoxes &boxes) {
-    BoundingBoxes clamped_boxes;
-    clamped_boxes.reserve(boxes.size());
-
-    const auto crop_x_right = crop.left_ + crop.right_;
-    const auto crop_x_bottom = crop.top_ + crop.bottom_;
-
-    for (const auto &box : boxes) {
-      const auto left = std::max(crop.left_, box.left_);
-      const auto top = std::max(crop.top_, box.top_);
-
-      const auto box_x_right = box.left_ + box.right_;
-      const auto box_x_bottom = box.top_ + box.bottom_;
-
-      const auto right = std::min(crop_x_right, box_x_right) - left;
-      const auto bottom = std::min(crop_x_bottom, box_x_bottom) - top;
-
-      clamped_boxes.emplace_back(BoundingBox(left, top, right, bottom));
-    }
-
-    return clamped_boxes;
   }
 
   std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
@@ -237,7 +215,7 @@ class BBoxCrop : public Operator<CPUBackend> {
           const auto candidate_crop = SamplePatch(
               rescaled_height, rescaled_width, image.dim(0), image.dim(1));
 
-          const auto candidate_boxes =
+          auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (std::all_of(
@@ -246,9 +224,12 @@ class BBoxCrop : public Operator<CPUBackend> {
                     return candidate_crop.IntersectionOverUnion(box) >=
                            minimum_overlap;
                   })) {
-            return std::make_pair(
-                candidate_crop,
-                ClampBoundingBoxes(candidate_crop, candidate_boxes));
+            std::transform(candidate_boxes.begin(), candidate_boxes.end(),
+                           std::back_inserter(candidate_boxes),
+                           [&candidate_crop](const BoundingBox &box) {
+                             return box.ClampTo(candidate_crop);
+                           });
+            return std::make_pair(candidate_crop, candidate_boxes);
           }
         }
       }

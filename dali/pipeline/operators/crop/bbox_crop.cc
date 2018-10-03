@@ -14,33 +14,35 @@
 
 #include "dali/pipeline/operators/crop/bbox_crop.h"
 
-namespace dali
-{
+namespace dali {
 
 DALI_SCHEMA(BBoxCrop)
     .DocStr(
-        R"code(Perform a prospective crop to an image while keeping bounding boxes consistent.
-        Crop is provided as two Tensors: `Begin` which contains the starting coordinates for the `crop` in `(x,y)` format,
-        and 'Size' which contains the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
+        R"code(Perform a prospective crop to an image while keeping bounding boxes consistent. Inputs must be supplied as two Tensors:
+        `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[x,y,w,h]`.
+        Resulting prospective crop is provided as two Tensors: `Begin` containing the starting coordinates for the `crop` in `(x,y)` format,
+        and 'Size' containing the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
         where each bounding box is represented as `[x,y,w,h]`.)code")
     .NumInput(2)
     .NumOutput(3)
     .AllowMultipleInputSets()
     .AddOptionalArg(
         "thresholds",
-        R"code(Minimum overlap (IoU) with new crop to keep bounding boxes from being discarded.
-    Selected at random for every sample from provided values.)code",
-        std::vector<float>{0.})
+        R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
+    Selected at random for every sample from provided values. Default value is `[0.0]`, leaving the input image as-is in the new crop.)code",
+        std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
-        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.)code",
-        std::vector<float>{1., 1.})
+        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.
+        Default values are `[1.0, 1.0]`, disallowing changes in aspect ratio.)code",
+        std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
-        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`.)code",
-        std::vector<float>{1., 1.})
+        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`
+        Default values are `[1.0, 1.0]`, disallowing changes in image scaling.)code",
+        std::vector<float>{1.f, 1.f})
     .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(BBoxCrop, BBoxCrop, CPU);
 
-} // namespace dali
+}  // namespace dali
