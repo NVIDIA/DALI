@@ -92,8 +92,8 @@ TEST(BBoxCropTest, test_that_default_bounds_for_aspect_ratio_is_1) {
   auto spec = DefaultSpec();
   BBoxCropInspector inspector(spec);
 
-  EXPECT_TRUE(inspector.AspectRatio().max_ == 1.0);
-  EXPECT_TRUE(inspector.AspectRatio().min_ == 1.0);
+  EXPECT_TRUE(inspector.AspectRatio().max == 1.0);
+  EXPECT_TRUE(inspector.AspectRatio().min == 1.0);
 }
 
 TEST(BBoxCropTest, test_that_provided_aspect_ratio_bounds_are_two_values) {
@@ -135,8 +135,8 @@ TEST(BBoxCropTest, test_that_default_bounds_for_scaling_is_1) {
   auto spec = DefaultSpec();
   BBoxCropInspector inspector(spec);
 
-  EXPECT_TRUE(inspector.Scaling().max_ == 1.0);
-  EXPECT_TRUE(inspector.Scaling().min_ == 1.0);
+  EXPECT_TRUE(inspector.Scaling().max == 1.0);
+  EXPECT_TRUE(inspector.Scaling().min == 1.0);
 }
 
 TEST(BBoxCropTest, test_that_provided_scaling_bounds_are_two_values) {

@@ -22,7 +22,7 @@ DALI_SCHEMA(BBoxCrop)
         `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[l,t,r,b]`.
         Resulting prospective crop is provided as two Tensors: `Begin` containing the starting coordinates for the `crop` in `(x,y)` format,
         and 'Size' containing the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
-        where each bounding box is represented as `[l,t,r,b]`.)code")
+        where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`.)code")
     .NumInput(2)
     .NumOutput(3)
     .AllowMultipleInputSets()
@@ -41,6 +41,10 @@ DALI_SCHEMA(BBoxCrop)
         R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`
         Default values are `[1.0, 1.0]`, disallowing changes in image scaling.)code",
         std::vector<float>{1.f, 1.f})
+    .AddOptionalArg(
+        "ltrb",
+        R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. By default is set to `true`.)code",
+        true)
     .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(BBoxCrop, BBoxCrop, CPU);

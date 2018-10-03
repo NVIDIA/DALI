@@ -60,16 +60,13 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
 
     Rectangle ClampTo(const Rectangle &other) const {
-      const auto left = std::max(other.left, left);
-      const auto top = std::max(other.top, top);
-      const auto right = std::min(other.right, right);
-      const auto bottom = std::min(other.bottom, bottom);
-
-      return Rectangle(left, top, right, bottom);
+      return Rectangle(std::max(other.left, left), std::max(other.top, top),
+                       std::min(other.right, right),
+                       std::min(other.bottom, bottom));
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
-      if (Overlaps(other)) {
+      if (this->Overlaps(other)) {
         const float intersection_area = this->ClampTo(other).area;
 
         return intersection_area /
@@ -78,7 +75,7 @@ class BBoxCrop : public Operator<CPUBackend> {
       return 0.0f;
     }
 
-    bool Overlaps(const Rectangle &other) {
+    bool Overlaps(const Rectangle &other) const {
       return left < other.right && right > other.left && top < other.bottom &&
              bottom > other.top;
     }
@@ -96,7 +93,8 @@ class BBoxCrop : public Operator<CPUBackend> {
         thresholds_{spec.GetRepeatedArgument<float>("thresholds")},
         scaling_bounds_{Bounds(spec.GetRepeatedArgument<float>("scaling"))},
         aspect_ratio_bounds_{
-            Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))}
+            Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))},
+        ltrb_{spec.GetArgument<bool>("ltrb")}
 
   {
     DALI_ENFORCE(!thresholds_.empty(),
@@ -156,8 +154,10 @@ class BBoxCrop : public Operator<CPUBackend> {
       auto *output = bbox_out_data + i * kBboxSize;
       output[0] = bounding_boxes[i].left;
       output[1] = bounding_boxes[i].top;
-      output[2] = bounding_boxes[i].right;
-      output[3] = bounding_boxes[i].bottom;
+      output[2] = ltrb_ ? bounding_boxes[i].right
+                        : bounding_boxes[i].right - bounding_boxes[i].left;
+      output[3] = ltrb_ ? bounding_boxes[i].bottom
+                        : bounding_boxes[i].bottom - bounding_boxes[i].top;
     }
   }
 
@@ -260,6 +260,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   const std::vector<float> thresholds_;
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
+  const bool ltrb_;
 
  private:
   std::random_device rd_;
