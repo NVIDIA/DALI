@@ -79,8 +79,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
 
     bool Overlaps(const Rectangle &other) {
-      return left < other.right && right > other.left && top > other.bottom &&
-             bottom < other.top;
+      return left < other.right && right > other.left && top < other.bottom &&
+             bottom > other.top;
     }
 
     const float left, top, right, bottom, area;
