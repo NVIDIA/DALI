@@ -27,20 +27,26 @@ DALI_SCHEMA(BbFlip)
                                in the image coordinate system (i.e. 0.0-1.0))code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddArg("coordinates_type",
-                        R"code(True, for width-height representation.
-                               False for two-point (ltrb) representation.)code",
-                        DALI_BOOL)
-                .AddArg("flip_type",
-                        R"code(True, for vertical flip (along vertical axis).
-                               False for horizontal flip)code",
-                        DALI_BOOL);
+                .AddOptionalArg("coordinates_type",
+                                R"code(True, for width-height representation.
+                                False for two-point (ltrb) representation. Default: True)code",
+                                true, false)
+                .AddOptionalArg("flip_type",
+                                R"code(True, for vertical flip (along vertical axis).
+                                False for horizontal flip. Default: True)code",
+                                true, false)
+                .AddOptionalArg("on_off_switch",
+                                R"code(Turns the operator on (True) and off (False).
+                                Main purpose of this argument is to implement
+                                randomness inside operation. Default value: True)code",
+                                true, true);
 
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
         coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")),
-        flip_type_vertical_(spec.GetArgument<bool>("flip_type")) {
+        flip_type_vertical_(spec.GetArgument<bool>("flip_type")),
+        on_off_switch_(spec.GetArgument<bool>("on_off_switch")) {
 }
 
 
@@ -79,16 +85,21 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   output->Resize({kBbTypeSize});
   auto output_data = output->mutable_data<float>();
 
+  if (on_off_switch_) {
+    const auto x = input_data[0];
+    const auto y = input_data[1];
+    const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
+    const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
 
-  const auto x = input_data[0];
-  const auto y = input_data[1];
-  const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
-  const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
-
-  output_data[0] = flip_type_vertical_ ? (1.0f - x) - w : x;
-  output_data[1] = flip_type_vertical_ ? y : (1.0f - y) - h;
-  output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
-  output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
+    output_data[0] = flip_type_vertical_ ? (1.0f - x) - w : x;
+    output_data[1] = flip_type_vertical_ ? y : (1.0f - y) - h;
+    output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
+    output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
+  } else {
+    for (int i = 0; i < kBbTypeSize; i++) {
+      output_data[i] = input_data[i];
+    }
+  }
 }
 
 }  // namespace dali
