@@ -51,6 +51,11 @@ class BbFlip : public Operator<CPUBackend> {
    * If true, flip is performed along vertical (x) axis
    */
   const bool flip_type_vertical_;
+
+  /**
+   * If true, Operator if turned on
+   */
+  const bool on_off_switch_;
 };
 
 }  // namespace dali

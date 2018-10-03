@@ -141,10 +141,14 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
     batch->Resize(new_batch_size_);
     auto *batch_data = batch->template mutable_data<DataType>();
 
-    if (flip_type_vertical_) {
-      InjectTestData<DataType, 1>(*test_data_, batch_data);
+    if (!on_off_switch_) {
+      InjectTestData<DataType, 0>(*test_data_, batch_data);
     } else {
-      InjectTestData<DataType, 2>(*test_data_, batch_data);
+      if (flip_type_vertical_) {
+        InjectTestData<DataType, 1>(*test_data_, batch_data);
+      } else {
+        InjectTestData<DataType, 2>(*test_data_, batch_data);
+      }
     }
 
     vector<TensorList<CPUBackend> *> ret(1);
@@ -173,11 +177,15 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
   }
 
 
-  const OpSpec GetOperatorSpec(bool wh_coordinates_type, bool vertical_flip) noexcept {
+  const OpSpec GetOperatorSpec(bool wh_coordinates_type, bool vertical_flip,
+                               bool on_off_switch = true) noexcept {
+    DALI_ENFORCE(test_data_, "Data has not been loaded yet. Call LoadBbData(...)");
     flip_type_vertical_ = vertical_flip;
+    on_off_switch_ = on_off_switch;
     return OpSpec("BbFlip")
             .AddArg("coordinates_type", wh_coordinates_type)
             .AddArg("flip_type", vertical_flip)
+            .AddArg("on_off_switch", on_off_switch)
             .AddInput("bb_input", "cpu")
             .AddOutput("bb_output", "cpu");
   }
@@ -186,7 +194,7 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
  private:
   const TestData *test_data_ = nullptr;
   std::vector<std::vector<long int>> new_batch_size_;  //NOLINT
-  bool flip_type_vertical_;
+  bool flip_type_vertical_, on_off_switch_;
 };
 
 // XXX: `DALISingleOpTest` assumes, that input to the operator
@@ -225,6 +233,14 @@ TYPED_TEST(BbFlipTest, Horizontal2PTest) {
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
   this->RunOperator(this->GetOperatorSpec(false, false), .01);
+}
+
+
+TYPED_TEST(BbFlipTest, OnOffTest) {
+  TensorList<CPUBackend> bb_test_data;
+  this->LoadBbData(bb_test_data, &wh_rois);
+  this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
+  this->RunOperator(this->GetOperatorSpec(true, true, false), .01);
 }
 
 }  // namespace dali
