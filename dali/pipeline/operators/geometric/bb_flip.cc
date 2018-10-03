@@ -56,7 +56,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
-  DALI_ENFORCE(input.shape()[0] == kBbTypeSize, "Bounding box in wrong format");
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
   DALI_ENFORCE([](const float *data, size_t size) -> bool {
