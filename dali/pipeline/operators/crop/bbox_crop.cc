@@ -19,10 +19,10 @@ namespace dali {
 DALI_SCHEMA(BBoxCrop)
     .DocStr(
         R"code(Perform a prospective crop to an image while keeping bounding boxes consistent. Inputs must be supplied as two Tensors:
-        `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[x,y,w,h]`.
+        `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[l,t,r,b]`.
         Resulting prospective crop is provided as two Tensors: `Begin` containing the starting coordinates for the `crop` in `(x,y)` format,
         and 'Size' containing the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
-        where each bounding box is represented as `[x,y,w,h]`.)code")
+        where each bounding box is represented as `[l,t,r,b]`.)code")
     .NumInput(2)
     .NumOutput(3)
     .AllowMultipleInputSets()

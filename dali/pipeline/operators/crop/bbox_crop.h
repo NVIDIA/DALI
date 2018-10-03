@@ -69,7 +69,7 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
-      const float intersection_area = ClampTo(other).area_;
+      const float intersection_area = this->ClampTo(other).area_;
 
       return intersection_area /
              static_cast<float>(area_ + other.area_ - intersection_area);
@@ -141,7 +141,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   void WriteBoxesToOutput(SampleWorkspace *ws,
                           const BoundingBoxes &bounding_boxes) {
     auto *bbox_out = ws->Output<CPUBackend>(2);
-    bbox_out->Resize({static_cast<int>(bounding_boxes.size()), kBboxSize});
+    bbox_out->Resize({static_cast<Index>(bounding_boxes.size()), kBboxSize});
 
     auto *bbox_out_data = bbox_out->mutable_data<float>();
     for (size_t i = 0; i < bounding_boxes.size(); ++i) {
@@ -179,7 +179,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     const auto height_offset = height_sampler(rd_);
 
     // Crop is LEFT/TOP/RIGHT/BOTTOM
-    return Crop(left_offset, height_offset, scaled_width, scaled_height);
+    return Crop(left_offset, height_offset, left_offset + scaled_width,
+                height_offset + scaled_height);
   }
 
   std::vector<Rectangle> DiscardBoundingBoxesByCentroid(
@@ -242,7 +243,7 @@ class BBoxCrop : public Operator<CPUBackend> {
     for (int i = 0; i < bounding_boxes.dim(0); ++i) {
       const auto *box = bounding_boxes.data<float>() + (i * kBboxSize);
 
-      result.emplace_back(BoundingBox(box[0], box[1], box[2], box[3]));
+      result.emplace_back(box[0], box[1], box[2], box[3]);
     }
 
     return std::make_pair(Crop(0, 0, image.dim(1), image.dim(0)), result);
