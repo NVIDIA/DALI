@@ -38,13 +38,11 @@ class BbFlip : public Operator<CPUBackend> {
    * @tparam TensorDataType Underlying data type in tensor
    */
   template<typename TensorDataType>
-  void TryExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
-                               Tensor<CPUBackend> *tensor) {
-    if (!spec.HasTensorArgument(argument_name)) {
-      tensor->Resize({batch_size_});
-      for (int i = 0; i < batch_size_; i++) {
-        tensor->mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
-      }
+  void ExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
+                            Tensor<CPUBackend> *tensor) {
+    tensor->Resize({batch_size_});
+    for (int i = 0; i < batch_size_; i++) {
+      tensor->mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
     }
   }
 
@@ -74,6 +72,12 @@ class BbFlip : public Operator<CPUBackend> {
    * If true, flip is performed along horizontal (y) axis
    */
   Tensor<CPUBackend> flip_type_horizontal_;
+
+  /**
+   * XXX: This is workaround for architectural mishap, that there are 2 access points for
+   * operator arguments: Workspace and OpSpec
+   */
+  bool vflip_is_tensor_, hflip_is_tensor_;
 };
 
 }  // namespace dali

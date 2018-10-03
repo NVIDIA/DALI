@@ -43,17 +43,33 @@ DALI_SCHEMA(BbFlip)
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
         coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")) {
-  DALI_ENFORCE(spec.HasTensorArgument("vertical") == spec.HasTensorArgument("horizontal"),
-               "When specifying tensors, do it for both arguments");
 
-  TryExtendScalarToTensor<bool>("vertical", spec, flip_type_vertical_);
-  TryExtendScalarToTensor<bool>("horizontal", spec, flip_type_horizontal_);
+  vflip_is_tensor_ = spec.HasTensorArgument("vertical");
+  hflip_is_tensor_ = spec.HasTensorArgument("horizontal");
+
+  if (!vflip_is_tensor_) {
+    ExtendScalarToTensor<bool>("vertical", spec, &flip_type_vertical_);
+  }
+
+  if (!hflip_is_tensor_) {
+    ExtendScalarToTensor<bool>("horizontal", spec, &flip_type_horizontal_);
+  }
 }
 
 
 void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
+
+  if (vflip_is_tensor_) {
+    const Tensor<CPUBackend> &inp = ws->ArgumentInput("vertical");
+    flip_type_vertical_.Copy(inp, ws->stream());
+  }
+
+  if (hflip_is_tensor_) {
+    const Tensor<CPUBackend> &inp = ws->ArgumentInput("horizontal");
+    flip_type_horizontal_.Copy(inp, ws->stream());
+  }
 
   DALI_ENFORCE(input.size() == kBbTypeSize, "Bounding box in wrong format");
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
