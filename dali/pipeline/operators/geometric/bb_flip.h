@@ -31,6 +31,24 @@ class BbFlip : public Operator<CPUBackend> {
   void RunImpl(SampleWorkspace *ws, const int idx) override;
 
  private:
+
+  /**
+   * Checks, if argument provided by user is a scalar and,
+   * in such case, extends this scalar to entire tensor
+   * @tparam TensorDataType Underlying data type in tensor
+   */
+  template<typename TensorDataType>
+  void TryExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
+                               Tensor<CPUBackend> &tensor) {
+    if (!spec.HasTensorArgument(argument_name)) {
+      tensor.Resize({batch_size_});
+      for (int i = 0; i < batch_size_; i++) {
+        tensor.mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
+      }
+    }
+  }
+
+
   const int kBbTypeSize = 4;  /// Bounding box is always vector of 4 floats
 
   /**
@@ -50,12 +68,12 @@ class BbFlip : public Operator<CPUBackend> {
   /**
    * If true, flip is performed along vertical (x) axis
    */
-  const bool flip_type_vertical_;
+  Tensor<CPUBackend> flip_type_vertical_;
 
   /**
-   * If true, Operator if turned on
+   * If true, flip is performed along horizontal (y) axis
    */
-  const bool on_off_switch_;
+  Tensor<CPUBackend> flip_type_horizontal_;
 };
 
 }  // namespace dali
