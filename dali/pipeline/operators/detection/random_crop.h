@@ -34,10 +34,8 @@ class SSDRandomCrop : public Operator<Backend> {
     Operator<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
     gen_(rd_()),
-    int_dis_(0, 6),  // sample option
-    // int_dis_(0, 0),  // sample option
-    float_dis_(0.3, 1.)  // w, h generation
-  {
+    int_dis_(0, 6),        // sample option
+    float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
     sample_options_.push_back(SampleOption{true, 0});
     sample_options_.push_back(SampleOption{false, 0.1});
@@ -93,4 +91,4 @@ class SSDRandomCrop : public Operator<Backend> {
 }  // namespace dali
 
 
-#endif  // #define DALI_PIPELINE_OPERATORS_DETECTION_RANDOM_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_DETECTION_RANDOM_CROP_H_

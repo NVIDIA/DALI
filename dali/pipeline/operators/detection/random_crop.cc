@@ -16,7 +16,7 @@
 #include <vector>
 #include <random>
 #include <utility>
-#include <chrono>
+#include <algorithm>
 
 #include "dali/pipeline/operators/detection/random_crop.h"
 #include "dali/pipeline/operators/common.h"
@@ -25,43 +25,43 @@
 namespace dali {
 
 DALI_SCHEMA(SSDRandomCrop)
-  .NumInput(3)  // [img, bbox, label]
+  .NumInput(3)   // [img, bbox, label]
   .NumOutput(3)  // [img, bbox, label]
   .AddOptionalArg("num_attempts", R"code(foo)code", 1);
 
-/**
-# This function is from https://github.com/kuangliu/pytorch-ssd.
-def calc_iou_tensor(box1, box2):
-    """ Calculation of IoU based on two boxes tensor,
-        Reference to https://github.com/kuangliu/pytorch-ssd
-        input:
-            box1 (N, 4)
-            box2 (M, 4)
-        output:
-            IoU (N, M)
-    """
-    N = box1.size(0)
-    M = box2.size(0)
-
-    be1 = box1.unsqueeze(1).expand(-1, M, -1)
-    be2 = box2.unsqueeze(0).expand(N, -1, -1)
-
-    # Left Top & Right Bottom
-    lt = torch.max(be1[:,:,:2], be2[:,:,:2])
-    rb = torch.min(be1[:,:,2:], be2[:,:,2:])
-
-    delta = rb - lt
-    delta[delta < 0] = 0
-    intersect = delta[:,:,0]*delta[:,:,1]
-
-    delta1 = be1[:,:,2:] - be1[:,:,:2]
-    area1 = delta1[:,:,0]*delta1[:,:,1]
-    delta2 = be2[:,:,2:] - be2[:,:,:2]
-    area2 = delta2[:,:,0]*delta2[:,:,1]
-
-    iou = intersect/(area1 + area2 - intersect)
-    return iou
-**/
+/*
+ * # This function is from https://github.com/kuangliu/pytorch-ssd.
+ * def calc_iou_tensor(box1, box2):
+ *    """ Calculation of IoU based on two boxes tensor,
+ *        Reference to https://github.com/kuangliu/pytorch-ssd
+ *        input:
+ *            box1 (N, 4)
+ *            box2 (M, 4)
+ *        output:
+ *            IoU (N, M)
+ *    """
+ *    N = box1.size(0)
+ *    M = box2.size(0)
+ *
+ *    be1 = box1.unsqueeze(1).expand(-1, M, -1)
+ *    be2 = box2.unsqueeze(0).expand(N, -1, -1)
+ *
+ *    # Left Top & Right Bottom
+ *    lt = torch.max(be1[:,:,:2], be2[:,:,:2])
+ *    rb = torch.min(be1[:,:,2:], be2[:,:,2:])
+ *
+ *    delta = rb - lt
+ *    delta[delta < 0] = 0
+ *    intersect = delta[:,:,0]*delta[:,:,1]
+ *
+ *    delta1 = be1[:,:,2:] - be1[:,:,:2]
+ *    area1 = delta1[:,:,0]*delta1[:,:,1]
+ *    delta2 = be2[:,:,2:] - be2[:,:,:2]
+ *    area2 = delta2[:,:,0]*delta2[:,:,1]
+ *
+ *    iou = intersect/(area1 + area2 - intersect)
+ *    return iou
+ */
 
 namespace detail {
 
@@ -75,7 +75,7 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
 
   int N = box1.dim(0);
   // Note: We know M=1 in this use-case
-  //int M = box2.dim(0);
+  // int M = box2.dim(0);
   const int M = 1;
 
   const float* box1_data = box1.data<float>();
@@ -86,11 +86,11 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
 
   std::vector<std::pair<float, float>> lt, rb;
 
-  /**
-    # Left Top & Right Bottom
-    lt = torch.max(be1[:,:,:2], be2[:,:,:2])
-    rb = torch.min(be1[:,:,2:], be2[:,:,2:])
-    **/
+  /*
+   * # Left Top & Right Bottom
+   * lt = torch.max(be1[:,:,:2], be2[:,:,:2])
+   * rb = torch.min(be1[:,:,2:], be2[:,:,2:])
+   */
   for (int i = 0; i < N; ++i) {
     const float *b1 = box1_data + i * box1.dim(1);
     const float *b2 = box2_data;
@@ -134,7 +134,7 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
   // delta2 = be2[:, :, 2:] - be2[:, :, :2]
   // area2 = delta2[:, :, 0] * delta[:, :, 2]
   const float* box = box2_data;
-    // area is (b-t) * (r-l)
+  // area is (b-t) * (r-l)
   auto area2 = (box[3] - box[1]) * (box[2] - box[0]);
 
   // iou = intersect / (area1 + area2 - intersect)
@@ -142,7 +142,6 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
     // index into N*M arrays
     auto idx = i;
     ious_data[idx] = intersect[idx] / (area1[i] + area2 - intersect[idx]);
-    // printf("ious: %d : %f\n", idx, ious_data[idx]);
   }
   return ious;
 }
@@ -190,25 +189,16 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   crop_attempt.Resize({1, 4});
   float *crop_ptr = crop_attempt.mutable_data<float>();
 
-  // printf("bbox_data: \n");
-  // for (int i = 0; i < N; ++i) {
-    // const float* b = &bbox_data[i * 4];
-    // printf("[%f, %f, %f, %f],\n", b[0], b[1], b[2], b[3]);
-  // }
-
   // iterate until a suitable crop has been found
   while (true) {
     auto opt_idx = int_dis_(gen_);
     auto option = sample_options_[opt_idx];
 
-    // printf("sample %d : option number %d\n", ws->data_idx(), opt_idx);
     if (option.no_crop()) {
-      // printf("sample %d : no crop\n", ws->data_idx());
       // copy directly to output without modification
       ws->Output<CPUBackend>(0)->Copy(img, 0);
       ws->Output<CPUBackend>(1)->Copy(bboxes, 0);
       ws->Output<CPUBackend>(2)->Copy(labels, 0);
-      // printf("Boxes - %ld\n", N);
       return;
     }
 
@@ -225,7 +215,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
       // aspect ratio check
       if ((w / h < 0.5) || (w / h > 2.)) {
-        // printf("FAILED ASPECT CHECK (%f, %f)\n", w, h);
         continue;
       }
 
@@ -242,8 +231,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       crop_ptr[2] = right;
       crop_ptr[3] = bottom;
 
-      // printf("crop: [%f, %f, %f, %f]\n", left, top, right, bottom);
-
       // returns ious : [N, M]
 
       Tensor<CPUBackend> ious = detail::cpu_iou(bboxes, crop_attempt);
@@ -257,7 +244,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       }
       // generate a new crop
       if (fail) {
-        // printf("FAILED IoU CHECK\n");
         continue;
       }
 
@@ -269,8 +255,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
         auto xc = 0.5*(bbox[0] + bbox[2]);
         auto yc = 0.5*(bbox[1] + bbox[3]);
 
-        // printf("Debuging data: %f %f %f %f %f %f\n", left, right, top, bottom, xc, yc);
-
         bool valid = (xc > left) && (xc < right) && (yc > top) && (yc < bottom);
         if (valid) {
           mask.push_back(j);
@@ -279,7 +263,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       }
       // If we don't have any valid boxes, generate a new crop
       if (!valid_bboxes) {
-        // printf("FAILED BBOXES CHECK\n");
         continue;
       }
 
@@ -317,7 +300,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
         for (int k = 0; k < 4; ++k) {
           bbox_o[k] = (bbox_o[k] - minus[k]) / scale[k];
         }
-        // printf("Boxes - from %ld to %d\n", N, valid_bboxes);
       }  // end bbox copy
 
       // everything is good, generate the crop parameters
@@ -330,7 +312,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       detail::crop(img, {left_idx, top_idx, right_idx, bottom_idx},
                    ws->Output<CPUBackend>(0));
 
-      // printf("sample: %d, mode: %d", ws->data_idx(), opt_idx);
       return;
     }  // end num_attempts loop
   }  // end sample loop
