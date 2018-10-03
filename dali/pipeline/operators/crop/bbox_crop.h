@@ -34,48 +34,56 @@ class BBoxCrop : public Operator<CPUBackend> {
  protected:
   struct Bounds {
     explicit Bounds(std::vector<float> &&bounds)
-        : min_(bounds[0]), max_(bounds[1]) {
-      DALI_ENFORCE(min_ >= 0, "Min should be at least 0.0. Received: " +
-                                  std::to_string(min_));
+        : min(bounds[0]), max(bounds[1]) {
+      DALI_ENFORCE(min >= 0, "Min should be at least 0.0. Received: " +
+                                 std::to_string(min));
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
-      DALI_ENFORCE(min_ <= max_, "Bounds should be provided as: [min, max]");
+      DALI_ENFORCE(min <= max, "Bounds should be provided as: [min, max]");
     }
 
-    bool Contains(float k) const { return k >= min_ && k <= max_; }
+    bool Contains(float k) const { return k >= min && k <= max; }
 
-    const float min_, max_;
+    const float min, max;
   };
 
   struct Rectangle {
     explicit Rectangle(float left, float top, float right, float bottom)
-        : left_(left),
-          top_(top),
-          right_(right),
-          bottom_(bottom),
-          area_(right * bottom) {}
+        : left(left),
+          top(top),
+          right(right),
+          bottom(bottom),
+          area(right * bottom) {}
 
     bool Contains(float x, float y) const {
-      return x >= left_ && (x - left_) <= right_ && y >= top_ &&
-             (y - top_) <= bottom_;
+      return x >= left && (x - left) <= right && y >= top &&
+             (y - top) <= bottom;
     }
 
     Rectangle ClampTo(const Rectangle &other) const {
-      const auto left = std::max(other.left_, left_);
-      const auto top = std::max(other.top_, top_);
-      const auto right = std::min(other.right_, right_);
-      const auto bottom = std::min(other.bottom_, bottom_);
+      const auto left = std::max(other.left, left);
+      const auto top = std::max(other.top, top);
+      const auto right = std::min(other.right, right);
+      const auto bottom = std::min(other.bottom, bottom);
 
       return Rectangle(left, top, right, bottom);
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
-      const float intersection_area = this->ClampTo(other).area_;
+      if (Overlaps(other)) {
+        const float intersection_area = this->ClampTo(other).area;
 
-      return intersection_area /
-             static_cast<float>(area_ + other.area_ - intersection_area);
+        return intersection_area /
+               static_cast<float>(area + other.area - intersection_area);
+      }
+      return 0.0f;
     }
 
-    const float left_, top_, right_, bottom_, area_;
+    bool Overlaps(const Rectangle &other) {
+      return left < other.right && right > other.left && top > other.bottom &&
+             bottom < other.top;
+    }
+
+    const float left, top, right, bottom, area;
   };
 
   using Crop = Rectangle;
@@ -126,16 +134,16 @@ class BBoxCrop : public Operator<CPUBackend> {
     anchor_out->Resize({2});
 
     auto *anchor_out_data = anchor_out->mutable_data<float>();
-    anchor_out_data[0] = crop.left_;
-    anchor_out_data[1] = crop.top_;
+    anchor_out_data[0] = crop.left;
+    anchor_out_data[1] = crop.top;
 
     // Copy the offsets to output 1
     auto *offsets_out = ws->Output<CPUBackend>(1);
     offsets_out->Resize({2});
 
     auto *offsets_out_data = offsets_out->mutable_data<float>();
-    offsets_out_data[0] = crop.right_ - crop.left_;
-    offsets_out_data[1] = crop.bottom_ - crop.top_;
+    offsets_out_data[0] = crop.right - crop.left;
+    offsets_out_data[1] = crop.bottom - crop.top;
   }
 
   void WriteBoxesToOutput(SampleWorkspace *ws,
@@ -146,10 +154,10 @@ class BBoxCrop : public Operator<CPUBackend> {
     auto *bbox_out_data = bbox_out->mutable_data<float>();
     for (size_t i = 0; i < bounding_boxes.size(); ++i) {
       auto *output = bbox_out_data + i * kBboxSize;
-      output[0] = bounding_boxes[i].left_;
-      output[1] = bounding_boxes[i].top_;
-      output[2] = bounding_boxes[i].right_;
-      output[3] = bounding_boxes[i].bottom_;
+      output[0] = bounding_boxes[i].left;
+      output[1] = bounding_boxes[i].top;
+      output[2] = bounding_boxes[i].right;
+      output[3] = bounding_boxes[i].bottom;
     }
   }
 
@@ -159,8 +167,8 @@ class BBoxCrop : public Operator<CPUBackend> {
   }
 
   float Rescale(unsigned int k) {
-    static std::uniform_real_distribution<> sampler(scaling_bounds_.min_,
-                                                    scaling_bounds_.max_);
+    static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
+                                                    scaling_bounds_.max);
     return sampler(rd_) * k;
   }
 
