@@ -38,15 +38,15 @@ constexpr int kTestDataSize = 10;
 /**
  * Test data for BbFlip operator. Data consists of:
  * 0 -> reference data input
- * 1 -> reference data horizontally flipped
- * 2 -> reference data vertically flipped
+ * 1 -> reference data vertically flipped
+ * 2 -> reference data horizontally flipped
  */
 using TestData = std::array<std::tuple<Roi, Roi, Roi>, kTestDataSize>;
 
 constexpr TestData wh_rois{
         {
                 std::tuple<Roi, Roi, Roi>{{.2, .2, .4, .3},
-                                          {.4, .2, .4, .3},
+                                          {.4, .3, .4, .3},
                                           {.2, .5, .4, .3}},
                 std::tuple<Roi, Roi, Roi>{{.0, .0, .5, .5},
                                           {.5, .0, .5, .5},
@@ -100,8 +100,8 @@ constexpr TestData two_pt_rois{
                                           {.5, .4, .6, .5}},
                 std::tuple<Roi, Roi, Roi>{{.0, .6, .7, .9},
                                           {.3, .6, 1., .9},
-                                          {.0, .0, .7, .4}},
-                std::tuple<Roi, Roi, Roi>{{.6, .2, .3, .3},
+                                          {.0, .1, .7, .4}},
+                std::tuple<Roi, Roi, Roi>{{.6, .2, .9, .5},
                                           {.1, .2, .4, .5},
                                           {.6, .5, .9, .8}},
                 std::tuple<Roi, Roi, Roi>{{.4, .3, .9, .8},
@@ -182,8 +182,8 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
     flip_type_horizontal_ = horizontal;
     return OpSpec("BbFlip")
             .AddArg("coordinates_type", wh_coordinates_type)
-            .AddArg("vertical", vertical)
-            .AddArg("horizontal", horizontal)
+            .AddArg("vertical", vertical ? 1 : 0)
+            .AddArg("horizontal", horizontal ? 1 : 0)
             .AddInput("bb_input", "cpu")
             .AddOutput("bb_output", "cpu");
   }

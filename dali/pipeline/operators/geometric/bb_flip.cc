@@ -17,6 +17,10 @@
 
 namespace dali {
 
+const std::string kCoordinatesTypeArgName = "coordinates_type";  //NOLINT
+const std::string kHorizontalArgName = "horizontal";  //NOLINT
+const std::string kVerticalArgName = "vertical";  //NOLINT
+
 
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
 
@@ -28,32 +32,23 @@ DALI_SCHEMA(BbFlip)
                                in the image coordinate system (i.e. 0.0-1.0))code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg("coordinates_type",
+                .AddOptionalArg(kCoordinatesTypeArgName,
                                 R"code(True, for width-height representation.
                                 False for two-point (ltrb) representation. Default: True)code",
                                 true, false)
-                .AddOptionalArg("horizontal",
+                .AddOptionalArg(kHorizontalArgName,
                                 R"code(Perform flip along horizontal axis. Default: 1)code",
                                 1, true)
-                .AddOptionalArg("vertical",
+                .AddOptionalArg(kVerticalArgName,
                                 R"code(Perform flip along vertical axis. Default: 0)code",
                                 0, true);
 
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
-        coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")) {
-
-  vflip_is_tensor_ = spec.HasTensorArgument("vertical");
-  hflip_is_tensor_ = spec.HasTensorArgument("horizontal");
-
-  if (!vflip_is_tensor_) {
-    ExtendScalarToTensor<int>("vertical", spec, &flip_type_vertical_);
-  }
-
-  if (!hflip_is_tensor_) {
-    ExtendScalarToTensor<int>("horizontal", spec, &flip_type_horizontal_);
-  }
+        coordinates_type_wh_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
+  vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
+  hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
 
 
@@ -61,7 +56,7 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
-  DALI_ENFORCE(input.shape()[1] == kBbTypeSize, "Bounding box in wrong format");
+  DALI_ENFORCE(input.shape()[0] == kBbTypeSize, "Bounding box in wrong format");
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
   DALI_ENFORCE([](const float *data, size_t size) -> bool {
@@ -82,21 +77,29 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
       return true;
   }(input_data, input.size(), coordinates_type_wh_), "Incorrect width or height");
 
- int vertical;
- int index = ws->data_idx();
- if (vflip_is_tensor_) {
-    vertical = spec_.GetArgument<int>("vertical", ws, index);
-  }
-  else {
-    vertical = flip_type_vertical_.data<int>()[index];
+  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_wh) -> bool {
+      if (coors_type_wh) return true;  // Assert not applicable for wh representation
+      for (size_t i = 0; i < size; i += 4) {
+        if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
+          return false;
+        }
+      }
+      return true;
+  }(input_data, input.size(), coordinates_type_wh_), "Incorrect first or second point");
+
+  int vertical;
+  int index = ws->data_idx();
+  if (vflip_is_tensor_) {
+    vertical = spec_.GetArgument<int>(kVerticalArgName, ws, index);
+  } else {
+    vertical = spec_.GetArgument<int>(kVerticalArgName);
   }
 
   int horizontal;
   if (hflip_is_tensor_) {
-    horizontal = spec_.GetArgument<int>("horizontal", ws, index);
-  }
-  else {
-    horizontal = flip_type_horizontal_.data<int>()[index];
+    horizontal = spec_.GetArgument<int>(kHorizontalArgName, ws, index);
+  } else {
+    horizontal = spec_.GetArgument<int>(kHorizontalArgName);
   }
 
   auto *output = ws->Output<CPUBackend>(idx);
@@ -109,14 +112,14 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   auto output_data = output->mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-
-    const auto x = input_data[i  ];
+    const auto x = input_data[i];
     const auto y = input_data[i + 1];
-    const auto w = coordinates_type_wh_ ? input_data[i + 2] : input_data[i + 2] - input_data[i    ];
-    const auto h = coordinates_type_wh_ ? input_data[i + 3] : input_data[i + 3] - input_data[i + 1];
+    const auto w = coordinates_type_wh_ ? input_data[i + 2] : input_data[i + 2] - input_data[i];
+    const auto h = coordinates_type_wh_ ? input_data[i + 3] : input_data[i + 3] -
+                                                              input_data[i + 1];
 
-    output_data[i    ] = horizontal ? (1.0f - x) - w : x;
-    output_data[i + 1] = vertical ? (1.0f - y) - h : y;
+    output_data[i] = vertical ? (1.0f - x) - w : x;
+    output_data[i + 1] = horizontal ? (1.0f - y) - h : y;
     output_data[i + 2] = coordinates_type_wh_ ? w : output_data[0] + w;
     output_data[i + 3] = coordinates_type_wh_ ? h : output_data[1] + h;
   }
