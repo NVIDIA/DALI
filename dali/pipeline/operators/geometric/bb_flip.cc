@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
+#include "bb_flip.h"
+
 
 namespace dali {
 
@@ -31,22 +33,22 @@ DALI_SCHEMA(BbFlip)
                                 R"code(True, for width-height representation.
                                 False for two-point (ltrb) representation. Default: True)code",
                                 true, false)
-                .AddOptionalArg("flip_type",
-                                R"code(True, for vertical flip (along vertical axis).
-                                False for horizontal flip. Default: True)code",
-                                true, false)
-                .AddOptionalArg("on_off_switch",
-                                R"code(Turns the operator on (True) and off (False).
-                                Main purpose of this argument is to implement
-                                randomness inside operation. Default value: True)code",
-                                true, true);
+                .AddOptionalArg("horizontal",
+                                R"code(Perform flip along horizontal axis. Default: False)code",
+                                false, true)
+                .AddOptionalArg("vertical",
+                                R"code(Perform flip along vertical axis. Default: False)code",
+                                false, true);
 
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
-        coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")),
-        flip_type_vertical_(spec.GetArgument<bool>("flip_type")),
-        on_off_switch_(spec.GetArgument<bool>("on_off_switch")) {
+        coordinates_type_wh_(spec.GetArgument<bool>("coordinates_type")) {
+  DALI_ENFORCE(spec.HasTensorArgument("vertical") == spec.HasTensorArgument("horizontal"),
+               "When specifying tensors, do it for both arguments");
+
+  TryExtendScalarToTensor<bool>("vertical", spec, flip_type_vertical_);
+  TryExtendScalarToTensor<bool>("horizontal", spec, flip_type_horizontal_);
 }
 
 
@@ -75,6 +77,8 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
       return true;
   }(input_data, input.size(), coordinates_type_wh_), "Incorrect width or height");
 
+  auto vertical = flip_type_vertical_.data<bool>()[idx];
+  auto horizontal = flip_type_horizontal_.data<bool>()[idx];
 
   auto output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
@@ -85,21 +89,16 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   output->Resize({kBbTypeSize});
   auto output_data = output->mutable_data<float>();
 
-  if (on_off_switch_) {
-    const auto x = input_data[0];
-    const auto y = input_data[1];
-    const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
-    const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
+  const auto x = input_data[0];
+  const auto y = input_data[1];
+  const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
+  const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
 
-    output_data[0] = flip_type_vertical_ ? (1.0f - x) - w : x;
-    output_data[1] = flip_type_vertical_ ? y : (1.0f - y) - h;
-    output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
-    output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
-  } else {
-    for (int i = 0; i < kBbTypeSize; i++) {
-      output_data[i] = input_data[i];
-    }
-  }
+  output_data[0] = vertical ? (1.0f - x) - w : x;
+  output_data[1] = horizontal ? (1.0f - y) - h : y;
+  output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
+  output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
 }
+
 
 }  // namespace dali
