@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
-#include "bb_flip.h"
 
 
 namespace dali {

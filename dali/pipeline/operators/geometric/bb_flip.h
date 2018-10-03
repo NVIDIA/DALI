@@ -17,6 +17,7 @@
 
 #include <dali/pipeline/operators/operator.h>
 #include <dali/pipeline/operators/common.h>
+#include <string>
 
 namespace dali {
 
@@ -31,7 +32,6 @@ class BbFlip : public Operator<CPUBackend> {
   void RunImpl(SampleWorkspace *ws, const int idx) override;
 
  private:
-
   /**
    * Checks, if argument provided by user is a scalar and,
    * in such case, extends this scalar to entire tensor
@@ -39,11 +39,11 @@ class BbFlip : public Operator<CPUBackend> {
    */
   template<typename TensorDataType>
   void TryExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
-                               Tensor<CPUBackend> &tensor) {
+                               Tensor<CPUBackend> *tensor) {
     if (!spec.HasTensorArgument(argument_name)) {
-      tensor.Resize({batch_size_});
+      tensor->Resize({batch_size_});
       for (int i = 0; i < batch_size_; i++) {
-        tensor.mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
+        tensor->mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
       }
     }
   }
