@@ -178,7 +178,6 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 
 
   const OpSpec GetOperatorSpec(bool wh_coordinates_type, bool vertical, bool horizontal) noexcept {
-    DALI_ENFORCE(test_data_, "Data has not been loaded yet. Call LoadBbData(...)");
     flip_type_vertical_ = vertical;
     flip_type_horizontal_ = horizontal;
     return OpSpec("BbFlip")

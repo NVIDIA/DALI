@@ -33,11 +33,11 @@ DALI_SCHEMA(BbFlip)
                                 False for two-point (ltrb) representation. Default: True)code",
                                 true, false)
                 .AddOptionalArg("horizontal",
-                                R"code(Perform flip along horizontal axis. Default: False)code",
-                                false, true)
+                                R"code(Perform flip along horizontal axis. Default: 1)code",
+                                1, true)
                 .AddOptionalArg("vertical",
-                                R"code(Perform flip along vertical axis. Default: False)code",
-                                false, true);
+                                R"code(Perform flip along vertical axis. Default: 0)code",
+                                0, true);
 
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
@@ -48,11 +48,11 @@ BbFlip::BbFlip(const dali::OpSpec &spec) :
   hflip_is_tensor_ = spec.HasTensorArgument("horizontal");
 
   if (!vflip_is_tensor_) {
-    ExtendScalarToTensor<bool>("vertical", spec, &flip_type_vertical_);
+    ExtendScalarToTensor<int>("vertical", spec, &flip_type_vertical_);
   }
 
   if (!hflip_is_tensor_) {
-    ExtendScalarToTensor<bool>("horizontal", spec, &flip_type_horizontal_);
+    ExtendScalarToTensor<int>("horizontal", spec, &flip_type_horizontal_);
   }
 }
 
@@ -61,17 +61,7 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
-  if (vflip_is_tensor_) {
-    const Tensor<CPUBackend> &inp = ws->ArgumentInput("vertical");
-    flip_type_vertical_.Copy(inp, ws->stream());
-  }
-
-  if (hflip_is_tensor_) {
-    const Tensor<CPUBackend> &inp = ws->ArgumentInput("horizontal");
-    flip_type_horizontal_.Copy(inp, ws->stream());
-  }
-
-  DALI_ENFORCE(input.size() == kBbTypeSize, "Bounding box in wrong format");
+  DALI_ENFORCE(input.shape()[1] == kBbTypeSize, "Bounding box in wrong format");
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
   DALI_ENFORCE([](const float *data, size_t size) -> bool {
@@ -92,27 +82,44 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
       return true;
   }(input_data, input.size(), coordinates_type_wh_), "Incorrect width or height");
 
-  auto vertical = flip_type_vertical_.data<bool>()[idx];
-  auto horizontal = flip_type_horizontal_.data<bool>()[idx];
+ int vertical;
+ int index = ws->data_idx();
+ if (vflip_is_tensor_) {
+    vertical = spec_.GetArgument<int>("vertical", ws, index);
+  }
+  else {
+    vertical = flip_type_vertical_.data<int>()[index];
+  }
 
-  auto output = ws->Output<CPUBackend>(idx);
+  int horizontal;
+  if (hflip_is_tensor_) {
+    horizontal = spec_.GetArgument<int>("horizontal", ws, index);
+  }
+  else {
+    horizontal = flip_type_horizontal_.data<int>()[index];
+  }
+
+  auto *output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
   //      explicitly is required for further processing
   //      It can also be achieved with mutable_data<>()
   //      function.
   output->set_type(TypeInfo::Create<float>());
-  output->Resize({kBbTypeSize});
+  output->ResizeLike(input);
   auto output_data = output->mutable_data<float>();
 
-  const auto x = input_data[0];
-  const auto y = input_data[1];
-  const auto w = coordinates_type_wh_ ? input_data[2] : input_data[2] - input_data[0];
-  const auto h = coordinates_type_wh_ ? input_data[3] : input_data[3] - input_data[1];
+  for (int i = 0; i < input.size(); i += 4) {
 
-  output_data[0] = vertical ? (1.0f - x) - w : x;
-  output_data[1] = horizontal ? (1.0f - y) - h : y;
-  output_data[2] = coordinates_type_wh_ ? w : output_data[0] + w;
-  output_data[3] = coordinates_type_wh_ ? h : output_data[1] + h;
+    const auto x = input_data[i  ];
+    const auto y = input_data[i + 1];
+    const auto w = coordinates_type_wh_ ? input_data[i + 2] : input_data[i + 2] - input_data[i    ];
+    const auto h = coordinates_type_wh_ ? input_data[i + 3] : input_data[i + 3] - input_data[i + 1];
+
+    output_data[i    ] = horizontal ? (1.0f - x) - w : x;
+    output_data[i + 1] = vertical ? (1.0f - y) - h : y;
+    output_data[i + 2] = coordinates_type_wh_ ? w : output_data[0] + w;
+    output_data[i + 3] = coordinates_type_wh_ ? h : output_data[1] + h;
+  }
 }
 
 
