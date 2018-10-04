@@ -142,6 +142,11 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
  *    (specified in class, that extends DALISingleOpTest)
  * 3. Compares result to reference solution (also specified in subclass)
  *
+ * Pipeline does the following:
+ * 1. Sets input data
+ * 2. Runs operator (specified in RunOperator) on CPU & GPU
+ * 3. Returns output data
+ *
  * Example usage is to overload Reference(...) function in subclass,
  * which has access to input data. The function should return batch of
  * reference data, calculated for given input data. Following, define
