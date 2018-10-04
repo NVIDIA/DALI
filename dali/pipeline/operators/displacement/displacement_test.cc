@@ -52,8 +52,8 @@ TYPED_TEST(DisplacementTest, Rotate) {
 }
 
 TYPED_TEST(DisplacementTest, Flip) {
-  const OpArg params[] = {{"horizontal", "True", DALI_BOOL},
-                          {"vertical", "True", DALI_BOOL}};
+  const OpArg params[] = {{"horizontal", "1", DALI_INT32},
+                          {"vertical", "1", DALI_INT32}};
   this->RunTest("Flip", params, 2);
 }
 

@@ -34,10 +34,10 @@ DALI_SCHEMA(COCOReader)
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddOptionalArg("ltrb",
-      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
+      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. Default: False)code",
       false)
   .AddOptionalArg("ratio",
-      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
+      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height. Default: False)code",
       false)
   .AddParent("LoaderBase");
 
