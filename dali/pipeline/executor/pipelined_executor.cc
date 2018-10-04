@@ -63,7 +63,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
           found_stage_boundary = true;
         }
       }
-      if (found_stage_boundary) {
+      if (found_stage_boundary ) {
         OutputInfo info;
         info.prod_and_idx = std::make_pair(node.id, j);
         support_stage_output_info_.push_back(info);
@@ -200,7 +200,8 @@ void PipelinedExecutor::SetStageOutputsForIter(
         wsb->gpu_op_data[child_op_id].SetArgumentInput(
           tvp.Get(queue_idx), arg_name);
       } else {
-          DALI_FAIL("Internal error - found non-mixed/GPU consumer");
+        wsb->cpu_op_data[child_op_id].SetArgumentInput(
+          tvp.Get(queue_idx), arg_name);
       }
     }
   }
