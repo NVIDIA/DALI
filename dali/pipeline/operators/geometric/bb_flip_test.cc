@@ -38,15 +38,15 @@ constexpr int kTestDataSize = 10;
 /**
  * Test data for BbFlip operator. Data consists of:
  * 0 -> reference data input
- * 1 -> reference data vertically flipped
- * 2 -> reference data horizontally flipped
+ * 1 -> reference data horizontally flipped
+ * 2 -> reference data vertically flipped
  */
 using TestData = std::array<std::tuple<Roi, Roi, Roi>, kTestDataSize>;
 
 constexpr TestData wh_rois{
         {
                 std::tuple<Roi, Roi, Roi>{{.2, .2, .4, .3},
-                                          {.4, .3, .4, .3},
+                                          {.4, .2, .4, .3},
                                           {.2, .5, .4, .3}},
                 std::tuple<Roi, Roi, Roi>{{.0, .0, .5, .5},
                                           {.5, .0, .5, .5},
@@ -144,9 +144,9 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
     DALI_ENFORCE(!(flip_type_horizontal_ && flip_type_vertical_), "No test data for combined case");
 
     if (flip_type_vertical_) {
-      InjectTestData<DataType, 1>(*test_data_, batch_data);
-    } else if (flip_type_horizontal_) {
       InjectTestData<DataType, 2>(*test_data_, batch_data);
+    } else if (flip_type_horizontal_) {
+      InjectTestData<DataType, 1>(*test_data_, batch_data);
     } else {
       InjectTestData<DataType, 0>(*test_data_, batch_data);
     }
@@ -177,11 +177,11 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
   }
 
 
-  const OpSpec GetOperatorSpec(bool wh_coordinates_type, bool vertical, bool horizontal) noexcept {
+  const OpSpec GetOperatorSpec(bool ltrb_coordinates_type, bool vertical, bool horizontal) noexcept {
     flip_type_vertical_ = vertical;
     flip_type_horizontal_ = horizontal;
     return OpSpec("BbFlip")
-            .AddArg("coordinates_type", wh_coordinates_type)
+            .AddArg("ltrb", ltrb_coordinates_type)
             .AddArg("vertical", vertical ? 1 : 0)
             .AddArg("horizontal", horizontal ? 1 : 0)
             .AddInput("bb_input", "cpu")
@@ -206,7 +206,7 @@ TYPED_TEST(BbFlipTest, VerticalWHTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->GetOperatorSpec(true, true, false), .01);
+  this->RunOperator(this->GetOperatorSpec(false, true, false), .01);
 }
 
 
@@ -214,7 +214,7 @@ TYPED_TEST(BbFlipTest, Vertical2PTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->GetOperatorSpec(false, true, false), .01);
+  this->RunOperator(this->GetOperatorSpec(true, true, false), .01);
 }
 
 
@@ -222,7 +222,7 @@ TYPED_TEST(BbFlipTest, HorizontalWHTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->GetOperatorSpec(true, false, true), .01);
+  this->RunOperator(this->GetOperatorSpec(false, false, true), .01);
 }
 
 
@@ -230,7 +230,7 @@ TYPED_TEST(BbFlipTest, Horizontal2PTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->GetOperatorSpec(false, false, true), .01);
+  this->RunOperator(this->GetOperatorSpec(true, false, true), .01);
 }
 
 
@@ -238,7 +238,7 @@ TYPED_TEST(BbFlipTest, NoFlipTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
-  this->RunOperator(this->GetOperatorSpec(true, false, false), .01);
+  this->RunOperator(this->GetOperatorSpec(false, false, false), .01);
 }
 
 }  // namespace dali

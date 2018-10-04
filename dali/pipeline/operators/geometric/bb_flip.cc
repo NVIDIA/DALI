@@ -17,7 +17,7 @@
 
 namespace dali {
 
-const std::string kCoordinatesTypeArgName = "coordinates_type";  //NOLINT
+const std::string kCoordinatesTypeArgName = "ltrb";  //NOLINT
 const std::string kHorizontalArgName = "horizontal";  //NOLINT
 const std::string kVerticalArgName = "vertical";  //NOLINT
 
@@ -33,9 +33,9 @@ DALI_SCHEMA(BbFlip)
                 .NumInput(1)
                 .NumOutput(1)
                 .AddOptionalArg(kCoordinatesTypeArgName,
-                                R"code(True, for width-height representation.
-                                False for two-point (ltrb) representation. Default: True)code",
-                                true, false)
+                                R"code(True, for two-point (ltrb).
+                                False for for width-height representation. Default: False)code",
+                                false, false)
                 .AddOptionalArg(kHorizontalArgName,
                                 R"code(Perform flip along horizontal axis. Default: 1)code",
                                 1, true)
@@ -46,7 +46,7 @@ DALI_SCHEMA(BbFlip)
 
 BbFlip::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
-        coordinates_type_wh_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
+        coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
@@ -66,25 +66,25 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
       return true;
   }(input_data, input.size()), "Not all bounding box parameters are in [0.0, 1.0]");
 
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_wh) -> bool {
-      if (!coors_type_wh) return true;  // Assert not applicable for 2-point representation
+  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
+      if (coors_type_ltrb) return true;  // Assert not applicable for 2-point representation
       for (size_t i = 0; i < size; i += 4) {
         if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
           return false;
         }
       }
       return true;
-  }(input_data, input.size(), coordinates_type_wh_), "Incorrect width or height");
+  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect width or height");
 
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_wh) -> bool {
-      if (coors_type_wh) return true;  // Assert not applicable for wh representation
+  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
+      if (!coors_type_ltrb) return true;  // Assert not applicable for wh representation
       for (size_t i = 0; i < size; i += 4) {
         if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
           return false;
         }
       }
       return true;
-  }(input_data, input.size(), coordinates_type_wh_), "Incorrect first or second point");
+  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect first or second point");
 
   int vertical;
   int index = ws->data_idx();
@@ -113,14 +113,14 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   for (int i = 0; i < input.size(); i += 4) {
     const auto x = input_data[i];
     const auto y = input_data[i + 1];
-    const auto w = coordinates_type_wh_ ? input_data[i + 2] : input_data[i + 2] - input_data[i];
-    const auto h = coordinates_type_wh_ ? input_data[i + 3] : input_data[i + 3] -
+    const auto w = !coordinates_type_ltrb_ ? input_data[i + 2] : input_data[i + 2] - input_data[i];
+    const auto h = !coordinates_type_ltrb_ ? input_data[i + 3] : input_data[i + 3] -
                                                               input_data[i + 1];
 
-    output_data[i] = vertical ? (1.0f - x) - w : x;
-    output_data[i + 1] = horizontal ? (1.0f - y) - h : y;
-    output_data[i + 2] = coordinates_type_wh_ ? w : output_data[0] + w;
-    output_data[i + 3] = coordinates_type_wh_ ? h : output_data[1] + h;
+    output_data[i] = horizontal ? (1.0f - x) - w : x;
+    output_data[i + 1] = vertical ? (1.0f - y) - h : y;
+    output_data[i + 2] = !coordinates_type_ltrb_ ? w : output_data[0] + w;
+    output_data[i + 3] = !coordinates_type_ltrb_ ? h : output_data[1] + h;
   }
 }
 
