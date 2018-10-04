@@ -48,14 +48,10 @@ template <typename T>
     const int idx = 0;
 #endif
 
-    Point<T> p;
-    const int newX = rnd_.rand(idx) % degr - nHalf + x;
-    const int newY = rnd_.rand(idx) % degr - nHalf + y;
+    const T newX = rnd_.rand(idx) % degr - nHalf + x;
+    const T newY = rnd_.rand(idx) % degr - nHalf + y;
 
-    p.x = newX >= 0 && newX < W ? newX : -1;
-    p.y = newY >= 0 && newY < H ? newY : -1;
-
-    return p;
+    return CreatePointLimited(newX, newY, W, H);
   }
 
   void Cleanup() {
