@@ -177,7 +177,8 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
   }
 
 
-  const OpSpec GetOperatorSpec(bool ltrb_coordinates_type, bool vertical, bool horizontal) noexcept {
+  const OpSpec GetOperatorSpec(bool ltrb_coordinates_type,
+                               bool vertical, bool horizontal) noexcept {
     flip_type_vertical_ = vertical;
     flip_type_horizontal_ = horizontal;
     return OpSpec("BbFlip")
