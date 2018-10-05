@@ -30,8 +30,8 @@ class FlipAugment : public WarpAffineAugment {
   }
 
   void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
-    float horizontal = (spec.GetArgument<bool>("horizontal", ws, index)) ? -1.0 : 1.0;
-    float vertical = (spec.GetArgument<bool>("vertical", ws, index)) ? -1.0 : 1.0;
+    float horizontal = (spec.GetArgument<int>("horizontal", ws, index)) ? -1.0 : 1.0;
+    float vertical = (spec.GetArgument<int>("vertical", ws, index)) ? -1.0 : 1.0;
     p->matrix[0] = 1.0 * horizontal;
     p->matrix[1] = 0.0;
     p->matrix[2] = 0.0;

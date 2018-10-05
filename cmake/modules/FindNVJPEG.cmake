@@ -13,11 +13,11 @@
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
 find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
-    PATHS ${NVJPEG_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} "/usr/local/cuda"
     PATH_SUFFIXES include)
 
 find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
-    PATHS ${NVJPEG_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} "/usr/local/cuda"
     PATH_SUFFIXES lib lib64)
 
 # nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which

@@ -122,17 +122,26 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
 }
 
 
-// Define a virtual base class for single operator tests,
-// where we want to add a single operator to a pipeline,
-// run the pipe using known data, and compare the result to
-// a reference solution.
-//
-// Implementaions must define:
-//  OpSpec AddOp() - definition of the operator
-//  void SetInputs() - define all external inputs to the graph
-//  void GetOutputs() - retrieve all testable outputs from the graph
-//  bool Compare() - Compare against a (supplied) reference implementation
-template <typename ImgType>
+/**
+ * Virtual base class for single operator tests.
+ * 1. Adds single operator to pipeline
+ * 2. Runs the pipe using known data
+ *    (specified in class, that extends DALISingleOpTest)
+ * 3. Compares result to reference solution (also specified in subclass)
+ *
+ * Pipeline does the following:
+ * 1. Sets input data
+ * 2. Runs operator (specified in RunOperator) on CPU & GPU
+ * 3. Returns output data
+ *
+ * Example usage is to overload Reference(...) function in subclass,
+ * which has access to input data. The function should return batch of
+ * reference data, calculated for given input data. Following, define
+ * a TYPED_TEST case, where you set test conditions (at least SetExternalInputs
+ * to set up input data) and run operator, using one of RunOperator overloads.
+ * @tparam ImgType @see DALIImageType
+ */
+template<typename ImgType>
 class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {

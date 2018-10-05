@@ -71,7 +71,10 @@ class DALIGenericIterator(object):
     label_name : str, optional, default = 'softmax_label'
                  Label name for provided symbols.
     data_layout : str, optional, default = 'NCHW'
-                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs
+                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
+    fill_last_batch : bool, optional, default = True
+                      Whether to fill the last batch with the data from the
+                      next epoch.
     """
     def __init__(self,
                  pipelines,
@@ -79,14 +82,16 @@ class DALIGenericIterator(object):
                  size,
                  data_name='data',
                  label_name='softmax_label',
-                 data_layout='NCHW'):
+                 data_layout='NCHW',
+                 fill_last_batch=True):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self.batch_size = pipelines[0].batch_size
-        self._size = size
+        self._size = int(size)
         self._pipes = pipelines
+        self._fill_last_batch = fill_last_batch
         # Build all pipelines
         for p in self._pipes:
             p.build()
@@ -160,6 +165,22 @@ class DALIGenericIterator(object):
         # Change index for double buffering
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
+
+        # padding the last batch
+        if (not self._fill_last_batch) and (self._counter > self._size):
+                # this is the last batch and we need to pad
+                overflow = self._counter - self._size
+                overflow_per_device = overflow // self._num_gpus
+                difference = self._num_gpus - (overflow % self._num_gpus)
+                for i in range(self._num_gpus):
+                    if i < difference:
+                        self._data_batches[i][copy_db_index].pad = overflow_per_device
+                    else:
+                        self._data_batches[i][copy_db_index].pad = overflow_per_device + 1
+        else:
+            for db in self._data_batches:
+                db[copy_db_index].pad = 0
+
         return [db[copy_db_index] for db in self._data_batches]
 
     def next(self):
@@ -178,7 +199,10 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size:
-            self._counter = self._counter % self._size
+            if self._fill_last_batch:
+                self._counter = self._counter % self._size
+            else:
+                self._counter = 0
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
@@ -213,14 +237,20 @@ class DALIClassificationIterator(DALIGenericIterator):
     label_name : str, optional, default = 'softmax_label'
                  Label name for provided symbols.
     data_layout : str, optional, default = 'NCHW'
-                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs
+                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
+    fill_last_batch : bool, optional, default = True
+                      Whether to fill the last batch with the data from the
+                      next epoch.
     """
     def __init__(self,
                  pipelines,
                  size,
                  data_name='data',
                  label_name='softmax_label',
-                 data_layout='NCHW'):
-        super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size, data_name, label_name,
-                                                         data_layout)
+                 data_layout='NCHW',
+                 fill_last_batch=True):
+        super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"], size,
+                                                         data_name       = data_name,
+                                                         label_name      = label_name,
+                                                         data_layout     = data_layout,
+                                                         fill_last_batch = fill_last_batch)

@@ -15,6 +15,7 @@
 add_subdirectory(color)
 add_subdirectory(crop)
 add_subdirectory(decoder)
+add_subdirectory(detection)
 add_subdirectory(displacement)
 add_subdirectory(fused)
 add_subdirectory(reader)
@@ -22,6 +23,7 @@ add_subdirectory(resize)
 add_subdirectory(support)
 add_subdirectory(util)
 add_subdirectory(paste)
+add_subdirectory(geometric)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)

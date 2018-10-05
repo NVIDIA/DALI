@@ -17,8 +17,8 @@
 
 #include <string>
 
-#include "dali/pipeline/dali.pb.h"
 #include "dali/common.h"
+#include "dali/pipeline/proto/dali_proto_intern.h"
 
 namespace dali {
 
@@ -45,7 +45,7 @@ inline auto serialize_type(const T& t)
 }
 
 #define SERIALIZE_ARGUMENT(type, field)                               \
-inline dali_proto::Argument * SerializeToProtobuf(const type& t, dali_proto::Argument *arg) {  \
+inline DaliProtoPriv * SerializeToProtobuf(const type& t, DaliProtoPriv *arg) {  \
   arg->set_type(serialize_type(t));                                   \
   arg->set_is_vector(false);                                          \
   arg->add_##field(t);                                      \
@@ -53,7 +53,7 @@ inline dali_proto::Argument * SerializeToProtobuf(const type& t, dali_proto::Arg
 }
 
 #define SERIALIZE_ARGUMENT_AS_INT64(type) \
-inline dali_proto::Argument * SerializeToProtobuf(const type& t, dali_proto::Argument *arg) { \
+inline DaliProtoPriv * SerializeToProtobuf(const type& t, DaliProtoPriv *arg) { \
   return dali::SerializeToProtobuf(static_cast<int64>(t), arg); \
 }
 
@@ -67,7 +67,7 @@ SERIALIZE_ARGUMENT_AS_INT64(unsigned int);
 SERIALIZE_ARGUMENT_AS_INT64(uint64);
 
 template<typename T>
-inline auto SerializeToProtobuf(const T& t, dali_proto::Argument *arg)
+inline auto SerializeToProtobuf(const T& t, DaliProtoPriv *arg)
   -> decltype(t.SerializeToProtobuf(arg)) {
     return t.SerializeToProtobuf(arg);
 }

@@ -41,8 +41,25 @@ struct HasParam <T, decltype((void) (typename T::Param()), 0)> : std::true_type 
 
 template <typename T>
 struct Point {
-  T x, y;
+  const T x, y;
+  Point() = delete;
+
+  template <typename U>
+  Point<U> Cast() {
+    return {static_cast<U>(x), static_cast<U>(y)};
+  }
 };
+
+template <typename T>
+DISPLACEMENT_IMPL
+T ToValidCoord(T coord, Index limit) {
+  return coord >= 0 && coord < limit ? coord : -1;
+}
+template <typename T>
+DISPLACEMENT_IMPL
+Point<T> CreatePointLimited(T x, T y, Index W, Index H) {
+  return {ToValidCoord(x, W), ToValidCoord(y, H)};
+}
 
 class DisplacementIdentity {
  public:
@@ -53,10 +70,7 @@ class DisplacementIdentity {
   Point<T> operator()(const Index h, const Index w, const Index c,
                       const Index H, const Index W, const Index C) {
     // identity
-    Point<T> p;
-    p.x = w;
-    p.y = h;
-    return p;
+    return {static_cast<T>(w), static_cast<T>(h)};
   }
 
   void Cleanup() {}

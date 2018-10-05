@@ -111,41 +111,41 @@ class Feature {
     return "TFRecord";
   }
 
-  dali_proto::Argument * SerializeToProtobuf(dali_proto::Argument *arg) const {
+  DaliProtoPriv * SerializeToProtobuf(DaliProtoPriv *arg) const {
     arg->set_type(SerializeType());
     arg->set_is_vector(false);
 
     // set the datatype of the record
-    auto *type_arg = arg->add_extra_args();
-    type_arg->set_name("type");
-    dali::SerializeToProtobuf(static_cast<int>(GetType()), type_arg);
+    auto type_arg = arg->add_extra_args();
+    type_arg.set_name("type");
+    dali::SerializeToProtobuf(static_cast<int>(GetType()), &type_arg);
 
     // has_shape
-    auto *has_shape_arg = arg->add_extra_args();
-    has_shape_arg->set_name("has_shape");
-    dali::SerializeToProtobuf(HasShape(), has_shape_arg);
+    auto has_shape_arg = arg->add_extra_args();
+    has_shape_arg.set_name("has_shape");
+    dali::SerializeToProtobuf(HasShape(), &has_shape_arg);
 
     // set the shape
-    auto *shape_arg = arg->add_extra_args();
-    shape_arg->set_name("shape");
-    shape_arg->set_is_vector(false);
+    auto shape_arg = arg->add_extra_args();
+    shape_arg.set_name("shape");
+    shape_arg.set_is_vector(false);
     auto& shape = Shape();
     for (size_t i = 0; i < shape.size(); ++i) {
-      dali::SerializeToProtobuf(shape[i], shape_arg);
+      dali::SerializeToProtobuf(shape[i], &shape_arg);
     }
 
     // set the default value
-    auto *default_arg = arg->add_extra_args();
-    default_arg->set_name("default_value");
+    auto default_arg = arg->add_extra_args();
+    default_arg.set_name("default_value");
     switch (GetType()) {
       case TFUtil::FeatureType::int64:
-        dali::SerializeToProtobuf(GetValue().int64, default_arg);
+        dali::SerializeToProtobuf(GetValue().int64, &default_arg);
         break;
       case TFUtil::FeatureType::string:
-        dali::SerializeToProtobuf(GetValue().str, default_arg);
+        dali::SerializeToProtobuf(GetValue().str, &default_arg);
         break;
       case TFUtil::FeatureType::float32:
-        dali::SerializeToProtobuf(GetValue().float32, default_arg);
+        dali::SerializeToProtobuf(GetValue().float32, &default_arg);
         break;
       default:
         DALI_FAIL("Unknown TFUtil::FeatureType value");
@@ -153,21 +153,21 @@ class Feature {
     return arg;
   }
 
-  static Feature DeserializeFromProtobuf(const dali_proto::Argument& arg) {
+  static Feature DeserializeFromProtobuf(const DaliProtoPriv& arg) {
     // type argument
-    dali_proto::Argument type_arg = arg.extra_args(0);
+    DaliProtoPriv type_arg = arg.extra_args(0);
     TFUtil::FeatureType type = static_cast<TFUtil::FeatureType>(type_arg.ints(0));
 
     // has_shape
-    dali_proto::Argument has_shape_arg = arg.extra_args(1);
+    DaliProtoPriv has_shape_arg = arg.extra_args(1);
     bool has_shape = has_shape_arg.bools(0);
 
     // shape
-    dali_proto::Argument shape_arg = arg.extra_args(2);
-    std::vector<Index> shape{shape_arg.ints().begin(), shape_arg.ints().end()};
+    DaliProtoPriv shape_arg = arg.extra_args(2);
+    const auto shape = shape_arg.ints();
 
     // default value
-    dali_proto::Argument value_arg = arg.extra_args(3);
+    DaliProtoPriv value_arg = arg.extra_args(3);
     TFUtil::Feature::Value val;
     switch (type) {
       case TFUtil::FeatureType::int64:
