@@ -116,9 +116,7 @@ void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
 template<>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   const auto & input = ws->Input<GPUBackend>(0);
-
-  if (output_type_ == DALI_NO_TYPE)
-    output_type_ = input.type().id();
+  CastPermuteAttr::SetupSharedSampleParams(ws);
 
   for (int i = 0; i < batch_size_; ++i)
     SetupSharedSampleParams(ws, input.tensor_shape(i), i, i);
@@ -175,11 +173,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
 template <>
 void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  DataDependentSetup(ws, idx);
-  if (output_type_ == DALI_FLOAT16)
-    RunHelper<float16>(ws, idx);
-  else
-    CallRunHelper(ws, idx);
+  RUN_IMPL_GPU(ws, idx);
 }
 
 // Register operator

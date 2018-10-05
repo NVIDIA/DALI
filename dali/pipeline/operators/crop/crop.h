@@ -18,71 +18,16 @@
 
 #include <vector>
 #include <utility>
-
-#include "dali/common.h"
-#include "dali/error_handling.h"
-#include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/attributes.h"
 
 namespace dali {
-
-class CropAttr {
- protected:
-  explicit inline CropAttr(const OpSpec &spec) :
-    image_type_(spec.GetArgument<DALIImageType>("image_type")),
-    C_(IsColor(image_type_) ? 3 : 1) {
-      if (spec.name() != "Resize") {
-        vector<int>cropTmp;
-        GetSingleOrRepeatedArg(spec, &cropTmp, "crop", 2);
-        crop_[0] = cropTmp[0];
-        crop_[1] = cropTmp[1];
-        DALI_ENFORCE(crop_[0] > 0 && crop_[1] > 0);
-      }
-    }
-
-  std::pair<int, int> SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
-     const Index imgIdx, int H, int W) const {
-    DALI_ENFORCE(H >= crop_[0]);
-    DALI_ENFORCE(W >= crop_[1]);
-
-    const float crop_x_normalized = spec.GetArgument<float>("crop_pos_x", ws, imgIdx);
-    const float crop_y_normalized = spec.GetArgument<float>("crop_pos_y", ws, imgIdx);
-
-    DALI_ENFORCE(crop_y_normalized >= 0.f &&  crop_y_normalized <= 1.f,
-                 "Crop coordinates need to be in range [0.0, 1.0]");
-    DALI_ENFORCE(crop_x_normalized >= 0.f &&  crop_x_normalized <= 1.f,
-                 "Crop coordinates need to be in range [0.0, 1.0]");
-
-    const int crop_y = crop_y_normalized * (H - crop_[0]);
-    const int crop_x = crop_x_normalized * (W - crop_[1]);
-    return std::make_pair(crop_y, crop_x);
-  }
-
-  const vector<Index> CheckShapes(const SampleWorkspace *ws) {
-    const auto &input = ws->Input<CPUBackend>(0);
-
-    // enforce that all shapes match
-    for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-    }
-
-    DALI_ENFORCE(input.shape().size() == 3,
-                 "Expects 3-dimensional image input.");
-
-    return input.shape();
-  }
-
-  // Crop meta-data
-  array<int, 2>crop_ = {{0}};
-
-  const DALIImageType image_type_;
-  const int C_;
-};
 
 template <typename Backend>
 class Crop : public Operator<Backend>, protected CropAttr {
  public:
-  explicit inline Crop(const OpSpec &spec) : Operator<Backend>(spec), CropAttr(spec) {
+  explicit inline Crop(const OpSpec &spec, bool defaultCastPermut = true) :
+                  Operator<Backend>(spec), CropAttr(spec, defaultCastPermut) {
     // Resize per-image data
     crop_offsets_.resize(batch_size_);
     input_ptrs_.Resize({batch_size_});
@@ -148,13 +93,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
   void Init(int size) {
     per_sample_crop_.resize(size);
     per_sample_dimensions_.resize(size);
-    output_type_ = DALI_NO_TYPE;
-    output_layout_ = DALI_SAME;
-  }
-
-  void CallRunHelper(Workspace<Backend> *ws, const int idx) {
-    DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(output_type_, imgType,
-                                      RunHelper<imgType>(ws, idx));
   }
 
   Tensor<CPUBackend> input_ptrs_, input_strides_;
@@ -163,13 +101,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
   std::vector<std::pair<int, int>> per_sample_crop_;
   std::vector<std::pair<int, int>> per_sample_dimensions_;
-
- protected:
-  // Output data type
-  DALIDataType output_type_;
-
-  // Output data layout
-  DALITensorLayout output_layout_;
 
   USE_OPERATOR_MEMBERS();
 };

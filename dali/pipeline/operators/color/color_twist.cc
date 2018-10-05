@@ -19,8 +19,7 @@ namespace dali {
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
-    .AddOptionalArg("image_type",
-        R"code(The color space of input and output image)code", DALI_RGB);
+    .AddParent("CastPermute");
 
 DALI_SCHEMA(Brightness)
     .DocStr(R"code(Changes the brightness of an image)code")

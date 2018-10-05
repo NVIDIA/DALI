@@ -39,12 +39,8 @@ Normalization takes input image and produces output using formula
 - `0` - do not perform horizontal flip for this image
 - `1` - perform horizontal flip for this image.
 )code", 0, true)
-  .AddArg("mean",
-      R"code(Mean pixel values for image normalization.)code",
-      DALI_FLOAT_VEC)
-  .AddArg("std",
-      R"code(Standard deviation values for image normalization.)code",
-      DALI_FLOAT_VEC)
+
+  .AddParent("NormalizeBase")
   .AddParent("CropCastPermute");
 
 
@@ -119,7 +115,6 @@ void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws, const int i
   const unsigned char *input_ptr;
   int stride;
   Out *output_ptr;
-
   const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
   PrepareCropParam<Out>(ws, idx, &input_ptr, &stride, &output_ptr);
   CropMirrorNormalizePermuteKernel(C_, crop_[0], crop_[1],
@@ -139,6 +134,11 @@ void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *w
     const Tensor<CPUBackend> &mirror = ws->ArgumentInput("mirror");
     mirror_.Copy(mirror, 0);
   }
+}
+
+template<>
+void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  RUN_IMPL_CPU(ws, idx);
 }
 
 // Register operator

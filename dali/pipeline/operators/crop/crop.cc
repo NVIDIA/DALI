@@ -18,6 +18,15 @@
 
 namespace dali {
 
+DALI_SCHEMA(CastPermute)
+    .DocStr(R"code(Perform a data type cast and permute (from NHWC to NCHW).)code")
+    .AddOptionalArg("image_type",
+                    R"code(The color space of input and output image)code", DALI_RGB)
+    .AddOptionalArg("output_dtype",
+                    R"code(Output data type. If DALI_NO_TYPE is specified, the ouput data type is inferred
+     from the input data type.)code", DALI_FLOAT)
+    .AddOptionalArg("output_layout", R"code(Output tensor data layout)code", DALI_NCHW);
+
 DALI_SCHEMA(Crop)
     .DocStr(R"code(Perform a random crop.)code")
     .NumInput(1)
@@ -29,16 +38,16 @@ DALI_SCHEMA(Crop)
     .AddOptionalArg("crop_pos_y",
                     R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
                     0.5f, true)
-    .AddOptionalArg("image_type",
-                    R"code(The color space of input and output image)code", DALI_RGB, false)
     .AddArg("crop",
             R"code(Size of the cropped image. If only a single value `c` is provided,
  the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
+    .AddParent("CastPermute")
     .EnforceInputLayout(DALI_NHWC);
 
 
 template<>
-Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
+Crop<CPUBackend>::Crop(const OpSpec &spec, bool defaultCastPermut) :
+                  Operator<CPUBackend>(spec), CropAttr(spec, defaultCastPermut) {
   Init(num_threads_);
 }
 
@@ -140,20 +149,12 @@ void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
 
 template<>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  DataDependentSetup(ws, idx);
-  if (output_type_ == DALI_FLOAT16)
-    RunHelper<half_float::half>(ws, idx);
-  else
-    CallRunHelper(ws, idx);
+  RUN_IMPL_CPU(ws, idx);
 }
 
 template<>
 void Crop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
-  if (output_type_ == DALI_NO_TYPE) {
-    const auto &input = ws->Input<CPUBackend>(0);
-    output_type_ = input.type().id();
-  }
-
+  CastPermuteAttr::SetupSharedSampleParams(ws);
   SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(), ws->data_idx());
 }
 

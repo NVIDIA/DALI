@@ -17,11 +17,13 @@
 
 #include "dali/pipeline/operators/fused/crop_cast_permute.h"
 #include <vector>
+#include "dali/pipeline/operators/fused/normalize_permute.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropMirrorNormalize : public CropCastPermute<Backend> {
+class CropMirrorNormalize : public CropCastPermute<Backend>,
+                            public NormalizeAttr<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     CropCastPermute<Backend>(spec) {
@@ -31,6 +33,8 @@ class CropMirrorNormalize : public CropCastPermute<Backend> {
   virtual inline ~CropMirrorNormalize() = default;
 
  protected:
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
@@ -47,17 +51,7 @@ class CropMirrorNormalize : public CropCastPermute<Backend> {
       mirror_.Copy(m, 0);
     }
 
-    const auto C = this->C_;
-    vector<float> mean_vec, inv_std_vec;
-    GetSingleOrRepeatedArg(spec, &mean_vec, "mean", C);
-    GetSingleOrRepeatedArg(spec, &inv_std_vec, "std", C);
-
-    // Inverse the std-deviation
-    for (int i = 0; i < C; ++i)
-      inv_std_vec[i] = 1.f / inv_std_vec[i];
-
-    mean_.Copy(mean_vec, 0);
-    inv_std_.Copy(inv_std_vec, 0);
+    this->InitNormalizeAttr(spec, this->C_);
   }
 
   // Whether to pad output to 4 channels
@@ -68,9 +62,6 @@ class CropMirrorNormalize : public CropCastPermute<Backend> {
 
   Tensor<CPUBackend> mirror_;
   Tensor<GPUBackend> mirror_gpu_;
-
-  // Tensor to store mean & stddiv
-  Tensor<Backend> mean_, inv_std_;
 
   USE_OPERATOR_MEMBERS();
 };

@@ -19,8 +19,6 @@
 namespace dali {
 
 DALI_SCHEMA(ResizeAttr)
-  .AddOptionalArg("image_type",
-        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
@@ -34,7 +32,8 @@ DALI_SCHEMA(ResizeAttr)
       "the aspect ratio of the original image.", 0.f, true)
   .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
       "This option is mutually exclusive with `resize_x` and `resize_y`. "
-      "The op will keep the aspect ratio of the original image.", 0.f, true);
+      "The op will keep the aspect ratio of the original image.", 0.f, true)
+  .AddParent("CastPermute");
 
 DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")

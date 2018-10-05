@@ -201,7 +201,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output->set_type(type);
 
-    if (use_batched_decode_) {
+    if (use_batched_decode_ && idx_in_batch) {
       int images_in_batch = idx_in_batch;
       batched_output_.resize(images_in_batch);
 

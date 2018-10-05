@@ -257,6 +257,19 @@ void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
                                  TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 
+// Macros for writing RunImpl templated code for derived operators
+#define RUN_IMPL(ws, idx, half)             \
+     DataDependentSetup(ws, idx);           \
+     if (output_type_ == DALI_FLOAT16)      \
+        RunHelper<half>(ws, idx);           \
+     else                                   \
+        DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(  \
+            output_type_, imgType,          \
+            RunHelper<imgType>(ws, idx))
+
+#define RUN_IMPL_CPU(ws, idx)    RUN_IMPL(ws, idx, half_float::half)
+#define RUN_IMPL_GPU(ws, idx)    RUN_IMPL(ws, idx, float16)
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_OPERATOR_H_

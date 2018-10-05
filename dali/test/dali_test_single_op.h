@@ -324,7 +324,7 @@ class DALISingleOpTest : public DALITest {
       .AddArg("device", pDevice)
       .AddArg("image_type", this->ImageType())
       .AddArg("output_type", this->ImageType())
-      .AddInput("input", pDevice)
+      .AddInput(GetInputOfTestedOperator(), pDevice)
       .AddOutput("output", pDevice);
   }
 
@@ -367,6 +367,8 @@ class DALISingleOpTest : public DALITest {
 
   virtual bool AddParam(int idxParam, vector<OpArg> *argc)    { return false; }
   virtual bool AddArgumentInput(int idxParam, OpSpec *spec)   { return false; }
+  virtual string GetInputOfTestedOperator() const             { return "input"; }
+  virtual string GetOutputOfCroppingOperator() const          { return GetInputOfTestedOperator(); }
 
   inline void AddParameters(vector<OpArg> *args) {
     // Adding more parameters, if caller will provide any of them

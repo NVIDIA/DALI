@@ -214,7 +214,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline vector<Index> shape() const {
+  inline const vector<Index> &shape() const {
     return shape_;
   }
 

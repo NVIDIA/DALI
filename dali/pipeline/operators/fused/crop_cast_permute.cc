@@ -22,11 +22,6 @@ cast and permute (from NHWC to NCHW).)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("output_dtype",
-      R"code(Output data type. If DALI_NO_TYPE is specified, the ouput data type is inferred
- from the input data type.)code", DALI_FLOAT)
-  .AddOptionalArg("output_layout",
-      R"code(Output tensor data layout)code", DALI_NCHW)
   .AddParent("Crop")  // for image type, crop pos and sizes
   .EnforceInputLayout(DALI_NHWC);
 

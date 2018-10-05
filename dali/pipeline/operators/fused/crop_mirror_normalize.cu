@@ -150,6 +150,11 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
             ws->stream()));
 }
 
+template <>
+void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+  RUN_IMPL_GPU(ws, idx);
+}
+
 template<>
 void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   Crop<GPUBackend>::SetupSharedSampleParams(ws);

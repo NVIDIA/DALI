@@ -16,7 +16,7 @@
 
 namespace dali {
 
-const char *opName = "CropMirrorNormalize";
+static const char *opName = "CropMirrorNormalize";
 
 template <typename ImgType>
 class CropMirrorNormalizePermuteTest : public GenericMatchingTest<ImgType> {
@@ -102,19 +102,8 @@ static const char *meanValues[] = {"0.", "0., 0., 0."};
 static const char *stdValues[]  = {"1.", "1., 1., 1."};
 
 template <typename ImgType>
-class CropMirrorNormalizePermuteTestMatch : public GenericMatchingTest<ImgType> {
+class CropMirrorNormalizePermuteTestMatch : public NormalizePermuteMatch<ImgType> {
  protected:
-  bool AddParam(int idxParam, vector<OpArg> *argc) override {
-    // Depending the color parameters of the images, we will add vector of size 1 or 3
-    auto idx = this->c_ == 1? 0 : 1;
-    switch (idxParam) {
-      case 0: argc->push_back({"mean", meanValues[idx], DALI_FLOAT_VEC});
-              return true;
-      case 1: argc->push_back({"std", stdValues[idx], DALI_FLOAT_VEC});
-    }
-    return false;
-  }
-
   bool MirroringNeeded() const override   { return m_bMirroring; }
 
   bool m_bMirroring = false;
@@ -123,35 +112,32 @@ class CropMirrorNormalizePermuteTestMatch : public GenericMatchingTest<ImgType> 
 
 TYPED_TEST_CASE(CropMirrorNormalizePermuteTestMatch, Types);
 
-#define CONFORMITY_TEST(testName, mirroring, ...)                                     \
-    TYPED_TEST(CropMirrorNormalizePermuteTestMatch, testName) {                       \
-      this->m_bMirroring = mirroring;                                                 \
-      const OpArg params[] = __VA_ARGS__;                                             \
-      this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);  \
-    }
+#define CROP_MIRROR_TEST(testName, mirroring, ...)                          \
+        CONFORMITY_NORMALIZE_TEST_DEF(CropMirrorNormalizePermuteTestMatch,  \
+               testName, this->m_bMirroring = mirroring, __VA_ARGS__)
 
-CONFORMITY_TEST(CropNumber,           !doMirroring, {{"crop",          "224", DALI_INT32}})
-CONFORMITY_TEST(CropVector,           !doMirroring, {{"crop",     "224, 256", DALI_INT_VEC}})
-CONFORMITY_TEST(Layout_DALI_NCHW,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_layout",   "0", DALI_INT32}})
-CONFORMITY_TEST(Layout_DALI_NHWC,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_layout",   "1", DALI_INT32}})
-CONFORMITY_TEST(Layout_DALI_SAME,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_layout",   "2", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_NO_TYPE,  !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",   "-1", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_UINT8,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",    "0", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_INT16,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",    "1", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_INT32,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
+CROP_MIRROR_TEST(CropNumber,           !doMirroring, {{"crop",          "224", DALI_INT32}})
+CROP_MIRROR_TEST(CropVector,           !doMirroring, {{"crop",     "224, 256", DALI_INT_VEC}})
+CROP_MIRROR_TEST(Layout_DALI_NCHW,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_layout",   "0", DALI_INT32}})
+CROP_MIRROR_TEST(Layout_DALI_NHWC,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_layout",   "1", DALI_INT32}})
+CROP_MIRROR_TEST(Layout_DALI_SAME,     !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_layout",   "2", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_NO_TYPE,  !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",   "-1", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_UINT8,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",    "0", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_INT16,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",    "1", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_INT32,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
                                                      {"output_dtype",    "2", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_INT64,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",    "3", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_FLOAT16,  !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",    "4", DALI_INT32}})
-CONFORMITY_TEST(Output_DALI_FLOAT,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
-                                                     {"output_dtype",    "5", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_INT64,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",    "3", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_FLOAT16,  !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",    "4", DALI_INT32}})
+CROP_MIRROR_TEST(Output_DALI_FLOAT,    !doMirroring, {{"crop",          "224", DALI_INT32},   \
+                                                      {"output_dtype",    "5", DALI_INT32}})
 
 }  // namespace dali
 
