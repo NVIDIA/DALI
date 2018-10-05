@@ -27,14 +27,14 @@ DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
 
 DALI_SCHEMA(BbFlip)
                 .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
-                               Input: Bounding box coordinates; in either [x, y, w, h]
-                               or [left, top, right, bottom] format. All coordinates are
-                               in the image coordinate system (i.e. 0.0-1.0))code")
+Input: Bounding box coordinates; in either [x, y, w, h]
+or [left, top, right, bottom] format. All coordinates are
+in the image coordinate system (i.e. 0.0-1.0))code")
                 .NumInput(1)
                 .NumOutput(1)
                 .AddOptionalArg(kCoordinatesTypeArgName,
                                 R"code(True, for two-point (ltrb).
-                                False for for width-height representation. Default: False)code",
+False for for width-height representation. Default: False)code",
                                 false, false)
                 .AddOptionalArg(kHorizontalArgName,
                                 R"code(Perform flip along horizontal axis. Default: 1)code",
