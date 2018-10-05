@@ -164,7 +164,7 @@ class Feature {
 
     // shape
     DaliProtoPriv shape_arg = arg.extra_args(2);
-    std::vector<Index> shape{shape_arg.ints().begin(), shape_arg.ints().end()};
+    const auto shape = shape_arg.ints();
 
     // default value
     DaliProtoPriv value_arg = arg.extra_args(3);
