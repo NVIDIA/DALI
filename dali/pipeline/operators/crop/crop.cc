@@ -90,12 +90,12 @@ DALIError_t ValidateCrop(const uint8 *in_img, int H, int W, int C, const Out *ou
 
 template<>
 template<typename Out>
-void Crop<CPUBackend>::ValidateHelper(const Tensor<CPUBackend> *input, Tensor<CPUBackend> *output) {
+void Crop<CPUBackend>::ValidateHelper(const Tensor<CPUBackend> *input, Tensor<CPUBackend> *output, int idx) {
   // Validate parameters
   DALI_CALL(ValidateCrop(
-    input->template data<uint8>(),
-    crop_[0], crop_[1], C_,
-    output->template mutable_data<Out>()));
+      input->template data<uint8>(),
+      crop_height_[idx], crop_height_[idx], C_,
+      output->template mutable_data<Out>()));
 }
 
 template<>
@@ -105,7 +105,7 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   auto output = ws->Output<CPUBackend>(idx);
 
   // Validate
-  ValidateHelper<Out>(&input, output);
+  ValidateHelper<Out>(&input, output, idx);
 
   const int dataIdx = ws->thread_idx();
   const int H = per_sample_dimensions_[dataIdx].first;
@@ -114,7 +114,7 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   const int crop_y = per_sample_crop_[dataIdx].first;
   const int crop_x = per_sample_crop_[dataIdx].second;
 
-  CropKernel<Out>(C_, crop_[0], crop_[1],
+  CropKernel<Out>(C_, crop_height_[idx], crop_width_[idx],
                               input.template data<uint8>() + (crop_y * W + crop_x) * C_,
                               W * C_, output_layout_,
                               output->template mutable_data<Out>());
@@ -126,7 +126,7 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto output = ws->Output<CPUBackend>(idx);
 
   DALITensorLayout outLayout;
-  output->Resize(GetOutShape(input.GetLayout(), &outLayout));
+  output->Resize(GetOutShape(input.GetLayout(), &outLayout, idx));
   output->SetLayout(outLayout);
 
   CheckParam(input, "CropCPUBackend");

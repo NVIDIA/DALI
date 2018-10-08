@@ -92,24 +92,24 @@ template<>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
-  ValidateHelper<Out>(output);
+  ValidateHelper<Out>(output, idx);
 
   DALI_CALL((BatchedCrop<Out>(
       input_ptrs_gpu_.template data<const uint8*>(),
       input_strides_gpu_.template data<int>(),
-      batch_size_, crop_[0], crop_[1], C_, output_layout_,
+      batch_size_, crop_height_[idx], crop_width_[idx], C_, output_layout_,
       output->template mutable_data<Out>(),
       ws->stream())));
 }
 
 template<>
 template <typename Out>
-void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
+void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output, int idx) {
   // Validate parameters
   DALI_CALL(ValidateBatchedCrop(
     input_ptrs_.template mutable_data<const uint8*>(),
     input_strides_.template data<int>(),
-    batch_size_, crop_[0], crop_[1], C_,
+    batch_size_, crop_height_[idx], crop_width_[idx], C_,
     output->template mutable_data<Out>()));
 }
 
@@ -132,7 +132,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
                "Expected input data as uint8.");
 
   DALITensorLayout outLayout;
-  const Dims out_shape = GetOutShape(input.GetLayout(), &outLayout);
+  const Dims out_shape = GetOutShape(input.GetLayout(), &outLayout, idx);
 
   std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
