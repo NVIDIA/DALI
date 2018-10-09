@@ -22,22 +22,26 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/crop/crop.h"
 
-namespace dali {
+namespace dali
+{
 
 template <typename Backend>
-class Slice : public Operator<Backend> {
- public:
-  explicit inline Slice(const OpSpec &spec)
-      : Operator<Backend>(spec) {
-  }
+class Slice : public Crop<Backend>
+{
+  public:
+    explicit inline Slice(const OpSpec &spec)
+        : Crop<Backend>(spec)
+    {
+    }
 
- protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override {}
+  protected:
+    void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {}
+    void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 };
 
-}  // namespace dali
+} // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
+#endif // DALI_PIPELINE_OPERATORS_CROP_SLICE_H_

@@ -16,6 +16,23 @@
 
 namespace dali {
 
+template<>
+void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx)
+{
+    Crop<GPUBackend>::RunImpl(ws, idx);
+}
+
+template<>
+void Slice<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
+{
+    DALI_ENFORCE(ws->NumInput() == 3, "Expected 3 inputs. Received: " + std::to_string(ws->NumInput() == 3));
+
+    // TODO flash attributes
+
+    Crop<GPUBackend>::SetupSharedSampleParams(ws);
+}
+
+
 // Register operator
 DALI_REGISTER_OPERATOR(Slice, Slice<GPUBackend>, GPU);
 
