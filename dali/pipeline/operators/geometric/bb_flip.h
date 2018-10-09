@@ -46,9 +46,6 @@ class BbFlip : public Operator<CPUBackend> {
     }
   }
 
-
-  const int kBbTypeSize = 4;  /// Bounding box is always vector of 4 floats
-
   /**
    * Bounding box can be represented in two ways:
    * 1. Upper-left corner, width, height (`wh_type`)
