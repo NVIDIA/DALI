@@ -49,7 +49,7 @@ Prerequisites
 -  |driver link|_ supporting `CUDA 9.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 384.xx or later driver releases)
 -  One or more of the following deep learning frameworks:
 
-   -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later
+   -  |mxnet link|_ ``mxnet-cu90`` or later
    -  |pytorch link|_
    -  |tf link|_ or later
 
