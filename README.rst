@@ -78,12 +78,16 @@ Prerequisites
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
+.. |gcc link| replace:: **GCC 4.9.2**
+.. _gcc link: https://www.gnu.org/software/gcc/
 
 .. table::
    :align: center
 
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | **Linux x64**                          |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |gcc link|_ or later                   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially*                                           |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -149,13 +153,13 @@ To build DALI with LMDB support:
    cmake -DBUILD_LMDB=ON ..
    make -j"$(nproc)"
 
-To build DALI using clang (experimental):
+To build DALI using Clang (experimental):
 
 .. note::
 
    This build is experimental and it is not maintained and tested
    like the default configuration. It is not guaranteed to work. 
-   We recommend using gcc for production builds.
+   We recommend using GCC for production builds.
 
 .. code-block:: bash
    
