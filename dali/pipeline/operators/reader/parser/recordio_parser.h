@@ -28,16 +28,16 @@ struct ImageRecordIOHeader {
   uint64_t image_id[2];
 };
 
-class RecordIOParser : public Parser {
+class RecordIOParser : public Parser<Tensor<CPUBackend>> {
  public:
   explicit RecordIOParser(const OpSpec& spec) :
-    Parser(spec) {
+    Parser<Tensor<CPUBackend>>(spec) {
   }
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     auto* image = ws->Output<CPUBackend>(0);
     auto* label = ws->Output<CPUBackend>(1);
-    ReadSingleImageRecordIO(image, label, data);
+    ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
   }
 
  private:

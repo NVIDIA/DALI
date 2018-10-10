@@ -61,7 +61,7 @@ namespace lmdb {
   }
 }  // namespace lmdb
 
-class LMDBReader : public Loader<CPUBackend> {
+class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
@@ -122,8 +122,8 @@ class LMDBReader : public Loader<CPUBackend> {
   }
 
  private:
-  using Loader<CPUBackend>::shard_id_;
-  using Loader<CPUBackend>::num_shards_;
+  using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
+  using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
   MDB_env* mdb_env_;
   MDB_cursor* mdb_cursor_;

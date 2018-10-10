@@ -20,15 +20,15 @@
 
 namespace dali {
 
-class CaffeParser : public Parser {
+class CaffeParser : public Parser<Tensor<CPUBackend>> {
  public:
   explicit CaffeParser(const OpSpec& spec) :
     Parser(spec) {}
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     caffe::Datum datum;
     // DALI_ENFORCE(datum.ParseFromString(string(reinterpret_cast<const char*>(data), size)));
-    DALI_ENFORCE(datum.ParseFromArray(data, size));
+    DALI_ENFORCE(datum.ParseFromArray(data.raw_data(), data.size()));
 
     auto* image = ws->Output<CPUBackend>(0);
     auto* label = ws->Output<CPUBackend>(1);
