@@ -62,6 +62,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
  private:
   template <typename Out>
   void RunHelper(Workspace<Backend> *ws, const int idx);
+  void RunHelperF16C(Workspace<Backend> *ws, const int idx);
 
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;

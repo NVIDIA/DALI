@@ -25,6 +25,7 @@ option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
+option(BUILD_F16C "Build with F16C intrinsics" ON)
 
 include(cmake/Utils.cmake)
 
@@ -54,6 +55,10 @@ endif()
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
+
+if (BUILD_F16C)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mf16c -DDALI_F16C")
+endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")

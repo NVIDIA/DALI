@@ -258,17 +258,24 @@ void CollectPointersForExecution(size_t batch_size,
                                  TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
 
 // Macros for writing RunImpl templated code for derived operators
-#define RUN_IMPL(ws, idx, half)             \
+#define RUN_IMPLEMENT(ws, idx, F16C)        \
      DataDependentSetup(ws, idx);           \
      if (output_type_ == DALI_FLOAT16)      \
-        RunHelper<half>(ws, idx);           \
+        F16C(ws, idx);                      \
      else                                   \
         DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(  \
             output_type_, imgType,          \
             RunHelper<imgType>(ws, idx))
 
-#define RUN_IMPL_CPU(ws, idx)    RUN_IMPL(ws, idx, half_float::half)
-#define RUN_IMPL_GPU(ws, idx)    RUN_IMPL(ws, idx, float16)
+#define RUN_IMPLEM(ws, idx, half)  RUN_IMPLEMENT(ws, idx, RunHelper<half>)
+#define RUN_IMPL_GPU(ws, idx)      RUN_IMPLEM(ws, idx, float16)
+
+#ifdef DALI_F16C
+  #define RUN_IMPL_CPU(ws, idx)    RUN_IMPLEMENT(ws, idx, RunHelperF16C)
+  #define CVTSS_SH(x)              _cvtss_sh(x, 0)
+#else
+  #define RUN_IMPL_CPU(ws, idx)    RUN_IMPLEM(ws, idx, half_float::half)
+#endif
 
 }  // namespace dali
 
