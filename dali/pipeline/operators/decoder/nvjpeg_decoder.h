@@ -139,7 +139,15 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
       cudaGetDevice(&device_id_);
 
+#if defined(NVJPEG_LIBRARY_0_2_0)
+      NVJPEG_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, &allocator, nullptr, 0, &handle_));
+      size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
+      size_t host_memory_padding = spec.GetArgument<Index>("host_memory_padding");
+      NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
+      NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
+#else
       NVJPEG_CALL(nvjpegCreate(NVJPEG_BACKEND_DEFAULT, &allocator, &handle_));
+#endif
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
         CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
