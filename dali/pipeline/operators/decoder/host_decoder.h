@@ -22,6 +22,10 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/image/jpeg.h"
 #include "dali/image/png.h"
+#include "dali/image/image.h"
+
+#include <tuple>
+
 
 namespace dali {
 
@@ -46,45 +50,21 @@ class HostDecoder : public Operator<CPUBackend> {
     DALI_ENFORCE(IsType<uint8>(input.type()),
         "Input must be stored as uint8 data.");
 
-    // determine what format the image is.
-    if (CheckIsJPEG(input.data<uint8>(), input.size())) {
-      // JPEG: Pass to TurboJPEG-based decode
-      DALI_CALL_EX(DecodeJPEGHost(input.data<uint8>(),
-                               input.size(),
-                               output_type_,
-                               output),
-                              "Problem with file: " + input.GetSourceInfo());
-    } else if (CheckIsPNG(input.data<uint8>(), input.size())) {
-      // PNG: Pass to OCV-based decode without extra copy
-      DALI_CALL_EX(DecodePNGHost(input.data<uint8>(),
-                              input.size(),
-                              output_type_,
-                              output),
-                              "Problem with file: " + input.GetSourceInfo());
-    } else {
-      // all other cases use openCV (for now)
 
-      // Decode image to tmp cv::Mat
-      cv::Mat tmp = cv::imdecode(
-          cv::Mat(1, input.size(), CV_8UC1, const_cast<void*>(input.raw_data())),
-          IsColor(output_type_) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
+      auto img = ImageFactory::CreateImage(input.data<uint8>(), input.size());
+      img->Decode(output_type_);
+      auto decoded = img->GetImage();
+      auto hwc=img->GetImageDims();
+      auto h=std::get<0>(hwc);
+      auto w=std::get<1>(hwc);
+      auto c=std::get<2>(hwc);
 
-      // if RGB needed, permute from BGR
-      if (output_type_ == DALI_RGB) {
-        cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB);
-      }
 
-      // Resize actual storage
-      const int W = tmp.cols;
-      const int H = tmp.rows;
-      output->Resize({H, W, c_});
+
+      output->Resize({static_cast<long>(h), static_cast<long>(w), static_cast<long>(c)});
       unsigned char *out_data = output->mutable_data<unsigned char>();
+    std::memcpy(out_data, decoded, h*w*c);
 
-      // Copy to final output
-      std::memcpy(out_data,
-                  tmp.ptr(),
-                  H*W*c_);
-    }
   }
 
   DALIImageType output_type_;
