@@ -14,9 +14,6 @@
 
 
 #include "dali/pipeline/operators/fused/crop_mirror_normalize.h"
-#ifndef DALI_F16C
-#include "dali/util/half.hpp"
-#endif
 
 namespace dali {
 
@@ -47,77 +44,72 @@ Normalization takes input image and produces output using formula
 
 
 // Crop, mirror, mean sub, stddev div, NHWC->NCHW, Npp8u->fp32
-#define CROP_MIRROR_NORM_PERMUTE(ext, Out, conv)                            \
-void CropMirrorNormalizePermuteKernel##ext(                                 \
-  const int C,                                                              \
-  const int H,                                                              \
-  const int W,                                                              \
-  const bool pad,                                                           \
-  const int mirror_image,                                                   \
-  const float* mean,                                                        \
-  const float* std,                                                         \
-  const uint8* input_ptr,                                                   \
-  const int in_step,                                                        \
-  DALITensorLayout layout,                                                  \
-  Out* output_ptr) {                                                        \
-  const int pad_C = pad ? 4 : C;                                            \
-  const int nStride = pad_C*H*W;                                            \
-  const int a = mirror_image? (W - 1) * C : 0;                              \
-  const int b = mirror_image? -C : C;                                       \
-  if (layout == DALI_NCHW) {                                                \
-    /* Coalesced writes */                                                  \
-    for (int c=0; c < C; ++c) {                                             \
-      for (int h=0; h < H; ++h) {                                           \
-        const int in_idx = a + c + in_step*h;           /* HWC */           \
-        const int out_idx = (c*H + h)*W;                /* CHW */           \
-        for (int w=0; w < W; ++w) {                                         \
-          output_ptr[out_idx + w] = conv((static_cast<float>                \
-            (input_ptr[in_idx + b*w])-mean[c]) * std[c]);                   \
-        }                                                                   \
-      }                                                                     \
-    }                                                                       \
-    /* Pad to 4 channels with 0s */                                         \
-    if (pad) {                                                              \
-      const Out out = conv(0);                                              \
-      for (int c=C; c < 4; ++c) {                                           \
-        for (int h=0; h < H; ++h) {                                         \
-          for (int w=0; w < W; ++w) {                                       \
-            const int out_idx = (c*H + h) * W + w;      /* CHW */           \
-            output_ptr[out_idx] = out;                                      \
-          }                                                                 \
-        }                                                                   \
-      }                                                                     \
-    }                                                                       \
-  } else {                                                                  \
-    for (int tid = 0; tid < nStride; ++tid) {                               \
-      const int c = tid % pad_C;                                            \
-      const int w = (tid / pad_C) % W;                                      \
-      const int h = tid / (pad_C * W);                                      \
-      float input;                                                          \
-      if (pad && c == 3) {                                                  \
-        input = 0;                                                          \
-      } else {                                                              \
-        const int in_idx =  a + c + b * w + in_step * h;                    \
-        input = (static_cast<float>(input_ptr[in_idx])-mean[c]) * std[c];   \
-      }                                                                     \
-      const int out_idx = c + (w + h*W) * pad_C;                            \
-      output_ptr[out_idx] = conv(input);                                    \
-    }                                                                       \
-  }                                                                         \
+template <typename Out, class Converter>
+void CropMirrorNormalizePermuteKernel(
+  const int C,
+  const int H,
+  const int W,
+  const bool pad,
+  const int mirror_image,
+  const float* mean,
+  const float* std,
+  const uint8* input_ptr,
+  const int in_step,
+  DALITensorLayout layout,
+  Out* output_ptr) {
+  Converter conv;
+  const int pad_C = pad ? 4 : C;
+  const int nStride = pad_C*H*W;
+  const int a = mirror_image? (W - 1) * C : 0;
+  const int b = mirror_image? -C : C;
+  if (layout == DALI_NCHW) {
+    // Coalesced writes
+    for (int c=0; c < C; ++c) {
+      for (int h=0; h < H; ++h) {
+        const int in_idx = a + c + in_step*h;       // HWC
+        const int out_idx = (c*H + h)*W;            // CHW
+        for (int w=0; w < W; ++w)
+          output_ptr[out_idx + w] = conv((input_ptr[in_idx + b*w]-mean[c]) * std[c]);
+      }
+    }
+    // Pad to 4 channels with 0s
+    if (pad) {
+      const Out out = conv(0);
+      for (int c=C; c < 4; ++c) {
+        for (int h = 0; h < H; ++h) {
+          const int out_idx = (c * H + h) * W;      // CHW
+          for (int w = 0; w < W; ++w)
+            output_ptr[out_idx + w] = out;
+        }
+      }
+    }
+  } else {
+    for (int tid = 0; tid < nStride; ++tid) {
+      const int c = tid % pad_C;
+      const int w = (tid / pad_C) % W;
+      const int h = tid / (pad_C * W);
+      float input;
+      if (pad && c == 3) {
+        input = 0;
+      } else {
+        const int in_idx =  a + c + b * w + in_step * h;
+        input = (input_ptr[in_idx] - mean[c]) * std[c];
+      }
+      const int out_idx = c + (w + h*W) * pad_C;
+      output_ptr[out_idx] = conv(input);
+    }
+  }
 }
 
-template<typename Out>
-CROP_MIRROR_NORM_PERMUTE(, Out, StaticCastGpu<Out>)
-
 template<>
-template<typename Out>
+template <typename Out, class Converter>
 void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   const unsigned char *input_ptr;
   int stride;
   Out *output_ptr;
   const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
   PrepareCropParam<Out>(ws, idx, &input_ptr, &stride, &output_ptr);
-  CropMirrorNormalizePermuteKernel(C_, crop_[0], crop_[1],
+  CropMirrorNormalizePermuteKernel<Out, Converter>(C_, crop_[0], crop_[1],
                                    pad_, mirror_image,
                                    mean_.template data<float>(),
                                    inv_std_.template data<float>(),
@@ -125,27 +117,6 @@ void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws, const int i
                                    stride, output_layout_,
                                    output_ptr);
 }
-
-#ifdef DALI_F16C
-
-CROP_MIRROR_NORM_PERMUTE(F16C, uint16_t, CVTSS_SH)
-
-template<>
-void CropMirrorNormalize<CPUBackend>::RunHelperF16C(SampleWorkspace *ws, const int idx) {
-  const unsigned char *input_ptr;
-  int stride;
-  uint16_t *output_ptr;
-  const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
-  PrepareCropParam<uint16_t>(ws, idx, &input_ptr, &stride, &output_ptr);
-  CropMirrorNormalizePermuteKernelF16C(C_, crop_[0], crop_[1],
-                                   pad_, mirror_image,
-                                   mean_.template data<float>(),
-                                   inv_std_.template data<float>(),
-                                   input_ptr,
-                                   stride, output_layout_,
-                                   output_ptr);
-}
-#endif
 
 template<>
 void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {

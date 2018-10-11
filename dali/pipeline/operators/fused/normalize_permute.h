@@ -47,9 +47,8 @@ class NormalizePermute : public Operator<Backend>, protected NormalizeAttr<Backe
  private:
   void DataDependentSetup(Workspace<Backend> *ws, const int idx);
 
-  template <typename Out>
+  template <typename Out, class Converter>
   void RunHelper(Workspace<Backend> *ws, const int idx);
-  void RunHelperF16C(Workspace<Backend> *ws, const int idx);
 
   void CheckShape(const vector<Index> &shape) const {
     DALI_ENFORCE(shape.size() == 3,

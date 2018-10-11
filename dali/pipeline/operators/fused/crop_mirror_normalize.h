@@ -38,9 +38,8 @@ class CropMirrorNormalize : public CropCastPermute<Backend>,
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
-  template <typename OUT>
+  template <typename Out, class Converter>
   void RunHelper(Workspace<Backend> *ws, const int idx);
-  void RunHelperF16C(Workspace<Backend> *ws, const int idx);
 
   virtual int GetPad() const                      { return pad_ ? 4 : this->C_; }
 

@@ -28,6 +28,7 @@
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
+#include "dali/util/half.h"
 
 namespace dali {
 
@@ -256,26 +257,6 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
 void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
                                  TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
-
-// Macros for writing RunImpl templated code for derived operators
-#define RUN_IMPLEMENT(ws, idx, F16C)        \
-     DataDependentSetup(ws, idx);           \
-     if (output_type_ == DALI_FLOAT16)      \
-        F16C(ws, idx);                      \
-     else                                   \
-        DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(  \
-            output_type_, imgType,          \
-            RunHelper<imgType>(ws, idx))
-
-#define RUN_IMPLEM(ws, idx, half)  RUN_IMPLEMENT(ws, idx, RunHelper<half>)
-#define RUN_IMPL_GPU(ws, idx)      RUN_IMPLEM(ws, idx, float16)
-
-#ifdef DALI_F16C
-  #define RUN_IMPL_CPU(ws, idx)    RUN_IMPLEMENT(ws, idx, RunHelperF16C)
-  #define CVTSS_SH(x)              _cvtss_sh(x, 0)
-#else
-  #define RUN_IMPL_CPU(ws, idx)    RUN_IMPLEM(ws, idx, half_float::half)
-#endif
 
 }  // namespace dali
 

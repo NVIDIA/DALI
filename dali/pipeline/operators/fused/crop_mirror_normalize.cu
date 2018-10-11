@@ -133,12 +133,12 @@ DALIError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch, con
 }
 
 template<>
-template <typename OUT>
+template <typename Out, class null>
 void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
-  ValidateHelper<OUT>(output);
+  ValidateHelper<Out>(output);
 
-  DALI_CALL(BatchedCropMirrorNormalizePermute<OUT>(
+  DALI_CALL(BatchedCropMirrorNormalizePermute<Out>(
             InputImgsBatch(),
             InputStridesBatch(),
             batch_size_, crop_[0], crop_[1], C_, pad_,
@@ -146,7 +146,7 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
             mean_.template data<float>(),
             inv_std_.template data<float>(),
             output_layout_,
-            output->template mutable_data<OUT>(),
+            output->template mutable_data<Out>(),
             ws->stream()));
 }
 

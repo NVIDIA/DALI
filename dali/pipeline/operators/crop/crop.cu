@@ -89,7 +89,7 @@ DALIError_t ValidateBatchedCrop(const uint8 * const *in_batch, const int *in_str
 }
 
 template<>
-template <typename Out>
+template <typename Out, class null>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
   ValidateHelper<Out>(output);

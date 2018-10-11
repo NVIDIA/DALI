@@ -13,9 +13,6 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/fused/normalize_permute.h"
-#ifndef DALI_F16C
-#include "dali/util/half.hpp"
-#endif
 
 namespace dali {
 
@@ -60,35 +57,25 @@ void NormalizePermute<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const
   output->SetLayout(DALI_NCHW);
 }
 
-#define RUN_HELPER_BODY(Out, conv)                                \
-  const auto &input = ws->Input<CPUBackend>(idx);                 \
-  auto output = ws->Output<CPUBackend>(idx);                      \
-  const uint8 *in = input.template data<uint8>();                 \
-  Out *out = output->template mutable_data<Out>();                \
-  const float *mean = mean_.template mutable_data<float>();       \
-  const float *std = inv_std_.template mutable_data<float>();     \
-  for (int c = 0; c < C_; ++c) {                                  \
-    for (int h = 0; h < H_; ++h) {                                \
-      const auto idxIn = h * W_ * C_ + c;                         \
-      const auto idxOut = c * H_ * W_ + h * W_;                   \
-      for (int w = 0; w < W_; ++w)                                \
-        out[idxOut + w] = conv(                                   \
-          (static_cast<float>(in[idxIn+w*C_])-mean[c])*std[c]);   \
-    }                                                             \
-  }
-
 template<>
-template<typename Out>
+template<typename Out, class Converter>
 void NormalizePermute<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
-  RUN_HELPER_BODY(Out, static_cast<Out>);
+  Converter conv;
+  const auto &input = ws->Input<CPUBackend>(idx);
+  auto output = ws->Output<CPUBackend>(idx);
+  const uint8 *in = input.template data<uint8>();
+  Out *out = output->template mutable_data<Out>();
+  const float *mean = mean_.template mutable_data<float>();
+  const float *std = inv_std_.template mutable_data<float>();
+  for (int c = 0; c < C_; ++c) {
+    for (int h = 0; h < H_; ++h) {
+      const auto idxIn = h * W_ * C_ + c;
+      const auto idxOut = c * H_ * W_ + h * W_;
+      for (int w = 0; w < W_; ++w)
+        out[idxOut + w] = conv((in[idxIn+w*C_]-mean[c])*std[c]);
+    }
+  }
 }
-
-#if DALI_F16C
-template<>
-void NormalizePermute<CPUBackend>::RunHelperF16C(SampleWorkspace *ws, const int idx) {
-  RUN_HELPER_BODY(uint16_t, CVTSS_SH);
-}
-#endif
 
 template<>
 void NormalizePermute<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {

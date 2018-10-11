@@ -31,7 +31,7 @@ __global__ void BatchedNormalizePermuteKernel(const uint8 *in_batch,
     for (int h = threadIdx.y; h < H; h += blockDim.y) {
       for (int w = threadIdx.x; w < W; w += blockDim.x) {
         out[c*H*W + h*W + w] = StaticCastGpu<OUT>(
-            (static_cast<float>(in[h*W*C + w*C + c]) - mean[c]) * inv_std[c]);
+            (in[h*W*C + w*C + c] - mean[c]) * inv_std[c]);
       }
     }
   }
@@ -91,7 +91,7 @@ void NormalizePermute<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const
 }
 
 template<>
-template <typename Out>
+template<typename Out, class null>
 void NormalizePermute<GPUBackend>::RunHelper(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto output = ws->Output<GPUBackend>(idx);
