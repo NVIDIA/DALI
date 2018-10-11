@@ -234,14 +234,10 @@ def main():
 
     pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=traindir, crop=crop_size)
     pipe.build()
-    # Test-run to validate pipe.
-    test_run_train_pipe = pipe.run()
     train_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
     pipe = HybridValPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=valdir, crop=crop_size, size=val_size)
     pipe.build()
-    # Test-run to validate pipe.
-    test_run_test_pipe = pipe.run()
     val_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
     if args.evaluate:
