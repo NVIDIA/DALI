@@ -79,6 +79,12 @@ std::vector<SequenceLoader::Stream> SequenceLoader::ParseStreams(string file_roo
       streams[bucket->second].second.push_back(f);
     }
   }
+  // for (const auto &s : streams) {
+  //   std::cout << s.first << std::endl;
+  //   for (const auto &f : s.second) {
+  //     std::cout << "  " << f << std::endl;
+  //   }
+  // }
   return streams;
 }
 
@@ -88,6 +94,9 @@ vector<size_t> SequenceLoader::CalculateStreamSizes(const vector<Stream> &stream
   for (auto &s : streams) {
     result.push_back(s.second.size() - (sample_lenght - 1));
   }
+  // for (auto i : result) {
+  //   std::cout << i << std::endl;
+  // }
   return result;
 }
 

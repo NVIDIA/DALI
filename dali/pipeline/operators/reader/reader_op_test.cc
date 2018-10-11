@@ -119,4 +119,29 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   return;
 }
 
+
+TYPED_TEST(ReaderTest, SequenceTest) {
+  Pipeline pipe(128, 1, 0);
+
+  pipe.AddOperator(
+      OpSpec("SequenceReader")
+      .AddArg("file_root", "/mnt/nvvl_data/data/540p/frames/train/")
+      .AddArg("sequence_length", 3)
+      .AddOutput("seq_out", "cpu")
+      .AddOutput("meta_out", "cpu"));
+
+  std::vector<std::pair<string, string>> outputs = {{"seq_out", "cpu"}, {"meta_out", "cpu"}};
+  pipe.Build(outputs);
+
+  DeviceWorkspace ws;
+  for (int i=0; i < 5; ++i) {
+    printf(" ======= ITER %d ======\n", i);
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  }
+
+  return;
+}
+
 };  // namespace dali
