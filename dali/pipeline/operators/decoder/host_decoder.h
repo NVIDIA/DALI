@@ -50,7 +50,6 @@ class HostDecoder : public Operator<CPUBackend> {
     DALI_ENFORCE(IsType<uint8>(input.type()),
         "Input must be stored as uint8 data.");
 
-
       auto img = ImageFactory::CreateImage(input.data<uint8>(), input.size());
       img->Decode(output_type_);
       auto decoded = img->GetImage();

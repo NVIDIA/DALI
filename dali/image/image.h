@@ -13,15 +13,16 @@ namespace dali {
 
 class Image {
  public:
-  void Decode(DALIImageType image_type) {
-    auto ret = DecodeImpl(image_type);
-    dims_ = ret.second;
+  void Decode() {
+    auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
+    decoded_image_ = decoded.first;
+    dims_ = decoded.second;
     decoded_ = true;
-    decoded_image_= ret.first;
   }
 
-  uint8_t* GetImage(){
-    DALI_ENFORCE(decoded_,"Image not decoded. Run Decode()");
+
+  uint8_t *GetImage() {
+    DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
     return decoded_image_;
   }
 
@@ -30,8 +31,7 @@ class Image {
     if (decoded_) {
       return dims_;
     }
-    abort();
-//    return PeekDims();
+    return PeekDims(encoded_image_, length_);
   }
 
 
@@ -39,30 +39,42 @@ class Image {
 
  protected:
   using ImageDims = std::tuple<size_t, size_t, size_t>; /// (height, width, channels)
+  Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+          encoded_image_(encoded_buffer),
+          length_(length),
+          image_type_(image_type) {
+  }
+
+
  private:
-  virtual std::pair<uint8_t *, ImageDims> DecodeImpl(DALIImageType image_type) = 0;
-//  virtual std::pair<size_t, size_t> PeekDims() =0;
+  virtual std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0;
+
+  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) = 0;
 
 
+  const uint8_t *encoded_image_;
+  const size_t length_;
+  const DALIImageType image_type_;
   bool decoded_ = false;
-  ImageDims dims_; /// (height, width, channels)
-  uint8_t* decoded_image_=nullptr;
+  ImageDims dims_;
+  uint8_t *decoded_image_ = nullptr;
 
 };
 
 class GenericImage : public Image {
  public:
-  GenericImage(const uint8_t *encoded_buffer, size_t length) :
-          encoded_buffer_(encoded_buffer),
-          buffer_length_(length) {
+  GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+          Image(encoded_buffer, length, image_type) {
   }
 
 
-  inline std::pair<uint8_t *, ImageDims> DecodeImpl(DALIImageType image_type) override {
+  inline std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override {
 
     // Decode image to tmp cv::Mat
     cv::Mat tmp = cv::imdecode(
-            cv::Mat(1, buffer_length_, CV_8UC1, (void *) (encoded_buffer_)),
+            cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),
             IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
     // if RGB needed, permute from BGR
@@ -79,23 +91,18 @@ class GenericImage : public Image {
 
   }
 
-//  inline std::pair<size_t, size_t> PeekDims() override {
-//    throw std::runtime_error("Cannot peek dims for image of unknown format");
-//  }
-//  inline std::pair<size_t, size_t> GetDims();
 
-//  inline uint8_t* GetImage();
-
- private:
-  const uint8_t *encoded_buffer_;
-  const size_t buffer_length_;
+  inline ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override {
+    throw std::runtime_error("Cannot peek dims for image of unknown format");
+  }
 
 };
 
 class ImageFactory {
  public:
-  static std::unique_ptr<Image> CreateImage(const uint8_t *encoded_image, size_t length) {
-    return std::unique_ptr<Image>(new GenericImage(encoded_image, length));
+  static std::unique_ptr<Image>
+  CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
+    return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
   }
 };
 
