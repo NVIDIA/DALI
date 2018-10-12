@@ -78,7 +78,7 @@ class FileLoader : public Loader<CPUBackend> {
     current_index_ = start_index(shard_id_, num_shards_, Size());
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor);
+  void ReadSample(Tensor<CPUBackend>* tensor) override;
 
   Index Size() override;
 

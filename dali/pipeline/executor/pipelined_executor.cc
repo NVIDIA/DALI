@@ -200,7 +200,8 @@ void PipelinedExecutor::SetStageOutputsForIter(
         wsb->gpu_op_data[child_op_id].SetArgumentInput(
           tvp.Get(queue_idx), arg_name);
       } else {
-          DALI_FAIL("Internal error - found non-mixed/GPU consumer");
+        wsb->cpu_op_data[child_op_id].SetArgumentInput(
+          tvp.Get(queue_idx), arg_name);
       }
     }
   }
