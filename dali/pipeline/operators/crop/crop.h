@@ -114,12 +114,12 @@ class Crop : public Operator<Backend>, protected CropAttr {
                       int idx);
 
   inline Dims GetOutShape(DALITensorLayout inputLayout,
-                          DALITensorLayout *pOutLayout, int idx) {
+                          DALITensorLayout *pOutLayout, int dataIdx) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
     if (*pOutLayout == DALI_NCHW)
-      return {C_, crop_height_[idx], crop_width_[idx]};
+      return {C_, crop_height_[dataIdx], crop_width_[dataIdx]};
     else
-      return {crop_height_[idx], crop_width_[idx], C_};
+      return {crop_height_[dataIdx], crop_width_[dataIdx], C_};
   }
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
