@@ -31,7 +31,45 @@ DALI_SCHEMA(Slice)
     .AddParent("Crop");
 
 template <>
+void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
+  // Assumes xywh. ltrb not supported atm
+  const auto &input = ws->Input<CPUBackend>(0);
+  const auto &begin = ws->Input<CPUBackend>(1);
+
+  const int H = input.shape()[0];
+  const int W = input.shape()[1];
+
+  crop_y_norm_[ws->data_idx()] = static_cast<int>(begin.template data<float>()[1] / H);
+  crop_x_norm_[ws->data_idx()] = static_cast<int>(begin.template data<float>()[0] / W);
+
+  const auto &size = ws->Input<CPUBackend>(2);
+
+  crop_width_[ws->data_idx()] = static_cast<int>(size.template data<float>()[0]);
+  crop_height_[ws->data_idx()] = static_cast<int>(size.template data<float>()[1]);
+}
+
+template <>
+void Slice<CPUBackend>::ThreadDependentSetup(SampleWorkspace *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
+  DALI_ENFORCE(input.shape().size() == 3,
+              "Expects 3-dimensional image input.");
+
+  const int H = input.shape()[0];
+  const int W = input.shape()[1];
+
+  per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
+
+  const int crop_y = crop_y_norm_[ws->data_idx()] * (H - crop_height_[ws->data_idx()]);
+  const int crop_x = crop_x_norm_[ws->data_idx()] * (W - crop_width_[ws->data_idx()]);
+
+  per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
+}
+
+template <>
 void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  DataDependentSetup(ws);
+  ThreadDependentSetup(ws);
+
   Crop<CPUBackend>::RunImpl(ws, idx);
 }
 
@@ -40,8 +78,10 @@ void Slice<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   DALI_ENFORCE(ws->NumInput() == 3, "Expected 3 inputs. Received: " +
                                         std::to_string(ws->NumInput() == 3));
 
-  // TODO flash attributes
-  Crop<CPUBackend>::SetupSharedSampleParams(ws);
+  if (output_type_ == DALI_NO_TYPE) {
+    const auto &input = ws->Input<CPUBackend>(0);
+    output_type_ = input.type().id();
+  }
 }
 
 // Register operator

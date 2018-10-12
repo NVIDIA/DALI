@@ -16,6 +16,12 @@
 
 namespace dali {
 
+template <>
+void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws) {}
+
+template <>
+void Slice<GPUBackend>::ThreadDependentSetup(DeviceWorkspace *ws) {}
+
 template<>
 void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx)
 {

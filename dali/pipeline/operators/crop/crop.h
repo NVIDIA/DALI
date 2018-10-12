@@ -65,10 +65,10 @@ class CropAttr {
   const vector<Index> CheckShapes(const SampleWorkspace *ws) {
     const auto &input = ws->Input<CPUBackend>(0);
 
-    // enforce that all shapes match
-    for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-    }
+    // // enforce that all shapes match
+    // for (int i = 1; i < ws->NumInput(); ++i) {
+    //   DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+    // }
 
     DALI_ENFORCE(input.shape().size() == 3,
                  "Expects 3-dimensional image input.");
@@ -168,10 +168,10 @@ class Crop : public Operator<Backend>, protected CropAttr {
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
   vector<int> crop_offsets_;
 
+ protected:
   std::vector<std::pair<int, int>> per_sample_crop_;
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
- protected:
   // Output data type
   DALIDataType output_type_;
 

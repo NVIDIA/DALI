@@ -30,16 +30,20 @@ namespace dali
 template <typename Backend>
 class Slice : public Crop<Backend>
 {
-  public:
-    explicit inline Slice(const OpSpec &spec)
-        : Crop<Backend>(spec)
-    {
-    }
+public:
+  explicit inline Slice(const OpSpec &spec)
+      : Crop<Backend>(spec)
+  {
+  }
 
-  protected:
-    void RunImpl(Workspace<Backend> *ws, const int idx) override;
+protected:
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-    void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+
+private:
+  void DataDependentSetup(Workspace<Backend> *ws);
+  void ThreadDependentSetup(Workspace<Backend> *ws);
 };
 
 } // namespace dali
