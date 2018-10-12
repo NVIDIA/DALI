@@ -170,4 +170,22 @@ DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
   return DALISuccess;
 }
 
+
+JpegImage::JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        Image(encoded_buffer, length, image_type) {
+
+}
+
+
+std::pair<uint8_t *, Image::ImageDims>
+JpegImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) {
+  std::vector<uint8_t> vec = {9,8,7,6,5,4,3,2,1};
+  return std::make_pair(vec.data(), std::tuple<size_t, size_t, size_t>{123,69,666});
+}
+
+
+Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+  return std::tuple<size_t, size_t, size_t>{123,69,666};
+}
+
 }  // namespace dali

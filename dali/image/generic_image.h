@@ -17,10 +17,21 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+#include "image.h"
 
 namespace dali {
 
 DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w);
+
+class GenericImage : public Image {
+ public:
+  GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+
+  std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
+
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+};
 
 }  // namespace dali
 

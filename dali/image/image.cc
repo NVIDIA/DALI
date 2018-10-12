@@ -1,0 +1,35 @@
+#include "image.h"
+
+namespace dali {
+
+
+void Image::Decode() {
+  auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
+  decoded_image_ = decoded.first;
+  dims_ = decoded.second;
+  decoded_ = true;
+}
+
+
+uint8_t *Image::GetImage() {
+  DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
+  return decoded_image_;
+}
+
+
+std::tuple<size_t, size_t, size_t> Image::GetImageDims() {
+  if (decoded_) {
+    return dims_;
+  }
+  return PeekDims(encoded_image_, length_);
+}
+
+
+Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        encoded_image_(encoded_buffer),
+        length_(length),
+        image_type_(image_type) {
+}
+
+
+} // namespace dali

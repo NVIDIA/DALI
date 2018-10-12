@@ -19,6 +19,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "image.h"
 
 namespace dali {
 
@@ -37,6 +38,17 @@ DLL_PUBLIC DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int
  */
 DLL_PUBLIC DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
     DALIImageType image_type, Tensor<CPUBackend>* output);
+
+
+class JpegImage : public Image {
+ public:
+  JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+
+  std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
+
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+};
 
 }  // namespace dali
 

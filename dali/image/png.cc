@@ -110,4 +110,29 @@ DALIError_t DecodePNGHost(const uint8_t *png, int size, DALIImageType image_type
   return DALISuccess;
 }
 
+
+
+
+
+
+
+
+PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        Image(encoded_buffer, length, image_type) {
+
+}
+
+
+std::pair<uint8_t *, Image::ImageDims>
+PngImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) {
+  std::vector<uint8_t> vec = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  return std::make_pair(vec.data(), std::tuple<size_t, size_t, size_t>{666, 69, 123});
+}
+
+
+Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+  return std::tuple<size_t, size_t, size_t>{666, 69, 123};
+}
+
+
 }  // namespace dali

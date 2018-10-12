@@ -86,4 +86,40 @@ DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
     return DALIError;
 }
 
+
+
+
+GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        Image(encoded_buffer, length, image_type) {
+}
+
+
+std::pair<uint8_t *, Image::ImageDims>
+GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) {
+
+// Decode image to tmp cv::Mat
+  cv::Mat tmp = cv::imdecode(
+          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),
+          IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
+
+// if RGB needed, permute from BGR
+  if (image_type == DALI_RGB) {
+    cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB
+    );
+  }
+
+  auto c = IsColor(image_type) ? 3 : 1;
+// Resize actual storage
+  const int W = tmp.cols;
+  const int H = tmp.rows;
+
+  return std::make_pair(tmp.ptr(), std::make_tuple(H, W, c));
+
+}
+
+
+Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+  throw std::runtime_error("Cannot peek dims for image of unknown format");
+}
+
 }  // namespace dali

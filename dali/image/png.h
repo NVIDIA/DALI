@@ -19,6 +19,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "image.h"
 
 namespace dali {
 
@@ -37,6 +38,24 @@ DALIError_t GetPNGImageDims(const uint8 *png, int size, int *h, int *w);
  */
 DALIError_t DecodePNGHost(const uint8 *png, int size,
     DALIImageType image_type, Tensor<CPUBackend>* output);
+
+
+
+
+
+
+
+
+
+class PngImage : public Image {
+ public:
+  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+
+  std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
+
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+};
 
 }  // namespace dali
 

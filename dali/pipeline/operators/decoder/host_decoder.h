@@ -23,6 +23,7 @@
 #include "dali/image/jpeg.h"
 #include "dali/image/png.h"
 #include "dali/image/image.h"
+#include "dali/image/image_factory.h"
 
 #include <tuple>
 
