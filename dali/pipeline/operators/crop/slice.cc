@@ -17,16 +17,17 @@
 namespace dali {
 
 DALI_SCHEMA(Slice)
-    .DocStr(R"code(Perform a random crop.)code")
+    .DocStr(R"code(Crop as slice of a defined `size` from an `input` tensor, staring
+    at the location specified by `begin`. Inputs must be supplied as 3 Tensors in a
+    specific order: `Images` containing image data in NHWC format, `Begin` containing
+    the starting coordinates for the `crop` in `(x,y)` format, and 'Size' containing
+    the dimensions of the `crop` in `(w,h)` format. The resulting tensor output of
+    Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddArg(
-        "crop",
-        R"code(Size of the cropped image. If only a single value `c` is provided,
- the resulting crop will be square with size `(c,c)`)code",
-        DALI_INT_VEC)
-
+    .AddArg("crop", R"code(Size of the cropped image. If only a single value `c` is provided,
+            the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
     .EnforceInputLayout(DALI_NHWC)
     .AddParent("Crop");
 
@@ -66,7 +67,7 @@ void Slice<CPUBackend>::ThreadDependentSetup(SampleWorkspace *ws) {
 }
 
 template <>
-void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
   DataDependentSetup(ws);
   ThreadDependentSetup(ws);
 
@@ -84,7 +85,6 @@ void Slice<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   }
 }
 
-// Register operator
 DALI_REGISTER_OPERATOR(Slice, Slice<CPUBackend>, CPU);
 
 }  // namespace dali

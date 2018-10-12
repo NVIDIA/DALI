@@ -65,11 +65,6 @@ class CropAttr {
   const vector<Index> CheckShapes(const SampleWorkspace *ws) {
     const auto &input = ws->Input<CPUBackend>(0);
 
-    // // enforce that all shapes match
-    // for (int i = 1; i < ws->NumInput(); ++i) {
-    //   DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-    // }
-
     DALI_ENFORCE(input.shape().size() == 3,
                  "Expects 3-dimensional image input.");
 
@@ -99,14 +94,14 @@ class Crop : public Operator<Backend>, protected CropAttr {
   }
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws, int idx) override;
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
   template <typename Out>
-  void RunHelper(Workspace<Backend> *ws, const int idx);
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
+  void RunHelper(Workspace<Backend> *ws, int idx);
+  void DataDependentSetup(Workspace<Backend> *ws, int idx);
   template <typename Out>
   void ValidateHelper(TensorList<Backend> *output, int idx);
   template <typename Out>
@@ -148,7 +143,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
     output_layout_ = DALI_SAME;
   }
 
-  void CallRunHelper(Workspace<Backend> *ws, const int idx) {
+  void CallRunHelper(Workspace<Backend> *ws, int idx) {
     if (output_type_ == DALI_FLOAT) {
       RunHelper<float>(ws, idx);
     } else if (output_type_ == DALI_UINT8) {
