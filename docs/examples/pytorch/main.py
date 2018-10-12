@@ -189,8 +189,9 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model, shared_param=True)
+        # shared param/delay all reduce turns off bucketing in DDP, for lower latency runs this can improve perf
+        # for the older version of APEX please use shared_param, for newer one it is delay_allreduce
+        model = DDP(model, delay_allreduce=True)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
