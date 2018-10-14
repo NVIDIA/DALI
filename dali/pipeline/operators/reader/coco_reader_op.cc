@@ -21,13 +21,8 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-<<<<<<< HEAD
- and an anotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
- Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
-=======
 and an anotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
->>>>>>> origin/master
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
       DALI_STRING)
@@ -39,17 +34,10 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddOptionalArg("ltrb",
-<<<<<<< HEAD
-      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
-      false)
-  .AddOptionalArg("ratio",
-      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
-=======
       R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. Default: False)code",
       false)
   .AddOptionalArg("ratio",
       R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height. Default: False)code",
->>>>>>> origin/master
       false)
   .AddParent("LoaderBase");
 
