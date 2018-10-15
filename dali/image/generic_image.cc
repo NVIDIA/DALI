@@ -78,23 +78,23 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
 std::pair<uint8_t *, Image::ImageDims>
 GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) {
 
-// Decode image to tmp cv::Mat
-  cv::Mat tmp = cv::imdecode(
+  // Decode image to tmp cv::Mat
+  decoded_image_ = cv::imdecode(
           cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),
           IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
-// if RGB needed, permute from BGR
+  // if RGB needed, permute from BGR
   if (image_type == DALI_RGB) {
-    cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB
+    cv::cvtColor(decoded_image_, decoded_image_, cv::COLOR_BGR2RGB
     );
   }
 
   auto c = IsColor(image_type) ? 3 : 1;
-// Resize actual storage
-  const int W = tmp.cols;
-  const int H = tmp.rows;
+  // Resize actual storage
+  const int W = decoded_image_.cols;
+  const int H = decoded_image_.rows;
 
-  return std::make_pair(tmp.ptr(), std::make_tuple(H, W, c));
+  return std::make_pair(decoded_image_.ptr(), std::make_tuple(H, W, c));
 
 }
 

@@ -1,4 +1,5 @@
 #include "image_factory.h"
+#include "generic_image.h"
 
 namespace dali {
 
@@ -11,6 +12,7 @@ bool CheckIsJPEG(const uint8 *jpeg, int) {
   return false;
 }
 
+
 bool CheckIsPNG(const uint8_t *png, int size) {
   DALI_ASSERT(png);
   // first bytes should be: 89 50 4E 47 0D 0A 1A 0A (hex)
@@ -19,11 +21,13 @@ bool CheckIsPNG(const uint8_t *png, int size) {
           png[4] == 13 && png[5] == 10 && png[6] == 26 && png[7] == 10);
 }
 
+
 bool CheckIsGIF(const uint8_t *gif, int size) {
   DALI_ASSERT(gif);
   return (size >= 10 && gif[0] == 'G' && gif[1] == 'I' && gif[2] == 'F' && gif[3] == '8' &&
           (gif[4] == '7' || gif[4] == '9') && gif[5] == 'a');
 }
+
 
 bool CheckIsBMP(const uint8_t *bmp, int size) {
   return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
@@ -31,9 +35,23 @@ bool CheckIsBMP(const uint8_t *bmp, int size) {
 
 } // namespace
 
-//std::unique_ptr<Image>
-//ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
-//  return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
-//}
+std::unique_ptr<Image>
+ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
+  DALI_ENFORCE(CheckIsPNG(encoded_image, length) + CheckIsBMP(encoded_image, length) +
+               CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length) == 1,
+               "Encoded image has ambiguous format");
+//  if (CheckIsJPEG(encoded_image, length)) {
+//   return std::unique_ptr<Image>
+//  } else if (CheckIsPNG(encoded_image, length)) {
+//
+//  } else if (CheckIsBMP(encoded_image, length)) {
+//
+//  } else if (CheckIsBMP(encoded_image, length)) {
+//
+//  } else if (CheckIsGIF(encoded_image, length)) {
+//
+//  }
+  return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
+}
 
 } // namespace dali

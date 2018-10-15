@@ -17,11 +17,13 @@ class Image {
 
   uint8_t *GetImage();
 
+
   template<typename T>
-  void GetImage(T* dst) {
+  void GetImage(T *dst) {
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
-    std::memcpy(dst, decoded_image_, dims_multiply()*sizeof(T));
+    std::memcpy(dst, decoded_image_, dims_multiply() * sizeof(T));
   }
+
 
   std::tuple<size_t, size_t, size_t> GetImageDims();
 
@@ -37,10 +39,12 @@ class Image {
 
   virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) = 0;
 
+
   size_t dims_multiply() {
     // There's no elegant way in C++11
-    return std::get<0>(dims_)*std::get<1>(dims_)*std::get<2>(dims_);
+    return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
   }
+
 
   const uint8_t *encoded_image_;
   const size_t length_;
@@ -50,9 +54,6 @@ class Image {
   uint8_t *decoded_image_ = nullptr;
 
 };
-
-
-
 
 
 } // namespace dali

@@ -65,24 +65,35 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
   void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
     this->SetEps(eps);
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
-      Tensor<CPUBackend> t;
-//      auto image = ImageFactory::CreateImage(imgs.data_[imgIdx], imgs.sizes_[imgIdx],
-//                                             this->img_type_);
-//      image->Decode();
-//      image->GetImage(t.mutable_data<uint8_t>());
-      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
-                               imgs.sizes_[imgIdx],
-                               this->img_type_, &t));
+      Tensor<CPUBackend> image;
+
+      auto decoded_image = ImageFactory::CreateImage(imgs.data_[imgIdx], imgs.sizes_[imgIdx],
+                                             this->img_type_);
+      decoded_image->Decode();
+      auto dims = decoded_image->GetImageDims();
+      auto h = static_cast<long int>(std::get<0>(dims));
+      auto w = static_cast<long int>(std::get<1>(dims));
+      auto c = static_cast<long int>(std::get<2>(dims));
+
+      // resize the output tensor
+      image.Resize({h, w, c});
+      // force allocation
+      image.mutable_data<uint8_t>();
+
+      decoded_image->GetImage(image.mutable_data<uint8_t>());
+//      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
+//                               imgs.sizes_[imgIdx],
+//                               this->img_type_, &image));
 
 #if DALI_DEBUG
-      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
+      WriteHWCImage(image.data<uint8_t>(), image.dim(0), image.dim(1), image.dim(2),
                     std::to_string(imgIdx) + "-img");
 #ifndef NDEBUG
       cout << imgIdx << ": " << imgs.sizes_[imgIdx]
-           << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
+           << "  dims: " << image.dim(1) << "x" << image.dim(0) << endl;
 #endif
 #endif
-      this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
+      this->VerifyDecode(image.data<uint8_t>(), image.dim(0), image.dim(1), imgs, imgIdx);
     }
   }
 

@@ -21,9 +21,9 @@
 
 namespace dali {
 
-inline DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
-  *w=0;*h=0;
-  return DALISuccess;
+//inline DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
+//  *w=0;*h=0;
+//  return DALISuccess;
 //    DALI_ASSERT(data);
 //    if (CheckIsPNG(data, size)) {
 //        return GetPNGImageDims(data, size, h, w);
@@ -39,17 +39,21 @@ inline DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
 //    }
 //    // Not supported
 //    return DALIError;
-}
+//}
 
 
 class GenericImage : public Image {
  public:
   GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
+ private:
   std::pair<uint8_t *, ImageDims>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
 
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+
+ private:
+  cv::Mat decoded_image_;
 };
 
 }  // namespace dali
