@@ -105,6 +105,7 @@ void FileLoader::ReadSample(Tensor<CPUBackend>* tensor) {
 
   // copy the image
   current_image->Read(tensor->mutable_data<uint8_t>(), image_size);
+  tensor->SetSourceInfo(image_pair.first);
 
   // close the file handle
   current_image->Close();
