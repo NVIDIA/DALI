@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <dali/image/image_factory.h>
 
 namespace dali {
 
@@ -60,10 +61,15 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     this->RunOperator(DecodingOp(), eps);
   }
 
+
   void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
     this->SetEps(eps);
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
       Tensor<CPUBackend> t;
+//      auto image = ImageFactory::CreateImage(imgs.data_[imgIdx], imgs.sizes_[imgIdx],
+//                                             this->img_type_);
+//      image->Decode();
+//      image->GetImage(t.mutable_data<uint8_t>());
       DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
                                imgs.sizes_[imgIdx],
                                this->img_type_, &t));

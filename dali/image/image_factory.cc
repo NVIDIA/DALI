@@ -31,9 +31,9 @@ bool CheckIsBMP(const uint8_t *bmp, int size) {
 
 } // namespace
 
-std::unique_ptr<Image>
-ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
-  return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
-}
+//std::unique_ptr<Image>
+//ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
+//  return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
+//}
 
 } // namespace dali

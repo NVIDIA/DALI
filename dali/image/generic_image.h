@@ -21,7 +21,26 @@
 
 namespace dali {
 
-DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w);
+inline DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
+  *w=0;*h=0;
+  return DALISuccess;
+//    DALI_ASSERT(data);
+//    if (CheckIsPNG(data, size)) {
+//        return GetPNGImageDims(data, size, h, w);
+//    } else if (CheckIsGIF(data, size)) {
+//        // OpenCV doesn't handle gif images
+//    #if 0
+//        return GetGIFImageDims(data, size, h, w);
+//    #else
+//        return DALIError;
+//    #endif
+//    } else if (CheckIsBMP(data, size)) {
+//        return GetBMPImageDims(data, size, h, w);
+//    }
+//    // Not supported
+//    return DALIError;
+}
+
 
 class GenericImage : public Image {
  public:

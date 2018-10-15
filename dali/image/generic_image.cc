@@ -18,7 +18,7 @@
 #include "dali/image/png.h"
 
 namespace dali {
-
+/*
 bool CheckIsGIF(const uint8_t *gif, int size) {
     DALI_ASSERT(gif);
     return (size >= 10 && gif[0] == 'G' && gif[1] == 'I' && gif[2] == 'F' && gif[3] == '8' &&
@@ -67,26 +67,7 @@ DALIError_t GetBMPImageDims(const uint8 *bmp, int size, int *h, int *w) {
 
     return ret;
 }
-
-DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
-    DALI_ASSERT(data);
-    if (CheckIsPNG(data, size)) {
-        return GetPNGImageDims(data, size, h, w);
-    } else if (CheckIsGIF(data, size)) {
-        // OpenCV doesn't handle gif images
-    #if 0
-        return GetGIFImageDims(data, size, h, w);
-    #else
-        return DALIError;
-    #endif
-    } else if (CheckIsBMP(data, size)) {
-        return GetBMPImageDims(data, size, h, w);
-    }
-    // Not supported
-    return DALIError;
-}
-
-
+*/
 
 
 GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :

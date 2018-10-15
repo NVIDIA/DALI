@@ -30,6 +30,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
+#include "dali/image/image.h"
 #include "dali/image/generic_image.h"
 
 
@@ -193,6 +194,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                      info.widths, info.heights);
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
+
+
         if (DALISuccess == GetImageDims(static_cast<const uint8*>(data),
                                       in_size, info.heights, info.widths)) {
           info.nvjpeg_support = false;
@@ -200,6 +203,20 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           DALI_FAIL("Unsupported image format - DALI supports JPEG, PNG and BMP formats. " +
                     "Please check: " + in.GetSourceInfo());
         }
+
+
+//        try {
+//          auto image = ImageFactory::CreateImage(static_cast<const uint8*>(data), in_size);
+//          auto dims = image->GetImageDims();
+//          info.heights = std::get<0>(dims);
+//          info.widths = std::get<1>(dims);
+//          info.nvjpeg_support=false;
+//
+//        } catch (const std::runtime_error& e) {
+//          DALI_FAIL("Unsupported image format - DALI supports JPEG, PNG and BMP formats.");
+//        }
+
+
       } else {
         // Handle errors
         NVJPEG_CALL_EX(ret, in.GetSourceInfo());
