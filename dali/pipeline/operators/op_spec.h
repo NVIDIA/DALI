@@ -272,7 +272,7 @@ class DLL_PUBLIC OpSpec {
     return &outputs_[idx];
   }
 
-  DLL_PUBLIC string ToString() {
+  DLL_PUBLIC string ToString() const {
     string ret;
     ret += "OpSpec for " + name() + ":\n  Inputs:\n";
     for (size_t i = 0; i < inputs_.size(); ++i) {
