@@ -21,6 +21,9 @@
 #include <array>
 #include <map>
 #include <vector>
+#include <algorithm>
+#include <utility>
+#include <functional>
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -154,6 +157,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
     // Get dimensions
     int idx_in_batch = 0;
+    std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; ++i) {
       auto& in = ws->Input<CPUBackend>(0, i);
       auto in_size = in.size();
@@ -193,6 +197,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
       output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
+      image_order[i] = std::make_pair(Product(output_shape_[i]), i);
     }
 
     // Resize the output (contiguous)
@@ -256,14 +261,19 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                             batched_output_.data(),
                                             streams_[0]));
     } else {
+      // Set the order of images so the largest are processed first
+      // (for load balancing)
+      std::sort(image_order.begin(), image_order.end(),
+                std::greater<std::pair<size_t, size_t>>());
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
-        auto& in = ws->Input<CPUBackend>(0, i);
+        size_t j = image_order[i].second;
+        auto& in = ws->Input<CPUBackend>(0, j);
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
-        auto *output_data = output->mutable_tensor<uint8_t>(i);
+        auto *output_data = output->mutable_tensor<uint8_t>(j);
 
-        auto info = output_info_[i];
+        auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(std::bind(
               [this, info, data, in_size, output_data](int idx, int tid) {
@@ -276,7 +286,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                              data, in_size,
                              output_data,
                              streams_[stream_idx]);
-              }, i, std::placeholders::_1));
+              }, j, std::placeholders::_1));
       }
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
