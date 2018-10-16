@@ -21,7 +21,7 @@ BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 }
 
 
-Image::ImageDims BmpImage::PeekDims(const uint8_t *bmp, size_t length) {
+Image::ImageDims BmpImage::PeekDims(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp);
 
   // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)

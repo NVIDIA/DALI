@@ -24,7 +24,8 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
 
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) {
+GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
+                         size_t length) const {
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
           cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),          //NOLINT
@@ -55,7 +56,7 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
 }
 
 
-Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
   DALI_FAIL("Cannot peek dims for Generic image (of unknown format)");
 }
 

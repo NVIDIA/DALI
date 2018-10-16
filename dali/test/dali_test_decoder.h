@@ -72,10 +72,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       auto decoded_image = ImageFactory::CreateImage(imgs.data_[imgIdx], imgs.sizes_[imgIdx],
                                              this->img_type_);
       decoded_image->Decode();
-      auto dims = decoded_image->GetImageDims();
-      auto h = static_cast<int>(std::get<0>(dims));
-      auto w = static_cast<int>(std::get<1>(dims));
-      auto c = static_cast<int>(std::get<2>(dims));
+      const auto dims = decoded_image->GetImageDims();
+      const auto h = static_cast<int>(std::get<0>(dims));
+      const auto w = static_cast<int>(std::get<1>(dims));
+      const auto c = static_cast<int>(std::get<2>(dims));
 
       // resize the output tensor
       image.Resize({h, w, c});

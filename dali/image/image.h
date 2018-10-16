@@ -38,7 +38,7 @@ class Image {
    * Returns pointer to decoded image. Decode(...) has to be called
    * prior to calling this function
    */
-  std::shared_ptr<uint8_t> GetImage();
+  std::shared_ptr<uint8_t> GetImage() const;
 
 
   /**
@@ -46,7 +46,7 @@ class Image {
    * User is responsible for allocating `dst` buffer.
    */
   template<typename DstType>
-  void GetImage(DstType *dst) {
+  void GetImage(DstType *dst) const{
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
     std::memcpy(dst, decoded_image_.get(), dims_multiply() * sizeof(DstType));
   }
@@ -57,7 +57,7 @@ class Image {
    * reads the dims without decoding the image.
    * @return [height, width, depth (channels)]
    */
-  DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims();
+  DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims()const;
 
   virtual ~Image() = default;
 
@@ -72,7 +72,7 @@ class Image {
    * @return [ptr to decoded image, ImageDims]
    */
   virtual std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0;
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length)const = 0;
 
   /**
    * Template method. Reads image dimensions, without decoding the image
@@ -80,12 +80,12 @@ class Image {
    * @param length length of the encoded buffer
    * @return [height, width, depth]
    */
-  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) = 0;
+  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length)const = 0;
 
   Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  inline size_t dims_multiply() {
+  inline size_t dims_multiply() const{
     // There's no elegant way in C++11
     return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
   }

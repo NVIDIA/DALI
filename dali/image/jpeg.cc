@@ -17,7 +17,7 @@
 #include "dali/image/jpeg.h"
 
 #ifdef DALI_USE_JPEG_TURBO
-  #include <turbojpeg.h>
+#include <turbojpeg.h>
 #endif  // DALI_USE_JPEG_TURBO
 
 #include "dali/util/ocv.h"
@@ -27,8 +27,6 @@ namespace dali {
 namespace {
 
 #ifdef DALI_USE_JPEG_TURBO
-
-
 void PrintSubsampling(int sampling) {
   switch (sampling) {
     case TJSAMP_444:
@@ -53,8 +51,6 @@ void PrintSubsampling(int sampling) {
       cout << "unknown sampling ratio" << endl;
   }
 }
-
-
 #endif  // DALI_USE_JPEG_TURBO
 
 
@@ -114,7 +110,7 @@ JpegImage::~JpegImage() {
 
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
+JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
   const int c = (type == DALI_GRAY) ? 1 : 3;
 
   const auto dims = PeekDims(jpeg, length);
@@ -139,15 +135,15 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
     DALI_FAIL("Unsupported image type.");
   }
 
-  decoded_image_ = std::shared_ptr<uint8_t>(new uint8_t[h * w * c]);
+  std::shared_ptr<uint8_t> decoded_image(new uint8_t[h * w * c]);
 
   auto error = tjDecompress2(tjhandle_, jpeg, length,
-                             decoded_image_.get(),
+                             decoded_image.get(),
                              w, 0, h, pixel_format, 0);
   DALI_ENFORCE(error == 0 || error == -1, "Unexpected value");
 
   if (error == 0) {
-    return std::make_pair(decoded_image_, std::make_tuple(h, w, c));
+    return std::make_pair(decoded_image, std::make_tuple(h, w, c));
   } else {
     // Error occurred during jpeg-turbo decompress. Falling back to Generic decode
     return GenericImage::DecodeImpl(type, jpeg, length);
@@ -158,7 +154,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
 }
 
 
-Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
   int height, width;
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width));
   return std::make_tuple(height, width, 0);  // TODO(mszolucha): fill channels value

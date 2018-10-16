@@ -17,8 +17,11 @@
 
 #include <utility>
 #include <memory>
+
 #ifdef DALI_USE_JPEG_TURBO
+
 #include <turbojpeg.h>
+
 #endif  // DALI_USE_JPEG_TURBO
 
 #include "dali/common.h"
@@ -34,12 +37,13 @@ class JpegImage : public GenericImage {
 
  protected:
   std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
 
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
 
  private:
-  std::shared_ptr<uint8_t> decoded_image_;
+  // This field is in fact modified by `DecodeImpl(...) const`,
+  // but since it's a typedef of void*, it's legal
   tjhandle tjhandle_;
 };
 

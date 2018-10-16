@@ -30,7 +30,7 @@ PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 }
 
 
-Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
+Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer);
   DALI_ENFORCE(length >= 16);
 

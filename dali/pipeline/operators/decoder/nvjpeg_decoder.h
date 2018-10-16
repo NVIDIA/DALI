@@ -195,8 +195,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         try {
-          auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          auto dims = image->GetImageDims();
+          const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
+          const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
           info.nvjpeg_support = false;

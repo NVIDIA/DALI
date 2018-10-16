@@ -28,12 +28,9 @@ class GenericImage : public Image {
 
  protected:
   std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
 
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
-
- private:
-  cv::Mat decoded_image_;
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali

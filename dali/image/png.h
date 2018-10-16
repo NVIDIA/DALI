@@ -27,7 +27,7 @@ class PngImage : public GenericImage {
   PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali
