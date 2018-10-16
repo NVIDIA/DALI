@@ -3,11 +3,11 @@
 #ifndef DALI_TEST_DALI_TEST_DECODER_H_
 #define DALI_TEST_DALI_TEST_DECODER_H_
 
-#include "dali/test/dali_test_single_op.h"
 #include <utility>
 #include <vector>
 #include <string>
-#include <dali/image/image_factory.h>
+#include "dali/test/dali_test_single_op.h"
+#include "dali/image/image_factory.h"
 
 namespace dali {
 
@@ -73,9 +73,9 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
                                              this->img_type_);
       decoded_image->Decode();
       auto dims = decoded_image->GetImageDims();
-      auto h = static_cast<long int>(std::get<0>(dims));
-      auto w = static_cast<long int>(std::get<1>(dims));
-      auto c = static_cast<long int>(std::get<2>(dims));
+      auto h = static_cast<int>(std::get<0>(dims));
+      auto w = static_cast<int>(std::get<1>(dims));
+      auto c = static_cast<int>(std::get<2>(dims));
 
       // resize the output tensor
       image.Resize({h, w, c});

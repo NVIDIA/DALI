@@ -161,7 +161,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
 Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
   int height, width;
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width));
-  return std::make_tuple(height, width, 0); // TODO fill channels value
+  return std::make_tuple(height, width, 0);  // TODO(mszolucha): fill channels value
 }
 
 }  // namespace dali

@@ -15,7 +15,7 @@
 #ifndef DALI_IMAGE_PNG_H_
 #define DALI_IMAGE_PNG_H_
 
-#include "generic_image.h"
+#include "dali/image/generic_image.h"
 
 namespace dali {
 

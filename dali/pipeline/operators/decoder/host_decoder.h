@@ -16,16 +16,11 @@
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
 
 #include <opencv2/opencv.hpp>
-
+#include <tuple>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
-#include "dali/image/jpeg.h"
-#include "dali/image/png.h"
-#include "dali/image/image.h"
 #include "dali/image/image_factory.h"
-
-#include <tuple>
 
 
 namespace dali {
@@ -59,7 +54,7 @@ class HostDecoder : public Operator<CPUBackend> {
     auto w = std::get<1>(hwc);
     auto c = std::get<2>(hwc);
 
-    output->Resize({static_cast<long>(h), static_cast<long>(w), static_cast<long>(c)});
+    output->Resize({static_cast<int>(h), static_cast<int>(w), static_cast<int>(c)});
     unsigned char *out_data = output->mutable_data<unsigned char>();
     std::memcpy(out_data, decoded.get(), h * w * c);
   }

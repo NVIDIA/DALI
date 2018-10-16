@@ -194,17 +194,15 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                      info.widths, info.heights);
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
-
         try {
-          auto image = ImageFactory::CreateImage(static_cast<const uint8*>(data), in_size);
+          auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
           auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
-          info.nvjpeg_support=false;
-        } catch (const std::runtime_error& e) {
+          info.nvjpeg_support = false;
+        } catch (const std::runtime_error &e) {
           DALI_FAIL("Unsupported image format.");
         }
-
       } else {
         // Handle errors
         NVJPEG_CALL_EX(ret, in.GetSourceInfo());

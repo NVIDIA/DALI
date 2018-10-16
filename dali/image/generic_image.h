@@ -15,7 +15,10 @@
 #ifndef DALI_IMAGE_GENERIC_IMAGE_H_
 #define DALI_IMAGE_GENERIC_IMAGE_H_
 
-#include "image.h"
+#include <opencv2/opencv.hpp>
+#include <memory>
+#include <utility>
+#include "dali/image/image.h"
 
 namespace dali {
 

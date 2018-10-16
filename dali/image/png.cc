@@ -27,12 +27,10 @@ int ReadIntFromPNG(const uint8 *chunk) {
 
 PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
         GenericImage(encoded_buffer, length, image_type) {
-
 }
 
 
 Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
-
   DALI_ENFORCE(encoded_buffer);
   DALI_ENFORCE(length >= 16);
 
@@ -44,7 +42,7 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
     png_dimens = encoded_buffer;
   }
 
-  DALI_ENFORCE(static_cast<long>(length) >= png_dimens - encoded_buffer + 16u);
+  DALI_ENFORCE(static_cast<int>(length) >= png_dimens - encoded_buffer + 16u);
 
   // Layout:
   // 4 bytes: chunk size (should be 13 bytes for IHDR)
@@ -56,7 +54,7 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
   // 1 byte : Compression method
   // 1 byte : Filter method
   // 1 byte : Interlace method
-  //TODO fill channels count
+  // TODO(mszolucha): fill channels count
   return std::make_tuple(ReadIntFromPNG(png_dimens + 8), ReadIntFromPNG(png_dimens + 12), 0);
 }
 

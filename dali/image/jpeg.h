@@ -15,13 +15,14 @@
 #ifndef DALI_IMAGE_JPEG_H_
 #define DALI_IMAGE_JPEG_H_
 
+#include <utility>
+#include <memory>
 #ifdef DALI_USE_JPEG_TURBO
 #include <turbojpeg.h>
-#endif // DALI_USE_JPEG_TURBO
+#endif  // DALI_USE_JPEG_TURBO
 
 #include "dali/common.h"
-#include "image.h"
-#include "generic_image.h"
+#include "dali/image/generic_image.h"
 
 namespace dali {
 
