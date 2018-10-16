@@ -36,8 +36,7 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
     cv::cvtColor(decoded_image, decoded_image, cv::COLOR_BGR2RGB    );
   }
 
-  auto c = IsColor(image_type) ? 3 : 1;
-  // Resize actual storage
+  const int c = IsColor(image_type) ? 3 : 1;
   const int W = decoded_image.cols;
   const int H = decoded_image.rows;
 

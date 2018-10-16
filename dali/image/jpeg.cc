@@ -115,11 +115,11 @@ JpegImage::~JpegImage() {
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
-  int c = (type == DALI_GRAY) ? 1 : 3;
+  const int c = (type == DALI_GRAY) ? 1 : 3;
 
-  auto dims = PeekDims(jpeg, length);
-  auto h = std::get<0>(dims);
-  auto w = std::get<1>(dims);
+  const auto dims = PeekDims(jpeg, length);
+  const auto h = std::get<0>(dims);
+  const auto w = std::get<1>(dims);
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);
