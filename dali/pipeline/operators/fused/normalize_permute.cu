@@ -107,7 +107,7 @@ void NormalizePermute<GPUBackend>::RunHelper(DeviceWorkspace *ws, const int idx)
 
 template<>
 void NormalizePermute<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  RUN_IMPL_GPU(ws, idx);
+  RUN_IMPL(ws, idx);
 }
 
 DALI_REGISTER_OPERATOR(NormalizePermute, NormalizePermute<GPUBackend>, GPU);

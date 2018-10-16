@@ -50,7 +50,7 @@ void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bi
   const auto type = tl.type();
   const auto layout = tl.GetLayout();
 
-  DALI_IMAGE_TYPE_SWITCH(type.id(), imgType,
+  DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(type.id(), imgType,
     if (layout == DALI_NCHW)
       WriteCHWBatch<imgType>(tl, bias, scale, suffix);
     else

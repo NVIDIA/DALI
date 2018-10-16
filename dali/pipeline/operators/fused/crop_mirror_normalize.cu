@@ -152,7 +152,7 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
 
 template <>
 void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  RUN_IMPL_GPU(ws, idx);
+  RUN_IMPL(ws, idx);
 }
 
 template<>

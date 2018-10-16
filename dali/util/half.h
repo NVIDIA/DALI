@@ -27,13 +27,13 @@ class CastOut {
 #ifdef __F16C__
   #include <x86intrin.h>
 
-template <>
-class CastOut<uint16_t> {
- public:
-  inline uint16_t operator()(float arg)   { return _cvtss_sh(arg, 0); }
-};
-
   typedef uint16_t _float16;
+
+template <>
+class CastOut<_float16> {
+ public:
+  inline _float16 operator()(float arg)   { return _cvtss_sh(arg, 0); }
+};
 #else
   #include "dali/util/half.hpp"
 
@@ -43,18 +43,10 @@ class CastOut<uint16_t> {
   typedef __half _float16;
 #endif  //  __CUDA_ARCH__
 
-#define RUN_IMPL_CPU(ws, idx)    RUN_IMPL(ws, idx, _float16)
-#define RUN_IMPL_GPU(ws, idx)    RUN_IMPL(ws, idx, float16)
-
-#define RUN_IMPLEMENT(ws, idx, out, cast)       \
-     DataDependentSetup(ws, idx);               \
-     if (output_type_ == DALI_FLOAT16)          \
-        RunHelper<out, cast>(ws, idx);          \
-     else                                       \
-        DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(      \
+#define RUN_IMPL(ws, idx)                       \
+      DataDependentSetup(ws, idx);              \
+      DALI_IMAGE_TYPE_SWITCH(                   \
             output_type_, imgType,              \
             RunHelper<imgType, CastOut<imgType>>(ws, idx))
-
-#define RUN_IMPL(ws, idx, out) RUN_IMPLEMENT(ws, idx, out, CastOut<out>)
 
 #endif  // DALI_UTIL_HALF_H_

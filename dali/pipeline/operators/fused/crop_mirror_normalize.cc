@@ -129,7 +129,7 @@ void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *w
 
 template<>
 void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  RUN_IMPL_CPU(ws, idx);
+  RUN_IMPL(ws, idx);
 }
 
 // Register operator

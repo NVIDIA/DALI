@@ -147,7 +147,7 @@ void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
 
 template<>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  RUN_IMPL_CPU(ws, idx);
+  RUN_IMPL(ws, idx);
 }
 
 template<>

@@ -369,8 +369,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 
 #define DALI_IMAGE_TYPE_SWITCH(type, DType, ...)                    \
     DALI_TYPE_SWITCH_BASE(                                          \
-      DALI_CASE(DALI_FLOAT16, float16, DType, __VA_ARGS__), type, DType, __VA_ARGS__)
-
+      DALI_CASE(DALI_FLOAT16, _float16, DType, __VA_ARGS__), type, DType, __VA_ARGS__)
 
 #define DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(type, DType, ...)         \
     DALI_TYPE_SWITCH_BASE(, type, DType, __VA_ARGS__)
