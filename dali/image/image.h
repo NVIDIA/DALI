@@ -17,7 +17,7 @@ class Image {
    * Perform image decoding. Actual implementation is defined
    * by DecodeImpl template method
    */
-  void Decode();
+  DLL_PUBLIC void Decode();
 
   /**
    * Returns pointer to decoded image. Decode(...) has to be called
@@ -42,7 +42,7 @@ class Image {
    * reads the dims without decoding the image.
    * @return [height, width, depth (channels)]
    */
-  std::tuple<size_t, size_t, size_t> GetImageDims();
+  DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims();
 
   virtual ~Image() = default;
 
@@ -57,7 +57,7 @@ class Image {
    * @return [ptr to decoded image, ImageDims]
    */
   virtual std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0; //TODO shared_ptr
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0;
 
   /**
    * Template method. Reads image dimensions, without decoding the image
@@ -70,7 +70,7 @@ class Image {
 
  private:
 
-  size_t dims_multiply();
+  DLL_PUBLIC size_t dims_multiply();
 
   const uint8_t *encoded_image_;
   const size_t length_;
