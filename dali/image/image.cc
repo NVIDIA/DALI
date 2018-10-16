@@ -18,7 +18,7 @@ void Image::Decode() {
 }
 
 
-uint8_t *Image::GetImage() {
+std::shared_ptr<uint8_t> Image::GetImage() {
   DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
   return decoded_image_;
 }

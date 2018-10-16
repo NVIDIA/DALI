@@ -113,7 +113,7 @@ JpegImage::~JpegImage() {
 }
 
 
-std::pair<uint8_t *, Image::ImageDims>
+std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
   int c = (type == DALI_GRAY) ? 1 : 3;
 
@@ -147,7 +147,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) {
   DALI_ENFORCE(error == 0 || error == -1, "Unexpected value");
 
   if (error == 0) {
-    return std::make_pair(decoded_image_.get(), std::make_tuple(h, w, c));
+    return std::make_pair(decoded_image_, std::make_tuple(h, w, c));
   } else {
     // Error occurred during jpeg-turbo decompress. Falling back to Generic decode
     return GenericImage::DecodeImpl(type, jpeg, length);

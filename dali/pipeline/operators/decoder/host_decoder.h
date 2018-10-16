@@ -61,7 +61,7 @@ class HostDecoder : public Operator<CPUBackend> {
 
     output->Resize({static_cast<long>(h), static_cast<long>(w), static_cast<long>(c)});
     unsigned char *out_data = output->mutable_data<unsigned char>();
-    std::memcpy(out_data, decoded, h * w * c);
+    std::memcpy(out_data, decoded.get(), h * w * c);
   }
 
 

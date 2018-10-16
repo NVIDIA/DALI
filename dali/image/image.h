@@ -23,7 +23,7 @@ class Image {
    * Returns pointer to decoded image. Decode(...) has to be called
    * prior to calling this function
    */
-  uint8_t *GetImage();
+  std::shared_ptr<uint8_t> GetImage();
 
 
   /**
@@ -33,7 +33,7 @@ class Image {
   template<typename DstType>
   void GetImage(DstType *dst) {
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
-    std::memcpy(dst, decoded_image_, dims_multiply() * sizeof(DstType));
+    std::memcpy(dst, decoded_image_.get(), dims_multiply() * sizeof(DstType));
   }
 
 
@@ -56,7 +56,7 @@ class Image {
    * @param length length of the encoded buffer
    * @return [ptr to decoded image, ImageDims]
    */
-  virtual std::pair<uint8_t *, ImageDims>
+  virtual std::pair<std::shared_ptr<uint8_t>, ImageDims>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0; //TODO shared_ptr
 
   /**
@@ -77,7 +77,7 @@ class Image {
   const DALIImageType image_type_;
   bool decoded_ = false;
   ImageDims dims_;
-  uint8_t *decoded_image_ = nullptr;
+  std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 
 };
 
