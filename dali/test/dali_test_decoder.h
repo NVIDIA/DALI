@@ -98,7 +98,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
     const auto imgSize = imgs.sizes_[img_id];
-//    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
 
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();
