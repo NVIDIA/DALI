@@ -37,14 +37,14 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
   DALI_ENFORCE(length >= 16);
 
   // IHDR needs to be the first chunk
-  const uint8 *IHDR = encoded_buffer + 8;
-  const uint8 *png_dimens = IHDR;
+  const uint8_t *IHDR = encoded_buffer + 8;
+  const uint8_t *png_dimens = IHDR;
   if (IHDR[4] != 'I' || IHDR[5] != 'H' || IHDR[6] != 'D' || IHDR[7] != 'R') {
     // no IHDR, older PNGs format
     png_dimens = encoded_buffer;
   }
 
-//TODO    DALI_ENFORCE(length >= png_dimens - encoded_buffer + 16);
+  DALI_ENFORCE(static_cast<long>(length) >= png_dimens - encoded_buffer + 16u);
 
   // Layout:
   // 4 bytes: chunk size (should be 13 bytes for IHDR)

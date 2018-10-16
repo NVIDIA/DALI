@@ -48,7 +48,7 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
   } else if (CheckIsBMP(encoded_image, length)) {
     return std::unique_ptr<Image>(new BmpImage(encoded_image, length, image_type));
   } else if (CheckIsGIF(encoded_image, length)) {
-    throw std::runtime_error("GIF format is not supported");
+    DALI_FAIL("GIF format is not supported");
   }
   return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
 }

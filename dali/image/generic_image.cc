@@ -48,7 +48,7 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
 
 
 Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) {
-  throw std::runtime_error("Cannot peek dims for Generic image (of unknown format)");
+  DALI_FAIL("Cannot peek dims for Generic image (of unknown format)");
 }
 
 }  // namespace dali

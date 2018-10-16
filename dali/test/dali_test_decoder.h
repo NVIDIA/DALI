@@ -38,8 +38,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     return outputs;
   }
 
+
  protected:
-  virtual const OpSpec DecodingOp() const   { return OpSpec(); }
+  virtual const OpSpec DecodingOp() const { return OpSpec(); }
+
 
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
     TensorList<CPUBackend> encoded_data;
@@ -85,10 +87,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
 #if DALI_DEBUG
       WriteHWCImage(image.data<uint8_t>(), image.dim(0), image.dim(1), image.dim(2),
                     std::to_string(imgIdx) + "-img");
-#ifndef NDEBUG
-      cout << imgIdx << ": " << imgs.sizes_[imgIdx]
-           << "  dims: " << image.dim(1) << "x" << image.dim(0) << endl;
-#endif
 #endif
       this->VerifyDecode(image.data<uint8_t>(), image.dim(0), image.dim(1), imgs, imgIdx);
     }

@@ -3,6 +3,13 @@
 namespace dali {
 
 
+Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        encoded_image_(encoded_buffer),
+        length_(length),
+        image_type_(image_type) {
+}
+
+
 void Image::Decode() {
   auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
   decoded_image_ = decoded.first;
@@ -24,11 +31,9 @@ std::tuple<size_t, size_t, size_t> Image::GetImageDims() {
   return PeekDims(encoded_image_, length_);
 }
 
-
-Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
-        encoded_image_(encoded_buffer),
-        length_(length),
-        image_type_(image_type) {
+size_t Image::dims_multiply() {
+  // There's no elegant way in C++11
+  return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
 }
 
 
