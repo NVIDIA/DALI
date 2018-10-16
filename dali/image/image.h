@@ -13,38 +13,67 @@ namespace dali {
 
 class Image {
  public:
+  /**
+   * Perform image decoding. Actual implementation is defined
+   * by DecodeImpl template method
+   */
   void Decode();
 
+  /**
+   * Returns pointer to decoded image. Decode(...) has to be called
+   * prior to calling this function
+   */
   uint8_t *GetImage();
 
 
-  template<typename T>
-  void GetImage(T *dst) {
+  /**
+   * Populates given data buffer with decoded image.
+   * User is responsible for allocating `dst` buffer.
+   */
+  template<typename DstType>
+  void GetImage(DstType *dst) {
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
-    std::memcpy(dst, decoded_image_, dims_multiply() * sizeof(T));
+    std::memcpy(dst, decoded_image_, dims_multiply() * sizeof(DstType));
   }
 
 
+  /**
+   * Returns image dimensions. If image hasn't been decoded,
+   * reads the dims without decoding the image.
+   * @return [height, width, depth (channels)]
+   */
   std::tuple<size_t, size_t, size_t> GetImageDims();
 
   virtual ~Image() = default;
 
  protected:
   using ImageDims = std::tuple<size_t, size_t, size_t>; /// (height, width, channels)
+
+  /**
+   * Template method, that implements actual decoding.
+   * @param image_type
+   * @param encoded_buffer encoded image data
+   * @param length length of the encoded buffer
+   * @return [ptr to decoded image, ImageDims]
+   */
+  virtual std::pair<uint8_t *, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0; //TODO shared_ptr
+
+  /**
+   * Template method. Reads image dimensions, without decoding the image
+   * @param encoded_buffer encoded image data
+   * @param length length of the encoded buffer
+   * @return [height, width, depth]
+   */
+  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) = 0;
   Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  virtual std::pair<uint8_t *, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) = 0;
-
-  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) = 0;
-
 
   size_t dims_multiply() {
     // There's no elegant way in C++11
     return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
   }
-
 
   const uint8_t *encoded_image_;
   const size_t length_;

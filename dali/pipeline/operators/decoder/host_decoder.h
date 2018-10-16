@@ -51,21 +51,19 @@ class HostDecoder : public Operator<CPUBackend> {
     DALI_ENFORCE(IsType<uint8>(input.type()),
         "Input must be stored as uint8 data.");
 
-      auto img = ImageFactory::CreateImage(input.data<uint8>(), input.size());
-      img->Decode(output_type_);
-      auto decoded = img->GetImage();
-      auto hwc=img->GetImageDims();
-      auto h=std::get<0>(hwc);
-      auto w=std::get<1>(hwc);
-      auto c=std::get<2>(hwc);
+    auto img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
+    img->Decode();
+    auto decoded = img->GetImage();
+    auto hwc = img->GetImageDims();
+    auto h = std::get<0>(hwc);
+    auto w = std::get<1>(hwc);
+    auto c = std::get<2>(hwc);
 
-
-
-      output->Resize({static_cast<long>(h), static_cast<long>(w), static_cast<long>(c)});
-      unsigned char *out_data = output->mutable_data<unsigned char>();
-    std::memcpy(out_data, decoded, h*w*c);
-
+    output->Resize({static_cast<long>(h), static_cast<long>(w), static_cast<long>(c)});
+    unsigned char *out_data = output->mutable_data<unsigned char>();
+    std::memcpy(out_data, decoded, h * w * c);
   }
+
 
   DALIImageType output_type_;
   int c_;

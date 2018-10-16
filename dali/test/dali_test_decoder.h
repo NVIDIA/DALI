@@ -81,9 +81,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       image.mutable_data<uint8_t>();
 
       decoded_image->GetImage(image.mutable_data<uint8_t>());
-//      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
-//                               imgs.sizes_[imgIdx],
-//                               this->img_type_, &image));
 
 #if DALI_DEBUG
       WriteHWCImage(image.data<uint8_t>(), image.dim(0), image.dim(1), image.dim(2),
@@ -101,7 +98,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
     const auto imgSize = imgs.sizes_[img_id];
-    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
+//    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
 
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();

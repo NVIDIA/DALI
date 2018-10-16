@@ -15,39 +15,28 @@
 #ifndef DALI_IMAGE_JPEG_H_
 #define DALI_IMAGE_JPEG_H_
 
+#include <turbojpeg.h>
 #include "dali/common.h"
-#include "dali/error_handling.h"
-#include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/data/tensor.h"
 #include "image.h"
+#include "generic_image.h"
 
 namespace dali {
 
-/**
- * @brief Returns 'true' if input compressed image is a jpeg
- */
-DLL_PUBLIC bool CheckIsJPEG(const uint8 *jpeg, int size);
-
-/**
- * @brief Gets the dimensions of the jpeg encoded image
- */
-DLL_PUBLIC DALIError_t GetJPEGImageDims(const uint8 *jpeg, int size, int *h, int *w);
-
-/**
- * @brief Decodes `jpeg` into the the buffer pointed to by `image`
- */
-DLL_PUBLIC DALIError_t DecodeJPEGHost(const uint8 *jpeg, int size,
-    DALIImageType image_type, Tensor<CPUBackend>* output);
-
-
-class JpegImage : public Image {
+class JpegImage : public GenericImage {
  public:
   JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
+  ~JpegImage();
+
+ protected:
   std::pair<uint8_t *, ImageDims>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) override;
 
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) override;
+
+ private:
+  std::shared_ptr<uint8_t> decoded_image_;
+  tjhandle tjhandle_;
 };
 
 }  // namespace dali
