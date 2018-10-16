@@ -57,7 +57,7 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
 
 if (BUILD_F16C)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mf16c -DDALI_F16C")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mf16c")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

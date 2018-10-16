@@ -36,6 +36,7 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+#include "dali/util/half.h"
 
 #ifdef DALI_BUILD_PROTO3
 #include "dali/pipeline/operators/reader/parser/tf_feature.h"
@@ -318,7 +319,8 @@ DALI_REGISTER_TYPE(uint8, DALI_UINT8);
 DALI_REGISTER_TYPE(int16, DALI_INT16);
 DALI_REGISTER_TYPE(int32, DALI_INT32);
 DALI_REGISTER_TYPE(int64, DALI_INT64);
-DALI_REGISTER_TYPE(float16, DALI_FLOAT16);
+DALI_REGISTER_TYPE(float16, DALI_FLOAT16);   // GPU implementation of half
+DALI_REGISTER_TYPE(_float16, DALI_FLOAT16);  // CPU implementation of half
 DALI_REGISTER_TYPE(float, DALI_FLOAT);
 DALI_REGISTER_TYPE(double, DALI_FLOAT64);
 DALI_REGISTER_TYPE(bool, DALI_BOOL);

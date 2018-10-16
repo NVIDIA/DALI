@@ -15,6 +15,7 @@
 #ifndef DALI_UTIL_HALF_H_
 #define DALI_UTIL_HALF_H_
 
+
 // Macros for writing RunImpl templated code for derived operators
 template <typename Out>
 class CastOut {
@@ -23,24 +24,26 @@ class CastOut {
 };
 
 #ifndef __CUDA_ARCH__
-#ifdef DALI_F16C
+#ifdef __F16C__
   #include <x86intrin.h>
 
-class CastF16C {
+template <>
+class CastOut<uint16_t> {
  public:
   inline uint16_t operator()(float arg)   { return _cvtss_sh(arg, 0); }
 };
 
-  #define RUN_IMPL_CPU(ws, idx)  RUN_IMPLEMENT(ws, idx, uint16_t, CastF16C)
-
+  typedef uint16_t _float16;
 #else
   #include "dali/util/half.hpp"
 
-  #define RUN_IMPL_CPU(ws, idx)  RUN_IMPL(ws, idx, half_float::half)
-
+  typedef half_float::half _float16;
 #endif
+#else
+  typedef __half _float16;
 #endif  //  __CUDA_ARCH__
 
+#define RUN_IMPL_CPU(ws, idx)    RUN_IMPL(ws, idx, _float16)
 #define RUN_IMPL_GPU(ws, idx)    RUN_IMPL(ws, idx, float16)
 
 #define RUN_IMPLEMENT(ws, idx, out, cast)       \

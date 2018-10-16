@@ -143,7 +143,7 @@ class DALISingleOpTest : public DALITest {
 
     const auto flags = GetImageLoadingFlags();
 
-    for (int j = t_undefinedImgType; ++j < kLastImgType;) {
+    for (int j = t_undefinedImgType + 1; j < kLastImgType; ++j) {
       const uint32_t mask = 1 << j;
       if (flags & mask) {
         if (j != t_pngImgType)

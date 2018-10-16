@@ -38,25 +38,30 @@ class ImgSetDescr {
  public:
   ~ImgSetDescr()                                { clear(); }
   inline void clear() {
-    for (auto &ptr : data_) delete[] ptr;
-    data_.clear(); shapes_.clear();
+    for (auto &ptr : data_)
+      delete[] ptr;
+
+    data_.clear();
+    shapes_.clear();
   }
 
   inline size_t nImages() const                 { return data_.size(); }
-  uint8 *addImage(int imgSize, const uint8 *pRaster = nullptr) {
+  inline uint8 *addImage(int imgSize, const uint8 *pRaster = nullptr) {
     shapes_.push_back({imgSize});
     return AddRaster(imgSize, pRaster);
   }
 
-  uint8 *addImage(int h, int w, int c, const uint8 *pRaster = nullptr) {
+  inline uint8 *addImage(int h, int w, int c, const uint8 *pRaster = nullptr) {
     shapes_.push_back({h, w, c});
     return AddRaster(h * w * c, pRaster);
   }
 
   inline void addImageName(const string &name)  { img_names_.push_back(name); }
-  const vector<string> &imgNames() const        { return img_names_; }
+  inline const vector<string> &imgNames() const { return img_names_; }
 
-  void copyImage(int idx, void *pRaster) const  { memcpy(pRaster, data(idx), size(idx)); }
+  inline void copyImage(int idx, void *pRaster) const {
+    memcpy(pRaster, data(idx), size(idx));
+  }
 
   inline uint8 *data(int idx) const             { return data_[idx]; }
   inline int size(int idx) const                { return shape(idx)[0]; }
@@ -66,7 +71,7 @@ class ImgSetDescr {
  * Loads images from a specified image folder. When imgNames is not defined, assumes the folder
  * contains a file 'image_list.txt' that lists all the different images in the folder
  */
-  void LoadImages(const string &image_folder, const vector<string> *imgNames = NULL) {
+  void LoadImages(const string &image_folder, const vector<string> *imgNames = nullptr) {
     if (!imgNames) {
       const string image_list = image_folder + "/image_list.txt";
       std::ifstream file(image_list);
@@ -87,7 +92,7 @@ class ImgSetDescr {
     LoadImages();
   }
 
-  void LoadImages(const vector<string> *imgNames = NULL) {
+  void LoadImages(const vector<string> *imgNames = nullptr) {
     if (!imgNames)
       imgNames = &img_names_;
 
@@ -99,7 +104,7 @@ class ImgSetDescr {
       int img_size = static_cast<int>(img_file.tellg());
       img_file.seekg(0, std::ios::beg);
 
-      auto data = addImage(img_size);
+      auto *data = addImage(img_size);
       img_file.read(reinterpret_cast<char*>(data), img_size);
     }
   }
