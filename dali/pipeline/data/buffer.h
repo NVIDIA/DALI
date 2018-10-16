@@ -305,7 +305,7 @@ class Buffer {
     size_ = new_size;
   }
 
-  const double alloc_mult = 1.5;
+  const double alloc_mult = 1.0;
 
   Backend backend_;
 

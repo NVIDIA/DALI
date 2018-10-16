@@ -83,6 +83,7 @@ class RecordIOLoader : public IndexedFileLoader {
     tensor->Resize({size});
 
     int64 n_read = 0;
+    tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
     while (n_read < size) {
       n_read += current_file_->Read(tensor->mutable_data<uint8_t>() + n_read,
                      size - n_read);

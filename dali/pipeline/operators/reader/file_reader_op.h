@@ -48,6 +48,7 @@ class FileReader : public DataReader<CPUBackend> {
     std::memcpy(image_output->raw_mutable_data(),
                 raw_data->raw_data(),
                 image_size);
+    image_output->SetSourceInfo(raw_data->GetSourceInfo());
 
     label_output->mutable_data<int>()[0] =
        *reinterpret_cast<const int*>(raw_data->data<uint8_t>() + image_size);
