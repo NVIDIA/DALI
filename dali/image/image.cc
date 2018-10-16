@@ -31,10 +31,5 @@ std::tuple<size_t, size_t, size_t> Image::GetImageDims() {
   return PeekDims(encoded_image_, length_);
 }
 
-size_t Image::dims_multiply() {
-  // There's no elegant way in C++11
-  return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
-}
-
 
 } // namespace dali

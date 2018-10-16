@@ -70,7 +70,10 @@ class Image {
 
  private:
 
-  DLL_PUBLIC size_t dims_multiply();
+  inline size_t dims_multiply() {
+    // There's no elegant way in C++11
+    return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
+  }
 
   const uint8_t *encoded_image_;
   const size_t length_;
