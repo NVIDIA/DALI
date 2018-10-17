@@ -110,7 +110,6 @@ class DaliOp : public tf::OpKernel {
       prefetch_queue_depth_ = 2;
     }
     this->device_id_ = device_id;
-    this->prefetched_ = false;
     LOG_LINE << "Initializing...\n";
 
     TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
@@ -126,7 +125,10 @@ class DaliOp : public tf::OpKernel {
     UpdateTFAllocaterContext<tf::OpKernelConstruction>(context, device_id_);
 #endif
     LOG_LINE << "Pipeline created\n";
-    TF_DALI_CALL(daliRun(&pipe_handle_));
+    LOG_LINE << "Prefetching...\n";
+    for (int i = 0; i < prefetch_queue_depth_; ++i) {
+      TF_DALI_CALL(daliRun(&pipe_handle_));
+    }
     LOG_LINE << "After first run\n";
   }
 
@@ -136,13 +138,6 @@ class DaliOp : public tf::OpKernel {
 
   void Compute(tf::OpKernelContext* context) override {
     auto total_s = Clock::now();
-    if (!this->prefetched_) {
-      LOG_LINE << "Prefetching...\n";
-      this->prefetched_ = true;
-      for (int i = 0; i < prefetch_queue_depth_; ++i) {
-        TF_DALI_CALL(daliRun(&pipe_handle_));
-      }
-    }
 
 #if USE_TF_ALLOCATOR
     UpdateTFAllocaterContext<tf::OpKernelContext>(context, device_id_);
