@@ -62,8 +62,10 @@ class DALIGenericIterator(object):
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
     output_map : list of str
-                 List of strings (either "data" or "label") which maps
-                 the output of DALI pipeline to proper type of tensor
+                 List of strings which maps consecutive outputs
+                 of DALI pipelines to proper type of tensor.
+                 Each string represents a category, and we assume all
+                 tensors from given category have the same type.
     size : int
            Epoch size.
     """
@@ -85,6 +87,7 @@ class DALIGenericIterator(object):
         self._data_batches = [[None, None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
+        self._output_categories = set(output_map)
         self.output_map = output_map
 
         # We need data about the batches (like shape information),
@@ -107,45 +110,49 @@ class DALIGenericIterator(object):
             outputs.append(p._share_outputs())
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
-            out_data = []
-            out_labels = []
-            # segregate outputs into data/label entries
+            # initialize dict for all output categories
+            category_outputs = {key : [] for key in self._output_categories}
+            # segregate outputs into categories
             for j, out in enumerate(outputs[i]):
-                if self.output_map[j] == "data":
-                    out_data.append(out)
-                elif self.output_map[j] == "label":
-                    out_labels.append(out)
+                category_outputs[self.output_map[j]].append(out)
 
             # Change DALI TensorLists into Tensors
-            data = [x.as_tensor() for x in out_data]
-            data_shape = [x.shape() for x in data]
-            # Change label shape from [batch_size, 1] to [batch_size]
-            labels = [x.as_tensor() for x in out_labels]
-            for l in labels:
-                l.squeeze()
+            category_tensors = dict()
+            category_shapes = dict()
+            for category, output_list in category_outputs.items():
+                category_tensors[category] = [x.as_tensor() for x in output_list]
+                category_shapes[category] = [x.shape() for x in category_tensors[category]]
 
-            label_shape = [x.shape() for x in labels]
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
-
-                data_torch_type = to_torch_type[np.dtype(data[0].dtype())]
-                label_torch_type = to_torch_type[np.dtype(labels[0].dtype())]
-
+                category_torch_type = dict()
+                category_device = dict()
                 torch_gpu_device = torch.device('cuda', dev_id)
                 torch_cpu_device = torch.device('cpu')
+                # check category and device
+                for category in self._output_categories:
+                    category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category][0].dtype())]
+                    from nvidia.dali.backend import TensorGPU
+                    if type(category_tensors[category][0]) is TensorGPU:
+                        category_device[category] = torch_gpu_device
+                    else:
+                        category_device[category] = torch_cpu_device
 
-                pyt_data = [torch.zeros(shape, dtype=data_torch_type, device=torch_gpu_device) for shape in data_shape]
-                pyt_labels = [torch.zeros(shape, dtype=label_torch_type, device=torch_cpu_device) for shape in label_shape]
+                pyt_tensors = dict()
+                for category in self._output_categories:
+                    pyt_tensors[category] = [torch.zeros(shape,
+                                                         dtype=category_torch_type[category],
+                                                         device=category_device[category])
+                                             for shape in category_shapes[category]]
 
-                self._data_batches[i][self._current_data_batch] = (pyt_data, pyt_labels)
+                self._data_batches[i][self._current_data_batch] = pyt_tensors
             else:
-                pyt_data, pyt_labels = self._data_batches[i][self._current_data_batch]
+                pyt_tensors = self._data_batches[i][self._current_data_batch]
 
             # Copy data from DALI Tensors to torch tensors
-            for j, d_arr in enumerate(data):
-                feed_ndarray(d_arr, pyt_data[j])
-            for j, l_arr in enumerate(labels):
-                feed_ndarray(l_arr, pyt_labels[j])
+            for category, tensors in category_tensors.items():
+                for j, t in enumerate(tensors):
+                    feed_ndarray(t, pyt_tensors[category][j])
 
         for p in self._pipes:
             p._release_outputs()
