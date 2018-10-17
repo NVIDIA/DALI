@@ -26,7 +26,6 @@ DALI and NGC
 ------------
 
 DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch, and MXNet containers in versions 18.07 and later.
-More info can be found `here <https://docs.nvidia.com/deeplearning/sdk/dali-install-guide/index.html#dali-ngc>`_.
 
 Installing prebuilt DALI packages
 ---------------------------------
@@ -106,7 +105,7 @@ Prerequisites
    | **(Optional)** |lmdb link|_ or later   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
-   |      -  |mxnet link|_ ``mxnet-cu90==1.3.0`` or later                                                                                 |
+   |      -  |mxnet link|_ ``mxnet-cu90`` or later                                                                                        |
    |      -  |pytorch link|_                                                                                                              |
    |      -  |tf link|_ or later                                                                                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
