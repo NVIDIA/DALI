@@ -39,6 +39,10 @@ if (BUILD_NVJPEG)
   list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
   list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
   add_definitions(-DDALI_USE_NVJPEG)
+
+  if (${NVJPEG_LIBRARY_0_2_0})
+    add_definitions(-DNVJPEG_LIBRARY_0_2_0)
+  endif()
 else()
   # Note: Support for disabling nvJPEG is unofficial
   message(STATUS "Building WITHOUT nvJPEG")
