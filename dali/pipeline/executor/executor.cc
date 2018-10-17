@@ -22,6 +22,11 @@
 
 namespace dali {
 
+
+void Executor::SetCompletionCallback(ExecutorCallback cb) {
+  cb_ = cb;
+}
+
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
@@ -236,6 +241,11 @@ void Executor::RunGPU() {
   // dependency between consecutive iterations
   // of the gpu stage of the pipeline.
   previous_gpu_queue_idx_ = queue_idx;
+
+  // call any registered previously callback
+  if (cb_) {
+    cb_();
+  }
 }
 
 void Executor::ReleaseOutputs() {
