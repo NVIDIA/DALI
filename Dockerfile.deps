@@ -95,7 +95,7 @@ RUN if [ ${USE_CUDA_VERSION} == "9" ] ; then \
     # nvJpeg
         NVJPEG_VERSION=0.2.0 && \
         NVJPEG_BUILD=9.0-v${NVJPEG_VERSION} && \
-        wget -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
+        curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
         cd /cuda-linux64-nvjpeg/ && \
         mv lib64/libnvjpeg*.a* /usr/local/lib/ && \
         mv include/nvjpeg.h /usr/local/include/ && \
