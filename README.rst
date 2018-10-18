@@ -78,8 +78,8 @@ The package nvidia-dali-tf-plugin has a strict requirement with nvidia-dali as i
    OLDER_VERSION=0.6.1
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
-Compiling DALI from source
---------------------------
+Compiling DALI from source (bare metal)
+---------------------------------------
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -231,6 +231,32 @@ Install Python bindings
     pip install dali/python
 
 .. installation-end-marker-do-not-remove
+
+Compiling DALI from source (docker)
+---------------------------------------
+
+Prerequisites
+^^^^^^^^^^^^^
+.. |docker link| replace:: **Docker**
+.. _docker link: https://docs.docker.com/install/
+
+.. table::
+   :align: center
+
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | **Linux x64**                          |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |docker link|_                         | Please follow instalation guide and manual there                                            |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+
+Build docker image
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Enter docker directory and issue ./build.sh. If needed set folowing envarionment variables:
+- PYVER - python version, default is `2.7`
+- CUDA_VERSION - version of the CUDA toolkit, default is `10`
+- NVIDIA_BUILD_ID - custom ID of the build,. default is `1234`
+- CREATE_WHL - if create whl binary as well, the default is `YES`
+This will create `Docker_run_cuda` image which needs to be run using Nvidia-docker and DALI whl in the `wheelhouse` directory under `DALI/`.
 
 Getting started
 ---------------
