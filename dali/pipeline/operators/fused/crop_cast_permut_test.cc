@@ -43,7 +43,7 @@ TYPED_TEST(CropCastPermuteTest, Layout_DALI_NHWC) {
 
 TYPED_TEST(CropCastPermuteTest, Layout_DALI_SAME) {
   const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                          {"output_layout", "2",   DALI_INT32}};
+                          {"output_layout", "3",   DALI_INT32}};
   this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
