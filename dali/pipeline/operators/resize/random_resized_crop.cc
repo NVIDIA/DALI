@@ -82,8 +82,8 @@ void RandomResizedCrop<CPUBackend>::InitParams(const OpSpec &spec) {
 template<>
 void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx) {
   auto &input = ws->Input<CPUBackend>(idx);
-  DALI_ENFORCE(IsType<uint8>(input.type()),
-      "Expected input data as uint8.");
+  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
+  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
   const int W = input.shape()[1];
   const int C = input.shape()[2];

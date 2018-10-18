@@ -66,7 +66,12 @@ class CropAttr {
   const vector<Index> CheckShapes(const SampleWorkspace *ws) {
     const auto &input = ws->Input<CPUBackend>(0);
 
-    DALI_ENFORCE(input.shape().size() == 3, "Expects 3-dimensional image input.");
+    // enforce that all shapes match
+    for (int i = 1; i < ws->NumInput(); ++i) {
+      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+    }
+
+    DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
     return input.shape();
   }
@@ -97,8 +102,8 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
  private:
   template <typename Out>
-  void RunHelper(Workspace<Backend> *ws, int idx);
-  void DataDependentSetup(Workspace<Backend> *ws, int idx);
+  void RunHelper(Workspace<Backend> *ws, const int idx);
+  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
   template <typename Out>
   void ValidateHelper(TensorList<Backend> *output);
 
@@ -122,8 +127,8 @@ class Crop : public Operator<Backend>, protected CropAttr {
     int C = inputShape[2];
     DALI_ENFORCE(C == C_,
                  "Input channel dimension does not match "
-                 "the output image type. Expected input with " +
-                     to_string(C_) + " channels, got " + to_string(C) + ".");
+                 "the output image type. Expected input with "
+                 + to_string(C_) + " channels, got " + to_string(C) + ".");
 
     per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
   }
