@@ -31,9 +31,11 @@ DALI_SCHEMA(Crop)
                     0.5f, true)
     .AddOptionalArg("image_type",
                     R"code(The color space of input and output image)code", DALI_RGB, false)
-    .AddArg("crop",
-            R"code(Size of the cropped image. If only a single value `c` is provided,
- the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
+    .AddOptionalArg(
+        "crop",
+        R"code(Size of the cropped image. If only a single value `c` is provided,
+        the resulting crop will be square with size `(c,c)`)code",
+        std::vector<float>{0.f, 0.f})
     .EnforceInputLayout(DALI_NHWC);
 
 

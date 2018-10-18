@@ -26,8 +26,6 @@ DALI_SCHEMA(Slice)
     .NumInput(3)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddArg("crop", R"code(Size of the cropped image. If only a single value `c` is provided,
-            the resulting crop will be square with size `(c,c)`)code", DALI_INT_VEC)
     .EnforceInputLayout(DALI_NHWC)
     .AddParent("Crop");
 

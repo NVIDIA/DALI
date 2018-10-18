@@ -32,17 +32,14 @@ class CropAttr {
         C_(IsColor(image_type_) ? 3 : 1) {
     const int batch_size = spec.GetArgument<int>("batch_size");
     if (spec.name() != "Resize") {
-      vector<int> cropTmp;
-      GetSingleOrRepeatedArg(spec, &cropTmp, "crop", 2);
-      crop_height_ = std::vector<int>(batch_size, cropTmp[0]);
-      crop_width_ = std::vector<int>(batch_size, cropTmp[1]);
+      vector<float> cropTmp = spec.GetRepeatedArgument<float>("crop");
+      crop_height_ = std::vector<int>(batch_size, (int)cropTmp[0]);
+      crop_width_ = std::vector<int>(batch_size, (int)cropTmp[1]);
 
       crop_x_norm_ =
           std::vector<float>(batch_size, spec.GetArgument<float>("crop_pos_x"));
       crop_y_norm_ =
           std::vector<float>(batch_size, spec.GetArgument<float>("crop_pos_y"));
-
-      DALI_ENFORCE(crop_height_[0] > 0 && crop_width_[1] > 0);
     }
   }
 

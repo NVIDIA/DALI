@@ -57,8 +57,8 @@ class BBoxCrop : public Operator<CPUBackend> {
             DALI_ENFORCE(top >= 0 && top <= 1);
             DALI_ENFORCE(right >= 0 && right <= 1);
             DALI_ENFORCE(bottom >= 0 && bottom <= 1);
-            DALI_ENFORCE(left < right);
-            DALI_ENFORCE(top < bottom);
+            DALI_ENFORCE(left <= right);
+            DALI_ENFORCE(top <= bottom);
           }
 
     bool Contains(float x, float y) const {
@@ -67,9 +67,28 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
 
     Rectangle ClampTo(const Rectangle &other) const {
+      const float new_left = std::max(other.left, left);
+      const float new_top = std::max(other.top, top);
+      const float new_right = std::min(other.right, right);
+      const float new_bottom = std::min(other.bottom, bottom);
+
       return Rectangle(std::max(other.left, left), std::max(other.top, top),
                        std::min(other.right, right),
                        std::min(other.bottom, bottom));
+    }
+
+    Rectangle RemapTo(const Rectangle &other, unsigned int height, unsigned int width) const {
+      const float crop_width = other.right - other.left;
+      const float crop_height = other.bottom - other.top;
+
+      const float new_left = std::max(other.left, left) / crop_width;
+      const float new_top = std::max(other.top, top) / crop_height;
+      const float new_right = std::min(other.right, right) / crop_width;
+      const float new_bottom = std::min(other.bottom, bottom) / crop_height;
+
+      return Rectangle(
+          std::max(0.0f, std::min(new_left, 1.0f)), std::max(0.0f, std::min(new_top, 1.0f)),
+          std::max(0.0f, std::min(new_right, 1.0f)), std::max(0.0f, std::min(new_bottom, 1.0f)));
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
@@ -174,7 +193,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   }
 
   float Rescale(unsigned int k) {
-    static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
+    std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
     return sampler(rd_) * k;
   }
@@ -209,11 +228,11 @@ class BBoxCrop : public Operator<CPUBackend> {
     for (int i = 0; i < bounding_boxes.dim(0); ++i) {
       const auto *box = bounding_boxes.data<float>() + (i * kBboxSize);
 
-      const float x_center = 0.5 * box[2] + box[0];
-      const float y_center = 0.5 * box[3] + box[1];
+      const float x_center = 0.5 * (box[2] - box[0]) + box[0];
+      const float y_center = 0.5 * (box[3] - box[1]) + box[1];
 
       if (crop.Contains(x_center, y_center)) {
-        result.emplace_back(box[0], box[1], box[2] + box[0], box[3] + box[1]);
+        result.emplace_back(box[0], box[1], box[2], box[3]);
       }
     }
 
@@ -223,7 +242,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
       const Tensor<CPUBackend> &image, const Tensor<CPUBackend> &bounding_boxes,
       float minimum_overlap) {
-    if (minimum_overlap > 0.0) {
+    if (true) {
       for (size_t i = 0; i < kAttempts; ++i) {
         // Image is HWC
         const auto rescaled_height = Rescale(image.dim(0));
@@ -236,21 +255,17 @@ class BBoxCrop : public Operator<CPUBackend> {
           auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
-          BoundingBoxes clamped_boxes;
-          clamped_boxes.reserve(candidate_boxes.size());
+          // TODO: check by iou threshold
+
+          BoundingBoxes remapped_boxes;
+          remapped_boxes.reserve(candidate_boxes.size());
 
           for (const auto& box : candidate_boxes) {
-            if (candidate_crop.IntersectionOverUnion(box)) {
-              clamped_boxes.emplace_back(box.ClampTo(candidate_crop));
-            } else {
-              break;
-            }
+            remapped_boxes.emplace_back(
+                box.RemapTo(candidate_crop, rescaled_height, rescaled_width));
           }
 
-          if (clamped_boxes.size() == candidate_boxes.size()) {
-            // Remap boxes
-            return std::make_pair(candidate_crop, candidate_boxes);
-          }
+          return std::make_pair(candidate_crop, remapped_boxes);
         }
       }
     }
@@ -265,7 +280,7 @@ class BBoxCrop : public Operator<CPUBackend> {
       result.emplace_back(box[0], box[1], box[2], box[3]);
     }
 
-    return std::make_pair(Crop(0, 0, image.dim(1), image.dim(0)), result);
+    return std::make_pair(Crop(0, 0, 1, 1), result);
   }
 
   const std::vector<float> thresholds_;
