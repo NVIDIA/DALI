@@ -238,9 +238,7 @@ void Executor::RunGPU() {
   previous_gpu_queue_idx_ = queue_idx;
 }
 
-void Executor::Outputs(DeviceWorkspace *ws) {
-  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  ws->Clear();
+void Executor::ReleaseOutputs() {
   // Mark the last in-use buffer as free and signal
   // to waiting threads
   if (!in_use_queue_.empty()) {
@@ -250,6 +248,16 @@ void Executor::Outputs(DeviceWorkspace *ws) {
     free_cond_.notify_one();
     lock.unlock();
   }
+}
+
+void Executor::Outputs(DeviceWorkspace *ws) {
+  ReleaseOutputs();
+  ShareOutputs(ws);
+}
+
+void Executor::ShareOutputs(DeviceWorkspace *ws) {
+  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
+  ws->Clear();
 
   if (exec_error_) {
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);

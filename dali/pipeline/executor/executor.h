@@ -45,10 +45,10 @@ class DLL_PUBLIC Executor {
  public:
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
       size_t bytes_per_sample_hint, bool set_affinity = false,
-      int max_num_stream = -1) :
+      int max_num_stream = -1, int prefetch_queue_depth = 2) :
     batch_size_(batch_size), device_id_(device_id),
     bytes_per_sample_hint_(bytes_per_sample_hint),
-    queue_depth_(2),
+    queue_depth_(prefetch_queue_depth),
     stream_pool_(max_num_stream, true), event_pool_(max_num_stream),
     thread_pool_(num_thread, device_id, set_affinity),
     exec_error_(false) {
@@ -69,6 +69,10 @@ class DLL_PUBLIC Executor {
   DLL_PUBLIC virtual void RunGPU();
 
   DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws);
+
+  DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws);
+
+  DLL_PUBLIC virtual void ReleaseOutputs();
 
   friend class ExecutorTest;
 

@@ -104,6 +104,11 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("shape", &shape_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
+    if (context->HasAttr("prefetch_queue_depth")) {
+      OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+    } else {
+      prefetch_queue_depth_ = 2;
+    }
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
@@ -112,14 +117,18 @@ class DaliOp : public tf::OpKernel {
                    serialized_pipeline.length(),
                    shape_.dim_size(0),
                    num_threads,
-                   device_id));
+                   device_id,
+                   prefetch_queue_depth_));
 
 #if USE_TF_ALLOCATOR
     SetupTFAllocator(device_id_);
     UpdateTFAllocaterContext<tf::OpKernelConstruction>(context, device_id_);
 #endif
     LOG_LINE << "Pipeline created\n";
-    TF_DALI_CALL(daliRun(&pipe_handle_));
+    LOG_LINE << "Prefetching...\n";
+    for (int i = 0; i < prefetch_queue_depth_; ++i) {
+      TF_DALI_CALL(daliRun(&pipe_handle_));
+    }
     LOG_LINE << "After first run\n";
   }
 
@@ -129,19 +138,15 @@ class DaliOp : public tf::OpKernel {
 
   void Compute(tf::OpKernelContext* context) override {
     auto total_s = Clock::now();
-    LOG_LINE << "Computing...\n";
+
 #if USE_TF_ALLOCATOR
     UpdateTFAllocaterContext<tf::OpKernelContext>(context, device_id_);
-#endif
     LOG_LINE << "Updated context\n";
-    auto s = Clock::now();
-    TF_DALI_CALL(daliRun(&pipe_handle_));
-    int64_t run_time = std::chrono::duration_cast<std::chrono::microseconds>(
-                         Clock::now() - s).count();
+#endif
     LOG_LINE << "Before output...\n";
 
-    s = Clock::now();
-    TF_DALI_CALL(daliOutput(&pipe_handle_));
+    auto s = Clock::now();
+    TF_DALI_CALL(daliShareOutput(&pipe_handle_));
     int64_t output_time = std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
     LOG_LINE << "After output...\n";
@@ -183,8 +188,17 @@ class DaliOp : public tf::OpKernel {
     int64_t copy1_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                             Clock::now() - s).count();
 
+    TF_DALI_CALL(daliOutputRelease(&pipe_handle_));
+
+    LOG_LINE << "Computing...\n";
+    s = Clock::now();
+    TF_DALI_CALL(daliRun(&pipe_handle_));
+    int64_t run_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                         Clock::now() - s).count();
+
     int64_t total_time = std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - total_s).count();
+
     LOG_LINE << "[TIMES] TOTAL " << total_time << " RUN " << run_time
       << " - OUTPUT " << output_time << " - ALLOC " << allocate_time
       << " - COPY0 " << copy0_time << " - COPY1 " << copy1_time << std::endl;
@@ -194,6 +208,8 @@ class DaliOp : public tf::OpKernel {
   daliPipelineHandle pipe_handle_;
   tf::TensorShape shape_;
   int device_id_;
+  int prefetch_queue_depth_;
+  bool prefetched_;
 };
 
 using tf::int64;
