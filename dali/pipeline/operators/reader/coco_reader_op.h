@@ -104,10 +104,28 @@ class COCOReader : public DataReader<CPUBackend> {
       auto annotations = find_in_json(j, "annotations");
       int annotation_size = (*annotations).size();
 
+      // Change categories IDs to be in range [1, 80]
+      std::vector<int> deleted_categories{ 12, 26, 29, 30, 45, 66, 68, 69, 71, 83, 91 };
+      std::map<int, int> new_category_ids;
+      int current_id = 1;
+      int vector_id = 0;
+      for (int i = 1; i <= 90; i++) {
+        if (i == deleted_categories[vector_id]) {
+          vector_id++;
+        } else {
+          new_category_ids.insert(std::make_pair(i, current_id));
+          current_id++;
+        }
+      }
+
       for (auto& an : *annotations) {
         auto image_id = get_from_json<int>(an, "image_id");
         auto category_id = get_from_json<int>(an, "category_id");
         auto bbox = get_from_json<std::array<float, 4>>(an, "bbox");
+
+        if (bbox[2] < 0.1 || bbox[3] < 0.1) {
+          continue;
+        }
 
         if (ltrb_) {
           bbox[2] += bbox[0];
@@ -127,7 +145,7 @@ class COCOReader : public DataReader<CPUBackend> {
 
         annotations_multimap_.insert(
             std::make_pair(image_id,
-              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
+              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], new_category_ids[category_id])));
       }
 
       f.close();
