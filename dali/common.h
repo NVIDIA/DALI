@@ -85,9 +85,10 @@ enum DALIImageType {
  * @brief Supported tensor layouts
  */
 enum DALITensorLayout {
-  DALI_NCHW = 0,
-  DALI_NHWC = 1,
-  DALI_SAME = 2
+  DALI_NCHW  = 0,
+  DALI_NHWC  = 1,
+  DALI_NFHWC = 2,
+  DALI_SAME  = 3
 };
 
 inline bool IsColor(DALIImageType type) {
