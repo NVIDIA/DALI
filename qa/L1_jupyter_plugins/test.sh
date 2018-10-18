@@ -14,8 +14,7 @@ test_body() {
     find */* -name "*.ipynb" | xargs -i jupyter nbconvert \
                    --to notebook --execute \
                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                   --ExecutePreprocessor.timeout=600 \
-                   --output output.ipynb {}
+                   --ExecutePreprocessor.timeout=600 {}
     find */* -name "main.py" | xargs -i python${PYVER:0:1} {} -t
 }
 
