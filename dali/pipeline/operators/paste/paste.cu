@@ -27,7 +27,6 @@ namespace {
 __global__
 __launch_bounds__(PASTE_BLOCKSIZE, 1)
 void BatchedPaste(
-    const int N,
     const int C,
     const uint8* const __restrict__ fill_value,
     const uint8* const * const __restrict__ in_batch,
@@ -38,7 +37,6 @@ void BatchedPaste(
   constexpr int blockSize = PASTE_BLOCKSIZE;
   constexpr int nThreadsPerWave = 32;  // 1 warp per row
   constexpr int nWaves = blockSize / nThreadsPerWave;
-  constexpr int MAX_C = 1024;
 
   __shared__ uint8 rgb[MAX_C];
   __shared__ int jump[MAX_C];
@@ -71,8 +69,8 @@ void BatchedPaste(
     const int H = h * out_W * C;
     const int in_h = h - paste_y;
     const bool h_in_range = in_h >= 0 && in_h < in_H;
+    int c = startC;
     if (h_in_range) {
-      int c = startC;
       for (int i = myId; i < paste_x * C; i += nThreadsPerWave) {
         const int out_idx = H + i;
         output_ptr[out_idx] = rgb[c];
@@ -82,7 +80,6 @@ void BatchedPaste(
       for (int i = myId + paste_x_stride; i < paste_x_stride + in_W * C; i += nThreadsPerWave) {
         const int out_idx = H + i;
         const int in_idx = current_in_stride + i;
-
         output_ptr[out_idx] = input_ptr[in_idx];
       }
       c = startC;
@@ -92,7 +89,6 @@ void BatchedPaste(
         c = jump[c];
       }
     } else {
-      int c = startC;
       for (int i = myId; i < out_W * C; i += nThreadsPerWave) {
         const int out_idx = H + i;
         output_ptr[out_idx] = rgb[c];
@@ -108,7 +104,6 @@ void BatchedPaste(
 template<>
 void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
   BatchedPaste<<<batch_size_, PASTE_BLOCKSIZE, 0, ws->stream()>>>(
-      batch_size_,
       C_,
       fill_value_.template data<uint8>(),
       input_ptrs_gpu_.template data<const uint8*>(),
@@ -129,38 +124,10 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   std::vector<Dims> output_shape(batch_size_);
 
   for (int i = 0; i < batch_size_; ++i) {
-    std::vector<Index> input_shape = input.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3,
-        "Expects 3-dimensional image input.");
-
-    int H = input_shape[0];
-    int W = input_shape[1];
-    C_ = input_shape[2];
-
-    float ratio = spec_.GetArgument<float>("ratio", ws, i);
-    DALI_ENFORCE(ratio >= 1.,
-      "ratio of less than 1 is not supported");
-
-    int new_H = static_cast<int>(ratio * H);
-    int new_W = static_cast<int>(ratio * W);
-    output_shape[i] = {new_H, new_W, C_};
-
-    float paste_x_ = spec_.GetArgument<float>("paste_x", ws, i);
-    float paste_y_ = spec_.GetArgument<float>("paste_y", ws, i);
-    DALI_ENFORCE(paste_x_ >= 0,
-      "paste_x of less than 0 is not supported");
-    DALI_ENFORCE(paste_x_ <= 1,
-      "paste_x_ of more than 1 is not supported");
-    DALI_ENFORCE(paste_y_ >= 0,
-      "paste_y_ of less than 0 is not supported");
-    DALI_ENFORCE(paste_y_ <= 1,
-      "paste_y_ of more than 1 is not supported");
-    int paste_x = paste_x_ * (new_W - W);
-    int paste_y = paste_y_ * (new_H - H);
-
-    int sample_dims_paste_yx[] = {H, W, new_H, new_W, paste_y, paste_x};
+    std::vector<int>sample_dims_paste_yx;
+    output_shape[i] = Prepare(input.tensor_shape(i), spec_, ws, i, sample_dims_paste_yx);
     int *sample_data = in_out_dims_paste_yx_.template mutable_data<int>() + (i*NUM_INDICES);
-    std::copy(sample_dims_paste_yx, sample_dims_paste_yx + NUM_INDICES, sample_data);
+    std::copy(sample_dims_paste_yx.begin(), sample_dims_paste_yx.end(), sample_data);
   }
 
   output->set_type(input.type());

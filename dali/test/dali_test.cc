@@ -61,7 +61,7 @@ int CheckBuffers(const TensorList<CPUBackend> *t1, const TensorList<CPUBackend> 
     DALI_IMAGE_TYPE_SWITCH_NO_FLOAT16(imgType.id(), imgType,
         return CheckBuffers(len,
                     (*t1).template tensor<imgType>(imgIdx),
-                    (*t1).template tensor<imgType>(imgIdx),
+                    (*t2).template tensor<imgType>(imgIdx),
                      testCheckType, C, eps, pMean, shape, layout, checkBestMatch);
     )
   }

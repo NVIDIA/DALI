@@ -27,7 +27,7 @@ static double testEps[] = {     //     TEST:
                     2.1, 4.2,   // ResizeShorter_A_LINEAR
                     2.8, 5.6,   // ResizeXY_LINEAR
                     1.8, 3.4,   // ResizeXY_A_LINEAR
-                    1.5, 2.9,   // ResizeShorter_NN
+                    1.5, 3.2,   // ResizeShorter_NN
                     3.4, 5.3,   // ResizeShorter_A_NN
                     3.4, 5.3,   // ResizeXY_NN
                     2.4, 4.1,   // ResizeXY_A_NN
