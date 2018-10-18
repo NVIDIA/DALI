@@ -242,7 +242,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
       const Tensor<CPUBackend> &image, const Tensor<CPUBackend> &bounding_boxes,
       float minimum_overlap) {
-    if (true) {
+    if (minimum_overlap > 0) {
       for (size_t i = 0; i < kAttempts; ++i) {
         // Image is HWC
         const auto rescaled_height = Rescale(image.dim(0));
@@ -255,17 +255,19 @@ class BBoxCrop : public Operator<CPUBackend> {
           auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
-          // TODO: check by iou threshold
-
           BoundingBoxes remapped_boxes;
           remapped_boxes.reserve(candidate_boxes.size());
 
           for (const auto& box : candidate_boxes) {
-            remapped_boxes.emplace_back(
+            if (candidate_crop.IntersectionOverUnion(box) > minimum_overlap) {
+              remapped_boxes.emplace_back(
                 box.RemapTo(candidate_crop, rescaled_height, rescaled_width));
+            }
           }
 
-          return std::make_pair(candidate_crop, remapped_boxes);
+          if (remapped_boxes.size() == candidate_boxes.size()) {
+            return std::make_pair(candidate_crop, remapped_boxes);
+          }
         }
       }
     }
