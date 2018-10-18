@@ -88,6 +88,7 @@ void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
 template <>
 void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
+  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
   auto output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
   const auto &input_shape = input.shape();
 
