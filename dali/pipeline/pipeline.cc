@@ -56,9 +56,9 @@ namespace dali {
 
   Pipeline::Pipeline(const string &serialized_pipe,
       int batch_size, int num_threads, int device_id,
-      bool pipelined_execution, bool async_execution,
-      size_t bytes_per_sample_hint, bool set_affinity,
-      int max_num_stream) : built_(false) {
+      bool pipelined_execution, int prefetch_queue_depth,
+      bool async_execution, size_t bytes_per_sample_hint,
+      bool set_affinity, int max_num_stream) : built_(false) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 
@@ -86,7 +86,8 @@ namespace dali {
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
-         max_num_stream);
+         max_num_stream,
+         prefetch_queue_depth);
 
     // from serialized pipeline, construct new pipeline
     // All external inputs
@@ -243,20 +244,20 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     executor_.reset(new AsyncPipelinedExecutor(
             batch_size_, num_threads_,
             device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_));
+            set_affinity_, max_num_stream_, prefetch_queue_depth_));
     executor_->Init();
   } else if (pipelined_execution_) {
     executor_.reset(new PipelinedExecutor(
             batch_size_, num_threads_,
             device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_));
+            set_affinity_, max_num_stream_, prefetch_queue_depth_));
   } else if (async_execution_) {
     DALI_FAIL("Not implemented.");
   } else {
     executor_.reset(new Executor(
             batch_size_, num_threads_,
             device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_));
+            set_affinity_, max_num_stream_, prefetch_queue_depth_));
   }
 
   // Creating the graph
@@ -342,6 +343,34 @@ void Pipeline::Outputs(DeviceWorkspace *ws) {
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
       executor_->Outputs(ws);
+    } catch (std::runtime_error &e) {
+      throw std::runtime_error("Critical error in pipeline: "
+          + std::string(e.what())
+          + "\nCurrent pipeline object is no longer valid.");
+    } catch (...) {
+      throw std::runtime_error("Unknown Critical error in pipeline");
+    }
+}
+
+void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
+    try {
+      executor_->ShareOutputs(ws);
+    } catch (std::runtime_error &e) {
+      throw std::runtime_error("Critical error in pipeline: "
+          + std::string(e.what())
+          + "\nCurrent pipeline object is no longer valid.");
+    } catch (...) {
+      throw std::runtime_error("Unknown Critical error in pipeline");
+    }
+}
+
+void Pipeline::ReleaseOutputs() {
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
+    try {
+      executor_->ReleaseOutputs();
     } catch (std::runtime_error &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
