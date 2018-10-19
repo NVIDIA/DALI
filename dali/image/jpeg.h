@@ -29,7 +29,7 @@
 
 namespace dali {
 
-class JpegImage : public GenericImage {
+class JpegImage final : public GenericImage {
  public:
   JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 

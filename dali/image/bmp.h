@@ -22,7 +22,7 @@ namespace dali {
 /**
  * BMP image decoding is performed using OpenCV, thus it's the same as Generic decoding
  */
-class BmpImage : public GenericImage {
+class BmpImage final : public GenericImage {
  public:
   BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 

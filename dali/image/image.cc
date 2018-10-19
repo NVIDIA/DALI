@@ -25,6 +25,7 @@ Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_t
 
 
 void Image::Decode() {
+  DALI_ENFORCE(!decoded_, "Called decode for already decoded image");
   auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
   decoded_image_ = decoded.first;
   dims_ = decoded.second;

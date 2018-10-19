@@ -22,7 +22,7 @@ namespace dali {
 /**
  * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
  */
-class PngImage : public GenericImage {
+class PngImage final : public GenericImage {
  public:
   PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 

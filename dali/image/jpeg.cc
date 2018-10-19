@@ -17,7 +17,9 @@
 #include "dali/image/jpeg.h"
 
 #ifdef DALI_USE_JPEG_TURBO
+
 #include <turbojpeg.h>
+
 #endif  // DALI_USE_JPEG_TURBO
 
 #include "dali/util/ocv.h"
@@ -27,6 +29,8 @@ namespace dali {
 namespace {
 
 #ifdef DALI_USE_JPEG_TURBO
+
+
 void PrintSubsampling(int sampling) {
   switch (sampling) {
     case TJSAMP_444:
@@ -51,6 +55,8 @@ void PrintSubsampling(int sampling) {
       cout << "unknown sampling ratio" << endl;
   }
 }
+
+
 #endif  // DALI_USE_JPEG_TURBO
 
 
