@@ -33,13 +33,13 @@ void Image::Decode() {
 }
 
 
-std::shared_ptr<uint8_t> Image::GetImage()const {
+std::shared_ptr<uint8_t> Image::GetImage() const {
   DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
   return decoded_image_;
 }
 
 
-std::tuple<size_t, size_t, size_t> Image::GetImageDims() const{
+std::tuple<size_t, size_t, size_t> Image::GetImageDims() const {
   if (decoded_) {
     return dims_;
   }
