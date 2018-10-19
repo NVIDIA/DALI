@@ -38,8 +38,8 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
   const int H = input.shape()[0];
   const int W = input.shape()[1];
 
-  crop_y_norm_[ws->data_idx()] = static_cast<int>(begin.template data<float>()[1] / H);
-  crop_x_norm_[ws->data_idx()] = static_cast<int>(begin.template data<float>()[0] / W);
+  crop_y_norm_[ws->data_idx()] = static_cast<float>(begin.template data<float>()[1] / H);
+  crop_x_norm_[ws->data_idx()] = static_cast<float>(begin.template data<float>()[0] / W);
 
   const auto &size = ws->Input<CPUBackend>(2);
 
@@ -58,14 +58,15 @@ void Slice<CPUBackend>::ThreadDependentSetup(SampleWorkspace *ws) {
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const int crop_y = crop_y_norm_[ws->data_idx()] * (H - crop_height_[ws->data_idx()]);
-  const int crop_x = crop_x_norm_[ws->data_idx()] * (W - crop_width_[ws->data_idx()]);
+  const int crop_y = crop_y_norm_[ws->data_idx()] * H;
+  const int crop_x = crop_x_norm_[ws->data_idx()] * W;
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }
 
 template <>
 void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
+  // @pribalta: Order matters for DataDependent and ThreadDependent setups
   DataDependentSetup(ws);
   ThreadDependentSetup(ws);
 

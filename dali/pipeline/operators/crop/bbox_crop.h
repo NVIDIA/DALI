@@ -81,10 +81,10 @@ class BBoxCrop : public Operator<CPUBackend> {
       const float crop_width = other.right - other.left;
       const float crop_height = other.bottom - other.top;
 
-      const float new_left = std::max(other.left, left) / crop_width;
-      const float new_top = std::max(other.top, top) / crop_height;
-      const float new_right = std::min(other.right, right) / crop_width;
-      const float new_bottom = std::min(other.bottom, bottom) / crop_height;
+      const float new_left = (std::max(other.left, left) - other.left) / crop_width;
+      const float new_top = (std::max(other.top, top) - other.top) / crop_height;
+      const float new_right = (std::min(other.right, right) - other.left) / crop_width;
+      const float new_bottom = (std::min(other.bottom, bottom) - other.top) / crop_height;
 
       return Rectangle(
           std::max(0.0f, std::min(new_left, 1.0f)), std::max(0.0f, std::min(new_top, 1.0f)),
