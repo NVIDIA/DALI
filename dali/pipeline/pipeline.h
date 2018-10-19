@@ -27,7 +27,6 @@
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -79,68 +78,24 @@ class DLL_PUBLIC Pipeline {
    * configured in the thread pool. Defaults to 'false'.
    * @param max_num_stream set an upper limit on the number of cudaStreams
    * that can be allocated by the pipeline.
+   * @param prefetch_queue_depth sets the length of the executor internal pipeline
    */
   DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int seed = -1,
-      bool pipelined_execution = true, bool async_execution = true,
-      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) :
+      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+      bool async_execution = true, size_t bytes_per_sample_hint = 0,
+      bool set_affinity = false, int max_num_stream = -1) :
     built_(false) {
     Init(batch_size, num_threads, device_id, seed,
          pipelined_execution, async_execution,
          bytes_per_sample_hint, set_affinity,
-         max_num_stream);
+         max_num_stream, prefetch_queue_depth);
   }
 
-  DLL_PUBLIC inline Pipeline(const string &serialized_pipe,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe,
       int batch_size = -1, int num_threads = -1, int device_id = -1,
-      bool pipelined_execution = true, bool async_execution = true,
-      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) : built_(false) {
-    dali_proto::PipelineDef def;
-    def.ParseFromString(serialized_pipe);
-
-    // If not given, take parameters from the
-    // serialized pipeline
-    if (batch_size == -1) {
-      this->batch_size_ = def.batch_size();
-    } else {
-      this->batch_size_ = batch_size;
-    }
-    if (device_id == -1) {
-      this->device_id_ = def.device_id();
-    } else {
-      this->device_id_ = device_id;
-    }
-    if (num_threads == -1) {
-      this->num_threads_ = def.num_threads();
-    } else {
-      this->num_threads_ = num_threads;
-    }
-
-    Init(this->batch_size_, this->num_threads_,
-         this->device_id_, def.seed(),
-         pipelined_execution,
-         async_execution,
-         bytes_per_sample_hint,
-         set_affinity,
-         max_num_stream);
-
-    // from serialized pipeline, construct new pipeline
-    // All external inputs
-    for (auto& ex : def.external_inputs()) {
-      this->AddExternalInput(ex);
-    }
-    // all operators
-    for (auto& op_def : def.op()) {
-      OpSpec spec{op_def};
-
-      this->AddOperator(spec, op_def.inst_name());
-    }
-    // output names
-    for (auto& output : def.pipe_outputs()) {
-      this->output_names_.push_back(std::make_pair(output.name(), output.device()));
-    }
-  }
+      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+      bool async_execution = true, size_t bytes_per_sample_hint = 0,
+      bool set_affinity = false, int max_num_stream = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 
@@ -255,11 +210,29 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
+   * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
   DLL_PUBLIC void Outputs(DeviceWorkspace *ws);
+
+  /**
+   * @brief Fills the input device workspace with the output of the pipeline.
+   * To release previously returned buffers ReleaseOutputs need to be called.
+   * This method blocks until the next batch is complete. RunCPU and RunGPU
+   * must be called prior to calling this or this method will result in
+   * deadlock.
+   */
+  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws);
+
+  /**
+   * @brief Release buffers returned by the Output call
+   * This method is meant for cases where buffers are coppied out
+   * or consumed in any other way, so it is possible to set them free
+   * before next Outputs call
+   */
+  DLL_PUBLIC void ReleaseOutputs();
 
   /**
    * @brief serializes the pipe to a protobuf
@@ -306,7 +279,7 @@ class DLL_PUBLIC Pipeline {
   void Init(int batch_size, int num_threads, int device_id,
             int seed, bool pipelined_execution, bool async_execution,
             size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream) {
+            int max_num_stream, int prefetch_queue_depth = 2) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
@@ -316,6 +289,7 @@ class DLL_PUBLIC Pipeline {
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
+    this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
@@ -381,6 +355,7 @@ class DLL_PUBLIC Pipeline {
   size_t bytes_per_sample_hint_;
   int set_affinity_;
   int max_num_stream_;
+  int prefetch_queue_depth_;
 
   std::vector<int> seed_;
   int original_seed_;

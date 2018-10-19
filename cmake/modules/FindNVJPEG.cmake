@@ -13,11 +13,11 @@
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
 find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
-    PATHS ${NVJPEG_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} ${CUDA_TOOLKIT_ROOT_DIR}
     PATH_SUFFIXES include)
 
 find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
-    PATHS ${NVJPEG_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} ${CUDA_TOOLKIT_ROOT_DIR}
     PATH_SUFFIXES lib lib64)
 
 # nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which
@@ -32,5 +32,9 @@ find_package_handle_standard_args(NVJPEG
     VERSION_VAR NVJPEG_VERSION)
 
 if(NVJPEG_FOUND)
+  # set includes and link libs for nvJpeg
+  set(CMAKE_REQUIRED_INCLUDES ${CUDA_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${NVJPEG_LIBRARY} "dl" "-pthread" "rt")
+  check_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
   mark_as_advanced(NVJPEG_ROOT_DIR NVJPEG_LIBRARY_RELEASE NVJPEG_LIBRARY_DEBUG)
 endif()

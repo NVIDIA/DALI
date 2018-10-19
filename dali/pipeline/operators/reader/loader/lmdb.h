@@ -108,6 +108,7 @@ class LMDBReader : public Loader<CPUBackend> {
 
     tensor->Resize({static_cast<Index>(value_.mv_size)});
     tensor->mutable_data<uint8_t>();
+    tensor->SetSourceInfo(db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data)));
 
     std::memcpy(tensor->raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value_.mv_data),

@@ -25,13 +25,15 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     int length,
     int batch_size,
     int num_threads,
-    int device_id) {
+    int device_id,
+    int prefetch_queue_depth) {
   dali::Pipeline* pipe = new dali::Pipeline(
                               std::string(serialized_pipeline, length),
                               batch_size,
                               num_threads,
                               device_id,
                               true,
+                              prefetch_queue_depth,
                               true);
   pipe->Build();
   pipe_handle->pipe = reinterpret_cast<void*>(pipe);
@@ -48,6 +50,17 @@ void daliOutput(daliPipelineHandle* pipe_handle) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   pipeline->Outputs(ws);
+}
+
+void daliShareOutput(daliPipelineHandle* pipe_handle) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  pipeline->ShareOutputs(ws);
+}
+
+void daliOutputRelease(daliPipelineHandle* pipe_handle) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  pipeline->ReleaseOutputs();
 }
 
 int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {

@@ -19,14 +19,14 @@
 namespace dali {
 
 template<typename T>
-inline Argument * DeserializeProtobufImpl(const dali_proto::Argument& arg) {
+inline Argument * DeserializeProtobufImpl(const DaliProtoPriv& arg) {
   const T& t = T::DeserializeFromProtobuf(arg);
   return Argument::Store(arg.name(), t);
 }
 
 #define DESERIALIZE_PROTOBUF(type, field)                                         \
 template <>                                                                       \
-inline Argument *DeserializeProtobufImpl<type>(const dali_proto::Argument& arg) { \
+inline Argument *DeserializeProtobufImpl<type>(const DaliProtoPriv& arg) { \
   Argument* new_arg = Argument::Store(arg.name(), arg.field(0));                   \
   return new_arg;                                                                 \
 }
@@ -39,8 +39,8 @@ DESERIALIZE_PROTOBUF(string, strings);
 #undef DESERIALIZE_PROTOBUF
 
 template<typename T>
-inline Argument *DeserializeProtobufVectorImpl(const dali_proto::Argument& arg) {
-  auto& args = arg.extra_args();
+inline Argument *DeserializeProtobufVectorImpl(const DaliProtoPriv& arg) {
+  auto args = arg.extra_args();
   std::vector<T> ret_val;
   for (auto& a : args) {
     const T& elem = DeserializeProtobuf(a)->Get<T>();
@@ -53,9 +53,9 @@ inline Argument *DeserializeProtobufVectorImpl(const dali_proto::Argument& arg) 
   {{serialize_type(T()), false}, DeserializeProtobufImpl<T>},       \
   {{serialize_type(T()), true},  DeserializeProtobufVectorImpl<T>},
 
-Argument *DeserializeProtobuf(const dali_proto::Argument& arg) {
+Argument *DeserializeProtobuf(const DaliProtoPriv arg) {
   // map
-  std::map<std::pair<string, bool>, std::function<Argument*(const dali_proto::Argument&)>> fn_map{
+  std::map<std::pair<string, bool>, std::function<Argument*(const DaliProtoPriv&)>> fn_map{
     ADD_SERIALIZABLE_ARG(int64)
     ADD_SERIALIZABLE_ARG(float)
     ADD_SERIALIZABLE_ARG(string)

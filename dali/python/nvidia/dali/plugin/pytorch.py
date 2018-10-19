@@ -76,7 +76,7 @@ class DALIGenericIterator(object):
         self._num_gpus = len(pipelines)
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self.batch_size = pipelines[0].batch_size
-        self._size = size
+        self._size = int(size)
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -102,9 +102,9 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            p._start_run()
+            p._prefetch()
         for p in self._pipes:
-            outputs.append(p.outputs())
+            outputs.append(p._share_outputs())
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             out_data = []
@@ -146,6 +146,9 @@ class DALIGenericIterator(object):
                 feed_ndarray(d_arr, pyt_data[j])
             for j, l_arr in enumerate(labels):
                 feed_ndarray(l_arr, pyt_labels[j])
+            for p in self._pipes:
+                p._release_outputs()
+                p._start_run()
 
 
         copy_db_index = self._current_data_batch

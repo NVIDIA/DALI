@@ -36,7 +36,8 @@ extern "C" {
       int length,
       int batch_size = -1,
       int num_threads = -1,
-      int device_id = -1);
+      int device_id = -1,
+      int prefetch_queue_depth = 2);
 
   /**
    * @brief Start the execution of the pipeline.
@@ -45,8 +46,20 @@ extern "C" {
 
   /**
    * @brief Wait till the output of the pipeline is ready.
+   * Releases previously returned buffers.
    */
   DLL_PUBLIC void daliOutput(daliPipelineHandle* pipe_handle);
+
+  /**
+   * @brief Wait till the output of the pipeline is ready.
+   * Doesn't release previously returned buffers.
+   */
+  DLL_PUBLIC void daliShareOutput(daliPipelineHandle* pipe_handle);
+
+  /**
+   * @brief Releases buffer returned by last daliOutput call.
+   */
+  DLL_PUBLIC void daliOutputRelease(daliPipelineHandle* pipe_handle);
 
   /**
    * @brief Return the shape of the output tensor

@@ -37,7 +37,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined,
+      0, -1, pipelined, 2,
       async);
 
   dali::string path(std::getenv("DALI_TEST_CAFFE2_LMDB_PATH"));
@@ -165,7 +165,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined,
+      0, -1, pipelined, 2,
       async);
 
   pipe.AddOperator(

@@ -57,10 +57,10 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
-    if (OpType() == DALI_GPU)
-      return this->CopyToHost(*ws->Output<GPUBackend>(1));
-    else
-      return this->CopyToHost(*ws->Output<CPUBackend>(1));
+    auto from = ws->Output<GPUBackend>(1);
+    auto reference = this->CopyToHost(*from);
+    reference[0]->SetLayout(from->GetLayout());
+    return reference;
   }
 
   uint32_t GetTestCheckType() const override {

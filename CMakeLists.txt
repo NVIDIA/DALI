@@ -61,7 +61,7 @@ if (BUILD_F16C)
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wno-inconsistent-missing-override")
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths

@@ -6,7 +6,7 @@ pushd ../..
 mkdir -p .git
 
 # Run linter
-cd build
+cd build-docker-release
 make lint
 
 popd

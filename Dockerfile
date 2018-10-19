@@ -6,6 +6,7 @@ FROM ${DEPS_IMAGE_NAME}
 
 ARG PYVER=2.7
 ARG PYV=27
+ARG DALI_BUILD_DIR=build-docker-release
 
 ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 
@@ -13,7 +14,7 @@ ENV PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib
 
 ENV PATH=${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/build:${PYLIB}:${LD_LIBRARY_PATH}
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LD_LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
@@ -27,7 +28,7 @@ WORKDIR /opt/dali
 
 COPY . .
 
-WORKDIR /opt/dali/build
+WORKDIR /opt/dali/${DALI_BUILD_DIR}
 
 RUN LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=. \
