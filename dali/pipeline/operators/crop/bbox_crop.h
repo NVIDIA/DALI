@@ -198,8 +198,26 @@ class BBoxCrop : public Operator<CPUBackend> {
     return sampler(rd_) * k;
   }
 
-  float ValidAspectRatio(float width, float height) const {
+  bool ValidAspectRatio(float width, float height) const {
     return aspect_ratio_bounds_.Contains(width / height);
+  }
+
+  bool ValidOverlap(const Crop& crop, const BoundingBoxes& boxes, float threshold) {
+    return std::all_of(boxes.begin(), boxes.end(), [&crop, threshold](const BoundingBox& box){
+      return crop.IntersectionOverUnion(box) >= threshold;
+    });
+  }
+
+  BoundingBoxes RemapBoxes(const Crop& crop, const BoundingBoxes& boxes, float height, float width) const {
+    BoundingBoxes remapped_boxes;
+    remapped_boxes.reserve(boxes.size());
+
+    for (const auto& box : boxes) {
+        remapped_boxes.emplace_back(
+          box.RemapTo(crop, height, width));
+    }
+
+    return remapped_boxes;
   }
 
   Rectangle SamplePatch(float scaled_height, float scaled_width, float height,
@@ -255,17 +273,8 @@ class BBoxCrop : public Operator<CPUBackend> {
           auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
-          BoundingBoxes remapped_boxes;
-          remapped_boxes.reserve(candidate_boxes.size());
-
-          for (const auto& box : candidate_boxes) {
-            if (candidate_crop.IntersectionOverUnion(box) > minimum_overlap) {
-              remapped_boxes.emplace_back(
-                box.RemapTo(candidate_crop, rescaled_height, rescaled_width));
-            }
-          }
-
-          if (remapped_boxes.size() == candidate_boxes.size()) {
+          if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
+            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes, rescaled_height, rescaled_width);
             return std::make_pair(candidate_crop, remapped_boxes);
           }
         }
