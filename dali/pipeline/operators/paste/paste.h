@@ -67,7 +67,7 @@ class Paste : public Operator<Backend> {
 
  private:
   inline Dims Prepare(const std::vector<Index> input_shape, const OpSpec& spec,
-           ArgumentWorkspace *ws, int i, std::vector<int> &sample_dims_paste_yx) {
+           ArgumentWorkspace *ws, int i, std::vector<int> *sample_dims_paste_yx) {
     DALI_ENFORCE(input_shape.size() == 3,
                  "Expects 3-dimensional image input.");
 
@@ -95,7 +95,7 @@ class Paste : public Operator<Backend> {
     const int paste_x = paste_x_ * (new_W - W);
     const int paste_y = paste_y_ * (new_H - H);
 
-    sample_dims_paste_yx = {H, W, new_H, new_W, paste_y, paste_x};
+    *sample_dims_paste_yx = {H, W, new_H, new_W, paste_y, paste_x};
     return {new_H, new_W, C_};
   }
 

@@ -125,7 +125,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
 
   for (int i = 0; i < batch_size_; ++i) {
     std::vector<int>sample_dims_paste_yx;
-    output_shape[i] = Prepare(input.tensor_shape(i), spec_, ws, i, sample_dims_paste_yx);
+    output_shape[i] = Prepare(input.tensor_shape(i), spec_, ws, i, &sample_dims_paste_yx);
     int *sample_data = in_out_dims_paste_yx_.template mutable_data<int>() + (i*NUM_INDICES);
     std::copy(sample_dims_paste_yx.begin(), sample_dims_paste_yx.end(), sample_data);
   }

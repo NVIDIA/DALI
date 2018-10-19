@@ -47,7 +47,6 @@ void PasteKernel(
   const uint8* input_ptr,
   uint8* output_ptr,
   const int* in_out_dims_paste_yx) {
-
   const int in_H = in_out_dims_paste_yx[0];
   const int in_W = in_out_dims_paste_yx[1];
   const int out_H = in_out_dims_paste_yx[2];
@@ -123,7 +122,7 @@ void Paste<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
   std::vector<int>sample_dims_paste_yx;
   output->set_type(input.type());
-  output->Resize(Prepare(input.shape(), spec_, ws, idx, sample_dims_paste_yx));
+  output->Resize(Prepare(input.shape(), spec_, ws, idx, &sample_dims_paste_yx));
   output->SetLayout(DALI_NHWC);
 
   PasteKernel(C_,
