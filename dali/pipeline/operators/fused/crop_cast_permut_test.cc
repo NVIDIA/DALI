@@ -25,10 +25,6 @@ TYPED_TEST_CASE(CropCastPermuteTest, Types);
 
 const bool addImageType = true;
 
-// TYPED_TEST(CropCastPermuteTest, CropNumber) {
-//   this->RunTest({"CropCastPermute", {"crop", "224", DALI_INT32}}, addImageType);
-// }
-
 TYPED_TEST(CropCastPermuteTest, CropVector) {
   this->RunTest({"CropCastPermute", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
 }
@@ -89,7 +85,7 @@ TYPED_TEST(CropCastPermuteTest, Output_DALI_FLOAT16) {
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_FLOAT) {
   const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                          {"output_dtype", "5",   DALI_INT32}};
+                          {"output_dtype", "5", DALI_INT32}};
   this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
