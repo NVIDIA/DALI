@@ -43,6 +43,7 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
 }
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
+
   this->TstBody(this->DefaultSchema()
                 .AddArg("resize_x", 480.f)
                 .AddArg("resize_y", 480.f)
@@ -57,9 +58,10 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
   this->TstBody(this->DefaultSchema(true)
-                .AddArg("resize_x", 480.f)
-                .AddArg("resize_y", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 1.80);
+                    .AddArg("resize_x", 480.f)
+                    .AddArg("resize_y", 480.f)
+                    .AddArg("crop", vector<float>{224, 224}),
+                1.80);
 }
 
 }  // namespace dali
