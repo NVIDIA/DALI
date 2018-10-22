@@ -24,7 +24,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
 
   void SetUp() override {
     DALISingleOpTest::SetUp();
-    set_batch_size(jpegs_.nImages());
+    set_batch_size(Imgs(t_jpegImgType).nImages());
   }
 
   inline void set_batch_size(int size) { batch_size_ = size; }
@@ -59,7 +59,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
 #if DALI_DEBUG
     WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
 #endif
-    GenericDecoderTest::VerifyDecode(host_img, h, w, jpegs_, img_id);
+    GenericDecoderTest::VerifyDecode(host_img, h, w, Imgs(t_jpegImgType), img_id);
     delete [] host_img;
   }
 

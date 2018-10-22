@@ -62,8 +62,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
-    ResizeLike(other);
+    CopyAttributes(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
@@ -315,6 +314,13 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   inline void SetLayout(DALITensorLayout layout) {
     meta_.SetLayout(layout);
+  }
+
+  template <typename SrcBackend>
+  inline void CopyAttributes(const TensorList<SrcBackend> &other) {
+    this->set_type(other.type());
+    ResizeLike(other);
+    SetLayout(other.GetLayout());
   }
 
  protected:

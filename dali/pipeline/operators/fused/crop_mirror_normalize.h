@@ -15,68 +15,19 @@
 #ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
 #define DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
 
-#include <cstring>
-#include <utility>
+#include "dali/pipeline/operators/fused/crop_cast_permute.h"
 #include <vector>
-
-#include "dali/common.h"
-#include "dali/pipeline/operators/common.h"
-#include "dali/error_handling.h"
-#include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/fused/normalize_permute.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend> {
+class CropMirrorNormalize : public CropCastPermute<Backend>,
+                            public NormalizeAttr<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
-    output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
-    pad_(spec.GetArgument<bool>("pad_output")),
-    image_type_(spec.GetArgument<DALIImageType>("image_type")),
-    color_(IsColor(image_type_)),
-    C_(color_ ? 3 : 1) {
-    vector<int> temp_crop;
-    GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
-
-    crop_h_ = temp_crop[0];
-    crop_w_ = temp_crop[1];
-
-    has_mirror_ = spec.HasTensorArgument("mirror");
-    if (!has_mirror_) {
-      mirror_.Resize({batch_size_});
-      for (int i = 0; i < batch_size_; ++i) {
-        mirror_.mutable_data<int>()[i] = spec.GetArgument<int>("mirror");
-      }
-    }
-
-    // Validate input parameters
-    DALI_ENFORCE(output_layout_ == DALI_NCHW ||
-                 output_layout_ == DALI_NHWC,
-                 "Unsupported output layout."
-                 "Expected NCHW or NHWC.");
-    DALI_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
-
-    GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
-    GetSingleOrRepeatedArg(spec, &inv_std_vec_, "std", C_);
-
-    // Inverse the std-deviation
-    for (int i = 0; i < C_; ++i) {
-      inv_std_vec_[i] = 1.f / inv_std_vec_[i];
-    }
-
-    mean_.Copy(mean_vec_, 0);
-    inv_std_.Copy(inv_std_vec_, 0);
-
-    // Resize per-image data
-    crop_offsets_.resize(batch_size_);
-    input_ptrs_.Resize({batch_size_});
-    input_strides_.Resize({batch_size_});
-
-    // Reset per-set-of-samples random numbers
-    per_sample_crop_.resize(batch_size_);
-    per_sample_dimensions_.resize(batch_size_);
+    CropCastPermute<Backend>(spec) {
+      InitParam(spec, batch_size_);
   }
 
   virtual inline ~CropMirrorNormalize() = default;
@@ -86,46 +37,31 @@ class CropMirrorNormalize : public Operator<Backend> {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
-
-  template <typename OUT>
+ private:
+  template <typename Out, class Converter>
   void RunHelper(Workspace<Backend> *ws, const int idx);
 
-  template <typename OUT>
-  void ValidateHelper(TensorList<Backend> *output);
+  virtual int GetPad() const                      { return pad_ ? 4 : this->C_; }
 
-  // Output data type
-  DALIDataType output_type_;
+  void InitParam(const OpSpec &spec, int size) {
+    pad_ = spec.GetArgument<bool>("pad_output");
+    has_mirror_ = spec.HasTensorArgument("mirror");
+    if (!has_mirror_) {
+      vector<int> m(size, spec.GetArgument<int>("mirror"));
+      mirror_.Copy(m, 0);
+    }
 
-  // Output data layout
-  DALITensorLayout output_layout_;
+    this->InitNormalizeAttr(spec, this->C_);
+  }
 
   // Whether to pad output to 4 channels
   bool pad_;
 
-  // Crop meta-data
-  int crop_h_;
-  int crop_w_;
-
   // Mirror?
   bool has_mirror_;
 
-  // Input/output channel meta-data
-  DALIImageType image_type_;
-  bool color_;
-  int C_;
-
-  Tensor<CPUBackend> input_ptrs_, input_strides_, mirror_;
-  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_, mirror_gpu_;
-  vector<int> crop_offsets_;
-
-  // Tensor to store mean & stddiv
-  Tensor<Backend> mean_, inv_std_;
-  vector<float> mean_vec_, inv_std_vec_;
-
-  // store per-thread crop offsets for same resize on multiple data
-  std::vector<std::pair<int, int>> per_sample_crop_;
-  std::vector<std::pair<int, int>> per_sample_dimensions_;
+  Tensor<CPUBackend> mirror_;
+  Tensor<GPUBackend> mirror_gpu_;
 
   USE_OPERATOR_MEMBERS();
 };

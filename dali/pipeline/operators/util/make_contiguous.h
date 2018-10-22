@@ -39,7 +39,7 @@ class MakeContiguous : public Operator<MixedBackend> {
     vector<Dims> output_shape(batch_size_);
     TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
     for (int i = 0; i < batch_size_; ++i) {
-      auto &input = ws->Input<CPUBackend>(0, i);
+      const auto &input = ws->Input<CPUBackend>(0, i);
       output_shape[i] = input.shape();
       if (coalesced && input.nbytes() > COALESCE_TRESHOLD)
         coalesced = false;
@@ -53,7 +53,9 @@ class MakeContiguous : public Operator<MixedBackend> {
       output->set_type(type);
 
       for (int i = 0; i < batch_size_; ++i) {
-        auto &input = ws->Input<CPUBackend>(0, i);
+        const auto &input = ws->Input<CPUBackend>(0, i);
+        if (!i)
+          output->SetLayout(input.GetLayout());
 
         // Note: We know that this will translate into
         // a std::memcpy, so it is safe to pass stream 0
@@ -68,8 +70,7 @@ class MakeContiguous : public Operator<MixedBackend> {
 
       if (coalesced) {
         TimeRange tm("coalesced", TimeRange::kBlue);
-        cpu_output_buff.ResizeLike(*output);
-        cpu_output_buff.set_type(type);
+        cpu_output_buff.CopyAttributes(*output);
         for (int i = 0; i < batch_size_; ++i) {
           auto &input = ws->Input<CPUBackend>(0, i);
           memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());

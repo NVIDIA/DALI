@@ -33,7 +33,7 @@ class DALIBenchmark : public benchmark::Fixture {
  public:
   DALIBenchmark() {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
+    jpegs_.LoadImages(image_folder);
   }
 
   virtual ~DALIBenchmark() = default;
@@ -51,22 +51,18 @@ class DALIBenchmark : public benchmark::Fixture {
     const auto nImgs = jpegs_.nImages();
     DALI_ENFORCE(nImgs > 0, "jpegs must be loaded to create batches");
     vector<Dims> shape(n);
-    for (int i = 0; i < n; ++i) {
-      shape[i] = {jpegs_.sizes_[i % nImgs]};
-    }
+    for (int i = 0; i < n; ++i)
+      shape[i] = jpegs_.shape(i % nImgs);
 
     tl->template mutable_data<uint8>();
     tl->Resize(shape);
 
-    for (int i = 0; i < n; ++i) {
-      std::memcpy(tl->template mutable_tensor<uint8>(i),
-          jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
-    }
+    for (int i = 0; i < n; ++i)
+      jpegs_.copyImage(i % nImgs, tl->template mutable_tensor<uint8>(i));
   }
 
  protected:
   std::mt19937 rand_gen_;
-  vector<string> jpeg_names_;
   ImgSetDescr jpegs_;
 };
 

@@ -17,54 +17,51 @@
 
 #include <vector>
 
-#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/attributes.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class NormalizePermute : public Operator<Backend> {
+class NormalizePermute : public Operator<Backend>, protected NormalizeAttr<Backend>,
+                         protected CastPermuteAttr {
  public:
-  explicit inline NormalizePermute(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
-    H_(spec.GetArgument<int>("height")),
-    W_(spec.GetArgument<int>("width")),
-    C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+  explicit inline NormalizePermute(const OpSpec &spec) : Operator<Backend>(spec),
+             CastPermuteAttr(spec, false),
+             H_(spec.GetArgument<int>("height")),
+             W_(spec.GetArgument<int>("width")) {
     DALI_ENFORCE(H_ > 0);
     DALI_ENFORCE(W_ > 0);
-    DALI_ENFORCE(C_ == 3 || C_ == 1);
 
-    vector<float> mean, std;
-    GetSingleOrRepeatedArg(spec, &mean, "mean", C_);
-    GetSingleOrRepeatedArg(spec, &std, "std", C_);
-
-    // Inverse the std-deviation
-    for (int i = 0; i < C_; ++i) {
-      std[i] = 1.f / std[i];
-    }
-
-    mean_.Copy(mean, 0);
-    inv_std_.Copy(std, 0);
-
-    output_shape_.resize(batch_size_);
-    for (auto &shape : output_shape_) shape = {C_, H_, W_};
+    this->InitNormalizeAttr(spec, C_);
   }
 
   virtual inline ~NormalizePermute() = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
+    CastPermuteAttr::SetupSharedSampleParams(ws);
+  }
 
-  template <typename OUT>
-  void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output);
+ private:
+  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
 
-  template <typename OUT>
-  void GPURunHelper(DeviceWorkspace *ws, const int idx);
+  template <typename Out, class Converter>
+  void RunHelper(Workspace<Backend> *ws, const int idx);
 
-  Tensor<Backend> mean_, inv_std_;
-  DALIDataType output_type_;
-  int H_, W_, C_;
+  void CheckShape(const vector<Index> &shape) const {
+    DALI_ENFORCE(shape.size() == 3,
+                 "Expects 3-dim image input (v. " + std::to_string(shape.size()) + ")");
+    DALI_ENFORCE(shape[0] == H_,
+                 "Input image height does not match output height.");
+    DALI_ENFORCE(shape[1] == W_,
+                 "Input image width does not match output width.");
+    DALI_ENFORCE(shape[2] == C_,
+                 "Input image channels does not match output channels.");
+  }
+
+  int H_, W_;
   vector<Dims> output_shape_;
 
   USE_OPERATOR_MEMBERS();

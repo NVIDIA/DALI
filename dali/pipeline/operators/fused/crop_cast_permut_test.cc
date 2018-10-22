@@ -23,74 +23,75 @@ class CropCastPermuteTest : public GenericMatchingTest<ImgType> {
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(CropCastPermuteTest, Types);
 
+static const char *opName = "CropCastPermute";
 const bool addImageType = true;
 
 TYPED_TEST(CropCastPermuteTest, CropNumber) {
-  this->RunTest({"CropCastPermute", {"crop", "224", DALI_INT32}}, addImageType);
+  this->RunTest({opName, {"crop", "224", DALI_INT32}}, addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, CropVector) {
-  this->RunTest({"CropCastPermute", {"crop", "224, 256", DALI_INT_VEC}}, addImageType);
+  this->RunTest({opName, {"crop", "224, 256", DALI_INT_VEC}}, addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Layout_DALI_NCHW) {
   const OpArg params[] = {{"crop",          "224", DALI_INT32},
                           {"output_layout", "0",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Layout_DALI_NHWC) {
   const OpArg params[] = {{"crop",          "224", DALI_INT32},
                           {"output_layout", "1",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Layout_DALI_SAME) {
   const OpArg params[] = {{"crop",          "224", DALI_INT32},
                           {"output_layout", "2",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_NO_TYPE) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "-1",  DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_UINT8) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "0",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_INT16) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "1",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params) / sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_INT32) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "2",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params) / sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_INT64) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "3",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_FLOAT16) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "4",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 TYPED_TEST(CropCastPermuteTest, Output_DALI_FLOAT) {
   const OpArg params[] = {{"crop",         "224", DALI_INT32},
                           {"output_dtype", "5",   DALI_INT32}};
-  this->RunTest("CropCastPermute", params, sizeof(params)/sizeof(params[0]), addImageType);
+  this->RunTest(opName, params, sizeof(params)/sizeof(params[0]), addImageType);
 }
 
 }  // namespace dali

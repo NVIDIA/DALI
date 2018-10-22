@@ -23,10 +23,7 @@ namespace dali {
 template <typename Backend>
 class CropCastPermute : public Crop<Backend> {
  public:
-  explicit inline CropCastPermute(const OpSpec &spec) : Crop<Backend>(spec) {
-    this->output_type_ = spec.GetArgument<DALIDataType>("output_dtype");
-    this->output_layout_ = spec.GetArgument<DALITensorLayout>("output_layout");
-  }
+  explicit inline CropCastPermute(const OpSpec &spec) : Crop<Backend>(spec, false) {}
 };
 
 }  // namespace dali

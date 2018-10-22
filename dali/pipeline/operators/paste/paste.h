@@ -27,6 +27,8 @@
 
 namespace dali {
 
+static const int MAX_C = 1024;
+
 template <typename Backend>
 class Paste : public Operator<Backend> {
  public:
@@ -39,8 +41,8 @@ class Paste : public Operator<Backend> {
     // Kind of arbitrary, we need to set some limit here
     // because we use static shared memory for storing
     // fill value array
-    DALI_ENFORCE(C_ <= 1024,
-      "n_channels of more than 128 is not supported");
+    DALI_ENFORCE(C_ <= MAX_C,
+      "n_channels of more than 1024 is not supported");
     std::vector<uint8> rgb;
     GetSingleOrRepeatedArg(spec, &rgb, "fill_value", C_);
     fill_value_.Copy(rgb, 0);
@@ -55,11 +57,47 @@ class Paste : public Operator<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
+    // No setup shared between input sets
+  }
 
   void SetupSampleParams(Workspace<Backend> *ws, const int idx);
 
   void RunHelper(Workspace<Backend> *ws);
+
+ private:
+  inline Dims Prepare(const std::vector<Index> input_shape, const OpSpec& spec,
+           ArgumentWorkspace *ws, int i, std::vector<int> *sample_dims_paste_yx) {
+    DALI_ENFORCE(input_shape.size() == 3,
+                 "Expects 3-dimensional image input.");
+
+    const int H = input_shape[0];
+    const int W = input_shape[1];
+    C_ = input_shape[2];
+
+    const float ratio = spec.GetArgument<float>("ratio", ws, i);
+    DALI_ENFORCE(ratio >= 1.,
+                 "ratio of less than 1 is not supported");
+
+    const int new_H = static_cast<int>(ratio * H);
+    const int new_W = static_cast<int>(ratio * W);
+
+    const float paste_x_ = spec.GetArgument<float>("paste_x", ws, i);
+    const float paste_y_ = spec.GetArgument<float>("paste_y", ws, i);
+    DALI_ENFORCE(paste_x_ >= 0,
+                 "paste_x of less than 0 is not supported");
+    DALI_ENFORCE(paste_x_ <= 1,
+                 "paste_x of more than 1 is not supported");
+    DALI_ENFORCE(paste_y_ >= 0,
+                 "paste_y of less than 0 is not supported");
+    DALI_ENFORCE(paste_y_ <= 1,
+                 "paste_y of more than 1 is not supported");
+    const int paste_x = paste_x_ * (new_W - W);
+    const int paste_y = paste_y_ * (new_H - H);
+
+    *sample_dims_paste_yx = {H, W, new_H, new_W, paste_y, paste_x};
+    return {new_H, new_W, C_};
+  }
 
   // Op parameters
   int C_;

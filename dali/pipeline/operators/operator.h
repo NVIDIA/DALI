@@ -27,6 +27,7 @@
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
+#include "dali/util/half.h"
 
 namespace dali {
 

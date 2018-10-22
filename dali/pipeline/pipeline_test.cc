@@ -33,7 +33,7 @@ class PipelineTest : public DALITest {
  public:
   inline void SetUp() {
     DALITest::SetUp();
-    DALITest::DecodeJPEGS(DALI_RGB);
+    DALITest::DecodeImages(DALI_RGB);
   }
 
   template<typename T>
@@ -48,7 +48,7 @@ class PipelineTest : public DALITest {
           - static_cast<double>(ground_truth[i]));
     }
     double mean, std;
-    DALITest::MeanStdDevColorNorm(abs_diff, &mean, &std);
+    MeanStdDevColorNorm(abs_diff, &mean, &std);
 
 #ifndef NDEBUG
     cout << "num: " << abs_diff.size() << endl;
@@ -242,8 +242,8 @@ TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
 }
 
 TYPED_TEST(PipelineTest, TestExternalSource) {
-  int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.nImages();
+  const int num_thread = TypeParam::nt;
+  const int batch_size = this->Imgs(t_jpegImgType).nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
 
@@ -264,11 +264,10 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
 }
 
 TYPED_TEST(PipelineTest, TestSerialization) {
-  int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.nImages();
+  const int num_thread = TypeParam::nt;
+  const int batch_size = this->Imgs(t_jpegImgType).nImages();
 
   Pipeline pipe(batch_size, num_thread, 0);
-
 
   TensorList<CPUBackend> batch;
   this->MakeJPEGBatch(&batch, batch_size);

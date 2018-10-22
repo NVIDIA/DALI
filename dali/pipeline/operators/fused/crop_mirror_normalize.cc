@@ -29,37 +29,110 @@ Normalization takes input image and produces output using formula
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("output_dtype",
-      R"code(Output data type.)code", DALI_FLOAT)
-  .AddOptionalArg("output_layout",
-      R"code(Output tensor data layout)code", DALI_NCHW)
   .AddOptionalArg("pad_output",
       R"code(Whether to pad the output to number of channels being multiple of 4.)code",
       false)
-  .AddOptionalArg("crop_pos_x",
-      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
   .AddOptionalArg("mirror",
       R"code(Mask for horizontal flip.
 
 - `0` - do not perform horizontal flip for this image
 - `1` - perform horizontal flip for this image.
 )code", 0, true)
-  .AddOptionalArg("image_type",
-        R"code(The color space of input and output image.)code", DALI_RGB)
-  .AddArg("mean",
-      R"code(Mean pixel values for image normalization.)code",
-      DALI_FLOAT_VEC)
-  .AddArg("std",
-      R"code(Standard deviation values for image normalization.)code",
-      DALI_FLOAT_VEC)
-  .AddArg("crop",
-      R"code(Size of the cropped image. If only a single value `c` is provided,
-the resulting crop will be square with size `(c,c)`)code",
-      DALI_INT_VEC);
 
+  .AddParent("NormalizeBase")
+  .AddParent("CropCastPermute");
+
+
+// Crop, mirror, mean sub, stddev div, NHWC->NCHW, Npp8u->fp32
+template <typename Out, class Converter>
+void CropMirrorNormalizePermuteKernel(
+  const int C,
+  const int H,
+  const int W,
+  const bool pad,
+  const int mirror_image,
+  const float* mean,
+  const float* std,
+  const uint8* input_ptr,
+  const int in_step,
+  DALITensorLayout layout,
+  Out* output_ptr) {
+  Converter conv;
+  const int pad_C = pad ? 4 : C;
+  const int nStride = pad_C*H*W;
+  const int a = mirror_image? (W - 1) * C : 0;
+  const int b = mirror_image? -C : C;
+  if (layout == DALI_NCHW) {
+    // Coalesced writes
+    for (int c=0; c < C; ++c) {
+      for (int h=0; h < H; ++h) {
+        const int in_idx = a + c + in_step*h;       // HWC
+        const int out_idx = (c*H + h)*W;            // CHW
+        for (int w=0; w < W; ++w)
+          output_ptr[out_idx + w] = conv((input_ptr[in_idx + b*w]-mean[c]) * std[c]);
+      }
+    }
+    // Pad to 4 channels with 0s
+    if (pad) {
+      const Out out = conv(0);
+      for (int c=C; c < 4; ++c) {
+        for (int h = 0; h < H; ++h) {
+          const int out_idx = (c * H + h) * W;      // CHW
+          for (int w = 0; w < W; ++w)
+            output_ptr[out_idx + w] = out;
+        }
+      }
+    }
+  } else {
+    for (int tid = 0; tid < nStride; ++tid) {
+      const int c = tid % pad_C;
+      const int w = (tid / pad_C) % W;
+      const int h = tid / (pad_C * W);
+      float input;
+      if (pad && c == 3) {
+        input = 0;
+      } else {
+        const int in_idx =  a + c + b * w + in_step * h;
+        input = (input_ptr[in_idx] - mean[c]) * std[c];
+      }
+      const int out_idx = c + (w + h*W) * pad_C;
+      output_ptr[out_idx] = conv(input);
+    }
+  }
+}
+
+template<>
+template <typename Out, class Converter>
+void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
+  const unsigned char *input_ptr;
+  int stride;
+  Out *output_ptr;
+  const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
+  PrepareCropParam<Out>(ws, idx, &input_ptr, &stride, &output_ptr);
+  CropMirrorNormalizePermuteKernel<Out, Converter>(C_, crop_[0], crop_[1],
+                                   pad_, mirror_image,
+                                   mean_.template data<float>(),
+                                   inv_std_.template data<float>(),
+                                   input_ptr,
+                                   stride, output_layout_,
+                                   output_ptr);
+}
+
+template<>
+void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+  Crop<CPUBackend>::SetupSharedSampleParams(ws);
+  if (has_mirror_ && !ws->data_idx()) {
+    const Tensor<CPUBackend> &mirror = ws->ArgumentInput("mirror");
+    mirror_.Copy(mirror, 0);
+  }
+}
+
+template<>
+void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  RUN_IMPL(ws, idx);
+}
+
+// Register operator
+DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 
 }  // namespace dali

@@ -56,8 +56,7 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
-    this->ResizeLike(other);
+    CopyAttributes(other);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
@@ -217,7 +216,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline vector<Index> shape() const {
+  inline const vector<Index> &shape() const {
     return shape_;
   }
 
@@ -324,6 +323,13 @@ class Tensor : public Buffer<Backend> {
 
   inline void SetSourceInfo(string source_info) {
     meta_.SetSourceInfo(source_info);
+  }
+
+  template <typename InBackend>
+  DLL_PUBLIC inline void CopyAttributes(const Tensor<InBackend> &other) {
+    this->set_type(other.type());
+    ResizeLike(other);
+    SetLayout(other.GetLayout());
   }
 
  protected:

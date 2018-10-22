@@ -18,10 +18,9 @@ namespace dali {
 
 template<>
 void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  auto &input = ws->Input<CPUBackend>(idx);
+  const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
-  output->set_type(input.type());
-  output->ResizeLike(input);
+  output->CopyAttributes(input);
 
   TypeInfo type = input.type();
   type.Copy<CPUBackend, CPUBackend>(
