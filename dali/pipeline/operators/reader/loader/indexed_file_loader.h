@@ -27,7 +27,7 @@
 
 namespace dali {
 
-class IndexedFileLoader : public Loader<CPUBackend> {
+class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit IndexedFileLoader(const OpSpec& options, bool init = true)
     : Loader(options),
