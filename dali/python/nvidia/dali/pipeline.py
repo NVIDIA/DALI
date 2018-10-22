@@ -310,6 +310,7 @@ class Pipeline(object):
                                 self._num_threads,
                                 self._device_id,
                                 self._exec_pipelined,
+                                self._prefetch_queue_depth,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,

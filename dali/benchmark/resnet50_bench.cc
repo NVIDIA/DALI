@@ -37,7 +37,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined, 2,
+      0, -1, pipelined, 3,
       async);
 
   TensorList<CPUBackend> data;
@@ -167,7 +167,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined, 2,
+      0, -1, pipelined, 3,
       async);
 
   TensorList<CPUBackend> data;
@@ -299,7 +299,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined, 2,
+      0, -1, pipelined, 3,
       async);
 
   TensorList<CPUBackend> data;
