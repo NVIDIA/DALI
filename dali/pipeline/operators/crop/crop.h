@@ -45,23 +45,23 @@ class CropAttr {
   }
 
   std::pair<int, int> SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
-                                const Index imgIdx, int H, int W,
-                                int idx) {
-    DALI_ENFORCE(H >= crop_height_[idx]);
-    DALI_ENFORCE(W >= crop_width_[idx]);
+                                const Index dataIdx, int H, int W) {
+    DALI_ENFORCE(H >= crop_height_[dataIdx]);
+    DALI_ENFORCE(W >= crop_width_[dataIdx]);
 
-    crop_x_norm_ =
-        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_x", ws, idx));
-    crop_y_norm_ =
-        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_y", ws, idx));
+    auto crop_x_norm =
+        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_x", ws, dataIdx));
+    auto crop_y_norm =
+        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_y", ws, dataIdx));
 
-    DALI_ENFORCE(crop_y_norm_[idx] >= 0.f && crop_y_norm_[idx] <= 1.f,
+    DALI_ENFORCE(crop_y_norm[dataIdx] >= 0.f && crop_y_norm[dataIdx] <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
-    DALI_ENFORCE(crop_x_norm_[idx] >= 0.f && crop_x_norm_[idx] <= 1.f,
+    DALI_ENFORCE(crop_x_norm[dataIdx] >= 0.f && crop_x_norm[dataIdx] <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
 
-    const int crop_y = crop_y_norm_[idx] * (H - crop_height_[idx]);
-    const int crop_x = crop_x_norm_[idx] * (W - crop_width_[idx]);
+    const int crop_y = crop_y_norm[dataIdx] * (H - crop_height_[dataIdx]);
+    const int crop_x = crop_x_norm[dataIdx] * (W - crop_width_[dataIdx]);
+
     return std::make_pair(crop_y, crop_x);
   }
 
@@ -122,14 +122,14 @@ class Crop : public Operator<Backend>, protected CropAttr {
   }
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
-                               const vector<Index> &inputShape, int threaIdx,
+                               const vector<Index> &inputShape, int threadIdx,
                                int dataIdx) {
     DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
 
     const int H = inputShape[0];
     const int W = inputShape[1];
 
-    per_sample_dimensions_[threaIdx] = std::make_pair(H, W);
+    per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
 
     int C = inputShape[2];
     DALI_ENFORCE(C == C_,
@@ -137,7 +137,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
                  "the output image type. Expected input with " +
                      to_string(C_) + " channels, got " + to_string(C) + ".");
 
-    per_sample_crop_[threaIdx] = SetCropXY(spec_, ws, dataIdx, H, W, dataIdx);
+    per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
   }
 
   void Init(int size) {

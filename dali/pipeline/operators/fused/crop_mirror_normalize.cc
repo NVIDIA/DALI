@@ -42,8 +42,6 @@ Normalization takes input image and produces output using formula
 - `0` - do not perform horizontal flip for this image
 - `1` - perform horizontal flip for this image.
 )code", 0, true)
-  .AddOptionalArg("image_type",
-        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddArg("mean",
       R"code(Mean pixel values for image normalization.)code",
       DALI_FLOAT_VEC)

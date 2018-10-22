@@ -96,7 +96,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
     }
 
     if (flag & t_crop)
-      meta.crop = SetCropXY(spec, ws, index, meta.rsz_h, meta.rsz_w, index);
+      meta.crop = SetCropXY(spec, ws, index, meta.rsz_h, meta.rsz_w);
 
     if (flag & t_mirrorHor) {
       // Set mirror parameters

@@ -47,10 +47,6 @@ DALI_SCHEMA(FastResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("crop",
-                  R"code(Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code",
-                  std::vector<float>{0.f, 0.f})
   .AddParent("ResizeCropMirror")
   .EnforceInputLayout(DALI_NHWC);
 
