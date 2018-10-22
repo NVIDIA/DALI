@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_CROP_H_
-#define DALI_PIPELINE_OPERATORS_CROP_CROP_H_
+#ifndef DALI_PIPELINE_OPERATORS_CROP_BBOX_CROP_H_
+#define DALI_PIPELINE_OPERATORS_CROP_BBOX_CROP_H_
 
 #include <vector>
 #include <utility>
