@@ -29,8 +29,8 @@ class CropAttr {
  protected:
   explicit inline CropAttr(const OpSpec &spec)
       : image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        C_(IsColor(image_type_) ? 3 : 1) {
-    const int batch_size = spec.GetArgument<int>("batch_size");
+        C_(IsColor(image_type_) ? 3 : 1),
+        batch_size_{spec.GetArgument<int>("batch_size")} {
     if (spec.name() != "Resize") {
       vector<float> cropArgs = spec.GetRepeatedArgument<float>("crop");
 
@@ -39,21 +39,21 @@ class CropAttr {
       DALI_ENFORCE(cropArgs[1] >=0,
         "Crop width must be greater than zero. Received: " + std::to_string(cropArgs[0]));
 
-      crop_height_ = std::vector<int>(batch_size, static_cast<int>(cropArgs[0]));
-      crop_width_ = std::vector<int>(batch_size, static_cast<int>(cropArgs[1]));
-
-      crop_x_norm_ =
-          std::vector<float>(batch_size, spec.GetArgument<float>("crop_pos_x"));
-      crop_y_norm_ =
-          std::vector<float>(batch_size, spec.GetArgument<float>("crop_pos_y"));
+      crop_height_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[0]));
+      crop_width_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[1]));
     }
   }
 
   std::pair<int, int> SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
                                 const Index imgIdx, int H, int W,
-                                int idx) const {
+                                int idx) {
     DALI_ENFORCE(H >= crop_height_[idx]);
     DALI_ENFORCE(W >= crop_width_[idx]);
+
+    crop_x_norm_ =
+        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_x", ws, idx));
+    crop_y_norm_ =
+        std::vector<float>(batch_size_, spec.GetArgument<float>("crop_pos_y", ws, idx));
 
     DALI_ENFORCE(crop_y_norm_[idx] >= 0.f && crop_y_norm_[idx] <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
@@ -82,6 +82,7 @@ class CropAttr {
 
   const DALIImageType image_type_;
   const int C_;
+  const int batch_size_;
 };
 
 template <typename Backend>
