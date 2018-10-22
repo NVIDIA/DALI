@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <opencv2/opencv.hpp>
+
 #include "dali/test/dali_test_decoder.h"
 
 namespace dali {
@@ -85,4 +87,49 @@ TYPED_TEST_CASE(HostDecodeTestTiff, Types);
 TYPED_TEST(HostDecodeTestTiff, TestTiffDecode) {
   this->RunTestDecode(t_tiffImgType);
 }
+template <typename Backend>
+class WIPDecoderTest : public DALITest {
+ public:
+  void SetUp() override {}
+  void TearDown() override {}
+};
+
+typedef ::testing::Types<CPUBackend> TestTypes;
+
+TYPED_TEST_CASE(WIPDecoderTest, TestTypes);
+
+
+TYPED_TEST(WIPDecoderTest, SequenceTest) {
+  Pipeline pipe(128, 1, 0);
+
+  pipe.AddOperator(
+      OpSpec("SequenceReader")
+      .AddArg("file_root", "/mnt/nvvl_data/data/540p/frames/train")
+      .AddArg("sequence_length", 3)
+      .AddOutput("seq", "cpu")
+      .AddOutput("meta", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("HostDecoder")
+      .AddArg("device", "cpu")
+      .AddArg("decode_sequences", true)
+      .AddArg("output_type", DALI_RGB)
+      .AddInput("seq", "cpu")
+      .AddInput("meta", "cpu")
+      .AddOutput("decoded", "cpu"));
+
+  std::vector<std::pair<string, string>> outputs = {{"decoded", "cpu"}};
+  pipe.Build(outputs);
+
+  DeviceWorkspace ws;
+  for (int i=0; i < 5; ++i) {
+    printf(" ======= ITER %d ======\n", i);
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  }
+
+  return;
+}
+
 }  // namespace dali
