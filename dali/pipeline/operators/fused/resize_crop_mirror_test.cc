@@ -43,7 +43,6 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
 }
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
-
   this->TstBody(this->DefaultSchema()
                 .AddArg("resize_x", 480.f)
                 .AddArg("resize_y", 480.f)

@@ -152,7 +152,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     WriteBoxesToOutput(ws, prospective_crop.second);
   }
 
-  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop, unsigned int height, unsigned int width) {
+  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
+                         unsigned int height, unsigned int width) {
     // Copy the anchor to output 0
     auto *anchor_out = ws->Output<CPUBackend>(0);
     anchor_out->Resize({2});
@@ -208,7 +209,8 @@ class BBoxCrop : public Operator<CPUBackend> {
     });
   }
 
-  BoundingBoxes RemapBoxes(const Crop& crop, const BoundingBoxes& boxes, float height, float width) const {
+  BoundingBoxes RemapBoxes(const Crop& crop, const BoundingBoxes& boxes,
+                           float height, float width) const {
     BoundingBoxes remapped_boxes;
     remapped_boxes.reserve(boxes.size());
 
@@ -274,7 +276,8 @@ class BBoxCrop : public Operator<CPUBackend> {
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
-            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes, rescaled_height, rescaled_width);
+            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes,
+                                                   rescaled_height, rescaled_width);
             return std::make_pair(candidate_crop, remapped_boxes);
           }
         }
@@ -305,4 +308,4 @@ class BBoxCrop : public Operator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_BBOX_CROP_H_
