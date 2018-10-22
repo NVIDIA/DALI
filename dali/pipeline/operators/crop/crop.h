@@ -41,6 +41,9 @@ class CropAttr {
 
       crop_height_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[0]));
       crop_width_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[1]));
+
+      crop_x_norm_ = std::vector<float>(batch_size_, -1.0f);
+      crop_y_norm_ = std::vector<float>(batch_size_, -1.0f);
     }
   }
 
