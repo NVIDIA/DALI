@@ -25,13 +25,18 @@
 
 namespace dali {
 
+struct IntArrayWrapper {
+  int *data;
+  size_t size;
+};
+
 template <typename Backend>
-class IntArrayParser : public Parser {
+class IntArrayParser : public Parser<IntArrayWrapper> {
  public:
   explicit IntArrayParser(const OpSpec& spec)
-    : Parser(spec) {}
-  void Parse(const uint8_t* data, size_t size, SampleWorkspace* ws) {
-    const int *int_data = reinterpret_cast<const int*>(data);
+    : Parser<IntArrayWrapper>(spec) {}
+  void Parse(const IntArrayWrapper& data, SampleWorkspace* ws) {
+    const int *int_data = data.data;
 
     const int H = int_data[0];
     const int W = int_data[1];
@@ -75,7 +80,8 @@ TYPED_TEST(ParserTest, BasicTest) {
   ws->AddOutput(t);
 
   IntArrayParser<CPUBackend> parser(OpSpec("temp"));
-  parser.Parse(reinterpret_cast<uint8_t*>(data), 3 + H*W*C, ws);
+  IntArrayWrapper ia_wrapper = {data, 3 + H*W*C};
+  parser.Parse(ia_wrapper, ws);
 }
 
 

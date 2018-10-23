@@ -27,7 +27,7 @@
 
 namespace dali {
 
-class IndexedFileLoader : public Loader<CPUBackend> {
+class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit IndexedFileLoader(const OpSpec& options, bool init = true)
     : Loader(options),
@@ -54,6 +54,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
 
     int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()),
                         size);
+    tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
     DALI_ENFORCE(n_read == size, "Error reading from a file");
     ++current_index_;
     return;
@@ -93,7 +94,7 @@ class IndexedFileLoader : public Loader<CPUBackend> {
       options.GetRepeatedArgument<std::string>("index_path");
     ReadIndexFile(index_uris);
     size_t num_indices = indices_.size();
-    current_index_ = num_indices/num_shards_ * shard_id_;
+    current_index_ = start_index(shard_id_, num_shards_, num_indices);
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
     current_file_.reset(FileStream::Open(uris_[current_file_index_]));

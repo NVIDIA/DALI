@@ -20,6 +20,7 @@
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/meta.h"
 
 namespace dali {
 
@@ -40,7 +41,7 @@ typedef vector<Index> Dims;
 template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
-  DLL_PUBLIC TensorList() : layout_(DALI_NHWC),
+  DLL_PUBLIC TensorList() : meta_(DALI_NHWC),
                             tensor_view_(nullptr) {}
 
   DLL_PUBLIC ~TensorList() {
@@ -309,11 +310,11 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
   inline DALITensorLayout GetLayout() const {
-    return layout_;
+    return meta_.GetLayout();
   }
 
   inline void SetLayout(DALITensorLayout layout) {
-    layout_ = layout;
+    meta_.SetLayout(layout);
   }
 
  protected:
@@ -322,7 +323,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // underlying allocation for random access
   vector<Dims> shape_;
   vector<Index> offsets_;
-  DALITensorLayout layout_;
+  DALIMeta meta_;
 
   // In order to not leak memory (and make it slightly faster)
   // when sharing data with a Tensor, we will store a pointer to

@@ -49,16 +49,18 @@ class HostDecoder : public Operator<CPUBackend> {
     // determine what format the image is.
     if (CheckIsJPEG(input.data<uint8>(), input.size())) {
       // JPEG: Pass to TurboJPEG-based decode
-      DALI_CALL(DecodeJPEGHost(input.data<uint8>(),
+      DALI_CALL_EX(DecodeJPEGHost(input.data<uint8>(),
                                input.size(),
                                output_type_,
-                               output));
+                               output),
+                              "Problem with file: " + input.GetSourceInfo());
     } else if (CheckIsPNG(input.data<uint8>(), input.size())) {
       // PNG: Pass to OCV-based decode without extra copy
-      DALI_CALL(DecodePNGHost(input.data<uint8>(),
+      DALI_CALL_EX(DecodePNGHost(input.data<uint8>(),
                               input.size(),
                               output_type_,
-                              output));
+                              output),
+                              "Problem with file: " + input.GetSourceInfo());
     } else {
       // all other cases use openCV (for now)
 

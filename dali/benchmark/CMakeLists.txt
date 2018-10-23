@@ -21,6 +21,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/dali_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_alexnet_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/decoder_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/displacement_cpu_bench.cc"
   )
 
   if (BUILD_LMDB)

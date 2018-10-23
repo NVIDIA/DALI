@@ -172,7 +172,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
   }
 }
 
-class Caffe2Parser : public Parser {
+class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
  public:
   explicit Caffe2Parser(const OpSpec& spec)
     : Parser(spec),
@@ -180,10 +180,10 @@ class Caffe2Parser : public Parser {
       label_type_(static_cast<LabelType>(spec.GetArgument<int>("label_type"))),
       num_labels_(spec.GetArgument<int>("num_labels")) {}
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     caffe2::TensorProtos protos;
 
-    DALI_ENFORCE(protos.ParseFromArray(data, size));
+    DALI_ENFORCE(protos.ParseFromArray(data.data<uint8_t>(), data.size()));
 
     auto* image = ws->Output<CPUBackend>(0);
 

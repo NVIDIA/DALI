@@ -26,7 +26,6 @@ DALI and NGC
 ------------
 
 DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch, and MXNet containers in versions 18.07 and later.
-More info can be found `here <https://docs.nvidia.com/deeplearning/sdk/dali-install-guide/index.html#dali-ngc>`_.
 
 Installing prebuilt DALI packages
 ---------------------------------
@@ -38,7 +37,7 @@ Prerequisites
 .. _driver link: https://www.nvidia.com/drivers
 .. |cuda link| replace:: **NVIDIA CUDA 9.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |mxnet link| replace:: **MXNet 1.3 beta**
+.. |mxnet link| replace:: **MXNet 1.3**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **PyTorch 0.4**
 .. _pytorch link: https://pytorch.org
@@ -49,7 +48,7 @@ Prerequisites
 -  |driver link|_ supporting `CUDA 9.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 384.xx or later driver releases)
 -  One or more of the following deep learning frameworks:
 
-   -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later
+   -  |mxnet link|_ ``mxnet-cu90`` or later
    -  |pytorch link|_
    -  |tf link|_ or later
 
@@ -78,12 +77,16 @@ Prerequisites
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
+.. |gcc link| replace:: **GCC 4.9.2**
+.. _gcc link: https://www.gnu.org/software/gcc/
 
 .. table::
    :align: center
 
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | **Linux x64**                          |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |gcc link|_ or later                   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially*                                           |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -102,7 +105,7 @@ Prerequisites
    | **(Optional)** |lmdb link|_ or later   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
-   |      -  |mxnet link|_ ``mxnet-cu90==1.3.0b20180612`` or later                                                                        |
+   |      -  |mxnet link|_ ``mxnet-cu90`` or later                                                                                        |
    |      -  |pytorch link|_                                                                                                              |
    |      -  |tf link|_ or later                                                                                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -149,13 +152,13 @@ To build DALI with LMDB support:
    cmake -DBUILD_LMDB=ON ..
    make -j"$(nproc)"
 
-To build DALI using clang (experimental):
+To build DALI using Clang (experimental):
 
 .. note::
 
    This build is experimental and it is not maintained and tested
    like the default configuration. It is not guaranteed to work. 
-   We recommend using gcc for production builds.
+   We recommend using GCC for production builds.
 
 .. code-block:: bash
    

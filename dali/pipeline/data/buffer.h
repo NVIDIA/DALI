@@ -111,7 +111,7 @@ class Buffer {
   inline const T* data() const {
     DALI_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' must be called "
-        "on non-const buffer to set valid type");
+        "on non-const buffer to set valid type for " + type_.name());
     DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
         "Calling type does not match buffer data type: " +
         TypeTable::GetTypeName<T>() + " v. " + type_.name());
@@ -200,7 +200,7 @@ class Buffer {
    * enough memory to store the current number of elements with the
    * new data type.
    */
-  inline void set_type(TypeInfo new_type) {
+  inline void set_type(const TypeInfo &new_type) {
     DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
     if (new_type == type_) return;
 
@@ -305,7 +305,7 @@ class Buffer {
     size_ = new_size;
   }
 
-  const double alloc_mult = 1.5;
+  const double alloc_mult = 1.0;
 
   Backend backend_;
 

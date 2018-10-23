@@ -26,7 +26,6 @@
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/argument.h"
-#include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/operators/op_schema.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -61,33 +60,6 @@ class DLL_PUBLIC OpSpec {
   DLL_PUBLIC explicit inline OpSpec(const string &name)
     : name_(name) {}
 
-  DLL_PUBLIC explicit inline OpSpec(const dali_proto::OpDef& def) {
-    name_ = def.name();
-
-    // Extract all the arguments with correct types
-    for (auto &arg : def.args()) {
-      auto name = arg.name();
-
-      this->AddInitializedArg(name, DeserializeProtobuf(arg));
-    }
-
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (!def.input(i).is_argument_input()) {
-        this->AddInput(def.input(i).name(), def.input(i).device());
-      }
-    }
-
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (def.input(i).is_argument_input()) {
-        this->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
-      }
-    }
-
-    for (int i = 0; i < def.output_size(); ++i) {
-      this->AddOutput(def.output(i).name(), def.output(i).device());
-    }
-  }
-
   /**
    * @brief Getter for the name of the Operator.
    */
@@ -105,12 +77,7 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
-    Argument * arg = Argument::Store(name, val);
-    DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
-        "AddArg failed. Argument with name \"" + name +
-        "\" already exists. ");
-    arguments_[name] = arg;
-    return *this;
+    return AddInitializedArg(name, Argument::Store(name, val));
   }
 
   /**
@@ -224,6 +191,10 @@ class DLL_PUBLIC OpSpec {
     return argument_inputs_;
   }
 
+  DLL_PUBLIC inline const std::unordered_map<string, Argument*>& Arguments() const {
+    return arguments_;
+  }
+
   DLL_PUBLIC inline int OutputIdxForName(const string &name, const string &device) {
     auto it = output_name_idx_.find(std::make_pair(name, device));
     DALI_ENFORCE(it != output_name_idx_.end(), "Output with name '" +
@@ -301,7 +272,7 @@ class DLL_PUBLIC OpSpec {
     return &outputs_[idx];
   }
 
-  DLL_PUBLIC string ToString() {
+  DLL_PUBLIC string ToString() const {
     string ret;
     ret += "OpSpec for " + name() + ":\n  Inputs:\n";
     for (size_t i = 0; i < inputs_.size(); ++i) {
@@ -318,45 +289,6 @@ class DLL_PUBLIC OpSpec {
       ret += "\n";
     }
     return ret;
-  }
-
-  /**
-   * @brief Serialize spec to protobuf
-   */
-  DLL_PUBLIC void SerializeToProtobuf(dali_proto::OpDef *op, const string& inst_name) const {
-    op->set_name(name());
-    op->set_inst_name(inst_name);
-
-    for (size_t i = 0; i < inputs_.size(); ++i) {
-      dali_proto::InputOutput *in = op->add_input();
-      in->set_name(inputs_[i].first);
-      in->set_device(inputs_[i].second);
-      if (this->IsArgumentInput(i)) {
-         in->set_arg_name(this->ArgumentInputName(i));
-      }
-      in->set_is_argument_input(this->IsArgumentInput(i));
-    }
-
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-      dali_proto::InputOutput *out = op->add_output();
-      out->set_name(outputs_[i].first);
-      out->set_device(outputs_[i].second);
-      out->set_is_argument_input(false);
-    }
-
-    for (auto& a : arguments_) {
-      // filter out args that need to be dealt with on
-      // loading a serialized pipeline
-      if (a.first == "batch_size" ||
-          a.first == "num_threads" ||
-          a.first == "bytes_per_sample_hint") {
-        continue;
-      }
-
-      dali_proto::Argument *arg = op->add_args();
-
-      a.second->SerializeToProtobuf(arg);
-    }
   }
 
   DLL_PUBLIC OpSpec& operator=(const OpSpec& other) {
@@ -450,6 +382,8 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
 INSTANTIATE_ARGUMENT_AS_INT64(int);
 INSTANTIATE_ARGUMENT_AS_INT64(unsigned int);
 INSTANTIATE_ARGUMENT_AS_INT64(uint64_t);
+INSTANTIATE_ARGUMENT_AS_INT64(int8_t);
+INSTANTIATE_ARGUMENT_AS_INT64(uint8_t);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIImageType);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIDataType);
 INSTANTIATE_ARGUMENT_AS_INT64(DALIInterpType);

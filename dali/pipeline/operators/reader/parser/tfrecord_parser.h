@@ -30,13 +30,13 @@
 
 namespace dali {
 
-class TFRecordParser : public Parser {
+class TFRecordParser : public Parser<Tensor<CPUBackend>> {
  public:
   using FeatureType = TFUtil::FeatureType;
   using Feature = TFUtil::Feature;
 
   explicit TFRecordParser(const OpSpec& spec) :
-    Parser(spec) {
+    Parser<Tensor<CPUBackend>>(spec) {
     feature_names_ = spec.GetRepeatedArgument<string>("feature_names");
     features_ = spec.GetRepeatedArgument<Feature>("features");
     DALI_ENFORCE(feature_names_.size() == features_.size(),
@@ -45,18 +45,20 @@ class TFRecordParser : public Parser {
         "No features provided");
   }
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     tensorflow::Example example;
 
     uint64_t length;
     uint32_t crc;
 
-    std::memcpy(&length, data, sizeof(length));
+    const uint8_t* raw_data = data.data<uint8_t>();
+
+    std::memcpy(&length, raw_data, sizeof(length));
 
     // Omit length and crc
-    data = data + sizeof(length) + sizeof(crc);
+    raw_data = raw_data + sizeof(length) + sizeof(crc);
     try {
-      DALI_ENFORCE(example.ParseFromArray(data, length),
+      DALI_ENFORCE(example.ParseFromArray(raw_data, length),
           "Error in parsing - invalid TFRecord file!");
     } catch(std::exception& e) {
       std::string str = "Error while parsing TFRecord: " + std::string(e.what());

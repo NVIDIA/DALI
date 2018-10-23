@@ -20,28 +20,26 @@
 #include "dali/pipeline/operators/reader/parser/recordio_parser.h"
 
 namespace dali {
-class MXNetReader : public DataReader<CPUBackend> {
+class MXNetReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit MXNetReader(const OpSpec& spec)
-  : DataReader<CPUBackend>(spec) {
+  : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
     loader_.reset(new RecordIOLoader(spec));
     parser_.reset(new RecordIOParser(spec));
   }
-
-  DEFAULT_READER_DESTRUCTOR(MXNetReader, CPUBackend);
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
     const int idx = ws->data_idx();
 
     auto* raw_data = prefetched_batch_[idx];
 
-    parser_->Parse(raw_data->data<uint8_t>(), raw_data->size(), ws);
+    parser_->Parse(*raw_data, ws);
 
     return;
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>);
 };
 }  // namespace dali
 

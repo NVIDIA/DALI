@@ -43,11 +43,7 @@ class SphereAugment {
     T newX = mid_x + rad * trueX;
     T newY = mid_y + rad * trueY;
 
-    Point<T> p;
-    p.x = newX >= 0 && newX < W ? newX : -1;
-    p.y = newY >= 0 && newY < H ? newY : -1;
-
-    return p;
+    return CreatePointLimited(newX, newY, W, H);
   }
 
   void Cleanup() {}

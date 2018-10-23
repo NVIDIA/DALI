@@ -62,8 +62,8 @@ void ResizeAttr::SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
 }
 
 void ResizeAttr::DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int idx) const {
-  *pCropX = per_sample_meta_[idx].crop_x;
-  *pCropY = per_sample_meta_[idx].crop_y;
+  *pCropX = per_sample_meta_[idx].crop.second;
+  *pCropY = per_sample_meta_[idx].crop.first;
   out_size->height = crop_[0];
   out_size->width  = crop_[1];
 }
