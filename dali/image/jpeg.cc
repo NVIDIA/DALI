@@ -111,7 +111,9 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType
 
 
 JpegImage::~JpegImage() {
+#ifdef DALI_USE_JPEG_TURBO
   tjDestroy(tjhandle_);
+#endif  // DALI_USE_JPEG_TURBO
 }
 
 
