@@ -18,7 +18,9 @@ ENV PATH=${PYBIN}:${PATH} \
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
-RUN pip install future numpy setuptools wheel tensorflow-gpu==1.7 && \
+RUN pip install future numpy setuptools wheel && \
+    pip install tensorflow-gpu==1.7 && \
+    pip install tensorflow-gpu==1.11 --target /tensorflow/1_11 && \
     rm -rf /root/.cache/pip/
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
