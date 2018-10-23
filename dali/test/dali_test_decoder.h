@@ -24,7 +24,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     const TensorList<CPUBackend>& encoded_data = *inputs[0];
 
     const int c = this->GetNumColorComp();
-    for (int i = 0; i < encoded_data.ntensor(); ++i) {
+    for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = Product(encoded_data.tensor_shape(i));
 

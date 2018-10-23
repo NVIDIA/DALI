@@ -360,7 +360,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   USE_OPERATOR_MEMBERS();
 
  private:
-  static const int nDims = 3;
+  static const size_t nDims = 3;
 
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
@@ -370,18 +370,18 @@ class DisplacementFilter<GPUBackend, Displacement,
     const auto N = input.ntensor();
     const int pitch = nDims + 1;  // shape and offset
 
-    meta_cpu.Resize({N, pitch});
+    meta_cpu.Resize({static_cast<long>(N), pitch});
     Index * meta = meta_cpu.template mutable_data<Index>();
     meta_gpu.ResizeLike(meta_cpu);
     meta_gpu.template mutable_data<Index>();
 
     Index offset = 0;
-    for (int i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       const auto& shape = input.tensor_shape(i);
       DALI_ENFORCE(shape.size() == nDims,
           "All augmented tensors need to have the same number of dimensions");
       Index current_size = nDims != 0 ? 1 : 0;
-      for (int j = 0; j < nDims; ++j) {
+      for (size_t j = 0; j < nDims; ++j) {
         meta[i * pitch + j] = shape[j];
         current_size *= shape[j];
       }
@@ -400,12 +400,12 @@ class DisplacementFilter<GPUBackend, Displacement,
     // all H*W
     int C = meta[nDims - 1];  // First element
     uint64_t maxPower2 = (uint64_t)-1;
-    for (int i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       if (C != meta[i * pitch + nDims - 1]) {
         C = -1;  // Not all C are the same
       }
       uint64_t HW = 1;
-      for (int j = 0; j < nDims - 1; ++j) {
+      for (size_t j = 0; j < nDims - 1; ++j) {
         HW *= meta[i * pitch + j];
       }
       uint64_t power2 = HW & (-HW);
