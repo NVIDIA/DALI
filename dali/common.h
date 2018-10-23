@@ -223,6 +223,10 @@ inline std::string to_string(const DALITensorLayout& layout) {
       return "NCHW";
     case DALI_NHWC:
       return "NHWC";
+    case DALI_NFHWC:
+    return "NFHWC";
+    case DALI_SAME:
+      return "SAME";
     default:
       return "<unknown>";
   }

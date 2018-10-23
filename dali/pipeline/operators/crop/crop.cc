@@ -38,6 +38,38 @@ DALI_SCHEMA(Crop)
         std::vector<float>{0.f, 0.f})
     .EnforceInputLayout(DALI_NHWC);
 
+std::pair<int, int> CropAttr::SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
+    const Index dataIdx, int H, int W) {
+    DALI_ENFORCE(H >= crop_height_[dataIdx]);
+    DALI_ENFORCE(W >= crop_width_[dataIdx]);
+
+    auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, dataIdx);
+    auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, dataIdx);
+
+    DALI_ENFORCE(crop_y_norm >= 0.f && crop_y_norm <= 1.f,
+                 "Crop coordinates need to be in range [0.0, 1.0]");
+    DALI_ENFORCE(crop_x_norm >= 0.f && crop_x_norm <= 1.f,
+                 "Crop coordinates need to be in range [0.0, 1.0]");
+
+    const int crop_y = crop_y_norm * (H - crop_height_[dataIdx]);
+    const int crop_x = crop_x_norm * (W - crop_width_[dataIdx]);
+
+    return std::make_pair(crop_y, crop_x);
+}
+
+const vector<Index> CropAttr::CheckShapes(const SampleWorkspace *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
+
+  // enforce that all shapes match
+  for (int i = 1; i < ws->NumInput(); ++i) {
+    DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+  }
+
+  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
+
+  return input.shape();
+}
+
 
 template<>
 Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
@@ -51,9 +83,9 @@ void CropKernel(
   const int W,
   const unsigned char *input_ptr,
   const int in_stride,
-  DALITensorLayout layout,
+  DALITensorLayout output_layout,
   Out *output_ptr) {
-  if (layout == DALI_NCHW) {
+  if (output_layout == DALI_NCHW) {
     for (int c = 0; c < C; ++c) {
       for (int h = 0; h < H; ++h) {
         for (int w = 0; w < W; ++w) {
@@ -87,7 +119,6 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   auto output = ws->Output<CPUBackend>(idx);
 
   const int threadIdx = ws->thread_idx();
-  const int H = per_sample_dimensions_[threadIdx].first;
   const int W = per_sample_dimensions_[threadIdx].second;
 
   const int crop_y = per_sample_crop_[threadIdx].first;
@@ -103,12 +134,13 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
 template<>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto *output = ws->Output<CPUBackend>(idx);
 
   DALITensorLayout outLayout;
   output->Resize(GetOutShape(input.GetLayout(), &outLayout, ws->data_idx()));
   output->SetLayout(outLayout);
 
+  // Check if we use u8, RGB or Greyscale
   CheckParam(input, "CropCPUBackend");
   if (output_type_ == DALI_FLOAT16)
     RunHelper<half_float::half>(ws, idx);
