@@ -103,7 +103,7 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType
   tjhandle_ = tjInitDecompress();
   if (!tjhandle_) {
     std::stringstream ss;
-    ss << "Failed jpeg-turbo initialization: " << tjGetErrorStr2(tjhandle_);
+    ss << "Failed jpeg-turbo initialization: " << tjGetErrorStr();
     DALI_FAIL(ss.str());
   }
 #endif  // DALI_USE_JPEG_TURBO
