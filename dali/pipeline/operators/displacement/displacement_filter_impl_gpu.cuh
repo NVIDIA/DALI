@@ -184,7 +184,7 @@ template <typename T, int C, bool per_channel_transform,
           int nThreads, class Displacement, DALIInterpType interp_type>
 __global__
 void DisplacementKernel_aligned32bit(const T *in, T* out,
-                        const int N, const Index * shapes,
+                        const size_t N, const Index * shapes,
                         const bool has_mask, const int * mask,
                         const void * raw_params,
                         const Index pitch,
@@ -193,7 +193,7 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
   __shared__ T scratch[nThreads * C * nPixelsPerThread];
   // block per image
-  for (int n = blockIdx.x; n < N; n += gridDim.x) {
+  for (size_t n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
     const int W = shapes[n * pitch + 1];
     const Index offset = shapes[n * pitch + 3];
@@ -434,7 +434,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   template <typename U, DALIInterpType interp_type>
   void DisplacementKernelLauncher(DeviceWorkspace * ws,
                                   const U* in, U* out,
-                                  const int N, const int pitch,
+                                  const size_t N, const int pitch,
                                   const int C, const uint64_t maxPower2) {
     void * param_ptr = params_gpu_.capacity() > 0 ? params_gpu_.raw_mutable_data() : nullptr;
     if (maxPower2 >= sizeof(uint32_t)/sizeof(U)) {
