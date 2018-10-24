@@ -651,7 +651,7 @@ class DALISingleOpTest : public DALITest {
       // Checking for best match could be done only when images are compared separately
       const bool checkBestMatch = TestCheckType(t_checkBestMatch);
       // The the results are checked for each element separately
-      for (int i = 0; i < t1->ntensor(); ++i) {
+      for (size_t i = 0; i < t1->ntensor(); ++i) {
         const auto shape1 = t1->tensor_shape(i);
         const auto shape2 = t2->tensor_shape(i);
         ASSERT_EQ(shape1.size(), 3);

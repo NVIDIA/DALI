@@ -112,7 +112,7 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
     DALI_ENFORCE(idx >= 0, "Negative tensor index not supported.");
-    DALI_ENFORCE(idx < tl->ntensor(), "Index of " + std::to_string(idx) +
+    DALI_ENFORCE(static_cast<size_t>(idx) < tl->ntensor(), "Index of " + std::to_string(idx) +
         " out of range for TensorList of size " + std::to_string(tl->ntensor()));
 
     // Reset our pointer to the correct offset inside the tensor list.

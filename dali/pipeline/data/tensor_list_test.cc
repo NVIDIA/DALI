@@ -424,7 +424,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), shape.size());
-  for (int i = 0; i < tensor_list.ntensor(); ++i) {
+  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -452,7 +452,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), shape.size());
-  for (int i = 0; i < tensor_list.ntensor(); ++i) {
+  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -482,7 +482,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), shape.size());
-  for (int i = 0; i < tensor_list.ntensor(); ++i) {
+  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -527,7 +527,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(uint8));
   ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
-  for (int i = 0; i < tensor_list.ntensor(); ++i) {
+  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
@@ -540,7 +540,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(double));
   ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
-  for (int i = 0; i < tensor_list.ntensor(); ++i) {
+  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
