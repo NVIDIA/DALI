@@ -370,7 +370,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     const auto N = input.ntensor();
     const int pitch = nDims + 1;  // shape and offset
 
-    meta_cpu.Resize({static_cast<long>(N), pitch});
+    meta_cpu.Resize({static_cast<int>(N), pitch});
     Index * meta = meta_cpu.template mutable_data<Index>();
     meta_gpu.ResizeLike(meta_cpu);
     meta_gpu.template mutable_data<Index>();
