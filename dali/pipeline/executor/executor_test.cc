@@ -391,6 +391,54 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
+TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
+  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("ExternalSource")
+          .AddArg("device", "cpu")
+          .AddOutput("data", "cpu")), "");
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("HostDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu")), "");
+
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "mixed")
+          .AddInput("images", "cpu")
+          .AddOutput("final_images", "cpu")), "");
+
+  vector<string> outputs = {"final_images_cpu"};
+  int cb_counter = 0;
+  exe.SetCompletionCallback([&cb_counter]() {
+    ++cb_counter;
+  });
+  exe.Build(&graph, outputs);
+
+  // Set the data for the external source
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  ASSERT_NE(src_op, nullptr);
+  TensorList<CPUBackend> tl;
+  this->MakeJPEGBatch(&tl, this->batch_size_);
+  src_op->SetDataSource(tl);
+
+  exe.RunCPU();
+  exe.RunMixed();
+  exe.RunGPU();
+
+  DeviceWorkspace ws;
+  exe.Outputs(&ws);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(cb_counter, 1);
+  ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
+}
+
 TEST_F(ExecutorTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
@@ -424,6 +472,10 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
           .AddOutput("final_images", "gpu")), "");
 
   vector<string> outputs = {"final_images_gpu"};
+  int cb_counter = 0;
+  exe.SetCompletionCallback([&cb_counter]() {
+    ++cb_counter;
+  });
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
@@ -459,6 +511,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   exe.RunMixed();
   exe.RunGPU();
 
+  ASSERT_EQ(cb_counter, 1);
   src_op->SetDataSource(tl2);
   exe.RunCPU();
   exe.RunMixed();
@@ -482,6 +535,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+  ASSERT_EQ(cb_counter, 2);
   TensorList<GPUBackend> *res2 = ws.Output<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyDecode(
