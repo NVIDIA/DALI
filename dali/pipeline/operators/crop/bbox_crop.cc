@@ -16,7 +16,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(BBoxCrop)
+DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
         R"code(Perform a prospective crop to an image while keeping bounding boxes consistent. Inputs must be supplied as two Tensors:
         `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[l,t,r,b]`.
@@ -25,7 +25,6 @@ DALI_SCHEMA(BBoxCrop)
         where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`.)code")
     .NumInput(2)
     .NumOutput(3)
-    .AllowMultipleInputSets()
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
@@ -39,14 +38,18 @@ DALI_SCHEMA(BBoxCrop)
     .AddOptionalArg(
         "scaling",
         R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`
-        Default values are `[1.0, 1.0]`, disallowing changes in image scaling.)code",
+        Default values are `[1.0, 1.0]`.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "ltrb",
         R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. By default is set to `true`.)code",
         true)
+    .AddOptionalArg(
+        "num_attempts",
+        R"code(Number of attempts to retrieve a patch with the desired parameters.)code",
+        1)
     .EnforceInputLayout(DALI_NHWC);
 
-DALI_REGISTER_OPERATOR(BBoxCrop, BBoxCrop, CPU);
+DALI_REGISTER_OPERATOR(RandomBBoxCrop, RandomBBoxCrop, CPU);
 
 }  // namespace dali

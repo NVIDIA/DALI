@@ -26,17 +26,17 @@
 
 namespace dali {
 
-class BBoxCrop : public Operator<CPUBackend> {
-  static const unsigned int kAttempts = 100;
+class RandomBBoxCrop : public Operator<CPUBackend> {
   static const unsigned int kBboxSize = 4;
 
  protected:
   struct Bounds {
-    explicit Bounds(std::vector<float> &&bounds)
-        : min(bounds[0]), max(bounds[1]) {
+    explicit Bounds(const std::vector<float>& bounds)
+        : min(bounds.size() > 0 ? bounds[0] : -1)
+        , max(bounds.size() > 1 ? bounds[1] : -1) {
+      DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min >= 0, "Min should be at least 0.0. Received: " +
                                  std::to_string(min));
-      DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min <= max, "Bounds should be provided as: [min, max]");
     }
 
@@ -62,22 +62,18 @@ class BBoxCrop : public Operator<CPUBackend> {
           }
 
     bool Contains(float x, float y) const {
-      return x >= left && (x - left) <= right && y >= top &&
-             (y - top) <= bottom;
+      return x >= left && x <= right && y >= top &&
+             y <= bottom;
     }
 
     Rectangle ClampTo(const Rectangle &other) const {
-      const float new_left = std::max(other.left, left);
-      const float new_top = std::max(other.top, top);
-      const float new_right = std::min(other.right, right);
-      const float new_bottom = std::min(other.bottom, bottom);
-
       return Rectangle(std::max(other.left, left), std::max(other.top, top),
                        std::min(other.right, right),
                        std::min(other.bottom, bottom));
     }
 
-    Rectangle RemapTo(const Rectangle &other, unsigned int height, unsigned int width) const {
+    Rectangle RemapTo(const Rectangle &other) const {
+      // Remap these [l,t,r,b] coordinates to other's frame of reference
       const float crop_width = other.right - other.left;
       const float crop_height = other.bottom - other.top;
 
@@ -114,13 +110,14 @@ class BBoxCrop : public Operator<CPUBackend> {
   using BoundingBoxes = std::vector<Rectangle>;
 
  public:
-  explicit inline BBoxCrop(const OpSpec &spec)
+  explicit inline RandomBBoxCrop(const OpSpec &spec)
       : Operator<CPUBackend>(spec),
         thresholds_{spec.GetRepeatedArgument<float>("thresholds")},
         scaling_bounds_{Bounds(spec.GetRepeatedArgument<float>("scaling"))},
         aspect_ratio_bounds_{
             Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))},
-        ltrb_{spec.GetArgument<bool>("ltrb")}
+        ltrb_{spec.GetArgument<bool>("ltrb")},
+        num_attempts_{spec.GetArgument<int>("num_attempts")}
 
   {
     DALI_ENFORCE(!thresholds_.empty(),
@@ -136,7 +133,7 @@ class BBoxCrop : public Operator<CPUBackend> {
     }
   }
 
-  virtual ~BBoxCrop() = default;
+  virtual ~RandomBBoxCrop() = default;
 
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) {
@@ -194,7 +191,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   }
 
   float Rescale(unsigned int k) {
-    std::uniform_real_distribution<> sampler(scaling_bounds_.min,
+    static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
     return sampler(rd_) * k;
   }
@@ -215,8 +212,7 @@ class BBoxCrop : public Operator<CPUBackend> {
     remapped_boxes.reserve(boxes.size());
 
     for (const auto& box : boxes) {
-        remapped_boxes.emplace_back(
-          box.RemapTo(crop, height, width));
+        remapped_boxes.emplace_back(box.RemapTo(crop));
     }
 
     return remapped_boxes;
@@ -263,7 +259,7 @@ class BBoxCrop : public Operator<CPUBackend> {
       const Tensor<CPUBackend> &image, const Tensor<CPUBackend> &bounding_boxes,
       float minimum_overlap) {
     if (minimum_overlap > 0) {
-      for (size_t i = 0; i < kAttempts; ++i) {
+      for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
         const auto rescaled_height = Rescale(image.dim(0));
         const auto rescaled_width = Rescale(image.dim(1));
@@ -301,6 +297,7 @@ class BBoxCrop : public Operator<CPUBackend> {
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
   const bool ltrb_;
+  const int num_attempts_;
 
  private:
   std::random_device rd_;

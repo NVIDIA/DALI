@@ -31,44 +31,30 @@ DALI_SCHEMA(Slice)
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
-  // Assumes xywh. ltrb not supported atm
+  // Assumes xywh
   const auto &input = ws->Input<CPUBackend>(0);
   const auto &begin = ws->Input<CPUBackend>(1);
 
   const int H = input.shape()[0];
   const int W = input.shape()[1];
 
-  crop_y_norm_[ws->data_idx()] = static_cast<float>(begin.template data<float>()[1] / H);
-  crop_x_norm_[ws->data_idx()] = static_cast<float>(begin.template data<float>()[0] / W);
-
   const auto &size = ws->Input<CPUBackend>(2);
 
-  crop_width_[ws->data_idx()] = static_cast<int>(size.template data<float>()[0]);
-  crop_height_[ws->data_idx()] = static_cast<int>(size.template data<float>()[1]);
-}
-
-template <>
-void Slice<CPUBackend>::ThreadDependentSetup(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  DALI_ENFORCE(input.shape().size() == 3,
-              "Expects 3-dimensional image input.");
-
-  const int H = input.shape()[0];
-  const int W = input.shape()[1];
+  const float crop_width = static_cast<int>(size.template data<float>()[0]);
+  const float crop_height = static_cast<int>(size.template data<float>()[1]);
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const int crop_y = crop_y_norm_[ws->data_idx()] * H;
-  const int crop_x = crop_x_norm_[ws->data_idx()] * W;
+  const int crop_y = static_cast<float>(begin.template data<float>()[1] / H) * H;
+  const int crop_x =
+      static_cast<float>(begin.template data<float>()[0] / W) * W;
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }
 
 template <>
 void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
-  // @pribalta: Order matters for DataDependent and ThreadDependent setups
   DataDependentSetup(ws);
-  ThreadDependentSetup(ws);
 
   Crop<CPUBackend>::RunImpl(ws, idx);
 }
@@ -76,7 +62,7 @@ void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 template <>
 void Slice<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   DALI_ENFORCE(ws->NumInput() == 3, "Expected 3 inputs. Received: " +
-                                        std::to_string(ws->NumInput() == 3));
+                                        std::to_string(ws->NumInput()));
 
   if (output_type_ == DALI_NO_TYPE) {
     const auto &input = ws->Input<CPUBackend>(0);

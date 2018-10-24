@@ -160,7 +160,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
-    output->Resize({crop_height_[idx], crop_width_[idx], meta.C});
+    output->Resize({crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
 
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(
