@@ -80,7 +80,9 @@ class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
-        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+        # without additional reallocations
+        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512)
         self.rrc = ops.RandomResizedCrop(device="gpu", size =(crop, crop))
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,
