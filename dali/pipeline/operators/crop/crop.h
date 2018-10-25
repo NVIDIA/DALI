@@ -155,6 +155,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
   Tensor<CPUBackend> input_ptrs_, input_strides_;
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
+  Tensor<GPUBackend> crop_width_gpu_, crop_height_gpu_;
   vector<int> crop_offsets_;
 
  protected:

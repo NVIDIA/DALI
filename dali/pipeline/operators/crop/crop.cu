@@ -19,11 +19,13 @@
 namespace dali {
 
 template <typename Out>
-__global__ void BatchedCropKernel(const int C, const int H, const int W,
+__global__ void BatchedCropKernel(const int C, const int* height, const int* width,
                                   const uint8 *const *img_ptrs,
                                   const int *in_strides,
                                   DALITensorLayout layout, Out *out) {
   const int n = blockIdx.x;
+  const int W = width[n];
+  const int H = height[n];
   const int in_stride = in_strides[n];
   const uint8 *input_ptr = img_ptrs[n];
   Out *output_ptr = out + (n * C * H * W);
@@ -57,7 +59,7 @@ __global__ void BatchedCropKernel(const int C, const int H, const int W,
 
 template <typename Out>
 DALIError_t BatchedCrop(const uint8 *const *in_batch, const int *in_strides,
-                        int N, int H, int W, int C, DALITensorLayout L,
+                        int N, const int* H, const int* W, int C, DALITensorLayout L,
                         Out *out_batch, cudaStream_t stream) {
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(out_batch != nullptr);
@@ -89,18 +91,20 @@ template <>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
-  ValidateHelper<Out>(output, idx);
+  ValidateHelper<Out>(output);
 
   DALI_CALL(
       (BatchedCrop<Out>(input_ptrs_gpu_.template data<const uint8 *>(),
                         input_strides_gpu_.template data<int>(), batch_size_,
-                        crop_height_[idx], crop_width_[idx], C_, output_layout_,
+                        crop_height_gpu_.template data<int>(),
+                        crop_width_gpu_.template data<int>(),
+                        C_, output_layout_,
                         output->template mutable_data<Out>(), ws->stream())));
 }
 
 template <>
 template <typename Out>
-void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output, int idx) {
+void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
   // Validate parameters
   DALI_CALL(ValidateBatchedCrop(
       input_ptrs_.template mutable_data<const uint8 *>(),
@@ -164,6 +168,9 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
   input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
   input_strides_gpu_.Copy(input_strides_, ws->stream());
+
+  crop_width_gpu_.Copy(crop_width_, ws->stream());
+  crop_height_gpu_.Copy(crop_height_, ws->stream());
 }
 
 template <>
