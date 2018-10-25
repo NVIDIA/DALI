@@ -100,9 +100,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
   void RunHelper(Workspace<Backend> *ws, int idx);
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
   template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output, int idx);
-  template <typename Out>
-  void ValidateHelper(const Tensor<Backend> *input, Tensor<Backend> *output, int idx);
+  void ValidateHelper(TensorList<Backend> *output);
 
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout, int dataIdx) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
