@@ -40,7 +40,7 @@ class RandomBBoxCrop : public Operator<Backend> {
                                  std::to_string(height));
         DALI_ENFORCE(width > 0, "Height should be greater than 0. Received: " +
                           std::to_string(width));
-        DALI_ENFORCE(channels == 0 || channels == 3, "Height should be 1 or 3. Received: " +
+        DALI_ENFORCE(channels == 1 || channels == 3, "Height should be 1 or 3. Received: " +
                           std::to_string(channels));
       }
 
@@ -147,6 +147,8 @@ class RandomBBoxCrop : public Operator<Backend> {
       DALI_ENFORCE(threshold <= 1.0,
                    "Threshold value must be <= 1.0. Received: " +
                        std::to_string(threshold));
+    DALI_ENFORCE(num_attempts_ > 0,
+            "Minimum number of attempts must be greater than zero");
     }
   }
 
