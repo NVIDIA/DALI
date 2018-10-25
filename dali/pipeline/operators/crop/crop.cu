@@ -68,18 +68,18 @@ DALIError_t BatchedCrop(const uint8 *const *in_batch, const int *in_strides,
 
 template <typename Out>
 DALIError_t ValidateBatchedCrop(const uint8 *const *in_batch,
-                                const int *in_strides, int N, int H, int W,
+                                const int *in_strides, int N, int* H, int* W,
                                 int C, const Out *out_batch) {
   DALI_ASSERT(N > 0);
-  DALI_ASSERT(H > 0);
-  DALI_ASSERT(W > 0);
   DALI_ASSERT(C == 1 || C == 3);
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(in_strides != nullptr);
   DALI_ASSERT(out_batch != nullptr);
   for (int i = 0; i < N; ++i) {
     DALI_ASSERT(in_batch[i] != nullptr);
-    DALI_ASSERT(in_strides[i] >= C * W);
+    DALI_ASSERT(H[i] > 0);
+    DALI_ASSERT(W[i] > 0);
+    DALI_ASSERT(in_strides[i] >= C * W[i]);
   }
 
   return DALISuccess;
@@ -104,8 +104,8 @@ void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output, int idx) {
   // Validate parameters
   DALI_CALL(ValidateBatchedCrop(
       input_ptrs_.template mutable_data<const uint8 *>(),
-      input_strides_.template data<int>(), batch_size_, crop_height_[idx],
-      crop_width_[idx], C_, output->template mutable_data<Out>()));
+      input_strides_.template data<int>(), batch_size_, crop_height_.data(),
+      crop_width_.data(), C_, output->template mutable_data<Out>()));
 }
 
 template <>
