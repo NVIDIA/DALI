@@ -82,10 +82,10 @@ void RandomBBoxCrop<GPUBackend>::WriteBoxesToOutput(DeviceWorkspace *ws,
 
 template <>
 void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  std::vector<Crop> crop;
-  std::vector<unsigned int> height;
-  std::vector<unsigned int> width;
-  std::vector<BoundingBoxes> boxes_out;
+  static std::vector<Crop> crop;
+  static std::vector<unsigned int> height;
+  static std::vector<unsigned int> width;
+  static std::vector<BoundingBoxes> boxes_out;
   crop.reserve(batch_size_);
   height.reserve(batch_size_);
   width.reserve(batch_size_);

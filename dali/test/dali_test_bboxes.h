@@ -19,6 +19,48 @@ typedef struct {
 template <typename ImgType>
 class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
  protected:
+  void RunTestGPU(const opDescr &descr) {
+    const int batch_size = this->jpegs_.nImages();
+    this->SetBatchSize(batch_size);
+    this->SetNumThreads(1);
+
+    TensorList<CPUBackend> encoded_data;
+    this->EncodedJPEGData(&encoded_data);
+    TensorList<CPUBackend> boxes;
+    this->MakeBBoxesBatch(&boxes, batch_size);
+    this->SetExternalInputs({{"encoded", &encoded_data}, {"boxes", &boxes}});
+
+    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+
+    // Decode the images
+    pipe->AddOperator(
+    OpSpec("nvJPEGDecoder")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", this->img_type_)
+      .AddArg("use_batched_decode", true)
+      .AddInput("encoded", "cpu")
+      .AddOutput("decoded", "gpu"));
+
+    OpSpec spec(descr.opName);
+    if (descr.opAddImgType) spec = spec.AddArg("image_type", this->ImageType());
+
+    this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
+                                    .AddArg("device", "gpu")
+                                    .AddInput("decoded", "gpu")
+                                    .AddInput("boxes", "gpu")
+                                    .AddOutput("output", "gpu")
+                                    .AddOutput("output1", "gpu")
+                                    .AddOutput("output2", "gpu"));
+
+    this->SetTestCheckType(this->GetTestCheckType());
+    pipe->Build(DALISingleOpTest<ImgType>::outputs_);
+    pipe->RunCPU();
+    pipe->RunGPU();
+
+    DeviceWorkspace ws;
+    pipe->Outputs(&ws);
+  }
+
   void RunTest(const opDescr &descr) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
@@ -57,7 +99,6 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
   }
-
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     auto from = ws->Output<GPUBackend>(1);
@@ -75,6 +116,13 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
     RunTest(finalDesc);
+  }
+
+  void RunTestGPU(const singleParamOpDescr &paramOp, bool addImgType = false) {
+    vector<OpArg> args;
+    args.push_back(paramOp.opArg);
+    opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
+    RunTestGPU(finalDesc);
   }
 };
 
