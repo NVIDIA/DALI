@@ -26,10 +26,27 @@
 
 namespace dali {
 
-class RandomBBoxCrop : public Operator<CPUBackend> {
+template <typename Backend>
+class RandomBBoxCrop : public Operator<Backend> {
   static const unsigned int kBboxSize = 4;
 
  protected:
+   struct ImageShape {
+    ImageShape(std::vector<Index> tensor_shape)
+      : height{static_cast<unsigned int>(tensor_shape[0])}
+      , width {static_cast<unsigned int>(tensor_shape[1])}
+      , channels{static_cast<unsigned int>(tensor_shape[2])} {
+        DALI_ENFORCE(height > 0, "Height should be greater than 0. Received: " +
+                                 std::to_string(height));
+        DALI_ENFORCE(width > 0, "Height should be greater than 0. Received: " +
+                          std::to_string(width));
+        DALI_ENFORCE(channels == 0 || channels == 3, "Height should be 1 or 3. Received: " +
+                          std::to_string(channels));
+      }
+
+      const unsigned int height, width, channels;
+  };
+
   struct Bounds {
     explicit Bounds(const std::vector<float>& bounds)
         : min(bounds.size() > 0 ? bounds[0] : -1)
@@ -111,7 +128,7 @@ class RandomBBoxCrop : public Operator<CPUBackend> {
 
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec)
-      : Operator<CPUBackend>(spec),
+      : Operator<Backend>(spec),
         thresholds_{spec.GetRepeatedArgument<float>("thresholds")},
         scaling_bounds_{Bounds(spec.GetRepeatedArgument<float>("scaling"))},
         aspect_ratio_bounds_{
@@ -136,54 +153,23 @@ class RandomBBoxCrop : public Operator<CPUBackend> {
   virtual ~RandomBBoxCrop() = default;
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) {
-    const auto &image = ws->Input<CPUBackend>(0);
-    const auto &bounding_boxes = ws->Input<CPUBackend>(1);
-
-    const auto minimum_overlap = SelectMinimumOverlap();
-
-    const auto prospective_crop =
-        FindProspectiveCrop(image, bounding_boxes, minimum_overlap);
-
-    WriteCropToOutput(ws, prospective_crop.first, image.dim(0), image.dim(1));
-    WriteBoxesToOutput(ws, prospective_crop.second);
-  }
+  void RunImpl(Workspace<Backend> *ws, const int idx);
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
-                         unsigned int height, unsigned int width) {
-    // Copy the anchor to output 0
-    auto *anchor_out = ws->Output<CPUBackend>(0);
-    anchor_out->Resize({2});
+                         unsigned int height, unsigned int width);
 
-    auto *anchor_out_data = anchor_out->mutable_data<float>();
-    anchor_out_data[0] = crop.left * width;
-    anchor_out_data[1] = crop.top * height;
-
-    // Copy the offsets to output 1
-    auto *offsets_out = ws->Output<CPUBackend>(1);
-    offsets_out->Resize({2});
-
-    auto *offsets_out_data = offsets_out->mutable_data<float>();
-    offsets_out_data[0] = (crop.right - crop.left) * width;
-    offsets_out_data[1] = (crop.bottom - crop.top) * height;
-  }
+  void WriteCropToOutput(Workspace<Backend> *ws,
+                        const std::vector<Crop> &crop,
+                        const std::vector<unsigned int>& height,
+                        const std::vector<unsigned int>& width,
+                        unsigned int idx);
 
   void WriteBoxesToOutput(SampleWorkspace *ws,
-                          const BoundingBoxes &bounding_boxes) {
-    auto *bbox_out = ws->Output<CPUBackend>(2);
-    bbox_out->Resize({static_cast<Index>(bounding_boxes.size()), kBboxSize});
+                          const BoundingBoxes &bounding_boxes);
 
-    auto *bbox_out_data = bbox_out->mutable_data<float>();
-    for (size_t i = 0; i < bounding_boxes.size(); ++i) {
-      auto *output = bbox_out_data + i * kBboxSize;
-      output[0] = bounding_boxes[i].left;
-      output[1] = bounding_boxes[i].top;
-      output[2] = ltrb_ ? bounding_boxes[i].right
-                        : bounding_boxes[i].right - bounding_boxes[i].left;
-      output[3] = ltrb_ ? bounding_boxes[i].bottom
-                        : bounding_boxes[i].bottom - bounding_boxes[i].top;
-    }
-  }
+  void WriteBoxesToOutput(Workspace<Backend> *ws,
+                          const std::vector<BoundingBoxes> &bounding_boxes,
+                          unsigned int idx);
 
   float SelectMinimumOverlap() {
     static std::uniform_int_distribution<> sampler(0, thresholds_.size()-1);
@@ -235,62 +221,49 @@ class RandomBBoxCrop : public Operator<CPUBackend> {
                 (height_offset + scaled_height) / height);
   }
 
-  std::vector<Rectangle> DiscardBoundingBoxesByCentroid(
-      const Crop &crop, const Tensor<CPUBackend> &bounding_boxes) {
+  std::vector<Rectangle> DiscardBoundingBoxesByCentroid(const Crop &crop,
+                                                        const BoundingBoxes &bounding_boxes) {
     BoundingBoxes result;
-    result.reserve(bounding_boxes.dim(0));
+    result.reserve(bounding_boxes.size());
 
     // Discard bboxes whose centroid is not in the cropped area
-    for (int i = 0; i < bounding_boxes.dim(0); ++i) {
-      const auto *box = bounding_boxes.data<float>() + (i * kBboxSize);
-
-      const float x_center = 0.5 * (box[2] - box[0]) + box[0];
-      const float y_center = 0.5 * (box[3] - box[1]) + box[1];
+    for (const auto &box : bounding_boxes) {
+      const float x_center = 0.5 * (box.right - box.left) + box.left;
+      const float y_center = 0.5 * (box.bottom - box.top) + box.top;
 
       if (crop.Contains(x_center, y_center)) {
-        result.emplace_back(box[0], box[1], box[2], box[3]);
+        result.push_back(box);
       }
     }
 
     return result;
   }
 
-  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
-      const Tensor<CPUBackend> &image, const Tensor<CPUBackend> &bounding_boxes,
-      float minimum_overlap) {
+  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(const ImageShape &image_shape,
+                                                     const BoundingBoxes &bounding_boxes,
+                                                     float minimum_overlap) {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
-        const auto rescaled_height = Rescale(image.dim(0));
-        const auto rescaled_width = Rescale(image.dim(1));
+        const auto rescaled_height = Rescale(image_shape.height);
+        const auto rescaled_width = Rescale(image_shape.width);
 
         if (ValidAspectRatio(rescaled_height, rescaled_width)) {
-          const auto candidate_crop = SamplePatch(
-              rescaled_height, rescaled_width, image.dim(0), image.dim(1));
+          const auto candidate_crop =
+              SamplePatch(rescaled_height, rescaled_width, image_shape.height, image_shape.width);
 
-          auto candidate_boxes =
-              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
+          auto candidate_boxes = DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
-            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes,
-                                                   rescaled_height, rescaled_width);
+            const auto remapped_boxes =
+                RemapBoxes(candidate_crop, candidate_boxes, rescaled_height, rescaled_width);
             return std::make_pair(candidate_crop, remapped_boxes);
           }
         }
       }
     }
 
-    // If overlap is 0.0 or fallback if we run out of attempts
-    BoundingBoxes result;
-    result.reserve(bounding_boxes.dim(0));
-
-    for (int i = 0; i < bounding_boxes.dim(0); ++i) {
-      const auto *box = bounding_boxes.data<float>() + (i * kBboxSize);
-
-      result.emplace_back(box[0], box[1], box[2], box[3]);
-    }
-
-    return std::make_pair(Crop(0, 0, 1, 1), result);
+    return std::make_pair(Crop(0, 0, 1, 1), bounding_boxes);
   }
 
   const std::vector<float> thresholds_;
