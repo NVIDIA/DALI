@@ -75,7 +75,7 @@ class Buffer {
                     size_(0),
                     shares_data_(false),
                     num_bytes_(0),
-                    pinned_(true),
+                    pinned_(false),
                     device_(-1)
     {}
 
