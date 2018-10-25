@@ -146,10 +146,10 @@ class DALIGenericIterator(object):
                 feed_ndarray(d_arr, pyt_data[j])
             for j, l_arr in enumerate(labels):
                 feed_ndarray(l_arr, pyt_labels[j])
-            for p in self._pipes:
-                p._release_outputs()
-                p._start_run()
 
+        for p in self._pipes:
+            p._release_outputs()
+            p._start_run()
 
         copy_db_index = self._current_data_batch
         # Change index for double buffering
