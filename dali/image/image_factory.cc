@@ -17,6 +17,7 @@
 #include "dali/image/png.h"
 #include "dali/image/bmp.h"
 #include "dali/image/jpeg.h"
+#include "dali/image/tiff.h"
 
 namespace dali {
 
@@ -48,6 +49,25 @@ bool CheckIsBMP(const uint8_t *bmp, int size) {
   return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
 }
 
+
+constexpr std::array<int, 4> header_intel = {77, 77, 0, 42};
+constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
+
+
+bool CheckIsTiff(const uint8_t *tiff, int size) {
+  DALI_ENFORCE(tiff);
+  auto check_header = [](const unsigned char *tiff, const std::array<int, 4> &header) -> bool {
+      DALI_ENFORCE(tiff);
+      for (unsigned int i = 0; i < header.size(); i++) {
+        if (tiff[i] != header[i]) {
+          return false;
+        }
+      }
+      return true;
+  };
+  return check_header(tiff, header_intel) || check_header(tiff, header_motorola);
+}
+
 }  // namespace
 
 std::unique_ptr<Image>
@@ -63,6 +83,8 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
     return std::unique_ptr<Image>(new BmpImage(encoded_image, length, image_type));
   } else if (CheckIsGIF(encoded_image, length)) {
     DALI_FAIL("GIF format is not supported");
+  } else if (CheckIsTiff(encoded_image, length)) {
+    return std::unique_ptr<Image>(new TiffImage(encoded_image, length, image_type));
   }
   return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
 }

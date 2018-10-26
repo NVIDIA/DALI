@@ -15,16 +15,7 @@
 #ifndef DALI_IMAGE_TIFF_H_
 #define DALI_IMAGE_TIFF_H_
 
-#include <opencv2/opencv.hpp>
-
-#include <string>
-
-#include <vector>
-
-#include "dali/common.h"
-#include "dali/error_handling.h"
-#include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/data/tensor.h"
+#include "generic_image.h"
 
 namespace dali {
 
@@ -92,24 +83,16 @@ class TiffBuffer {
   bool little_endian_;
 };
 
-///**
-// * @brief Returns 'true' if input compressed image is a tiff
-// */
-//extern bool CheckIsTiff(const unsigned char *tiff);
+/**
+ * Tiff image decoding is performed using OpenCV, thus it's the same as Generic decoding
+ */
+class TiffImage : public GenericImage {
+ public:
+  TiffImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
-
-///**
-// * @brief Get dimensions of tiff encoded image
-// */
-//extern DALIError_t GetTiffImageDims(const unsigned char *tiff, int size, int *h, int *w);
-
-
-///**
-// * @brief Decodes 'tiff' into the buffer pointed to by 'image'
-// */
-//extern DALIError_t
-//DecodeTiffHost(const unsigned char *tiff, int size, DALIImageType image_type,
-//               Tensor <CPUBackend> *output);
+ private:
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+};
 
 }  // namespace dali
 
