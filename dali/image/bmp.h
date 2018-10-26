@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_PNG_H_
-#define DALI_IMAGE_PNG_H_
+#ifndef DALI_IMAGE_BMP_H_
+#define DALI_IMAGE_BMP_H_
 
 #include "dali/image/generic_image.h"
 
 namespace dali {
 
 /**
- * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
+ * BMP image decoding is performed using OpenCV, thus it's the same as Generic decoding
  */
-class PngImage final : public GenericImage {
+class BmpImage final : public GenericImage {
  public:
-  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+  Image::ImageDims PeekDims(const uint8_t *bmp, size_t length) const override;
 };
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_PNG_H_
+#endif  // DALI_IMAGE_BMP_H_

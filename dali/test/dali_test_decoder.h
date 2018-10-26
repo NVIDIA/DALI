@@ -3,10 +3,11 @@
 #ifndef DALI_TEST_DALI_TEST_DECODER_H_
 #define DALI_TEST_DALI_TEST_DECODER_H_
 
-#include "dali/test/dali_test_single_op.h"
 #include <utility>
 #include <vector>
 #include <string>
+#include "dali/test/dali_test_single_op.h"
+#include "dali/image/image_factory.h"
 
 namespace dali {
 
@@ -37,8 +38,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     return outputs;
   }
 
+
  protected:
-  virtual const OpSpec DecodingOp() const   { return OpSpec(); }
+  virtual const OpSpec DecodingOp() const { return OpSpec(); }
+
 
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
     TensorList<CPUBackend> encoded_data;
@@ -60,23 +63,32 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     this->RunOperator(DecodingOp(), eps);
   }
 
+
   void RunTestDecode(const ImgSetDescr &imgs, float eps = 5e-2) {
     this->SetEps(eps);
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
-      Tensor<CPUBackend> t;
-      DALI_CALL(DecodeJPEGHost(imgs.data_[imgIdx],
-                               imgs.sizes_[imgIdx],
-                               this->img_type_, &t));
+      Tensor<CPUBackend> image;
+
+      auto decoded_image = ImageFactory::CreateImage(imgs.data_[imgIdx], imgs.sizes_[imgIdx],
+                                             this->img_type_);
+      decoded_image->Decode();
+      const auto dims = decoded_image->GetImageDims();
+      const auto h = static_cast<int>(std::get<0>(dims));
+      const auto w = static_cast<int>(std::get<1>(dims));
+      const auto c = static_cast<int>(std::get<2>(dims));
+
+      // resize the output tensor
+      image.Resize({h, w, c});
+      // force allocation
+      image.mutable_data<uint8_t>();
+
+      decoded_image->GetImage(image.mutable_data<uint8_t>());
 
 #if DALI_DEBUG
-      WriteHWCImage(t.data<uint8_t>(), t.dim(0), t.dim(1), t.dim(2),
+      WriteHWCImage(image.data<uint8_t>(), image.dim(0), image.dim(1), image.dim(2),
                     std::to_string(imgIdx) + "-img");
-#ifndef NDEBUG
-      cout << imgIdx << ": " << imgs.sizes_[imgIdx]
-           << "  dims: " << t.dim(1) << "x" << t.dim(0) << endl;
 #endif
-#endif
-      this->VerifyDecode(t.data<uint8_t>(), t.dim(0), t.dim(1), imgs, imgIdx);
+      this->VerifyDecode(image.data<uint8_t>(), image.dim(0), image.dim(1), imgs, imgIdx);
     }
   }
 
@@ -84,7 +96,6 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
     const auto imgSize = imgs.sizes_[img_id];
-    ASSERT_TRUE(CheckIsJPEG(imgData, imgSize));
 
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();

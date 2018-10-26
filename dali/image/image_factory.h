@@ -12,24 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_PNG_H_
-#define DALI_IMAGE_PNG_H_
+#ifndef DALI_IMAGE_IMAGE_FACTORY_H_
+#define DALI_IMAGE_IMAGE_FACTORY_H_
 
-#include "dali/image/generic_image.h"
+#include <memory>
+#include "dali/image/image.h"
 
 namespace dali {
 
-/**
- * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
- */
-class PngImage final : public GenericImage {
+class ImageFactory {
  public:
-  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
-
- private:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+  DLL_PUBLIC static std::unique_ptr<Image>
+  CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type = DALI_RGB);
 };
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_PNG_H_
+#endif  // DALI_IMAGE_IMAGE_FACTORY_H_
