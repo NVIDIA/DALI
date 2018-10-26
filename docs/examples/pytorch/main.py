@@ -59,9 +59,10 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
-
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
+parser.add_argument('--daliCPU', action='store_true',
+                    help='Runs CPU based version of DALI pipeline.')
 parser.add_argument('--static-loss-scale', type=float, default=1,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--dynamic-loss-scale', action='store_true',
@@ -77,13 +78,20 @@ parser.add_argument("--local_rank", default=0, type=int)
 cudnn.benchmark = True
 
 class HybridTrainPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data_dir, crop):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop, daliCPU=False):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
-        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
-        # without additional reallocations
-        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512)
-        self.rrc = ops.RandomResizedCrop(device="gpu", size =(crop, crop))
+        #let user decide which pipeline works him bets for RN version he runs
+        if daliCPU:
+            dali_device = "cpu"
+            self.decode = ops.HostDecoder(device=dali_device, output_type=types.RGB)
+        else:
+            dali_device = "gpu"
+            # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+            # without additional reallocations
+            self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512)
+
+        self.rrc = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,
                                             output_layout=types.NCHW,
@@ -92,13 +100,14 @@ class HybridTrainPipe(Pipeline):
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
+        print('DALI "{0}" variant'.format(dali_device))
 
     def define_graph(self):
         rng = self.coin()
         self.jpegs, self.labels = self.input(name="Reader")
         images = self.decode(self.jpegs)
         images = self.rrc(images)
-        output = self.cmnp(images, mirror=rng)
+        output = self.cmnp(images.gpu(), mirror=rng)
         return [output, self.labels]
 
 class HybridValPipe(Pipeline):
@@ -235,7 +244,7 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=traindir, crop=crop_size)
+    pipe = HybridTrainPipe(batch_size=args.batch_size, num_threads=args.workers, device_id=args.local_rank, data_dir=traindir, crop=crop_size, daliCPU=args.daliCPU)
     pipe.build()
     train_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
 
