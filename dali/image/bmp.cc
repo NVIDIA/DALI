@@ -30,8 +30,8 @@ Image::ImageDims BmpImage::PeekDims(const uint8_t *bmp, size_t length) const {
   size_t w = 0;
   // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
   if (length >= 22 && header_size == 12) {
-    w = static_cast<unsigned int>( (bmp[18] | bmp[19] << 8) & 0xFFFF );
-    h = static_cast<unsigned int>( (bmp[20] | bmp[21] << 8) & 0xFFFF );
+    w = static_cast<unsigned int>((bmp[18] | bmp[19] << 8) & 0xFFFF);
+    h = static_cast<unsigned int>((bmp[20] | bmp[21] << 8) & 0xFFFF);
     // BITMAPINFOHEADER and later: | 32u header | 32s width | 32s height | ...
   } else if (length >= 26 && header_size >= 40) {
     w = static_cast<int>(bmp[18] | bmp[19] << 8 | bmp[20] << 16 | bmp[21] << 24);
