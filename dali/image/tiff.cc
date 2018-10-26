@@ -42,7 +42,6 @@ bool is_little_endian(const unsigned char *tiff) {
 
 TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
         GenericImage(encoded_buffer, length, image_type) {
-
 }
 
 
@@ -94,4 +93,4 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
   return std::make_tuple(height, width, 0);
 }
 
-} // namespace dali
+}  // namespace dali

@@ -15,7 +15,9 @@
 #ifndef DALI_IMAGE_TIFF_H_
 #define DALI_IMAGE_TIFF_H_
 
-#include "generic_image.h"
+#include <vector>
+#include <string>
+#include "dali/image/generic_image.h"
 
 namespace dali {
 

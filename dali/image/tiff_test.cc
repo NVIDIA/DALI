@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <sstream>
+#include <string>
 #include "dali/test/dali_test.h"
 #include "dali/image/tiff.h"
 
