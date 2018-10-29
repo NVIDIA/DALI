@@ -59,7 +59,7 @@ struct RandomResizedCrop<CPUBackend>::Params {
 template<>
 void RandomResizedCrop<CPUBackend>::InitParams(const OpSpec &spec) {
   params_->rand_gens.resize(batch_size_);
-  std::seed_seq seq{spec.GetArgument<int>("seed")};
+  std::seed_seq seq{spec.GetArgument<int64_t>("seed")};
   std::vector<int> seeds(batch_size_);
   seq.generate(seeds.begin(), seeds.end());
   for (size_t i = 0; i < seeds.size(); ++i) {
