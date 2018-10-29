@@ -18,6 +18,7 @@
 #include <vector>
 #include <utility>
 #include <algorithm>
+#include <random>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -49,7 +50,7 @@ class RandomBBoxCrop : public Operator<Backend> {
 
   struct Bounds {
     explicit Bounds(const std::vector<float>& bounds)
-        : min(bounds.size() > 0 ? bounds[0] : -1)
+        : min(!bounds.empty() ? bounds[0] : -1)
         , max(bounds.size() > 1 ? bounds[1] : -1) {
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min >= 0, "Min should be at least 0.0. Received: " +
@@ -154,8 +155,9 @@ class RandomBBoxCrop : public Operator<Backend> {
 
   virtual ~RandomBBoxCrop() = default;
 
+
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx);
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
                          unsigned int height, unsigned int width);
@@ -181,7 +183,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   float Rescale(unsigned int k) {
     static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
-    return sampler(rd_) * k;
+    return static_cast<float>(sampler(rd_) * k);
   }
 
   bool ValidAspectRatio(float width, float height) const {
@@ -208,10 +210,10 @@ class RandomBBoxCrop : public Operator<Backend> {
 
   Rectangle SamplePatch(float scaled_height, float scaled_width, float height,
                         float width) {
-    std::uniform_real_distribution<float> width_sampler(0.,
+    std::uniform_real_distribution<float> width_sampler(static_cast<float>(0.),
                                                         width - scaled_width);
     std::uniform_real_distribution<float> height_sampler(
-        0., height - scaled_height);
+        static_cast<float>(0.), height - scaled_height);
 
     const auto left_offset = width_sampler(rd_);
     const auto height_offset = height_sampler(rd_);

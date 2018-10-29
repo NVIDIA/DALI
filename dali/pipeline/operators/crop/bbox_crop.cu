@@ -82,10 +82,10 @@ void RandomBBoxCrop<GPUBackend>::WriteBoxesToOutput(DeviceWorkspace *ws,
 
 template <>
 void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  static std::vector<Crop> crop;
-  static std::vector<unsigned int> height;
-  static std::vector<unsigned int> width;
-  static std::vector<BoundingBoxes> boxes_out;
+  std::vector<Crop> crop;
+  std::vector<unsigned int> height;
+  std::vector<unsigned int> width;
+  std::vector<BoundingBoxes> boxes_out;
   crop.reserve(batch_size_);
   height.reserve(batch_size_);
   width.reserve(batch_size_);
@@ -95,11 +95,14 @@ void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   auto &boxes = ws->Input<GPUBackend>(idx+1);
 
   for (int i = 0; i < batch_size_; ++i) {
-    BoundingBoxes bounding_boxes;
-    bounding_boxes.reserve(boxes.tensor_shape(i)[0]);
+    const auto box_count =  boxes.tensor_shape(i)[0];
+    const auto box_size =  boxes.tensor_shape(i)[1];
 
-    for (int j = 0; i < boxes.tensor_shape(i)[0]; ++i) {
-      const float *box = boxes.template tensor<float>(j) + (j * kBboxSize);
+    BoundingBoxes bounding_boxes;
+    bounding_boxes.reserve(box_count);
+
+    for (int j = 0; j < box_count; j+=box_size) {
+      const auto *box = boxes.template tensor<uint8_t>(j);
       // ltrb expected
       bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
     }
