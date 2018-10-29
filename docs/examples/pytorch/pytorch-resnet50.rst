@@ -4,7 +4,7 @@ ImageNet training in PyTorch
 This implements training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
 
 This version has been modified to use DALI. It assumes that the dataset is raw JPEGs from the ImageNet dataset.
-If offers CPU and GPU based pipeline for DALI - use daliCPU switch to enable CPU one. For heavy GPU networks (like RN50) CPU based one is faster, for some lighter where CPU is the bottleneck like RN18 GPU is.
+If offers CPU and GPU based pipeline for DALI - use dali_cpu switch to enable CPU one. For heavy GPU networks (like RN50) CPU based one is faster, for some lighter where CPU is the bottleneck like RN18 GPU is.
 This version has been modified to use the DistributedDataParallel module in APEx instead of the one in upstream PyTorch. Please install APEx from `here <https://www.github.com/nvidia/apex>`_.
 
 To run use the following commands
@@ -13,7 +13,7 @@ To run use the following commands
 
    ln -s /path/to/train/jpeg/ train
    ln -s /path/to/validation/jpeg/ val
-   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --daliCPU --fp16 --b 128 --static-loss-scale 128.0 --workers 4 --lr=0.4 ./
+   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --fp16 --b 128 --static-loss-scale 128.0 --workers 4 --lr=0.4 ./
 
 Requirements
 ------------
@@ -69,4 +69,4 @@ Usage
    --resume PATH               path to latest checkpoint (default: none)
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
-   --daliCPU                   use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
+   --dali_cpu                   use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
