@@ -73,7 +73,7 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
       } else if (value_type == TYPE_DWORD) {
         value = buffer.Read<uint32_t>(entry_offset + 8);
       } else {
-        DALI_FAIL("Couldn't read Tiff image dims.");
+        DALI_FAIL("Couldn't read TIFF image dims.");
       }
 
       if (tag_id == WIDTH_TAG) {
@@ -86,7 +86,7 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
     }
   }
   if (!(width_read && height_read)) {
-    DALI_FAIL("Tiff image dims haven't been peeked properly");
+    DALI_FAIL("TIFF image dims haven't been peeked properly");
   }
 
   // TODO(mszolucha): fill channels count

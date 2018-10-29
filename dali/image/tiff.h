@@ -71,11 +71,8 @@ class TiffBuffer {
     char *value_bytes = reinterpret_cast<char *>(value);
     std::vector<char> value_copy(value_bytes, value_bytes + sizeof(T));
 
-    {
-      int i = 0;
-      for (auto it = value_copy.rbegin(); it != value_copy.rend(); ++it, ++i) {
-        value_bytes[i] = *it;
-      }
+    for (auto it = value_copy.rbegin(); it != value_copy.rend(); ++it) {
+      value_bytes[std::distance(value_copy.rbegin(), it)] = *it;
     }
   }
 
