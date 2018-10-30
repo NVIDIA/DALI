@@ -18,6 +18,7 @@
 #include <vector>
 #include <utility>
 #include <algorithm>
+#include <random>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -190,7 +191,7 @@ class RandomBBoxCrop : public Operator<CPUBackend> {
     return thresholds_[sampler(rd_)];
   }
 
-  float Rescale(unsigned int k) {
+  float SampleCandidateDimension(unsigned int k) {
     static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
     return sampler(rd_) * k;
@@ -261,19 +262,19 @@ class RandomBBoxCrop : public Operator<CPUBackend> {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
-        const auto rescaled_height = Rescale(image.dim(0));
-        const auto rescaled_width = Rescale(image.dim(1));
+        const auto candidate_height = SampleCandidateDimension(image.dim(0));
+        const auto candidate_width = SampleCandidateDimension(image.dim(1));
 
-        if (ValidAspectRatio(rescaled_height, rescaled_width)) {
+        if (ValidAspectRatio(candidate_height, candidate_width)) {
           const auto candidate_crop = SamplePatch(
-              rescaled_height, rescaled_width, image.dim(0), image.dim(1));
+              candidate_height, candidate_width, image.dim(0), image.dim(1));
 
           auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
             const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes,
-                                                   rescaled_height, rescaled_width);
+                                                   candidate_height, candidate_width);
             return std::make_pair(candidate_crop, remapped_boxes);
           }
         }
