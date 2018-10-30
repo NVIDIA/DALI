@@ -14,8 +14,6 @@
 
 #include "dali/image/png.h"
 
-#include <opencv2/opencv.hpp>
-
 namespace dali {
 
 // Assume chunk points to a 4-byte value
