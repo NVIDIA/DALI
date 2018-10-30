@@ -154,6 +154,14 @@ void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *w
     const Tensor<CPUBackend> &mirror = ws->ArgumentInput("mirror");
     mirror_.Copy(mirror, 0);
   }
+
+  if (output_layout_ == DALI_SAME) {
+    output_layout_ = ws->Input<CPUBackend>(0).GetLayout();
+  }
+
+  if (output_type_ == DALI_NO_TYPE) {
+    output_type_ = ws->Input<CPUBackend>(0).type().id();
+  }
 }
 
 template<>

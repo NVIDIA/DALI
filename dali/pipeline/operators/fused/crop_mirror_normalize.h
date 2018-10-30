@@ -52,10 +52,10 @@ class CropMirrorNormalize : public Operator<Backend> {
     }
 
     // Validate input parameters
-    DALI_ENFORCE(output_layout_ == DALI_NCHW ||
-                 output_layout_ == DALI_NHWC,
-                 "Unsupported output layout."
-                 "Expected NCHW or NHWC.");
+//    DALI_ENFORCE(output_layout_ == DALI_NCHW ||
+//                 output_layout_ == DALI_NHWC,
+//                 "Unsupported output layout."
+//                 "Expected NCHW or NHWC.");
     DALI_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
 
     GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
