@@ -94,6 +94,14 @@ class CropMirrorNormalize : public Operator<Backend> {
   template <typename OUT>
   void ValidateHelper(TensorList<Backend> *output);
 
+  inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
+    *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
+    if (*pOutLayout == DALI_NCHW)
+      return {C_, crop_h_, crop_w_};
+    else
+      return {crop_h_, crop_w_, C_};
+  }
+
   // Output data type
   DALIDataType output_type_;
 
