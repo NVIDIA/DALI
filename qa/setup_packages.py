@@ -20,7 +20,7 @@ except ImportError:
 packages = {"numpy" : ["1.11.1"],
             "opencv-python" : ["3.1.0"],
             "mxnet-cu90" : ["1.3.0"],
-            "tensorflow-gpu" : ["1.7", "1.8", "1.9", "1.10.1", "1.11", "1.12.0rc2"],
+            "tensorflow-gpu" : ["1.7", "1.11", "1.12.0rc2"],
             "torch" : ["http://download.pytorch.org/whl/cu90/torch-0.4.0-{0}.whl"]
              }
 
