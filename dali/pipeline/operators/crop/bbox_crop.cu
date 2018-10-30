@@ -102,7 +102,7 @@ void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     bounding_boxes.reserve(box_count);
 
     for (int j = 0; j < box_count; j+=box_size) {
-      const auto *box = boxes.template tensor<uint8_t>(j);
+      const auto *box = boxes.template tensor<float>(j);
       // ltrb expected
       bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
     }
