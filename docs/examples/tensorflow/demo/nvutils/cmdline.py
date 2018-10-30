@@ -92,7 +92,7 @@ def parse_cmdline(init_vals, custom_parser=None):
                    help="""Select single or half precision arithmetic.""")
     p.add_argument('--dali_cpu', action='store_true',
                    default=False,
-                   help="""Use CPU decoder for DALI for input pipeline""")
+                   help="""Use CPU backend for DALI for input pipeline""")
 
     FLAGS, unknown_args = p.parse_known_args()
     if len(unknown_args) > 0:

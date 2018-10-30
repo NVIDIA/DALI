@@ -9,7 +9,7 @@ scripts.
 
 For parallelization, we use the Horovod distribution framework, which works in
 concert with MPI. To train ResNet-50 (--layers=50) using 8 V100 GPUs, for example on DGX-1,
-use the following command (--dali\_cpu indicates to the script to use HostDecoder instead of nvJPEGDecoder):
+use the following command (--dali\_cpu indicates to the script to use CPU backend for DALI):
 
 ```
 $ mpiexec --allow-run-as-root --bind-to socket -np 8 python resnet.py \
