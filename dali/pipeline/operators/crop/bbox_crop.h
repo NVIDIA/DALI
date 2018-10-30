@@ -39,9 +39,9 @@ class RandomBBoxCrop : public Operator<Backend> {
       , channels{static_cast<unsigned int>(tensor_shape[2])} {
         DALI_ENFORCE(height > 0, "Height should be greater than 0. Received: " +
                                  std::to_string(height));
-        DALI_ENFORCE(width > 0, "Height should be greater than 0. Received: " +
+        DALI_ENFORCE(width > 0, "Width should be greater than 0. Received: " +
                           std::to_string(width));
-        DALI_ENFORCE(channels == 1 || channels == 3, "Height should be 1 or 3. Received: " +
+        DALI_ENFORCE(channels == 1 || channels == 3, "Channls should be 1 or 3. Received: " +
                           std::to_string(channels));
       }
 
