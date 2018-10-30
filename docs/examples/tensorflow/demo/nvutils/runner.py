@@ -253,15 +253,11 @@ def train(infer_func, params):
                                num_training_samples,
                                display_every))
 
-    if data_dir is not None:
-        input_func = lambda: nvutils.image_set(
-            train_filenames, batch_size, image_height, image_width,
-            training=True, distort_color=distort_color,
-            deterministic=deterministic, num_threads=num_preproc_threads,
-            dali_cpu=dali_cpu, idx_filenames=train_idx_filenames)
-    else:
-        input_func = lambda: nvutils.fake_image_set(
-            batch_size, image_height, image_width)
+    input_func = lambda: nvutils.image_set(
+        train_filenames, batch_size, image_height, image_width,
+        training=True, distort_color=distort_color,
+        deterministic=deterministic, num_threads=num_preproc_threads,
+        dali_cpu=dali_cpu, idx_filenames=train_idx_filenames)
 
     try:
         classifier.train(
