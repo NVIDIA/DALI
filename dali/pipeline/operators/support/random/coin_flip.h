@@ -26,7 +26,7 @@ class CoinFlip : public Operator<SupportBackend> {
   inline explicit CoinFlip(const OpSpec &spec) :
     Operator<SupportBackend>(spec),
     dis_(spec.GetArgument<float>("probability")),
-    rng_(spec.GetArgument<int>("seed")) {}
+    rng_(spec.GetArgument<int64_t>("seed")) {}
 
   virtual inline ~CoinFlip() = default;
 
