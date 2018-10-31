@@ -50,7 +50,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     int crop_h = 0, crop_w = 0;
     if (resizeOptions & t_cropping) {
       // Perform a crop
-      const vector<int> crop = spec.GetRepeatedArgument<int>("crop");
+      const vector<float> crop = spec.GetRepeatedArgument<float>("crop");
       crop_h = crop.at(0), crop_w = crop.at(1);
     }
 

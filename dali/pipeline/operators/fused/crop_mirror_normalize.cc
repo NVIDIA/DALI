@@ -36,30 +36,19 @@ Normalization takes input image and produces output using formula
   .AddOptionalArg("pad_output",
       R"code(Whether to pad the output to number of channels being multiple of 4.)code",
       false)
-  .AddOptionalArg("crop_pos_x",
-      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
   .AddOptionalArg("mirror",
       R"code(Mask for horizontal flip.
 
 - `0` - do not perform horizontal flip for this image
 - `1` - perform horizontal flip for this image.
 )code", 0, true)
-  .AddOptionalArg("image_type",
-        R"code(The color space of input and output image.)code", DALI_RGB)
   .AddArg("mean",
       R"code(Mean pixel values for image normalization.)code",
       DALI_FLOAT_VEC)
   .AddArg("std",
       R"code(Standard deviation values for image normalization.)code",
       DALI_FLOAT_VEC)
-  .AddArg("crop",
-      R"code(Size of the cropped image. If only a single value `c` is provided,
-the resulting crop will be square with size `(c,c)`)code",
-      DALI_INT_VEC);
+  .AddParent("Crop");
 
 
 }  // namespace dali
