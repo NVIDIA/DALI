@@ -184,7 +184,7 @@ template <typename T, int C, bool per_channel_transform,
           int nThreads, class Displacement, DALIInterpType interp_type>
 __global__
 void DisplacementKernel_aligned32bit(const T *in, T* out,
-                        const int N, const Index * shapes,
+                        const size_t N, const Index * shapes,
                         const bool has_mask, const int * mask,
                         const void * raw_params,
                         const Index pitch,
@@ -193,7 +193,7 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
   __shared__ T scratch[nThreads * C * nPixelsPerThread];
   // block per image
-  for (int n = blockIdx.x; n < N; n += gridDim.x) {
+  for (size_t n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
     const int W = shapes[n * pitch + 1];
     const Index offset = shapes[n * pitch + 3];
@@ -360,7 +360,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   USE_OPERATOR_MEMBERS();
 
  private:
-  static const int nDims = 3;
+  static const size_t nDims = 3;
 
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
@@ -370,18 +370,18 @@ class DisplacementFilter<GPUBackend, Displacement,
     const auto N = input.ntensor();
     const int pitch = nDims + 1;  // shape and offset
 
-    meta_cpu.Resize({N, pitch});
+    meta_cpu.Resize({static_cast<int>(N), pitch});
     Index * meta = meta_cpu.template mutable_data<Index>();
     meta_gpu.ResizeLike(meta_cpu);
     meta_gpu.template mutable_data<Index>();
 
     Index offset = 0;
-    for (int i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       const auto& shape = input.tensor_shape(i);
       DALI_ENFORCE(shape.size() == nDims,
           "All augmented tensors need to have the same number of dimensions");
       Index current_size = nDims != 0 ? 1 : 0;
-      for (int j = 0; j < nDims; ++j) {
+      for (size_t j = 0; j < nDims; ++j) {
         meta[i * pitch + j] = shape[j];
         current_size *= shape[j];
       }
@@ -400,12 +400,12 @@ class DisplacementFilter<GPUBackend, Displacement,
     // all H*W
     int C = meta[nDims - 1];  // First element
     uint64_t maxPower2 = (uint64_t)-1;
-    for (int i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       if (C != meta[i * pitch + nDims - 1]) {
         C = -1;  // Not all C are the same
       }
       uint64_t HW = 1;
-      for (int j = 0; j < nDims - 1; ++j) {
+      for (size_t j = 0; j < nDims - 1; ++j) {
         HW *= meta[i * pitch + j];
       }
       uint64_t power2 = HW & (-HW);
@@ -434,7 +434,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   template <typename U, DALIInterpType interp_type>
   void DisplacementKernelLauncher(DeviceWorkspace * ws,
                                   const U* in, U* out,
-                                  const int N, const int pitch,
+                                  const size_t N, const int pitch,
                                   const int C, const uint64_t maxPower2) {
     void * param_ptr = params_gpu_.capacity() > 0 ? params_gpu_.raw_mutable_data() : nullptr;
     if (maxPower2 >= sizeof(uint32_t)/sizeof(U)) {

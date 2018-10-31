@@ -19,12 +19,6 @@ namespace dali {
 DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(ResizeCropMirrorAttr)
-  .AddOptionalArg("crop_pos_x",
-      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0).)code",
-      0.5f, true)
   .AddOptionalArg("mirror",
       R"code(Mask for horizontal flip.
 
@@ -39,26 +33,20 @@ DALI_SCHEMA(ResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddArg("crop",
-      R"code(Size of the cropped image. If only a single value `c` is provided,
-the resulting crop will be square with size `(c,c)`)code",
-      DALI_INT_VEC)
+  .AddParent("Crop")
   .AddParent("ResizeCropMirrorAttr")
   .EnforceInputLayout(DALI_NHWC);
 
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr("Perform a fused resize, crop, mirror operation. Handles both fixed "
-          "and random resizing and cropping. Backprojects the desired crop "
-          "through the resize operation to reduce the amount of work performed.")
+  .DocStr(
+      "Perform a fused resize, crop, mirror operation. Handles both fixed "
+      "and random resizing and cropping. Backprojects the desired crop "
+      "through the resize operation to reduce the amount of work performed.")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddArg("crop",
-      R"code(Size of the cropped image. If only a single value `c` is provided,
-the resulting crop will be square with size `(c,c)`)code",
-      DALI_INT_VEC)
   .AddParent("ResizeCropMirror")
   .EnforceInputLayout(DALI_NHWC);
 

@@ -55,7 +55,7 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
                         .AddOutput("cropped1", "gpu")
                         .AddInput("images2", "gpu")
                         .AddOutput("cropped2", "gpu")
-                        .AddArg("crop", vector<int>{64, 64})
+                        .AddArg("crop", vector<float>{64, 64})
                         .AddArg("mean", vector<float>(this->c_, 0.))
                         .AddArg("std", vector<float>(this->c_, 1.))
                         .AddArg("image_type", this->img_type_)

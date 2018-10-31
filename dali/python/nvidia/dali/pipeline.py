@@ -266,13 +266,10 @@ class Pipeline(object):
         If the pipeline was created with `exec_async` option set to `True`,
         this function will also start prefetching the next iteration for
         faster execution."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
         if self._first_iter and self._exec_pipelined:
-            self._first_iter = False
-            for i in range(self._prefetch_queue_depth - 1):
-             self._start_run()
-        self._start_run()
+            self._prefetch()
+        else:
+            self._start_run()
         return self.outputs()
 
     def _prefetch(self):
@@ -313,6 +310,7 @@ class Pipeline(object):
                                 self._num_threads,
                                 self._device_id,
                                 self._exec_pipelined,
+                                self._prefetch_queue_depth,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,

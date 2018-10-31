@@ -44,7 +44,7 @@ class C2Pipe(Pipeline):
                                      exec_async=async)
         self.input = ops.ExternalSource()
         self.decode = ops.HostDecoder(output_type = types.RGB)
-        self.rcm = ops.FastResizeCropMirror(crop = [224, 224])
+        self.rcm = ops.FastResizeCropMirror(crop = (224, 224))
         self.np = ops.NormalizePermute(device = "gpu",
                                        output_dtype = types.FLOAT16,
                                        mean = [128., 128., 128.],
@@ -134,7 +134,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch-sizes', default = [128],
                         help='Comma separated list of batch sizes to run')
-    parser.add_argument('--thread-counts', default = [1, 2, 3, 4],
+    parser.add_argument('--thread-counts', default = [1,2,3,4],
                         help='Comma separated list of thread counts')
     parser.add_argument('--executors', default = [2],
                         help='List of executors to run')

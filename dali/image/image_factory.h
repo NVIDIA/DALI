@@ -12,21 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_matching.h"
+#ifndef DALI_IMAGE_IMAGE_FACTORY_H_
+#define DALI_IMAGE_IMAGE_FACTORY_H_
+
+#include <memory>
+#include "dali/image/image.h"
 
 namespace dali {
 
-template <typename ImgType>
-class CropTest : public GenericMatchingTest<ImgType> {
+class ImageFactory {
+ public:
+  DLL_PUBLIC static std::unique_ptr<Image>
+  CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type = DALI_RGB);
 };
 
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(CropTest, Types);
-
-const bool addImageType = true;
-
-TYPED_TEST(CropTest, CropVector) {
-  this->RunTest({"Crop", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
-}
-
 }  // namespace dali
+
+#endif  // DALI_IMAGE_IMAGE_FACTORY_H_

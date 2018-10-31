@@ -13,9 +13,15 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+from pkg_resources import get_distribution, DistributionNotFound
 
 from . import ops
 from . import pipeline
 from . import tensor
 from . import tfrecord
 from . import types
+
+try:
+    __version__ = get_distribution('nvidia-dali').version
+except:
+    __version__ = None

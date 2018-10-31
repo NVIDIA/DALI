@@ -147,13 +147,13 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
       vector<Dims> resize_shape(input.ntensor());
 
-      for (int i = 0; i < input.ntensor(); ++i) {
+      for (size_t i = 0; i < input.ntensor(); ++i) {
         resize_shape[i] = Dims{2};
       }
 
       attr_output->Resize(resize_shape);
 
-      for (int i = 0; i < input.ntensor(); ++i) {
+      for (size_t i = 0; i < input.ntensor(); ++i) {
         int *t = attr_output->mutable_tensor<int>(i);
         t[0] = sizes(output_t).data()[i].height;
         t[1] = sizes(output_t).data()[i].width;

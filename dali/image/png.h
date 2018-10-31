@@ -15,28 +15,20 @@
 #ifndef DALI_IMAGE_PNG_H_
 #define DALI_IMAGE_PNG_H_
 
-#include "dali/common.h"
-#include "dali/error_handling.h"
-#include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/data/tensor.h"
+#include "dali/image/generic_image.h"
 
 namespace dali {
 
 /**
- * @brief Returns 'true' if input compressed image is a png
+ * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
  */
-bool CheckIsPNG(const uint8 *png, int size);
+class PngImage final : public GenericImage {
+ public:
+  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
-/**
- * @brief Get dimensions of png encoded image
- */
-DALIError_t GetPNGImageDims(const uint8 *png, int size, int *h, int *w);
-
-/**
- * @brief Decodes 'png' into the buffer pointed to by 'image'
- */
-DALIError_t DecodePNGHost(const uint8 *png, int size,
-    DALIImageType image_type, Tensor<CPUBackend>* output);
+ private:
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+};
 
 }  // namespace dali
 

@@ -75,7 +75,7 @@ void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws, const int i
 
   // Validate input shape and type
   DALI_ENFORCE(IsType<uint8>(input.type()));
-  DALI_ENFORCE(input.ntensor() == batch_size_,
+  DALI_ENFORCE(input.ntensor() == static_cast<size_t>(batch_size_),
       "Input does not have batch_size samples ("
       + std::to_string(input.ntensor()) + " v. " +
       std::to_string(batch_size_) + ")");

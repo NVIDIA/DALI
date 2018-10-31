@@ -12,21 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_matching.h"
+#ifndef DALI_IMAGE_BMP_H_
+#define DALI_IMAGE_BMP_H_
+
+#include "dali/image/generic_image.h"
 
 namespace dali {
 
-template <typename ImgType>
-class CropTest : public GenericMatchingTest<ImgType> {
+/**
+ * BMP image decoding is performed using OpenCV, thus it's the same as Generic decoding
+ */
+class BmpImage final : public GenericImage {
+ public:
+  BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+
+ private:
+  Image::ImageDims PeekDims(const uint8_t *bmp, size_t length) const override;
 };
 
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(CropTest, Types);
-
-const bool addImageType = true;
-
-TYPED_TEST(CropTest, CropVector) {
-  this->RunTest({"Crop", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
-}
-
 }  // namespace dali
+
+#endif  // DALI_IMAGE_BMP_H_

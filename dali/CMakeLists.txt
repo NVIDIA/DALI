@@ -132,27 +132,51 @@ endif()
 ################################################
 if (BUILD_TENSORFLOW)
 
-  execute_process(
-    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
-    OUTPUT_VARIABLE DIST_PACKAGES_DIR)
-
   add_subdirectory(tensorflow)
+ 
+  # get default TF installation path
+   execute_process(
+     COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
+     OUTPUT_VARIABLE DIST_PACKAGES_DIR)
+ 
+  set(TF_PATHS)
+  set(TF_VER)
+  # obtain custom versions of TF we want to build aganist
+  file(GLOB TF_VERSIONS RELATIVE /tensorflow /tensorflow/*)
+  foreach(VER ${TF_VERSIONS})
+    set(FULL_PATH /tensorflow/${VER})
+    if(IS_DIRECTORY ${FULL_PATH})
+      list(APPEND TF_PATHS ${FULL_PATH})
+      list(APPEND TF_VER "_${VER}")
+    ENDIF()
+  ENDFOREACH()
 
-  set(customop_lib "dali_tf")
+  # append default TF version
+  list(APPEND TF_PATHS ${DIST_PACKAGES_DIR})
+  list(APPEND TF_VER "")
 
-  cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
+  # build TF plugin for each TF version we want to support
+  list(LENGTH TF_PATHS TF_LIST_L)
+  math(EXPR TF_LIST_L_ITER "${TF_LIST_L} - 1")
+  foreach(IDX RANGE ${TF_LIST_L_ITER})
+    list(GET TF_PATHS ${IDX} FULL_PATH)
+    list(GET TF_VER ${IDX} VER)
+    set(customop_lib "dali_tf${VER}")
 
-  separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${DIST_PACKAGES_DIR}/tensorflow/include -I${DIST_PACKAGES_DIR}/external/nsync/public -D_GLIBCXX_USE_CXX11_ABI=0")
-  target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
+    cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
 
-  message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
-  add_dependencies(${customop_lib} ${dali_lib})
+    separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${FULL_PATH}/tensorflow/include -I${FULL_PATH}/external/nsync/public -D_GLIBCXX_USE_CXX11_ABI=0")
+    target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
 
-  target_link_libraries(${customop_lib} PRIVATE -L${DIST_PACKAGES_DIR}/tensorflow -ltensorflow_framework)
-  target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
+    message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
+    add_dependencies(${customop_lib} ${dali_lib})
 
-  set_target_properties(${customop_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/plugin")
+    target_link_libraries(${customop_lib} PRIVATE -L${FULL_PATH}/tensorflow -ltensorflow_framework)
+    target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
+
+    set_target_properties(${customop_lib} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/plugin")
+  ENDFOREACH()
 endif()
 
 

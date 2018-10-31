@@ -209,6 +209,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunGPU();
 
   /**
+   * @brief Sets completion callback which is called when GPU work is done
+   * It blocks next GPU iteration so it is up to the developer to schedule
+   * long lasting work in some thread and just fire the work from this CB
+   */
+  DLL_PUBLIC void SetCompletionCallback(Executor::ExecutorCallback cb);
+
+  /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU and RunGPU

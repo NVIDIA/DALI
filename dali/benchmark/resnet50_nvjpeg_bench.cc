@@ -76,7 +76,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_FLOAT16)
       .AddArg("random_crop", true)
-      .AddArg("crop", vector<int>{224, 224})
+      .AddArg("crop", vector<float>{224, 224})
       .AddArg("mirror_prob", 0.5f)
       .AddArg("image_type", img_type)
       .AddArg("mean", vector<float>{128, 128, 128})

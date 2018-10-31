@@ -27,7 +27,6 @@
 #endif
 
 #include "dali/common.h"
-#include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api/c_api.h"
 #include "dali/error_handling.h"
@@ -66,6 +65,7 @@ REGISTER_OP("Dali")
   .Attr("device_id: int = -1")
   .Attr("image_type: {float, int32, int64, half} = DT_FLOAT")
   .Attr("label_type: {float, int32, int64} = DT_INT64")
+  .Attr("prefetch_queue_depth: int = 2")
   .Output("batch: image_type")
   .Output("label: label_type")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
@@ -104,11 +104,8 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("shape", &shape_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
-    if (context->HasAttr("prefetch_queue_depth")) {
-      OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
-    } else {
-      prefetch_queue_depth_ = 2;
-    }
+    OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
