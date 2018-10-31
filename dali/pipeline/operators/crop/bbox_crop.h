@@ -180,7 +180,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return thresholds_[sampler(rd_)];
   }
 
-  float Rescale(unsigned int k) {
+  float SampleCandidateDimension(unsigned int k) {
     static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
     return static_cast<float>(sampler(rd_) * k);
@@ -249,18 +249,21 @@ class RandomBBoxCrop : public Operator<Backend> {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
-        const auto rescaled_height = Rescale(image_shape.height);
-        const auto rescaled_width = Rescale(image_shape.width);
+        const auto candidate_height = SampleCandidateDimension(image_shape.height);
+        const auto candidate_width = SampleCandidateDimension(image_shape.width);
 
-        if (ValidAspectRatio(rescaled_height, rescaled_width)) {
-          const auto candidate_crop =
-              SamplePatch(rescaled_height, rescaled_width, image_shape.height, image_shape.width);
+        if (ValidAspectRatio(candidate_height, candidate_width)) {
+          const auto candidate_crop = SamplePatch(
+              candidate_height, candidate_width, image_shape.height, image_shape.width);
+
 
           auto candidate_boxes = DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
-            const auto remapped_boxes =
-                RemapBoxes(candidate_crop, candidate_boxes, rescaled_height, rescaled_width);
+
+            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes,
+                                                   candidate_height, candidate_width);
+
             return std::make_pair(candidate_crop, remapped_boxes);
           }
         }
