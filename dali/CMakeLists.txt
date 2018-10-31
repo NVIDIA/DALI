@@ -153,7 +153,7 @@ if (BUILD_TENSORFLOW)
 
   # append default TF version
   list(APPEND TF_PATHS ${DIST_PACKAGES_DIR})
-  list(APPEND TF_VER "")
+  list(APPEND TF_VER ";")
 
   # build TF plugin for each TF version we want to support
   list(LENGTH TF_PATHS TF_LIST_L)
