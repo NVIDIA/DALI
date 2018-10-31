@@ -209,6 +209,46 @@ class DALITest : public ::testing::Test {
     MakeEncodedBatch(t, n, jpegs_);
   }
 
+  inline void MakeRandomBoxes(float* ptr, size_t n) {
+    static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
+    for (size_t i = 0; i < n * 4; i+=4) {
+      // ltrb
+      ptr[i] = rfloat(rd_);
+      ptr[i+1] = rfloat(rd_);
+      ptr[i+2] = (1.0f - ptr[i]) * rfloat(rd_) + ptr[i];
+      ptr[i+3] = (1.0f - ptr[i+1]) * rfloat(rd_) + ptr[i+1];
+    }
+  }
+
+  inline void MakeBBoxesBatch(TensorList<CPUBackend> *tl, int n) {
+    static std::uniform_int_distribution<> rint(0, 10);
+
+    vector<Dims> shape(n);
+    for (int i = 0; i < n; ++i) {
+      shape[i] = {rint(rd_), 4};
+    }
+
+    tl->Resize(shape);
+
+    for (int i = 0; i < n; ++i) {
+      MakeRandomBoxes(tl->template mutable_tensor<float>(i), shape[i][0]);
+    }
+  }
+
+  inline void MakeBBoxesBatch(vector<Tensor<CPUBackend>> *t, int n) {
+    static std::uniform_int_distribution<> rint(0, 10);
+
+    t->resize(n);
+    for (int i = 0; i < n; ++i) {
+      auto &ti = t->at(i);
+      ti = Tensor<CPUBackend>{};
+      const auto box_count = rint(rd_);
+      ti.Resize({box_count, 4});
+
+      MakeRandomBoxes(ti.template mutable_data<float>(), box_count);
+    }
+  }
+
   template <typename T>
   void MeanStdDev(const vector<T> &diff, double *mean, double *std) const {
     const size_t N = diff.size();
@@ -300,6 +340,9 @@ class DALITest : public ::testing::Test {
   vector<uint8*> images_;
   vector<DimPair> image_dims_;
   int c_;
+
+ private:
+  std::random_device rd_;
 };
 }  // namespace dali
 
