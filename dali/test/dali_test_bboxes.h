@@ -47,7 +47,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
                                     .AddArg("device", "gpu")
                                     .AddInput("decoded", "gpu")
-                                    .AddInput("boxes", "gpu")
+                                    .AddInput("boxes", "cpu")
                                     .AddOutput("output", "gpu")
                                     .AddOutput("output1", "gpu")
                                     .AddOutput("output2", "gpu"));
