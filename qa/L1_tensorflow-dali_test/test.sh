@@ -1,6 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="opencv-python tensorflow-gpu"
+apt_packages="openmpi-bin"
 
 pushd ../..
 
