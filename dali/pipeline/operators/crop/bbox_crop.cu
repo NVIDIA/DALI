@@ -17,97 +17,98 @@
 namespace dali {
 
 template <>
-void RandomBBoxCrop<GPUBackend>::WriteCropToOutput(DeviceWorkspace *ws,
-                       const std::vector<Crop> &crop,
-                       const std::vector<unsigned int>& height,
-                       const std::vector<unsigned int>& width,
-                       unsigned int idx) {
-    const static unsigned int kAnchorSize = 2U;
-    const static unsigned int kOffsetSize = 2U;
+void RandomBBoxCrop<GPUBackend>::WriteCropToOutput(
+    DeviceWorkspace *ws, const std::vector<Crop> &crop,
+    const std::vector<ImageShape> &shape, unsigned int idx) {
+  const static unsigned int kAnchorSize = 2U;
+  const static unsigned int kOffsetSize = 2U;
 
-    DALI_ENFORCE(height.size() == static_cast<size_t>(batch_size_));
-    DALI_ENFORCE(width.size() == static_cast<size_t>(batch_size_));
-    DALI_ENFORCE(crop.size() == static_cast<size_t>(batch_size_));
+  DALI_ENFORCE(shape.size() == static_cast<size_t>(batch_size_));
+  DALI_ENFORCE(crop.size() == static_cast<size_t>(batch_size_));
 
-    std::vector<Dims> anchors_shape(static_cast<unsigned long>(batch_size_), {kAnchorSize});
-    std::vector<Dims> offsets_shape(static_cast<unsigned long>(batch_size_), {kOffsetSize});
+  std::vector<Dims> anchors_shape(static_cast<unsigned long>(batch_size_),
+                                  {kAnchorSize});
+  std::vector<Dims> offsets_shape(static_cast<unsigned long>(batch_size_),
+                                  {kOffsetSize});
 
-    TensorList<CPUBackend> anchors;
-    TensorList<CPUBackend> offsets;
+  TensorList<CPUBackend> anchors;
+  TensorList<CPUBackend> offsets;
 
-    anchors.Resize(anchors_shape);
-    offsets.Resize(offsets_shape);
+  anchors.Resize(anchors_shape);
+  offsets.Resize(offsets_shape);
 
-    for (int i = 0; i < batch_size_; ++i) {
-        auto anchor_out_data = anchors.template mutable_data<float>() + (i*kAnchorSize);
-        anchor_out_data[0] = crop[i].left * width[i];
-        anchor_out_data[1] = crop[i].top * height[i];
+  for (int i = 0; i < batch_size_; ++i) {
+    auto anchor_out_data =
+        anchors.template mutable_data<float>() + (i * kAnchorSize);
+    anchor_out_data[0] = crop[i].left * shape[i].width;
+    anchor_out_data[1] = crop[i].top * shape[i].height;
 
-        auto offsets_out_data = offsets.template mutable_data<float>() + (i*kOffsetSize);
-        offsets_out_data[0] = (crop[i].right - crop[i].left) * width[i];
-        offsets_out_data[1] = (crop[i].bottom - crop[i].top) * height[i];
-    }
+    auto offsets_out_data =
+        offsets.template mutable_data<float>() + (i * kOffsetSize);
+    offsets_out_data[0] = (crop[i].right - crop[i].left) * shape[i].width;
+    offsets_out_data[1] = (crop[i].bottom - crop[i].top) * shape[i].height;
+  }
 
   ws->Output<GPUBackend>(idx)->Copy(anchors, ws->stream());
-  ws->Output<GPUBackend>(idx+1)->Copy(offsets, ws->stream());
+  ws->Output<GPUBackend>(idx + 1)->Copy(offsets, ws->stream());
 }
 
 template <>
-void RandomBBoxCrop<GPUBackend>::WriteBoxesToOutput(DeviceWorkspace *ws,
-                        const std::vector<BoundingBoxes> &bounding_boxes,
-                        unsigned int idx) {
-    DALI_ENFORCE(bounding_boxes.size() == static_cast<size_t>(batch_size_));
+void RandomBBoxCrop<GPUBackend>::WriteBoxesToOutput(
+    DeviceWorkspace *ws, const std::vector<BoundingBoxes> &bounding_boxes,
+    unsigned int idx) {
+  DALI_ENFORCE(bounding_boxes.size() == static_cast<size_t>(batch_size_));
 
-    std::vector<Dims> boxes_shape(static_cast<unsigned long>(batch_size_));
+  std::vector<Dims> boxes_shape(static_cast<unsigned long>(batch_size_));
 
-    for (int i = 0; i < batch_size_; ++i) {
-        boxes_shape[i] = {static_cast<long>(bounding_boxes[i].size()), kBboxSize};
+  for (int i = 0; i < batch_size_; ++i) {
+    boxes_shape[i] = {static_cast<long>(bounding_boxes[i].size()), kBboxSize};
+  }
+
+  TensorList<CPUBackend> boxes;
+
+  boxes.Resize(boxes_shape);
+
+  float *boxes_out_data = boxes.template mutable_data<float>();
+
+  for (int i = 0; i < batch_size_; ++i) {
+    for (size_t j = 0; j < bounding_boxes[i].size(); j++) {
+      boxes_out_data[0] = bounding_boxes[i][j].left;
+      boxes_out_data[1] = bounding_boxes[i][j].top;
+      boxes_out_data[2] =
+          ltrb_ ? bounding_boxes[i][j].right
+                : bounding_boxes[i][j].right - bounding_boxes[i][j].left;
+      boxes_out_data[3] =
+          ltrb_ ? bounding_boxes[i][j].bottom
+                : bounding_boxes[i][j].bottom - bounding_boxes[i][j].top;
+
+      boxes_out_data += kBboxSize;
     }
+  }
 
-    TensorList<CPUBackend> boxes;
-
-    boxes.Resize(boxes_shape);
-
-    float* boxes_out_data = boxes.template mutable_data<float>();
-
-    for (int i = 0; i < batch_size_; ++i) {
-        for (size_t j = 0; j < bounding_boxes[i].size(); j++) {
-            boxes_out_data[0] = bounding_boxes[i][j].left;
-            boxes_out_data[1] = bounding_boxes[i][j].top;
-            boxes_out_data[2] = ltrb_ ? bounding_boxes[i][j].right
-                                      : bounding_boxes[i][j].right - bounding_boxes[i][j].left;
-            boxes_out_data[3] = ltrb_ ? bounding_boxes[i][j].bottom
-                                      : bounding_boxes[i][j].bottom - bounding_boxes[i][j].top;
-
-            boxes_out_data += kBboxSize;
-        }
-    }
-
-    ws->Output<GPUBackend>(idx+2)->Copy(boxes, ws->stream());
+  ws->Output<GPUBackend>(idx + 2)->Copy(boxes, ws->stream());
 }
 
 template <>
 void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   std::vector<Crop> crop;
-  std::vector<unsigned int> height;
-  std::vector<unsigned int> width;
+  std::vector<ImageShape> shape;
   std::vector<BoundingBoxes> boxes_out;
-  crop.reserve(batch_size_);
-  height.reserve(batch_size_);
-  width.reserve(batch_size_);
-  boxes_out.reserve(batch_size_);
+  crop.reserve(static_cast<unsigned long>(batch_size_));
+  shape.reserve(static_cast<unsigned long>(batch_size_));
+  boxes_out.reserve(static_cast<unsigned long>(batch_size_));
 
   auto &images = ws->Input<GPUBackend>(idx);
   auto &boxes = ws->Input<CPUBackend>(idx + 1);
 
   for (int i = 0; i < batch_size_; ++i) {
-    const auto box_count =  boxes.tensor_shape(i)[0];
-    const auto box_size =  boxes.tensor_shape(i)[1];
+    const auto box_count = boxes.tensor_shape(i)[0];
+    const auto box_size = boxes.tensor_shape(i)[1];
 
     BoundingBoxes bounding_boxes;
-    bounding_boxes.reserve(box_count);
+    bounding_boxes.reserve(static_cast<unsigned long>(box_count));
 
-    for (int j = 0; j < box_count; j+=box_size) {
+    for (int j = 0; j < box_count; j += box_size) {
       const auto *box = boxes.template tensor<float>(j);
       // ltrb expected
       bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
@@ -115,17 +116,16 @@ void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
     const ImageShape image_shape(images.tensor_shape(i));
 
-    auto prospective_crop =
-        FindProspectiveCrop(image_shape, bounding_boxes, SelectMinimumOverlap());
+    auto prospective_crop = FindProspectiveCrop(image_shape, bounding_boxes,
+                                                SelectMinimumOverlap());
 
     crop.push_back(prospective_crop.first);
-    height.push_back(image_shape.height);
-    width.push_back(image_shape.width);
+    shape.push_back(image_shape);
     boxes_out.emplace_back(prospective_crop.second);
   }
 
-  WriteCropToOutput(ws, crop, height, width, idx);
-  WriteBoxesToOutput(ws, boxes_out, idx);
+  WriteCropToOutput(ws, crop, shape, static_cast<unsigned int>(idx));
+  WriteBoxesToOutput(ws, boxes_out, static_cast<unsigned int>(idx));
 }
 
 // Register operator

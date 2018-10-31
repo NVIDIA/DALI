@@ -50,64 +50,65 @@ DALI_SCHEMA(RandomBBoxCrop)
         1)
     .EnforceInputLayout(DALI_NHWC);
 
-    template <>
-    void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
-                         unsigned int height, unsigned int width) {
-    // Copy the anchor to output 0
-    auto *anchor_out = ws->Output<CPUBackend>(0);
-    anchor_out->Resize({2});
+template <>
+void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
+                                                   const Crop &crop,
+                                                   const ImageShape &shape) {
+  // Copy the anchor to output 0
+  auto *anchor_out = ws->Output<CPUBackend>(0);
+  anchor_out->Resize({2});
 
-    auto *anchor_out_data = anchor_out->mutable_data<float>();
-    anchor_out_data[0] = crop.left * width;
-    anchor_out_data[1] = crop.top * height;
+  auto *anchor_out_data = anchor_out->mutable_data<float>();
+  anchor_out_data[0] = crop.left * shape.width;
+  anchor_out_data[1] = crop.top * shape.height;
 
-    // Copy the offsets to output 1
-    auto *offsets_out = ws->Output<CPUBackend>(1);
-    offsets_out->Resize({2});
+  // Copy the offsets to output 1
+  auto *offsets_out = ws->Output<CPUBackend>(1);
+  offsets_out->Resize({2});
 
-    auto *offsets_out_data = offsets_out->mutable_data<float>();
-    offsets_out_data[0] = (crop.right - crop.left) * width;
-    offsets_out_data[1] = (crop.bottom - crop.top) * height;
-  }
-
-    template <>
-    void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(SampleWorkspace *ws,
-                          const BoundingBoxes &bounding_boxes) {
-    auto *bbox_out = ws->Output<CPUBackend>(2);
-    bbox_out->Resize({static_cast<Index>(bounding_boxes.size()), kBboxSize});
-
-    auto *bbox_out_data = bbox_out->mutable_data<float>();
-    for (size_t i = 0; i < bounding_boxes.size(); ++i) {
-      auto *output = bbox_out_data + i * kBboxSize;
-      output[0] = bounding_boxes[i].left;
-      output[1] = bounding_boxes[i].top;
-      output[2] = ltrb_ ? bounding_boxes[i].right
-                        : bounding_boxes[i].right - bounding_boxes[i].left;
-      output[3] = ltrb_ ? bounding_boxes[i].bottom
-                        : bounding_boxes[i].bottom - bounding_boxes[i].top;
-    }
-  }
+  auto *offsets_out_data = offsets_out->mutable_data<float>();
+  offsets_out_data[0] = (crop.right - crop.left) * shape.width;
+  offsets_out_data[1] = (crop.bottom - crop.top) * shape.height;
+}
 
 template <>
-void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-    const ImageShape image_shape(ws->Input<CPUBackend>(0).shape());
+void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
+    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) {
+  auto *bbox_out = ws->Output<CPUBackend>(2);
+  bbox_out->Resize({static_cast<Index>(bounding_boxes.size()), kBboxSize});
 
-    const auto &boxes_tensor = ws->Input<CPUBackend>(1);
+  auto *bbox_out_data = bbox_out->mutable_data<float>();
+  for (size_t i = 0; i < bounding_boxes.size(); ++i) {
+    auto *output = bbox_out_data + i * kBboxSize;
+    output[0] = bounding_boxes[i].left;
+    output[1] = bounding_boxes[i].top;
+    output[2] = ltrb_ ? bounding_boxes[i].right
+                      : bounding_boxes[i].right - bounding_boxes[i].left;
+    output[3] = ltrb_ ? bounding_boxes[i].bottom
+                      : bounding_boxes[i].bottom - bounding_boxes[i].top;
+  }
+}
 
-    BoundingBoxes bounding_boxes;
-    bounding_boxes.reserve(boxes_tensor.dim(0));
+template <>
+void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
+  const ImageShape image_shape(ws->Input<CPUBackend>(0).shape());
 
-    for (int i = 0; i < boxes_tensor.dim(0); ++i) {
-      const auto *box = boxes_tensor.data<float>() + (i * kBboxSize);
-      // ltrb expected
-      bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
-    }
+  const auto &boxes_tensor = ws->Input<CPUBackend>(1);
 
-    const auto prospective_crop =
-        FindProspectiveCrop(image_shape, bounding_boxes, SelectMinimumOverlap());
+  BoundingBoxes bounding_boxes;
+  bounding_boxes.reserve(static_cast<unsigned long>(boxes_tensor.dim(0)));
 
-    WriteCropToOutput(ws, prospective_crop.first, image_shape.height, image_shape.width);
-    WriteBoxesToOutput(ws, prospective_crop.second);
+  for (int i = 0; i < boxes_tensor.dim(0); ++i) {
+    const auto *box = boxes_tensor.data<float>() + (i * kBboxSize);
+    // ltrb expected
+    bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
+  }
+
+  const auto prospective_crop =
+      FindProspectiveCrop(image_shape, bounding_boxes, SelectMinimumOverlap());
+
+  WriteCropToOutput(ws, prospective_crop.first, image_shape);
+  WriteBoxesToOutput(ws, prospective_crop.second);
 }
 
 DALI_REGISTER_OPERATOR(RandomBBoxCrop, RandomBBoxCrop<CPUBackend>, CPU);

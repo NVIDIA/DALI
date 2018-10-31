@@ -15,10 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATORS_CROP_BBOX_CROP_H_
 #define DALI_PIPELINE_OPERATORS_CROP_BBOX_CROP_H_
 
-#include <vector>
-#include <utility>
 #include <algorithm>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -32,26 +32,27 @@ class RandomBBoxCrop : public Operator<Backend> {
   static const unsigned int kBboxSize = 4;
 
  protected:
-   struct ImageShape {
-    ImageShape(std::vector<Index> tensor_shape)
-      : height{static_cast<unsigned int>(tensor_shape[0])}
-      , width {static_cast<unsigned int>(tensor_shape[1])}
-      , channels{static_cast<unsigned int>(tensor_shape[2])} {
-        DALI_ENFORCE(height > 0, "Height should be greater than 0. Received: " +
-                                 std::to_string(height));
-        DALI_ENFORCE(width > 0, "Width should be greater than 0. Received: " +
-                          std::to_string(width));
-        DALI_ENFORCE(channels == 1 || channels == 3, "Channls should be 1 or 3. Received: " +
-                          std::to_string(channels));
-      }
+  struct ImageShape {
+    explicit ImageShape(std::vector<Index> tensor_shape)
+        : height{static_cast<unsigned int>(tensor_shape[0])},
+          width{static_cast<unsigned int>(tensor_shape[1])},
+          channels{static_cast<unsigned int>(tensor_shape[2])} {
+      DALI_ENFORCE(height > 0, "Height should be greater than 0. Received: " +
+                                   std::to_string(height));
+      DALI_ENFORCE(width > 0, "Width should be greater than 0. Received: " +
+                                  std::to_string(width));
+      DALI_ENFORCE(
+          channels == 1 || channels == 3,
+          "Channls should be 1 or 3. Received: " + std::to_string(channels));
+    }
 
-      const unsigned int height, width, channels;
+    const unsigned int height, width, channels;
   };
 
   struct Bounds {
-    explicit Bounds(const std::vector<float>& bounds)
-        : min(!bounds.empty() ? bounds[0] : -1)
-        , max(bounds.size() > 1 ? bounds[1] : -1) {
+    explicit Bounds(const std::vector<float> &bounds)
+        : min(!bounds.empty() ? bounds[0] : -1),
+          max(bounds.size() > 1 ? bounds[1] : -1) {
       DALI_ENFORCE(bounds.size() == 2, "Bounds should be provided as 2 values");
       DALI_ENFORCE(min >= 0, "Min should be at least 0.0. Received: " +
                                  std::to_string(min));
@@ -69,19 +70,18 @@ class RandomBBoxCrop : public Operator<Backend> {
           top(top),
           right(right),
           bottom(bottom),
-          area((right- left) * (bottom - top)) {
-            // Enforce ltrb
-            DALI_ENFORCE(left >= 0 && left <= 1);
-            DALI_ENFORCE(top >= 0 && top <= 1);
-            DALI_ENFORCE(right >= 0 && right <= 1);
-            DALI_ENFORCE(bottom >= 0 && bottom <= 1);
-            DALI_ENFORCE(left <= right);
-            DALI_ENFORCE(top <= bottom);
-          }
+          area((right - left) * (bottom - top)) {
+      // Enforce ltrb
+      DALI_ENFORCE(left >= 0 && left <= 1);
+      DALI_ENFORCE(top >= 0 && top <= 1);
+      DALI_ENFORCE(right >= 0 && right <= 1);
+      DALI_ENFORCE(bottom >= 0 && bottom <= 1);
+      DALI_ENFORCE(left <= right);
+      DALI_ENFORCE(top <= bottom);
+    }
 
     bool Contains(float x, float y) const {
-      return x >= left && x <= right && y >= top &&
-             y <= bottom;
+      return x >= left && x <= right && y >= top && y <= bottom;
     }
 
     Rectangle ClampTo(const Rectangle &other) const {
@@ -95,22 +95,26 @@ class RandomBBoxCrop : public Operator<Backend> {
       const float crop_width = other.right - other.left;
       const float crop_height = other.bottom - other.top;
 
-      const float new_left = (std::max(other.left, left) - other.left) / crop_width;
-      const float new_top = (std::max(other.top, top) - other.top) / crop_height;
-      const float new_right = (std::min(other.right, right) - other.left) / crop_width;
-      const float new_bottom = (std::min(other.bottom, bottom) - other.top) / crop_height;
+      const float new_left =
+          (std::max(other.left, left) - other.left) / crop_width;
+      const float new_top =
+          (std::max(other.top, top) - other.top) / crop_height;
+      const float new_right =
+          (std::min(other.right, right) - other.left) / crop_width;
+      const float new_bottom =
+          (std::min(other.bottom, bottom) - other.top) / crop_height;
 
-      return Rectangle(
-          std::max(0.0f, std::min(new_left, 1.0f)), std::max(0.0f, std::min(new_top, 1.0f)),
-          std::max(0.0f, std::min(new_right, 1.0f)), std::max(0.0f, std::min(new_bottom, 1.0f)));
+      return Rectangle(std::max(0.0f, std::min(new_left, 1.0f)),
+                       std::max(0.0f, std::min(new_top, 1.0f)),
+                       std::max(0.0f, std::min(new_right, 1.0f)),
+                       std::max(0.0f, std::min(new_bottom, 1.0f)));
     }
 
     float IntersectionOverUnion(const Rectangle &other) const {
       if (this->Overlaps(other)) {
         const float intersection_area = this->ClampTo(other).area;
 
-        return intersection_area /
-               static_cast<float>(area + other.area - intersection_area);
+        return intersection_area / (area + other.area - intersection_area);
       }
       return 0.0f;
     }
@@ -148,35 +152,33 @@ class RandomBBoxCrop : public Operator<Backend> {
       DALI_ENFORCE(threshold <= 1.0,
                    "Threshold value must be <= 1.0. Received: " +
                        std::to_string(threshold));
-    DALI_ENFORCE(num_attempts_ > 0,
-            "Minimum number of attempts must be greater than zero");
+      DALI_ENFORCE(num_attempts_ > 0,
+                   "Minimum number of attempts must be greater than zero");
     }
   }
 
   virtual ~RandomBBoxCrop() = default;
 
-
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
-                         unsigned int height, unsigned int width);
+                         const ImageShape &shape);
 
-  void WriteCropToOutput(Workspace<Backend> *ws,
-                        const std::vector<Crop> &crop,
-                        const std::vector<unsigned int>& height,
-                        const std::vector<unsigned int>& width,
-                        unsigned int idx);
+  void WriteCropToOutput(DeviceWorkspace *ws, const std::vector<Crop> &crop,
+                         const std::vector<ImageShape> &shape,
+                         unsigned int idx);
 
   void WriteBoxesToOutput(SampleWorkspace *ws,
                           const BoundingBoxes &bounding_boxes);
 
-  void WriteBoxesToOutput(Workspace<Backend> *ws,
+  void WriteBoxesToOutput(DeviceWorkspace *ws,
                           const std::vector<BoundingBoxes> &bounding_boxes,
                           unsigned int idx);
 
   float SelectMinimumOverlap() {
-    static std::uniform_int_distribution<> sampler(0, thresholds_.size()-1);
+    static std::uniform_int_distribution<> sampler(
+        0, static_cast<int>(thresholds_.size() - 1));
     return thresholds_[sampler(rd_)];
   }
 
@@ -190,19 +192,21 @@ class RandomBBoxCrop : public Operator<Backend> {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 
-  bool ValidOverlap(const Crop& crop, const BoundingBoxes& boxes, float threshold) {
-    return std::all_of(boxes.begin(), boxes.end(), [&crop, threshold](const BoundingBox& box){
-      return crop.IntersectionOverUnion(box) >= threshold;
-    });
+  bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes,
+                    float threshold) {
+    return std::all_of(boxes.begin(), boxes.end(),
+                       [&crop, threshold](const BoundingBox &box) {
+                         return crop.IntersectionOverUnion(box) >= threshold;
+                       });
   }
 
-  BoundingBoxes RemapBoxes(const Crop& crop, const BoundingBoxes& boxes,
+  BoundingBoxes RemapBoxes(const Crop &crop, const BoundingBoxes &boxes,
                            float height, float width) const {
     BoundingBoxes remapped_boxes;
     remapped_boxes.reserve(boxes.size());
 
-    for (const auto& box : boxes) {
-        remapped_boxes.emplace_back(box.RemapTo(crop));
+    for (const auto &box : boxes) {
+      remapped_boxes.emplace_back(box.RemapTo(crop));
     }
 
     return remapped_boxes;
@@ -219,14 +223,13 @@ class RandomBBoxCrop : public Operator<Backend> {
     const auto height_offset = height_sampler(rd_);
 
     // Crop is ltrb
-    return Crop(left_offset / width,
-                height_offset / height,
+    return Crop(left_offset / width, height_offset / height,
                 (left_offset + scaled_width) / width,
                 (height_offset + scaled_height) / height);
   }
 
-  std::vector<Rectangle> DiscardBoundingBoxesByCentroid(const Crop &crop,
-                                                        const BoundingBoxes &bounding_boxes) {
+  std::vector<Rectangle> DiscardBoundingBoxesByCentroid(
+      const Crop &crop, const BoundingBoxes &bounding_boxes) {
     BoundingBoxes result;
     result.reserve(bounding_boxes.size());
 
@@ -243,26 +246,29 @@ class RandomBBoxCrop : public Operator<Backend> {
     return result;
   }
 
-  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(const ImageShape &image_shape,
-                                                     const BoundingBoxes &bounding_boxes,
-                                                     float minimum_overlap) {
+  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
+      const ImageShape &image_shape, const BoundingBoxes &bounding_boxes,
+      float minimum_overlap) {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
-        const auto candidate_height = SampleCandidateDimension(image_shape.height);
-        const auto candidate_width = SampleCandidateDimension(image_shape.width);
+        const auto candidate_height =
+            SampleCandidateDimension(image_shape.height);
+        const auto candidate_width =
+            SampleCandidateDimension(image_shape.width);
 
         if (ValidAspectRatio(candidate_height, candidate_width)) {
-          const auto candidate_crop = SamplePatch(
-              candidate_height, candidate_width, image_shape.height, image_shape.width);
+          const auto candidate_crop =
+              SamplePatch(candidate_height, candidate_width, image_shape.height,
+                          image_shape.width);
 
-
-          auto candidate_boxes = DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
+          auto candidate_boxes =
+              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
-
-            const auto remapped_boxes = RemapBoxes(candidate_crop, candidate_boxes,
-                                                   candidate_height, candidate_width);
+            const auto remapped_boxes =
+                RemapBoxes(candidate_crop, candidate_boxes, candidate_height,
+                           candidate_width);
 
             return std::make_pair(candidate_crop, remapped_boxes);
           }
