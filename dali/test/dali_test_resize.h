@@ -55,7 +55,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     }
 
     int rsz_h, rsz_w;
-    for (int i = 0; i < image_data.ntensor(); ++i) {
+    for (size_t i = 0; i < image_data.ntensor(); ++i) {
       auto *data = image_data.tensor<unsigned char>(i);
       auto shape = image_data.tensor_shape(i);
       const int H = shape[0], W = shape[1];

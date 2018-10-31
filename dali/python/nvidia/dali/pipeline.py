@@ -61,16 +61,20 @@ class Pipeline(object):
                     Value of -1 does not impose a limit.
                     This parameter is currently unused (and behavior of
                     unrestricted number of streams is assumed).
+    `prefetch_queue_depth`: length of the executor pipeline. The longer the more resistant
+                    the Dali is fo uneven execution time of each batch, but it also
+                    consumes more memory for the internall buffers
     """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
-                 exec_pipelined=True, exec_async=True,
-                 bytes_per_sample=0, set_affinity=False,
-                 max_streams=-1):
+                 exec_pipelined=True, prefetch_queue_depth=2,
+                 exec_async=True, bytes_per_sample=0,
+                 set_affinity=False, max_streams=-1):
         self._batch_size = batch_size
         self._num_threads = num_threads
         self._device_id = device_id
         self._seed = seed
         self._exec_pipelined = exec_pipelined
+        self._prefetch_queue_depth = prefetch_queue_depth
         self._built = False
         self._first_iter = True
         self._prepared = False
@@ -121,6 +125,7 @@ class Pipeline(object):
                                 self._device_id,
                                 self._seed,
                                 self._exec_pipelined,
+                                self._prefetch_queue_depth,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,
@@ -230,13 +235,30 @@ class Pipeline(object):
         self._pipe.RunGPU()
 
     def outputs(self):
-        """Returns the outputs of the pipeline.
+        """Returns the outputs of the pipeline and releases previous buffer.
 
         If the pipeline is executed asynchronously, this function blocks
         until the results become available."""
+        self._release_outputs()
+        return self._share_outputs()
+
+    def _share_outputs(self):
+        """Returns the outputs of the pipeline.
+
+        Main difference to outputs is that _share_outputs doesn't release
+        returned buffers, _release_outputs need to be called for that.
+        If the pipeline is executed asynchronously, this function blocks
+        until the results become available."""
+        return self._pipe.ShareOutputs()
+
+    def _release_outputs(self):
+        """Release buffers returned by _share_outputs calls.
+
+        It helps in case when output call result is consumed (copied)
+        and buffers can be set free before next _share_outputs call"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        return self._pipe.Outputs()
+        return self._pipe.ReleaseOutputs()
 
     def run(self):
         """Run the pipeline and return the result.
@@ -244,21 +266,26 @@ class Pipeline(object):
         If the pipeline was created with `exec_async` option set to `True`,
         this function will also start prefetching the next iteration for
         faster execution."""
-        self._start_run()
+        if self._first_iter and self._exec_pipelined:
+            self._prefetch()
+        else:
+            self._start_run()
         return self.outputs()
+
+    def _prefetch(self):
+        """Executes pipeline to fill executor's pipeline."""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if self._first_iter and self._exec_pipelined:
+            self._first_iter = False
+            for i in range(self._prefetch_queue_depth):
+                self._start_run()
 
     def _start_run(self):
         """Start running the pipeline without waiting for its results.
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if self._first_iter and self._exec_pipelined:
-            self.iter_setup()
-            self._run_cpu()
-            self._run_gpu()
-            self._first_iter = False
         self.iter_setup()
         self._run_cpu()
         self._run_gpu()
@@ -283,6 +310,7 @@ class Pipeline(object):
                                 self._num_threads,
                                 self._device_id,
                                 self._exec_pipelined,
+                                self._prefetch_queue_depth,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,

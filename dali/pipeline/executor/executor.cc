@@ -22,6 +22,11 @@
 
 namespace dali {
 
+
+void Executor::SetCompletionCallback(ExecutorCallback cb) {
+  cb_ = cb;
+}
+
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
@@ -236,11 +241,14 @@ void Executor::RunGPU() {
   // dependency between consecutive iterations
   // of the gpu stage of the pipeline.
   previous_gpu_queue_idx_ = queue_idx;
+
+  // call any registered previously callback
+  if (cb_) {
+    cb_();
+  }
 }
 
-void Executor::Outputs(DeviceWorkspace *ws) {
-  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  ws->Clear();
+void Executor::ReleaseOutputs() {
   // Mark the last in-use buffer as free and signal
   // to waiting threads
   if (!in_use_queue_.empty()) {
@@ -250,6 +258,16 @@ void Executor::Outputs(DeviceWorkspace *ws) {
     free_cond_.notify_one();
     lock.unlock();
   }
+}
+
+void Executor::Outputs(DeviceWorkspace *ws) {
+  ReleaseOutputs();
+  ShareOutputs(ws);
+}
+
+void Executor::ShareOutputs(DeviceWorkspace *ws) {
+  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
+  ws->Clear();
 
   if (exec_error_) {
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);

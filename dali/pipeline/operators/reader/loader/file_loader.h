@@ -38,11 +38,16 @@ vector<std::pair<string, int>> traverse_directories(const std::string& path);
 
 }  // namespace filesystem
 
-class FileLoader : public Loader<CPUBackend> {
+struct ImageLabelWrapper {
+  Tensor<CPUBackend> image;
+  int label;
+};
+
+class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit inline FileLoader(const OpSpec& spec,
       vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>())
-    : Loader<CPUBackend>(spec),
+    : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
       image_label_pairs_(image_label_pairs),
       current_index_(0) {
@@ -78,13 +83,14 @@ class FileLoader : public Loader<CPUBackend> {
     current_index_ = start_index(shard_id_, num_shards_, Size());
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) override;
+  void PrepareEmpty(ImageLabelWrapper *tesor) override;
+  void ReadSample(ImageLabelWrapper* tensor) override;
 
   Index Size() override;
 
  protected:
-  using Loader<CPUBackend>::shard_id_;
-  using Loader<CPUBackend>::num_shards_;
+  using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
+  using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;

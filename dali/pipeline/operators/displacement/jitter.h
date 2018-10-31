@@ -29,7 +29,7 @@ class JitterAugment {
  public:
   explicit JitterAugment(const OpSpec& spec) :
         nDegree_(spec.GetArgument<int>("nDegree")),
-        rnd_(spec.GetArgument<int>("seed"), 128*256) {}
+        rnd_(spec.GetArgument<int64_t>("seed"), 128*256) {}
 
 template <typename T>
 #ifdef __CUDA_ARCH__

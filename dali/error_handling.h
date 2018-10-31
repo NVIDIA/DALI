@@ -57,6 +57,10 @@ DLL_PUBLIC string DALIGetLastError();
 // Sets the error string. Used internally by DALI to pass error strings out to the user
 DLL_PUBLIC void DALISetLastError(string error_str);
 
+// Appends additional info to last error. Used internally by DALI to pass error
+// strings out to the user
+DLL_PUBLIC void DALIAppendToLastError(string error_str);
+
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
   string error = "[" + file + ":" + line_str +
@@ -148,6 +152,17 @@ inline string BuildErrorString(string statement, string file, int line) {
   do {                                                          \
     DALIError_t status = code;                                  \
     if (status != DALISuccess) {                                \
+      dali::string error = DALIGetLastError();                  \
+      DALI_FAIL(error);                                         \
+    }                                                           \
+  } while (0)
+
+// For calling DALI library functions with extra debug log
+#define DALI_CALL_EX(code, extra_info)                          \
+  do {                                                          \
+    DALIError_t status = code;                                  \
+    if (status != DALISuccess) {                                \
+      DALIAppendToLastError(extra_info);                        \
       dali::string error = DALIGetLastError();                  \
       DALI_FAIL(error);                                         \
     }                                                           \

@@ -89,7 +89,12 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
 
   return file_label_pairs;
 }
-void FileLoader::ReadSample(Tensor<CPUBackend>* tensor) {
+
+void FileLoader::PrepareEmpty(ImageLabelWrapper *image_label) {
+  PrepareEmptyTensor(&image_label->image);
+}
+
+void FileLoader::ReadSample(ImageLabelWrapper* image_label) {
   auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
@@ -100,17 +105,18 @@ void FileLoader::ReadSample(Tensor<CPUBackend>* tensor) {
   FileStream *current_image = FileStream::Open(file_root_ + "/" + image_pair.first);
   Index image_size = current_image->Size();
 
-  // resize tensor to hold [image, label]
-  tensor->Resize({image_size + static_cast<Index>(sizeof(int))});
+  // resize tensor to hold [image]
+  image_label->image.Resize({image_size});
 
   // copy the image
-  current_image->Read(tensor->mutable_data<uint8_t>(), image_size);
+  current_image->Read(image_label->image.mutable_data<uint8_t>(), image_size);
+  image_label->image.SetSourceInfo(image_pair.first);
 
   // close the file handle
   current_image->Close();
 
   // copy the label
-  *(reinterpret_cast<int*>(&tensor->mutable_data<uint8_t>()[image_size])) = image_pair.second;
+  image_label->label = image_pair.second;
 }
 
 Index FileLoader::Size() {

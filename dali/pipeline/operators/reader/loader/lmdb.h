@@ -61,7 +61,7 @@ namespace lmdb {
   }
 }  // namespace lmdb
 
-class LMDBReader : public Loader<CPUBackend> {
+class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
@@ -108,6 +108,7 @@ class LMDBReader : public Loader<CPUBackend> {
 
     tensor->Resize({static_cast<Index>(value_.mv_size)});
     tensor->mutable_data<uint8_t>();
+    tensor->SetSourceInfo(db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data)));
 
     std::memcpy(tensor->raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value_.mv_data),
@@ -121,8 +122,8 @@ class LMDBReader : public Loader<CPUBackend> {
   }
 
  private:
-  using Loader<CPUBackend>::shard_id_;
-  using Loader<CPUBackend>::num_shards_;
+  using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
+  using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
   MDB_env* mdb_env_;
   MDB_cursor* mdb_cursor_;

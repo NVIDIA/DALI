@@ -12,78 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdlib>
 
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
 
 namespace dali {
 
-bool CheckIsGIF(const uint8_t *gif, int size) {
-    DALI_ASSERT(gif);
-    return (size >= 10 && gif[0] == 'G' && gif[1] == 'I' && gif[2] == 'F' && gif[3] == '8' &&
-    (gif[4] == '7' || gif[4] == '9') && gif[5] == 'a');
+GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
+        Image(encoded_buffer, length, image_type) {
 }
 
-// OpenCV doesn't handle gif images so we don't need it now
-#if 0
-DALIError_t GetGIFImageDims(const uint8 *gif, int size, int *h, int *w) {
-    DALIError_t ret = DALIError;
-    DALI_ASSERT(gif);
 
-    if (size >= 10) {
-        *w = (unsigned int)(gif[6] | gif[7] << 4) & 0xFFFF;
-        *h = (unsigned int)(gif[8] | gif[9]<< 4) & 0xFFFF;
-        ret = DALISuccess;
-    }
+std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
+                         size_t length) const {
+  // Decode image to tmp cv::Mat
+  cv::Mat decoded_image = cv::imdecode(
+          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),          //NOLINT
+          IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
-    return ret;
-}
-#endif
+  // if RGB needed, permute from BGR
+  if (image_type == DALI_RGB) {
+    cv::cvtColor(decoded_image, decoded_image, cv::COLOR_BGR2RGB);
+  }
 
-bool CheckIsBMP(const uint8_t *bmp, int size) {
-    return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
-}
+  const int c = IsColor(image_type) ? 3 : 1;
+  const int W = decoded_image.cols;
+  const int H = decoded_image.rows;
 
-DALIError_t GetBMPImageDims(const uint8 *bmp, int size, int *h, int *w) {
-    DALIError_t ret = DALIError;
-    DALI_ASSERT(bmp);
+  std::shared_ptr<uint8_t> decoded_img_ptr(
+          decoded_image.ptr(),
+          [decoded_image](decltype(decoded_image.ptr()) ptr) {
+              // This is an empty lambda, which is a custom deleter for
+              // std::shared_ptr.
+              // While instantiating shared_ptr, also lambda is instantiated,
+              // making a copy of cv::Mat. This way, reference counter of cv::Mat
+              // is incremented. Therefore, for the duration of life cycle of
+              // underlying memory in shared_ptr, cv::Mat won't free its memory.
+              // It will be freed, when last shared_ptr is deleted.
+          });
 
-    // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
-    unsigned header_size = bmp[14] | bmp[15] << 8 | bmp[16] << 16 | bmp[17] << 24;
-    *h = 0;
-    *w = 0;
-    // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
-    if (size >= 22 && header_size == 12) {
-        *w = (unsigned int)(bmp[18] | bmp[19] << 8) & 0xFFFF;
-        *h = (unsigned int)(bmp[20] | bmp[21] << 8) & 0xFFFF;
-        ret = DALISuccess;
-    // BITMAPINFOHEADER and later: | 32u header | 32s width | 32s height | ...
-    } else if (size >= 26 && header_size >= 40) {
-        *w = static_cast<int>(bmp[18] | bmp[19] << 8 | bmp[20] << 16 | bmp[21] << 24);
-        *h = abs(static_cast<int>(bmp[22] | bmp[23] << 8 | bmp[24] << 16 | bmp[25] << 24));
-        ret = DALISuccess;
-    }
-
-    return ret;
+  return std::make_pair(decoded_img_ptr, std::make_tuple(H, W, c));
 }
 
-DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w) {
-    DALI_ASSERT(data);
-    if (CheckIsPNG(data, size)) {
-        return GetPNGImageDims(data, size, h, w);
-    } else if (CheckIsGIF(data, size)) {
-        // OpenCV doesn't handle gif images
-    #if 0
-        return GetGIFImageDims(data, size, h, w);
-    #else
-        return DALIError;
-    #endif
-    } else if (CheckIsBMP(data, size)) {
-        return GetBMPImageDims(data, size, h, w);
-    }
-    // Not supported
-    return DALIError;
+
+Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+  DALI_FAIL("Cannot peek dims for Generic image (of unknown format)");
 }
 
 }  // namespace dali

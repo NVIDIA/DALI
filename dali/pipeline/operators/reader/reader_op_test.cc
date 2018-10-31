@@ -30,10 +30,10 @@
 
 namespace dali {
 
-class DummyLoader : public Loader<CPUBackend> {
+class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit DummyLoader(const OpSpec& spec) :
-    Loader<CPUBackend>(spec) {}
+    Loader<CPUBackend, Tensor<CPUBackend>>(spec) {}
 
   void ReadSample(Tensor<CPUBackend> *t) override {
     t->Resize({1});
@@ -45,16 +45,16 @@ class DummyLoader : public Loader<CPUBackend> {
     return 1;
   }
 };
-class DummyDataReader : public DataReader<CPUBackend> {
+class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit DummyDataReader(const OpSpec &spec)
-      : DataReader<CPUBackend>(spec),
+      : DataReader<CPUBackend, Tensor<CPUBackend>>(spec),
         count_(0) {
     loader_.reset(new DummyLoader(spec));
   }
 
   ~DummyDataReader() {
-    DataReader<CPUBackend>::StopPrefetchThread();
+    DataReader<CPUBackend, Tensor<CPUBackend>>::StopPrefetchThread();
   }
   /*
   using DataReader<CPUBackend>::prefetched_batch_;

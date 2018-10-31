@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -33,10 +34,17 @@ namespace dali {
 DLL_PUBLIC size_t start_index(const size_t shard_id,
                               const size_t shard_num,
                               const size_t size);
-
-template <class Backend>
+/**
+ * @brief Base class for Loaders, responsible for reading samples from resource of some kind
+ *        into memory.
+ *
+ * @tparam Backend
+ * @tparam LoadTarget Type into which samples are loaded.
+ */
+template <typename Backend, typename LoadTarget>
 class Loader {
  public:
+  using LoadTarget_t = LoadTarget;
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
@@ -46,6 +54,7 @@ class Loader {
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
+    DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
     // used to pick from our sample buffer
     dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);
@@ -56,19 +65,41 @@ class Loader {
   virtual ~Loader() {
     // delete all the temporary tensors
     while (!sample_buffer_.empty()) {
-      Tensor<Backend> * t = sample_buffer_.back();
+      LoadTarget * t = sample_buffer_.back();
       delete t;
       sample_buffer_.pop_back();
     }
     while (!empty_tensors_.empty()) {
-      Tensor<Backend> * t = empty_tensors_.back();
+      LoadTarget * t = empty_tensors_.back();
       delete t;
       empty_tensors_.pop_back();
     }
   }
 
+  virtual void PrepareEmpty(LoadTarget *tensor) {
+    PrepareEmptyTensor(tensor);
+  }
+
+  template <typename T>
+  typename std::enable_if<std::is_same<T, Tensor<CPUBackend>>::value>::type
+  PrepareEmptyTensor(T *tensor) {
+    tensor->set_pinned(false);
+    // Initialize tensors to a set size to limit expensive reallocations
+    tensor->Resize({tensor_init_bytes_});
+    tensor->template mutable_data<uint8_t>();
+  }
+
+  template <typename T>
+  typename std::enable_if<!std::is_same<T, Tensor<CPUBackend>>::value>::type
+  PrepareEmptyTensor(T *) {
+    constexpr bool T_is_Tensor = std::is_same<T, Tensor<CPUBackend>>::value;
+    DALI_ENFORCE(T_is_Tensor,
+      "Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
+  }
+
+
   // Get a random read sample
-  Tensor<Backend>* ReadOne() {
+  LoadTarget* ReadOne() {
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
@@ -76,11 +107,8 @@ class Loader {
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
-        Tensor<Backend>* tensor = new Tensor<CPUBackend>();
-        tensor->set_pinned(false);
-        // Initialize tensors to a set size to limit expensive reallocations
-        tensor->Resize({tensor_init_bytes_});
-        tensor->template mutable_data<uint8_t>();
+        LoadTarget* tensor = new LoadTarget();
+        PrepareEmpty(tensor);
 
         ReadSample(tensor);
         sample_buffer_.push_back(tensor);
@@ -89,11 +117,8 @@ class Loader {
       TimeRange tr2("[Loader] Filling empty list", TimeRange::kOrange);
       // need some entries in the empty_tensors_ list
       for (int i = 0; i < initial_empty_size_; ++i) {
-        Tensor<Backend>* tensor = new Tensor<CPUBackend>();
-        tensor->set_pinned(false);
-        // Force allocation for empties
-        tensor->Resize({tensor_init_bytes_});
-        tensor->template mutable_data<uint8_t>();
+        LoadTarget* tensor = new LoadTarget();
+        PrepareEmpty(tensor);
 
         empty_tensors_.push_back(tensor);
       }
@@ -102,7 +127,7 @@ class Loader {
     }
     // choose the random index
     int idx = shuffle_ ? dis(e_) % sample_buffer_.size() : 0;
-    Tensor<Backend>* elem = sample_buffer_[idx];
+    LoadTarget* elem = sample_buffer_[idx];
 
     // swap end and idx, return the tensor to empties
     std::swap(sample_buffer_[idx], sample_buffer_[sample_buffer_.size()-1]);
@@ -112,7 +137,7 @@ class Loader {
     // now grab an empty tensor, fill it and add to filled buffers
     // empty_tensors_ needs to be thread-safe w.r.t. ReturnTensor()
     // being called by multiple consumer threads
-    Tensor<Backend>* t;
+    LoadTarget* t;
     {
       std::lock_guard<std::mutex> lock(return_mutex_);
       DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
@@ -127,7 +152,7 @@ class Loader {
 
   // return a tensor to the empty pile
   // called by multiple consumer threads
-  void ReturnTensor(Tensor<Backend>* tensor) {
+  void ReturnTensor(LoadTarget* tensor) {
     std::lock_guard<std::mutex> lock(return_mutex_);
     empty_tensors_.push_back(tensor);
   }
@@ -135,15 +160,15 @@ class Loader {
   // Read an actual sample from the FileStore,
   // used to populate the sample buffer for "shuffled"
   // reads.
-  virtual void ReadSample(Tensor<Backend>* tensor) = 0;
+  virtual void ReadSample(LoadTarget* tensor) = 0;
 
   // Give the size of the data accessed through the Loader
   virtual Index Size() = 0;
 
  protected:
-  std::vector<Tensor<Backend>*> sample_buffer_;
+  std::vector<LoadTarget*> sample_buffer_;
 
-  std::list<Tensor<Backend>*> empty_tensors_;
+  std::list<LoadTarget*> empty_tensors_;
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable

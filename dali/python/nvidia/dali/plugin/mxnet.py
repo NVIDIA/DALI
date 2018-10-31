@@ -96,7 +96,7 @@ class DALIGenericIterator(object):
         for p in self._pipes:
             p.build()
         # Use double-buffering of data batches
-        self._data_batches = [[None, None] for i in range(self._num_gpus)]
+        self._data_batches = [[None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
         self.output_map = output_map
@@ -126,9 +126,9 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            p._start_run()
+            p._prefetch()
         for p in self._pipes:
-            outputs.append(p.outputs())
+            outputs.append(p._share_outputs())
         for i in range(self._num_gpus):
             out_data = []
             out_label = []
@@ -161,9 +161,14 @@ class DALIGenericIterator(object):
                 feed_ndarray(data[j], d_arr)
             for j, l_arr in enumerate(l):
                 feed_ndarray(label[j], l_arr)
+
+        for p in self._pipes:
+            p._release_outputs()
+            p._start_run()
+
         copy_db_index = self._current_data_batch
         # Change index for double buffering
-        self._current_data_batch = (self._current_data_batch + 1) % 2
+        self._current_data_batch = (self._current_data_batch + 1) % 1
         self._counter += self._num_gpus * self.batch_size
 
         # padding the last batch

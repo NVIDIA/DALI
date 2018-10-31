@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_READER_PARSER_RECORDIO_PARSER_H_
 
 #include <string>
+#include <vector>
 
 #include "dali/pipeline/operators/reader/parser/parser.h"
 
@@ -27,16 +28,16 @@ struct ImageRecordIOHeader {
   uint64_t image_id[2];
 };
 
-class RecordIOParser : public Parser {
+class RecordIOParser : public Parser<Tensor<CPUBackend>> {
  public:
   explicit RecordIOParser(const OpSpec& spec) :
-    Parser(spec) {
+    Parser<Tensor<CPUBackend>>(spec) {
   }
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     auto* image = ws->Output<CPUBackend>(0);
     auto* label = ws->Output<CPUBackend>(1);
-    ReadSingleImageRecordIO(image, label, data);
+    ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
   }
 
  private:
@@ -73,22 +74,23 @@ class RecordIOParser : public Parser {
     o_label->mutable_data<float>()[0] = hdr.label;
 
     int64_t data_size = clength - sizeof(ImageRecordIOHeader);
-    o_image->Resize({data_size});
+    if (cflag == 0) {
+      o_image->Resize({data_size});
+      uint8_t* data = o_image->mutable_data<uint8_t>();
+      memcpy(data, input, data_size);
+    } else {
+      std::vector<uint8_t> temp_vec(data_size);
+      memcpy(&temp_vec[0], input, data_size);
+      input += data_size;
 
-    uint8_t* data = o_image->mutable_data<uint8_t>();
-    memcpy(data, input, data_size);
-    input += data_size;
-
-    if (cflag != 0) {
       while (true) {
         size_t pad = clength - (((clength + 3U) >> 2U) << 2U);
         input += pad;
 
         if (cflag != 3) {
-          size_t s = o_image->nbytes();
-          o_image->Resize({static_cast<int64_t>(s + sizeof(kMagic))});
-          data = o_image->mutable_data<uint8_t>();
-          memcpy(data + s, &kMagic, sizeof(kMagic));
+          size_t s = temp_vec.size();
+          temp_vec.resize(static_cast<int64_t>(s + sizeof(kMagic)));
+          memcpy(&temp_vec[s], &kMagic, sizeof(kMagic));
         } else {
           break;
         }
@@ -96,12 +98,14 @@ class RecordIOParser : public Parser {
         ReadSingle(&input, &length_flag);
         cflag = DecodeFlag(length_flag);
         clength = DecodeLength(length_flag);
-        size_t s = o_image->nbytes();
-        o_image->Resize({static_cast<int64_t>(s + clength)});
-        data = o_image->mutable_data<uint8_t>();
-        memcpy(data + s, input, clength);
+        size_t s = temp_vec.size();
+        temp_vec.resize(static_cast<int64_t>(s + clength));
+        memcpy(&temp_vec[s], input, clength);
         input += clength;
       }
+      o_image->Resize({static_cast<Index>(temp_vec.size())});
+      uint8_t* data = o_image->mutable_data<uint8_t>();
+      memcpy(data, &temp_vec[0], temp_vec.size());
     }
   }
 };

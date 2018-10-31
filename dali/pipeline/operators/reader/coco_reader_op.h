@@ -43,10 +43,10 @@ T get_from_json(const I &im, std::string field) {
 
 namespace dali {
 
-class COCOReader : public DataReader<CPUBackend> {
+class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit COCOReader(const OpSpec& spec)
-  : DataReader<CPUBackend>(spec),
+  : DataReader<CPUBackend, ImageLabelWrapper>(spec),
     annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
     ltrb_(spec.GetArgument<bool>("ltrb")),
     ratio_(spec.GetArgument<bool>("ratio")) {
@@ -55,14 +55,12 @@ class COCOReader : public DataReader<CPUBackend> {
     parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
-  DEFAULT_READER_DESTRUCTOR(COCOReader, CPUBackend);
-
   void RunImpl(SampleWorkspace* ws, const int i) override {
     const int idx = ws->data_idx();
 
-    auto* raw_data = prefetched_batch_[idx];
+    auto* image_label = prefetched_batch_[idx];
 
-    parser_->Parse(raw_data->data<uint8_t>(), raw_data->size(), ws);
+    parser_->Parse(*image_label, ws);
 
     return;
   }
@@ -157,7 +155,7 @@ class COCOReader : public DataReader<CPUBackend> {
   std::vector<std::pair<std::string, int>> image_id_pairs_;
   bool ltrb_;
   bool ratio_;
-  USE_READER_OPERATOR_MEMBERS(CPUBackend);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };
 
 }  // namespace dali

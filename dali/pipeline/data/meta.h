@@ -12,24 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_PNG_H_
-#define DALI_IMAGE_PNG_H_
+#ifndef DALI_PIPELINE_DATA_META_H_
+#define DALI_PIPELINE_DATA_META_H_
 
-#include "dali/image/generic_image.h"
+#include <string>
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
-/**
- * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
- */
-class PngImage final : public GenericImage {
+class DALIMeta {
  public:
-  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  DALIMeta() {
+  }
+
+  explicit DALIMeta(DALITensorLayout layout) : layout_(layout) {
+  }
+
+  inline DALITensorLayout GetLayout() const {
+    return layout_;
+  }
+
+  inline void SetLayout(DALITensorLayout layout) {
+    layout_ = layout;
+  }
+
+  inline std::string GetSourceInfo() const {
+    return source_info_;
+  }
+
+  inline void SetSourceInfo(std::string source_info) {
+    source_info_ = source_info;
+  }
 
  private:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+  DALITensorLayout layout_;
+  std::string source_info_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_PNG_H_
+
+#endif  // DALI_PIPELINE_DATA_META_H_

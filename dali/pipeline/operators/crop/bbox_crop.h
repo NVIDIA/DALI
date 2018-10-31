@@ -160,6 +160,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   virtual ~RandomBBoxCrop() = default;
 
  protected:
+//<<<<<<< HEAD
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,

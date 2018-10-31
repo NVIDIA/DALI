@@ -32,7 +32,18 @@ namespace dali {
  *
  * Operator runs an additional prefetch thread
  */
-template <typename Backend>
+
+/**
+ * @brief  BaseClass for operators that perform prefetching work
+ *
+ * Operator runs an additional prefetch thread
+ * @tparam Backend
+ * @tparam LoadTarget Type that Loader will load data into, used also to store prefetched
+ *                    samples.
+ * @tparam ParseTarget Type passed into Parser for parsing, usually it is the same
+ *                     as the LoadTarget.
+ */
+template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
   inline explicit DataReader(const OpSpec& spec) :
@@ -48,7 +59,9 @@ class DataReader : public Operator<Backend> {
     // TODO(slayton): Anything needed here?
   }
 
-  virtual ~DataReader() noexcept {}
+  virtual ~DataReader() noexcept {
+    StopPrefetchThread();
+  }
 
   // perform the prefetching operation
   virtual bool Prefetch() {
@@ -215,7 +228,7 @@ class DataReader : public Operator<Backend> {
   std::atomic<bool> finished_;
 
   // prefetched batch
-  std::vector<Tensor<Backend>*> prefetched_batch_;
+  std::vector<LoadTarget*> prefetched_batch_;
 
   // keep track of how many samples have been processed
   // over all threads.
@@ -225,21 +238,26 @@ class DataReader : public Operator<Backend> {
   std::atomic<bool> batch_stop_;
 
   // Loader
-  std::unique_ptr<Loader<Backend>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
 
   // Parser
-  std::unique_ptr<Parser> parser_;
+  std::unique_ptr<Parser<ParseTarget>> parser_;
 };
 
-#define DEFAULT_READER_DESTRUCTOR(cls, Backend)  \
-  ~cls() {                                      \
-    DataReader<Backend>::StopPrefetchThread();   \
-  }
+#define USE_READER_OPERATOR_MEMBERS_1(Backend, LoadTarget) \
+  using DataReader<Backend, LoadTarget>::loader_;          \
+  using DataReader<Backend, LoadTarget>::parser_;          \
+  using DataReader<Backend, LoadTarget>::prefetched_batch_;
 
-#define USE_READER_OPERATOR_MEMBERS(Backend)         \
-  using DataReader<Backend>::loader_;                \
-  using DataReader<Backend>::parser_;                \
-  using DataReader<Backend>::prefetched_batch_;
+#define USE_READER_OPERATOR_MEMBERS_2(Backend, LoadTarget, ParseTarget) \
+  using DataReader<Backend, LoadTarget, ParseTarget>::loader_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget>::parser_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget>::prefetched_batch_;
+
+#define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
+  GET_MACRO(__VA_ARGS__,                          \
+            USE_READER_OPERATOR_MEMBERS_2,        \
+            USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
 
 };  // namespace dali
 

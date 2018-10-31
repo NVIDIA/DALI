@@ -20,6 +20,7 @@
 #include <array>
 
 #include "dali/pipeline/operators/reader/parser/parser.h"
+#include "dali/pipeline/operators/reader/loader/file_loader.h"
 
 namespace dali {
 
@@ -49,20 +50,18 @@ std::ostream& operator<<(std::ostream& os, Annotation& an) {
 
 using AnnotationMap = std::multimap<int, Annotation>;
 
-class COCOParser: public Parser {
+class COCOParser: public Parser<ImageLabelWrapper> {
  public:
   explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap)
-    : Parser(spec),
+    : Parser<ImageLabelWrapper>(spec),
     annotations_multimap_(annotations_multimap) {}
 
-  void Parse(const uint8_t* data, const size_t size, SampleWorkspace* ws) override {
-    Index image_size = size - sizeof(int);
+  void Parse(const ImageLabelWrapper& image_label, SampleWorkspace* ws) override {
+    Index image_size = image_label.image.size();
     auto *image_output = ws->Output<CPUBackend>(0);
     auto *bbox_output = ws->Output<CPUBackend>(1);
     auto *label_output = ws->Output<CPUBackend>(2);
-    int image_id;
-    // we cannot do just static_cast as it is UB and data + image_size may be unalligned to int
-    memcpy(&image_id, data + image_size, sizeof(int));
+    int image_id = image_label.label;
 
     auto range = annotations_multimap_.equal_range(image_id);
     auto n_bboxes = std::distance(range.first, range.second);
@@ -75,7 +74,7 @@ class COCOParser: public Parser {
     label_output->mutable_data<int>();
 
     std::memcpy(image_output->raw_mutable_data(),
-                data,
+                image_label.image.raw_data(),
                 image_size);
 
     int stride = 0;

@@ -78,23 +78,24 @@ class DLL_PUBLIC Pipeline {
    * configured in the thread pool. Defaults to 'false'.
    * @param max_num_stream set an upper limit on the number of cudaStreams
    * that can be allocated by the pipeline.
+   * @param prefetch_queue_depth sets the length of the executor internal pipeline
    */
-  DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int seed = -1,
-      bool pipelined_execution = true, bool async_execution = true,
-      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1) :
+  DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
+      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+      bool async_execution = true, size_t bytes_per_sample_hint = 0,
+      bool set_affinity = false, int max_num_stream = -1) :
     built_(false) {
     Init(batch_size, num_threads, device_id, seed,
          pipelined_execution, async_execution,
          bytes_per_sample_hint, set_affinity,
-         max_num_stream);
+         max_num_stream, prefetch_queue_depth);
   }
 
   DLL_PUBLIC Pipeline(const string &serialized_pipe,
       int batch_size = -1, int num_threads = -1, int device_id = -1,
-      bool pipelined_execution = true, bool async_execution = true,
-      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-      int max_num_stream = -1);
+      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+      bool async_execution = true, size_t bytes_per_sample_hint = 0,
+      bool set_affinity = false, int max_num_stream = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 
@@ -208,12 +209,37 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunGPU();
 
   /**
+   * @brief Sets completion callback which is called when GPU work is done
+   * It blocks next GPU iteration so it is up to the developer to schedule
+   * long lasting work in some thread and just fire the work from this CB
+   */
+  DLL_PUBLIC void SetCompletionCallback(Executor::ExecutorCallback cb);
+
+  /**
    * @brief Fills the input device workspace with the output of the pipeline.
+   * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
   DLL_PUBLIC void Outputs(DeviceWorkspace *ws);
+
+  /**
+   * @brief Fills the input device workspace with the output of the pipeline.
+   * To release previously returned buffers ReleaseOutputs need to be called.
+   * This method blocks until the next batch is complete. RunCPU and RunGPU
+   * must be called prior to calling this or this method will result in
+   * deadlock.
+   */
+  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws);
+
+  /**
+   * @brief Release buffers returned by the Output call
+   * This method is meant for cases where buffers are coppied out
+   * or consumed in any other way, so it is possible to set them free
+   * before next Outputs call
+   */
+  DLL_PUBLIC void ReleaseOutputs();
 
   /**
    * @brief serializes the pipe to a protobuf
@@ -258,9 +284,9 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id,
-            int seed, bool pipelined_execution, bool async_execution,
+            int64_t seed, bool pipelined_execution, bool async_execution,
             size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream) {
+            int max_num_stream, int prefetch_queue_depth = 2) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
@@ -270,10 +296,11 @@ class DLL_PUBLIC Pipeline {
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
+    this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    if (seed != -1) {
+    if (seed > -1) {
       std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
     } else {
@@ -335,8 +362,9 @@ class DLL_PUBLIC Pipeline {
   size_t bytes_per_sample_hint_;
   int set_affinity_;
   int max_num_stream_;
+  int prefetch_queue_depth_;
 
-  std::vector<int> seed_;
+  std::vector<int64_t> seed_;
   int original_seed_;
   size_t current_seed_;
 

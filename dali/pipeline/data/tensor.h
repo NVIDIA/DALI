@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_DATA_TENSOR_H_
 
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 #include <algorithm>
@@ -25,6 +26,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/meta.h"
 
 namespace dali {
 
@@ -35,7 +37,7 @@ namespace dali {
 template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
-  inline Tensor() : layout_(DALI_NHWC) {}
+  inline Tensor() : meta_(DALI_NHWC) {}
   inline ~Tensor() = default;
 
   /**
@@ -110,7 +112,7 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
     DALI_ENFORCE(idx >= 0, "Negative tensor index not supported.");
-    DALI_ENFORCE(idx < tl->ntensor(), "Index of " + std::to_string(idx) +
+    DALI_ENFORCE(static_cast<size_t>(idx) < tl->ntensor(), "Index of " + std::to_string(idx) +
         " out of range for TensorList of size " + std::to_string(tl->ntensor()));
 
     // Reset our pointer to the correct offset inside the tensor list.
@@ -309,17 +311,24 @@ class Tensor : public Buffer<Backend> {
   }
 
   inline DALITensorLayout GetLayout() const {
-    return layout_;
+    return meta_.GetLayout();
   }
 
   inline void SetLayout(DALITensorLayout layout) {
-    layout_ = layout;
+    meta_.SetLayout(layout);
+  }
+
+  inline string GetSourceInfo() const {
+    return meta_.GetSourceInfo();
+  }
+
+  inline void SetSourceInfo(string source_info) {
+    meta_.SetSourceInfo(source_info);
   }
 
  protected:
   vector<Index> shape_;
-  DALITensorLayout layout_;
-
+  DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };
 

@@ -36,7 +36,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined,
+      0, -1, pipelined, 2,
       async);
 
   pipe.AddOperator(
