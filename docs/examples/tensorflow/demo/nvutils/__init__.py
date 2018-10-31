@@ -19,7 +19,6 @@ from .optimizers import LossScalingOptimizer
 from .builder import LayerBuilder
 from .var_storage import fp32_trainable_vars
 from .image_processing import image_set
-from .image_processing import fake_image_set
 from .runner import train
 from .runner import validate
 from .cmdline import RequireInCmdline
