@@ -27,7 +27,7 @@ class Uniform : public Operator<SupportBackend> {
  public:
   inline explicit Uniform(const OpSpec &spec) :
     Operator<SupportBackend>(spec),
-    rng_(spec.GetArgument<int>("seed")) {
+    rng_(spec.GetArgument<int64_t>("seed")) {
     std::vector<float> range;
     GetSingleOrRepeatedArg(spec, &range, "range", 2);
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
