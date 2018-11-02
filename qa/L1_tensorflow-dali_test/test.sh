@@ -1,6 +1,6 @@
 #!/bin/bash -e
 apt_packages="openmpi-bin libopenmpi-dev"
-pip_packages="opencv-python tensorflow-gpu mpi4py horovod"
+pip_packages="opencv-python tensorflow-gpu==1.8.0 mpi4py horovod"
 
 pushd ../..
 
