@@ -95,13 +95,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
- private:
-  template <typename Out>
-  void RunHelper(Workspace<Backend> *ws, int idx);
-  void DataDependentSetup(Workspace<Backend> *ws, int idx);
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
-
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout, int dataIdx) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
     if (*pOutLayout == DALI_NCHW)
@@ -109,6 +102,13 @@ class Crop : public Operator<Backend>, protected CropAttr {
     else
       return {crop_height_[dataIdx], crop_width_[dataIdx], C_};
   }
+
+ private:
+  template <typename Out>
+  void RunHelper(Workspace<Backend> *ws, int idx);
+  void DataDependentSetup(Workspace<Backend> *ws, int idx);
+  template <typename Out>
+  void ValidateHelper(TensorList<Backend> *output);
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws, const vector<Index> &inputShape,
                                int threadIdx, int dataIdx) {
@@ -151,12 +151,12 @@ class Crop : public Operator<Backend>, protected CropAttr {
     }
   }
 
+protected:
   Tensor<CPUBackend> input_ptrs_, input_strides_;
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
   Tensor<GPUBackend> crop_width_gpu_, crop_height_gpu_;
   vector<int> crop_offsets_;
 
- protected:
   std::vector<std::pair<int, int>> per_sample_crop_;
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 

@@ -37,8 +37,7 @@ class Slice : public Crop<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
-  void DataDependentSetup(Workspace<Backend> *ws);
-  void ThreadDependentSetup(Workspace<Backend> *ws);
+  void DataDependentSetup(Workspace<Backend> *ws, unsigned int idx = 0);
 };
 
 }  // namespace dali

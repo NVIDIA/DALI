@@ -30,13 +30,13 @@ DALI_SCHEMA(Slice)
     .AddParent("Crop");
 
 template <>
-void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
+void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
   // Assumes xywh
   const auto &input = ws->Input<CPUBackend>(0);
   const auto &begin = ws->Input<CPUBackend>(1);
 
-  const int H = input.shape()[0];
-  const int W = input.shape()[1];
+  auto H = static_cast<const int>(input.shape()[0]);
+  auto W = static_cast<const int>(input.shape()[1]);
 
   const auto &size = ws->Input<CPUBackend>(2);
 
@@ -45,8 +45,8 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const int crop_y = begin.template data<float>()[1];
-  const int crop_x = begin.template data<float>()[0];
+  auto crop_y = static_cast<const int>(begin.template data<float>()[1]);
+  auto crop_x = static_cast<const int>(begin.template data<float>()[0]);
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }
