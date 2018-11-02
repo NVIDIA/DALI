@@ -84,10 +84,8 @@ REGISTER_OP("Dali")
 DALI TensorFlow plugin
 
 Creates a Dali pipeline for classification tasks from serialized DALI pipeline (given in `serialized_pipeline` parameter).
-Returns 2 TensorFlow tensors with data and label.
-`shape` must match the first DALI Pipeline output tensor shape (must be dim 4, either NCHW or NHWC).
-`image_type` must match the type of the first DALI Pipeline output tensor.
-`label_type` must match the type of the second DALI Pipeline output tensor.
+`shapes` must match the shape of the coresponding DALI Pipeline output tensor shape.
+`dtypes` must match the type of the coresponding DALI Pipeline output tensors type.
  )doc");
 
 class DaliOp : public tf::OpKernel {
