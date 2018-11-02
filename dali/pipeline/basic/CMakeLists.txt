@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Add all subdirectories
-add_subdirectory(basic)
-add_subdirectory(data)
-add_subdirectory(operators)
-add_subdirectory(util)
-add_subdirectory(workspace)
-add_subdirectory(executor)
-add_subdirectory(proto)
-
 # Get all the source files and dump test files
-file(GLOB tmp *.cc)
+file(GLOB tmp *.cc *.cu)
 set(DALI_SRCS ${DALI_SRCS} ${tmp})
 file(GLOB tmp *_test.cc)
 remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
-file(GLOB tmp *_bench.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
+
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
@@ -35,14 +25,3 @@ if (BUILD_TEST)
   file(GLOB tmp *_test.cc)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
-
-if (BUILD_BENCHMARK)
-  # Get all the benchmark srcs
-  file(GLOB tmp *_bench.cc)
-  set(DALI_BENCHMARK_SRCS ${DALI_BENCHMARK_SRCS} ${tmp} PARENT_SCOPE)
-endif()
-
-# Get the protobuf files for pipe serialization
-protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS proto/dali.proto)
-add_library(DALI_PROTO OBJECT ${DALI_PROTO_HEADERS} ${DALI_PROTO_SRCS})
-install(FILES ${DALI_PROTO_HEADERS} DESTINATION include/dali/pipeline)
