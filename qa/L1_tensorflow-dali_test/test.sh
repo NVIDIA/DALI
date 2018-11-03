@@ -15,7 +15,7 @@ test_body() {
     OPENMPI_VERSION=3.0.0
     wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf -
     cd openmpi-${OPENMPI_VERSION}
-    ./configure --enable-orterun-prefix-by-default --prefix=/usr/local/mpi --disable-getpwuid
+    ./configure --enable-orterun-prefix-by-default --prefix=/usr/local/mpi --disable-getpwuid -with-cma=no
     make -j"$(nproc)" install
     cd .. && rm -rf openmpi-${OPENMPI_VERSION}
     echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig
