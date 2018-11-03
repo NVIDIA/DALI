@@ -25,180 +25,180 @@ TYPED_TEST_CASE(RandomBBoxCropTest, Types);
 const bool addImageType = true;
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleThreshold) {
-  this->RunTest({"RandomBBoxCrop", {"thresholds", "0.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"thresholds", "0.0", DALI_FLOAT_VEC}},
                 addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithMultipleThresholds) {
-  this->RunTest(
+  this->RunBBoxesCPU(
       {"RandomBBoxCrop", {"thresholds", "0.0, 0.1, 1.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithoutThreshold) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"thresholds", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"thresholds", "", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdTooLargeFails) {
-  EXPECT_THROW(this->RunTest({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesCPU({"RandomBBoxCrop",
                               {"thresholds", "0.0, 1.1", DALI_FLOAT_VEC}},
                              addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdTooSmallFails) {
-  EXPECT_THROW(this->RunTest({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesCPU({"RandomBBoxCrop",
                               {"thresholds", "-0.1, 1.0", DALI_FLOAT_VEC}},
                              addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdsProvidedInDecreasingOrder) {
-  this->RunTest(
+  this->RunBBoxesCPU(
       {"RandomBBoxCrop", {"thresholds", "1,0, 0.5, 0.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdsRepeated) {
-  this->RunTest({"RandomBBoxCrop", {"thresholds", "1,0, 1.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"thresholds", "1,0, 1.0", DALI_FLOAT_VEC}},
                 addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithAspectRatio) {
-  this->RunTest(
+  this->RunBBoxesCPU(
       {"RandomBBoxCrop", {"aspect_ratio", "0.0, 1.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleAspectRatio) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"aspect_ratio", "0.0", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"aspect_ratio", "0.0", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithEmptyAspectRatio) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"aspect_ratio", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"aspect_ratio", "", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNegativeAspectRatio) {
-  EXPECT_THROW(this->RunTest({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesCPU({"RandomBBoxCrop",
                               {"aspect_ratio", "-0.1, 1.0", DALI_FLOAT_VEC}},
                              addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithVeryLargeAspectRatio) {
-  this->RunTest(
+  this->RunBBoxesCPU(
       {"RandomBBoxCrop", {"aspect_ratio", "0.0, 666.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSwappedOrderAspectRatio) {
-  EXPECT_THROW(this->RunTest({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesCPU({"RandomBBoxCrop",
                               {"aspect_ratio", "1.0, 0.0", DALI_FLOAT_VEC}},
                              addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithScaling) {
-  this->RunTest({"RandomBBoxCrop", {"scaling", "0.0, 1.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"scaling", "0.0, 1.0", DALI_FLOAT_VEC}},
                 addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleScaling) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"scaling", "0.0", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"scaling", "0.0", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithEmptyScaling) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"scaling", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"scaling", "", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNegativeScaling) {
-  EXPECT_THROW(this->RunTest(
+  EXPECT_THROW(this->RunBBoxesCPU(
                    {"RandomBBoxCrop", {"scaling", "-0.1, 1.0", DALI_FLOAT_VEC}},
                    addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithVeryLargeScaling) {
-  this->RunTest({"RandomBBoxCrop", {"scaling", "0.0, 666.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"scaling", "0.0, 666.0", DALI_FLOAT_VEC}},
                 addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSwappedOrderScaling) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"scaling", "1.0, 0.0", DALI_FLOAT_VEC}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"scaling", "1.0, 0.0", DALI_FLOAT_VEC}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithLtrb) {
-  this->RunTest({"RandomBBoxCrop", {"ltrb", "true", DALI_BOOL}}, addImageType);
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"ltrb", "true", DALI_BOOL}}, addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithXywh) {
-  this->RunTest({"RandomBBoxCrop", {"ltrb", "false", DALI_BOOL}}, addImageType);
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"ltrb", "false", DALI_BOOL}}, addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsNegative) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"num_attempts", "-1", DALI_INT32}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"num_attempts", "-1", DALI_INT32}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsZero) {
   EXPECT_THROW(
-      this->RunTest({"RandomBBoxCrop", {"num_attempts", "0", DALI_INT32}},
+      this->RunBBoxesCPU({"RandomBBoxCrop", {"num_attempts", "0", DALI_INT32}},
                     addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsGreaterThanZero) {
-  this->RunTest({"RandomBBoxCrop", {"num_attempts", "1", DALI_INT32}},
+  this->RunBBoxesCPU({"RandomBBoxCrop", {"num_attempts", "1", DALI_INT32}},
                 addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleThresholdGPU) {
-  this->RunTestGPU({"RandomBBoxCrop", {"thresholds", "0.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesGPU({"RandomBBoxCrop", {"thresholds", "0.0", DALI_FLOAT_VEC}},
                    addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithMultipleThresholdsGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"thresholds", "0.0, 0.1, 1.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithoutThresholdGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"thresholds", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"thresholds", "", DALI_FLOAT_VEC}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdTooLargeFailsGPU) {
-  EXPECT_THROW(this->RunTestGPU({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesGPU({"RandomBBoxCrop",
                                  {"thresholds", "0.0, 1.1", DALI_FLOAT_VEC}},
                                 addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdTooSmallFailsGPU) {
-  EXPECT_THROW(this->RunTestGPU({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesGPU({"RandomBBoxCrop",
                                  {"thresholds", "-0.1, 1.0", DALI_FLOAT_VEC}},
                                 addImageType),
                std::runtime_error);
@@ -206,25 +206,25 @@ TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdTooSmallFailsGPU) {
 
 TYPED_TEST(RandomBBoxCropTest,
            CreateWithThresholdsProvidedInDecreasingOrderGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"thresholds", "1,0, 0.5, 0.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithThresholdsRepeatedGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"thresholds", "1,0, 1.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithAspectRatioGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"aspect_ratio", "0.0, 1.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleAspectRatioGPU) {
-  EXPECT_THROW(this->RunTestGPU(
+  EXPECT_THROW(this->RunBBoxesGPU(
                    {"RandomBBoxCrop", {"aspect_ratio", "0.0", DALI_FLOAT_VEC}},
                    addImageType),
                std::runtime_error);
@@ -232,96 +232,96 @@ TYPED_TEST(RandomBBoxCropTest, CreateWithSingleAspectRatioGPU) {
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithEmptyAspectRatioGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"aspect_ratio", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"aspect_ratio", "", DALI_FLOAT_VEC}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNegativeAspectRatioGPU) {
-  EXPECT_THROW(this->RunTestGPU({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesGPU({"RandomBBoxCrop",
                                  {"aspect_ratio", "-0.1, 1.0", DALI_FLOAT_VEC}},
                                 addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithVeryLargeAspectRatioGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"aspect_ratio", "0.0, 666.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSwappedOrderAspectRatioGPU) {
-  EXPECT_THROW(this->RunTestGPU({"RandomBBoxCrop",
+  EXPECT_THROW(this->RunBBoxesGPU({"RandomBBoxCrop",
                                  {"aspect_ratio", "1.0, 0.0", DALI_FLOAT_VEC}},
                                 addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithScalingGPU) {
-  this->RunTestGPU({"RandomBBoxCrop", {"scaling", "0.0, 1.0", DALI_FLOAT_VEC}},
+  this->RunBBoxesGPU({"RandomBBoxCrop", {"scaling", "0.0, 1.0", DALI_FLOAT_VEC}},
                    addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSingleScalingGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"scaling", "0.0", DALI_FLOAT_VEC}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"scaling", "0.0", DALI_FLOAT_VEC}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithEmptyScalingGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"scaling", "", DALI_FLOAT_VEC}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"scaling", "", DALI_FLOAT_VEC}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNegativeScalingGPU) {
-  EXPECT_THROW(this->RunTestGPU(
+  EXPECT_THROW(this->RunBBoxesGPU(
                    {"RandomBBoxCrop", {"scaling", "-0.1, 1.0", DALI_FLOAT_VEC}},
                    addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithVeryLargeScalingGPU) {
-  this->RunTestGPU(
+  this->RunBBoxesGPU(
       {"RandomBBoxCrop", {"scaling", "0.0, 666.0", DALI_FLOAT_VEC}},
       addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithSwappedOrderScalingGPU) {
-  EXPECT_THROW(this->RunTestGPU(
+  EXPECT_THROW(this->RunBBoxesGPU(
                    {"RandomBBoxCrop", {"scaling", "1.0, 0.0", DALI_FLOAT_VEC}},
                    addImageType),
                std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithLtrbGPU) {
-  this->RunTestGPU({"RandomBBoxCrop", {"ltrb", "true", DALI_BOOL}},
+  this->RunBBoxesGPU({"RandomBBoxCrop", {"ltrb", "true", DALI_BOOL}},
                    addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithXywhGPU) {
-  this->RunTestGPU({"RandomBBoxCrop", {"ltrb", "false", DALI_BOOL}},
+  this->RunBBoxesGPU({"RandomBBoxCrop", {"ltrb", "false", DALI_BOOL}},
                    addImageType);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsNegativeGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"num_attempts", "-1", DALI_INT32}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"num_attempts", "-1", DALI_INT32}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsZeroGPU) {
   EXPECT_THROW(
-      this->RunTestGPU({"RandomBBoxCrop", {"num_attempts", "0", DALI_INT32}},
+      this->RunBBoxesGPU({"RandomBBoxCrop", {"num_attempts", "0", DALI_INT32}},
                        addImageType),
       std::runtime_error);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsGreaterThanZeroGPU) {
-  this->RunTestGPU({"RandomBBoxCrop", {"num_attempts", "1", DALI_INT32}},
+  this->RunBBoxesGPU({"RandomBBoxCrop", {"num_attempts", "1", DALI_INT32}},
                    addImageType);
 }
 
