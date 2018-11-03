@@ -12,9 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/crop/slice.h"
+
+#include "dali/test/dali_test_bboxes.h"
 
 namespace dali {
 
+template <typename ImgType>
+class SliceTest : public GenericBBoxesTest<ImgType> {};
+
+typedef ::testing::Types<RGB, BGR, Gray> Types;
+TYPED_TEST_CASE(SliceTest, Types);
+
+//TYPED_TEST(SliceTest, RunCPU) {
+//  this->RunSliceCPU();
+//}
+
+TYPED_TEST(SliceTest, RunGPU) {
+  this->RunSliceGPU();
+}
 
 }  // namespace dali

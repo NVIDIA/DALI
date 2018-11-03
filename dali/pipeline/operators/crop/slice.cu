@@ -73,7 +73,10 @@ template <>
 void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
   DataDependentSetup(ws, static_cast<unsigned int>(idx));
 
-  Crop<GPUBackend>::RunImpl(ws, idx);
+  if (output_type_ == DALI_FLOAT16)
+    Crop<GPUBackend>::RunHelper<float16>(ws, idx);
+  else
+    Crop<GPUBackend>::CallRunHelper(ws, idx);
 }
 
 template <>
