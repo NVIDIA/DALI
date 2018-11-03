@@ -8,8 +8,8 @@ located in the nvutils directory. Use of nvutils is demonstrated in the model
 scripts.
 
 For parallelization, we use the Horovod distribution framework, which works in
-concert with MPI. To train ResNet-50 (--layers=50) using 8 V100 GPUs, for example on DGX-1,
-use the following command (--dali\_cpu indicates to the script to use CPU backend for DALI):
+concert with MPI. To train ResNet-50 (`--layers=50`) using 8 V100 GPUs, for example on DGX-1,
+use the following command (`--dali_cpu` indicates to the script to use CPU backend for DALI):
 
 ```
 $ mpiexec --allow-run-as-root --bind-to socket -np 8 python resnet.py \
@@ -20,7 +20,6 @@ $ mpiexec --allow-run-as-root --bind-to socket -np 8 python resnet.py \
                                                      --dali_cpu
 ```
 
-
 Here we have assumed that imagenet is stored in tfrecord format in the directory
 '/data/imagenet'. After training completes, evaluation is performed using the
 validation dataset.
@@ -30,3 +29,45 @@ be configured within the network scripts themselves.
 
 Original scripts modified from `nvidia-examples` scripts in
 [NGC TensorFlow Container](https://www.nvidia.com/en-us/gpu-cloud/deep-learning-containers/)
+
+### Requirements
+#### TensorFlow
+```
+pip install tensorflow-gpu==1.10.0
+```
+#### OpenMPI
+```
+wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz | tar -xzf
+cd openmpi-3.0.0
+./configure --enable-orterun-prefix-by-default --with-cuda --prefix=/usr/local/mpi --disable-getpwuid
+make -j"$(nproc)" install
+cd .. && rm -rf openmpi-3.0.0
+echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig
+export PATH=/usr/local/mpi/bin:$PATH
+```
+
+The following works around a segfault in OpenMPI 3.0
+when run within a single node without ssh being installed.
+
+```
+/bin/echo -e '#!/bin/bash'\
+'\ncat <<EOF'\
+'\n======================================================================'\
+'\nTo run a multi-node job, install an ssh client and clear plm_rsh_agent'\
+'\nin '/usr/local/mpi/etc/openmpi-mca-params.conf'.'\
+'\n======================================================================'\
+'\nEOF'\
+'\nexit 1' >> /usr/local/mpi/bin/rsh_warn.sh && \
+    chmod +x /usr/local/mpi/bin/rsh_warn.sh && \
+    echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
+```
+
+#### Horovod
+```
+export HOROVOD_GPU_ALLREDUCE=NCCL
+export HOROVOD_NCCL_INCLUDE=/usr/include
+export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
+export HOROVOD_NCCL_LINK=SHARED
+export HOROVOD_WITHOUT_PYTORCH=1
+pip install horovod==0.15.1
+```

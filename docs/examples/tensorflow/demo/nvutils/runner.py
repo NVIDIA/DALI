@@ -273,6 +273,7 @@ def validate(infer_func, params):
     image_format = params['image_format']
     batch_size = params['batch_size']
     data_dir = params['data_dir']
+    data_idx_dir = params['data_idx_dir']
     log_dir = params['log_dir']
     precision = params['precision']
     momentum = params['momentum']
@@ -289,7 +290,6 @@ def validate(infer_func, params):
     dali_cpu = params['dali_cpu']
 
     # Determinism is not fully supported by all TF ops.
-    # Disabling until remaining wrinkles can be ironed out.
     deterministic = False
     if deterministic:
         tf.set_random_seed(2 * (1 + hvd.rank()))
@@ -306,13 +306,21 @@ def validate(infer_func, params):
     filename_pattern = os.path.join(data_dir, '%s-*')
     eval_filenames  = sorted(tf.gfile.Glob(filename_pattern % 'validation'))
 
+    eval_idx_filenames = None
+    if data_idx_dir is not None:
+        filename_pattern = os.path.join(data_idx_dir, '%s-*')
+        eval_idx_filenames = sorted(tf.gfile.Glob(filename_pattern % 'validation'))
+    else:
+        raise ValueError("data_idx_dir must be specified")
+
+
     # Horovod: pin GPU to be used to process local rank (one GPU per process)
     config = tf.ConfigProto()
     #config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
     config.gpu_options.force_gpu_compatible = True # Force pinned memory
     config.intra_op_parallelism_threads = 1 # Avoid pool of Eigen threads
-    config.inter_op_parallelism_threads = 40 // hvd.size() - 2 # HACK TESTING
+    config.inter_op_parallelism_threads = 40 // hvd.size() - 2
 
     classifier = tf.estimator.Estimator(
         model_fn=_cnn_model_function,
@@ -353,7 +361,7 @@ def validate(infer_func, params):
                     eval_filenames, batch_size, image_height, image_width,
                     training=False, distort_color=False,
                     deterministic=deterministic,
-                    dali_cpu=dali_cpu,
+                    dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
                     num_threads=num_preproc_threads))
             print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
             print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
