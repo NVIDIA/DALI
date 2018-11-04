@@ -23,9 +23,9 @@ class SliceTest : public GenericBBoxesTest<ImgType> {};
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(SliceTest, Types);
 
-//TYPED_TEST(SliceTest, RunCPU) {
-//  this->RunSliceCPU();
-//}
+TYPED_TEST(SliceTest, RunCPU) {
+  this->RunSliceCPU();
+}
 
 TYPED_TEST(SliceTest, RunGPU) {
   this->RunSliceGPU();
