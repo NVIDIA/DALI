@@ -17,50 +17,53 @@
 namespace dali {
 
 template <>
-void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, unsigned int idx) {
-  auto &images = ws->Input<GPUBackend>(idx);
-  DALI_ENFORCE(IsType<uint8>(images.type()), "Expected input data as uint8.");
+void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
+                                           unsigned int idx) {
+  // Assumes xywh
+  const auto &input = ws->Input<GPUBackend>(idx);
 
-  auto &anchors = ws->Input<GPUBackend>(idx + 1);
-  auto &sizes = ws->Input<GPUBackend>(idx + 2);
+  TensorList<CPUBackend> begin;
+  begin.Copy(ws->Input<GPUBackend>(idx + 1), ws->stream());
 
-  std::vector<Dims> output_shape(static_cast<unsigned long>(batch_size_));
+  TensorList<CPUBackend> size;
+  size.Copy(ws->Input<GPUBackend>(idx + 2), ws->stream());
+
+  std::vector<Dims> output_shape(batch_size_);
 
   for (int i = 0; i < batch_size_; i++) {
-    const auto input_shape = images.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
+    auto H = input.tensor_shape(i)[0];
+    auto W = input.tensor_shape(i)[1];
+    auto C = input.tensor_shape(i)[2];
 
-    const auto H = static_cast<unsigned int>(input_shape[1]);
-    DALI_ENFORCE(H > 0, "Expected Height > 0. Received: " + std::to_string(H));
-    const auto W = static_cast<unsigned int>(input_shape[1]);
-    DALI_ENFORCE(W > 0, "Expected Width > 0. Received: " + std::to_string(W));
-    const auto C = static_cast<unsigned int>(input_shape[2]);
-    DALI_ENFORCE(W > 0, "Expected Channels == 1 || Channels == 3. Received: " + std::to_string(C));
+    crop_width_[i] = static_cast<int>(size.template data<float>()[0]);
+    crop_height_[i] = static_cast<int>(size.template data<float>()[1]);
 
-    auto anchor = anchors.template tensor<float>(i);
-    const auto x = static_cast<unsigned int>(anchor[0]) * W;
-    const auto y = static_cast<unsigned int>(anchor[1]) * H;
+    per_sample_dimensions_[i] = std::make_pair(H, W);
 
-    input_strides_.template mutable_data<int>()[i] = static_cast<int>(C * W);
+    auto crop_y = static_cast<int>(begin.template data<float>()[1]);
+    auto crop_x = static_cast<int>(begin.template data<float>()[0]);
 
-    const unsigned int crop_stride = (y * W + x) * C;
+    per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
 
-    input_ptrs_.template mutable_data<const uint8 *>()[i] =
-        images.template tensor<uint8>(i) + crop_stride;
-
-    auto size = sizes.template tensor<float>(i);
-
-    crop_width_[i] = static_cast<int>(size[0]);
-    crop_height_[i] = static_cast<int>(size[1]);
+    input_strides_.template mutable_data<int>()[i] = static_cast<int>(W * C);
+    crop_offsets_[i] = static_cast<int>((crop_y * W + crop_x) * C);
 
     DALITensorLayout outLayout;
-    output_shape[i] = GetOutShape(images.GetLayout(), &outLayout, i);
+    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, idx);
   }
 
   auto output = ws->Output<GPUBackend>(idx);
 
   output->Resize(output_shape);
-  output->SetLayout(output_layout_ == DALI_SAME ? images.GetLayout() : output_layout_);
+  output->SetLayout(output_layout_ == DALI_SAME
+                        ? ws->Input<GPUBackend>(idx).GetLayout()
+                        : output_layout_);
+
+  // Calculate input pointers and copy to gpu
+  for (int i = 0; i < batch_size_; ++i) {
+    input_ptrs_.template mutable_data<const uint8 *>()[i] =
+        input.template tensor<uint8>(i) + crop_offsets_[i];
+  }
 
   input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
   input_strides_gpu_.Copy(input_strides_, ws->stream());
@@ -71,12 +74,30 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, unsigned int idx
 
 template <>
 void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
-  DataDependentSetup(ws, static_cast<unsigned int>(idx));
+  DataDependentSetup(ws, idx);
 
-  if (output_type_ == DALI_FLOAT16)
-    Crop<GPUBackend>::RunHelper<float16>(ws, idx);
-  else
-    Crop<GPUBackend>::CallRunHelper(ws, idx);
+  switch (output_type_) {
+    case DALI_FLOAT16:
+      RunHelper<float16>(ws, idx);
+      break;
+    case DALI_FLOAT:
+      RunHelper<float>(ws, idx);
+      break;
+    case DALI_UINT8:
+      RunHelper<unsigned char>(ws, idx);
+      break;
+    case DALI_INT16:
+      RunHelper<int16>(ws, idx);
+      break;
+    case DALI_INT32:
+      RunHelper<int>(ws, idx);
+      break;
+    case DALI_INT64:
+      RunHelper<int64>(ws, idx);
+      break;
+    default:
+      DALI_FAIL("Unsupported output type.");
+  }
 }
 
 template <>

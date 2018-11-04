@@ -103,9 +103,10 @@ class Crop : public Operator<Backend>, protected CropAttr {
       return {crop_height_[dataIdx], crop_width_[dataIdx], C_};
   }
 
- private:
   template <typename Out>
   void RunHelper(Workspace<Backend> *ws, int idx);
+
+ private:
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
   template <typename Out>
   void ValidateHelper(TensorList<Backend> *output);
