@@ -15,6 +15,10 @@
 #ifndef DALI_COMMON_H_
 #define DALI_COMMON_H_
 
+#ifdef __clang__
+#error "FAILED IN CLANG"
+#endif
+
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_profiler_api.h>
