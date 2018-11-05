@@ -57,8 +57,6 @@ tf::TensorShape DaliToShape(int64_t* ns) {
   return ts;
 }
 
-#define NUM_DIMS 4
-
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
   .Attr("shapes: list(shape) >= 1")
@@ -72,12 +70,16 @@ REGISTER_OP("Dali")
     // define shape for the first output
     std::vector<tf::PartialTensorShape> shapes;
     TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-    tf::shape_inference::ShapeHandle passed_shape;
-    TF_RETURN_IF_ERROR(
-        c->MakeShapeFromPartialTensorShape(shapes[0], &passed_shape));
-    TF_RETURN_IF_ERROR(
-        c->WithRank(passed_shape, NUM_DIMS, &passed_shape));
-    c->set_output(0, passed_shape);
+    for (unsigned i = 0; i < shapes.size(); ++i) {
+      if (shapes[i].dims() > 0) {
+        tf::shape_inference::ShapeHandle passed_shape;
+        TF_RETURN_IF_ERROR(
+            c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
+        TF_RETURN_IF_ERROR(
+            c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+        c->set_output(i, passed_shape);
+      }
+    }
     return tf::Status::OK();
   })
   .Doc(R"doc(
@@ -169,27 +171,27 @@ class DaliOp : public tf::OpKernel {
                              Clock::now() - s).count();
 
     s = Clock::now();
-    for (unsigned i =0; i < data_output_tensors.size(); ++i) {
+    for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
       switch (types_[i]) {
         case tf::DT_FLOAT:
           TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
               reinterpret_cast<void*>(data_output_tensors[i]->flat<float>().data()),
-              0));
+              i));
           break;
         case tf::DT_INT32:
           TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
               reinterpret_cast<void*>(data_output_tensors[i]->flat<int>().data()),
-              0));
+              i));
           break;
         case tf::DT_INT64:
           TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
               reinterpret_cast<void*>(data_output_tensors[i]->flat<tf::int64>().data()),
-              0));
+              i));
           break;
         case tf::DT_HALF:
           TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
               reinterpret_cast<void*>(data_output_tensors[i]->flat<unsigned short>().data()),
-              0));
+              i));
           break;
         default:
           break;

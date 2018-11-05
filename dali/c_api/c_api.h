@@ -72,7 +72,7 @@ extern "C" {
   /**
    * @brief Returns number of DALI pipeline outputs
    */
-  DLL_PUBLIC int daliGetNumOutput(daliPipelineHandle* pipe_handle) ;
+  DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) ;
   /**
    * @brief Copy the output tensor stored
    * at position `n` in the pipeline.

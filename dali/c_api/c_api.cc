@@ -86,7 +86,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
   return c_shape;
 }
 
-int daliGetNumOutput(daliPipelineHandle* pipe_handle) {
+unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   return ws->NumOutput();
 }
