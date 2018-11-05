@@ -12,8 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <tuple>
+
 #include "dali/pipeline/operators/crop/crop.h"
 #include "dali/image/transform.h"
+#include "dali/pipeline/basic/coords.h"
+#include "dali/pipeline/basic/crop.h"
+#include "dali/pipeline/basic/tensor.h"
+#include "dali/pipeline/basic/type_switch.h"
 #include "dali/util/half.hpp"
 
 namespace dali {
@@ -71,58 +77,9 @@ const vector<Index> CropAttr::CheckShapes(const SampleWorkspace *ws) {
   return input.shape();
 }
 
-
-template<>
+template <>
 Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
   Init(num_threads_);
-}
-
-template <typename Out>
-void CropKernel(const int C, const int H, const int W, const unsigned char *input_ptr,
-                const int in_stride, DALITensorLayout output_layout, Out *output_ptr) {
-  if (output_layout == DALI_NCHW) {
-    for (int c = 0; c < C; ++c) {
-      for (int h = 0; h < H; ++h) {
-        for (int w = 0; w < W; ++w) {
-          // From HWC
-          const int in_idx = h * in_stride + w * C + c;
-          // To CHW
-          const int out_idx = (c * H + h) * W + w;
-          output_ptr[out_idx] = static_cast<Out>(input_ptr[in_idx]);
-        }
-      }
-    }
-  } else {  // Layout == DALI_NHWC
-    for (int c = 0; c < C; ++c) {
-      for (int h = 0; h < H; ++h) {
-        for (int w = 0; w < W; ++w) {
-          // From HWC
-          const int in_idx = h * in_stride + w * C + c;
-          // To HWC
-          const int out_idx = (h * W + w) * C + c;
-          output_ptr[out_idx] = static_cast<Out>(input_ptr[in_idx]);
-        }
-      }
-    }
-  }
-}
-
-template <>
-template <typename Out>
-void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
-
-  const int threadIdx = ws->thread_idx();
-  const int W = per_sample_dimensions_[threadIdx].second;
-
-  const int crop_y = per_sample_crop_[threadIdx].first;
-  const int crop_x = per_sample_crop_[threadIdx].second;
-
-  const int dataIdx = ws->data_idx();
-  CropKernel<Out>(C_, crop_height_[dataIdx], crop_width_[dataIdx],
-                  input.template data<uint8>() + (crop_y * W + crop_x) * C_,
-                  W * C_, output_layout_, output->template mutable_data<Out>());
 }
 
 template <>
@@ -130,16 +87,48 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto *output = ws->Output<CPUBackend>(idx);
 
-  DALITensorLayout outLayout;
-  output->Resize(GetOutShape(input.GetLayout(), &outLayout, ws->data_idx()));
+  DALITensorLayout outLayout = output_layout_ == DALI_SAME ? input.GetLayout() : output_layout_;
   output->SetLayout(outLayout);
+  // output->Resize(GetOutShape(input.GetLayout(), &outLayout));
+  auto layout_id = layoutToTypeId(output->GetLayout());
+  using CropOutputTypes = std::tuple<uint8_t, int16_t, int32_t, int64_t, float>;
+  using CropOutputPermTypes =
+      std::tuple<dali_index_sequence<0, 1, 2>, dali_index_sequence<2, 0, 1>>;
 
   // Check if we use u8, RGB or Greyscale
   CheckParam(input, "CropCPUBackend");
-  if (output_type_ == DALI_FLOAT16)
-    RunHelper<half_float::half>(ws, idx);
-  else
-    CallRunHelper(ws, idx);
+
+  const int threadIdx = ws->thread_idx();
+  const int h_start = per_sample_crop_[threadIdx].first;
+  const int w_start = per_sample_crop_[threadIdx].second;
+
+  const int dataIdx = ws->data_idx();
+  // TODO(klecki): currently float16 on CPU is probably broken as far as TypeInfo is considered
+  if (output_type_ == DALI_FLOAT16) {
+    if (output->GetLayout() == DALITensorLayout::DALI_NHWC) {
+      basic::CropSizeHelper<half_float::half, dali_index_sequence<0, 1, 2>>::Run(
+          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+    } else {
+      basic::CropSizeHelper<half_float::half, dali_index_sequence<2, 0, 1>>::Run(
+          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+    }
+  } else {
+    type_switch<basic::CropSizeHelper, CropOutputTypes, CropOutputPermTypes>::Run(
+        output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+  }
+
+  if (output_type_ == DALI_FLOAT16) {
+    if (output->GetLayout() == DALITensorLayout::DALI_NHWC) {
+      basic::CropRunHelper<half_float::half, dali_index_sequence<0, 1, 2>>::Run(
+          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+    } else {
+      basic::CropRunHelper<half_float::half, dali_index_sequence<2, 0, 1>>::Run(
+          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+    }
+  } else {
+    type_switch<basic::CropRunHelper, CropOutputTypes, CropOutputPermTypes>::Run(
+        output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+  }
 }
 
 template <>
