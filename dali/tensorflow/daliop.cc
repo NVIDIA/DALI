@@ -172,30 +172,27 @@ class DaliOp : public tf::OpKernel {
 
     s = Clock::now();
     for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
+      void *dst = nullptr;
       switch (types_[i]) {
         case tf::DT_FLOAT:
-          TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-              reinterpret_cast<void*>(data_output_tensors[i]->flat<float>().data()),
-              i));
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<float>().data());
           break;
         case tf::DT_INT32:
-          TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-              reinterpret_cast<void*>(data_output_tensors[i]->flat<int>().data()),
-              i));
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int>().data());
           break;
         case tf::DT_INT64:
-          TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-              reinterpret_cast<void*>(data_output_tensors[i]->flat<tf::int64>().data()),
-              i));
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<tf::int64>().data());
           break;
         case tf::DT_HALF:
-          TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-              reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data()),
-              i));
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data());
           break;
         default:
+          context->CtxFailure(__FILE__, __LINE__,
+            tf::errors::InvalidArgument("Unsupported type: " + tf::DataTypeString(types_[i]) +
+                                        "for tensor " + std::to_string(i)));
           break;
       }
+      TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i));
     }
     int64_t copy_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
