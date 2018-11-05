@@ -190,7 +190,7 @@ class DaliOp : public tf::OpKernel {
           break;
         case tf::DT_HALF:
           TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_,
-              reinterpret_cast<void*>(data_output_tensors[i]->flat<unsigned short>().data()),
+              reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data()),
               i));
           break;
         default:
