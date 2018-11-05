@@ -23,7 +23,7 @@ __global__ void BatchedCropKernel(const int C, const int* height, const int* wid
                                   const uint8 *const *img_ptrs,
                                   const int *in_strides,
                                   DALITensorLayout layout, Out *out) {
-  const int n = blockIdx.x;
+  const int n = blockIdx.x + threadIdx.x;
   const int W = width[n];
   const int H = height[n];
   const int in_stride = in_strides[n];
