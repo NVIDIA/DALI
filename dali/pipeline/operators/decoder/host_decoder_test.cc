@@ -118,7 +118,17 @@ TYPED_TEST(WIPDecoderTest, SequenceTest) {
       .AddInput("meta", "cpu")
       .AddOutput("decoded", "cpu"));
 
-  std::vector<std::pair<string, string>> outputs = {{"decoded", "cpu"}};
+  pipe.AddOperator(
+      OpSpec("SeqCrop")
+      .AddArg("device", "cpu")
+      .AddArg("image_type", DALI_RGB)
+      .AddArg("crop", 256)
+      .AddInput("decoded", "cpu")
+      .AddOutput("cropped", "cpu")
+  );
+
+
+  std::vector<std::pair<string, string>> outputs = {{"cropped", "cpu"}};
   pipe.Build(outputs);
 
   DeviceWorkspace ws;

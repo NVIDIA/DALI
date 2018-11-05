@@ -70,7 +70,7 @@ class CropAttr {
    * @param ws
    * @return const vector<Index> One matching shape for all inputs
    */
-  const vector<Index> CheckShapes(const SampleWorkspace *ws);
+  virtual const vector<Index> CheckShapes(const SampleWorkspace *ws);
 
   vector<int> crop_height_;
   vector<int> crop_width_;
@@ -159,7 +159,9 @@ class Crop : public Operator<Backend>, protected CropAttr {
   vector<int> crop_offsets_;
 
  protected:
+  // Crop starting position (in input)
   std::vector<std::pair<int, int>> per_sample_crop_;
+  // Input dims
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
   // Output data type
