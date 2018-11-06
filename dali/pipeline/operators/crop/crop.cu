@@ -28,7 +28,11 @@ __global__ void BatchedCropKernel(const int C, const int* height, const int* wid
   const int H = height[n];
   const int in_stride = in_strides[n];
   const uint8 *input_ptr = img_ptrs[n];
-  Out *output_ptr = out + (n * C * H * W);
+
+  Out *output_ptr = out;
+  for (int i = 0; i < n; i++) {
+    out += (C * height[i] * width[i]);
+  }
 
   if (layout == DALI_NCHW) {
     for (int c = 0; c < C; ++c) {
