@@ -85,7 +85,6 @@ enum DALIImageType {
  * @brief Supported tensor layouts
  */
 enum DALITensorLayout {
-  DALI_NONE = -1,
   DALI_NCHW = 0,
   DALI_NHWC = 1,
   DALI_SAME = 2
