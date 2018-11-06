@@ -36,8 +36,8 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
   const auto &input = ws->Input<CPUBackend>(0);
   const auto &begin = ws->Input<CPUBackend>(1);
 
-  auto H = static_cast<const int>(input.shape()[0]);
-  auto W = static_cast<const int>(input.shape()[1]);
+  const auto H = static_cast<const int>(input.shape()[0]);
+  const auto W = static_cast<const int>(input.shape()[1]);
 
   const auto &size = ws->Input<CPUBackend>(2);
 
@@ -48,8 +48,8 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  auto crop_y = static_cast<const int>(begin.template data<float>()[1]);
-  auto crop_x = static_cast<const int>(begin.template data<float>()[0]);
+  const auto crop_y = static_cast<const int>(begin.template data<float>()[1]);
+  const auto crop_x = static_cast<const int>(begin.template data<float>()[0]);
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }
