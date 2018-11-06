@@ -17,7 +17,8 @@
 namespace dali {
 
 DALI_SCHEMA(Slice)
-    .DocStr(R"code(Crop as slice of a defined `size` from an `input` tensor, staring
+    .DocStr(
+        R"code(Crop as slice of a defined `size` from an `input` tensor, staring
     at the location specified by `begin`. Inputs must be supplied as 3 Tensors in a
     specific order: `Images` containing image data in NHWC format, `Begin` containing
     the starting pixel coordinates for the `crop` in `(x,y)` format, and 'Size' containing
@@ -40,8 +41,10 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
 
   const auto &size = ws->Input<CPUBackend>(2);
 
-  crop_width_[ws->data_idx()] = static_cast<int>(size.template data<float>()[0]);
-  crop_height_[ws->data_idx()] = static_cast<int>(size.template data<float>()[1]);
+  crop_width_[ws->data_idx()] =
+      static_cast<int>(size.template data<float>()[0]);
+  crop_height_[ws->data_idx()] =
+      static_cast<int>(size.template data<float>()[1]);
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 

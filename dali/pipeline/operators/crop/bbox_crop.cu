@@ -99,7 +99,7 @@ void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   boxes_out.reserve(static_cast<unsigned long>(batch_size_));
 
   auto &images = ws->Input<GPUBackend>(idx);
-  const auto &boxes = ws->Input<CPUBackend>(idx+1);
+  const auto &boxes = ws->Input<CPUBackend>(idx + 1);
 
   for (int i = 0; i < batch_size_; ++i) {
     const auto box_count = boxes.tensor_shape(i)[0];

@@ -17,10 +17,14 @@
 namespace dali {
 
 template <>
-void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, unsigned int idx) {
+void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
+                                           unsigned int idx) {
   // Assumes xywh
   const auto &input = ws->Input<GPUBackend>(idx);
 
+  // Need to copy to CPU as these values are required to perform other
+  // calculations. Far from ideal, and should be done properly once Crop op
+  // is cleaned up
   TensorList<CPUBackend> begin;
   begin.Copy(ws->Input<GPUBackend>(idx + 1), ws->stream());
 
@@ -31,13 +35,13 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, unsigned int idx
     auto H = static_cast<int>(input.tensor_shape(i)[0]);
     auto W = static_cast<int>(input.tensor_shape(i)[1]);
 
-    crop_width_[i] = static_cast<int>(size.template data<float>()[i*2]);
-    crop_height_[i] = static_cast<int>(size.template data<float>()[i*2+1]);
+    crop_width_[i] = static_cast<int>(size.template data<float>()[i * 2]);
+    crop_height_[i] = static_cast<int>(size.template data<float>()[i * 2 + 1]);
 
     per_sample_dimensions_[i] = std::make_pair(H, W);
 
-    auto crop_x = static_cast<int>(begin.template data<float>()[i*2]);
-    auto crop_y = static_cast<int>(begin.template data<float>()[i*2+1]);
+    auto crop_x = static_cast<int>(begin.template data<float>()[i * 2]);
+    auto crop_y = static_cast<int>(begin.template data<float>()[i * 2 + 1]);
 
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
   }
@@ -45,7 +49,7 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, unsigned int idx
 
 template <>
 void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
-  DataDependentSetup(ws, idx);
+  DataDependentSetup(ws, static_cast<unsigned int>(idx));
 
   Crop<GPUBackend>::RunImpl(ws, idx);
 }
