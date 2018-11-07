@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 #include <queue>
+#include <unordered_map>
 
 #include <cuda.h>
 

@@ -86,7 +86,7 @@ NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
                      AVRational time_base)
     : device_id_{device_id}, stream_{device_id, false}, codecpar_{codecpar},
-      device_{}, context_{}, parser_{}, decoder_{logger},
+      device_{}, context_{}, parser_{}, decoder_{},
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32), // 32 is cuvid's max number of decode surfaces
       recv_queue_{}, frame_queue_{}, output_queue_{},
@@ -112,7 +112,7 @@ NvDecoder::NvDecoder(int device_id,
                   << device_id_ << ", not initializing VideoDecoder\n";
         return;
     }
-    log_.info() << "Using device: " << device_name << std::endl;
+    LOG_LINE << "Using device: " << device_name << std::endl;
 
     try {
         auto nvml_ret = nvmlInit();
@@ -131,17 +131,17 @@ NvDecoder::NvDecoder(int device_id,
         }
         auto nvmod_version = std::stof(nvmod_version_string);
         if (nvmod_version < 384.0f) {
-            log_.info() << "Older kernel module version " << nvmod_version
+            LOG_LINE << "Older kernel module version " << nvmod_version
                         << " so using the default stream."
                         << std::endl;
             use_default_stream();
         } else {
-            log_.info() << "Kernel module version " << nvmod_version
+            LOG_LINE << "Kernel module version " << nvmod_version
                         << ", so using our own stream."
                         << std::endl;
         }
     } catch(const std::exception& e) {
-        log_.warn() << "Unable to get nvidia kernel module version from NVML, "
+        LOG_LINE << "Unable to get nvidia kernel module version from NVML, "
                     << "conservatively assuming it is an older version.\n"
                     << "The error was: " << e.what()
                     << std::endl;
@@ -268,7 +268,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
         if (done_) return 0;
     }
 
-    log_.info() << "Sending a picture for decode"
+    LOG_LINE << "Sending a picture for decode"
                 << " size: " << pic_params->nBitstreamDataLen
                 << " pic index: " << pic_params->CurrPicIdx
                 << std::endl;
@@ -382,8 +382,8 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
             // since the decoder is created in that loop, not worth
             // the hassle on the tiny chance we are throwing way good
             // frames here.
-            log_.info() << "Ditching frame " << frame << " since "
-                        << "the receive queue is empty." << std::endl;
+            LOG_LINE << "Ditching frame " << frame << " since "
+                    << "the receive queue is empty." << std::endl;
             return 1;
         }
         // std::cout << "Moving on to next request, " << recv_queue_.size()
@@ -396,7 +396,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     if (current_recv_.count <= 0) {
         // a new req with count <= 0 probably means we are finishing
         // up and should just ditch this frame
-        log_.info() << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
+        LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
         return 1;
     }
 
@@ -440,6 +440,7 @@ void NvDecoder::push_req(FrameReq req) {
 }
 
 void NvDecoder::receive_frames(PictureSequence& sequence) {
+    // TODO
     output_queue_.push(&sequence);
 }
 
@@ -505,9 +506,9 @@ void NvDecoder::convert_frames() {
         auto& sequence = *output_queue_.pop();
         if (done_) break;
         for (int i = 0; i < sequence.count(); ++i) {
-            log_.debug() << "popping frame (" << i << "/" << sequence.count() << ") "
-                         << frame_queue_.size() << " reqs left"
-                         << std::endl;
+            LOG_LINE << "popping frame (" << i << "/" << sequence.count() << ") "
+                        << frame_queue_.size() << " reqs left"
+                        << std::endl;
             auto frame = MappedFrame{frame_queue_.pop(), decoder_, stream_};
             if (done_) break;
             convert_frame(frame, sequence, i);
@@ -515,7 +516,7 @@ void NvDecoder::convert_frames() {
         if (done_) break;
         record_sequence_event_(sequence);
     }
-    log_.info() << "Leaving convert frames" << std::endl;
+    LOG_LINE << "Leaving convert frames" << std::endl;
 }
 
 void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequence,
@@ -523,6 +524,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequenc
     auto input_width = decoder_.width();
     auto input_height = decoder_.height();
 
+// TODO
     foreach_layer(sequence, [&](auto& l) -> void {
             auto output_idx = index;
             if (!l.index_map.empty()) {
@@ -541,6 +543,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequenc
                                                 input_height,
                                                 l.desc.scale_method,
                                                 l.desc.chroma_up_method);
+            // Change l to Tensor<GPU>
             process_frame(textures.chroma, textures.luma,
                           l, output_idx, stream_,
                           input_width, input_height);
@@ -562,6 +565,7 @@ void NvDecoder::finish() {
 
 // This has to be here since Decoder is the only friend of PictureSequence
 void Decoder::record_sequence_event_(PictureSequence& sequence) {
+    // TODO
     sequence.pImpl->event_.record(stream_);
     sequence.pImpl->set_started_(true);
 }
