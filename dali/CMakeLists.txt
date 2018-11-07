@@ -49,6 +49,10 @@ if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
 endif()
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
+# Options for using Dockerfile FFmpeg version
+target_compile_definitions(${dali_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(${dali_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
+
 # Define symbol version script for libdali.so
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(dali_lib_exports "lib${dali_lib}.map")

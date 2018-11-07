@@ -150,6 +150,31 @@ list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
 # hide things from the protobuf, all we export is only is API generated from our proto files
 list(APPEND DALI_EXCLUDES libprotobuf.a)
 
+
+##################################################################
+# FFmpeg
+##################################################################
+find_package(PkgConfig REQUIRED)
+foreach(m avformat avcodec avfilter avutil)
+    string(TOUPPER ${m} M)
+    #pkg_check_modules(${m} REQUIRED IMPORTED_TARGET lib${m})
+    pkg_check_modules(${m} REQUIRED lib${m})
+    list(APPEND FFmpeg_LIBS ${m})
+    #list(APPEND FFmpeg_LIBS PkgConfig::${m})
+endforeach(m)
+
+# TODO check set(CMAKE_REQUIRED_INCLUDES ${avformat_INCLUDE_DIRS})
+include_directories(${avformat_INCLUDE_DIRS})
+# TODO check if set(CMAKE_REQUIRED_LIBRARIES ${avformat_LIBRARIES})
+# optional?
+list(APPEND DALI_LIBS ${avformat_LIBRARIES})
+# CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
+set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
+#check_type_size("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
+
+# nvcuvid cuda and nvidia-ml from the driver
+list(APPEND DALI_LIBS ${FFmpeg_LIBS} nvcuvid cuda)
+
 ##################################################################
 # Exclude stdlib
 ##################################################################

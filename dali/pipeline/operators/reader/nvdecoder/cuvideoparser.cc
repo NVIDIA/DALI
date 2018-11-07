@@ -12,31 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
-#define DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 
-#include "dali/common.h"
-#include "dali/error_handling.h"
 
 namespace dali {
-/**
- * Simple RAII device handling:
- * Switch to new device on construction, back to old
- * device on destruction
- */
-class DeviceGuard {
- public:
-  explicit DeviceGuard(int new_device) {
-    CUDA_CALL(cudaGetDevice(&original_device_));
-    CUDA_CALL(cudaSetDevice(new_device));
-  }
-  ~DeviceGuard() noexcept(false) {
-    CUDA_CALL(cudaSetDevice(original_device_));
-  }
- private:
-  int original_device_;
-};
 
 }  // namespace dali
-
-#endif  // DALI_PIPELINE_UTIL_DEVICE_GUARD_H_

@@ -12,31 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
-#define DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#ifndef DALI_PIPELINE_OPERATORS_READER_NVDECODER_IMGPROC_H_
+#define DALI_PIPELINE_OPERATORS_READER_NVDECODER_IMGPROC_H_
+
 
 #include "dali/common.h"
-#include "dali/error_handling.h"
+#include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 
 namespace dali {
-/**
- * Simple RAII device handling:
- * Switch to new device on construction, back to old
- * device on destruction
- */
-class DeviceGuard {
- public:
-  explicit DeviceGuard(int new_device) {
-    CUDA_CALL(cudaGetDevice(&original_device_));
-    CUDA_CALL(cudaSetDevice(new_device));
-  }
-  ~DeviceGuard() noexcept(false) {
-    CUDA_CALL(cudaSetDevice(original_device_));
-  }
- private:
-  int original_device_;
-};
+
+template<typename T>
+DLL_PUBLIC void process_frame(
+    cudaTextureObject_t chroma, cudaTextureObject_t luma,
+    SequenceWrapper& output, int index, cudaStream_t stream,
+    uint16_t input_width, uint16_t input_height);
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#endif  // DALI_PIPELINE_OPERATORS_READER_NVDECODER_IMGPROC_H_

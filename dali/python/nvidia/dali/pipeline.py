@@ -115,7 +115,7 @@ class Pipeline(object):
         """
 
         if not self._built:
-            raise RuntimeError("Pipeline must be builti first.")
+            raise RuntimeError("Pipeline must be built first.")
         if name is not None:
             return self._pipe.epoch_size(name)
         return self._pipe.epoch_size()

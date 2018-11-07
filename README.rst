@@ -119,6 +119,29 @@ Prerequisites
    Items marked *"unofficial"* are community contributions that are
    believed to work but not officially tested or maintained by NVIDIA.
 
+.. note::
+
+   This software uses code of FFmpeg licensed under the LGPLv2.1 and its source can be downloaded https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
+
+   FFmpeg was compiled using the following command line:
+
+.. code-block:: bash
+
+   ./configure \
+     --prefix=/usr/local \
+     --disable-static \
+     --disable-all \
+     --disable-autodetect \
+     --disable-iconv \
+     --enable-shared \
+     --enable-avformat \
+     --enable-avcodec \
+     --enable-avfilter \
+     --enable-protocol=file \
+     --enable-demuxer=mov,matroska \
+     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+     make
+
 Get the DALI source
 ^^^^^^^^^^^^^^^^^^^
 

@@ -12,31 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
-#define DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#ifndef DALI_UTIL_CUCONTEXT_H_
+#define DALI_UTIL_CUCONTEXT_H_
 
-#include "dali/common.h"
-#include "dali/error_handling.h"
+#include <cuda.h>
 
 namespace dali {
-/**
- * Simple RAII device handling:
- * Switch to new device on construction, back to old
- * device on destruction
- */
-class DeviceGuard {
+
+class CUContext {
  public:
-  explicit DeviceGuard(int new_device) {
-    CUDA_CALL(cudaGetDevice(&original_device_));
-    CUDA_CALL(cudaSetDevice(new_device));
-  }
-  ~DeviceGuard() noexcept(false) {
-    CUDA_CALL(cudaSetDevice(original_device_));
-  }
+  CUContext();
+  explicit CUContext(CUdevice device, unsigned int flags = 0);
+  ~CUContext();
+
+  // no copying
+  CUContext(const CUContext&) = delete;
+  CUContext& operator=(const CUContext&) = delete;
+
+  CUContext(CUContext&& other);
+  CUContext& operator=(CUContext&& other);
+
+  operator CUcontext() const;
+
+  void push() const;
+  bool initialized() const;
  private:
-  int original_device_;
+  CUdevice device_;
+  CUcontext context_;
+  bool initialized_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#endif  // DALI_UTIL_CUCONTEXT_H_
