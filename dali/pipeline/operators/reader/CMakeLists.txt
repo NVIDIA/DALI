@@ -14,6 +14,7 @@
 
 add_subdirectory(loader)
 add_subdirectory(parser)
+add_subdirectory(nvdecoder)
 
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_op.cc")
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
