@@ -72,16 +72,13 @@ void RandomBBoxCrop<GPUBackend>::WriteBoxesToOutput(
   float *boxes_out_data = boxes.template mutable_data<float>();
 
   for (int i = 0; i < batch_size_; ++i) {
-    for (size_t j = 0; j < bounding_boxes[i].size(); j++) {
-      boxes_out_data[0] = bounding_boxes[i][j].left;
-      boxes_out_data[1] = bounding_boxes[i][j].top;
-      boxes_out_data[2] =
-          ltrb_ ? bounding_boxes[i][j].right
-                : bounding_boxes[i][j].right - bounding_boxes[i][j].left;
-      boxes_out_data[3] =
-          ltrb_ ? bounding_boxes[i][j].bottom
-                : bounding_boxes[i][j].bottom - bounding_boxes[i][j].top;
-
+    const auto box_count = boxes_shape[i][0];
+    for (int j = 0; j < box_count; j++) {
+      auto box = bounding_boxes[i][j];
+      boxes_out_data[0] = box.left;
+      boxes_out_data[1] = box.top;
+      boxes_out_data[2] = ltrb_ ? box.right : box.right - box.left;
+      boxes_out_data[3] = ltrb_ ? box.bottom : box.bottom - box.top;
       boxes_out_data += kBboxSize;
     }
   }
@@ -101,17 +98,24 @@ void RandomBBoxCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   auto &images = ws->Input<GPUBackend>(idx);
   const auto &boxes = ws->Input<CPUBackend>(idx + 1);
 
+  auto *box_data = boxes.data<float>();
+
+  auto box_offset = 0;
+
   for (int i = 0; i < batch_size_; ++i) {
     const auto box_count = boxes.tensor_shape(i)[0];
-    const auto box_size = boxes.tensor_shape(i)[1];
+
+    DALI_ENFORCE(boxes.tensor_shape(i)[1] == kBboxSize);
 
     BoundingBoxes bounding_boxes;
     bounding_boxes.reserve(static_cast<unsigned long>(box_count));
 
-    for (int j = 0; j < box_count; j += box_size) {
-      const auto *box = boxes.data<float>() + (j * kBboxSize);
+    for (int j = 0; j < box_count; j++) {
+      auto box = box_data + box_offset;
       // ltrb expected
       bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
+
+      box_offset += 4;
     }
 
     const ImageShape image_shape(images.tensor_shape(i));

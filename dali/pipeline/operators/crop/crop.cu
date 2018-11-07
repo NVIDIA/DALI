@@ -133,7 +133,6 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
   DALITensorLayout outLayout;
-  const Dims out_shape = GetOutShape(input.GetLayout(), &outLayout, idx);
 
   std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
@@ -159,7 +158,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
     input_strides_.template mutable_data<int>()[i] = W * C;
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
-    output_shape[i] = out_shape;
+    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, i);
   }
 
   output->Resize(output_shape);

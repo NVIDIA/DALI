@@ -98,32 +98,28 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->Outputs(&ws);
   }
 
-  void RunSliceGPU() {
+  const std::vector<TensorList<CPUBackend>*> RunSliceGPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    TensorList<CPUBackend> encoded_data;
-    this->EncodedJPEGData(&encoded_data);
-    TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size);
-    this->SetExternalInputs({{"encoded", &encoded_data}, {"boxes", &boxes}});
+    this->SetExternalInputs(inputs);
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
 
-    // Decode the images
-    pipe->AddOperator(OpSpec("nvJPEGDecoder")
-                          .AddArg("device", "mixed")
-                          .AddArg("output_type", this->img_type_)
-                          .AddArg("use_batched_decode", true)
-                          .AddInput("encoded", "cpu")
-                          .AddOutput("decoded", "gpu"));
+//    // Decode the images
+//    pipe->AddOperator(OpSpec("nvJPEGDecoder")
+//                          .AddArg("device", "mixed")
+//                          .AddArg("output_type", this->img_type_)
+//                          .AddArg("use_batched_decode", true)
+//                          .AddInput("encoded", "cpu")
+//                          .AddOutput("decoded", "gpu"));
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "gpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("decoded", "gpu")
+                          .AddInput("images", "gpu")
                           .AddInput("boxes", "cpu")
                           .AddOutput("begin", "gpu")
                           .AddOutput("crop", "gpu")
@@ -133,7 +129,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->AddOperator(OpSpec("Slice")
                           .AddArg("device", "gpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("decoded", "gpu")
+                          .AddInput("images", "gpu")
                           .AddInput("begin", "gpu")
                           .AddInput("crop", "gpu")
                           .AddOutput("cropped_images", "gpu"));
@@ -145,6 +141,15 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
+
+    auto images_cpu = this->CopyToHost(*ws.Output<GPUBackend>(0))[0];
+    images_cpu->SetLayout(ws.Output<GPUBackend>(0)->GetLayout());
+
+    auto boxes_cpu = this->CopyToHost(*ws.Output<GPUBackend>(1))[0];
+    boxes_cpu->SetLayout(ws.Output<GPUBackend>(1)->GetLayout());
+
+
+    return {images_cpu, boxes_cpu};
   }
 
   void RunSliceCPU() {
@@ -194,9 +199,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->Outputs(&ws);
   }
 
-  vector<TensorList<CPUBackend> *> Reference(
-      const vector<TensorList<CPUBackend> *> &inputs,
-      DeviceWorkspace *ws) override {
+  vector<TensorList<CPUBackend>*>
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     auto from = ws->Output<GPUBackend>(1);
     auto reference = this->CopyToHost(*from);
     reference[0]->SetLayout(from->GetLayout());
@@ -223,6 +227,10 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
     RunBBoxesGPU(finalDesc);
   }
+
+
+  TensorList<CPUBackend> images_out;
+  TensorList<CPUBackend> boxes_out;
 };
 
 }  // namespace dali
