@@ -70,23 +70,27 @@ __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
 template<typename T>
 __global__ void process_frame_kernel(
     cudaTextureObject_t luma, cudaTextureObject_t chroma,
-    PictureSequence::Layer<T> dst, int index,
-    float fx, float fy) {
+    T* dst, int index,
+    float fx, float fy,
+    int dst_width, int dst_height) {
 
     const int dst_x = blockIdx.x * blockDim.x + threadIdx.x;
     const int dst_y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (dst_x >= dst.desc.width || dst_y >= dst.desc.height)
+    const int c = 3;
+
+    if (dst_x >= dst_width || dst_y >= dst_height)
         return;
 
     auto src_x = 0.0f;
-    if (dst.desc.horiz_flip) {
-        src_x = (dst.desc.scale_width - dst.desc.crop_x - dst_x) * fx;
-    } else {
-        src_x = (dst.desc.crop_x + dst_x) * fx;
-    }
-
-    auto src_y = static_cast<float>(dst_y + dst.desc.crop_y) * fy;
+    // if (dst.desc.horiz_flip) {
+    //     src_x = (dst.desc.scale_width - dst.desc.crop_x - dst_x) * fx;
+    // } else {
+    //     src_x = (dst.desc.crop_x + dst_x) * fx;
+    // }
+    src_x = static_cast<float>(dst_x) * fx;
+    // auto src_y = static_cast<float>(dst_y + dst.desc.crop_y) * fy;
+    auto src_y = static_cast<float>(dst_y) * fy;
 
     yuv<float> yuv;
     yuv.y = tex2D<float>(luma, src_x + 0.5, src_y + 0.5);
@@ -94,9 +98,8 @@ __global__ void process_frame_kernel(
     yuv.u = uv.x;
     yuv.v = uv.y;
 
-    auto out = &dst.data[dst_x * dst.desc.stride.x +
-                         dst_y * dst.desc.stride.y +
-                         index * dst.desc.stride.n];
+    auto out = &dst.data[dst_x * c
+                         dst_y * dst_width * c];
 
     switch(dst.desc.color_space) {
         case ColorSpace_RGB:
@@ -106,8 +109,8 @@ __global__ void process_frame_kernel(
         case ColorSpace_YCbCr:
             auto mult = dst.desc.normalized ? 1.0f : 255.0f;
             out[0] = convert<T>(yuv.y * mult);
-            out[dst.desc.stride.c] = convert<T>(yuv.u * mult);
-            out[dst.desc.stride.c*2] = convert<T>(yuv.v * mult);
+            out[c] = convert<T>(yuv.u * mult);
+            out[c*2] = convert<T>(yuv.v * mult);
             break;
     };
 }
@@ -116,21 +119,23 @@ int divUp(int total, int grain) {
     return (total + grain - 1) / grain;
 }
 
-} // anon namespace
+} //  namespace
 
 template<typename T>
 void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    const PictureSequence::Layer<T>& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height) {
+    TensorList<GPUBackend>& output, int index, cudaStream_t stream,
+    uint16_t input_width, uint16_t input_height,
+    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
+    int width, int height) {
+    // TODO PictureSequence::Layer -> TensorGPU
+//    if (!(std::is_same<T, half>::value || std::is_floating_point<T>::value)
+//        && output.desc.normalized) {
+//        throw std::runtime_error("Output must be floating point to be normalized.");
+//    }
 
-    if (!(std::is_same<T, half>::value || std::is_floating_point<T>::value)
-        && output.desc.normalized) {
-        throw std::runtime_error("Output must be floating point to be normalized.");
-    }
-
-    auto scale_width = output.desc.scale_width > 0 ? output.desc.scale_width : input_width;
-    auto scale_height = output.desc.scale_height > 0 ? output.desc.scale_height : input_height;
+//    auto scale_width = output.desc.scale_width > 0 ? output.desc.scale_width : input_width;
+//    auto scale_height = output.desc.scale_height > 0 ? output.desc.scale_height : input_height;
 
     auto fx = static_cast<float>(input_width) / scale_width;
     auto fy = static_cast<float>(input_height) / scale_height;
@@ -138,23 +143,9 @@ void process_frame(
     dim3 block(32, 8);
     dim3 grid(divUp(output.desc.width, block.x), divUp(output.desc.height, block.y));
 
+    auto* tensorout = output.mutable_tensor<T>
     process_frame_kernel<<<grid, block, 0, stream>>>
-            (luma, chroma, output, index, fx, fy);
+            (luma, chroma, output, index, fx, fy, width, height);
 }
-
-template void process_frame<uint8_t>(
-    cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    const PictureSequence::Layer<uint8_t>& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height);
-
-template void process_frame<half>(
-    cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    const PictureSequence::Layer<half>& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height);
-
-template void process_frame<float>(
-    cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    const PictureSequence::Layer<float>& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height);
 
 }  // namespace dali

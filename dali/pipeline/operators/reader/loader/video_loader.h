@@ -28,7 +28,8 @@ extern "C" {
 namespace dali {
 
 struct SequenceWrapper {
-  Tensor<CPUBackend> sequence;
+  TensorList<GPUBackend> sequence;
+  uint32_t count;
 };
 
 struct OpenFile {
@@ -52,44 +53,41 @@ struct OpenFile {
 
 /// Provides statistics, see VideoLoader::get_stats() and VideoLoader::reset_stats()
 struct VideoLoaderStats {
-    /** Total number of bytes read from disk
-     */
+    /** Total number of bytes read from disk */
     uint64_t bytes_read;
 
-    /** Number of compressed packets read from disk
-     */
+    /** Number of compressed packets read from disk */
     uint64_t packets_read;
 
     /** Total number of bytes sent to NVDEC for decoding, can be
      *  different from bytes_read when seeking is a bit off or if
-     *  there are extra streams in the video file.
-     */
+     *  there are extra streams in the video file. */
     uint64_t bytes_decoded;
 
-    /** Total number of packets sent to NVDEC for decoding, see bytes_decoded
-     */
+    /** Total number of packets sent to NVDEC for decoding, see bytes_decoded */
     uint64_t packets_decoded;
 
     /** Total number of frames actually used. This is usually less
      *  than packets_decoded because decoding must happen key frame to
      *  key frame and output sequences often span key frame sequences,
      *  requiring more frames to be decoded than are actually used in
-     *  the output.
-     */
+     *  the output. */
     uint64_t frames_used;
 };
 
 
-class VideoLoader : public Loader<CPUBackend, SequenceWrapper> {
+class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  public:
-  explicit inline VideoLoader(const OpSpec& spec,
+  VideoLoader(const OpSpec& spec,
     std::vector<std::string>& filenames)
-    : Loader<CPUBackend, SequenceWrapper>(spec),
+    : Loader<GPUBackend, SequenceWrapper>(spec),
+      width_(spec.GetArgument<uint16_t>("width")),
+      height_(spec.GetArgument<uint16_t>("height")),
       filenames_(filenames) {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
    }
 
-  explicit inline ~VideoLoader() {
+  ~VideoLoader() noexcept {
     if (thread_file_reader_.joinable()) {
       try {
         thread_file_reader_.join();
@@ -103,8 +101,10 @@ class VideoLoader : public Loader<CPUBackend, SequenceWrapper> {
   OpenFile& get_or_open_file(std::string filename);
   void seek(OpenFile& file, int frame);
   void read_file();
-  void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
+  void push_sequence_to_read(std::string filename, int frame, int count);
 
+  uint16_t height_;
+  uint16_t width_;
   std::vector<std::string> filenames_;
   int device_id_;
   VideoLoaderStats stats_;
@@ -115,8 +115,8 @@ class VideoLoader : public Loader<CPUBackend, SequenceWrapper> {
   ThreadSafeQueue<FrameReq> send_queue_;
 
   std::thread thread_file_reader_;
+};
 
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_READER_LOADER_VIDEO_LOADER_H_
-

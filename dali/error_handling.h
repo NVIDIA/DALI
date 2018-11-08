@@ -125,15 +125,33 @@ inline string BuildErrorString(string statement, string file, int line) {
 /// Error checking utilities for the DALI pipeline ///
 //////////////////////////////////////////////////////
 
+#define CUDA_RUNTIME_CALL(code)                                         \
+    cudaError_t status = code;                                          \
+    if (status != cudaSuccess) {                                        \
+      dali::string error = dali::string("CUDA runtime  API error \"") + \
+        cudaGetErrorString(status) + "\"";                              \
+      DALI_FAIL(error);                                                 \
+    }
+
+#define CUDA_DRIVER_API_CALL(code)                                      \
+    CUresult status = code;                                             \
+    if (status != CUDA_SUCCESS) {                                       \
+      dali::string error = dali::string("CUDA driver API error \"") +   \
+        cudaGetErrorString(status) + "\"";                              \
+      DALI_FAIL(error);                                                 \
+    }
+
 // For calling CUDA library functions
-#define CUDA_CALL(code)                                    \
-  do {                                                     \
-    cudaError_t status = code;                             \
-    if (status != cudaSuccess) {                           \
-      dali::string error = dali::string("CUDA error \"") + \
-        cudaGetErrorString(status) + "\"";                 \
-      DALI_FAIL(error);                                    \
-    }                                                      \
+#define CUDA_CALL(code)                                      \
+  do {                                                       \
+    using code_type = decltype(code);                        \
+    if (std::is_same<code_type, CUresult>::value) {          \
+      CUDA_DRIVER_API_CALL(code);                            \
+    } else if(std::is_same<code_type, cudaError_t>::value) { \
+      CUDA_RUNTIME_CALL(code);                               \
+    } else {                                                 \
+      static_assert(false, "Invalid CUDA return type.")      \
+    }                                                        \
   } while (0)
 
 // For calling NVML library functions

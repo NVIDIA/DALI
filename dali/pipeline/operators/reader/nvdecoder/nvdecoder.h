@@ -90,14 +90,16 @@ class NvDecoder
 
     void push_req(FrameReq req);
 
-    void receive_frames(PictureSequence& batch);
+    //void receive_frames(PictureSequence& batch);
+    void receive_frames(SequenceWrapper& batch);
 
     void finish();
 
   protected:
     int decode_av_packet(AVPacket* pkt);
 
-    void record_sequence_event_(PictureSequence& sequence);
+    //void record_sequence_event_(PictureSequence& sequence);
+    void record_sequence_event_(SequenceWrapper& sequence);
     void use_default_stream();
 
     // We're buddies with PictureSequence so we can forward a visitor
@@ -170,7 +172,8 @@ class NvDecoder
     std::vector<uint8_t> frame_in_use_;
     ThreadSafeQueue<FrameReq> recv_queue_;
     ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
-    ThreadSafeQueue<PictureSequence*> output_queue_;
+    //ThreadSafeQueue<PictureSequence*> output_queue_;
+    ThreadSafeQueue<SequenceWrapper*> output_queue_;
     FrameReq current_recv_;
 
     using TexID = std::tuple<uint8_t*, ScaleMethod, ChromaUpMethod>;
@@ -198,8 +201,9 @@ class NvDecoder
     const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
                                        uint16_t input_width, uint16_t input_height,
                                        ScaleMethod scale_method, ChromaUpMethod chroma_method);
-    void convert_frames();
-    void convert_frame(const MappedFrame& frame, PictureSequence& sequence,
+    void convert_frames_worker();
+    //void convert_frame(const MappedFrame& frame, PictureSequence& sequence, int index);
+    void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                        int index);
 };
 

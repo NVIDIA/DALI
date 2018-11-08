@@ -14,11 +14,13 @@
 
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
 
-VideoLoader::OpenFile& VideoLoader::get_or_open_file(std::string filename) {
+namespace dali {
+
+OpenFile& VideoLoader::get_or_open_file(std::string filename) {
     auto& file = open_files_[filename];
 
     if (!file.open) {
-        log_.debug() << "Opening file " << filename << std::endl;
+        LOG_LINE << "Opening file " << filename << std::endl;
 
         AVFormatContext* raw_fmt_ctx = nullptr;
         if (avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL) < 0) {
@@ -33,7 +35,7 @@ VideoLoader::OpenFile& VideoLoader::get_or_open_file(std::string filename) {
         }
 
         if (file.fmt_ctx_->nb_streams > 1) {
-            log_.warn() << "There are " << file.fmt_ctx_->nb_streams << " streams in "
+            LOG_LINE << "There are " << file.fmt_ctx_->nb_streams << " streams in "
                         << filename << " which will degrade performance. "
                         << "Consider removing all but the main video stream."
                         << std::endl;
@@ -56,10 +58,10 @@ VideoLoader::OpenFile& VideoLoader::get_or_open_file(std::string filename) {
             if (vid_decoder_) {
                 throw std::logic_error("width and height not set, but we have a decoder?");
             }
-            log_.info() << "Opened the first file, creating a video decoder" << std::endl;
+            LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
 
-            vid_decoder_ = std::unique_ptr<detail::Decoder>{
-                new detail::NvDecoder(device_id_, log_,
+            vid_decoder_ = std::unique_ptr<NvDecoder>{
+                new NvDecoder(device_id_, log_,
                                       codecpar(stream),
                                       stream->time_base)};
         } else { // already opened a file
@@ -141,7 +143,7 @@ void VideoLoader::seek(OpenFile& file, int frame) {
     auto seek_time = av_rescale_q(frame,
                                   file.frame_base_,
                                   file.stream_base_);
-    log_.debug() << "Seeking to frame " << frame << " timestamp " << seek_time << std::endl;
+    LOG_LINE << "Seeking to frame " << frame << " timestamp " << seek_time << std::endl;
 
     auto ret = av_seek_frame(file.fmt_ctx_.get(), file.vid_stream_idx_,
                              seek_time, AVSEEK_FLAG_BACKWARD);
@@ -169,7 +171,7 @@ void VideoLoader::read_file() {
 
         auto req = send_queue_.pop();
 
-        log_.info() << "Got a request for " << req.filename << " frame " << req.frame
+        LOG_LINE << "Got a request for " << req.filename << " frame " << req.frame
                     << " send_queue_ has " << send_queue_.size() << " frames left"
                     << std::endl;
 
@@ -215,7 +217,7 @@ void VideoLoader::read_file() {
                 if (key) {
                     static auto final_try = false;
                     if (frame > req.frame + nonkey_frame_count) {
-                        log_.debug() << device_id_ << ": We got ahead of ourselves! "
+                        LOG_LINE << device_id_ << ": We got ahead of ourselves! "
                                      << frame << " > " << req.frame << " + "
                                      << nonkey_frame_count
                                      << " seek_hack = " << seek_hack << std::endl;
@@ -252,7 +254,7 @@ void VideoLoader::read_file() {
             }
             seek_hack = 1;
 
-            log_.info() << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
+            LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
                         << " frame " << frame << " to the decoder."
                         << " size = " << pkt->size
                         << " req.frame = " << req.frame
@@ -326,7 +328,7 @@ void VideoLoader::read_file() {
     if (vid_decoder_) {
         vid_decoder_->decode_packet(nullptr); // stop decoding
     }
-    log_.info() << "Leaving read_file" << std::endl;
+    LOG_LINE << "Leaving read_file" << std::endl;
 }
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
@@ -356,9 +358,10 @@ void VideoLoader::receive_frames(PictureSequence& sequence) {
                              frames_used_warning_minimum)) {
         frames_since_warn = 0;
         frames_used_warned = true;
-        log_.warn() << "\e[1mThe video loader is performing suboptimally due to reading "
+        LOG_LINE << "\e[1mThe video loader is performing suboptimally due to reading "
                     << std::setprecision(2) << ratio_used << "x as many packets as "
                     << "frames being used.\e[0m  Consider reencoding the video with a "
                     << "smaller key frame interval (GOP length).";
     }
 }
+}  // namespace dali

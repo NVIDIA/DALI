@@ -22,7 +22,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(H264VideoReader)
+DALI_SCHEMA(VideoReader)
   .DocStr(R"code(
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
 The video codecs can be contained in most of container file formats.

@@ -176,7 +176,7 @@ NvDecoder::NvDecoder(int device_id,
         return;
     }
 
-    thread_convert_ = std::thread{&NvDecoder::convert_frames, this};
+    thread_convert_ = std::thread{&NvDecoder::convert_frames_worker, this};
 }
 
 bool NvDecoder::initialized() const {
@@ -403,12 +403,12 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     if (frame != current_recv_.frame) {
         // TODO This definitely needs better error handling... what if
         // we never get the frame we are waiting for?!
-        log_.info() << "Ditching frame " << frame << " since we are waiting for "
+        LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
                     << "frame " << current_recv_.frame << std::endl;
         return 1;
     }
 
-    log_.info() << "\e[1mGoing ahead with frame " << frame
+    LOG_LINE << "\e[1mGoing ahead with frame " << frame
                 << " wanted count: " << current_recv_.count
                 << " disp_info->picture_index: " << disp_info->picture_index
                 << "\e[0m" << std::endl;
@@ -439,7 +439,8 @@ void NvDecoder::push_req(FrameReq req) {
     recv_queue_.push(std::move(req));
 }
 
-void NvDecoder::receive_frames(PictureSequence& sequence) {
+//void NvDecoder::receive_frames(PictureSequence& sequence) {
+void NvDecoder::receive_frames(SequenceWrapper& sequence) {
     // TODO
     output_queue_.push(&sequence);
 }
@@ -500,12 +501,12 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
     return p.first->second;
 }
 
-void NvDecoder::convert_frames() {
+void NvDecoder::convert_frames_worker() {
     context_.push();
     while (!done_) {
         auto& sequence = *output_queue_.pop();
         if (done_) break;
-        for (int i = 0; i < sequence.count(); ++i) {
+        for (int i = 0; i < sequence.count; ++i) {
             LOG_LINE << "popping frame (" << i << "/" << sequence.count() << ") "
                         << frame_queue_.size() << " reqs left"
                         << std::endl;
@@ -519,35 +520,39 @@ void NvDecoder::convert_frames() {
     LOG_LINE << "Leaving convert frames" << std::endl;
 }
 
-void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequence,
+//void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequence,
+//                              int index) {
+void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
     auto input_width = decoder_.width();
     auto input_height = decoder_.height();
 
-// TODO
-    foreach_layer(sequence, [&](auto& l) -> void {
-            auto output_idx = index;
-            if (!l.index_map.empty()) {
-                if (l.index_map.size() > static_cast<size_t>(index)) {
-                    output_idx = l.index_map[index];
-                } else {
-                    output_idx = -1;
-                }
-            }
-            if (output_idx < 0) {
-                return;
-            }
-            auto& textures = this->get_textures(frame.get_ptr(),
-                                                frame.get_pitch(),
-                                                input_width,
-                                                input_height,
-                                                l.desc.scale_method,
-                                                l.desc.chroma_up_method);
-            // Change l to Tensor<GPU>
-            process_frame(textures.chroma, textures.luma,
-                          l, output_idx, stream_,
-                          input_width, input_height);
-        });
+// TMP: Removing layer concept TODO reimplem
+    //foreach_layer(sequence, [&](auto& l) -> void {
+    auto output_idx = index;
+    /*
+    if (!l.index_map.empty()) {
+        if (l.index_map.size() > static_cast<size_t>(index)) {
+            output_idx = l.index_map[index];
+        } else {
+            output_idx = -1;
+        }
+    }
+    if (output_idx < 0) {
+        return;
+    }
+    */
+    auto& textures = this->get_textures(frame.get_ptr(),
+                                        frame.get_pitch(),
+                                        input_width,
+                                        input_height,
+                                        l.desc.scale_method,
+                                        l.desc.chroma_up_method);
+    // Change l to Tensor<GPU>
+    process_frame(textures.chroma, textures.luma,
+                    l, output_idx, stream_,
+                    input_width, input_height);
+     //});
 
     frame_in_use_[frame.disp_info->picture_index] = false;
     auto frame_num = av_rescale_q(frame.disp_info->timestamp,

@@ -32,11 +32,9 @@ class CUVideoParser {
   public:
     CUVideoParser() : parser_{0}, initialized_{false} {}
 
-    template<typename NvDecoder>
     CUVideoParser(Codec codec, NvDecoder* decoder, int decode_surfaces)
         : CUVideoParser{codec, decoder, decode_surfaces, nullptr, 0} {}
 
-    template<typename NvDecoder>
     CUVideoParser(Codec codec, NvDecoder* decoder, int decode_surfaces,
                   uint8_t* extradata, int extradata_size)
         : parser_{0}, parser_info_{}, parser_extinfo_{}, initialized_{false}
@@ -52,7 +50,6 @@ class CUVideoParser {
     }
 
 
-    template<typename NvDecoder>
     void init_params(Codec codec, NvDecoder* decoder, int decode_surfaces,
                      uint8_t* extradata, int extradata_size) {
         switch (codec) {
@@ -70,9 +67,16 @@ class CUVideoParser {
         }
         parser_info_.ulMaxNumDecodeSurfaces = decode_surfaces;
         parser_info_.pUserData = decoder;
+
+        /* Called before decoding frames and/or whenever there is a fmt change */
         parser_info_.pfnSequenceCallback = NvDecoder::handle_sequence;
+
+        /* Called when a picture is ready to be decoded (decode order) */
         parser_info_.pfnDecodePicture = NvDecoder::handle_decode;
+
+        /* Called whenever a picture is ready to be displayed (display order) */
         parser_info_.pfnDisplayPicture = NvDecoder::handle_display;
+
         parser_info_.pExtVideoInfo = &parser_extinfo_;
         if (extradata_size > 0) {
             auto hdr_size = std::min(sizeof(parser_extinfo_.raw_seqhdr_data),

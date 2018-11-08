@@ -17,30 +17,32 @@
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
-#include "dali/pipeline/operators/reader/parser/video_parser.h"
+//#include "dali/pipeline/operators/reader/parser/video_parser.h"
 
 namespace dali {
 
-class H264VideoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
+class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  public:
-  explicit inline H264VideoReader(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    filenames_(spec.GetRepeatedArgument<std::string>("filenames"),  
+  explicit VideoReader(const OpSpec &spec)
+  : DataReader<GPUBackend, SequenceWrapper>(spec),
+    filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     count_(spec.GetArgument<int>("count")) {
     	loader_.reset(new VideoLoader(spec, filenames_));
   }
 
-  virtual inline ~H264VideoReader() = default;
+  virtual inline ~VideoReader() = default;
 
  protected:
-  void RunImpl(Workspace<Backend> * ws, const int idx) override;
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void RunImpl(DeviceWorkspace *ws, const int idx) override {
+    auto* sequence = prefetched_batch_[idx];
+  }
+  void SetupSharedSampleParams(DeviceWorkspace *ws) override;
 
  private:
   std::vector<std::string> filenames_;
   int count_;
 
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, SequenceWrapper);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };
 
 }  // namespace dali
