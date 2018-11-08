@@ -98,7 +98,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->Outputs(&ws);
   }
 
-  std::vector<TensorList<CPUBackend>*> RunSliceGPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
+  std::vector<TensorList<CPUBackend> *> RunSliceGPU(
+      const vector<std::pair<string, TensorList<CPUBackend> *>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -140,11 +141,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     auto boxes_cpu = this->CopyToHost(*ws.Output<GPUBackend>(1))[0];
     boxes_cpu->SetLayout(ws.Output<GPUBackend>(1)->GetLayout());
 
-
     return {images_cpu, boxes_cpu};
   }
 
-  std::vector<TensorList<CPUBackend>*>  RunSliceCPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
+  std::vector<TensorList<CPUBackend> *> RunSliceCPU(
+      const vector<std::pair<string, TensorList<CPUBackend> *>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -183,8 +184,9 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     return {ws.Output<CPUBackend>(0), ws.Output<CPUBackend>(1)};
   }
 
-  vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
+  vector<TensorList<CPUBackend> *> Reference(
+      const vector<TensorList<CPUBackend> *> &inputs,
+      DeviceWorkspace *ws) override {
     auto from = ws->Output<GPUBackend>(1);
     auto reference = this->CopyToHost(*from);
     reference[0]->SetLayout(from->GetLayout());
@@ -211,7 +213,6 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
     RunBBoxesGPU(finalDesc);
   }
-
 
   TensorList<CPUBackend> images_out;
   TensorList<CPUBackend> boxes_out;

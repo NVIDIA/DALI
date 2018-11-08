@@ -41,7 +41,8 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
     crop_height_[i] = static_cast<int>(size.template data<float>()[i * 2 + 1]);
 
     const auto crop_x = static_cast<int>(begin.template data<float>()[i * 2]);
-    const auto crop_y = static_cast<int>(begin.template data<float>()[i * 2 + 1]);
+    const auto crop_y =
+        static_cast<int>(begin.template data<float>()[i * 2 + 1]);
 
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
