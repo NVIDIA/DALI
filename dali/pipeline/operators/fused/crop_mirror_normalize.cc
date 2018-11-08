@@ -76,7 +76,7 @@ void CropMirrorNormalizePermuteKernel(
     const int in_step,
     DALITensorLayout layout,
     Out* output_ptr) {
-  const int pad_C = pad ? 4 : C;
+  const int pad_C = C;
   const int nStride = pad_C*H*W;
 
   const int a = mirror_image? (W - 1) * C : 0;
@@ -89,7 +89,7 @@ void CropMirrorNormalizePermuteKernel(
           const int in_idx = a + c + b * w + in_step*h;   // HWC
           const int out_idx = (c*H + h)*W + w;            // CHW
 
-          output_ptr[out_idx] = StaticCastGpu<Out>(
+          output_ptr[out_idx] = static_cast<Out>(
               (static_cast<float>(input_ptr[in_idx])-mean[c]) * inv_std[c]);
         }
       }
@@ -97,7 +97,7 @@ void CropMirrorNormalizePermuteKernel(
 
     // Pad to 4 channels with 0s
     if (pad) {
-      const Out out = StaticCastGpu<Out>(0);
+      const Out out = static_cast<Out>(0);
       for (int c=C; c < 4; ++c) {
         for (int h=0; h < H; ++h) {
           for (int w=0; w < W; ++w) {
@@ -122,7 +122,7 @@ void CropMirrorNormalizePermuteKernel(
       }
 
       const int out_idx = c + (w + h*W) * pad_C;
-      output_ptr[out_idx] = StaticCastGpu<Out>(input);
+      output_ptr[out_idx] = static_cast<Out>(input);
     }
   }
 }
