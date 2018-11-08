@@ -86,6 +86,11 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
   return c_shape;
 }
 
+unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
+  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  return ws->NumOutput();
+}
+
 void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n) {
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);

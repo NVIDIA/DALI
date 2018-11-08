@@ -70,6 +70,10 @@ extern "C" {
   DLL_PUBLIC int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n);
 
   /**
+   * @brief Returns number of DALI pipeline outputs
+   */
+  DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle);
+  /**
    * @brief Copy the output tensor stored
    * at position `n` in the pipeline.
    */
