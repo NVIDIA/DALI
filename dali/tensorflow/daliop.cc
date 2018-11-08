@@ -219,7 +219,6 @@ class DaliOp : public tf::OpKernel {
   tf::DataTypeVector types_;
   int device_id_;
   int prefetch_queue_depth_;
-  bool prefetched_;
 };
 
 using tf::int64;
