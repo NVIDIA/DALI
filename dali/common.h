@@ -92,11 +92,8 @@ enum DALITensorLayout {
 };
 
 inline bool IsColor(DALIImageType type) {
-  if ((type == DALI_RGB) || (type == DALI_BGR)) {
-    return true;
-  }
-  return false;
-}
+  return type == DALI_RGB || type == DALI_BGR;}
+
 
 // Compatible wrapper for CUDA 8 which does not have builtin static_cast<float16>
 template<typename dst>

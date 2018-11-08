@@ -98,7 +98,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->Outputs(&ws);
   }
 
-  const std::vector<TensorList<CPUBackend>*> RunSliceGPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
+  std::vector<TensorList<CPUBackend>*> RunSliceGPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -106,14 +106,6 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetExternalInputs(inputs);
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
-
-//    // Decode the images
-//    pipe->AddOperator(OpSpec("nvJPEGDecoder")
-//                          .AddArg("device", "mixed")
-//                          .AddArg("output_type", this->img_type_)
-//                          .AddArg("use_batched_decode", true)
-//                          .AddInput("encoded", "cpu")
-//                          .AddOutput("decoded", "gpu"));
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
@@ -152,51 +144,43 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     return {images_cpu, boxes_cpu};
   }
 
-  void RunSliceCPU() {
+  std::vector<TensorList<CPUBackend>*>  RunSliceCPU(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    TensorList<CPUBackend> encoded_data;
-    this->EncodedJPEGData(&encoded_data);
-    TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size);
-    this->SetExternalInputs({{"encoded", &encoded_data}, {"boxes", &boxes}});
+    this->SetExternalInputs(inputs);
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
-
-    // Decode the images
-    pipe->AddOperator(OpSpec("HostDecoder")
-                          .AddArg("output_type", this->ImageType())
-                          .AddInput("encoded", "cpu")
-                          .AddOutput("decoded", "cpu"));
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("decoded", "cpu")
+                          .AddInput("images", "cpu")
                           .AddInput("boxes", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
-                          .AddOutput("bboxes", "cpu"));
+                          .AddOutput("resized_boxes", "cpu"));
 
-    // CPU slice
+    // GPU slice
     pipe->AddOperator(OpSpec("Slice")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("decoded", "cpu")
+                          .AddInput("images", "cpu")
                           .AddInput("begin", "cpu")
                           .AddInput("crop", "cpu")
                           .AddOutput("cropped_images", "cpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
-    pipe->Build({{"cropped_images", "cpu"}, {"bboxes", "cpu"}});
+    pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
     pipe->RunCPU();
     pipe->RunGPU();
 
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
+
+    return {ws.Output<CPUBackend>(0), ws.Output<CPUBackend>(1)};
   }
 
   vector<TensorList<CPUBackend>*>
