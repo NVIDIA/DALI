@@ -92,45 +92,4 @@ TYPED_TEST(SliceTest, RunGPUCheckBoxesOutputShapesMatch) {
   }
 }
 
-TYPED_TEST(SliceTest, RunGPUCheckImagesOutputDataMatch) {
-  // By default, threshold for Bbox_crop should be zero, meaning that no crop
-  // will be performed. Because of this, in this test we try to match the
-  //  shape
-  // of each output box to each input box as they must be identical
-  auto outputs =
-      this->RunSliceGPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
-
-  for (size_t i = 0; i < this->images_.shape().size(); i++) {
-    auto input_images = this->images_.template tensor<uint8>(i);
-    auto output_images = outputs[0]->template tensor<uint8>(i);
-
-    auto shape = this->images_.tensor_shape(i);
-
-    for (int j = 0; j < shape[0] * shape[1] * shape[2]; j++) {
-      EXPECT_EQ(input_images[j * 4], output_images[j * 4]);
-    }
-  }
-}
-
-// TYPED_TEST(SliceTest, RunGPUCheckBoxesOutputDataMatch) {
-//  // By default, threshold for Bbox_crop should be zero, meaning that no crop
-//  // will be performed. Because of this, in this test we try to match the
-//  shape
-//  // of each output box to each input box as they must be identical
-//  auto outputs =
-//      this->RunSliceGPU({{"images", &this->images_}, {"boxes",
-//      &this->boxes_}});
-//
-//  for (size_t i = 0; i < this->boxes_.shape().size(); i++) {
-//    auto input_boxes = this->boxes_.template tensor<float>(i);
-//    auto output_boxes = outputs[1]->template tensor<float>(i);
-//
-//    auto shape = this->boxes_.tensor_shape(i);
-//
-//    for (int j = 0; j < shape[0]; j++) {
-//      EXPECT_FLOAT_EQ(input_boxes[j * 4], output_boxes[j * 4]);
-//    }
-//  }
-//}
-
 }  // namespace dali

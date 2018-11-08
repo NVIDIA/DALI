@@ -12,27 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/crop/crop.h"
 #include <vector>
 #include "dali/image/transform.h"
+#include "dali/pipeline/operators/crop/crop.h"
 
 namespace dali {
 
 template <typename Out>
-__global__ void BatchedCropKernel(const int C, const int* height, const int* width,
+__global__ void BatchedCropKernel(const int C, const int *height,
+                                  const int *width,
                                   const uint8 *const *img_ptrs,
                                   const int *in_strides,
-                                  DALITensorLayout layout, Out *out) {
+                                  DALITensorLayout layout, Out *out,
+                                  const int *output_offsets) {
   const int n = blockIdx.x;
   const int W = width[n];
   const int H = height[n];
   const int in_stride = in_strides[n];
   const uint8 *input_ptr = img_ptrs[n];
-
-  Out *output_ptr = out;
-  for (int i = 0; i < n; i++) {
-    out += (C * height[i] * width[i]);
-  }
 
   if (layout == DALI_NCHW) {
     for (int c = 0; c < C; ++c) {
@@ -42,7 +39,8 @@ __global__ void BatchedCropKernel(const int C, const int* height, const int* wid
           int in_idx = h * in_stride + w * C + c;
           // To CHW
           int out_idx = (c * H + h) * W + w;
-          output_ptr[out_idx] = static_cast<Out>(input_ptr[in_idx]);
+          out[output_offsets[n] + out_idx] =
+              static_cast<Out>(input_ptr[in_idx]);
         }
       }
     }
@@ -54,7 +52,8 @@ __global__ void BatchedCropKernel(const int C, const int* height, const int* wid
           int in_idx = h * in_stride + w * C + c;
           // To HWC
           int out_idx = (h * W + w) * C + c;
-          output_ptr[out_idx] = static_cast<Out>(input_ptr[in_idx]);
+          out[output_offsets[n] + out_idx] =
+              static_cast<Out>(input_ptr[in_idx]);
         }
       }
     }
@@ -63,19 +62,21 @@ __global__ void BatchedCropKernel(const int C, const int* height, const int* wid
 
 template <typename Out>
 DALIError_t BatchedCrop(const uint8 *const *in_batch, const int *in_strides,
-                        int N, const int* H, const int* W, int C, DALITensorLayout L,
-                        Out *out_batch, cudaStream_t stream) {
+                        int N, const int *H, const int *W, int C,
+                        DALITensorLayout L, Out *out_batch,
+                        const int *output_offsets, cudaStream_t stream) {
   DALI_ASSERT(in_batch != nullptr);
   DALI_ASSERT(out_batch != nullptr);
   BatchedCropKernel<Out><<<N, dim3(32, 32), 0, stream>>>(
-      C, H, W, in_batch, in_strides, L, out_batch);
+      C, H, W, in_batch, in_strides, L, out_batch, output_offsets);
   return DALISuccess;
 }
 
 template <typename Out>
 DALIError_t ValidateBatchedCrop(const uint8 *const *in_batch,
-                                const int *in_strides, int N, int* H, int* W,
-                                int C, const Out *out_batch) {
+                                const int *in_strides, int N, int *H, int *W,
+                                int C, const Out *out_batch,
+                                const int *output_offsets) {
   DALI_ASSERT(N > 0);
   DALI_ASSERT(C == 1 || C == 3);
   DALI_ASSERT(in_batch != nullptr);
@@ -86,6 +87,13 @@ DALIError_t ValidateBatchedCrop(const uint8 *const *in_batch,
     DALI_ASSERT(H[i] > 0);
     DALI_ASSERT(W[i] > 0);
     DALI_ASSERT(in_strides[i] >= C * W[i]);
+
+    if (i == 0) {
+      DALI_ASSERT(output_offsets[i] == 0);
+    } else {
+      DALI_ASSERT(output_offsets[i] ==
+                  output_offsets[i - 1] + (W[i - 1] * H[i - 1] * C));
+    }
   }
 
   return DALISuccess;
@@ -97,13 +105,13 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   const auto output = ws->Output<GPUBackend>(idx);
   ValidateHelper<Out>(output);
 
-  DALI_CALL(
-      (BatchedCrop<Out>(input_ptrs_gpu_.template data<const uint8 *>(),
-                        input_strides_gpu_.template data<int>(), batch_size_,
-                        crop_height_gpu_.template data<int>(),
-                        crop_width_gpu_.template data<int>(),
-                        C_, output_layout_,
-                        output->template mutable_data<Out>(), ws->stream())));
+  DALI_CALL((BatchedCrop<Out>(
+      input_ptrs_gpu_.template data<const uint8 *>(),
+      input_strides_gpu_.template data<int>(), batch_size_,
+      crop_height_gpu_.template data<int>(),
+      crop_width_gpu_.template data<int>(), C_, output_layout_,
+      output->template mutable_data<Out>(),
+      output_offsets_gpu_.template data<int>(), ws->stream())));
 }
 
 template <>
@@ -113,7 +121,8 @@ void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
   DALI_CALL(ValidateBatchedCrop(
       input_ptrs_.template mutable_data<const uint8 *>(),
       input_strides_.template data<int>(), batch_size_, crop_height_.data(),
-      crop_width_.data(), C_, output->template mutable_data<Out>()));
+      crop_width_.data(), C_, output->template mutable_data<Out>(),
+      output_offsets_.template data<int>()));
 }
 
 template <>
@@ -132,7 +141,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   auto output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
-  DALITensorLayout outLayout;
+  DALITensorLayout outLayout = DALI_UNKNOWN;
 
   std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
@@ -159,6 +168,15 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     input_strides_.template mutable_data<int>()[i] = W * C;
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
     output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, i);
+
+    if (i == 0) {
+      output_offsets_.template mutable_data<int>()[i] = 0;
+    } else {
+      auto cumulative_offset =
+          (crop_height_[i - 1] * crop_width_[i - 1] * C_) +
+          output_offsets_.template mutable_data<int>()[i - 1];
+      output_offsets_.template mutable_data<int>()[i] = cumulative_offset;
+    }
   }
 
   output->Resize(output_shape);
@@ -171,6 +189,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
   input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
   input_strides_gpu_.Copy(input_strides_, ws->stream());
+  output_offsets_gpu_.Copy(output_offsets_, ws->stream());
 
   crop_width_gpu_.Copy(crop_width_, ws->stream());
   crop_height_gpu_.Copy(crop_height_, ws->stream());

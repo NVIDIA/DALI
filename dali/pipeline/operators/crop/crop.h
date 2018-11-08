@@ -87,6 +87,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
     crop_offsets_.resize(batch_size_);
     input_ptrs_.Resize({batch_size_});
     input_strides_.Resize({batch_size_});
+    output_offsets_.Resize({batch_size_});
     Init(batch_size_);
   }
 
@@ -153,8 +154,8 @@ class Crop : public Operator<Backend>, protected CropAttr {
   }
 
 protected:
-  Tensor<CPUBackend> input_ptrs_, input_strides_;
-  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
+  Tensor<CPUBackend> input_ptrs_, input_strides_, output_offsets_;
+  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_, output_offsets_gpu_;
   Tensor<GPUBackend> crop_width_gpu_, crop_height_gpu_;
   vector<int> crop_offsets_;
 
