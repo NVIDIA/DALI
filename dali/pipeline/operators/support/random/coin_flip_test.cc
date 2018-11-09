@@ -28,12 +28,12 @@ class CoinFlipV2Test : public DaliOperatorTest<int, float> {
 };
 
 TEST_F(CoinFlipV2Test, Always1) {
-  this->RunTest({{"probability", 1.f}}, 1);
+  this->RunTest<CPUBackend>({{"probability", 1.f}}, 1);
 }
 
 
 TEST_F(CoinFlipV2Test, Always0) {
-  this->RunTest({{"probability", 0.f}}, 0);
+  this->RunTest<CPUBackend>({{"probability", 0.f}}, 0);
 }
 
 }  // namespace dali

@@ -2,6 +2,4 @@
 
 namespace dali {
 
-
-
 }  // namespace dali
