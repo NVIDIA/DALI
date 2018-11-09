@@ -216,9 +216,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
         // mark as flushing?
     }
 
-    if (!CUDA_CALL(cuvidParseVideoData(parser_, &cupkt))) {
-        std::cerr << "Problem decoding packet" << std::endl;
-    }
+    CUDA_CALL(cuvidParseVideoData(parser_, &cupkt));
     return 0;
 }
 
@@ -450,8 +448,8 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
 const NvDecoder::TextureObjects&
 NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
                         uint16_t input_width, uint16_t input_height,
-                        ScaleMethod scale_method, ChromaUpMethod chroma_method) {
-    auto tex_id = std::make_tuple(input, scale_method, chroma_method);
+                        ScaleMethod scale_method) {
+    auto tex_id = std::make_tuple(input, scale_method);
     auto tex = textures_.find(tex_id);
     if (tex != textures_.end()) {
         return tex->second;
@@ -546,19 +544,21 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                         frame.get_pitch(),
                                         input_width,
                                         input_height,
-                                        l.desc.scale_method,
-                                        l.desc.chroma_up_method);
+                                        scale_method_);
     // Change l to Tensor<GPU>
-    process_frame(textures.chroma, textures.luma,
-                    l, output_idx, stream_,
+    // process_frame(textures.chroma, textures.luma,
+    //                 l, output_idx, stream_,
+    //                input_width, input_height);
+     process_frame(textures.chroma, textures.luma,
+                    output_idx, stream_,
                     input_width, input_height);
      //});
 
-    frame_in_use_[frame.disp_info->picture_index] = false;
-    auto frame_num = av_rescale_q(frame.disp_info->timestamp,
-                                  nv_time_base_, frame_base_);
+    //frame_in_use_[frame.disp_info->picture_index] = false;
+    //auto frame_num = av_rescale_q(frame.disp_info->timestamp,
+    //                              nv_time_base_, frame_base_);
 
-    sequence.get_or_add_meta<int>("frame_num")[index] = frame_num;
+    //sequence.get_or_add_meta<int>("frame_num")[index] = frame_num;
 }
 
 void NvDecoder::finish() {
@@ -569,13 +569,13 @@ void NvDecoder::finish() {
 }
 
 // This has to be here since Decoder is the only friend of PictureSequence
-void Decoder::record_sequence_event_(PictureSequence& sequence) {
+void NvDecoder::record_sequence_event_(PictureSequence& sequence) {
     // TODO
-    sequence.pImpl->event_.record(stream_);
-    sequence.pImpl->set_started_(true);
+    sequence.event_.record(stream_);
+    sequence.set_started(true);
 }
 
-void Decoder::use_default_stream() {
+void NvDecoder::use_default_stream() {
     stream_ = CUStream{device_id_, true};
 }
 

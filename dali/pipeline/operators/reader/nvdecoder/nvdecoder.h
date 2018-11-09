@@ -26,8 +26,8 @@
 
 #include <libavcodec/avcodec.h>
 
-//#include "VideoLoader.h"
 #include "dali/util/cucontext.h"
+#include "dali/pipeline/operators/reader/loader/videl_loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
@@ -63,6 +63,19 @@ class CUStream {
   private:
     bool created_;
     cudaStream_t stream_;
+};
+
+
+enum ScaleMethod {
+    /**
+     * The value for the nearest neighbor is used, no interpolation
+     */
+    ScaleMethod_Nearest,
+
+    /**
+     * Simple bilinear interpolation of four nearest neighbors
+     */
+    ScaleMethod_Linear
 };
 
 class NvDecoder
@@ -104,10 +117,10 @@ class NvDecoder
 
     // We're buddies with PictureSequence so we can forward a visitor
     // on to it's private implementation.
-    template<typename Visitor>
-    void foreach_layer(PictureSequence& sequence, const Visitor& visitor) {
-        sequence.pImpl->foreach_layer(visitor);
-    }
+    // template<typename Visitor>
+    // void foreach_layer(PictureSequence& sequence, const Visitor& visitor) {
+    //    sequence.pImpl->foreach_layer(visitor);
+    // }
 
     const int device_id_;
     CUStream stream_;
@@ -172,19 +185,20 @@ class NvDecoder
     std::vector<uint8_t> frame_in_use_;
     ThreadSafeQueue<FrameReq> recv_queue_;
     ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
-    //ThreadSafeQueue<PictureSequence*> output_queue_;
+    // ThreadSafeQueue<PictureSequence*> output_queue_;
     ThreadSafeQueue<SequenceWrapper*> output_queue_;
     FrameReq current_recv_;
 
-    using TexID = std::tuple<uint8_t*, ScaleMethod, ChromaUpMethod>;
+    // using TexID = std::tuple<uint8_t*, ScaleMethod, ChromaUpMethod>;
+    using TexID = std::tuple<uint8_t*, ScaleMethod>;
     struct tex_hash {
         std::hash<uint8_t*> ptr_hash;
         std::hash<int> scale_hash;
-        std::hash<int> up_hash;
+        // std::hash<int> up_hash;
         std::size_t operator () (const TexID& tex) const {
             return ptr_hash(std::get<0>(tex))
-                    ^ scale_hash(std::get<1>(tex))
-                    ^ up_hash(std::get<2>(tex));
+                    ^ scale_hash(std::get<1>(tex));
+                    // ^ up_hash(std::get<2>(tex));
         }
     };
 
@@ -200,9 +214,10 @@ class NvDecoder
 
     const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
                                        uint16_t input_width, uint16_t input_height,
-                                       ScaleMethod scale_method, ChromaUpMethod chroma_method);
+                                         ScaleMethod scale_method);
+    //                                     ScaleMethod scale_method, ChromaUpMethod chroma_method);
     void convert_frames_worker();
-    //void convert_frame(const MappedFrame& frame, PictureSequence& sequence, int index);
+    // void convert_frame(const MappedFrame& frame, PictureSequence& sequence, int index);
     void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                        int index);
 };

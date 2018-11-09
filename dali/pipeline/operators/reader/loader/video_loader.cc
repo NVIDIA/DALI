@@ -332,12 +332,13 @@ void VideoLoader::read_file() {
 }
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
-    auto req = detail::FrameReq{filename, frame, count};
+    auto req = FrameReq{filename, frame, count};
     // give both reader thread and decoder a copy of what is coming
     send_queue_.push(req);
 }
 
-void VideoLoader::receive_frames(PictureSequence& sequence) {
+// void VideoLoader::receive_frames(PictureSequence& sequence) {
+void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     auto startup_timeout = 1000;
     while (!vid_decoder_) {
         usleep(500);
@@ -347,6 +348,7 @@ void VideoLoader::receive_frames(PictureSequence& sequence) {
     }
     vid_decoder_->receive_frames(sequence);
 
+    // Stats code
     stats_.frames_used += sequence.count();
 
     static auto frames_since_warn = 0;
@@ -364,4 +366,18 @@ void VideoLoader::receive_frames(PictureSequence& sequence) {
                     << "smaller key frame interval (GOP length).";
     }
 }
+
+void PrepareEmpty(SequenceWrapper *tensor) {
+    tensor->initialize(count_, height_, width_, 3);
+}
+
+void VideoLoader::ReadSample(SequenceWrapper* tensor) {
+    // TODO(spanev) remove the async between the 2 following methods?
+
+    read_sequence(filename_[0], frame_starts_[current_frame_idx_], count_);
+    receive_frames(*tensor);
+    tensor->wait();
+    current_frame_idx_++;
+}
+
 }  // namespace dali

@@ -72,12 +72,10 @@ __global__ void process_frame_kernel(
     cudaTextureObject_t luma, cudaTextureObject_t chroma,
     T* dst, int index,
     float fx, float fy,
-    int dst_width, int dst_height) {
+    int dst_width, int dst_height, int c) {
 
     const int dst_x = blockIdx.x * blockDim.x + threadIdx.x;
     const int dst_y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    const int c = 3;
 
     if (dst_x >= dst_width || dst_y >= dst_height)
         return;
@@ -124,7 +122,7 @@ int divUp(int total, int grain) {
 template<typename T>
 void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    TensorList<GPUBackend>& output, int index, cudaStream_t stream,
+    SequenceWrapper& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height,
     float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
     int width, int height) {
@@ -141,9 +139,10 @@ void process_frame(
     auto fy = static_cast<float>(input_height) / scale_height;
 
     dim3 block(32, 8);
-    dim3 grid(divUp(output.desc.width, block.x), divUp(output.desc.height, block.y));
+    dim3 grid(divUp(output.width, block.x), divUp(output.height, block.y));
 
-    auto* tensorout = output.mutable_tensor<T>
+    auto* tensorout = output.mutable_tensor<T>(index);
+
     process_frame_kernel<<<grid, block, 0, stream>>>
             (luma, chroma, output, index, fx, fy, width, height);
 }

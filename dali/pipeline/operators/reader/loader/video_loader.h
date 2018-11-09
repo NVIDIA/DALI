@@ -20,6 +20,8 @@ extern "C" {
 }
 
 #include <thread>
+#include <algorithm>
+#include <random>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
@@ -28,8 +30,55 @@ extern "C" {
 namespace dali {
 
 struct SequenceWrapper {
+ public:
+
+  explicit SequenceWrapper()
+  : started_(false) {}
+
+  void initialize(int count, int height, int width, int channels) {
+    count = count;
+    height = height;
+    width = width;
+    channels = channels;
+    sequence_.Resize({count, height, width, channels});
+    started_ = true;
+  }
+
+  void set_started_(bool started) {
+    std::unique_lock<std::mutex> lock{started_lock_};
+    started_ = started;
+    lock.unlock();
+    started_cv_.notify_one();
+  }
+
+  void wait() const {
+    wait_until_started_();
+    cucall(cudaEventSynchronize(event_));
+  }
+  /*
+  Remove useless?
+  void wait(cudaStream_t stream) const {
+      wait_until_started_();
+      cucall(cudaStreamWaitEvent(stream, event_, 0));
+  }
+  */
   TensorList<GPUBackend> sequence;
-  uint32_t count;
+  int count;
+  int height;
+  int width;
+  int channels;
+
+ private:
+  void wait_until_started_() const {
+      std::unique_lock<std::mutex> lock{started_lock_};
+      started_cv_.wait(lock, [&](){return started_;});
+  }
+
+ private:
+  bool started_;
+  mutable std::mutex started_lock_;
+  mutable std::condition_variable started_cv_;
+  CudaEvent event_;
 };
 
 struct OpenFile {
@@ -83,11 +132,32 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     : Loader<GPUBackend, SequenceWrapper>(spec),
       width_(spec.GetArgument<uint16_t>("width")),
       height_(spec.GetArgument<uint16_t>("height")),
-      filenames_(filenames) {
+      count_(spec.GetArgument<uint16_t>("count")),
+      filenames_(filenames),
+      done_(false) {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
-   }
+    // TODO Launch first seq loading
+    // TODO(spanev) Implem several files handling
+    int total_frame_count = get_or_open_file();
+
+
+    // ! TMP to change after deciding what we want
+    int seq_per_epoch = total_frame_count_ / count_)
+    frame_starts_.resize(seq_per_epoch));
+    for (int i = 0; i < seq_per_epoch; ++i) {
+      frame_starts_[i] = i * count_;
+    }
+    auto rng = std::default_random_engine {};
+    std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), rng);
+    current_frame_idx_ = 0;
+  }
 
   ~VideoLoader() noexcept {
+    done_ = true;
+    send_queue_.cancel_pops();
+    if (vid_decoder_) {
+      vid_decoder_->finish();
+    }
     if (thread_file_reader_.joinable()) {
       try {
         thread_file_reader_.join();
@@ -103,9 +173,16 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
 
+  void PrepareEmpty(SequenceWrapper *tensor) override;
+  void ReadSample(SequenceWrapper *tensor) override;
+
+
+  // Params
   uint16_t height_;
   uint16_t width_;
+  uint16_t count_;
   std::vector<std::string> filenames_;
+
   int device_id_;
   VideoLoaderStats stats_;
 
@@ -115,6 +192,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   ThreadSafeQueue<FrameReq> send_queue_;
 
   std::thread thread_file_reader_;
+
+  std::vector<int> frame_starts_;
+  int current_frame_idx_;
+
+  bool done_;
 };
 
 }  // namespace dali

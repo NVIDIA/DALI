@@ -41,12 +41,8 @@ class CUVideoParser {
     {
         init_params(codec, decoder, decode_surfaces, extradata, extradata_size);
 
-        if (CUDA_CALL(cuvidCreateVideoParser(&parser_, &parser_info_))) {
-            initialized_ = true;
-        } else {
-            std::cerr << "Problem creating video parser" << std::endl;
-        }
-
+        CUDA_CALL(cuvidCreateVideoParser(&parser_, &parser_info_));
+        initialized_ = true;
     }
 
 

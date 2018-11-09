@@ -20,7 +20,7 @@ namespace dali {
 
 namespace {
 
-const char * GetVideoCodecString(cudaVideoCodec eCodec) {
+const char* GetVideoCodecString(cudaVideoCodec eCodec) {
     static struct {
         cudaVideoCodec eCodec;
         const char *name;
@@ -55,7 +55,7 @@ const char * GetVideoCodecString(cudaVideoCodec eCodec) {
     return "Unknown";
 }
 
-const char * GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
+const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
     static struct {
         cudaVideoChromaFormat eChromaFormat;
         const char *name;
