@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <vector>
+#include <assert.h>
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"

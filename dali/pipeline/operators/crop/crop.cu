@@ -148,14 +148,14 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     const auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
-    const int H = input_shape[0];
-    const int W = input_shape[1];
+    const auto H = static_cast<int>(input_shape[0]);
+    const auto W = static_cast<int>(input_shape[1]);
 
     DALI_ENFORCE(H == per_sample_dimensions_[i].first &&
                      W == per_sample_dimensions_[i].second,
                  "Corresponding images in different input sets need to have "
                  "the same height and width");
-    const int C = input_shape[2];
+    const auto C = static_cast<int>(input_shape[2]);
 
     DALI_ENFORCE(C == C_,
                  "Input channel dimension does not match "
