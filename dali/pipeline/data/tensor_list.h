@@ -44,6 +44,18 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DLL_PUBLIC TensorList() : meta_(DALI_NHWC),
                             tensor_view_(nullptr) {}
 
+  TensorList(const TensorList &) = delete;
+
+  TensorList &operator=(const TensorList &) = delete;
+
+  TensorList(TensorList &&) {
+    //TODO implement
+  }
+
+  TensorList &operator=(TensorList &&) {
+    //TODO implement
+  }
+
   DLL_PUBLIC ~TensorList() {
     delete tensor_view_;
   }
@@ -307,7 +319,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   template <typename InBackend>
   friend class TensorList;
 
-  DISABLE_COPY_MOVE_ASSIGN(TensorList);
+//  DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
   inline DALITensorLayout GetLayout() const {
     return meta_.GetLayout();
