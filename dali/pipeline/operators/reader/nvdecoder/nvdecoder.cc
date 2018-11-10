@@ -216,6 +216,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
         // mark as flushing?
     }
 
+    // parser_ will call handle_* callbacks after parsing
     CUDA_CALL(cuvidParseVideoData(parser_, &cupkt));
     return 0;
 }
@@ -243,6 +244,8 @@ int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
     // std::cout << "handle_sequence" << std::endl;
     frame_base_ = {static_cast<int>(format->frame_rate.denominator),
                    static_cast<int>(format->frame_rate.numerator)};
+
+    // Prepare params and calls cuvidCreateDecoder
     return decoder_.initialize(format);
 }
 
@@ -271,6 +274,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
                 << " pic index: " << pic_params->CurrPicIdx
                 << std::endl;
 
+    // decoder_ operator () returns a CUvideodecoder
     CUDA_CALL(cuvidDecodePicture(decoder_, pic_params));
     return 1;
 }
@@ -437,7 +441,6 @@ void NvDecoder::push_req(FrameReq req) {
     recv_queue_.push(std::move(req));
 }
 
-//void NvDecoder::receive_frames(PictureSequence& sequence) {
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
     // TODO
     output_queue_.push(&sequence);
@@ -478,7 +481,6 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 
     tex_desc.addressMode[0]   = cudaAddressModeClamp;
     tex_desc.addressMode[1]   = cudaAddressModeClamp;
-    // only one ChromaUpMethod for now...
     tex_desc.filterMode       = cudaFilterModeLinear;
     tex_desc.readMode         = cudaReadModeNormalizedFloat;
     tex_desc.normalizedCoords = 0;

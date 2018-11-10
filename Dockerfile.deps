@@ -13,7 +13,7 @@ ARG FROM_IMAGE_NAME=gitlab-dl.nvidia.com:5005/dali/manylinux:manylinux3_x86_64
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y zip
+RUN yum install -y zip wget yasm
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
@@ -87,6 +87,37 @@ RUN CLANG_VERSION=6.0.1 && \
     wget http://releases.llvm.org/${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
     tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
     rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
+
+## FFmpeg + libav
+##RUN yum install ffmpeg ffmpeg-devel
+#RUN LIBAV_VERSION=12.3 && \
+#    git clone -b v${LIBAV_VERSION} --single-branch --depth 1 https://github.com/libav/libav.git /libav && \
+#    cd libav && \
+#    ./configure && make && \
+#    make install && \
+#    rm -rf libav
+
+# FMpeg
+RUN cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+    tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+    rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+    cd ffmpeg-$FFMPEG_VERSION && \
+    ./configure \
+      --prefix=/usr/local \
+      --disable-static \
+      --disable-all \
+      --disable-autodetect \
+      --disable-iconv \
+      --enable-shared \
+      --enable-avformat \
+      --enable-avcodec \
+      --enable-avfilter \
+      --enable-protocol=file \
+      --enable-demuxer=mov,matroska \
+      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+    make -j8 && make install && \
+    cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION && \
+
 
 # CUDA
 ARG USE_CUDA_VERSION=9

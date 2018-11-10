@@ -29,6 +29,76 @@ extern "C" {
 
 namespace dali {
 
+// AV helpers for OpenFile
+#undef av_err2str
+std::string av_err2str(int errnum) {
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    return std::string{errbuf};
+}
+
+// libav resource free function take the address of a pointer...
+template<typename T>
+class AVDeleter {
+  public:
+    AVDeleter() : deleter_(nullptr) {}
+    AVDeleter(std::function<void(T**)> deleter) : deleter_{deleter} {}
+
+    void operator()(T *p) {
+        deleter_(&p);
+    }
+  private:
+    std::function<void(T**)> deleter_;
+};
+
+// except for the old AVBitSTreamFilterContext
+#ifndef HAVE_AVBSFCONTEXT
+class BSFDeleter {
+  public:
+    void operator()(AVBitStreamFilterContext* bsf) {
+        av_bitstream_filter_close(bsf);
+    }
+};
+#endif
+
+template<typename T>
+using av_unique_ptr = std::unique_ptr<T, AVDeleter<T>>;
+
+template<typename T>
+av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
+    return av_unique_ptr<T>(raw_ptr, AVDeleter<T>(deleter));
+}
+
+#ifdef HAVE_AVSTREAM_CODECPAR
+auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
+    return stream->codecpar;
+}
+#else
+auto codecpar(AVStream* stream) -> decltype(stream->codec) {
+    return stream->codec;
+}
+#endif
+
+struct OpenFile {
+  bool open = false;
+  AVRational frame_base_;
+  AVRational stream_base_;
+  int frame_count_;
+
+  int vid_stream_idx_;
+  int last_frame_;
+
+#ifdef HAVE_AVBSFCONTEXT
+  av_unique_ptr<AVBSFContext> bsf_ctx_;
+#else
+  using bsf_ptr = std::unique_ptr<AVBitStreamFilterContext, BSFDeleter>;
+  bsf_ptr bsf_ctx_;
+  AVCodecContext* codec;
+#endif
+  av_unique_ptr<AVFormatContext> fmt_ctx_;
+};
+
+// Struct that Loader::ReadOne will read
 struct SequenceWrapper {
  public:
 
@@ -62,7 +132,7 @@ struct SequenceWrapper {
       cucall(cudaStreamWaitEvent(stream, event_, 0));
   }
   */
-  TensorList<GPUBackend> sequence;
+  Tensor<GPUBackend> sequence;
   int count;
   int height;
   int width;
@@ -79,25 +149,6 @@ struct SequenceWrapper {
   mutable std::mutex started_lock_;
   mutable std::condition_variable started_cv_;
   CudaEvent event_;
-};
-
-struct OpenFile {
-  bool open = false;
-  AVRational frame_base_;
-  AVRational stream_base_;
-  int frame_count_;
-
-  int vid_stream_idx_;
-  int last_frame_;
-
-#ifdef HAVE_AVBSFCONTEXT
-  av_unique_ptr<AVBSFContext> bsf_ctx_;
-#else
-  using bsf_ptr = std::unique_ptr<AVBitStreamFilterContext, BSFDeleter>;
-  bsf_ptr bsf_ctx_;
-  AVCodecContext* codec;
-#endif
-  av_unique_ptr<AVFormatContext> fmt_ctx_;
 };
 
 /// Provides statistics, see VideoLoader::get_stats() and VideoLoader::reset_stats()

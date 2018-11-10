@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
 
+
 namespace dali {
 
 OpenFile& VideoLoader::get_or_open_file(std::string filename) {

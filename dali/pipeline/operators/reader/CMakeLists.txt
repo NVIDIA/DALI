@@ -19,6 +19,8 @@ add_subdirectory(nvdecoder)
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_op.cc")
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
 
+list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
+
 if (BUILD_LMDB)
   list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe_reader_op.cc")
   list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_reader_op.cc")
