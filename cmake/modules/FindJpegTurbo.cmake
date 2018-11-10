@@ -14,7 +14,7 @@
 set(JPEG_TURBO_ROOT_DIR "" CACHE PATH "Folder contains JpegTurbo")
 
 if (NOT JPEG_TURBO_ROOT_DIR)
-    # if JPEG_TURBO_ROOT_DIR not provided use PkgConfig
+    # if JPEG_TURBO_ROOT_DIR is not provided use PkgConfig
     find_package(PkgConfig QUIET)
     if (PkgConfig_FOUND)
         # use pkg-config only if it has been found, if it fails it fall back to
