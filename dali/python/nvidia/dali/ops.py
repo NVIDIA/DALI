@@ -122,7 +122,7 @@ class _OperatorInstance(object):
                             """Expected inputs of type
                             TensorReference. Received
                             input type {}"""
-                            .format(type(inp).__name__))
+                            .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
 
