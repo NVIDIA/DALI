@@ -79,9 +79,9 @@ class _OperatorInstance(object):
                 for inp in inputs:
                     if not isinstance(inp, TensorReference):
                         raise TypeError(
-                            """Expected inputs of type
-                            TensorReference. Received
-                            input type {}"""
+                            "Expected inputs of type " +
+                            "TensorReference. Received " +
+                            "input type {}."
                             .format(type(inp).__name__))
                     self._spec.AddInput(inp.name, inp.device)
             elif isinstance(inputs[0], list):
@@ -90,38 +90,38 @@ class _OperatorInstance(object):
                     for inp in inputs:
                         if not isinstance(inp, list):
                             raise TypeError(
-                                """Expected inputs of type list of
-                                TensorReference. Received
-                                input type {}"""
+                                "Expected inputs of type list of " +
+                                "TensorReference. Received " +
+                                "input type {}."
                                 .format(type(inp).__name__))
                         if len(inp) != length:
                             raise RuntimeError(
-                                    """Expected input lists
-                                    to have the same length
-                                    ({}). Received list of
-                                    length {}"""
+                                    "Expected input lists " +
+                                    "to have the same length " +
+                                    "({}). Received list of " +
+                                    "length {}."
                                     .format(length, len(inp)))
                         if not isinstance(inp[i], TensorReference):
                             raise TypeError(
-                                """Expected inputs of type
-                                TensorReference. Received
-                                input type {}"""
+                                "Expected inputs of type " +
+                                "TensorReference. Received " +
+                                "input type {}."
                                 .format(type(inp[i]).__name__))
                         self._spec.AddInput(inp[i].name, inp[i].device)
                 self._spec.AddArg("num_input_sets", length)
             else:
                 raise TypeError(
-                    """Expected inputs of type TensorReference or list of
-                    TensorReference. Received input type {}"""
+                    "Expected inputs of type TensorReference or list of " +
+                    "TensorReference. Received input type {}"
                     .format(type(inputs[0]).__name__))
         # Argument inputs
         for k in sorted(kwargs.keys()):
             if k not in ["name"]:
                 if not isinstance(kwargs[k], TensorReference):
                     raise TypeError(
-                            """Expected inputs of type
-                            TensorReference. Received
-                            input type {}"""
+                            "Expected inputs of type " +
+                            "TensorReference. Received " +
+                            "input type {}"
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
@@ -212,8 +212,8 @@ def python_op_factory(name, op_device = "cpu"):
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
-                    """Operator {} expects [{},
-                    {}] inputs, but received {}"""
+                    "Operator {} expects [{}, " +
+                    "{}] inputs, but received {}"
                     .format(type(self).__name__,
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
@@ -281,8 +281,8 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                """Operator {} expects [{},
-                {}] inputs, but received {}"""
+                "Operator {} expects [{}, " +
+                "{}] inputs, but received {}"
                 .format(type(self).__name__,
                         self._schema.MinNumInput(),
                         self._schema.MaxNumInput(),
