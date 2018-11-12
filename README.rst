@@ -1,4 +1,4 @@
-|License|
+|License|  |Documentation|
 
 NVIDIA DALI
 ===========
@@ -220,3 +220,8 @@ DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon 
 
 .. |License| image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
    :target: https://opensource.org/licenses/Apache-2.0
+
+.. |Documentation| image:: https://img.shields.io/badge/nvidia%20dali-documentation-brightgreen.svg?longCache=true
+   :target: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/
+   
+   
