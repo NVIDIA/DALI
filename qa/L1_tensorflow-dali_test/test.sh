@@ -56,7 +56,7 @@ test_body() {
         python -u resnet.py --layers=18 \
         --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
-        --batch=256 --dali_cpu
+        --batch=256 --dali_cpu --log_dir=dali_log
 }
 
 source ../../../../qa/test_template.sh
