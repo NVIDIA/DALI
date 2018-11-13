@@ -15,9 +15,9 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_LIST_H_
 #define DALI_PIPELINE_DATA_TENSOR_LIST_H_
 
+#include <assert.h>
 #include <cstring>
 #include <vector>
-#include <assert.h>
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"

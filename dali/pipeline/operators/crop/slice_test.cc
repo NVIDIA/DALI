@@ -65,7 +65,7 @@ TYPED_TEST(SliceTest, RunCPUCheckImageOutputShapesMatch) {
 
     for (size_t j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
-    };
+    }
   }
 }
 
@@ -121,7 +121,7 @@ TYPED_TEST(SliceTest, RunGPUCheckImageOutputShapesMatch) {
 
     for (size_t j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
-    };
+    }
   }
 }
 
@@ -142,7 +142,7 @@ TYPED_TEST(SliceTest, RunGPUCheckBoxesOutputShapesMatch) {
 
     for (size_t j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
-    };
+    }
   }
 }
 
