@@ -14,7 +14,7 @@ while True:
     try:
         # length
         byte_len = f.read(8)
-        if byte_len == '':
+        if len(byte_len) == 0:
             break
         # crc
         f.read(4)
