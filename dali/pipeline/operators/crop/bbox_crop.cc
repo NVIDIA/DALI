@@ -93,7 +93,7 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   const auto &boxes_tensor = ws->Input<CPUBackend>(0);
 
   BoundingBoxes bounding_boxes;
-  bounding_boxes.reserve(static_cast<unsigned long>(boxes_tensor.dim(0)));
+  bounding_boxes.reserve(static_cast<size_t>(boxes_tensor.dim(0)));
 
   for (int i = 0; i < boxes_tensor.dim(0); ++i) {
     const auto *box = boxes_tensor.data<float>() + (i * kBboxSize);

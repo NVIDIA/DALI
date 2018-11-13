@@ -86,7 +86,7 @@ TYPED_TEST(SliceTest, RunCPUCheckBoxesOutputShapesMatch) {
 
     for (size_t j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
-    };
+    }
   }
 }
 
