@@ -17,11 +17,13 @@
 namespace dali {
 
 DALI_SCHEMA(Slice)
-    .DocStr(R"code(Crop as slice of a defined `size` from an `input` tensor, staring
+    .DocStr(
+        R"code(Crop a slice of a defined `size` from an `input` tensor, staring
     at the location specified by `begin`. Inputs must be supplied as 3 Tensors in a
     specific order: `Images` containing image data in NHWC format, `Begin` containing
-    the starting pixel coordinates for the `crop` in `(x,y)` format, and 'Size' containing
-    the pixel dimensions of the `crop` in `(w,h)` format. The resulting tensor output of
+    the starting pixel coordinates for the `crop` in `(x,y)` format, and `Size` containing
+    the pixel dimensions of the `crop` in `(w,h)` format. For both `Begin` and `Size`,
+    coordinates must be in the interval `[0.0, 1.0]`. The resulting tensor output of
     Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumInput(3)
     .NumOutput(1)
@@ -30,23 +32,25 @@ DALI_SCHEMA(Slice)
     .AddParent("Crop");
 
 template <>
-void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
+void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
   // Assumes xywh
-  const auto &input = ws->Input<CPUBackend>(0);
-  const auto &begin = ws->Input<CPUBackend>(1);
+  const auto &images = ws->Input<CPUBackend>(0);
+  const auto &crop_begin = ws->Input<CPUBackend>(1);
 
-  const int H = input.shape()[0];
-  const int W = input.shape()[1];
+  const auto H = static_cast<const int>(images.shape()[0]);
+  const auto W = static_cast<const int>(images.shape()[1]);
 
-  const auto &size = ws->Input<CPUBackend>(2);
+  const auto &crop_size = ws->Input<CPUBackend>(2);
 
-  crop_width_[ws->data_idx()] = static_cast<int>(size.template data<float>()[0]);
-  crop_height_[ws->data_idx()] = static_cast<int>(size.template data<float>()[1]);
+  crop_width_[ws->data_idx()] =
+      static_cast<int>(crop_size.template data<float>()[0]) * W;
+  crop_height_[ws->data_idx()] =
+      static_cast<int>(crop_size.template data<float>()[1]) * H;
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const int crop_y = begin.template data<float>()[1];
-  const int crop_x = begin.template data<float>()[0];
+  const auto crop_y = static_cast<const int>(crop_begin.template data<float>()[1]) * H;
+  const auto crop_x = static_cast<const int>(crop_begin.template data<float>()[0]) * W;
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }

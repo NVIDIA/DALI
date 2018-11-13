@@ -15,14 +15,14 @@
 #ifndef DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
 #define DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
 
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/crop/crop.h"
+#include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
@@ -37,8 +37,7 @@ class Slice : public Crop<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
-  void DataDependentSetup(Workspace<Backend> *ws);
-  void ThreadDependentSetup(Workspace<Backend> *ws);
+  void DataDependentSetup(Workspace<Backend> *ws, unsigned int idx = 0);
 };
 
 }  // namespace dali
