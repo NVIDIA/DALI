@@ -155,14 +155,6 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     RunBBoxesCPU(finalDesc);
   }
 
-  void RunBBoxesGPU(const singleParamOpDescr &paramOp,
-                    bool addImgType = false) {
-    vector<OpArg> args;
-    args.push_back(paramOp.opArg);
-    opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
-    RunBBoxesGPU(finalDesc);
-  }
-
   TensorList<CPUBackend> images_out;
   TensorList<CPUBackend> boxes_out;
 };
