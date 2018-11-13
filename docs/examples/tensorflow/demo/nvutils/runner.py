@@ -305,6 +305,7 @@ def validate(infer_func, params):
 
     filename_pattern = os.path.join(data_dir, '%s-*')
     eval_filenames  = sorted(tf.gfile.Glob(filename_pattern % 'validation'))
+    num_eval_samples = _get_num_records(eval_filenames)
 
     eval_idx_filenames = None
     if data_idx_dir is not None:
@@ -362,7 +363,8 @@ def validate(infer_func, params):
                     training=False, distort_color=False,
                     deterministic=deterministic,
                     dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
-                    num_threads=num_preproc_threads))
+                    num_threads=num_preproc_threads),
+                    steps=num_eval_samples)
             print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
             print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
         except KeyboardInterrupt:
