@@ -33,23 +33,23 @@ DALI_SCHEMA(Slice)
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
   // Assumes xywh
-  const auto &input = ws->Input<CPUBackend>(0);
-  const auto &begin = ws->Input<CPUBackend>(1);
+  const auto &images = ws->Input<CPUBackend>(0);
+  const auto &crop_begin = ws->Input<CPUBackend>(1);
 
-  const auto H = static_cast<const int>(input.shape()[0]);
-  const auto W = static_cast<const int>(input.shape()[1]);
+  const auto H = static_cast<const int>(images.shape()[0]);
+  const auto W = static_cast<const int>(images.shape()[1]);
 
-  const auto &size = ws->Input<CPUBackend>(2);
+  const auto &crop_size = ws->Input<CPUBackend>(2);
 
   crop_width_[ws->data_idx()] =
-      static_cast<int>(size.template data<float>()[0]);
+      static_cast<int>(crop_size.template data<float>()[0]) * W;
   crop_height_[ws->data_idx()] =
-      static_cast<int>(size.template data<float>()[1]);
+      static_cast<int>(crop_size.template data<float>()[1]) * H;
 
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const auto crop_y = static_cast<const int>(begin.template data<float>()[1]);
-  const auto crop_x = static_cast<const int>(begin.template data<float>()[0]);
+  const auto crop_y = static_cast<const int>(crop_begin.template data<float>()[1]) * H;
+  const auto crop_x = static_cast<const int>(crop_begin.template data<float>()[0]) * W;
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }

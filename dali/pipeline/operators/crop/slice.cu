@@ -20,31 +20,22 @@ template <>
 void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
                                            unsigned int idx) {
   // Assumes xywh
-  const auto &input = ws->Input<GPUBackend>(idx);
-
-  // Need to copy to CPU as these values are required to perform other
-  // calculations. Far from ideal, and should be done properly once Crop op
-  // is cleaned up
-  TensorList<CPUBackend> begin;
-  begin.Copy(ws->Input<GPUBackend>(idx + 1), ws->stream());
-
-  TensorList<CPUBackend> size;
-  size.Copy(ws->Input<GPUBackend>(idx + 2), ws->stream());
+  const auto &images = ws->Input<GPUBackend>(ws->NumInput() * idx);
+  const auto &crop_begin = ws->Input<CPUBackend>(ws->NumInput() * idx + 1);
+  const auto &crop_size = ws->Input<CPUBackend>(ws->NumInput() * idx + 2);
 
   for (int i = 0; i < batch_size_; i++) {
-    const auto H = static_cast<int>(input.tensor_shape(i)[0]);
-    const auto W = static_cast<int>(input.tensor_shape(i)[1]);
+    const auto H = static_cast<int>(images.tensor_shape(i)[0]);
+    const auto W = static_cast<int>(images.tensor_shape(i)[1]);
 
     per_sample_dimensions_[i] = std::make_pair(H, W);
 
-    crop_width_[i] = static_cast<int>(size.template data<float>()[i * 2]);
-    crop_height_[i] = static_cast<int>(size.template data<float>()[i * 2 + 1]);
+    crop_width_[i] = static_cast<int>(crop_size.tensor<float>(i)[0]) * W;
+    crop_height_[i] = static_cast<int>(crop_size.tensor<float>(i)[1]) * H;
 
-    const auto crop_x = static_cast<int>(begin.template data<float>()[i * 2]);
-    const auto crop_y =
-        static_cast<int>(begin.template data<float>()[i * 2 + 1]);
+    const auto crop_x = static_cast<int>(crop_begin.tensor<float>(i)[0]) * W;
+    const auto crop_y = static_cast<int>(crop_begin.tensor<float>(i)[1]) * H;
 
-    per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
   }
 }

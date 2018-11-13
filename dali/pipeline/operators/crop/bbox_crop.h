@@ -32,23 +32,6 @@ class RandomBBoxCrop : public Operator<Backend> {
   static const unsigned int kBboxSize = 4;
 
  protected:
-  struct ImageShape {
-    explicit ImageShape(std::vector<Index> tensor_shape)
-        : height{static_cast<unsigned int>(tensor_shape[0])},
-          width{static_cast<unsigned int>(tensor_shape[1])},
-          channels{static_cast<unsigned int>(tensor_shape[2])} {
-      DALI_ENFORCE(height > 0, "Height should be greater than 0. Received: " +
-                                   std::to_string(height));
-      DALI_ENFORCE(width > 0, "Width should be greater than 0. Received: " +
-                                  std::to_string(width));
-      DALI_ENFORCE(
-          channels == 1 || channels == 3,
-          "Channls should be 1 or 3. Received: " + std::to_string(channels));
-    }
-
-    const unsigned int height, width, channels;
-  };
-
   struct Bounds {
     explicit Bounds(const std::vector<float> &bounds)
         : min(!bounds.empty() ? bounds[0] : -1),
@@ -162,19 +145,10 @@ class RandomBBoxCrop : public Operator<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop,
-                         const ImageShape &shape);
-
-  void WriteCropToOutput(DeviceWorkspace *ws, const std::vector<Crop> &crop,
-                         const std::vector<ImageShape> &shape,
-                         unsigned int idx);
+  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop);
 
   void WriteBoxesToOutput(SampleWorkspace *ws,
                           const BoundingBoxes &bounding_boxes);
-
-  void WriteBoxesToOutput(DeviceWorkspace *ws,
-                          const std::vector<BoundingBoxes> &bounding_boxes,
-                          unsigned int idx);
 
   float SelectMinimumOverlap() {
     static std::uniform_int_distribution<> sampler(
@@ -182,10 +156,10 @@ class RandomBBoxCrop : public Operator<Backend> {
     return thresholds_[sampler(rd_)];
   }
 
-  float SampleCandidateDimension(unsigned int k) {
+  float SampleCandidateDimension() {
     static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
-    return static_cast<float>(sampler(rd_) * k);
+    return static_cast<float>(sampler(rd_));
   }
 
   bool ValidAspectRatio(float width, float height) const {
@@ -212,20 +186,19 @@ class RandomBBoxCrop : public Operator<Backend> {
     return remapped_boxes;
   }
 
-  Rectangle SamplePatch(float scaled_height, float scaled_width, float height,
-                        float width) {
+  Rectangle SamplePatch(float scaled_height, float scaled_width) {
     std::uniform_real_distribution<float> width_sampler(static_cast<float>(0.),
-                                                        width - scaled_width);
+                                                        1 - scaled_width);
     std::uniform_real_distribution<float> height_sampler(
-        static_cast<float>(0.), height - scaled_height);
+        static_cast<float>(0.), 1 - scaled_height);
 
     const auto left_offset = width_sampler(rd_);
     const auto height_offset = height_sampler(rd_);
 
     // Crop is ltrb
-    return Crop(left_offset / width, height_offset / height,
-                (left_offset + scaled_width) / width,
-                (height_offset + scaled_height) / height);
+    return Crop(left_offset, height_offset,
+                (left_offset + scaled_width),
+                (height_offset + scaled_height));
   }
 
   std::vector<Rectangle> DiscardBoundingBoxesByCentroid(
@@ -246,21 +219,19 @@ class RandomBBoxCrop : public Operator<Backend> {
     return result;
   }
 
-  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
-      const ImageShape &image_shape, const BoundingBoxes &bounding_boxes,
+  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(const BoundingBoxes &bounding_boxes,
       float minimum_overlap) {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
         const auto candidate_height =
-            SampleCandidateDimension(image_shape.height);
+            SampleCandidateDimension();
         const auto candidate_width =
-            SampleCandidateDimension(image_shape.width);
+            SampleCandidateDimension();
 
         if (ValidAspectRatio(candidate_height, candidate_width)) {
           const auto candidate_crop =
-              SamplePatch(candidate_height, candidate_width, image_shape.height,
-                          image_shape.width);
+              SamplePatch(candidate_height, candidate_width);
 
           auto candidate_boxes =
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);

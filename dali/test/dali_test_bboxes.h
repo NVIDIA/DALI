@@ -20,70 +20,21 @@ typedef struct {
 template <typename ImgType>
 class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
  protected:
-  void RunBBoxesGPU(const opDescr &descr) {
-    const int batch_size = this->jpegs_.nImages();
-    this->SetBatchSize(batch_size);
-    this->SetNumThreads(1);
-
-    TensorList<CPUBackend> encoded_data;
-    this->EncodedJPEGData(&encoded_data);
-    TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size);
-    this->SetExternalInputs({{"encoded", &encoded_data}, {"boxes", &boxes}});
-
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
-
-    // Decode the images
-    pipe->AddOperator(OpSpec("nvJPEGDecoder")
-                          .AddArg("device", "mixed")
-                          .AddArg("output_type", this->img_type_)
-                          .AddArg("use_batched_decode", true)
-                          .AddInput("encoded", "cpu")
-                          .AddOutput("decoded", "gpu"));
-
-    OpSpec spec(descr.opName);
-    if (descr.opAddImgType) spec = spec.AddArg("image_type", this->ImageType());
-
-    this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
-                                    .AddArg("device", "gpu")
-                                    .AddInput("decoded", "gpu")
-                                    .AddInput("boxes", "cpu")
-                                    .AddOutput("output", "gpu")
-                                    .AddOutput("output1", "gpu")
-                                    .AddOutput("output2", "gpu"));
-
-    this->SetTestCheckType(this->GetTestCheckType());
-    pipe->Build(DALISingleOpTest<ImgType>::outputs_);
-    pipe->RunCPU();
-    pipe->RunGPU();
-
-    DeviceWorkspace ws;
-    pipe->Outputs(&ws);
-  }
-
   void RunBBoxesCPU(const opDescr &descr) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    TensorList<CPUBackend> data;
-    this->MakeJPEGBatch(&data, batch_size);
     TensorList<CPUBackend> boxes;
     this->MakeBBoxesBatch(&boxes, batch_size);
-    this->SetExternalInputs({{"jpegs", &data}, {"boxes", &boxes}});
+    this->SetExternalInputs({{"boxes", &boxes}});
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
-    // Decode the images
-    pipe->AddOperator(OpSpec("HostDecoder")
-                          .AddArg("output_type", this->ImageType())
-                          .AddInput("jpegs", "cpu")
-                          .AddOutput("input", "cpu"));
 
     OpSpec spec(descr.opName);
     if (descr.opAddImgType) spec = spec.AddArg("image_type", this->ImageType());
 
     this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
-                                    .AddInput("input", "cpu")
                                     .AddInput("boxes", "cpu")
                                     .AddOutput("output", "cpu")
                                     .AddOutput("output1", "cpu")
@@ -110,21 +61,20 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
-                          .AddArg("device", "gpu")
+                          .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("images", "gpu")
                           .AddInput("boxes", "cpu")
-                          .AddOutput("begin", "gpu")
-                          .AddOutput("crop", "gpu")
-                          .AddOutput("resized_boxes", "gpu"));
+                          .AddOutput("begin", "cpu")
+                          .AddOutput("crop", "cpu")
+                          .AddOutput("resized_boxes", "cpu"));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
                           .AddArg("device", "gpu")
                           .AddArg("image_type", this->ImageType())
                           .AddInput("images", "gpu")
-                          .AddInput("begin", "gpu")
-                          .AddInput("crop", "gpu")
+                          .AddInput("begin", "cpu")
+                          .AddInput("crop", "cpu")
                           .AddOutput("cropped_images", "gpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
@@ -158,7 +108,6 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("images", "cpu")
                           .AddInput("boxes", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")

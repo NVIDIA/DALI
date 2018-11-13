@@ -23,7 +23,7 @@ DALI_SCHEMA(RandomBBoxCrop)
         Resulting prospective crop is provided as two Tensors: `Begin` containing the starting coordinates for the `crop` in `(x,y)` format,
         and 'Size' containing the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
         where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`.)code")
-    .NumInput(2)
+    .NumInput(1)
     .NumOutput(3)
     .AddOptionalArg(
         "thresholds",
@@ -52,23 +52,22 @@ DALI_SCHEMA(RandomBBoxCrop)
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
-                                                   const Crop &crop,
-                                                   const ImageShape &shape) {
+                                                   const Crop &crop) {
   // Copy the anchor to output 0
   auto *anchor_out = ws->Output<CPUBackend>(0);
   anchor_out->Resize({2});
 
   auto *anchor_out_data = anchor_out->mutable_data<float>();
-  anchor_out_data[0] = crop.left * shape.width;
-  anchor_out_data[1] = crop.top * shape.height;
+  anchor_out_data[0] = crop.left;
+  anchor_out_data[1] = crop.top;
 
   // Copy the offsets to output 1
   auto *offsets_out = ws->Output<CPUBackend>(1);
   offsets_out->Resize({2});
 
   auto *offsets_out_data = offsets_out->mutable_data<float>();
-  offsets_out_data[0] = (crop.right - crop.left) * shape.width;
-  offsets_out_data[1] = (crop.bottom - crop.top) * shape.height;
+  offsets_out_data[0] = (crop.right - crop.left);
+  offsets_out_data[1] = (crop.bottom - crop.top);
 }
 
 template <>
@@ -91,9 +90,7 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
-  const ImageShape image_shape(ws->Input<CPUBackend>(0).shape());
-
-  const auto &boxes_tensor = ws->Input<CPUBackend>(1);
+  const auto &boxes_tensor = ws->Input<CPUBackend>(0);
 
   BoundingBoxes bounding_boxes;
   bounding_boxes.reserve(static_cast<unsigned long>(boxes_tensor.dim(0)));
@@ -105,9 +102,9 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   }
 
   const auto prospective_crop =
-      FindProspectiveCrop(image_shape, bounding_boxes, SelectMinimumOverlap());
+      FindProspectiveCrop(bounding_boxes, SelectMinimumOverlap());
 
-  WriteCropToOutput(ws, prospective_crop.first, image_shape);
+  WriteCropToOutput(ws, prospective_crop.first);
   WriteBoxesToOutput(ws, prospective_crop.second);
 }
 
