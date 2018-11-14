@@ -17,11 +17,14 @@
 
 #include <cstring>
 
+#include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 #include "dali/error_handling.h"
 
 
 namespace dali {
+
+class NvDecoder;
 
 enum class Codec {
     H264,

@@ -36,7 +36,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   void RunImpl(SampleWorkspace *ws, const int idx) override {
     const int data_idx = ws->data_idx();
     auto* sequence = prefetched_batch_[data_idx];
-    auto* sequence_ouput = ws->Output<GPUBackend>(0);
+    auto* sequence_output = ws->Output<GPUBackend>(0);
+    sequence_output->ResizeLike(sequence->sequence);
   }
   void SetupSharedSampleParams(SampleWorkspace *ws) override;
 

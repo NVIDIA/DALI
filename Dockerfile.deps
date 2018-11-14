@@ -98,7 +98,8 @@ RUN CLANG_VERSION=6.0.1 && \
 #    rm -rf libav
 
 # FMpeg
-RUN cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+RUN FFMPEG_VERSION=3.4.2 && \
+    cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     cd ffmpeg-$FFMPEG_VERSION && \

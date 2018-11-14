@@ -19,6 +19,7 @@
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/reader/video_reader_op.h"
 
 namespace dali {
 

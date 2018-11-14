@@ -16,15 +16,23 @@
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_IMGPROC_H_
 
 
-#include "PictureSequence.h"
+#include "dali/pipeline/operators/reader/loader/video_loader.h"
 
 namespace dali {
-
+/*
 template<typename T>
 void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     const PictureSequence::Layer<T>& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height);
+*/
+template<typename T>
+void process_frame(
+    cudaTextureObject_t chroma, cudaTextureObject_t luma,
+    SequenceWrapper& output, int index, cudaStream_t stream,
+    uint16_t input_width, uint16_t input_height,
+//    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
+    int width, int height);
 
 }  // namespace dali
 

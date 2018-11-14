@@ -123,13 +123,13 @@ struct SequenceWrapper {
 
   void wait() const {
     wait_until_started_();
-    cucall(cudaEventSynchronize(event_));
+    CUDA_CALL(cudaEventSynchronize(event_));
   }
   /*
   Remove useless?
   void wait(cudaStream_t stream) const {
       wait_until_started_();
-      cucall(cudaStreamWaitEvent(stream, event_, 0));
+      CUDA_CALL(cudaStreamWaitEvent(stream, event_, 0));
   }
   */
   Tensor<GPUBackend> sequence;
@@ -189,7 +189,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
     // TODO Launch first seq loading
     // TODO(spanev) Implem several files handling
-    int total_frame_count = get_or_open_file();
+    int total_frame_count = get_or_open_file(filenames_[0]);
 
 
     // ! TMP to change after deciding what we want

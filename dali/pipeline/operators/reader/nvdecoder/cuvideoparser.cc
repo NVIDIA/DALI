@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/reader/nvdecoder/CUVideoParser"
-#include "dali/pipeline/operators/reader/nvdecoder/NvDecoder.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
-#include "dali/error_handling.h"
+#include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 
 
 namespace dali {

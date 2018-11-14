@@ -27,7 +27,7 @@
 #include <libavcodec/avcodec.h>
 
 #include "dali/util/cucontext.h"
-#include "dali/pipeline/operators/reader/loader/videl_loader.h"
+#include "dali/pipeline/operators/reader/loader/video_loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"

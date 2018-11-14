@@ -99,13 +99,14 @@ __global__ void process_frame_kernel(
     auto out = &dst.data[dst_x * c
                          dst_y * dst_width * c];
 
+    bool normalized = false;
     switch(dst.desc.color_space) {
         case ColorSpace_RGB:
-            yuv2rgb(yuv, out, dst.desc.stride.c, dst.desc.normalized);
+            yuv2rgb(yuv, out, c, normalized);
             break;
 
         case ColorSpace_YCbCr:
-            auto mult = dst.desc.normalized ? 1.0f : 255.0f;
+            auto mult = normalized ? 1.0f : 255.0f;
             out[0] = convert<T>(yuv.y * mult);
             out[c] = convert<T>(yuv.u * mult);
             out[c*2] = convert<T>(yuv.v * mult);
@@ -124,7 +125,7 @@ void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     SequenceWrapper& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height,
-    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
+//    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
     int width, int height) {
     // TODO PictureSequence::Layer -> TensorGPU
 //    if (!(std::is_same<T, half>::value || std::is_floating_point<T>::value)
@@ -134,6 +135,8 @@ void process_frame(
 
 //    auto scale_width = output.desc.scale_width > 0 ? output.desc.scale_width : input_width;
 //    auto scale_height = output.desc.scale_height > 0 ? output.desc.scale_height : input_height;
+    auto scale_width = input_width;
+    auto scale_height = input_height;
 
     auto fx = static_cast<float>(input_width) / scale_width;
     auto fy = static_cast<float>(input_height) / scale_height;
@@ -144,7 +147,7 @@ void process_frame(
     auto* tensorout = output.mutable_tensor<T>(index);
 
     process_frame_kernel<<<grid, block, 0, stream>>>
-            (luma, chroma, output, index, fx, fy, width, height);
+            (luma, chroma, output, index, fx, fy, output.width, ouput.height, output.channels);
 }
 
 }  // namespace dali
