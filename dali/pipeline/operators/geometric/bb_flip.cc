@@ -117,6 +117,22 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
     const auto h = !coordinates_type_ltrb_ ? input_data[i + 3] : input_data[i + 3] -
                                                               input_data[i + 1];
 
+    if (coordinates_type_ltrb_) {
+      DALI_ENFORCE(x <= 1 && x >= 0, "Expected 0 <= x <= 1. Received: " + std::to_string(x));
+      DALI_ENFORCE(y <= 1 && y >= 0, "Expected 0 <= y <= 1. Received: " + std::to_string(y));
+      DALI_ENFORCE(x <= w, "Expected left <= right. Received: " + std::to_string(x) + " <= " + std::to_string(w));
+      DALI_ENFORCE(w <= 1 && w >= 0, "Expected 0 <= w <= 1. Received: " + std::to_string(w));
+      DALI_ENFORCE(h <= 1 && w >= 0, "Expected 0 <= h <= 1. Received: " + std::to_string(h));
+      DALI_ENFORCE(y <= h, "Expected top <= bottom. Received: " + std::to_string(y) + " <= " + std::to_string(h));
+    } else {
+      DALI_ENFORCE(x <= 0, "Expected x >= 0. Received: " + std::to_string(x));
+      DALI_ENFORCE(y <= 0, "Expected y >= 0. Received: " + std::to_string(y));
+      DALI_ENFORCE(w <= 0, "Expected w >= 0. Received: " + std::to_string(w));
+      DALI_ENFORCE(h <= 0, "Expected h >= 0. Received: " + std::to_string(h));
+      DALI_ENFORCE(x + w <= 1);
+      DALI_ENFORCE(y + h <= 1);
+    }
+
     output_data[i] = horizontal ? (1.0f - x) - w : x;
     output_data[i + 1] = vertical ? (1.0f - y) - h : y;
     output_data[i + 2] = !coordinates_type_ltrb_ ? w : output_data[0] + w;
