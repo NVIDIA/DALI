@@ -32,7 +32,7 @@ struct RandomResizedCrop<GPUBackend>::Params {
 
 template<>
 void RandomResizedCrop<GPUBackend>::InitParams(const OpSpec &spec) {
-  params_->rand_gen.seed(spec.GetArgument<int>("seed"));
+  params_->rand_gen.seed(spec.GetArgument<int64_t>("seed"));
   params_->aspect_ratio_dis = std::uniform_real_distribution<float>(aspect_ratios_[0],
                                                                     aspect_ratios_[1]);
   params_->area_dis = std::uniform_real_distribution<float>(area_[0],

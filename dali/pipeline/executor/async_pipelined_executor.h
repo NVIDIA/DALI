@@ -47,6 +47,15 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
+    /*
+     * We need to call shutdown here and not rely on cpu_thread_ destructor
+     * as when WorkerThread destructor is called conditional variables and mutexes
+     * from this class may no longer exist while work inside WorkerThread is still
+     * using it what can cause a hang
+     */
+    cpu_thread_.Shutdown();
+    mixed_thread_.Shutdown();
+    gpu_thread_.Shutdown();
   }
 
   DLL_PUBLIC void Init() override {

@@ -6,4 +6,5 @@ Tutorials
 
    dataloading
    serialization.ipynb
+   detection_pipeline.ipynb
    augmentation_gallery.ipynb

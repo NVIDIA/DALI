@@ -66,6 +66,15 @@ class WorkerThread {
   }
 
   inline ~WorkerThread() {
+    nvml::Shutdown();
+  }
+
+  /*
+   * Separate Shutdown function is needed as we cannot rely on destructor to stop the thread.
+   * When the destructor is called other things that work() is using may have been gone long
+   * before causing a hang. Now when Shutdown is called we are sure that all things around still exist.
+   */
+  inline void Shutdown(void) {
     // Wait for work to find errors
     if (running_) {
       WaitForWork();
@@ -83,7 +92,6 @@ class WorkerThread {
       ForceStop();
       thread_.join();
     }
-    nvml::Shutdown();
   }
 
   inline void DoWork(Work work) {

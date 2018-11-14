@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <dirent.h>
-#include <sys/stat.h>
 #include <errno.h>
 
 #include "dali/common.h"
@@ -33,19 +32,25 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
 
   while ((entry = readdir(dir))) {
     std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
-    struct stat s;
-    stat(full_path.c_str(), &s);
-    if (S_ISREG(s.st_mode)) {
-      std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
-      std::string file_name_lowercase = std::string{entry->d_name};
-      std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
-                     file_name_lowercase.begin(), ::tolower);
-      for (const std::string& s : valid_extensions) {
-        size_t pos = file_name_lowercase.rfind(s);
-        if (pos != std::string::npos && pos + s.size() == file_name_lowercase.size()) {
-          file_label_pairs->push_back(std::make_pair(rel_path, label));
-          break;
-        }
+#ifdef _DIRENT_HAVE_D_TYPE
+    /*
+     * we support only regular files and symlinks, if FS returns DT_UNKNOWN
+     * it doesn't mean anything and let us validate filename itself
+     */
+    if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
+        entry->d_type != DT_UNKNOWN) {
+      continue;
+    }
+#endif
+    std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
+    std::string file_name_lowercase = std::string{entry->d_name};
+    std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
+                   file_name_lowercase.begin(), ::tolower);
+    for (const std::string& s : valid_extensions) {
+      size_t pos = file_name_lowercase.rfind(s);
+      if (pos != std::string::npos && pos + s.size() == file_name_lowercase.size()) {
+        file_label_pairs->push_back(std::make_pair(rel_path, label));
+        break;
       }
     }
   }

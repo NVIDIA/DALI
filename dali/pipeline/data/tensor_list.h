@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_LIST_H_
 #define DALI_PIPELINE_DATA_TENSOR_LIST_H_
 
+#include <assert.h>
 #include <cstring>
 #include <vector>
 

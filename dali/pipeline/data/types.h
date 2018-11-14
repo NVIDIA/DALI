@@ -15,13 +15,6 @@
 #ifndef DALI_PIPELINE_DATA_TYPES_H_
 #define DALI_PIPELINE_DATA_TYPES_H_
 
-// workaround missing "is_trivially_copyable" in g++ < 5.0
-#if __cplusplus && __GNUC__ < 5 && !__clang__
-#include <boost/type_traits/has_trivial_copy.hpp>
-#define IS_TRIVIALLY_COPYABLE(T) ::boost::has_trivial_copy<T>::value
-#else
-#define IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
-#endif
 
 #include <cstdint>
 #include <cstring>
@@ -36,6 +29,18 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+
+// Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.
+// We have to first include some standard library headers, so to have __GLIBCXX__ symbol,
+// and we have to exclude the specific version used in manylinux for our CI, because
+// clang always defines __GNUC__ to 4. __GLIBCXX__ is not a linear ordering based on
+// version of library but the date of the release so we can have 4.9.4 > 5.1.
+#if __GLIBCXX__ == 20150212 || (__cplusplus && __GNUC__ < 5 && !__clang__)
+#include <boost/type_traits/has_trivial_copy.hpp>
+#define IS_TRIVIALLY_COPYABLE(T) ::boost::has_trivial_copy<T>::value
+#else
+#define IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
+#endif
 
 #ifdef DALI_BUILD_PROTO3
 #include "dali/pipeline/operators/reader/parser/tf_feature.h"

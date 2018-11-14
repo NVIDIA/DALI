@@ -23,14 +23,17 @@ DALI_SCHEMA(Crop)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AddOptionalArg("crop_pos_x",
-                    R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-                    0.5f, true)
-    .AddOptionalArg("crop_pos_y",
-                    R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-                    0.5f, true)
+    .AddOptionalArg(
+        "crop_pos_x",
+        R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
+        0.5f, true)
+    .AddOptionalArg(
+        "crop_pos_y",
+        R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
+        0.5f, true)
     .AddOptionalArg("image_type",
-                    R"code(The color space of input and output image)code", DALI_RGB, false)
+                    R"code(The color space of input and output image)code",
+                    DALI_RGB, false)
     .AddOptionalArg(
         "crop",
         R"code(Size of the cropped image. If only a single value `c` is provided,
@@ -38,21 +41,16 @@ DALI_SCHEMA(Crop)
         std::vector<float>{0.f, 0.f})
     .EnforceInputLayout(DALI_NHWC);
 
-
-template<>
-Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
+template <>
+Crop<CPUBackend>::Crop(const OpSpec &spec)
+    : Operator<CPUBackend>(spec), CropAttr(spec) {
   Init(num_threads_);
 }
 
-template<typename Out>
-void CropKernel(
-  const int C,
-  const int H,
-  const int W,
-  const unsigned char *input_ptr,
-  const int in_stride,
-  DALITensorLayout layout,
-  Out *output_ptr) {
+template <typename Out>
+void CropKernel(const int C, const int H, const int W,
+                const unsigned char *input_ptr, const int in_stride,
+                DALITensorLayout layout, Out *output_ptr) {
   if (layout == DALI_NCHW) {
     for (int c = 0; c < C; ++c) {
       for (int h = 0; h < H; ++h) {
@@ -80,8 +78,8 @@ void CropKernel(
   }
 }
 
-template<>
-template<typename Out>
+template <>
+template <typename Out>
 void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
@@ -95,12 +93,11 @@ void Crop<CPUBackend>::RunHelper(SampleWorkspace *ws, const int idx) {
 
   const int dataIdx = ws->data_idx();
   CropKernel<Out>(C_, crop_height_[dataIdx], crop_width_[dataIdx],
-                              input.template data<uint8>() + (crop_y * W + crop_x) * C_,
-                              W * C_, output_layout_,
-                              output->template mutable_data<Out>());
+                  input.template data<uint8>() + (crop_y * W + crop_x) * C_,
+                  W * C_, output_layout_, output->template mutable_data<Out>());
 }
 
-template<>
+template <>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto output = ws->Output<CPUBackend>(idx);
@@ -116,14 +113,15 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     CallRunHelper(ws, idx);
 }
 
-template<>
+template <>
 void Crop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   if (output_type_ == DALI_NO_TYPE) {
     const auto &input = ws->Input<CPUBackend>(0);
     output_type_ = input.type().id();
   }
 
-  SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(), ws->data_idx());
+  SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(),
+                          ws->data_idx());
 }
 
 // Register operator

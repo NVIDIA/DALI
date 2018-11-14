@@ -135,6 +135,8 @@ endif()
 ##################################################################
 # protobuf
 ##################################################################
+# link statically
+set(Protobuf_USE_STATIC_LIBS "ON")
 find_package(Protobuf 2.0 REQUIRED)
 if(${Protobuf_VERSION} VERSION_LESS "3.0")
   message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
