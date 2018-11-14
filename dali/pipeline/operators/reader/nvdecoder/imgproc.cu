@@ -4,8 +4,6 @@
 
 #include <cuda_fp16.h>
 
-namespace dali {
-
 namespace {
 
 // using math from https://msdn.microsoft.com/en-us/library/windows/desktop/dd206750(v=vs.85).aspx
@@ -96,22 +94,22 @@ __global__ void process_frame_kernel(
     yuv.u = uv.x;
     yuv.v = uv.y;
 
-    auto out = &dst.data[dst_x * c
-                         dst_y * dst_width * c];
+    auto out = &dst.data[dst_x * c + dst_y * dst_width * c];
 
     bool normalized = false;
-    switch(dst.desc.color_space) {
-        case ColorSpace_RGB:
-            yuv2rgb(yuv, out, c, normalized);
-            break;
+    int stride = 1;
+    //switch(dst.desc.color_space) {
+    //    case ColorSpace_RGB:
+            yuv2rgb(yuv, out, stride, normalized);
+    //        break;
 
-        case ColorSpace_YCbCr:
-            auto mult = normalized ? 1.0f : 255.0f;
-            out[0] = convert<T>(yuv.y * mult);
-            out[c] = convert<T>(yuv.u * mult);
-            out[c*2] = convert<T>(yuv.v * mult);
-            break;
-    };
+    //    case ColorSpace_YCbCr:
+    //        auto mult = normalized ? 1.0f : 255.0f;
+    //        out[0] = ::convert<T>(yuv.y * mult);
+    //        out[c] = ::convert<T>(yuv.u * mult);
+    //        out[c*2] = ::convert<T>(yuv.v * mult);
+    //        break;
+    // };
 }
 
 int divUp(int total, int grain) {
@@ -119,6 +117,9 @@ int divUp(int total, int grain) {
 }
 
 } //  namespace
+
+namespace dali {
+
 
 template<typename T>
 void process_frame(
@@ -142,12 +143,12 @@ void process_frame(
     auto fy = static_cast<float>(input_height) / scale_height;
 
     dim3 block(32, 8);
-    dim3 grid(divUp(output.width, block.x), divUp(output.height, block.y));
+    dim3 grid(::divUp(output.width, block.x), ::divUp(output.height, block.y));
 
-    auto* tensorout = output.mutable_tensor<T>(index);
-
+    //auto* tensorout = output.sequence.mutable_tensor<T>(index);
+    auto* tensor_out = output.sequence.mutable_tensor<T>
     process_frame_kernel<<<grid, block, 0, stream>>>
-            (luma, chroma, output, index, fx, fy, output.width, ouput.height, output.channels);
+            (luma, chroma, tensor_out, index, fx, fy, output.width, ouput.height, output.channels);
 }
 
 }  // namespace dali

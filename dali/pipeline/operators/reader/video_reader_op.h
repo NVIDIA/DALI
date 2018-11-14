@@ -28,22 +28,42 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     count_(spec.GetArgument<int>("count")) {
     	loader_.reset(new VideoLoader(spec, filenames_));
+
+      std::vector<Index> t_shape;
+      t_shape.push_back(static_cast<Index>(batch_size_));
+      // TODO add shape
+
+      for (int i = 0; i < batch_size_; ++i) {
+        tl_shape_.push_back(t_shape);
+      }
+      // prepare
   }
 
   virtual inline ~VideoReader() = default;
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) override {
-    const int data_idx = ws->data_idx();
+  void RunImpl(DeviceWorkspace *ws, const int idx) override {
+    const int data_idx = samples_processed_;
     auto* sequence = prefetched_batch_[data_idx];
-    auto* sequence_output = ws->Output<GPUBackend>(0);
-    sequence_output->ResizeLike(sequence->sequence);
+    auto* tl_sequence_output = ws->Output<GPUBackend>(0);
+    //  if (data_idx == 0) {
+    //   tl_sequence_output->Resize(tl_shape_);
+    //  }
+    auto* sequence_output = tl_sequence_output->mutable_tensor<float>(data_idx);
+    // TODO(spanev) copy the ouput into sequence_output
   }
-  void SetupSharedSampleParams(SampleWorkspace *ws) override;
+
+  void SetupSharedSampleParams(DeviceWorkspace *ws) {
+    auto* tl_sequence_output = ws->Output<GPUBackend>(0);
+    tl_sequence_output->Resize(tl_shape_);
+  }
+
 
  private:
   std::vector<std::string> filenames_;
   int count_;
+
+  std::vector<std::vector<Index>> tl_shape_;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };

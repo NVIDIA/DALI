@@ -150,6 +150,7 @@ class DataReader : public Operator<Backend> {
     }
   }
 
+  // CPUBackend operators
   void Run(SampleWorkspace* ws) override {
     {
       std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
@@ -206,6 +207,67 @@ class DataReader : public Operator<Backend> {
       return;
     }
   }
+
+  // GPUBackend operators
+  void Run(DeviceWorkspace* ws) override {
+    {
+      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+      StartPrefetchThread();
+
+      if (batch_stop_) batch_stop_ = false;
+    }
+
+    for (samples_processed_.load()) {
+      {
+        // block all other worker threads from taking the prefetch-controller lock
+        std::unique_lock<std::mutex> worker_lock(worker_mutex_);
+
+        if (!prefetch_ready_workers_) {
+          // grab the actual prefetching lock
+          std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+
+          // Wait until prefetch is ready
+          while (!prefetch_ready_) {
+            consumer_.wait(prefetch_lock);
+            prefetch_ready_ = true;
+          }
+          // signal the other workers we're ready
+          prefetch_ready_workers_ = true;
+
+          // signal the prefetch thread to start again
+          prefetch_ready_ = true;
+          producer_.notify_one();
+        }
+      }
+
+      // consume batch
+      Operator<Backend>::Run(ws);
+
+      loader_->ReturnTensor(prefetched_batch_[ws->data_idx()]);
+
+      samples_processed_++;
+
+    }
+
+    // lock, check if batch is finished, notify
+    {
+      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+
+      // if we need to stop, stop.
+      if (batch_stop_) return;
+
+      // if we've consumed all samples in this batch, reset state and stop
+      if (samples_processed_.load() == Operator<Backend>::batch_size_) {
+        prefetch_ready_workers_ = false;
+        prefetch_ready_ = false;
+        producer_.notify_one();
+        samples_processed_ = 0;
+        batch_stop_ = true;
+      }
+      return;
+    }
+  }
+
 
   Index epoch_size() const override {
     return loader_->Size();

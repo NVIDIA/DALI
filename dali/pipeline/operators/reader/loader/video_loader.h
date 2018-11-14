@@ -17,6 +17,7 @@
 
 extern "C" {
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
 }
 
 #include <thread>
@@ -26,9 +27,10 @@ extern "C" {
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
+#include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
+#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 
-namespace dali {
-
+namespace {
 // AV helpers for OpenFile
 #undef av_err2str
 std::string av_err2str(int errnum) {
@@ -79,6 +81,10 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec) {
 }
 #endif
 
+}  //  namespace
+
+namespace dali {
+
 struct OpenFile {
   bool open = false;
   AVRational frame_base_;
@@ -96,59 +102,6 @@ struct OpenFile {
   AVCodecContext* codec;
 #endif
   av_unique_ptr<AVFormatContext> fmt_ctx_;
-};
-
-// Struct that Loader::ReadOne will read
-struct SequenceWrapper {
- public:
-
-  explicit SequenceWrapper()
-  : started_(false) {}
-
-  void initialize(int count, int height, int width, int channels) {
-    count = count;
-    height = height;
-    width = width;
-    channels = channels;
-    sequence_.Resize({count, height, width, channels});
-    started_ = true;
-  }
-
-  void set_started_(bool started) {
-    std::unique_lock<std::mutex> lock{started_lock_};
-    started_ = started;
-    lock.unlock();
-    started_cv_.notify_one();
-  }
-
-  void wait() const {
-    wait_until_started_();
-    CUDA_CALL(cudaEventSynchronize(event_));
-  }
-  /*
-  Remove useless?
-  void wait(cudaStream_t stream) const {
-      wait_until_started_();
-      CUDA_CALL(cudaStreamWaitEvent(stream, event_, 0));
-  }
-  */
-  Tensor<GPUBackend> sequence;
-  int count;
-  int height;
-  int width;
-  int channels;
-
- private:
-  void wait_until_started_() const {
-      std::unique_lock<std::mutex> lock{started_lock_};
-      started_cv_.wait(lock, [&](){return started_;});
-  }
-
- private:
-  bool started_;
-  mutable std::mutex started_lock_;
-  mutable std::condition_variable started_cv_;
-  CudaEvent event_;
 };
 
 /// Provides statistics, see VideoLoader::get_stats() and VideoLoader::reset_stats()
@@ -187,17 +140,18 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       done_(false) {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
-    // TODO Launch first seq loading
+    // TODO(spanev) Launch first seq loading
     // TODO(spanev) Implem several files handling
-    int total_frame_count = get_or_open_file(filenames_[0]);
+    int total_frame_count = get_or_open_file(filenames_[0]).frame_count_;
 
 
-    // ! TMP to change after deciding what we want
-    int seq_per_epoch = total_frame_count_ / count_)
-    frame_starts_.resize(seq_per_epoch));
+    // TMP to change after deciding what we want
+    int seq_per_epoch = total_frame_count / count_;
+    frame_starts_.resize(seq_per_epoch);
     for (int i = 0; i < seq_per_epoch; ++i) {
       frame_starts_[i] = i * count_;
     }
+    // TODO(spanev) change random engine
     auto rng = std::default_random_engine {};
     std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), rng);
     current_frame_idx_ = 0;

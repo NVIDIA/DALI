@@ -27,6 +27,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
+#include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/util/cucontext.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
@@ -169,8 +170,11 @@ NvDecoder::NvDecoder(int device_id,
             return;
     }
 
-    parser_ = CUVideoParser(codec, this, 20, codecpar->extradata,
-                            codecpar->extradata_size);
+    //parser_ = CUVideoParser(codec, this, 20, codecpar->extradata,
+    //                        codecpar->extradata_size);
+
+    parser_.init(codec, this, 20, codecpar->extradata,
+                        codecpar->extradata_size);
     if (!parser_.initialized()) {
         std::cerr << "Problem creating video parser\n";
         return;

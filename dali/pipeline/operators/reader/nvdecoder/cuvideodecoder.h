@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_NVDECODER_CUVIDEODECODER_H_
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_CUVIDEODECODER_H_
 
-#include "dali/pipeline/operators/reader/nvdecoder/cuviddec.h"
+#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 #include "dali/error_handling.h"
 
 namespace dali {

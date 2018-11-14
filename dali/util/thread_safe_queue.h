@@ -66,7 +66,7 @@ class ThreadSafeQueue {
     }
 
     void cancel_pops() {
-        interrupt_ = tr;
+        interrupt_ = true;
         cond_.notify_all();
     }
 

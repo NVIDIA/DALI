@@ -97,6 +97,9 @@ RUN CLANG_VERSION=6.0.1 && \
 #    make install && \
 #    rm -rf libav
 
+
+ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
+
 # FMpeg
 RUN FFMPEG_VERSION=3.4.2 && \
     cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
@@ -117,7 +120,7 @@ RUN FFMPEG_VERSION=3.4.2 && \
       --enable-demuxer=mov,matroska \
       --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
     make -j8 && make install && \
-    cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION && \
+    cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 
 
 # CUDA

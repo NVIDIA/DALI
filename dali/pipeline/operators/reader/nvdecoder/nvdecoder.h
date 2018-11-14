@@ -27,13 +27,15 @@
 #include <libavcodec/avcodec.h>
 
 #include "dali/util/cucontext.h"
-#include "dali/pipeline/operators/reader/loader/video_loader.h"
+#include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
 
 namespace dali {
+
+// Fwd declaration here because we need NVDecoder members in CUVideoParser
 
 class AVPacket;
 #ifdef HAVE_AVSTREAM_CODECPAR

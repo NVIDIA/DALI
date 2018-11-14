@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_IMGPROC_H_
 
 
-#include "dali/pipeline/operators/reader/loader/video_loader.h"
+#include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 
 namespace dali {
 /*
