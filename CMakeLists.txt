@@ -25,6 +25,7 @@ option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
+option(BUILD_TENSORRT "Build with TensorRT" OFF)
 
 include(cmake/Utils.cmake)
 
@@ -60,7 +61,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths
-  if (${CUDA_HOST_COMPILER} MATCHES "clang") 
+  if (${CUDA_HOST_COMPILER} MATCHES "clang")
     message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CUDA_HOST_COMPILER to gcc")
     execute_process(COMMAND which gcc OUTPUT_VARIABLE PATH_TO_GCC OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT PATH_TO_GCC)

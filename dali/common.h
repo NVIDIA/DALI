@@ -39,6 +39,9 @@ namespace dali {
 const float M_PI = 3.14159265358979323846;
 #endif
 
+const int MAX_ALLOWED_TRT_OP_INPUT = 16;
+const int MAX_ALLOWED_DLA_CORE = 2;
+
 // Using declaration for common types
 using std::array;
 using std::cout;

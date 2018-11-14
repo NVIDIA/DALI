@@ -154,3 +154,18 @@ list(APPEND DALI_EXCLUDES libprotobuf.a)
 # Exclude stdlib
 ##################################################################
 list(APPEND DALI_EXCLUDES libsupc++.a;libstdc++.a;libstdc++_nonshared.a;)
+
+##################################################################
+# TensorRT
+##################################################################
+if(BUILD_TENSORRT)
+    if(DEFINED ENV{TRT_RELEASE})
+        set(TRT_PATH $ENV{TRT_RELEASE})
+        include_directories(${TRT_PATH}/include)
+        include_directories(${TRT_PATH}/samples/common)
+        list(APPEND DALI_LIBS ${TRT_PATH}/lib/libnvinfer.so)
+        list(APPEND DALI_LIBS ${TRT_PATH}/lib/libnvinfer_plugin.so)
+    elseif()
+        message("TRT_RELEASE environment variable is not set")
+    endif()
+endif()
