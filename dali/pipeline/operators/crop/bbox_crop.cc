@@ -19,7 +19,7 @@ namespace dali {
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
         R"code(Perform a prospective crop to an image while keeping bounding boxes consistent. Inputs must be supplied as two Tensors:
-        `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[l,t,r,b]`.
+        `Images` containing image data in NHWC format, and `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[x,y,w,h]`.
         Resulting prospective crop is provided as two Tensors: `Begin` containing the starting coordinates for the `crop` in `(x,y)` format,
         and 'Size' containing the dimensions of the `crop` in `(w,h)` format. Bounding boxes are provided as a `(m*4)` Tensor,
         where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`.)code")
@@ -98,7 +98,7 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   for (int i = 0; i < boxes_tensor.dim(0); ++i) {
     const auto *box = boxes_tensor.data<float>() + (i * kBboxSize);
     // ltrb expected
-    bounding_boxes.emplace_back(box[0], box[1], box[2], box[3]);
+    bounding_boxes.emplace_back(box[0], box[1], box[2], box[3], ltrb_);
   }
 
   const auto prospective_crop =

@@ -48,13 +48,13 @@ class RandomBBoxCrop : public Operator<Backend> {
   };
 
   struct Rectangle {
-    explicit Rectangle(float left, float top, float right, float bottom)
+    explicit Rectangle(float left, float top, float right, float bottom, bool ltrb = true)
         : left(left),
           top(top),
-          right(right),
-          bottom(bottom),
+          right(ltrb ? right : left + right),
+          bottom(ltrb ? bottom : top + bottom),
           area((right - left) * (bottom - top)) {
-      // Enforce ltrb
+      // Rectangle uses ltrb internally
       DALI_ENFORCE(left >= 0 && left <= 1);
       DALI_ENFORCE(top >= 0 && top <= 1);
       DALI_ENFORCE(right >= 0 && right <= 1);
