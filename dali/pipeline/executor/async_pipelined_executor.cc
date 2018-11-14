@@ -36,9 +36,7 @@ void AsyncPipelinedExecutor::RunCPU() {
           return;
         }
 
-        // std::cout << "got cpu work" << endl;
         PipelinedExecutor::RunCPU();
-        // std::cout << "finished cpu work" << endl;
 
         // Mark that there is now mixed work to do
         // and signal to any threads that are waiting
