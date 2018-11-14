@@ -690,6 +690,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("MinNumInput", &OpSchema::MinNumInput)
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
+    .def("CalculateAdditionalOutputs", &OpSchema::CalculateAdditionalOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace)
     .def("CheckArgs", &OpSchema::CheckArgs)
     .def("GetArgumentDox", &OpSchema::GetArgumentDox)
