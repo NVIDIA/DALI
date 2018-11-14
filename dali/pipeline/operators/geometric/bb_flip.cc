@@ -14,43 +14,38 @@
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
 
-
 namespace dali {
 
-const std::string kCoordinatesTypeArgName = "ltrb";  //NOLINT
-const std::string kHorizontalArgName = "horizontal";  //NOLINT
-const std::string kVerticalArgName = "vertical";  //NOLINT
-
+const std::string kCoordinatesTypeArgName = "ltrb";   // NOLINT
+const std::string kHorizontalArgName = "horizontal";  // NOLINT
+const std::string kVerticalArgName = "vertical";      // NOLINT
 
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
 
-
 DALI_SCHEMA(BbFlip)
-                .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
+    .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
 Input: Bounding box coordinates; in either [x, y, w, h]
 or [left, top, right, bottom] format. All coordinates are
 in the image coordinate system (i.e. 0.0-1.0))code")
-                .NumInput(1)
-                .NumOutput(1)
-                .AddOptionalArg(kCoordinatesTypeArgName,
-                                R"code(True, for two-point (ltrb).
+    .NumInput(1)
+    .NumOutput(1)
+    .AddOptionalArg(kCoordinatesTypeArgName,
+                    R"code(True, for two-point (ltrb).
 False for for width-height representation. Default: False)code",
-                                false, false)
-                .AddOptionalArg(kHorizontalArgName,
-                                R"code(Perform flip along horizontal axis. Default: 1)code",
-                                1, true)
-                .AddOptionalArg(kVerticalArgName,
-                                R"code(Perform flip along vertical axis. Default: 0)code",
-                                0, true);
+                    false, false)
+    .AddOptionalArg(kHorizontalArgName,
+                    R"code(Perform flip along horizontal axis. Default: 1)code",
+                    1, true)
+    .AddOptionalArg(kVerticalArgName,
+                    R"code(Perform flip along vertical axis. Default: 0)code",
+                    0, true);
 
-
-BbFlip::BbFlip(const dali::OpSpec &spec) :
-        Operator<CPUBackend>(spec),
-        coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
+BbFlip::BbFlip(const dali::OpSpec &spec)
+    : Operator<CPUBackend>(spec),
+      coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
-
 
 void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
@@ -58,33 +53,40 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  DALI_ENFORCE([](const float *data, size_t size) -> bool {
-      for (size_t i = 0; i < size; i++) {
-        if (data[i] < 0 || data[i] > 1.0)
-          return false;
-      }
-      return true;
-  }(input_data, input.size()), "Not all bounding box parameters are in [0.0, 1.0]");
-
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-      if (coors_type_ltrb) return true;  // Assert not applicable for 2-point representation
-      for (size_t i = 0; i < size; i += 4) {
-        if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
-          return false;
+  DALI_ENFORCE(
+      [](const float *data, size_t size) -> bool {
+        for (size_t i = 0; i < size; i++) {
+          if (data[i] < 0 || data[i] > 1.0) return false;
         }
-      }
-      return true;
-  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect width or height");
+        return true;
+      }(input_data, input.size()),
+      "Not all bounding box parameters are in [0.0, 1.0]");
 
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-      if (!coors_type_ltrb) return true;  // Assert not applicable for wh representation
-      for (size_t i = 0; i < size; i += 4) {
-        if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
-          return false;
+  DALI_ENFORCE(
+      [](const float *data, size_t size, bool coors_type_ltrb) -> bool {
+        if (coors_type_ltrb)
+          return true;  // Assert not applicable for 2-point representation
+        for (size_t i = 0; i < size; i += 4) {
+          if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
+            return false;
+          }
         }
-      }
-      return true;
-  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect first or second point");
+        return true;
+      }(input_data, input.size(), coordinates_type_ltrb_),
+      "Incorrect width or height");
+
+  DALI_ENFORCE(
+      [](const float *data, size_t size, bool coors_type_ltrb) -> bool {
+        if (!coors_type_ltrb)
+          return true;  // Assert not applicable for wh representation
+        for (size_t i = 0; i < size; i += 4) {
+          if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
+            return false;
+          }
+        }
+        return true;
+      }(input_data, input.size(), coordinates_type_ltrb_),
+      "Incorrect first or second point");
 
   int vertical;
   int index = ws->data_idx();
@@ -111,34 +113,18 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   auto output_data = output->mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-    const auto x = input_data[i];
-    const auto y = input_data[i + 1];
-    const auto w = !coordinates_type_ltrb_ ? input_data[i + 2] : input_data[i + 2] - input_data[i];
-    const auto h = !coordinates_type_ltrb_ ? input_data[i + 3] : input_data[i + 3] -
-                                                              input_data[i + 1];
+    BoundingBox box(input_data[i], input_data[i + 1], input_data[i + 2],
+                    input_data[i + 3], coordinates_type_ltrb_);
 
-    if (coordinates_type_ltrb_) {
-      DALI_ENFORCE(x <= 1 && x >= 0, "Expected 0 <= x <= 1. Received: " + std::to_string(x));
-      DALI_ENFORCE(y <= 1 && y >= 0, "Expected 0 <= y <= 1. Received: " + std::to_string(y));
-      DALI_ENFORCE(x <= w, "Expected left <= right. Received: " + std::to_string(x) + " <= " + std::to_string(w));
-      DALI_ENFORCE(w <= 1 && w >= 0, "Expected 0 <= w <= 1. Received: " + std::to_string(w));
-      DALI_ENFORCE(h <= 1 && w >= 0, "Expected 0 <= h <= 1. Received: " + std::to_string(h));
-      DALI_ENFORCE(y <= h, "Expected top <= bottom. Received: " + std::to_string(y) + " <= " + std::to_string(h));
-    } else {
-      DALI_ENFORCE(x <= 0, "Expected x >= 0. Received: " + std::to_string(x));
-      DALI_ENFORCE(y <= 0, "Expected y >= 0. Received: " + std::to_string(y));
-      DALI_ENFORCE(w <= 0, "Expected w >= 0. Received: " + std::to_string(w));
-      DALI_ENFORCE(h <= 0, "Expected h >= 0. Received: " + std::to_string(h));
-      DALI_ENFORCE(x + w <= 1);
-      DALI_ENFORCE(y + h <= 1);
-    }
+    auto result = box.HFlip(horizontal)
+                      .VFlip(vertical)
+                      .Coordinates(coordinates_type_ltrb_);
 
-    output_data[i] = horizontal ? (1.0f - x) - w : x;
-    output_data[i + 1] = vertical ? (1.0f - y) - h : y;
-    output_data[i + 2] = !coordinates_type_ltrb_ ? w : output_data[0] + w;
-    output_data[i + 3] = !coordinates_type_ltrb_ ? h : output_data[1] + h;
-  }
+    output_data[i] = result[0];
+    output_data[i + 1] = result[1];
+    output_data[i + 2] = result[2];
+    output_data[i + 3] = result[3];
 }
-
+}  // namespace dali
 
 }  // namespace dali
