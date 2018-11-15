@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_PIPELINE_OPERATORS_CROP_CROP_H_
 #define DALI_PIPELINE_OPERATORS_CROP_CROP_H_
 
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -28,43 +27,48 @@ namespace dali {
 
 class CropAttr {
  protected:
-  explicit inline CropAttr(const OpSpec &spec) :
-    image_type_(spec.GetArgument<DALIImageType>("image_type")),
-    C_(IsColor(image_type_) ? 3 : 1) {
-      if (spec.name() != "Resize") {
-        vector<int>cropTmp;
-        GetSingleOrRepeatedArg(spec, &cropTmp, "crop", 2);
-        crop_[0] = cropTmp[0];
-        crop_[1] = cropTmp[1];
-        DALI_ENFORCE(crop_[0] > 0 && crop_[1] > 0);
-      }
+  explicit inline CropAttr(const OpSpec &spec)
+      : image_type_(spec.GetArgument<DALIImageType>("image_type")),
+        C_(IsColor(image_type_) ? 3 : 1),
+        batch_size_{spec.GetArgument<int>("batch_size")} {
+    if (spec.name() != "Resize") {
+      vector<float> cropArgs = spec.GetRepeatedArgument<float>("crop");
+
+      DALI_ENFORCE(cropArgs[0] >= 0,
+                   "Crop height must be greater than zero. Received: " +
+                       std::to_string(cropArgs[0]));
+      DALI_ENFORCE(cropArgs[1] >= 0,
+                   "Crop width must be greater than zero. Received: " +
+                       std::to_string(cropArgs[1]));
+
+      crop_height_ =
+          std::vector<int>(batch_size_, static_cast<int>(cropArgs[0]));
+      crop_width_ =
+          std::vector<int>(batch_size_, static_cast<int>(cropArgs[1]));
     }
+  }
 
   std::pair<int, int> SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
-     const Index imgIdx, int H, int W) const {
-    DALI_ENFORCE(H >= crop_[0]);
-    DALI_ENFORCE(W >= crop_[1]);
+                                const Index dataIdx, int H, int W) {
+    DALI_ENFORCE(H >= crop_height_[dataIdx]);
+    DALI_ENFORCE(W >= crop_width_[dataIdx]);
 
-    const float crop_x_normalized = spec.GetArgument<float>("crop_pos_x", ws, imgIdx);
-    const float crop_y_normalized = spec.GetArgument<float>("crop_pos_y", ws, imgIdx);
+    auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, dataIdx);
+    auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, dataIdx);
 
-    DALI_ENFORCE(crop_y_normalized >= 0.f &&  crop_y_normalized <= 1.f,
+    DALI_ENFORCE(crop_y_norm >= 0.f && crop_y_norm <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
-    DALI_ENFORCE(crop_x_normalized >= 0.f &&  crop_x_normalized <= 1.f,
+    DALI_ENFORCE(crop_x_norm >= 0.f && crop_x_norm <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
 
-    const int crop_y = crop_y_normalized * (H - crop_[0]);
-    const int crop_x = crop_x_normalized * (W - crop_[1]);
+    const int crop_y = crop_y_norm * (H - crop_height_[dataIdx]);
+    const int crop_x = crop_x_norm * (W - crop_width_[dataIdx]);
+
     return std::make_pair(crop_y, crop_x);
   }
 
   const vector<Index> CheckShapes(const SampleWorkspace *ws) {
     const auto &input = ws->Input<CPUBackend>(0);
-
-    // enforce that all shapes match
-    for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-    }
 
     DALI_ENFORCE(input.shape().size() == 3,
                  "Expects 3-dimensional image input.");
@@ -72,62 +76,66 @@ class CropAttr {
     return input.shape();
   }
 
-  // Crop meta-data
-  array<int, 2>crop_ = {{0}};
+  vector<int> crop_height_;
+  vector<int> crop_width_;
 
   const DALIImageType image_type_;
   const int C_;
+  const int batch_size_;
 };
 
 template <typename Backend>
 class Crop : public Operator<Backend>, protected CropAttr {
  public:
-  explicit inline Crop(const OpSpec &spec) : Operator<Backend>(spec), CropAttr(spec) {
+  explicit inline Crop(const OpSpec &spec)
+      : Operator<Backend>(spec), CropAttr(spec) {
     // Resize per-image data
     crop_offsets_.resize(batch_size_);
     input_ptrs_.Resize({batch_size_});
     input_strides_.Resize({batch_size_});
+    output_offsets_.Resize({batch_size_});
     Init(batch_size_);
   }
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws, int idx) override;
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
- private:
-  template <typename Out>
-  void RunHelper(Workspace<Backend> *ws, const int idx);
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
-  template <typename Out>
-  void ValidateHelper(const Tensor<Backend> *input, Tensor<Backend> *output);
-
-  inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
+  inline Dims GetOutShape(DALITensorLayout inputLayout,
+                          DALITensorLayout *pOutLayout, int dataIdx) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
     if (*pOutLayout == DALI_NCHW)
-      return {C_, crop_[0], crop_[1]};
+      return {C_, crop_height_[dataIdx], crop_width_[dataIdx]};
     else
-      return {crop_[0], crop_[1], C_};
+      return {crop_height_[dataIdx], crop_width_[dataIdx], C_};
   }
 
-  void SetupSharedSampleParams(const ArgumentWorkspace *ws, const vector<Index> &inputShape,
-                                int threaIdx, int dataIdx) {
+  template <typename Out>
+  void RunHelper(Workspace<Backend> *ws, int idx);
+
+ private:
+  void DataDependentSetup(Workspace<Backend> *ws, int idx);
+  template <typename Out>
+  void ValidateHelper(TensorList<Backend> *output);
+
+  void SetupSharedSampleParams(const ArgumentWorkspace *ws,
+                               const vector<Index> &inputShape, int threadIdx,
+                               int dataIdx) {
     DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
 
     const int H = inputShape[0];
     const int W = inputShape[1];
 
-    per_sample_dimensions_[threaIdx] = std::make_pair(H, W);
+    per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
 
     int C = inputShape[2];
     DALI_ENFORCE(C == C_,
                  "Input channel dimension does not match "
-                 "the output image type. Expected input with "
-                 + to_string(C_) + " channels, got " + to_string(C) + ".");
+                 "the output image type. Expected input with " +
+                     to_string(C_) + " channels, got " + to_string(C) + ".");
 
-    per_sample_crop_[threaIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
+    per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
   }
 
   void Init(int size) {
@@ -137,7 +145,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
     output_layout_ = DALI_SAME;
   }
 
-  void CallRunHelper(Workspace<Backend> *ws, const int idx) {
+  void CallRunHelper(Workspace<Backend> *ws, int idx) {
     if (output_type_ == DALI_FLOAT) {
       RunHelper<float>(ws, idx);
     } else if (output_type_ == DALI_UINT8) {
@@ -153,14 +161,15 @@ class Crop : public Operator<Backend>, protected CropAttr {
     }
   }
 
-  Tensor<CPUBackend> input_ptrs_, input_strides_;
-  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_;
+ protected:
+  Tensor<CPUBackend> input_ptrs_, input_strides_, output_offsets_;
+  Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_, output_offsets_gpu_;
+  Tensor<GPUBackend> crop_width_gpu_, crop_height_gpu_;
   vector<int> crop_offsets_;
 
   std::vector<std::pair<int, int>> per_sample_crop_;
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
- protected:
   // Output data type
   DALIDataType output_type_;
 
@@ -173,4 +182,3 @@ class Crop : public Operator<Backend>, protected CropAttr {
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_CROP_CROP_H_
-

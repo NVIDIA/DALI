@@ -15,12 +15,23 @@
 #ifndef DALI_IMAGE_GENERIC_IMAGE_H_
 #define DALI_IMAGE_GENERIC_IMAGE_H_
 
-#include "dali/common.h"
-#include "dali/error_handling.h"
+#include <opencv2/opencv.hpp>
+#include <memory>
+#include <utility>
+#include "dali/image/image.h"
 
 namespace dali {
 
-DALIError_t GetImageDims(const uint8 *data, int size, int *h, int *w);
+class GenericImage : public Image {
+ public:
+  GenericImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+
+ protected:
+  std::pair<std::shared_ptr<uint8_t>, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
+
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+};
 
 }  // namespace dali
 

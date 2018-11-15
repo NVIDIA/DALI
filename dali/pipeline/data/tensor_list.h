@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_LIST_H_
 #define DALI_PIPELINE_DATA_TENSOR_LIST_H_
 
+#include <assert.h>
 #include <cstring>
 #include <vector>
 
@@ -227,7 +228,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Returns the number of tensors in the list.
    */
-  DLL_PUBLIC inline int ntensor() const {
+  DLL_PUBLIC inline size_t ntensor() const {
     return shape_.size();
   }
 

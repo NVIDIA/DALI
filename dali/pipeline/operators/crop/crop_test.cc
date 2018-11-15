@@ -17,20 +17,15 @@
 namespace dali {
 
 template <typename ImgType>
-class CropTest : public GenericMatchingTest<ImgType> {
-};
+class CropTest : public GenericMatchingTest<ImgType> {};
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(CropTest, Types);
 
 const bool addImageType = true;
 
-TYPED_TEST(CropTest, CropNumber) {
-  this->RunTest({"Crop", {"crop", "224", DALI_INT32}}, addImageType);
-}
-
 TYPED_TEST(CropTest, CropVector) {
-  this->RunTest({"Crop", {"crop", "224, 256", DALI_INT_VEC}}, addImageType);
+  this->RunTest({"Crop", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
 }
 
 }  // namespace dali

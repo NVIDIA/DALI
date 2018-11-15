@@ -96,7 +96,7 @@ class DALIGenericIterator(object):
         for p in self._pipes:
             p.build()
         # Use double-buffering of data batches
-        self._data_batches = [[None, None] for i in range(self._num_gpus)]
+        self._data_batches = [[None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
         self.output_map = output_map
@@ -168,7 +168,7 @@ class DALIGenericIterator(object):
 
         copy_db_index = self._current_data_batch
         # Change index for double buffering
-        self._current_data_batch = (self._current_data_batch + 1) % 2
+        self._current_data_batch = (self._current_data_batch + 1) % 1
         self._counter += self._num_gpus * self.batch_size
 
         # padding the last batch

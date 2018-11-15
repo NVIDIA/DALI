@@ -245,7 +245,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
     .def("at", [](TensorList<CPUBackend> &t, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(id < t.ntensor(), "Index is out-of-range.");
+          DALI_ENFORCE(static_cast<size_t>(id) < t.ntensor(), "Index is out-of-range.");
           DALI_ENFORCE(id >= 0, "Index is out-of-range.");
 
           std::vector<ssize_t> shape(t.tensor_shape(id).size()), stride(t.tensor_shape(id).size());
@@ -498,7 +498,7 @@ PYBIND11_MODULE(backend_impl, m) {
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
-            [](int batch_size, int num_threads, int device_id, int seed = -1,
+            [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1) {

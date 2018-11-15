@@ -61,9 +61,10 @@ class Pipeline(object):
                     Value of -1 does not impose a limit.
                     This parameter is currently unused (and behavior of
                     unrestricted number of streams is assumed).
-    `prefetch_queue_depth`: length of the executor pipeline. The longer the more resistant
-                    the Dali is fo uneven execution time of each batch, but it also
-                    consumes more memory for the internall buffers
+    `prefetch_queue_depth`: int, optional, default = 2
+                            Depth of the executor pipeline. Deeper pipeline makes DALI
+                            more resistant to uneven execution time of each batch, but it
+                            also consumes more memory for internal buffers.
     """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -266,13 +267,10 @@ class Pipeline(object):
         If the pipeline was created with `exec_async` option set to `True`,
         this function will also start prefetching the next iteration for
         faster execution."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
         if self._first_iter and self._exec_pipelined:
-            self._first_iter = False
-            for i in range(self._prefetch_queue_depth - 1):
-             self._start_run()
-        self._start_run()
+            self._prefetch()
+        else:
+            self._start_run()
         return self.outputs()
 
     def _prefetch(self):
@@ -313,6 +311,7 @@ class Pipeline(object):
                                 self._num_threads,
                                 self._device_id,
                                 self._exec_pipelined,
+                                self._prefetch_queue_depth,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,

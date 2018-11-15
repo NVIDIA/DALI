@@ -80,7 +80,7 @@ class DLL_PUBLIC Pipeline {
    * that can be allocated by the pipeline.
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    */
-  DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int seed = -1,
+  DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
       bool pipelined_execution = true, int prefetch_queue_depth = 2,
       bool async_execution = true, size_t bytes_per_sample_hint = 0,
       bool set_affinity = false, int max_num_stream = -1) :
@@ -209,6 +209,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunGPU();
 
   /**
+   * @brief Sets completion callback which is called when GPU work is done
+   * It blocks next GPU iteration so it is up to the developer to schedule
+   * long lasting work in some thread and just fire the work from this CB
+   */
+  DLL_PUBLIC void SetCompletionCallback(Executor::ExecutorCallback cb);
+
+  /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU and RunGPU
@@ -277,7 +284,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id,
-            int seed, bool pipelined_execution, bool async_execution,
+            int64_t seed, bool pipelined_execution, bool async_execution,
             size_t bytes_per_sample_hint, bool set_affinity,
             int max_num_stream, int prefetch_queue_depth = 2) {
     this->batch_size_ = batch_size;
@@ -293,7 +300,7 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    if (seed != -1) {
+    if (seed > -1) {
       std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
     } else {
@@ -357,7 +364,7 @@ class DLL_PUBLIC Pipeline {
   int max_num_stream_;
   int prefetch_queue_depth_;
 
-  std::vector<int> seed_;
+  std::vector<int64_t> seed_;
   int original_seed_;
   size_t current_seed_;
 

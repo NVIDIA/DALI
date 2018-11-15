@@ -338,6 +338,10 @@ void Pipeline::RunGPU() {
   executor_->RunGPU();
 }
 
+void Pipeline::SetCompletionCallback(Executor::ExecutorCallback cb) {
+  executor_->SetCompletionCallback(cb);
+}
+
 void Pipeline::Outputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");

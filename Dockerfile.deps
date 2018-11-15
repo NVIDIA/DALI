@@ -80,6 +80,14 @@ RUN JPEG_TURBO_VERSION=1.5.3 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+
+# Clang
+RUN CLANG_VERSION=6.0.1 && \
+    cd /usr/local && \
+    wget http://releases.llvm.org/${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
+    tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
+    rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
+
 # CUDA
 ARG USE_CUDA_VERSION=9
 
