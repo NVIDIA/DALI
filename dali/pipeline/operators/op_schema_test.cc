@@ -118,4 +118,28 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("dummy"), 1.85f);
 }
 
+DALI_SCHEMA(Dummy8)
+  .NumInput(1)
+  .NumOutput(1)
+  .AddOptionalArg("extra_out", R"code()code", 1, true)
+  .AdditionalOutputsFn([](const OpSpec& spec) {
+    return static_cast<int>(spec.GetArgument<int>("extra_out"));
+  });
+
+TEST(OpSchemaTest, AdditionalOutputFNTest) {
+  auto spec = OpSpec("Dummy8")
+              .AddInput("in", "cpu")
+              .AddArg("extra_out", 3);
+  auto spec2 = OpSpec("Dummy8")
+              .AddInput("in", "cpu")
+              .AddArg("extra_out", 0);
+  auto schema = SchemaRegistry::GetSchema("Dummy8");
+
+  ASSERT_EQ(schema.CalculateOutputs(spec), 1);
+  ASSERT_EQ(schema.CalculateAdditionalOutputs(spec), 3);
+
+  ASSERT_EQ(schema.CalculateOutputs(spec2), 1);
+  ASSERT_EQ(schema.CalculateAdditionalOutputs(spec2), 0);
+}
+
 }  // namespace dali

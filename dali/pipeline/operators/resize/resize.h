@@ -93,6 +93,8 @@ class Resize : public Operator<Backend>, protected ResizeAttr {
 
   vector<NppiPoint> *resizeParam_ = nullptr;
   USE_OPERATOR_MEMBERS();
+  bool save_attrs_;
+  int outputs_per_idx_;
 };
 
 }  // namespace dali
