@@ -30,9 +30,8 @@ template<typename T>
 void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     SequenceWrapper& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height,
+    uint16_t input_width, uint16_t input_height);
 //    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
-    int width, int height);
 
 }  // namespace dali
 

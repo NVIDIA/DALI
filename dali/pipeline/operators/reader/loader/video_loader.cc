@@ -61,9 +61,9 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
             LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
 
             vid_decoder_ = std::unique_ptr<NvDecoder>{
-                new NvDecoder(device_id_, log_,
-                                      codecpar(stream),
-                                      stream->time_base)};
+                new NvDecoder(device_id_,
+                              codecpar(stream),
+                              stream->time_base)};
         } else { // already opened a file
             if (!vid_decoder_) {
                 throw std::logic_error("width is already set but we don't have a vid_decoder_");
@@ -367,7 +367,7 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     }
 }
 
-void PrepareEmpty(SequenceWrapper *tensor) {
+void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
     tensor->initialize(count_, height_, width_, 3);
 }
 

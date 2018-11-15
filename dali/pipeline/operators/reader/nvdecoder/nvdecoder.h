@@ -33,10 +33,6 @@
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
 
-namespace dali {
-
-// Fwd declaration here because we need NVDecoder members in CUVideoParser
-
 class AVPacket;
 #ifdef HAVE_AVSTREAM_CODECPAR
 class AVCodecParameters;
@@ -45,6 +41,8 @@ using CodecParameters = AVCodecParameters;
 class AVCodecContext;
 using CodecParameters = AVCodecContext;
 #endif
+
+namespace dali {
 
 struct FrameReq {
     std::string filename;
@@ -83,8 +81,6 @@ enum ScaleMethod {
 class NvDecoder
 {
   public:
-    NvDecoder();
-
     NvDecoder(int device_id,
               const CodecParameters* codecpar,
               AVRational time_base);

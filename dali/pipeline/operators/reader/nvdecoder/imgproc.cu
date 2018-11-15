@@ -1,8 +1,8 @@
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
 
-// #include "PictureSequence.h"
-
 #include <cuda_fp16.h>
+
+namespace dali {
 
 namespace {
 
@@ -88,16 +88,18 @@ __global__ void process_frame_kernel(
     // auto src_y = static_cast<float>(dst_y + dst.desc.crop_y) * fy;
     auto src_y = static_cast<float>(dst_y) * fy;
 
+
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#tex2d-object
     yuv<float> yuv;
     yuv.y = tex2D<float>(luma, src_x + 0.5, src_y + 0.5);
     auto uv = tex2D<float2>(chroma, (src_x / 2) + 0.5, (src_y / 2) + 0.5);
     yuv.u = uv.x;
     yuv.v = uv.y;
 
-    auto out = &dst.data[dst_x * c + dst_y * dst_width * c];
+    auto out = dst[dst_x * c + dst_y * dst_width * c];
 
     bool normalized = false;
-    int stride = 1;
+    size_t stride = 1;
     //switch(dst.desc.color_space) {
     //    case ColorSpace_RGB:
             yuv2rgb(yuv, out, stride, normalized);
@@ -118,16 +120,13 @@ int divUp(int total, int grain) {
 
 } //  namespace
 
-namespace dali {
-
-
 template<typename T>
 void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     SequenceWrapper& output, int index, cudaStream_t stream,
-    uint16_t input_width, uint16_t input_height,
+    uint16_t input_width, uint16_t input_height) {
 //    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
-    int width, int height) {
+//    int width, int height) {
     // TODO PictureSequence::Layer -> TensorGPU
 //    if (!(std::is_same<T, half>::value || std::is_floating_point<T>::value)
 //        && output.desc.normalized) {
@@ -143,12 +142,13 @@ void process_frame(
     auto fy = static_cast<float>(input_height) / scale_height;
 
     dim3 block(32, 8);
-    dim3 grid(::divUp(output.width, block.x), ::divUp(output.height, block.y));
+    dim3 grid(divUp(output.width, block.x), divUp(output.height, block.y));
 
-    //auto* tensorout = output.sequence.mutable_tensor<T>(index);
-    auto* tensor_out = output.sequence.mutable_tensor<T>
+    int frame_stride = index * output.height * output.width * output.channels;
+    auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
+
     process_frame_kernel<<<grid, block, 0, stream>>>
-            (luma, chroma, tensor_out, index, fx, fy, output.width, ouput.height, output.channels);
+            (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
 }
 
 }  // namespace dali

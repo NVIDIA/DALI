@@ -30,7 +30,7 @@ extern "C" {
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 
-namespace {
+//namespace {
 // AV helpers for OpenFile
 #undef av_err2str
 std::string av_err2str(int errnum) {
@@ -71,6 +71,13 @@ av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
     return av_unique_ptr<T>(raw_ptr, AVDeleter<T>(deleter));
 }
 
+#define STRINGIFY(s) XSTRINGIFY(s)
+#define XSTRINGIFY(s) #s
+
+#pragma message ("HAVE_AVSTREAM_CODECPAR=" STRINGIFY(HAVE_AVSTREAM_CODECPAR))
+#pragma message ("HAVE_AVBSFCONTEXT=" STRINGIFY(HAVE_AVBSFCONTEXT))
+
+
 #ifdef HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
     return stream->codecpar;
@@ -81,7 +88,7 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec) {
 }
 #endif
 
-}  //  namespace
+//}  //  namespace
 
 namespace dali {
 
@@ -134,10 +141,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   VideoLoader(const OpSpec& spec,
     std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
-      width_(spec.GetArgument<uint16_t>("width")),
       height_(spec.GetArgument<uint16_t>("height")),
+      width_(spec.GetArgument<uint16_t>("width")),
       count_(spec.GetArgument<uint16_t>("count")),
       filenames_(filenames),
+      codec_id_(0),
       done_(false) {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
     // TODO(spanev) Launch first seq loading
@@ -177,6 +185,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void seek(OpenFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
+  void receive_frames(SequenceWrapper& sequence);
 
   void PrepareEmpty(SequenceWrapper *tensor) override;
   void ReadSample(SequenceWrapper *tensor) override;
@@ -189,6 +198,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::vector<std::string> filenames_;
 
   int device_id_;
+  int codec_id_;
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, OpenFile> open_files_;

@@ -21,6 +21,7 @@
 #include <string>
 
 #include <cuda.h>
+#include <cuda_runtime.h>
 #include <nvml.h>
 
 extern "C" {
@@ -80,9 +81,6 @@ CUStream::operator cudaStream_t() {
     return stream_;
 }
 
-NvDecoder::NvDecoder() {
-}
-
 NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
                      AVRational time_base)
@@ -97,22 +95,12 @@ NvDecoder::NvDecoder(int device_id,
         return;
     }
 
-    if (!CUDA_CALL(cuInit(0))) {
-        throw std::runtime_error("Unable to initial cuda driver. Is the kernel module installed?");
-    }
+    CUDA_CALL(cuInit(0));
 
-    if (!CUDA_CALL(cuDeviceGet(&device_, device_id_))) {
-        std::cerr << "Problem getting device info for device "
-                  << device_id_ << ", not initializing VideoDecoder\n";
-        return;
-    }
+    CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
     char device_name[100];
-    if (!CUDA_CALL(cuDeviceGetName(device_name, 100, device_))) {
-        std::cerr << "Problem getting device name for device "
-                  << device_id_ << ", not initializing VideoDecoder\n";
-        return;
-    }
+    CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
     LOG_LINE << "Using device: " << device_name << std::endl;
 
     try {
@@ -301,10 +289,8 @@ NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
     params_.second_field = 0;
     params_.output_stream = stream;
 
-    if (!CUDA_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
-                                   &ptr_, &pitch_, &params_))) {
-        throw std::runtime_error("Unable to map video frame");
-    }
+    CUDA_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
+                                 &ptr_, &pitch_, &params_));
     valid_ = true;
 }
 
@@ -317,9 +303,7 @@ NvDecoder::MappedFrame::MappedFrame(MappedFrame&& other)
 
 NvDecoder::MappedFrame::~MappedFrame() {
     if (valid_) {
-        if (!CUDA_CALL(cuvidUnmapVideoFrame(decoder_, ptr_))) {
-            std::cerr << "Error unmapping video frame\n";
-        }
+        CUDA_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
     }
 }
 
@@ -339,9 +323,7 @@ NvDecoder::TextureObject::TextureObject(const cudaResourceDesc* pResDesc,
                                         const cudaResourceViewDesc* pResViewDesc)
     : valid_{false}
 {
-    if (!CUDA_CALL(cudaCreateTextureObject(&object_, pResDesc, pTexDesc, pResViewDesc))) {
-        throw std::runtime_error("Unable to create a texture object");
-    }
+    CUDA_CALL(cudaCreateTextureObject(&object_, pResDesc, pTexDesc, pResViewDesc));
     valid_ = true;
 }
 
@@ -511,7 +493,7 @@ void NvDecoder::convert_frames_worker() {
         auto& sequence = *output_queue_.pop();
         if (done_) break;
         for (int i = 0; i < sequence.count; ++i) {
-            LOG_LINE << "popping frame (" << i << "/" << sequence.count() << ") "
+            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
                         << frame_queue_.size() << " reqs left"
                         << std::endl;
             auto frame = MappedFrame{frame_queue_.pop(), decoder_, stream_};
@@ -550,12 +532,14 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                         frame.get_pitch(),
                                         input_width,
                                         input_height,
-                                        scale_method_);
+                                        ScaleMethod_Linear);
+    //                                    scale_method_);
     // Change l to Tensor<GPU>
     // process_frame(textures.chroma, textures.luma,
     //                 l, output_idx, stream_,
     //                input_width, input_height);
-     process_frame(textures.chroma, textures.luma,
+     process_frame<float>(textures.chroma, textures.luma,
+                    sequence,
                     output_idx, stream_,
                     input_width, input_height);
      //});
@@ -575,10 +559,8 @@ void NvDecoder::finish() {
 }
 
 // This has to be here since Decoder is the only friend of PictureSequence
-void NvDecoder::record_sequence_event_(PictureSequence& sequence) {
-    // TODO
-    sequence.event_.record(stream_);
-    sequence.set_started(true);
+ void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
+    sequence.set_started(stream_);
 }
 
 void NvDecoder::use_default_stream() {

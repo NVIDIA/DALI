@@ -133,31 +133,30 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     caps.eCodecType = format->codec;
     caps.eChromaFormat = format->chroma_format;
     caps.nBitDepthMinus8 = format->bit_depth_luma_minus8;
-    if (CUDA_CALL(cuvidGetDecoderCaps(&caps))) {
-        if (!caps.bIsSupported) {
-            std::stringstream ss;
-            ss << "Unsupported Codec " << GetVideoCodecString(format->codec)
-               << " with chroma format "
-               << GetVideoChromaFormatString(format->chroma_format);
-            throw std::runtime_error(ss.str());
-        }
-        LOG_LINE << "NVDEC Capabilities" << std::endl
-            << "\tMax width : " << caps.nMaxWidth << std::endl
-            << "\tMax height : " << caps.nMaxHeight << std::endl
-            << "\tMax MB count : " << caps.nMaxMBCount << std::endl
-            << "\tMin width : " << caps.nMinWidth << std::endl
-            << "\tMin height :" << caps.nMinHeight << std::endl;
-        if (format->coded_width < caps.nMinWidth ||
-            format->coded_height < caps.nMinHeight) {
-            throw std::runtime_error("Video is too small in at least one dimension.");
-        }
-        if (format->coded_width > caps.nMaxWidth ||
-            format->coded_height > caps.nMaxHeight) {
-            throw std::runtime_error("Video is too large in at least one dimension.");
-        }
-        if (format->coded_width * format->coded_height / 256 > caps.nMaxMBCount) {
-            throw std::runtime_error("Video is too large (too many macroblocks).");
-        }
+    CUDA_CALL(cuvidGetDecoderCaps(&caps));
+    if (!caps.bIsSupported) {
+        std::stringstream ss;
+        ss << "Unsupported Codec " << GetVideoCodecString(format->codec)
+            << " with chroma format "
+            << GetVideoChromaFormatString(format->chroma_format);
+        throw std::runtime_error(ss.str());
+    }
+    LOG_LINE << "NVDEC Capabilities" << std::endl
+        << "\tMax width : " << caps.nMaxWidth << std::endl
+        << "\tMax height : " << caps.nMaxHeight << std::endl
+        << "\tMax MB count : " << caps.nMaxMBCount << std::endl
+        << "\tMin width : " << caps.nMinWidth << std::endl
+        << "\tMin height :" << caps.nMinHeight << std::endl;
+    if (format->coded_width < caps.nMinWidth ||
+        format->coded_height < caps.nMinHeight) {
+        throw std::runtime_error("Video is too small in at least one dimension.");
+    }
+    if (format->coded_width > caps.nMaxWidth ||
+        format->coded_height > caps.nMaxHeight) {
+        throw std::runtime_error("Video is too large in at least one dimension.");
+    }
+    if (format->coded_width * format->coded_height / 256 > caps.nMaxMBCount) {
+        throw std::runtime_error("Video is too large (too many macroblocks).");
     }
 
     decoder_info_.CodecType = format->codec;
@@ -182,7 +181,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.ulCreationFlags = cudaVideoCreate_PreferCUVID;
     decoder_info_.vidLock = nullptr;
 
-    CUDA_CALL(cuvidCreateDecoder(&decoder_, &decoder_info_)));
+    CUDA_CALL(cuvidCreateDecoder(&decoder_, &decoder_info_));
     initialized_ = true;
     return 1;
 }
