@@ -49,7 +49,7 @@ class RecordIOLoader : public IndexedFileLoader {
     DALI_ENFORCE(index_file.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
-    size_t index, offset;
+    size_t index, offset, prev_offset = -1;
     while (index_file >> index >> offset) {
       temp.push_back(offset);
     }
@@ -59,13 +59,19 @@ class RecordIOLoader : public IndexedFileLoader {
       if (temp[i] >= file_offsets[file_offset_index + 1]) {
         ++file_offset_index;
       }
-      indices_.push_back(std::make_tuple(temp[i] - file_offsets[file_offset_index],
-                                         temp[i + 1] - temp[i],
-                                         file_offset_index));
+      int64 size = temp[i + 1] - temp[i];
+      // skip 0 sized images
+      if (size) {
+        indices_.push_back(std::make_tuple(temp[i] - file_offsets[file_offset_index],
+                                          size, file_offset_index));
+      }
     }
-    indices_.push_back(std::make_tuple(temp.back() - file_offsets[file_offset_index],
-                                       file_offsets.back() - temp.back(),
-                                       file_offset_index));
+    int64 size = file_offsets.back() - temp.back();
+    // skip 0 sized images
+    if (size) {
+      indices_.push_back(std::make_tuple(temp.back() - file_offsets[file_offset_index],
+                                        size, file_offset_index));
+    }
     index_file.close();
   }
 
