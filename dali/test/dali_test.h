@@ -214,11 +214,13 @@ class DALITest : public ::testing::Test {
   inline void MakeRandomBoxes(float *ptr, size_t n) {
     static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
     for (size_t i = 0; i < n * 4; i += 4) {
-      // ltrb
       ptr[i] = rfloat(rd_);
       ptr[i + 1] = rfloat(rd_);
-      ptr[i + 2] = (1.0f - ptr[i]) * rfloat(rd_) + ptr[i];
-      ptr[i + 3] = (1.0f - ptr[i + 1]) * rfloat(rd_) + ptr[i + 1];
+      ptr[i + 2] = rfloat(rd_);
+      ptr[i + 3] = rfloat(rd_);
+      // ltrb
+      if (ptr[i] > ptr[i + 2]) std::swap(ptr[i], ptr[i + 2]);
+      if (ptr[i + 1] > ptr[i + 3]) std::swap(ptr[i + 1], ptr[i + 3]);
     }
   }
 

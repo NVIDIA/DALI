@@ -299,6 +299,9 @@ class DALISingleOpTest : public DALITest {
 
       // check calculated vs. reference answers
       CheckTensorLists(calc_output, ref_output);
+    }
+
+    for (auto *ref_output : res) {
       delete ref_output;
     }
   }

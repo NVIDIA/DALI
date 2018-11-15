@@ -27,13 +27,12 @@ class BBoxPaste : public Operator<Backend> {
  public:
   explicit inline BBoxPaste(const OpSpec &spec) :
     Operator<Backend>(spec) {
-    useLTRB = spec.GetArgument<bool>("ltrb");
+    use_ltrb_ = spec.GetArgument<bool>("ltrb");
   }
 
  protected:
-  bool useLTRB = false;
-  using BackendWorkspace = Workspace<Backend>;
-  void RunImpl(BackendWorkspace *ws, const int idx) override;
+  bool use_ltrb_ = false;
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   USE_OPERATOR_MEMBERS();
 };

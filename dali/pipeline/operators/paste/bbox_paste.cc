@@ -27,7 +27,6 @@ Paste coordinates are normalized so that (0,0) aligns the image to top-left of t
 )code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("ratio",
       R"code(Ratio of canvas size to input size, must be > 1.)code",
       DALI_FLOAT, true)
@@ -43,23 +42,23 @@ False for for width-height representation. Default: False)code",
       0.5f, true);
 
 template<>
-void BBoxPaste<CPUBackend>::RunImpl(BackendWorkspace *ws, const int idx) {
+void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
-  DALI_ENFORCE(input.size() % 4 == 0, "Bounding box must consist of exactly 4 float coordinates");
+  DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4. Got: " + std::to_string(input.size()));
 
   auto *output = ws->Output<CPUBackend>(idx);
   output->set_type(TypeInfo::Create<float>());
   output->ResizeLike(input);
   auto *output_data = output->mutable_data<float>();
 
-  int i = ws->data_idx();
+  const auto data_idx = ws->data_idx();
   // pasting onto a larger canvas scales bounding boxes down by scale ratio
-  float ratio = spec_.GetArgument<float>("ratio", ws, i);
-  float px = spec_.GetArgument<float>("paste_x", ws, i);
-  float py = spec_.GetArgument<float>("paste_y", ws, i);
+  float ratio = spec_.GetArgument<float>("ratio", ws, data_idx);
+  float px = spec_.GetArgument<float>("paste_x", ws, data_idx);
+  float py = spec_.GetArgument<float>("paste_y", ws, data_idx);
   float scale = 1 / ratio;
 
   // offsets are scaled so that (0,0) pastes the image aligned to the top-left
@@ -68,23 +67,35 @@ void BBoxPaste<CPUBackend>::RunImpl(BackendWorkspace *ws, const int idx) {
   float ofsx = px * ofs_mul;
   float ofsy = py * ofs_mul;
 
+  // this ensures that the boxes that were in (0,1) range still are after pasting
+  if (scale + ofsx > 1) {
+    ofsx = 1 - scale;
+    while (scale + ofsx > 1)
+      ofsx = std::nextafter(ofsx, -1.0f);
+  }
+  if (scale + ofsy > 1) {
+    ofsy = 1 - scale;
+    while (scale + ofsy > 1)
+      ofsy = std::nextafter(ofsy, -1.0f);
+  }
+
   for (int j = 0; j + 4 <= input.size(); j += 4) {
 
     auto x0 = input_data[j];
     auto y0 = input_data[j + 1];
     auto x1w = input_data[j + 2];
     auto y1h = input_data[j + 3];
+    // (x1w, y1h) contain (x1, y1) for LTRB representation and (W, H) otherwise
 
     x0 = x0 * scale + ofsx;
     y0 = y0 * scale + ofsy;
-    if (useLTRB) {
+    if (use_ltrb_) {
       x1w = x1w * scale + ofsx;
       y1h = y1h * scale + ofsy;
     } else {
       x1w = x1w * scale;
       y1h = y1h * scale;
     }
-    // CAVEAT: Precision issues may drive bounding box outside (0-1).
 
     output_data[j] = x0;
     output_data[j+1] = y0;
