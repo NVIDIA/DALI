@@ -46,7 +46,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_.reset(FileStream::Open(uris_[file_index]));
+      current_file_ = FileStream::Open(uris_[file_index]);
       current_file_index_ = file_index;
     }
     tensor->Resize({size});
@@ -97,7 +97,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     current_index_ = start_index(shard_id_, num_shards_, num_indices);
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
-    current_file_.reset(FileStream::Open(uris_[current_file_index_]));
+    current_file_ = FileStream::Open(uris_[current_file_index_]);
     current_file_->Seek(seek_pos);
   }
 
@@ -108,7 +108,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_.reset(FileStream::Open(uris_[file_index]));
+      current_file_ = FileStream::Open(uris_[file_index]);
       current_file_index_ = file_index;
     }
     current_file_->Seek(seek_pos);

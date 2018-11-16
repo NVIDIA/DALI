@@ -17,6 +17,7 @@
 
 #include <cstdio>
 #include <string>
+#include <memory>
 
 #include "dali/api_helper.h"
 #include "dali/common.h"
@@ -25,7 +26,7 @@ namespace dali {
 
 class DLL_PUBLIC FileStream {
  public:
-  static FileStream * Open(const std::string& uri);
+  static std::unique_ptr<FileStream> Open(const std::string& uri);
 
   virtual void Close() = 0;
   virtual size_t Read(uint8_t * buffer, size_t n_bytes) = 0;
