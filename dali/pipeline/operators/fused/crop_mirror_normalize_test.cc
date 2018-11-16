@@ -38,7 +38,7 @@ protected:
         .AddOutput("cropped1", device)
         .AddInput("images2", device)
         .AddOutput("cropped2", device)
-        .AddArg("crop", vector<int>{64, 64})
+        .AddArg("crop", vector<float>{64, 64})
         .AddArg("mean", vector<float>(this->c_, 0.))
         .AddArg("std", vector<float>(this->c_, 1.))
         .AddArg("image_type", this->img_type_)
@@ -76,11 +76,8 @@ protected:
 
 const float eps = 50000;
 const bool addImageType = true;
-static const OpArg number_params[] = {{"crop", "224", DALI_INT32},
-                                      {"mean", "0.", DALI_FLOAT_VEC},
-                                      {"std", "1.", DALI_FLOAT_VEC}};
 
-static const OpArg vector_params[] = {{"crop", "224, 256", DALI_INT32},
+static const OpArg vector_params[] = {{"crop", "224, 256", DALI_FLOAT_VEC},
                                       {"mean", "0.", DALI_FLOAT_VEC},
                                       {"std", "1.", DALI_FLOAT_VEC}};
 const bool doMirroring = true;
@@ -105,16 +102,12 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleDataCPU_Mirror) {
   this->RunTestByDevice("cpu", doMirroring);
 }
 
-TYPED_TEST(CropMirrorNormalizePermuteTest, CropNumber) {
-  this->RunTest(opName, number_params, sizeof(number_params)/sizeof(number_params[0]), addImageType, eps);
-}
-
 TYPED_TEST(CropMirrorNormalizePermuteTest, CropVector) {
   this->RunTest(opName, vector_params, sizeof(vector_params)/sizeof(vector_params[0]), addImageType, eps);
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NCHW) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_layout", "0", DALI_INT32}};
@@ -123,7 +116,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NCHW) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NHWC) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_layout", "1", DALI_INT32}};
@@ -132,7 +125,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NHWC) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_SAME) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_layout", "2", DALI_INT32}};
@@ -141,7 +134,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_SAME) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_NO_TYPE) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "-1", DALI_INT32}};
@@ -150,7 +143,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_NO_TYPE) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_UINT8) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "0", DALI_INT32}};
@@ -159,7 +152,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_UINT8) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT16) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "1", DALI_INT32}};
@@ -168,7 +161,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT16) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT32) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "2", DALI_INT32}};
@@ -177,7 +170,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT32) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT64) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "3", DALI_INT32}};
@@ -186,7 +179,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT64) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_FLOAT16) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "4", DALI_INT32}};
@@ -195,7 +188,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_FLOAT16) {
 }
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_FLOAT) {
-  static const OpArg params[] = {{"crop", "224", DALI_INT32},
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
                                  {"output_dtype", "5", DALI_INT32}};
