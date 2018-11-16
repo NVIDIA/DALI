@@ -23,6 +23,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"

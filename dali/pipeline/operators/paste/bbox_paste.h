@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_BBOX_PASTE_H_
-#define DALI_PIPELINE_OPERATORS_CROP_BBOX_PASTE_H_
+#ifndef DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
+#define DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -39,4 +39,4 @@ class BBoxPaste : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif // DALI_PIPELINE_OPERATORS_CROP_BBOX_PASTE_H_
+#endif  // DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_

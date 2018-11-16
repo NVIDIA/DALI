@@ -29,35 +29,33 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
   void SetUp() override {
   }
 
-  static void ToTensorList(TensorList<CPUBackend> &out, const std::vector<std::vector<BoundingBox>> &boxes)
-  {
+  static void ToTensorList(TensorList<CPUBackend> *out,
+                           const std::vector<std::vector<BoundingBox>> &boxes) {
     vector<Dims> dims(boxes.size());
-    for (size_t i=0; i<dims.size(); i++)
+    for (size_t i = 0; i < dims.size(); i++)
       dims[i] = { (Index)boxes[i].size(), 4 };
 
-    out.Resize(dims);
+    out->Resize(dims);
 
-    for (size_t i=0; i<boxes.size(); i++) {
-      auto *data = out.mutable_tensor<float>(i);
-      for (size_t j=0; j<boxes[i].size(); j++) {
-        for (int k=0; k<4; k++)
+    for (size_t i = 0; i < boxes.size(); i++) {
+      auto *data = out->mutable_tensor<float>(i);
+      for (size_t j = 0; j < boxes[i].size(); j++) {
+        for (int k = 0; k < 4; k++)
           data[4*j+k] = boxes[i][j][k];
       }
     }
   }
 
-  static std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<std::vector<BoundingBox>> &boxes)
-  {
+  static std::unique_ptr<TensorList<CPUBackend>>
+  ToTensorList(const std::vector<std::vector<BoundingBox>> &boxes) {
     std::unique_ptr<TensorList<CPUBackend>> out(new TensorList<CPUBackend>());
-    ToTensorList(*out, boxes);
+    ToTensorList(out.get(), boxes);
     return out;
   }
 
-
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs,
-            DeviceWorkspace *ws)
-  {
+            DeviceWorkspace *ws) {
     (void)inputs;
     (void)ws;
     auto ref = ToTensorList(output_);
@@ -98,15 +96,18 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     return out;
   }
 
-  static std::vector<std::vector<BoundingBox>> CalculateReferenceOutput(const std::vector<std::vector<BoundingBox>> &input, float ratio, float paste_x, float paste_y) {
+  static std::vector<std::vector<BoundingBox>> CalculateReferenceOutput(
+    const std::vector<std::vector<BoundingBox>> &input,
+    float ratio, float paste_x, float paste_y) {
+
     auto out = input;
-    float scale = 1/ratio; // scale factor - after pasting onto a <ratio> times larger
-                          // canvas, the boxes become <ratio> times smaller
-    float margin = ratio - 1; // amount of free space after pasting onto a bigger canvas
+    float scale = 1/ratio;     // scale factor - after pasting onto a <ratio> times larger
+                               // canvas, the boxes become <ratio> times smaller
+    float margin = ratio - 1;  // amount of free space after pasting onto a bigger canvas
     float ofs_x = paste_x * margin * scale;
     float ofs_y = paste_y * margin * scale;
-    for (size_t i=0; i<input.size(); i++) {
-      for (size_t j=0; j<input[i].size();  j++) {
+    for (size_t i = 0; i < input.size(); i++) {
+      for (size_t j = 0; j < input[i].size();  j++) {
         if (ltrb) {
           float l = input[i][j][0];
           float t = input[i][j][1];
@@ -149,7 +150,7 @@ TYPED_TEST(BBoxPasteTest, ZeroScaleOffsetOnly) {
   this->output_ = this->input_;
   const float x = 0.123f;
   const float y = 0.567f;
-  
+
   for (auto &boxes : this->output_)
     for (auto &box : boxes) {
       if (this->ltrb_) {
@@ -192,5 +193,4 @@ TYPED_TEST(BBoxPasteTest, Random) {
   this->Run(ratio, x, y);
 }
 
-
-} // dali
+}  // namespace dali

@@ -47,7 +47,8 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
-  DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4. Got: " + std::to_string(input.size()));
+  DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
+                                      "Got: " + std::to_string(input.size()));
 
   auto *output = ws->Output<CPUBackend>(idx);
   output->set_type(TypeInfo::Create<float>());
@@ -80,7 +81,6 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   }
 
   for (int j = 0; j + 4 <= input.size(); j += 4) {
-
     auto x0 = input_data[j];
     auto y0 = input_data[j + 1];
     auto x1w = input_data[j + 2];
