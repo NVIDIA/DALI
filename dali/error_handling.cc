@@ -44,4 +44,27 @@ void DALIReportFatalProblem(const char *file, int lineNumb, const char *pComment
   throw std::runtime_error(error_str);
 }
 
+template <typename T>
+void cudaResultCheck(T status) {}
+
+template <>
+void cudaResultCheck<cudaError_t>(cudaError_t status) {
+    if (status != cudaSuccess) {
+      dali::string error = dali::string("CUDA runtime api error \"") +
+        cudaGetErrorString(status) + "\"";
+      DALI_FAIL(error);
+    }
+}
+
+template <>
+void cudaResultCheck<CUresult>(CUresult status) {
+    if (status != CUDA_SUCCESS) {
+      const char *cudaErrorStr;
+      cuGetErrorString(status, &cudaErrorStr);
+      dali::string error = dali::string("CUDA driver api error \"") +
+        dali::string(cudaErrorStr) + "\"";
+      DALI_FAIL(error);
+    }
+}
+
 }  // namespace dali

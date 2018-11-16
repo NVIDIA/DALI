@@ -14,7 +14,7 @@
 
 #include <cuda.h>
 #include "dali/error_handling.h"
-#include "dali/util/cucontex.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -24,14 +24,10 @@ CUContext::CUContext() : context_{0}, initialized_{false} {
 CUContext::CUContext(CUdevice device, unsigned int flags)
     : device_{device}, context_{0}, initialized_{false} {
     CUDA_CALL(cuInit(0));
-    if (!CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device))) {
-        throw std::runtime_error("cuDevicePrimaryCtxRetain failed, can't go forward without a context");
-    }
+    CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device));
     push();
     CUdevice dev;
-    if (!CUDA_CALL(cuCtxGetDevice(&dev))) {
-        throw std::runtime_error("Unable to get device");
-    }
+    CUDA_CALL(cuCtxGetDevice(&dev));
     initialized_ = true;
     CUDA_CALL(cuCtxSynchronize());
 }
@@ -70,13 +66,9 @@ CUContext& CUContext::operator=(CUContext&& other) {
 
 void CUContext::push() const {
     CUcontext current;
-    if (!CUDA_CALL(cuCtxGetCurrent(&current))) {
-        throw std::runtime_error("Unable to get current context");
-    }
+    CUDA_CALL(cuCtxGetCurrent(&current));
     if (current != context_) {
-        if (!CUDA_CALL(cuCtxPushCurrent(context_))) {
-            throw std::runtime_error("Unable to push current context");
-        }
+        CUDA_CALL(cuCtxPushCurrent(context_));
     }
 }
 

@@ -34,13 +34,27 @@ struct SequenceWrapper {
   explicit SequenceWrapper()
   : started_(false) {}
 
-  void initialize(int count, int height, int width, int channels, cudaEvent_t event) {
+  void initialize(int count, int height, int width, int channels) {
     count = count;
     height = height;
     width = width;
     channels = channels;
     sequence.Resize({count, height, width, channels});
+
+    int dev;
+    CUDA_CALL(cudaGetDevice(&dev));
+    if (started_) {
+      CUDA_CALL(cudaEventDestroy(event_));
+    }
+    CUDA_CALL(cudaEventCreate(&event_));
+
     started_ = true;
+  }
+
+  ~SequenceWrapper() {
+    if (started_) {
+      CUDA_CALL(cudaEventDestroy(event_));
+    }
   }
 
   void set_started(cudaStream_t stream) {
@@ -74,10 +88,10 @@ struct SequenceWrapper {
       started_cv_.wait(lock, [&](){return started_;});
   }
 
-  bool started_;
   mutable std::mutex started_lock_;
   mutable std::condition_variable started_cv_;
   cudaEvent_t event_;
+  bool started_;
 };
 
 }  // namespace dali

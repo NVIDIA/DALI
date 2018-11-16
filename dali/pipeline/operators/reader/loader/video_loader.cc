@@ -12,9 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iomanip>
+#include <unistd.h>
+
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
 
 namespace dali {
+
+namespace {
+#undef av_err2str
+std::string av_err2str(int errnum) {
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    return std::string{errbuf};
+}
+}
+
+#ifdef HAVE_AVSTREAM_CODECPAR
+auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
+    return stream->codecpar;
+}
+#else
+auto codecpar(AVStream* stream) -> decltype(stream->codec) {
+    return stream->codec;
+}
+#endif
+
+
+// Are these good numbers? Allow them to be set?
+static constexpr auto frames_used_warning_ratio = 3.0f;
+static constexpr auto frames_used_warning_minimum = 1000;
+static constexpr auto frames_used_warning_interval = 10000;
 
 OpenFile& VideoLoader::get_or_open_file(std::string filename) {
     auto& file = open_files_[filename];
@@ -349,11 +377,11 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     vid_decoder_->receive_frames(sequence);
 
     // Stats code
-    stats_.frames_used += sequence.count();
+    stats_.frames_used += sequence.count;
 
     static auto frames_since_warn = 0;
     static auto frames_used_warned = false;
-    frames_since_warn += sequence.count();
+    frames_since_warn += sequence.count;
     auto ratio_used = static_cast<float>(stats_.packets_decoded) / stats_.frames_used;
     if (ratio_used > frames_used_warning_ratio &&
         frames_since_warn > (frames_used_warned ? frames_used_warning_interval :
@@ -374,10 +402,13 @@ void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
 void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
 
-    read_sequence(filename_[0], frame_starts_[current_frame_idx_], count_);
+    push_sequence_to_read(filenames_[0], frame_starts_[current_frame_idx_], count_);
     receive_frames(*tensor);
     tensor->wait();
     current_frame_idx_++;
 }
 
+Index VideoLoader::Size() {
+    return static_cast<Index>(total_frame_count_);
+}
 }  // namespace dali

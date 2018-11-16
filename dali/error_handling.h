@@ -265,8 +265,9 @@ void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 
 // CUDA checking
 template <typename T>
-void cudaResultCheck(T status) {}
+void cudaResultCheck(T status);
 
+/*
 template <>
 void cudaResultCheck<cudaError_t>(cudaError_t status) {
     if (status != cudaSuccess) {
@@ -286,6 +287,8 @@ void cudaResultCheck<CUresult>(CUresult status) {
       DALI_FAIL(error);
     }
 }
+*/
+
 // For calling CUDA library functions (cudaError_t from runtime API and CUresult from driver API)
 #define CUDA_CALL(code)                 \
   do {                                  \

@@ -23,6 +23,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <nvml.h>
+#include <unistd.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -295,8 +296,8 @@ NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
 }
 
 NvDecoder::MappedFrame::MappedFrame(MappedFrame&& other)
-    : disp_info{other.disp_info}, valid_{other.valid_}, decoder_{other.decoder_},
-      ptr_{other.ptr_}, pitch_{other.pitch_}, params_{other.params_} {
+    : disp_info(other.disp_info), valid_(other.valid_), decoder_(other.decoder_),
+      ptr_(other.ptr_), pitch_(other.pitch_), params_(other.params_) {
     other.disp_info = nullptr;
     other.valid_ = false;
 }

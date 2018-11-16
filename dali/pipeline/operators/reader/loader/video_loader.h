@@ -31,13 +31,6 @@ extern "C" {
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 
 //namespace {
-// AV helpers for OpenFile
-#undef av_err2str
-std::string av_err2str(int errnum) {
-    char errbuf[AV_ERROR_MAX_STRING_SIZE];
-    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
-    return std::string{errbuf};
-}
 
 // libav resource free function take the address of a pointer...
 template<typename T>
@@ -71,26 +64,18 @@ av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
     return av_unique_ptr<T>(raw_ptr, AVDeleter<T>(deleter));
 }
 
-#define STRINGIFY(s) XSTRINGIFY(s)
-#define XSTRINGIFY(s) #s
+// #define STRINGIFY(s) XSTRINGIFY(s)
+// #define XSTRINGIFY(s) #s
+// #pragma message ("HAVE_AVSTREAM_CODECPAR=" STRINGIFY(HAVE_AVSTREAM_CODECPAR))
+// #pragma message ("HAVE_AVBSFCONTEXT=" STRINGIFY(HAVE_AVBSFCONTEXT))
 
-#pragma message ("HAVE_AVSTREAM_CODECPAR=" STRINGIFY(HAVE_AVSTREAM_CODECPAR))
-#pragma message ("HAVE_AVBSFCONTEXT=" STRINGIFY(HAVE_AVBSFCONTEXT))
-
-
-#ifdef HAVE_AVSTREAM_CODECPAR
-auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
-    return stream->codecpar;
-}
-#else
-auto codecpar(AVStream* stream) -> decltype(stream->codec) {
-    return stream->codec;
-}
-#endif
-
-//}  //  namespace
 
 namespace dali {
+#ifdef HAVE_AVSTREAM_CODECPAR
+auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
+#else
+auto codecpar(AVStream* stream) -> decltype(stream->codec);
+#endif
 
 struct OpenFile {
   bool open = false;
@@ -138,8 +123,8 @@ struct VideoLoaderStats {
 
 class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  public:
-  VideoLoader(const OpSpec& spec,
-    std::vector<std::string>& filenames)
+  explicit inline VideoLoader(const OpSpec& spec,
+    const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
       height_(spec.GetArgument<uint16_t>("height")),
       width_(spec.GetArgument<uint16_t>("width")),
@@ -150,11 +135,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
     // TODO(spanev) Launch first seq loading
     // TODO(spanev) Implem several files handling
-    int total_frame_count = get_or_open_file(filenames_[0]).frame_count_;
+    total_frame_count_ = get_or_open_file(filenames_[0]).frame_count_;
 
 
     // TMP to change after deciding what we want
-    int seq_per_epoch = total_frame_count / count_;
+    int seq_per_epoch = total_frame_count_ / count_;
     frame_starts_.resize(seq_per_epoch);
     for (int i = 0; i < seq_per_epoch; ++i) {
       frame_starts_[i] = i * count_;
@@ -181,15 +166,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     }
   }
 
+  void PrepareEmpty(SequenceWrapper *tensor) override;
+  void ReadSample(SequenceWrapper *tensor) override;
+  Index Size() override;
+
   OpenFile& get_or_open_file(std::string filename);
   void seek(OpenFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
-
-  void PrepareEmpty(SequenceWrapper *tensor) override;
-  void ReadSample(SequenceWrapper *tensor) override;
-
 
   // Params
   uint16_t height_;
@@ -208,6 +193,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   std::thread thread_file_reader_;
 
+  int total_frame_count_;
   std::vector<int> frame_starts_;
   int current_frame_idx_;
 
