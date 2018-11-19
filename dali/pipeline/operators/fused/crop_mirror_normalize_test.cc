@@ -84,11 +84,11 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 
 TYPED_TEST_CASE(CropMirrorNormalizePermuteTest, Types);
 
-TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleDataGPU) {
+TYPED_TEST(CropMirrorNormalizePermuteTest, DISABLED_MultipleDataGPU) {
   this->RunTestByDevice("gpu", !doMirroring);
 }
 
-TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleDataGPU_Mirror) {
+TYPED_TEST(CropMirrorNormalizePermuteTest, DISABLED_MultipleDataGPU_Mirror) {
   this->RunTestByDevice("gpu", doMirroring);
 }
 
