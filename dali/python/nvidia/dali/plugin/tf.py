@@ -30,7 +30,13 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
+def DALIIteratorWrapper(pipeline, **kwargs):
+  serialized_pipe = pipeline.serialize()
+  del pipeline
+  return _dali_tf(serialized_pipeline=serialized_pipe, **kwargs)
+
+
 def DALIIterator():
-    return _dali_tf
+    return DALIIteratorWrapper
 
 DALIIterator.__doc__ = _dali_tf.__doc__
