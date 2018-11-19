@@ -265,7 +265,7 @@ void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 
 // CUDA checking
 template <typename T>
-void cudaResultCheck(T status);
+DLL_PUBLIC void cudaResultCheck(T status);
 
 /*
 template <>

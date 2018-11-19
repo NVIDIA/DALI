@@ -51,6 +51,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     //  }
     auto* sequence_output = tl_sequence_output->mutable_tensor<float>(data_idx);
     // TODO(spanev) copy the ouput into sequence_output
+    CUDA_CALL(cudaMemcpy(sequence_output, sequence->sequence.raw_data(), sequence->sequence.size() , cudaMemcpyDeviceToDevice));
   }
 
   void SetupSharedSampleParams(DeviceWorkspace *ws) {

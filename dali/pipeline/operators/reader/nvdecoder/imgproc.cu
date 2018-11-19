@@ -96,22 +96,11 @@ __global__ void process_frame_kernel(
     yuv.u = uv.x;
     yuv.v = uv.y;
 
-    auto out = dst[dst_x * c + dst_y * dst_width * c];
+    auto* out = &dst[dst_x * c + dst_y * dst_width * c];
 
     bool normalized = false;
     size_t stride = 1;
-    //switch(dst.desc.color_space) {
-    //    case ColorSpace_RGB:
-            yuv2rgb(yuv, out, stride, normalized);
-    //        break;
-
-    //    case ColorSpace_YCbCr:
-    //        auto mult = normalized ? 1.0f : 255.0f;
-    //        out[0] = ::convert<T>(yuv.y * mult);
-    //        out[c] = ::convert<T>(yuv.u * mult);
-    //        out[c*2] = ::convert<T>(yuv.v * mult);
-    //        break;
-    // };
+    yuv2rgb(yuv, out, stride, normalized);
 }
 
 int divUp(int total, int grain) {
@@ -150,5 +139,11 @@ void process_frame(
     process_frame_kernel<<<grid, block, 0, stream>>>
             (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
 }
+
+template
+void process_frame<float>(
+    cudaTextureObject_t chroma, cudaTextureObject_t luma,
+    SequenceWrapper& output, int index, cudaStream_t stream,
+    uint16_t input_width, uint16_t input_height);
 
 }  // namespace dali
