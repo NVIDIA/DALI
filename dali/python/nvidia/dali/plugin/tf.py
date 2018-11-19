@@ -31,6 +31,11 @@ else:
 _dali_tf = _dali_tf_module.dali
 
 def DALIIteratorWrapper(pipeline, **kwargs):
+  """
+TF Plugin Wrapper
+
+This operator works in the same way as DALI TensorFlow plugin, with the exception that is accepts non-serialized pipeline as the input and serializes it internally. The provided pipeline is deleted after calling this function. For more information, please look **TensorFlow Plugin API reference** in the documentation.
+  """
   serialized_pipeline = pipeline.serialize()
   del pipeline
   return _dali_tf(serialized_pipeline=serialized_pipeline, **kwargs)
@@ -42,9 +47,6 @@ def DALIIterator():
 def DALISerializedIterator():
     return _dali_tf
 
-op_doc = _dali_tf.__doc__
-wrapper_doc = op_doc.replace('serialized DALI pipeline (given in `serialized_pipeline` parameter)', 'DALI pipeline').replace('serialized_pipeline: A `string`', 'pipeline: A `Pipeline` object')
 
-DALIIterator.__doc__ = wrapper_doc
-DALIIteratorWrapper.__doc__ = wrapper_doc
+DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALISerializedIterator.__doc__ = _dali_tf.__doc__
