@@ -30,7 +30,7 @@ class DisplacementFilter<CPUBackend, Displacement,
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
       Operator(spec),
-      displace_(spec),
+      displace_(num_threads_, Displacement(spec)),
       interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     has_mask_ = spec.HasTensorArgument("mask");
     param_.set_pinned(false);
@@ -48,7 +48,9 @@ class DisplacementFilter<CPUBackend, Displacement,
   }
 
   virtual ~DisplacementFilter() {
-    displace_.Cleanup();
+    for (auto& d : displace_){
+      d.Cleanup();
+    }
   }
 
   void RunImpl(SampleWorkspace* ws, const int idx) override {
@@ -86,8 +88,8 @@ class DisplacementFilter<CPUBackend, Displacement,
     param_.mutable_data<typename U::Param>();
 
     typename U::Param &p = param_.mutable_data<typename U::Param>()[0];
-    displace_.Prepare(&p, spec_, ws, ws->data_idx());
-    displace_.param = p;
+    displace_[ws->thread_idx()].Prepare(&p, spec_, ws, ws->data_idx());
+    displace_[ws->thread_idx()].param = p;
   }
 
   template <typename U = Displacement>
@@ -197,7 +199,7 @@ class DisplacementFilter<CPUBackend, Displacement,
               T out_value;
               if (interp_type == DALI_INTERP_NN) {
                 // NN interpolation
-                const auto p = displace_.template operator()<Index>(h, w, c, H, W, C);
+                const auto p = displace_[ws->thread_idx()].template operator()<Index>(h, w, c, H, W, C);
                 if (ShouldTransform(p)) {
                   const auto in_idx = PointToInIdx(p, H, W, C) + c;
                   out_value = in[in_idx];
@@ -206,7 +208,7 @@ class DisplacementFilter<CPUBackend, Displacement,
                 }
               } else {
                 // LINEAR interpolation
-                const auto p = displace_.template operator()<float>(h, w, c, H, W, C);
+                const auto p = displace_[ws->thread_idx()].template operator()<float>(h, w, c, H, W, C);
                 if (ShouldTransform(p)) {
                   const auto in_idx = PointToInIdx(p, H, W, C) + c;
                   const auto next_offsets = CalcNextOffsets(p, H, W, C);
@@ -225,7 +227,7 @@ class DisplacementFilter<CPUBackend, Displacement,
             Index out_idx = (h * W + w) * C;
             if (interp_type == DALI_INTERP_NN) {
               // input idx is calculated by function
-              const auto p = displace_.template operator()<Index>(h, w, 0, H, W, C);
+              const auto p = displace_[ws->thread_idx()].template operator()<Index>(h, w, 0, H, W, C);
               if (ShouldTransform(p)) {
                 const auto in_idx = PointToInIdx(p, H, W, C);
                 // apply transform uniformly across channels
@@ -238,7 +240,7 @@ class DisplacementFilter<CPUBackend, Displacement,
                 }
               }
             } else {
-              const auto p = displace_.template operator()<float>(h, w, 0, H, W, C);
+              const auto p = displace_[ws->thread_idx()].template operator()<float>(h, w, 0, H, W, C);
               if (ShouldTransform(p)) {
                 const auto in_idx = PointToInIdx(p, H, W, C);
                 const auto next_offsets = CalcNextOffsets(p, H, W, C);
@@ -269,7 +271,7 @@ class DisplacementFilter<CPUBackend, Displacement,
     return true;
   }
 
-  Displacement displace_;
+  std::vector<Displacement> displace_;
   DALIInterpType interp_type_;
   float fill_value_;
 
