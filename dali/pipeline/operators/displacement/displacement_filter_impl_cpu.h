@@ -15,45 +15,47 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_CPU_H_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_CPU_H_
 
-#include <utility>
 #include <array>
+#include <utility>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 
 namespace dali {
 
-template <class Displacement,
-          bool per_channel_transform>
-class DisplacementFilter<CPUBackend, Displacement,
-                         per_channel_transform> : public Operator<CPUBackend> {
+template <class Displacement, bool per_channel_transform>
+class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
+    : public Operator<CPUBackend> {
  public:
-  explicit DisplacementFilter(const OpSpec &spec) :
-      Operator(spec),
-      displace_(num_threads_, Displacement(spec)),
-      interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+  explicit DisplacementFilter(const OpSpec &spec)
+      : Operator(spec),
+        displace_(num_threads_, Displacement(spec)),
+        interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     has_mask_ = spec.HasTensorArgument("mask");
     param_.set_pinned(false);
-    DALI_ENFORCE(interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
-        "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
+    DALI_ENFORCE(
+        interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
+        "Unsupported interpolation type, only NN and LINEAR are supported for "
+        "this operation");
     try {
       fill_value_ = spec.GetArgument<float>("fill_value");
     } catch (std::runtime_error e) {
       try {
         fill_value_ = spec.GetArgument<int>("fill_value");
       } catch (std::runtime_error e) {
-        DALI_FAIL("Invalid type of argument \"fill_value\". Expected int or float");
+        DALI_FAIL(
+            "Invalid type of argument \"fill_value\". Expected int or float");
       }
     }
   }
 
   virtual ~DisplacementFilter() {
-    for (auto& d : displace_){
+    for (auto &d : displace_) {
       d.Cleanup();
     }
   }
 
-  void RunImpl(SampleWorkspace* ws, const int idx) override {
+  void RunImpl(SampleWorkspace *ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
     auto &input = ws->Input<CPUBackend>(idx);
@@ -77,13 +79,15 @@ class DisplacementFilter<CPUBackend, Displacement,
         }
         break;
       default:
-        DALI_FAIL("Unsupported interpolation type,"
+        DALI_FAIL(
+            "Unsupported interpolation type,"
             " only NN and LINEAR are supported for this operation");
     }
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<HasParam<U>::value>::type PrepareDisplacement(SampleWorkspace *ws) {
+  typename std::enable_if<HasParam<U>::value>::type PrepareDisplacement(
+      SampleWorkspace *ws) {
     param_.Resize({1});
     param_.mutable_data<typename U::Param>();
 
@@ -93,7 +97,8 @@ class DisplacementFilter<CPUBackend, Displacement,
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<!HasParam<U>::value>::type PrepareDisplacement(SampleWorkspace *) {}
+  typename std::enable_if<!HasParam<U>::value>::type PrepareDisplacement(
+      SampleWorkspace *) {}
 
   /**
    * @brief Do basic input checking and output setup
@@ -118,7 +123,8 @@ class DisplacementFilter<CPUBackend, Displacement,
   // TODO(klecki) We could probably interpolate with something other than float,
   // for example integer type
   struct LinearCoefs {
-    LinearCoefs(float rx, float ry) : rx(rx), ry(ry), mrx(1.f - rx), mry(1.f - ry) {}
+    LinearCoefs(float rx, float ry)
+        : rx(rx), ry(ry), mrx(1.f - rx), mry(1.f - ry) {}
     LinearCoefs() = delete;
     const float rx, ry, mrx, mry;
   };
@@ -139,9 +145,11 @@ class DisplacementFilter<CPUBackend, Displacement,
     return {p.x - p_idx.x, p.y - p_idx.y};
   }
 
-  std::pair<Index, LinearCoefs> PointToInIdxCoefs(Point<float> p, Index H, Index W, Index C) {
+  std::pair<Index, LinearCoefs> PointToInIdxCoefs(Point<float> p, Index H,
+                                                  Index W, Index C) {
     Point<Index> p_idx = p.template Cast<Index>();
-    return {PointToInIdx(p_idx, H, W, C), LinearCoefs{p.x - p_idx.x, p.y - p_idx.y}};
+    return {PointToInIdx(p_idx, H, W, C),
+            LinearCoefs{p.x - p_idx.x, p.y - p_idx.y}};
   }
 
   // Calculate offset to next element on x and y axis with border handling
@@ -152,7 +160,8 @@ class DisplacementFilter<CPUBackend, Displacement,
   }
 
   template <typename T>
-  std::array<T, 4> load_inputs(const T* in, Index in_idx, Point<Index> next_offsets) {
+  std::array<T, 4> load_inputs(const T *in, Index in_idx,
+                               Point<Index> next_offsets) {
     std::array<T, 4> result;
     // 0, 0
     result[0] = in[in_idx];
@@ -167,16 +176,15 @@ class DisplacementFilter<CPUBackend, Displacement,
 
   template <typename T>
   T linear_interpolate(std::array<T, 4> inter_values, LinearCoefs coefs) {
-    return static_cast<T>(
-        inter_values[0] * coefs.mrx * coefs.mry +
-        inter_values[1] * coefs.rx  * coefs.mry +
-        inter_values[2] * coefs.mrx * coefs.ry +
-        inter_values[3] * coefs.rx  * coefs.ry);
+    return static_cast<T>(inter_values[0] * coefs.mrx * coefs.mry +
+                          inter_values[1] * coefs.rx * coefs.mry +
+                          inter_values[2] * coefs.mrx * coefs.ry +
+                          inter_values[3] * coefs.rx * coefs.ry);
   }
 
   template <typename T, DALIInterpType interp_type>
   bool PerSampleCPULoop(SampleWorkspace *ws, const int idx) {
-    auto& input = ws->Input<CPUBackend>(idx);
+    auto &input = ws->Input<CPUBackend>(idx);
     auto *output = ws->Output<CPUBackend>(idx);
 
     const auto H = input.shape()[0];
@@ -199,7 +207,9 @@ class DisplacementFilter<CPUBackend, Displacement,
               T out_value;
               if (interp_type == DALI_INTERP_NN) {
                 // NN interpolation
-                const auto p = displace_[ws->thread_idx()].template operator()<Index>(h, w, c, H, W, C);
+                const auto p =
+                    displace_[ws->thread_idx()].template operator()<Index>(
+                        h, w, c, H, W, C);
                 if (ShouldTransform(p)) {
                   const auto in_idx = PointToInIdx(p, H, W, C) + c;
                   out_value = in[in_idx];
@@ -208,12 +218,15 @@ class DisplacementFilter<CPUBackend, Displacement,
                 }
               } else {
                 // LINEAR interpolation
-                const auto p = displace_[ws->thread_idx()].template operator()<float>(h, w, c, H, W, C);
+                const auto p =
+                    displace_[ws->thread_idx()].template operator()<float>(
+                        h, w, c, H, W, C);
                 if (ShouldTransform(p)) {
                   const auto in_idx = PointToInIdx(p, H, W, C) + c;
                   const auto next_offsets = CalcNextOffsets(p, H, W, C);
                   const auto linear_coefs = PointToLinearCoefs(p);
-                  const auto inter_values = load_inputs(in, in_idx, next_offsets);
+                  const auto inter_values =
+                      load_inputs(in, in_idx, next_offsets);
                   out_value = linear_interpolate(inter_values, linear_coefs);
                 } else {
                   out_value = fill_value_;
@@ -227,31 +240,37 @@ class DisplacementFilter<CPUBackend, Displacement,
             Index out_idx = (h * W + w) * C;
             if (interp_type == DALI_INTERP_NN) {
               // input idx is calculated by function
-              const auto p = displace_[ws->thread_idx()].template operator()<Index>(h, w, 0, H, W, C);
+              const auto p =
+                  displace_[ws->thread_idx()].template operator()<Index>(
+                      h, w, 0, H, W, C);
               if (ShouldTransform(p)) {
                 const auto in_idx = PointToInIdx(p, H, W, C);
                 // apply transform uniformly across channels
                 for (int c = 0; c < C; ++c) {
-                  out[out_idx+c] = in[in_idx + c];
+                  out[out_idx + c] = in[in_idx + c];
                 }
               } else {
                 for (int c = 0; c < C; ++c) {
-                  out[out_idx+c] = fill_value_;
+                  out[out_idx + c] = fill_value_;
                 }
               }
             } else {
-              const auto p = displace_[ws->thread_idx()].template operator()<float>(h, w, 0, H, W, C);
+              const auto p =
+                  displace_[ws->thread_idx()].template operator()<float>(
+                      h, w, 0, H, W, C);
               if (ShouldTransform(p)) {
                 const auto in_idx = PointToInIdx(p, H, W, C);
                 const auto next_offsets = CalcNextOffsets(p, H, W, C);
                 const auto linear_coefs = PointToLinearCoefs(p);
                 for (int c = 0; c < C; ++c) {
-                  const auto inter_values = load_inputs(in, in_idx + c, next_offsets);
-                  out[out_idx + c]  = linear_interpolate(inter_values, linear_coefs);
+                  const auto inter_values =
+                      load_inputs(in, in_idx + c, next_offsets);
+                  out[out_idx + c] =
+                      linear_interpolate(inter_values, linear_coefs);
                 }
               } else {
                 for (int c = 0; c < C; ++c) {
-                  out[out_idx+c] = fill_value_;
+                  out[out_idx + c] = fill_value_;
                 }
               }
             }
@@ -276,7 +295,7 @@ class DisplacementFilter<CPUBackend, Displacement,
   float fill_value_;
 
   bool has_mask_;
-  const Tensor<CPUBackend> * mask_;
+  const Tensor<CPUBackend> *mask_;
 
   Tensor<CPUBackend> param_;
 };
