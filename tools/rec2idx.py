@@ -18,6 +18,7 @@
 from __future__ import print_function
 import os
 import time
+import struct
 import ctypes
 from mxnet.base import _LIB
 from mxnet.base import check_call
@@ -83,6 +84,9 @@ class IndexCreator(mx.recordio.MXRecordIO):
             cont = self.read()
             if cont is None:
                 break
+            if len(cont) <= mx.recordio._IR_SIZE:
+                counter = counter + 1
+                continue
             key = self.key_type(counter)
             self.fidx.write('%s\t%d\n'%(str(key), pos))
             counter = counter + 1
