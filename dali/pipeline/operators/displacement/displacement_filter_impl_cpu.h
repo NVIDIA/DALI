@@ -17,6 +17,7 @@
 
 #include <array>
 #include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
