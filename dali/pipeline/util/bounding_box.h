@@ -1,6 +1,16 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 //
-// Created by pribalta on 19.11.18.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #ifndef DALI_BOUNDING_BOX_H
 #define DALI_BOUNDING_BOX_H
@@ -11,9 +21,9 @@ namespace dali {
 
 class BoundingBox {
  public:
-  const static size_t kBBoxSize = 4;
+  const static size_t kSize = 4;
 
-  BoundingBox(BoundingBox& other)
+  BoundingBox(const BoundingBox& other)
       : left_{other.left_},
         top_{other.top_},
         right_{other.right_},
@@ -27,14 +37,24 @@ class BoundingBox {
         bottom_{other.bottom_},
         area_{other.area_} {}
 
+  BoundingBox& operator=(BoundingBox other) {
+    left_ = other.left_;
+    top_ = other.top_;
+    right_ = other.right_;
+    bottom_ = other.bottom_;
+    area_ = other.area_;
+
+    return *this;
+  }
+
   static BoundingBox FromLtrb(float l, float t, float r, float b) {
-    DALI_ENFORCE(l >= 0 && l < 1.f,
+    DALI_ENFORCE(l >= 0 && l <= 1.f,
                  "Expected 0 <= left <= 1. Received: " + to_string(l));
-    DALI_ENFORCE(t >= 0 && t < 1.f,
+    DALI_ENFORCE(t >= 0 && t <= 1.f,
                  "Expected 0 <= top <= 1. Received: " + to_string(t));
-    DALI_ENFORCE(r >= 0 && r < 1.f,
+    DALI_ENFORCE(r >= 0 && r <= 1.f,
                  "Expected 0 <= right <= 1. Received: " + to_string(r));
-    DALI_ENFORCE(b >= 0 && b < 1.f,
+    DALI_ENFORCE(b >= 0 && b <= 1.f,
                  "Expected 0 <= bottom <= 1. Received: " + to_string(b));
 
     DALI_ENFORCE(l <= r, "Expected left <= right. Received: " + to_string(l) +
@@ -87,19 +107,38 @@ class BoundingBox {
     return 0.0f;
   }
 
+  BoundingBox RemapTo(const BoundingBox& other) const {
+    const float crop_width = other.right_ - other.left_;
+    const float crop_height = other.bottom_ - other.top_;
+
+    const float new_left =
+        (std::max(other.left_, left_) - other.left_) / crop_width;
+    const float new_top =
+        (std::max(other.top_, top_) - other.top_) / crop_height;
+    const float new_right =
+        (std::min(other.right_, right_) - other.left_) / crop_width;
+    const float new_bottom =
+        (std::min(other.bottom_, bottom_) - other.top_) / crop_height;
+
+    return {std::max(0.0f, std::min(new_left, 1.0f)),
+            std::max(0.0f, std::min(new_top, 1.0f)),
+            std::max(0.0f, std::min(new_right, 1.0f)),
+            std::max(0.0f, std::min(new_bottom, 1.0f))};
+  }
+
   BoundingBox HorizontalFlip() const {
-    return {1 - right_, top_, right_, bottom_};
+    return {1 - right_, top_, 1 - left_, bottom_};
   }
 
   BoundingBox VerticalFlip() const {
-    return {left_, 1 - bottom_, right_, bottom_};
+    return {left_, 1 - bottom_, right_, 1 - top_};
   }
 
-  std::array<float, kBBoxSize> AsLtrb() const {
+  std::array<float, kSize> AsLtrb() const {
     return {left_, top_, right_, bottom_};
   }
 
-  std::array<float, kBBoxSize> AsXywh() const {
+  std::array<float, kSize> AsXywh() const {
     return {left_, top_, right_ - left_, bottom_ - top_};
   }
 
@@ -107,7 +146,7 @@ class BoundingBox {
   BoundingBox(float l, float t, float r, float b)
       : left_{l}, top_{t}, right_{r}, bottom_{b}, area_{(r - l) * (b - t)} {}
 
-  const float left_, top_, right_, bottom_, area_;
+  float left_, top_, right_, bottom_, area_;
 };
 
 }  // namespace dali

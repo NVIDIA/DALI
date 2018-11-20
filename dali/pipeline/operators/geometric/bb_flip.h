@@ -91,7 +91,7 @@ class BbFlip : public Operator<CPUBackend> {
    * If `coordinates_type_ltrb_` is true, then we deal with 2nd type. Otherwise,
    * the 1st one.
    */
-  const bool coordinates_type_ltrb_;
+  const bool ltrb_;
 
   /**
    * If true, flip is performed along vertical (x) axis

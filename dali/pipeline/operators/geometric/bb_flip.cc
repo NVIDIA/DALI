@@ -43,7 +43,7 @@ False for for width-height representation. Default: False)code",
 
 BbFlip::BbFlip(const dali::OpSpec &spec)
     : Operator<CPUBackend>(spec),
-      coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
+      ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
@@ -54,20 +54,15 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  int vertical;
-  int index = ws->data_idx();
-  if (vflip_is_tensor_) {
-    vertical = spec_.GetArgument<int>(kVerticalArgName, ws, index);
-  } else {
-    vertical = spec_.GetArgument<int>(kVerticalArgName);
-  }
+  const auto vertical =
+      vflip_is_tensor_
+          ? spec_.GetArgument<int>(kVerticalArgName, ws, ws->data_idx())
+          : spec_.GetArgument<int>(kVerticalArgName);
 
-  int horizontal;
-  if (hflip_is_tensor_) {
-    horizontal = spec_.GetArgument<int>(kHorizontalArgName, ws, index);
-  } else {
-    horizontal = spec_.GetArgument<int>(kHorizontalArgName);
-  }
+  const auto horizontal =
+      hflip_is_tensor_
+          ? spec_.GetArgument<int>(kHorizontalArgName, ws, ws->data_idx())
+          : spec_.GetArgument<int>(kHorizontalArgName);
 
   auto *output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
@@ -80,11 +75,10 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   for (int i = 0; i < input.size(); i += 4) {
     auto bbox =
-        coordinates_type_ltrb_
-            ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1],
-                                    input_data[i + 2], input_data[i + 3])
-            : BoundingBox::FromXywh(input_data[i], input_data[i + 1],
-                                    input_data[i + 2], input_data[i + 3]);
+        ltrb_ ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1],
+                                      input_data[i + 2], input_data[i + 3])
+              : BoundingBox::FromXywh(input_data[i], input_data[i + 1],
+                                      input_data[i + 2], input_data[i + 3]);
 
     if (horizontal) {
       bbox = bbox.HorizontalFlip();
@@ -93,8 +87,7 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
       bbox = bbox.VerticalFlip();
     }
 
-    auto result =
-        coordinates_type_ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
+    const auto result = ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
 
     output_data[i] = result[0];
     output_data[i + 1] = result[1];

@@ -157,7 +157,7 @@ TYPED_TEST(RandomBBoxCropTest, CreateWithLtrb) {
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithXywh) {
   this->RunBBoxesCPU({"RandomBBoxCrop", {"ltrb", "false", DALI_BOOL}},
-                     addImageType);
+                     addImageType, false);
 }
 
 TYPED_TEST(RandomBBoxCropTest, CreateWithNumAttemptsNegative) {
