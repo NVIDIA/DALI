@@ -22,7 +22,7 @@ const std::string kHorizontalArgName = "horizontal";  //NOLINT
 const std::string kVerticalArgName = "vertical";  //NOLINT
 
 
-DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
+DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
 
 
 DALI_SCHEMA(BbFlip)
@@ -44,7 +44,7 @@ False for for width-height representation. Default: False)code",
                                 0, true);
 
 
-BbFlip::BbFlip(const dali::OpSpec &spec) :
+BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec) :
         Operator<CPUBackend>(spec),
         coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
@@ -52,7 +52,7 @@ BbFlip::BbFlip(const dali::OpSpec &spec) :
 }
 
 
-void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
+void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
