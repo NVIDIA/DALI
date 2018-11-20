@@ -50,4 +50,4 @@ def DALIRawIterator():
 
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
-DALISerializedIterator.__doc__ = _dali_tf.__doc__
+DALIRawIterator.__doc__ = _dali_tf.__doc__
