@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
+#include <dali/pipeline/util/bounding_box.h>
 
 namespace dali {
 
@@ -53,41 +54,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  DALI_ENFORCE(
-      [](const float *data, size_t size) -> bool {
-        for (size_t i = 0; i < size; i++) {
-          if (data[i] < 0 || data[i] > 1.0) return false;
-        }
-        return true;
-      }(input_data, input.size()),
-      "Not all bounding box parameters are in [0.0, 1.0]");
-
-  DALI_ENFORCE(
-      [](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-        if (coors_type_ltrb)
-          return true;  // Assert not applicable for 2-point representation
-        for (size_t i = 0; i < size; i += 4) {
-          if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
-            return false;
-          }
-        }
-        return true;
-      }(input_data, input.size(), coordinates_type_ltrb_),
-      "Incorrect width or height");
-
-  DALI_ENFORCE(
-      [](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-        if (!coors_type_ltrb)
-          return true;  // Assert not applicable for wh representation
-        for (size_t i = 0; i < size; i += 4) {
-          if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
-            return false;
-          }
-        }
-        return true;
-      }(input_data, input.size(), coordinates_type_ltrb_),
-      "Incorrect first or second point");
-
   int vertical;
   int index = ws->data_idx();
   if (vflip_is_tensor_) {
@@ -113,18 +79,28 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   auto output_data = output->mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-    BoundingBox box(input_data[i], input_data[i + 1], input_data[i + 2],
-                    input_data[i + 3], coordinates_type_ltrb_);
+    auto bbox =
+        coordinates_type_ltrb_
+            ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1],
+                                    input_data[i + 2], input_data[i + 3])
+            : BoundingBox::FromXywh(input_data[i], input_data[i + 1],
+                                    input_data[i + 2], input_data[i + 3]);
 
-    auto result = box.HFlip(horizontal)
-                      .VFlip(vertical)
-                      .Coordinates(coordinates_type_ltrb_);
+    if (horizontal) {
+      bbox = bbox.HorizontalFlip();
+    }
+    if (vertical) {
+      bbox = bbox.VerticalFlip();
+    }
+
+    auto result =
+        coordinates_type_ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
 
     output_data[i] = result[0];
     output_data[i + 1] = result[1];
     output_data[i + 2] = result[2];
     output_data[i + 3] = result[3];
-}
+  }
 }  // namespace dali
 
 }  // namespace dali
