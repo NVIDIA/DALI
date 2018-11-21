@@ -39,6 +39,8 @@ struct SequenceWrapper {
     height = height;
     width = width;
     channels = channels;
+    // TODO(spanev) Handle other types
+    sequence.set_type(TypeInfo::Create<float>());
     sequence.Resize({count, height, width, channels});
 
     int dev;

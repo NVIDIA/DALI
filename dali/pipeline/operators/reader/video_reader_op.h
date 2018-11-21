@@ -37,7 +37,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       }
 
       std::vector<Index> t_shape({batch_size_, count_, height_, width_, channels_});
-      t_shape.push_back(static_cast<Index>(batch_size_));
 
       for (int i = 0; i < batch_size_; ++i) {
         tl_shape_.push_back(t_shape);
@@ -63,6 +62,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   void SetupSharedSampleParams(DeviceWorkspace *ws) {
     auto* tl_sequence_output = ws->Output<GPUBackend>(0);
+    tl_sequence_output->set_type(TypeInfo::Create<float>());
     tl_sequence_output->Resize(tl_shape_);
   }
 

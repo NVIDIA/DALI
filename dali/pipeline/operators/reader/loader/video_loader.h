@@ -137,6 +137,12 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
   void init() {
+
+    /* Required to use libavformat: Initialize libavformat and register all
+     * the muxers, demuxers and protocols.
+     */
+    av_register_all();
+
     // TODO(spanev) Implem several files handling
     total_frame_count_ = get_or_open_file(filenames_[0]).frame_count_;
 
