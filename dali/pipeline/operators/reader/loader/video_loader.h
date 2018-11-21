@@ -126,19 +126,21 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
-      height_(spec.GetArgument<uint16_t>("height")),
-      width_(spec.GetArgument<uint16_t>("width")),
-      count_(spec.GetArgument<uint16_t>("count")),
+      count_(spec.GetArgument<int>("count")),
+      output_height_(spec.GetArgument<int>("height")),
+      output_width_(spec.GetArgument<int>("width")),
+      height_(0),
+      width_(0),
       filenames_(filenames),
       codec_id_(0),
       done_(false) {
-    thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
-    // TODO(spanev) Launch first seq loading
+  }
+
+  void init() {
     // TODO(spanev) Implem several files handling
     total_frame_count_ = get_or_open_file(filenames_[0]).frame_count_;
 
-
-    // TMP to change after deciding what we want
+    // TODO(spanev) to change after deciding what we want
     int seq_per_epoch = total_frame_count_ / count_;
     frame_starts_.resize(seq_per_epoch);
     for (int i = 0; i < seq_per_epoch; ++i) {
@@ -148,6 +150,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     auto rng = std::default_random_engine {};
     std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), rng);
     current_frame_idx_ = 0;
+
+    thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
 
   ~VideoLoader() noexcept {
@@ -177,9 +181,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void receive_frames(SequenceWrapper& sequence);
 
   // Params
-  uint16_t height_;
-  uint16_t width_;
-  uint16_t count_;
+  int count_;
+  int output_height_;
+  int output_width_;
+  int height_;
+  int width_;
   std::vector<std::string> filenames_;
 
   int device_id_;

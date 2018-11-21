@@ -114,16 +114,6 @@ void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     SequenceWrapper& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height) {
-//    float scale_width = (1280.f / 2.f), float scale_height = (720.f / 2.f),
-//    int width, int height) {
-    // TODO PictureSequence::Layer -> TensorGPU
-//    if (!(std::is_same<T, half>::value || std::is_floating_point<T>::value)
-//        && output.desc.normalized) {
-//        throw std::runtime_error("Output must be floating point to be normalized.");
-//    }
-
-//    auto scale_width = output.desc.scale_width > 0 ? output.desc.scale_width : input_width;
-//    auto scale_height = output.desc.scale_height > 0 ? output.desc.scale_height : input_height;
     auto scale_width = input_width;
     auto scale_height = input_height;
 

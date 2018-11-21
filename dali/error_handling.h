@@ -267,28 +267,6 @@ void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 template <typename T>
 DLL_PUBLIC void cudaResultCheck(T status);
 
-/*
-template <>
-void cudaResultCheck<cudaError_t>(cudaError_t status) {
-    if (status != cudaSuccess) {
-      dali::string error = dali::string("CUDA runtime api error \"") +
-        cudaGetErrorString(status) + "\"";
-      DALI_FAIL(error);
-    }
-}
-
-template <>
-void cudaResultCheck<CUresult>(CUresult status) {
-    if (status != CUDA_SUCCESS) {
-      const char *cudaErrorStr;
-      cuGetErrorString(status, &cudaErrorStr);
-      dali::string error = dali::string("CUDA driver api error \"") +
-        dali::string(cudaErrorStr) + "\"";
-      DALI_FAIL(error);
-    }
-}
-*/
-
 // For calling CUDA library functions (cudaError_t from runtime API and CUresult from driver API)
 #define CUDA_CALL(code)                 \
   do {                                  \
@@ -298,7 +276,6 @@ void cudaResultCheck<CUresult>(CUresult status) {
   } while (0)
 
 #define LOG_LINE \
-  if (0) \
   std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 }  // namespace dali

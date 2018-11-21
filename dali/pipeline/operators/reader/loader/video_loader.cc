@@ -56,11 +56,15 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
         }
         file.fmt_ctx_ = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
 
+        LOG_LINE << "File open " << filename << std::endl;
+
         // is this needed?
         if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
             throw std::runtime_error(std::string("Could not find stream information in ")
                                      + filename);
         }
+
+        LOG_LINE << "File info fetched for " << filename << std::endl;
 
         if (file.fmt_ctx_->nb_streams > 1) {
             LOG_LINE << "There are " << file.fmt_ctx_->nb_streams << " streams in "
@@ -71,6 +75,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
 
         file.vid_stream_idx_ = av_find_best_stream(file.fmt_ctx_.get(), AVMEDIA_TYPE_VIDEO,
                                       -1, -1, nullptr, 0);
+        LOG_LINE << "Best stream " << file.vid_stream_idx_ << " found for " << filename << std::endl;
         if (file.vid_stream_idx_ < 0) {
             throw std::runtime_error(std::string("Could not find video stream in ") + filename);
         }

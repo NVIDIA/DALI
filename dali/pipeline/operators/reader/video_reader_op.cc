@@ -23,6 +23,8 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
+
 DALI_SCHEMA(VideoReader)
   .DocStr(R"code(
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
@@ -36,5 +38,15 @@ number of frames).)code")
       DALI_STRING_VEC)
   .AddArg("count",
       R"code(Frames to load per batch.)code",
-      DALI_INT32);
+      DALI_INT32)
+  .AddArg("height",
+      R"code(Height of the desired frames.)code",
+      DALI_INT32)
+  .AddArg("width",
+      R"code(Width of the desired frames.)code",
+      DALI_INT32)
+  .AddOptionalArg("channels",
+      R"code(Number of channels.)code",
+      3)
+  .AddParent("LoaderBase");
 }  // namespace dali

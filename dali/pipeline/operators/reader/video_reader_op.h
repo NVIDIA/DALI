@@ -17,7 +17,6 @@
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
-//#include "dali/pipeline/operators/reader/parser/video_parser.h"
 
 namespace dali {
 
@@ -26,32 +25,40 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   explicit VideoReader(const OpSpec &spec)
   : DataReader<GPUBackend, SequenceWrapper>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    count_(spec.GetArgument<int>("count")) {
+    count_(spec.GetArgument<int>("count")),
+    height_(spec.GetArgument<int>("height")),
+    width_(spec.GetArgument<int>("width")),
+    channels_(spec.GetArgument<int>("channels")) {
     	loader_.reset(new VideoLoader(spec, filenames_));
+      try {
+        dynamic_cast<VideoLoader*>(loader_.get())->init();
+      } catch (std::runtime_error& e) {
+        DALI_FAIL(std::string(e.what()));
+      }
 
-      std::vector<Index> t_shape;
+      std::vector<Index> t_shape({batch_size_, count_, height_, width_, channels_});
       t_shape.push_back(static_cast<Index>(batch_size_));
-      // TODO add shape
 
       for (int i = 0; i < batch_size_; ++i) {
         tl_shape_.push_back(t_shape);
       }
-      // prepare
   }
+
+
 
   virtual inline ~VideoReader() = default;
 
  protected:
   void RunImpl(DeviceWorkspace *ws, const int idx) override {
     const int data_idx = samples_processed_;
-    auto* sequence = prefetched_batch_[data_idx];
+    auto* input_sequence = prefetched_batch_[data_idx];
     auto* tl_sequence_output = ws->Output<GPUBackend>(0);
-    //  if (data_idx == 0) {
-    //   tl_sequence_output->Resize(tl_shape_);
-    //  }
     auto* sequence_output = tl_sequence_output->mutable_tensor<float>(data_idx);
     // TODO(spanev) copy the ouput into sequence_output
-    CUDA_CALL(cudaMemcpy(sequence_output, sequence->sequence.raw_data(), sequence->sequence.size() , cudaMemcpyDeviceToDevice));
+    CUDA_CALL(cudaMemcpy(sequence_output,
+                         input_sequence->sequence.raw_data(),
+                         input_sequence->sequence.size(),
+                         cudaMemcpyDeviceToDevice));
   }
 
   void SetupSharedSampleParams(DeviceWorkspace *ws) {
@@ -63,6 +70,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  private:
   std::vector<std::string> filenames_;
   int count_;
+  int height_;
+  int width_;
+  int channels_;
 
   std::vector<std::vector<Index>> tl_shape_;
 

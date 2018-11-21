@@ -429,7 +429,6 @@ void NvDecoder::push_req(FrameReq req) {
 }
 
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
-    // TODO
     output_queue_.push(&sequence);
 }
 
@@ -507,45 +506,25 @@ void NvDecoder::convert_frames_worker() {
     LOG_LINE << "Leaving convert frames" << std::endl;
 }
 
-//void NvDecoder::convert_frame(const MappedFrame& frame, PictureSequence& sequence,
-//                              int index) {
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
     auto input_width = decoder_.width();
     auto input_height = decoder_.height();
 
-// TMP: Removing layer concept TODO reimplem
-    //foreach_layer(sequence, [&](auto& l) -> void {
     auto output_idx = index;
-    /*
-    if (!l.index_map.empty()) {
-        if (l.index_map.size() > static_cast<size_t>(index)) {
-            output_idx = l.index_map[index];
-        } else {
-            output_idx = -1;
-        }
-    }
-    if (output_idx < 0) {
-        return;
-    }
-    */
+    // TODO(spanev) Add ScaleMethod choice
     auto& textures = this->get_textures(frame.get_ptr(),
                                         frame.get_pitch(),
                                         input_width,
                                         input_height,
                                         ScaleMethod_Linear);
-    //                                    scale_method_);
-    // Change l to Tensor<GPU>
-    // process_frame(textures.chroma, textures.luma,
-    //                 l, output_idx, stream_,
-    //                input_width, input_height);
      process_frame<float>(textures.chroma, textures.luma,
                     sequence,
                     output_idx, stream_,
                     input_width, input_height);
-     //});
 
-    //frame_in_use_[frame.disp_info->picture_index] = false;
+    frame_in_use_[frame.disp_info->picture_index] = false;
+
     //auto frame_num = av_rescale_q(frame.disp_info->timestamp,
     //                              nv_time_base_, frame_base_);
 
