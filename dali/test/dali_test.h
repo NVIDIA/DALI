@@ -212,7 +212,7 @@ class DALITest : public ::testing::Test {
     MakeEncodedBatch(t, n, jpegs_);
   }
 
-  inline void MakeRandomBoxes(float *ptr, size_t n, bool ltrb) {
+  inline void MakeRandomBoxes(float *ptr, size_t n, bool ltrb = true) {
     static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
     for (size_t i = 0; i < n * 4; i += 4) {
       ptr[i] = rfloat(rd_);
