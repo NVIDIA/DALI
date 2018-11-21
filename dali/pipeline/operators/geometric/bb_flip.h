@@ -20,38 +20,7 @@
 #include <string>
 
 namespace dali {
-//
-//class BoundingBox {
-// public:
-//  explicit BoundingBox(float x1, float y1, float w1, float h1, bool ltrb = false)
-//      : x{x1}, y{y1}, w{ltrb ? w1 - x1 : w1}, h{ltrb ? h1 - y1 : h1} {
-//    DALI_ENFORCE(x >= 0, "Expected x >= 0. Received: " + std::to_string(x));
-//    DALI_ENFORCE(y >= 0, "Expected y >= 0. Received: " + std::to_string(y));
-//    DALI_ENFORCE(w >= 0, "Expected w >= 0. Received: " + std::to_string(w));
-//    DALI_ENFORCE(h >= 0, "Expected h >= 0. Received: " + std::to_string(h));
-//    DALI_ENFORCE(x + w <= 1, "Expected x + w <= 1. Received: " + std::to_string(x + w));
-//    DALI_ENFORCE(y + h <= 1, "Expected y + h <= 1. Received: " + std::to_string(y + h));
-//  }
-//
-//  BoundingBox(const BoundingBox &other)
-//      : x{other.x}, y{other.y}, w{other.w}, h{other.h} {}
-//
-//  BoundingBox HFlip(bool on) const {
-//    return on ? BoundingBox(1 - (x + w), y, w, h) : *this;
-//  }
-//
-//  BoundingBox VFlip(bool on) const {
-//    return on ? BoundingBox(x, 1 - (y + h), w, h) : *this;
-//  }
-//
-//  std::array<float, 4> Coordinates(bool ltrb) const {
-//    return ltrb ? std::array<float, 4>{x, y, x + w, y + h}
-//                : std::array<float, 4>{x, y, w, h};
-//  }
-//
-// private:
-//  float x, y, w, h;
-//};
+
 class BbFlip : public Operator<CPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec);
