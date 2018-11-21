@@ -74,7 +74,7 @@ void SSDBoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       ious_data[bbox_idx * M + anchor_idx] =
           detail::iou(bboxes_data[bbox_idx], anchors_data[anchor_idx]);
 
-      if (ious_data[bbox_idx * M + anchor_idx] > best_dbox_iou) {
+      if (ious_data[bbox_idx * M + anchor_idx] >= best_dbox_iou) {
         best_dbox_iou = ious_data[bbox_idx * M + anchor_idx];
         best_anchor_idx = anchor_idx;
       }
@@ -133,10 +133,10 @@ DALI_REGISTER_OPERATOR(SSDBoxEncoder, SSDBoxEncoder<CPUBackend>, CPU);
 DALI_SCHEMA(SSDBoxEncoder)
     .DocStr(
         "Matches set of bounding boxes to set of default bounding boxes (anchors) according to SSD "
-        "algorithm")
+        "algorithm.")
     .NumInput(2)
     .NumOutput(2)
-    .AddArg("anchors", R"code(Default bounding boxes to be encoded. List of float in ltrb format.)code", DALI_FLOAT_VEC)
+    .AddArg("anchors", R"code(Default bounding boxes to be encoded. List of floats in ltrb format.)code", DALI_FLOAT_VEC)
     .AddOptionalArg("criteria",
                     R"code(Threshold IOU for matching bounding boxes with anchors)code", 0.5f,
                     DALI_FLOAT);
