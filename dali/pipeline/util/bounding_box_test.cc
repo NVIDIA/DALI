@@ -14,10 +14,11 @@
 
 #include <gtest/gtest.h>
 
-#include "bounding_box.h"
+#include "dali/pipeline/util/bounding_box.h"
 
 namespace {
-using namespace dali;
+
+using dali::BoundingBox;
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5));

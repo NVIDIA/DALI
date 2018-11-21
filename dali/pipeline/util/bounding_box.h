@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.c++ copyswa
 
-#ifndef DALI_BOUNDING_BOX_H
-#define DALI_BOUNDING_BOX_H
+#ifndef DALI_PIPELINE_UTIL_BOUNDING_BOX_H_
+#define DALI_PIPELINE_UTIL_BOUNDING_BOX_H_
+
+#include <algorithm>
+#include <utility>
 
 #include "dali/error_handling.h"
 
@@ -21,7 +24,7 @@ namespace dali {
 
 class BoundingBox {
  public:
-  const static size_t kSize = 4;
+  static const size_t kSize = 4;
 
   BoundingBox(const BoundingBox& other)
       : left_{other.left_},
@@ -68,7 +71,7 @@ class BoundingBox {
     return {l, t, r, b};
   }
 
-  static BoundingBox FromXywh(const float *data) {
+  static BoundingBox FromXywh(const float* data) {
     return FromXywh(data[0], data[1], data[2], data[3]);
   }
 
@@ -161,4 +164,4 @@ class BoundingBox {
 
 }  // namespace dali
 
-#endif  // DALI_BOUNDING_BOX_H
+#endif  // DALI_PIPELINE_UTIL_BOUNDING_BOX_H_
