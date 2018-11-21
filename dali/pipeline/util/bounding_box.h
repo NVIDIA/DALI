@@ -10,7 +10,7 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
-// limitations under the License.
+// limitations under the License.c++ copyswa
 
 #ifndef DALI_BOUNDING_BOX_H
 #define DALI_BOUNDING_BOX_H
@@ -30,21 +30,20 @@ class BoundingBox {
         bottom_{other.bottom_},
         area_{other.area_} {}
 
-  BoundingBox(BoundingBox&& other) noexcept
-      : left_{other.left_},
-        top_{other.top_},
-        right_{other.right_},
-        bottom_{other.bottom_},
-        area_{other.area_} {}
+  BoundingBox(BoundingBox&& other) : BoundingBox() { swap(*this, other); }
 
   BoundingBox& operator=(BoundingBox other) {
-    left_ = other.left_;
-    top_ = other.top_;
-    right_ = other.right_;
-    bottom_ = other.bottom_;
-    area_ = other.area_;
-
+    swap(*this, other);
     return *this;
+  }
+
+  friend void swap(BoundingBox& lhs, BoundingBox& rhs) {
+    using std::swap;
+    swap(lhs.left_, rhs.left_);
+    swap(lhs.right_, rhs.right_);
+    swap(lhs.top_, rhs.top_);
+    swap(lhs.bottom_, rhs.bottom_);
+    swap(lhs.area_, rhs.area_);
   }
 
   static BoundingBox FromLtrb(float l, float t, float r, float b) {
@@ -143,6 +142,8 @@ class BoundingBox {
   }
 
  private:
+  BoundingBox() = default;
+
   BoundingBox(float l, float t, float r, float b)
       : left_{l}, top_{t}, right_{r}, bottom_{b}, area_{(r - l) * (b - t)} {}
 

@@ -94,6 +94,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
     output_data[i + 2] = result[2];
     output_data[i + 3] = result[3];
   }
-}  // namespace dali
+}
 
 }  // namespace dali
