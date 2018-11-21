@@ -102,10 +102,8 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
     const auto *box_data =
         boxes_tensor.data<float>() + (i * BoundingBox::kSize);
 
-    auto box = ltrb_ ? BoundingBox::FromLtrb(box_data[0], box_data[1],
-                                             box_data[2], box_data[3])
-                     : BoundingBox::FromXywh(box_data[0], box_data[1],
-                                             box_data[2], box_data[3]);
+    auto box = ltrb_ ? BoundingBox::FromLtrb(box_data)
+                     : BoundingBox::FromXywh(box_data);
     bounding_boxes.emplace_back(box);
   }
 

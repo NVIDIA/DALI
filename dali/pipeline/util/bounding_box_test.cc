@@ -234,4 +234,86 @@ TEST(BoundingBoxTest, CanFlipVerticallyLTRB) {
   }
 }
 
+TEST(BoundingBoxTest, CanCalculateArea) {
+  auto ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 0.0, 0.0);
+  auto xywh_box = BoundingBox::FromXywh(0.0, 0.0, 0.0, 0.0);
+
+  EXPECT_EQ(ltrb_box.Area(), 0.0f);
+  EXPECT_EQ(xywh_box.Area(), 0.0f);
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 1.0, 1.0);
+  xywh_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 1.0);
+
+  EXPECT_EQ(ltrb_box.Area(), 1.0f);
+  EXPECT_EQ(xywh_box.Area(), 1.0f);
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 1.0, 0.5);
+  xywh_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 0.5);
+
+  EXPECT_EQ(ltrb_box.Area(), 0.5f);
+  EXPECT_EQ(xywh_box.Area(), 0.5f);
+}
+
+TEST(BoundingBoxTest, CanFindContained) {
+  auto ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 0.0, 0.0);
+  auto xywh_box = BoundingBox::FromXywh(0.0, 0.0, 0.0, 0.0);
+
+  EXPECT_TRUE(ltrb_box.Contains(0, 0));
+  EXPECT_TRUE(xywh_box.Contains(0, 0));
+
+  EXPECT_FALSE(ltrb_box.Contains(0.1, 0));
+  EXPECT_FALSE(xywh_box.Contains(0.1, 0));
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 1.0, 1.0);
+  xywh_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 1.0);
+
+  EXPECT_TRUE(ltrb_box.Contains(1, 1));
+  EXPECT_TRUE(xywh_box.Contains(1, 1));
+
+  EXPECT_TRUE(ltrb_box.Contains(1, 0.9));
+  EXPECT_TRUE(xywh_box.Contains(1, 0.9));
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 1.0, 0.5);
+  xywh_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 0.5);
+
+  EXPECT_TRUE(ltrb_box.Contains(1, 0.5));
+  EXPECT_TRUE(xywh_box.Contains(1, 0.5));
+}
+
+TEST(BoundingBoxTest, CanFindIfOverlap) {
+  auto ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 0.0, 0.0);
+  auto xywh_box = BoundingBox::FromXywh(0.0, 0.0, 0.0, 0.0);
+
+  EXPECT_FALSE(ltrb_box.Overlaps(ltrb_box));
+  EXPECT_FALSE(xywh_box.Overlaps(ltrb_box));
+  EXPECT_FALSE(xywh_box.Overlaps(xywh_box));
+  EXPECT_FALSE(ltrb_box.Overlaps(xywh_box));
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 1.0, 1.0);
+  xywh_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 1.0);
+
+  EXPECT_TRUE(ltrb_box.Overlaps(ltrb_box));
+  EXPECT_TRUE(xywh_box.Overlaps(ltrb_box));
+  EXPECT_TRUE(xywh_box.Overlaps(xywh_box));
+  EXPECT_TRUE(ltrb_box.Overlaps(xywh_box));
+
+  ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 0.5, 0.5);
+  xywh_box = BoundingBox::FromXywh(0.5, 0.5, 0.5, 0.5);
+
+  EXPECT_TRUE(ltrb_box.Overlaps(ltrb_box));
+  EXPECT_FALSE(xywh_box.Overlaps(ltrb_box));
+  EXPECT_TRUE(xywh_box.Overlaps(xywh_box));
+  EXPECT_FALSE(ltrb_box.Overlaps(xywh_box));
+}
+
+TEST(BoundingBoxTest, CalculateIOUIsZeroIfNoOverlap) {
+  auto ltrb_box = BoundingBox::FromLtrb(0.0, 0.0, 0.0, 0.0);
+  auto xywh_box = BoundingBox::FromXywh(0.0, 0.0, 0.0, 0.0);
+
+  EXPECT_EQ(ltrb_box.IntersectionOverUnion(ltrb_box), 0.0f);
+  EXPECT_EQ(xywh_box.IntersectionOverUnion(ltrb_box), 0.0f);
+  EXPECT_EQ(xywh_box.IntersectionOverUnion(xywh_box), 0.0f);
+  EXPECT_EQ(ltrb_box.IntersectionOverUnion(xywh_box), 0.0f);
+}
+
 }  // namespace

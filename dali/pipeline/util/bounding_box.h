@@ -46,6 +46,10 @@ class BoundingBox {
     swap(lhs.area_, rhs.area_);
   }
 
+  static BoundingBox FromLtrb(const float data[kSize]) {
+    return FromLtrb(data[0], data[1], data[2], data[3]);
+  }
+
   static BoundingBox FromLtrb(float l, float t, float r, float b) {
     DALI_ENFORCE(l >= 0 && l <= 1.f,
                  "Expected 0 <= left <= 1. Received: " + to_string(l));
@@ -63,6 +67,11 @@ class BoundingBox {
 
     return {l, t, r, b};
   }
+
+  static BoundingBox FromXywh(const float data[kSize]) {
+    return FromLtrb(data[0], data[1], data[2], data[3]);
+  }
+
   static BoundingBox FromXywh(float x, float y, float w, float h) {
     DALI_ENFORCE(x >= 0 && x <= 1.f,
                  "Expected 0 <= x <= 1. Received: " + to_string(x));

@@ -143,8 +143,8 @@ class RandomBBoxCrop : public Operator<Backend> {
     // Discard bboxes whose centroid is not in the cropped area
     for (const auto &box : bounding_boxes) {
       auto coord = box.AsLtrb();
-      const float x_center = 0.5 * (coord[2] - coord[0]) + coord[0];
-      const float y_center = 0.5 * (coord[3] - coord[1]) + coord[1];
+      const float x_center = 0.5f * (coord[2] - coord[0]) + coord[0];
+      const float y_center = 0.5f * (coord[3] - coord[1]) + coord[1];
 
       if (crop.Contains(x_center, y_center)) {
         result.push_back(box);

@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
 #include <dali/pipeline/util/bounding_box.h>
+#include <iterator>
 
 namespace dali {
 
@@ -75,10 +76,8 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   for (int i = 0; i < input.size(); i += 4) {
     auto bbox =
-        ltrb_ ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1],
-                                      input_data[i + 2], input_data[i + 3])
-              : BoundingBox::FromXywh(input_data[i], input_data[i + 1],
-                                      input_data[i + 2], input_data[i + 3]);
+        ltrb_ ? BoundingBox::FromLtrb(&input_data[i])
+              : BoundingBox::FromXywh(&input_data[i]);
 
     if (horizontal) {
       bbox = bbox.HorizontalFlip();
