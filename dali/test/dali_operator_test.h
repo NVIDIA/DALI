@@ -26,13 +26,13 @@ std::string BackendStringName() {
 
 
 template<>
-std::string BackendStringName<CPUBackend>() {
+inline std::string BackendStringName<CPUBackend>() {
   return "cpu";
 }
 
 
 template<>
-std::string BackendStringName<GPUBackend>() {
+inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
@@ -43,22 +43,25 @@ class DaliOperatorTest : public ::testing::Test {
 //    static_assert(util::is_tuple<Inputs>::value, "Inputs has to be either a tuple or a void");
 //    static_assert(util::is_tuple<Outputs>::value, "Outputs has to be a tuple");
 
-public:
+ public:
   using Shape = std::vector<size_t>;
   using Arguments =  std::map<std::string, float>; // TODO boost::any
 
   template<typename Backend>
   void RunTest(Arguments operator_arguments, Output anticipated_outputs) {
     auto op_spec = CreateOpSpec<Backend>(operator_name_, operator_arguments);
-    AddInputsToPipeline<Backend>(*pipeline_, "input");
+    if (has_input_) {
+      AddInputsToPipeline<Backend>(*pipeline_, "input");
+    }
     AddOperatorToPipeline(*pipeline_, op_spec);
     outputs_ = RunPipeline<Backend>(*pipeline_, op_spec);
     ASSERT_TRUE(Verify(outputs_, anticipated_outputs));
   }
 
 
-private:
-  virtual std::pair<Input, Shape> SetInputs() const = 0;  // TODO std::vector
+ private:
+
+  virtual std::vector<std::pair<Input, Shape>> SetInputs() const = 0;
 
   virtual std::string SetOperator() const = 0; // TODO std::vector
 
@@ -67,8 +70,13 @@ private:
 
   void SetUp() final {
     auto inp = SetInputs();
-    inputs_ = inp.first;
-    input_shape_ = inp.second;
+    auto num_inputs = inp.size();
+    assert(num_inputs >= 0);
+    has_input_ = num_inputs != 0;
+    if (has_input_) {
+      inputs_ = inp[0].first;
+      input_shape_ = inp[0].second;
+    }
     operator_name_ = SetOperator();
     InitPipeline();
   }
@@ -89,9 +97,10 @@ private:
   template<typename Backend>
   void AddInputsToPipeline(Pipeline &pipeline, std::string input_name) {
     pipeline.AddExternalInput(input_name);
+
     auto tensor_list = ToTensorList<Backend>(inputs_, input_shape_);
 
-    //tmp
+    //debug
     auto ptr = tensor_list.template tensor<float>(0);
 
     pipeline.SetExternalInput(input_name, tensor_list);
@@ -120,24 +129,24 @@ private:
   Output RunPipeline(Pipeline &pipeline, OpSpec spec) {
     vector<std::pair<string, string>> vecoutputs_;
     for (int i = 0; i < spec.NumOutput(); ++i) {
-      vecoutputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
+      vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
     }
     pipeline.Build(vecoutputs_);
     pipeline.RunCPU();
     pipeline.RunGPU();
-    auto workspace = CreateWorkspace();
-//    DeviceWorkspace workspace;
-    pipeline.Outputs(&workspace);
-    GetOutputsFromWorkspace<Backend>(workspace);
 
-//    return *ptr;
+    auto workspace = CreateWorkspace();
+    pipeline.Outputs(&workspace);
+    return GetOutputsFromWorkspace<Backend>(workspace);
   }
 
 
   template<typename Backend>
   Output GetOutputsFromWorkspace(DeviceWorkspace ws) {
-    auto i = ws.Output<Backend>(0);
-    auto ptr = i->template data<int>();
+    //TODO
+//    auto i = ws.Output<Backend>(0);
+//    auto ptr = i->template data<Output>();
+//    return *ptr;
   }
 
 
@@ -147,7 +156,9 @@ private:
     for (const auto &arg : operator_arguments) {
       opspec.AddArg(arg.first, arg.second);
     }
-    opspec.AddInput("input", detail::BackendStringName<Backend>());
+    if (has_input_) {
+      opspec.AddInput("input", detail::BackendStringName<Backend>());
+    }
     opspec.AddOutput("output", detail::BackendStringName<Backend>());
     return opspec;
   }
@@ -160,6 +171,8 @@ private:
   std::unique_ptr<Pipeline> pipeline_;
   const size_t batch_size_ = 32;
   const size_t num_threads_ = 2;
+  bool has_input_;
+
 };
 
 }  // namespace dali
