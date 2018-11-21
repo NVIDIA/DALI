@@ -35,10 +35,10 @@ struct SequenceWrapper {
   : started_(false) {}
 
   void initialize(int count, int height, int width, int channels) {
-    count = count;
-    height = height;
-    width = width;
-    channels = channels;
+    this->count = count;
+    this->height = height;
+    this->width = width;
+    this->channels = channels;
     // TODO(spanev) Handle other types
     sequence.set_type(TypeInfo::Create<float>());
     sequence.Resize({count, height, width, channels});
@@ -61,6 +61,7 @@ struct SequenceWrapper {
 
   void set_started(cudaStream_t stream) {
     CUDA_CALL(cudaEventRecord(event_, stream));
+    LOG_LINE << event_ << " recorded with stream " << stream << std::endl;
     std::unique_lock<std::mutex> lock{started_lock_};
     started_ = true;
     lock.unlock();
@@ -68,8 +69,11 @@ struct SequenceWrapper {
   }
 
   void wait() const {
+    LOG_LINE << event_ << " wait to start" << std::endl;
     wait_until_started_();
+    LOG_LINE << event_ << " wait to synchronize" << std::endl;
     CUDA_CALL(cudaEventSynchronize(event_));
+    LOG_LINE << event_ << " synchronized!" << std::endl;
   }
   /*
   Remove useless?

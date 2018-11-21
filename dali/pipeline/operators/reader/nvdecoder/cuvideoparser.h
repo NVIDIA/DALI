@@ -41,7 +41,6 @@ class CUVideoParser {
                   uint8_t* extradata, int extradata_size)
         : parser_{0}, parser_info_{}, parser_extinfo_{}, initialized_{false}
     {
-        //init_params(codec, decoder, decode_surfaces, extradata, extradata_size);
     }
 
 

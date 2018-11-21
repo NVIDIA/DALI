@@ -429,6 +429,7 @@ void NvDecoder::push_req(FrameReq req) {
 }
 
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
+    LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
     output_queue_.push(&sequence);
 }
 
@@ -538,7 +539,6 @@ void NvDecoder::finish() {
     output_queue_.cancel_pops();
 }
 
-// This has to be here since Decoder is the only friend of PictureSequence
  void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
     sequence.set_started(stream_);
 }

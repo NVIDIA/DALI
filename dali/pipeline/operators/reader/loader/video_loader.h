@@ -132,6 +132,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       height_(0),
       width_(0),
       filenames_(filenames),
+      // TODO(spanev) handle device_id != 0
+      device_id_(0),
       codec_id_(0),
       done_(false) {
   }

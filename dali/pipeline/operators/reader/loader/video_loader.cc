@@ -370,7 +370,6 @@ void VideoLoader::push_sequence_to_read(std::string filename, int frame, int cou
     send_queue_.push(req);
 }
 
-// void VideoLoader::receive_frames(PictureSequence& sequence) {
 void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     auto startup_timeout = 1000;
     while (!vid_decoder_) {
@@ -406,7 +405,6 @@ void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
 
 void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
-
     push_sequence_to_read(filenames_[0], frame_starts_[current_frame_idx_], count_);
     receive_frames(*tensor);
     tensor->wait();

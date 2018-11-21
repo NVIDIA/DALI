@@ -124,6 +124,7 @@ void process_frame(
     dim3 grid(divUp(output.width, block.x), divUp(output.height, block.y));
 
     int frame_stride = index * output.height * output.width * output.channels;
+    LOG_LINE << "Processing frame " << index << " (frame_stride=" << frame_stride << ")" << std::endl;
     auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
 
     process_frame_kernel<<<grid, block, 0, stream>>>
