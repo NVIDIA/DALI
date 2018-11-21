@@ -23,6 +23,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -214,7 +215,6 @@ class DALITest : public ::testing::Test {
   inline void MakeRandomBoxes(float *ptr, size_t n, bool ltrb) {
     static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
     for (size_t i = 0; i < n * 4; i += 4) {
-      // ltrb
       ptr[i] = rfloat(rd_);
       ptr[i + 1] = rfloat(rd_);
 

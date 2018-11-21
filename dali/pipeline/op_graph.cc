@@ -66,9 +66,9 @@ void CheckOpConstraints(const OpSpec &spec) {
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
   DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
-      "Operator '" + spec.name() +
-      "' supports " + std::to_string(schema.CalculateOutputs(spec)/num_input_sets) + " outputs, "
-      "but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");
+      "Operator '" + spec.name() + "' supports "
+      + std::to_string((schema.CalculateOutputs(spec) + additional_outputs)/num_input_sets)
+      + " outputs, but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");
 }
 
 }  // namespace

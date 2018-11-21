@@ -12,34 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
-#define DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
-
-#include <utility>
-#include <vector>
+#ifndef DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
+#define DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/pipeline/operators/crop/crop.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class Slice : public Crop<Backend> {
+class BBoxPaste : public Operator<Backend> {
  public:
-  explicit inline Slice(const OpSpec &spec) : Crop<Backend>(spec) {}
+  explicit inline BBoxPaste(const OpSpec &spec) :
+    Operator<Backend>(spec) {
+    use_ltrb_ = spec.GetArgument<bool>("ltrb");
+  }
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, int idx) override;
+  bool use_ltrb_ = false;
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
-
- private:
-  void DataDependentSetup(Workspace<Backend> *ws, unsigned int idx = 0);
+  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
+#endif  // DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_

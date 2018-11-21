@@ -21,7 +21,11 @@
 
 namespace dali {
 
-class BbFlip : public Operator<CPUBackend> {
+template <typename Backend>
+class BbFlip;
+
+template <>
+class BbFlip<CPUBackend> : public Operator<CPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec);
 

@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_resize.h"
+#include "dali/test/dali_test_matching.h"
 
 namespace dali {
 
-template <typename ImgType>
-class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
- protected:
-  virtual vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
-    return this->CopyToHost(*ws->Output<GPUBackend>(1));
-  }
+static const char *opName = "CropMirrorNormalize";
 
-  void RunTest() {
+template <typename ImgType>
+class CropMirrorNormalizePermuteTest : public GenericMatchingTest<ImgType> {
+ protected:
+  void RunTestByDevice(const char *deviceName = "gpu",
+                       bool doMirroring = false) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -33,48 +31,179 @@ class CropMirrorNormalizePermuteTest : public GenericResizeTest<ImgType> {
     this->MakeJPEGBatch(&data, batch_size);
     this->SetExternalInputs({{"jpegs", &data}});
 
+    string device(deviceName);
+    this->setOpType(device == "gpu" ? DALI_GPU : DALI_CPU);
+    OpSpec spec = OpSpec(opName)
+                      .AddArg("device", device)
+                      .AddInput("images", device)
+                      .AddOutput("cropped1", device)
+                      .AddInput("images2", device)
+                      .AddOutput("cropped2", device)
+                      .AddArg("crop", vector<float>{64, 64})
+                      .AddArg("mean", vector<float>(this->c_, 0.))
+                      .AddArg("std", vector<float>(this->c_, 1.))
+                      .AddArg("image_type", this->img_type_)
+                      .AddArg("num_input_sets", 2);
+
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
     // Decode the images
-    pipe->AddOperator(
-      OpSpec("HostDecoder")
-        .AddArg("output_type", this->img_type_)
-        .AddInput("jpegs", "cpu")
-        .AddOutput("images", "cpu"));
+    pipe->AddOperator(OpSpec("HostDecoder")
+                          .AddArg("output_type", this->img_type_)
+                          .AddInput("jpegs", "cpu")
+                          .AddOutput("images", "cpu"));
 
-    pipe->AddOperator(
-      OpSpec("HostDecoder")
-        .AddArg("output_type", this->img_type_)
-        .AddInput("jpegs", "cpu")
-        .AddOutput("images2", "cpu"));
+    pipe->AddOperator(OpSpec("HostDecoder")
+                          .AddArg("output_type", this->img_type_)
+                          .AddInput("jpegs", "cpu")
+                          .AddOutput("images2", "cpu"));
+
+    if (doMirroring) {
+      pipe->AddOperator(OpSpec("CoinFlip")
+                            .AddArg("device", "support")
+                            .AddArg("probability", 0.5f)
+                            .AddOutput("mirror", "cpu"));
+
+      spec.AddArgumentInput("mirror", "mirror");
+    }
 
     // CropMirrorNormalizePermute + crop multiple sets of images
     DeviceWorkspace ws;
-    this->RunOperator(OpSpec("CropMirrorNormalize")
-                        .AddArg("device", "gpu")
-                        .AddInput("images", "gpu")
-                        .AddOutput("cropped1", "gpu")
-                        .AddInput("images2", "gpu")
-                        .AddOutput("cropped2", "gpu")
-                        .AddArg("crop", vector<float>{64, 64})
-                        .AddArg("mean", vector<float>(this->c_, 0.))
-                        .AddArg("std", vector<float>(this->c_, 1.))
-                        .AddArg("image_type", this->img_type_)
-                        .AddArg("num_input_sets", 2), 1e-4, &ws);
-
-#if DALI_DEBUG
-    WriteCHWBatch<float>(*ws.Output<GPUBackend>(0), 0., 1, "img0");
-    WriteCHWBatch<float>(*ws.Output<GPUBackend>(1), 0., 1, "img1");
-#endif
+    this->RunOperator(spec, 1e-4, &ws);
   }
 };
 
+const float eps = 50000;
+const bool addImageType = true;
+
+static const OpArg vector_params[] = {{"crop", "224, 256", DALI_FLOAT_VEC},
+                                      {"mean", "0.", DALI_FLOAT_VEC},
+                                      {"std", "1.", DALI_FLOAT_VEC}};
+const bool doMirroring = true;
+
 typedef ::testing::Types<RGB, BGR, Gray> Types;
+
 TYPED_TEST_CASE(CropMirrorNormalizePermuteTest, Types);
 
-TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleData) {
-  this->RunTest();
+TYPED_TEST(CropMirrorNormalizePermuteTest, DISABLED_MultipleDataGPU) {
+  this->RunTestByDevice("gpu", !doMirroring);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, DISABLED_MultipleDataGPU_Mirror) {
+  this->RunTestByDevice("gpu", doMirroring);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleDataCPU) {
+  this->RunTestByDevice("cpu", !doMirroring);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, MultipleDataCPU_Mirror) {
+  this->RunTestByDevice("cpu", doMirroring);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, CropVector) {
+  this->RunTest(opName, vector_params,
+                sizeof(vector_params) / sizeof(vector_params[0]), addImageType,
+                eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NCHW) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_layout", "0", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_NHWC) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_layout", "1", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_SAME) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_layout", "2", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_NO_TYPE) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "-1", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_UINT8) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "0", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT16) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "1", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT32) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "2", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_INT64) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "3", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_FLOAT16) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "4", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
+}
+
+TYPED_TEST(CropMirrorNormalizePermuteTest, Output_DALI_FLOAT) {
+  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
+                                 {"mean", "0.", DALI_FLOAT_VEC},
+                                 {"std", "1.", DALI_FLOAT_VEC},
+                                 {"output_dtype", "5", DALI_INT32}};
+
+  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
+                addImageType, eps);
 }
 
 }  // namespace dali
-
-

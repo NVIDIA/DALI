@@ -32,11 +32,11 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
 
     per_sample_dimensions_[i] = std::make_pair(H, W);
 
-    crop_width_[i] = static_cast<int>(crop_size.tensor<float>(i)[0]) * W;
-    crop_height_[i] = static_cast<int>(crop_size.tensor<float>(i)[1]) * H;
+    crop_width_[i] = static_cast<int>(crop_size.tensor<float>(i)[0] * W);
+    crop_height_[i] = static_cast<int>(crop_size.tensor<float>(i)[1] * H);
 
-    const auto crop_x = static_cast<int>(crop_begin.tensor<float>(i)[0]) * W;
-    const auto crop_y = static_cast<int>(crop_begin.tensor<float>(i)[1]) * H;
+    const auto crop_x = static_cast<int>(crop_begin.tensor<float>(i)[0] * W);
+    const auto crop_y = static_cast<int>(crop_begin.tensor<float>(i)[1] * H);
 
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
   }

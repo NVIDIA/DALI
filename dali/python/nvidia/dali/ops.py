@@ -136,7 +136,7 @@ class _OperatorInstance(object):
         else:
             output_device = "cpu"
 
-        num_output = self._op.schema.CalculateOutputs(self._spec)
+        num_output = self._op.schema.CalculateOutputs(self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)

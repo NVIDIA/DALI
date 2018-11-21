@@ -46,7 +46,7 @@ class BoundingBox {
     swap(lhs.area_, rhs.area_);
   }
 
-  static BoundingBox FromLtrb(const float data[kSize]) {
+  static BoundingBox FromLtrb(const float* data) {
     return FromLtrb(data[0], data[1], data[2], data[3]);
   }
 
@@ -68,8 +68,8 @@ class BoundingBox {
     return {l, t, r, b};
   }
 
-  static BoundingBox FromXywh(const float data[kSize]) {
-    return FromLtrb(data[0], data[1], data[2], data[3]);
+  static BoundingBox FromXywh(const float *data) {
+    return FromXywh(data[0], data[1], data[2], data[3]);
   }
 
   static BoundingBox FromXywh(float x, float y, float w, float h) {

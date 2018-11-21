@@ -22,7 +22,7 @@ const std::string kCoordinatesTypeArgName = "ltrb";   // NOLINT
 const std::string kHorizontalArgName = "horizontal";  // NOLINT
 const std::string kVerticalArgName = "vertical";      // NOLINT
 
-DALI_REGISTER_OPERATOR(BbFlip, BbFlip, CPU);
+DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
 
 DALI_SCHEMA(BbFlip)
     .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
@@ -42,14 +42,14 @@ False for for width-height representation. Default: False)code",
                     R"code(Perform flip along vertical axis. Default: 0)code",
                     0, true);
 
-BbFlip::BbFlip(const dali::OpSpec &spec)
+BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
     : Operator<CPUBackend>(spec),
       ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
 
-void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
+void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto input_data = input.data<float>();
 
@@ -75,9 +75,8 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   auto output_data = output->mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-    auto bbox =
-        ltrb_ ? BoundingBox::FromLtrb(&input_data[i])
-              : BoundingBox::FromXywh(&input_data[i]);
+    auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i])
+                      : BoundingBox::FromXywh(&input_data[i]);
 
     if (horizontal) {
       bbox = bbox.HorizontalFlip();
