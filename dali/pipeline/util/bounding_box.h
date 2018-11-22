@@ -33,7 +33,7 @@ class BoundingBox {
         bottom_{other.bottom_},
         area_{other.area_} {}
 
-  BoundingBox(BoundingBox&& other) : BoundingBox() { swap(*this, other); }
+  BoundingBox(BoundingBox&& other) noexcept : BoundingBox() { swap(*this, other); }
 
   BoundingBox& operator=(BoundingBox other) {
     swap(*this, other);
