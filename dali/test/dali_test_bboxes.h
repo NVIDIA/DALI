@@ -151,8 +151,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
            t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
-  void RunBBoxesCPU(const singleParamOpDescr &paramOp,
-                    bool addImgType = false, bool ltrb = true) {
+  void RunBBoxesCPU(const singleParamOpDescr &paramOp, bool addImgType = false,
+                    bool ltrb = true) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
