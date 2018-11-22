@@ -20,13 +20,13 @@ typedef struct {
 template <typename ImgType>
 class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
  protected:
-  void RunBBoxesCPU(const opDescr &descr) {
+  void RunBBoxesCPU(const opDescr &descr, bool ltrb) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
     TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size);
+    this->MakeBBoxesBatch(&boxes, batch_size, ltrb);
     this->SetExternalInputs({{"boxes", &boxes}});
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
@@ -148,11 +148,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
   }
 
   void RunBBoxesCPU(const singleParamOpDescr &paramOp,
-                    bool addImgType = false) {
+                    bool addImgType = false, bool ltrb = true) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
-    RunBBoxesCPU(finalDesc);
+    RunBBoxesCPU(finalDesc, ltrb);
   }
 
   TensorList<CPUBackend> images_out;

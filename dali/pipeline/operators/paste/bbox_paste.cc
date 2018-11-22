@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
+
 #include "dali/pipeline/operators/paste/bbox_paste.h"
 
 namespace dali {

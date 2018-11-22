@@ -212,20 +212,25 @@ class DALITest : public ::testing::Test {
     MakeEncodedBatch(t, n, jpegs_);
   }
 
-  inline void MakeRandomBoxes(float *ptr, size_t n) {
+  inline void MakeRandomBoxes(float *ptr, size_t n, bool ltrb = true) {
     static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
     for (size_t i = 0; i < n * 4; i += 4) {
       ptr[i] = rfloat(rd_);
       ptr[i + 1] = rfloat(rd_);
-      ptr[i + 2] = rfloat(rd_);
-      ptr[i + 3] = rfloat(rd_);
-      // ltrb
-      if (ptr[i] > ptr[i + 2]) std::swap(ptr[i], ptr[i + 2]);
-      if (ptr[i + 1] > ptr[i + 3]) std::swap(ptr[i + 1], ptr[i + 3]);
+
+      auto right = (1.0f - ptr[i]) * rfloat(rd_) + ptr[i];
+      auto bottom = (1.0f - ptr[i + 1]) * rfloat(rd_) + ptr[i + 1];
+      if (ltrb) {
+        ptr[i + 2] = right;
+        ptr[i + 3] = bottom;
+      } else {
+        ptr[i + 2] = right - ptr[i];
+        ptr[i + 3] = bottom - ptr[i+1];
+      }
     }
   }
 
-  inline void MakeBBoxesBatch(TensorList<CPUBackend> *tl, int n) {
+  inline void MakeBBoxesBatch(TensorList<CPUBackend> *tl, int n, bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
     vector<Dims> shape(n);
@@ -236,11 +241,11 @@ class DALITest : public ::testing::Test {
     tl->Resize(shape);
 
     for (int i = 0; i < n; ++i) {
-      MakeRandomBoxes(tl->template mutable_tensor<float>(i), shape[i][0]);
+      MakeRandomBoxes(tl->template mutable_tensor<float>(i), shape[i][0], ltrb);
     }
   }
 
-  inline void MakeBBoxesBatch(vector<Tensor<CPUBackend>> *t, int n) {
+  inline void MakeBBoxesBatch(vector<Tensor<CPUBackend>> *t, int n, bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
     t->resize(n);
@@ -250,7 +255,7 @@ class DALITest : public ::testing::Test {
       const auto box_count = rint(rd_);
       ti.Resize({box_count, 4});
 
-      MakeRandomBoxes(ti.template mutable_data<float>(), box_count);
+      MakeRandomBoxes(ti.template mutable_data<float>(), box_count, ltrb);
     }
   }
 

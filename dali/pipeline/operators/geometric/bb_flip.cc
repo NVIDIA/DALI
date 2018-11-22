@@ -13,44 +13,41 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/geometric/bb_flip.h"
-
+#include <dali/pipeline/util/bounding_box.h>
+#include <iterator>
 
 namespace dali {
 
-const std::string kCoordinatesTypeArgName = "ltrb";  //NOLINT
-const std::string kHorizontalArgName = "horizontal";  //NOLINT
-const std::string kVerticalArgName = "vertical";  //NOLINT
-
+const std::string kCoordinatesTypeArgName = "ltrb";   // NOLINT
+const std::string kHorizontalArgName = "horizontal";  // NOLINT
+const std::string kVerticalArgName = "vertical";      // NOLINT
 
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
 
-
 DALI_SCHEMA(BbFlip)
-                .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
+    .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
 Input: Bounding box coordinates; in either [x, y, w, h]
 or [left, top, right, bottom] format. All coordinates are
 in the image coordinate system (i.e. 0.0-1.0))code")
-                .NumInput(1)
-                .NumOutput(1)
-                .AddOptionalArg(kCoordinatesTypeArgName,
-                                R"code(True, for two-point (ltrb).
+    .NumInput(1)
+    .NumOutput(1)
+    .AddOptionalArg(kCoordinatesTypeArgName,
+                    R"code(True, for two-point (ltrb).
 False for for width-height representation. Default: False)code",
-                                false, false)
-                .AddOptionalArg(kHorizontalArgName,
-                                R"code(Perform flip along horizontal axis. Default: 1)code",
-                                1, true)
-                .AddOptionalArg(kVerticalArgName,
-                                R"code(Perform flip along vertical axis. Default: 0)code",
-                                0, true);
+                    false, false)
+    .AddOptionalArg(kHorizontalArgName,
+                    R"code(Perform flip along horizontal axis. Default: 1)code",
+                    1, true)
+    .AddOptionalArg(kVerticalArgName,
+                    R"code(Perform flip along vertical axis. Default: 0)code",
+                    0, true);
 
-
-BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec) :
-        Operator<CPUBackend>(spec),
-        coordinates_type_ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
+BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
+    : Operator<CPUBackend>(spec),
+      ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
   vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
-
 
 void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
@@ -58,48 +55,15 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  DALI_ENFORCE([](const float *data, size_t size) -> bool {
-      for (size_t i = 0; i < size; i++) {
-        if (data[i] < 0 || data[i] > 1.0)
-          return false;
-      }
-      return true;
-  }(input_data, input.size()), "Not all bounding box parameters are in [0.0, 1.0]");
+  const auto vertical =
+      vflip_is_tensor_
+          ? spec_.GetArgument<int>(kVerticalArgName, ws, ws->data_idx())
+          : spec_.GetArgument<int>(kVerticalArgName);
 
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-      if (coors_type_ltrb) return true;  // Assert not applicable for 2-point representation
-      for (size_t i = 0; i < size; i += 4) {
-        if (data[i] + data[i + 2] > 1.0 || data[i + 1] + data[i + 3] > 1.0) {
-          return false;
-        }
-      }
-      return true;
-  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect width or height");
-
-  DALI_ENFORCE([](const float *data, size_t size, bool coors_type_ltrb) -> bool {
-      if (!coors_type_ltrb) return true;  // Assert not applicable for wh representation
-      for (size_t i = 0; i < size; i += 4) {
-        if (data[i] > data[i + 2] || data[i + 1] > data[i + 3]) {
-          return false;
-        }
-      }
-      return true;
-  }(input_data, input.size(), coordinates_type_ltrb_), "Incorrect first or second point");
-
-  int vertical;
-  int index = ws->data_idx();
-  if (vflip_is_tensor_) {
-    vertical = spec_.GetArgument<int>(kVerticalArgName, ws, index);
-  } else {
-    vertical = spec_.GetArgument<int>(kVerticalArgName);
-  }
-
-  int horizontal;
-  if (hflip_is_tensor_) {
-    horizontal = spec_.GetArgument<int>(kHorizontalArgName, ws, index);
-  } else {
-    horizontal = spec_.GetArgument<int>(kHorizontalArgName);
-  }
+  const auto horizontal =
+      hflip_is_tensor_
+          ? spec_.GetArgument<int>(kHorizontalArgName, ws, ws->data_idx())
+          : spec_.GetArgument<int>(kHorizontalArgName);
 
   auto *output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
@@ -111,18 +75,23 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
   auto output_data = output->mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-    const auto x = input_data[i];
-    const auto y = input_data[i + 1];
-    const auto w = !coordinates_type_ltrb_ ? input_data[i + 2] : input_data[i + 2] - input_data[i];
-    const auto h = !coordinates_type_ltrb_ ? input_data[i + 3] : input_data[i + 3] -
-                                                              input_data[i + 1];
+    auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i])
+                      : BoundingBox::FromXywh(&input_data[i]);
 
-    output_data[i] = horizontal ? (1.0f - x) - w : x;
-    output_data[i + 1] = vertical ? (1.0f - y) - h : y;
-    output_data[i + 2] = !coordinates_type_ltrb_ ? w : output_data[0] + w;
-    output_data[i + 3] = !coordinates_type_ltrb_ ? h : output_data[1] + h;
+    if (horizontal) {
+      bbox = bbox.HorizontalFlip();
+    }
+    if (vertical) {
+      bbox = bbox.VerticalFlip();
+    }
+
+    const auto result = ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
+
+    output_data[i] = result[0];
+    output_data[i + 1] = result[1];
+    output_data[i + 2] = result[2];
+    output_data[i + 3] = result[3];
   }
 }
-
 
 }  // namespace dali
