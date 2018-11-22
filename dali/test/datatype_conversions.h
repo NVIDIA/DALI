@@ -1,5 +1,5 @@
-#ifndef DALI_DATATYPE_CONVERTIONS_H
-#define DALI_DATATYPE_CONVERTIONS_H
+#ifndef DALI_DATATYPE_CONVERSIONS_H
+#define DALI_DATATYPE_CONVERSIONS_H
 
 #include "dali/pipeline/data/tensor_list.h"
 
@@ -34,4 +34,4 @@ TensorList <Backend> ToTensorList(const Input &input, std::vector<size_t> shape)
 
 }  // namespace dali
 
-#endif //DALI_DATATYPE_CONVERTIONS_H
+#endif //DALI_DATATYPE_CONVERSIONS_H
