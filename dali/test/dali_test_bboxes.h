@@ -26,8 +26,9 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetNumThreads(1);
 
     TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size, ltrb);
-    this->SetExternalInputs({{"boxes", &boxes}});
+    TensorList<CPUBackend> labels;
+    this->MakeBBoxesAndLabelsBatch(&boxes, &labels, batch_size, ltrb);
+    this->SetExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
 
@@ -36,9 +37,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
                                     .AddInput("boxes", "cpu")
+                                    .AddInput("labels", "cpu")
                                     .AddOutput("output", "cpu")
                                     .AddOutput("output1", "cpu")
-                                    .AddOutput("output2", "cpu"));
+                                    .AddOutput("output2", "cpu")
+                                    .AddOutput("output3", "cpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
@@ -66,7 +69,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddInput("boxes", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu"));
+                          .AddOutput("resized_boxes", "cpu")
+                          .AddOutput("filtered_labels", "cpu"));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")

@@ -96,11 +96,10 @@ template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
     SampleWorkspace *ws, const std::vector<int> &labels) {
   auto *labels_out = ws->Output<CPUBackend>(3);
-  labels_out->Resize(
-      {static_cast<Index>(labels.size())});
+  labels_out->Resize({static_cast<Index>(labels.size())});
 
   auto *labels_out_data = labels_out->mutable_data<float>();
-  for(size_t i = 0; i < labels.size(); ++i) {
+  for (size_t i = 0; i < labels.size(); ++i) {
     labels_out_data[i] = labels[i];
   }
 }
@@ -127,16 +126,24 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   labels.reserve(static_cast<size_t>(labels_tensor.dim(0)));
 
   for (int i = 0; i < labels_tensor.dim(0); ++i) {
-    const auto *label_data = labels_tensor.data<float>() + i;
+    const auto *label_data = labels_tensor.data<int>() + i;
     labels.emplace_back(*label_data);
   }
 
   const auto prospective_crop =
       FindProspectiveCrop(bounding_boxes, labels, SelectMinimumOverlap());
 
+  const auto &selected_boxes = std::get<1>(prospective_crop);
+  const auto &selected_labels = std::get<2>(prospective_crop);
+
+  DALI_ENFORCE(selected_boxes.size() == selected_labels.size(),
+               "Expected boxes.size() == labels.size(). Received: " +
+                   std::to_string(selected_boxes.size()) +
+                   "!=" + std::to_string(selected_labels.size()));
+
   WriteCropToOutput(ws, std::get<0>(prospective_crop));
-  WriteBoxesToOutput(ws, std::get<1>(prospective_crop));
-  WriteLabelsToOutput(ws, std::get<2>(prospective_crop));
+  WriteBoxesToOutput(ws, selected_boxes);
+  WriteLabelsToOutput(ws, selected_labels);
 }
 
 DALI_REGISTER_OPERATOR(RandomBBoxCrop, RandomBBoxCrop<CPUBackend>, CPU);

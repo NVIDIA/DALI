@@ -22,12 +22,13 @@ class SliceTest : public GenericBBoxesTest<ImgType> {
     DALISingleOpTest<ImgType>::SetUp();
 
     this->MakeImageBatch(this->jpegs_.nImages(), &images_, DALI_RGB);
-    this->MakeBBoxesBatch(&boxes_, this->jpegs_.nImages());
+    this->MakeBBoxesAndLabelsBatch(&labels_, &boxes_, this->jpegs_.nImages());
   }
 
  protected:
   TensorList<CPUBackend> images_;
   TensorList<CPUBackend> boxes_;
+  TensorList<CPUBackend> labels_;
   std::vector<TensorList<CPUBackend>*> outputs_;
 };
 
