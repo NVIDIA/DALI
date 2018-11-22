@@ -18,7 +18,7 @@ namespace dali {
 
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
-        R"code(Perform a prospective crop to an image while keeping bounding boxes and labelsconsistent. Inputs must be supplied as
+        R"code(Perform a prospective crop to an image while keeping bounding boxes and labels consistent. Inputs must be supplied as
         two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[x,y,w,h]`, and `Labels` containing the
         corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
         coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
