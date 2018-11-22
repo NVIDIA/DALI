@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_PIPELINE_UTIL_TYPED_LAYOUT_H_
+#define DALI_PIPELINE_UTIL_TYPED_LAYOUT_H_
+
+#include "dali/pipeline/util/typed_layout.h"
 #include "dali/pipeline/basic/coords.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
-namespace basic {
 
 DALIDataType layoutToTypeId(DALITensorLayout layout) {
   if (layout == DALITensorLayout::DALI_NHWC) {
@@ -26,5 +30,6 @@ DALIDataType layoutToTypeId(DALITensorLayout layout) {
   return DALIDataType::DALI_NO_TYPE;
 }
 
-}  // namespace basic
 }  // namespace dali
+
+#endif  // DALI_PIPELINE_UTIL_TYPED_LAYOUT_H_

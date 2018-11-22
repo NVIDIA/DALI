@@ -21,6 +21,7 @@
 #include "dali/pipeline/basic/tensor.h"
 #include "dali/pipeline/basic/type_switch.h"
 #include "dali/util/half.hpp"
+#include "dali/pipeline/util/typed_layout.h"
 
 namespace dali {
 

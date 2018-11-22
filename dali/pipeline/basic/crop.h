@@ -54,19 +54,19 @@ class Crop {
 
   static void CalcOutputSize(const std::array<Index, input_dim> &in, KernelAttributes attr,
                              std::array<Index, output_dim> &out) {  // NOLINT
-    out = permuteShapeBySeq(OutShape{}, {attr.H_out, attr.W_out, in[2]});
+    out = permuteShape({attr.H_out, attr.W_out, in[2]}, OutShape{});
   }
 
   // signature due to change, for now it is iterator-like, should be collection of iterators
   static void Run(InputType in, KernelAttributes attr, OutputType out) {  // NOLINT
-    const auto *in_ptr = in.ptr + getOffset<0, 1, 2>(in.GetShape(), attr.h_start, attr.w_start, 0);
+    const auto *in_ptr = in.ptr + getOffset<0, 1, 2>(in.GetShape(), {attr.h_start, attr.w_start, 0});
     for (Index h = 0; h < attr.H_out; h++) {
       for (Index w = 0; w < attr.W_out; w++) {
         for (Index c = 0; c < in.GetShape()[2]; c++) {
           // From HWC
-          const auto in_idx = getOffset<0, 1, 2>(in.GetShape(), h, w, c);
+          const auto in_idx = getOffset<0, 1, 2>(in.GetShape(), {h, w, c});
           // To HWC or CHW
-          const auto out_idx = getOffsetBySeq(OutShape{}, out.GetShape(), h, w, c);
+          const auto out_idx = getOffset(out.GetShape(), {h, w, c}, OutShape{});
           out.ptr[out_idx] = static_cast<U>(in_ptr[in_idx]);
         }
       }

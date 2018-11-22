@@ -15,38 +15,51 @@
 #ifndef DALI_PIPELINE_BASIC_COORDS_H_
 #define DALI_PIPELINE_BASIC_COORDS_H_
 
-#include "dali/common.h"
-#include "dali/pipeline/data/types.h"
+#include <array>
+#include <cstdint>
+#include <iostream>
 
 namespace dali {
 namespace basic {
 
-template <typename T>
-Index getPlane(const T& shape) {
-  return 1;
-}
+namespace {
 
-template <size_t I, size_t N, typename T>
-Index getPlane(const T& shape) {
-  Index result = 1;
-  for (size_t i = I; i < N; i++) {
+template <typename T, size_t N>
+int64_t getOffsetImplLinear(const T &shape, std::array<int64_t, N> coords) {
+  int64_t result = coords[0];
+  for (size_t i = 1; i < N; i++) {
     result *= shape[i];
+    result += coords[i];
   }
   return result;
 }
 
-template <typename T, size_t N>
-Index getOffsetImpl(const T& shape, std::array<Index, N> coords) {
-  return 0;
-}
+}  // namespace
 
-template <Index o, Index... os, typename T, size_t N>
-Index getOffsetImpl(const T& shape, std::array<Index, N> coords) {
-  return coords[o] * getPlane<N - sizeof...(os), N>(shape) + getOffsetImpl<os...>(shape, coords);
-}
+template <int64_t... Ints>
+class dali_index_sequence {};
 
-template <typename T, Index>
-using order_to_type = T;
+template <typename T>
+struct index_to_array {};
+
+template <int64_t... Ints>
+struct index_to_array<dali_index_sequence<Ints...>> {
+  static constexpr std::array<int64_t, sizeof...(Ints)> array = {Ints...};
+  static constexpr size_t N = sizeof...(Ints);
+};
+
+/**
+ * @brief Permute shape by given order
+ *
+ * @tparam order
+ * @param shape
+ * @return std::array<int64_t, sizeof...(order)>
+ */
+template <int64_t... order>
+std::array<int64_t, sizeof...(order)> permuteShape(
+    const std::array<int64_t, sizeof...(order)>& shape, dali_index_sequence<order...> = {}) {
+  return {shape[order]...};
+}
 
 /**
  * @brief Get the offset to coordiantes after requested permutation
@@ -55,10 +68,10 @@ using order_to_type = T;
  * return offset after doing axes permuation <o_1, o_2, ..., o_n> (at position i we place axis o_i).
  *
  * calculates:
- *   c[o-1] * (s[o_2] * s[o_3] * ... * s[o_n])
- * + c[o-2] * (s[o_3] * s[o_4] * ... * s[o_n])
+ *   c[o_1] * (s[2] * s[3] * ... * s[n])
+ * + c[o_2] * (s[3] * s[4] * ... * s[n])
  * + ...
- * + c[o_{n-1}] * (s[o_n])
+ * + c[o_{n-1}] * (s[n])
  * + c[o_n]
  *
  * TODO(klecki) formal explanation and handle default case
@@ -68,56 +81,31 @@ using order_to_type = T;
  * Other order will produce offsets to permutation of dimensions, for example:
  * <0, 3, 1, 2> will result in offsets to NCHW data layout.
  *
+ * User may provide an optional argument of dali_index_sequence object that carries the information
+ * of the order instead of specifying it explicitly in template arguments.
+ *
+ * getOffset<0, 3, 1, 2>({4, 1080, 1920, 3}, 0, 500, 100, 2);
+ * is equivalent to:
+ * getOffset({4, 1080, 1920, 3}, 0, 500, 100, 2, dali_index_sequence<0, 3, 1, 2>{});
  *
  * @tparam order Permutation of input dimensions
  * @tparam T type of container carrying shape information
  * @param shape Data layout "before" permutation
- * @param coords Coordinates "before" permutation
- * @return Index offset to given coordinate
+ * @param coords Coordinates "after" permutation
+ * @return int64_t offset to given coordinate
  */
-template <Index... order, typename T>
-Index getOffset(const T& shape, order_to_type<Index, order>... coords) {
-  return getOffsetImpl<order...>(shape, std::array<Index, sizeof...(order)>{coords...});
+template <int64_t... order, typename T>
+int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords, dali_index_sequence<order...> = {}) {
+  return getOffsetImplLinear(shape, permuteShape<order...>(coords));
 }
 
-template <Index... Ints>
-class dali_index_sequence {};
 
-template <typename T>
-struct index_to_array {};
-
-template <Index... Ints>
-struct index_to_array<dali_index_sequence<Ints...>> {
-  static constexpr std::array<Index, sizeof...(Ints)> array = {Ints...};
-  static constexpr size_t N = sizeof...(Ints);
-};
-
-template <Index... order, typename T, template <Index...> class Seq>
-Index getOffsetBySeq(Seq<order...> seq, const T& shape, order_to_type<Index, order>... coords) {
-  return getOffset<order...>(shape, coords...);
-}
-
-DALIDataType layoutToTypeId(DALITensorLayout layout);
-
-template <Index... order>
-std::array<Index, sizeof...(order)> permuteShape(const std::array<Index, sizeof...(order)>& shape) {
-  return {shape[order]...};
-}
-
-template <Index... order, template <Index...> class Seq>
-std::array<Index, sizeof...(order)> permuteShapeBySeq(
-    Seq<order...> seq, const std::array<Index, sizeof...(order)>& shape) {
-  return {shape[order]...};
-}
-
-// TODO(klecki) - case where sizes are already permutated, implement as Horner's method?
+// TODO(klecki) - case where sizes are already permutated, go back to more compile time expansion?
 
 }  // namespace basic
 
 using basic::dali_index_sequence;
-using basic::layoutToTypeId;
 using basic::permuteShape;
-using basic::permuteShapeBySeq;
 
 }  // namespace dali
 
