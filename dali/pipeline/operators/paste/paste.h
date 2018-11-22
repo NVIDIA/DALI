@@ -40,7 +40,7 @@ class Paste : public Operator<Backend> {
     // because we use static shared memory for storing
     // fill value array
     DALI_ENFORCE(C_ <= 1024,
-      "n_channels of more than 128 is not supported");
+      "n_channels of more than 1024 is not supported");
     std::vector<uint8> rgb;
     GetSingleOrRepeatedArg(spec, &rgb, "fill_value", C_);
     fill_value_.Copy(rgb, 0);

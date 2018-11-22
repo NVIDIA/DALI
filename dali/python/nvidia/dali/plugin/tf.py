@@ -30,7 +30,24 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
+def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, **kwargs):
+  """
+TF Plugin Wrapper
+
+This operator works in the same way as DALI TensorFlow plugin, with the exception that is also accepts Pipeline objects as the input and serializes it internally. For more information, please look **TensorFlow Plugin API reference** in the documentation.
+  """
+  if serialized_pipeline is None:
+    serialized_pipeline = pipeline.serialize()
+  return _dali_tf(serialized_pipeline=serialized_pipeline, **kwargs)
+
+
 def DALIIterator():
+    return DALIIteratorWrapper
+
+# Vanilla raw operator legacy
+def DALIRawIterator():
     return _dali_tf
 
-DALIIterator.__doc__ = _dali_tf.__doc__
+
+DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
+DALIRawIterator.__doc__ = _dali_tf.__doc__

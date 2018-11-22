@@ -71,6 +71,8 @@ void ResizeAttr::DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int id
 template<>
 Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), ResizeAttr(spec) {
   per_sample_meta_.resize(num_threads_);
+  save_attrs_ = spec_.HasArgument("save_attrs");
+  outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
 // Checking the value of interp_type_
   int ocv_interp_type;
@@ -86,7 +88,7 @@ void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
 template <>
 void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
   const auto &input_shape = input.shape();
 
   CheckParam(input, "Resize<CPUBackend>");
@@ -111,6 +113,14 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   int ocv_interp_type;
   OCVInterpForDALIInterp(interp_type_, &ocv_interp_type);
   cv::resize(inputMat, rsz_img, cv::Size(meta.rsz_w, meta.rsz_h), 0, 0, ocv_interp_type);
+  if (save_attrs_) {
+      auto *attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
+
+      attr_output->Resize(Dims{2});
+      int *t = attr_output->mutable_data<int>();
+      t[0] = meta.rsz_h;
+      t[1] = meta.rsz_w;
+    }
 }
 
 DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);

@@ -270,6 +270,43 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
+    .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
+          DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
+              "buffer info for tensor w/ invalid type.");
+          DALI_ENFORCE(t.IsDenseTensor(),
+                      "Tensors in the list must have the same shape");
+
+          std::vector<ssize_t> shape(t.tensor_shape(0).size() + 1);
+          std::vector<ssize_t> stride(t.tensor_shape(0).size() + 1);
+          size_t dim_prod = 1;
+          for (size_t i = 0; i < shape.size(); ++i) {
+            if (i == 0) {
+              shape[i] = t.shape().size();
+            } else {
+              shape[i] = t.tensor_shape(0)[i - 1];
+            }
+
+            // We iterate over stride backwards
+            stride[(stride.size()-1) - i] = t.type().size()*dim_prod;
+            if (i == shape.size() - 1) {
+              dim_prod *= t.shape().size();
+            } else {
+              dim_prod *= t.tensor_shape(0)[(shape.size()-2) - i];
+            }
+          }
+
+          return py::array(py::buffer_info(
+              t.raw_mutable_data(),
+              t.type().size(),
+              FormatStrFromType(t.type()),
+              shape.size(), shape, stride));
+        },
+      R"code(
+      Returns TensorList as a numpy array. TensorList must be dense.
+
+      Parameters
+      ----------
+      )code")
     .def("__len__", [](TensorList<CPUBackend> &t) {
           return t.ntensor();
         })
@@ -690,6 +727,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("MinNumInput", &OpSchema::MinNumInput)
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
+    .def("CalculateAdditionalOutputs", &OpSchema::CalculateAdditionalOutputs)
     .def("SupportsInPlace", &OpSchema::SupportsInPlace)
     .def("CheckArgs", &OpSchema::CheckArgs)
     .def("GetArgumentDox", &OpSchema::GetArgumentDox)

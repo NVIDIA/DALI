@@ -300,6 +300,14 @@ void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, co
     ValidateHelper<float>(output);
   } else if (output_type_ == DALI_FLOAT16) {
     ValidateHelper<float16>(output);
+  } else if (output_type_ == DALI_UINT8) {
+    ValidateHelper<uint8>(output);
+  } else if (output_type_ == DALI_INT16) {
+    ValidateHelper<int16>(output);
+  } else if (output_type_ == DALI_INT32) {
+    ValidateHelper<int>(output);
+  } else if (output_type_ == DALI_INT64) {
+    ValidateHelper<int64>(output);
   } else {
     DALI_FAIL("Unsupported output type.");
   }
@@ -312,6 +320,14 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx
     RunHelper<float>(ws, idx);
   } else if (output_type_ == DALI_FLOAT16) {
     RunHelper<float16>(ws, idx);
+  } else if (output_type_ == DALI_UINT8) {
+    RunHelper<uint8>(ws, idx);
+  } else if (output_type_ == DALI_INT16) {
+    RunHelper<int16>(ws, idx);
+  } else if (output_type_ == DALI_INT32) {
+    RunHelper<int>(ws, idx);
+  } else if (output_type_ == DALI_INT64) {
+    RunHelper<int64>(ws, idx);
   } else {
     DALI_FAIL("Unsupported output type.");
   }
@@ -322,6 +338,15 @@ void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *w
   auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()),
       "Expected input data as uint8.");
+
+  if (output_layout_ == DALI_SAME) {
+    output_layout_ = input.GetLayout();
+  }
+
+  if (output_type_ == DALI_NO_TYPE) {
+    output_type_ = input.type().id();
+  }
+
   for (int i = 0; i < batch_size_; ++i) {
     vector<Index> input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3,

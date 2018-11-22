@@ -364,7 +364,7 @@ def validate(infer_func, params):
                     deterministic=deterministic,
                     dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
                     num_threads=num_preproc_threads),
-                    steps=num_eval_samples)
+                    steps=(num_eval_samples/batch_size))
             print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
             print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
         except KeyboardInterrupt:
