@@ -88,15 +88,6 @@ RUN CLANG_VERSION=6.0.1 && \
     tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
     rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
 
-## FFmpeg + libav
-##RUN yum install ffmpeg ffmpeg-devel
-#RUN LIBAV_VERSION=12.3 && \
-#    git clone -b v${LIBAV_VERSION} --single-branch --depth 1 https://github.com/libav/libav.git /libav && \
-#    cd libav && \
-#    ./configure && make && \
-#    make install && \
-#    rm -rf libav
-
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
@@ -119,7 +110,7 @@ RUN FFMPEG_VERSION=3.4.2 && \
       --enable-protocol=file \
       --enable-demuxer=mov,matroska \
       --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
-    make -j8 && make install && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l) && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 
 
