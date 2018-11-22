@@ -219,6 +219,7 @@ class DataReader : public Operator<Backend> {
 
     for (samples_processed_ = 0; samples_processed_.load() < Operator<Backend>::batch_size_; ++samples_processed_) {
       {
+        LOG_LINE << "SAMPLE " << samples_processed_.load() << " PROCESSING" << std::endl;
         // block all other worker threads from taking the prefetch-controller lock
         std::unique_lock<std::mutex> worker_lock(worker_mutex_);
 
@@ -241,6 +242,7 @@ class DataReader : public Operator<Backend> {
       }
 
       // consume batch
+      LOG_LINE << "SAMPLE " << samples_processed_.load() << " RUNNING" << std::endl;
       Operator<Backend>::Run(ws);
 
       loader_->ReturnTensor(prefetched_batch_[samples_processed_]);

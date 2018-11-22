@@ -172,8 +172,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       try {
         thread_file_reader_.join();
       } catch (const std::system_error& e) {
-        std::cerr << "System error joining thread: "
-          << e.what() << std::endl;
+        DALI_FAIL("System error joining thread: "
+                   + e.what());
       }
     }
   }
@@ -209,7 +209,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   int total_frame_count_;
   std::vector<int> frame_starts_;
-  int current_frame_idx_;
+  unsigned current_frame_idx_;
 
   bool done_;
 };

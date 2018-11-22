@@ -52,7 +52,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
 
         AVFormatContext* raw_fmt_ctx = nullptr;
         if (avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL) < 0) {
-            throw std::runtime_error(std::string("Could not open file ") + filename);
+            DALI_FAIL(std::string("Could not open file ") + filename);
         }
         file.fmt_ctx_ = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
 
@@ -60,7 +60,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
 
         // is this needed?
         if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
-            throw std::runtime_error(std::string("Could not find stream information in ")
+            DALI_FAIL(std::string("Could not find stream information in ")
                                      + filename);
         }
 
@@ -77,7 +77,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
                                       -1, -1, nullptr, 0);
         LOG_LINE << "Best stream " << file.vid_stream_idx_ << " found for " << filename << std::endl;
         if (file.vid_stream_idx_ < 0) {
-            throw std::runtime_error(std::string("Could not find video stream in ") + filename);
+            DALI_FAIL(std::string("Could not find video stream in ") + filename);
         }
 
 
@@ -112,7 +112,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
                     << " instead of "
                     << width_ << "x" << height_ << " or codec "
                     << codec_id << " != " << codec_id_ << ")";
-                throw std::runtime_error(err.str());
+                DALI_FAIL(err.str());
             }
         }
         file.stream_base_ = stream->time_base;
@@ -136,36 +136,35 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
 #ifdef HAVE_AVBSFCONTEXT
             auto bsf = av_bsf_get_by_name(filtername);
             if (!bsf) {
-                throw std::runtime_error("Error finding bit stream filter.");
+                DALI_FAIL("Error finding bit stream filter.");
             }
             AVBSFContext* raw_bsf_ctx_ = nullptr;
             if (av_bsf_alloc(bsf, &raw_bsf_ctx_) < 0) {
-                throw std::runtime_error("Error allocating bit stream filter context.");
+                DALI_FAIL("Error allocating bit stream filter context.");
             }
             file.bsf_ctx_ = make_unique_av<AVBSFContext>(raw_bsf_ctx_, av_bsf_free);
 
             if (avcodec_parameters_copy(file.bsf_ctx_->par_in, codecpar(stream)) < 0) {
-                throw std::runtime_error("Error setting BSF parameters.");
+                DALI_FAIL("Error setting BSF parameters.");
             }
 
             if (av_bsf_init(file.bsf_ctx_.get()) < 0) {
-                throw std::runtime_error("Error initializing BSF.");
+                DALI_FAIL("Error initializing BSF.");
             }
 
             avcodec_parameters_copy(codecpar(stream), file.bsf_ctx_->par_out);
 #else
             auto raw_bsf_ctx_ = av_bitstream_filter_init(filtername);
             if (!raw_bsf_ctx_) {
-                throw std::runtime_error("Error finding h264_mp4toannexb bit stream filter.");
+                DALI_FAIL("Error finding h264_mp4toannexb bit stream filter.");
             }
             file.bsf_ctx_ = OpenFile::bsf_ptr{raw_bsf_ctx_};
             file.codec = stream->codec;
 #endif
         } else {
-            // todo setup an ffmpeg decoder?
             std::stringstream err;
             err << "Unhandled codec " << codec_id << " in " << filename;
-            throw std::runtime_error(err.str());
+            DALI_FAIL(err.str());
         }
         file.open = true;
     }
@@ -214,11 +213,10 @@ void VideoLoader::read_file() {
 
         auto& file = get_or_open_file(req.filename);
 
-        // give the vid_decoder a copy of the req before we trash it
         if (vid_decoder_) {
             vid_decoder_->push_req(std::move(req));
         } else {
-            throw std::logic_error("No video decoder even after opening a file");
+            DALI_FAIL("No video decoder even after opening a file");
         }
 
         // we want to seek each time because even if we ended on the
@@ -244,8 +242,6 @@ void VideoLoader::read_file() {
             file.last_frame_ = frame;
             auto key = pkt->flags & AV_PKT_FLAG_KEY;
 
-            // The following assumes that all frames between key frames
-            // have pts between the key frames.  Is that true?
             if (frame >= req.frame) {
                 if (key) {
                     static auto final_try = false;
@@ -259,7 +255,7 @@ void VideoLoader::read_file() {
                             std::stringstream ss;
                             ss << device_id_ << ": I give up, I can't get it to seek to frame "
                                << req.frame;
-                            throw std::runtime_error(ss.str());
+                            DALI_FAIL(ss.str());
                         }
                         if (req.frame > seek_hack) {
                             seek(file, req.frame - seek_hack);
@@ -276,7 +272,7 @@ void VideoLoader::read_file() {
                     final_try = false;
                 } else {
                     nonkey_frame_count++;
-                    // A hueristic so we don't go way over... what should "20" be?
+                    // A heuristic so we don't go way over... what should "20" be?
                     if (frame > req.frame + req.count + 20) {
                         // This should end the loop
                         req.frame += nonkey_frame_count;
@@ -304,16 +300,14 @@ void VideoLoader::read_file() {
                 auto raw_filtered_pkt = AVPacket{};
 
                 if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {
-                    throw std::runtime_error(std::string("BSF send packet failed:") +
-                                             av_err2str(ret));
+                    DALI_FAIL(std::string("BSF send packet failed:") + av_err2str(ret));
                 }
                 while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
                     auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
                     vid_decoder_->decode_packet(fpkt.get());
                 }
                 if (ret != AVERROR(EAGAIN)) {
-                    throw std::runtime_error(std::string("BSF receive packet failed:") +
-                                             av_err2str(ret));
+                    DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
                 }
 #else
                 AVPacket fpkt;
@@ -324,15 +318,13 @@ void VideoLoader::read_file() {
                                                      pkt->data, pkt->size,
                                                      !!(pkt->flags & AV_PKT_FLAG_KEY));
                     if (ret < 0) {
-                        throw std::runtime_error(std::string("BSF error:") +
-                                                 av_err2str(ret));
+                        DALI_FAIL(std::string("BSF error:") + av_err2str(ret));
                     }
                     if (ret == 0 && fpkt.data != pkt->data) {
                         // fpkt is an offset into pkt, copy the smaller portion to the start
                         if ((ret = av_copy_packet(&fpkt, pkt.get())) < 0) {
                             av_free(fpkt.data);
-                            throw std::runtime_error(std::string("av_copy_packet error:") +
-                                                     av_err2str(ret));
+                            DALI_FAIL(std::string("av_copy_packet error:") + av_err2str(ret));
                         }
                         ret = 1;
                     }
@@ -343,7 +335,7 @@ void VideoLoader::read_file() {
                                                     nullptr, 0);
                         if (!fpkt.buf) {
                             av_free(fpkt.data);
-                            throw std::runtime_error(std::string("Unable to create buffer during bsf"));
+                            DALI_FAIL(std::string("Unable to create buffer during bsf"));
                         }
                     }
                     *pkt.get() = fpkt;
@@ -375,7 +367,7 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     while (!vid_decoder_) {
         usleep(500);
         if (startup_timeout-- == 0) {
-            throw std::runtime_error("Timeout waiting for a valid decoder");
+            DALI_FAIL("Timeout waiting for a valid decoder");
         }
     }
     vid_decoder_->receive_frames(sequence);
@@ -408,7 +400,8 @@ void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     push_sequence_to_read(filenames_[0], frame_starts_[current_frame_idx_], count_);
     receive_frames(*tensor);
     tensor->wait();
-    current_frame_idx_++;
+    if (++current_frame_idx_ >= frame_starts_.size())
+        current_frame_idx_ = 0;
 }
 
 Index VideoLoader::Size() {

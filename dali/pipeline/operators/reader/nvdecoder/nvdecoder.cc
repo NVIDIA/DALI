@@ -109,7 +109,7 @@ NvDecoder::NvDecoder(int device_id,
         if (nvml_ret != NVML_SUCCESS) {
             std::stringstream ss;
             ss << "nvmlInit returned error " << nvml_ret;
-            throw std::runtime_error(ss.str());
+            DALI_FAIL(ss.str());
         }
         char nvmod_version_string[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
         nvml_ret = nvmlSystemGetDriverVersion(nvmod_version_string,
@@ -117,7 +117,7 @@ NvDecoder::NvDecoder(int device_id,
         if (nvml_ret != NVML_SUCCESS) {
             std::stringstream ss;
             ss << "nvmlSystemGetDriverVersion returned error " << nvml_ret;
-            throw std::runtime_error(ss.str());
+            DALI_FAIL(ss.str());
         }
         auto nvmod_version = std::stof(nvmod_version_string);
         if (nvmod_version < 384.0f) {
@@ -140,8 +140,7 @@ NvDecoder::NvDecoder(int device_id,
 
     context_ = CUContext(device_);
     if (!context_.initialized()) {
-        std::cerr << "Problem initializing context, not initializing VideoDecoder\n";
-        return;
+        DALI_FAIL("Problem initializing context, not initializing VideoDecoder\n");
     }
 
     auto codec = Codec::H264;
@@ -158,9 +157,6 @@ NvDecoder::NvDecoder(int device_id,
             std::cerr << "Invalid codec for NvDecoder\n";
             return;
     }
-
-    //parser_ = CUVideoParser(codec, this, 20, codecpar->extradata,
-    //                        codecpar->extradata_size);
 
     parser_.init(codec, this, 20, codecpar->extradata,
                         codecpar->extradata_size);
@@ -180,8 +176,7 @@ NvDecoder::~NvDecoder() {
       try {
         thread_convert_.join();
       } catch (const std::system_error& e) {
-        std::cerr << "System error joining thread: "
-          << e.what() << std::endl;
+        DALI_FAIL("System error joining thread: " + e.what());
       }
     }
 }
@@ -256,7 +251,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
             std::stringstream ss;
             ss << "Waited too long (" << timeout_sec << " seconds) "
                << "for decode output buffer to become available";
-            throw std::runtime_error(ss.str());
+            DALI_FAIL(ss.str());
         }
         usleep(sleep_period);
         if (done_) return 0;
@@ -282,7 +277,7 @@ NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
     : disp_info{disp_info}, valid_{false}, decoder_(decoder), params_{0} {
 
     if (!disp_info->progressive_frame) {
-        throw std::runtime_error("Got an interlaced frame. We don't do interlaced frames.");
+        DALI_FAIL("Got an interlaced frame. We don't do interlaced frames.");
     }
 
     params_.progressive_frame = disp_info->progressive_frame;
@@ -361,22 +356,12 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
 
     if (current_recv_.count <= 0) {
         if (recv_queue_.empty()) {
-            // we aren't expecting anything so just ditch this,
-            // guessing it is extra frames.  There is a small chance
-            // we are throwing out frames that will later be requested
-            // but if we wait here for a request to come in to check,
-            // we're stalling the loop that sends requests. We could
-            // send requests to the decoder outside of the read_file
-            // loop, but that has its own synchronization problems
-            // since the decoder is created in that loop, not worth
-            // the hassle on the tiny chance we are throwing way good
-            // frames here.
             LOG_LINE << "Ditching frame " << frame << " since "
                     << "the receive queue is empty." << std::endl;
             return 1;
         }
-        // std::cout << "Moving on to next request, " << recv_queue_.size()
-        //           << " reqs left" << std::endl;
+        LOG_LINE << "Moving on to next request, " << recv_queue_.size()
+                   << " reqs left" << std::endl;
         current_recv_ = recv_queue_.pop();
     }
 
@@ -390,8 +375,8 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     }
 
     if (frame != current_recv_.frame) {
-        // TODO This definitely needs better error handling... what if
-        // we never get the frame we are waiting for?!
+        // TODO(spanev) This definitely needs better error handling...
+        // Add exception? Directly or after countdown treshold?
         LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
                     << "frame " << current_recv_.frame << std::endl;
         return 1;
@@ -417,8 +402,8 @@ int NvDecoder::decode_packet(AVPacket* pkt) {
             return decode_av_packet(pkt);
 
         default:
-            throw std::runtime_error("Got to decode_packet in a decoder that is not "
-                                     "for an audio, video, or subtitle stream.");
+            DALI_FAIL("Got to decode_packet in a decoder that is not "
+                      "for an audio, video, or subtitle stream.");
     }
     return -1;
 }
@@ -433,7 +418,7 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
     output_queue_.push(&sequence);
 }
 
-// we assume here that a pointer, scale_method, and chroma_up_method
+// We assume here that a pointer and scale_method
 // uniquely identifies a texture
 const NvDecoder::TextureObjects&
 NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
@@ -483,7 +468,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 
     auto p = textures_.emplace(tex_id, std::move(objects));
     if (!p.second) {
-        throw std::runtime_error("Unable to cache a new texture object.");
+        DALI_FAIL("Unable to cache a new texture object.");
     }
     return p.first->second;
 }
@@ -494,9 +479,9 @@ void NvDecoder::convert_frames_worker() {
         auto& sequence = *output_queue_.pop();
         if (done_) break;
         for (int i = 0; i < sequence.count; ++i) {
-            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-                        << frame_queue_.size() << " reqs left"
-                        << std::endl;
+//            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
+//                        << frame_queue_.size() << " reqs left"
+//                        << std::endl;
             auto frame = MappedFrame{frame_queue_.pop(), decoder_, stream_};
             if (done_) break;
             convert_frame(frame, sequence, i);

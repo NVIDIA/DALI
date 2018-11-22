@@ -13,14 +13,22 @@ struct yuv {
     T y, u, v;
 };
 
-__constant__ float yuv2rgb_mat[9] = {
+// https://docs.microsoft.com/en-gb/windows/desktop/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
+__constant__ float yuv2rgb_mat_norm[9] = {
     1.164383f,  0.0f,       1.596027f,
     1.164383f, -0.391762f, -0.812968f,
     1.164383f,  2.017232f,  0.0f
 };
 
+// not normalized need *255
+__constant__ float yuv2rgb_mat[9] = {
+    1.164383f * 255.f,  0.0f,       1.596027f * 255.f,
+    1.164383f * 255.f, -0.391762f * 255.f, -0.812968f * 255.f,
+    1.164383f * 255.f,  2.017232f * 255.f,  0.0f
+};
+
 __device__ float clip(float x, float max) {
-    return fmin(fmax(x, 0.0f), max);
+    return fminf(fmaxf(x, 0.0f), max);
 }
 
 template<typename T>
@@ -38,23 +46,22 @@ __device__ uint8_t convert<uint8_t>(const float x) {
     return static_cast<uint8_t>(roundf(x));
 }
 
-template<typename YUV_T, typename RGB_T>
+template<typename YUV_T, typename RGB_T, bool Normalized = false>
 __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
-                        size_t stride, bool normalized) {
-    auto mult = normalized ? 1.0f : 255.0f;
-    auto y = (static_cast<float>(yuv.y) - 16.0f/255) * mult;
-    auto u = (static_cast<float>(yuv.u) - 128.0f/255) * mult;
-    auto v = (static_cast<float>(yuv.v) - 128.0f/255) * mult;
+                        size_t stride) {
+    auto y = (static_cast<float>(yuv.y) - 16.0f/255);
+    auto u = (static_cast<float>(yuv.u) - 128.0f/255);
+    auto v = (static_cast<float>(yuv.v) - 128.0f/255);
 
-    auto& m = yuv2rgb_mat;
 
-    // could get tricky with a lambda, but this branch seems faster
     float r, g, b;
-    if (normalized) {
+    if (Normalized) {
+        auto& m = yuv2rgb_mat_norm;
         r = clip(y*m[0] + u*m[1] + v*m[2], 1.0);
         g = clip(y*m[3] + u*m[4] + v*m[5], 1.0);
         b = clip(y*m[6] + u*m[7] + v*m[8], 1.0);
     } else {
+        auto& m = yuv2rgb_mat;
         r = clip(y*m[0] + u*m[1] + v*m[2], 255.0);
         g = clip(y*m[3] + u*m[4] + v*m[5], 255.0);
         b = clip(y*m[6] + u*m[7] + v*m[8], 255.0);
@@ -79,13 +86,7 @@ __global__ void process_frame_kernel(
         return;
 
     auto src_x = 0.0f;
-    // if (dst.desc.horiz_flip) {
-    //     src_x = (dst.desc.scale_width - dst.desc.crop_x - dst_x) * fx;
-    // } else {
-    //     src_x = (dst.desc.crop_x + dst_x) * fx;
-    // }
     src_x = static_cast<float>(dst_x) * fx;
-    // auto src_y = static_cast<float>(dst_y + dst.desc.crop_y) * fy;
     auto src_y = static_cast<float>(dst_y) * fy;
 
 
@@ -96,14 +97,14 @@ __global__ void process_frame_kernel(
     yuv.u = uv.x;
     yuv.v = uv.y;
 
-    auto* out = &dst[dst_x * c + dst_y * dst_width * c];
+    auto* out = &dst[(dst_x + dst_y * dst_width) * c];
 
-    bool normalized = false;
     size_t stride = 1;
-    yuv2rgb(yuv, out, stride, normalized);
+    // TODO(spanev) Handle normalized version
+    yuv2rgb<float, float, false>(yuv, out, stride);
 }
 
-int divUp(int total, int grain) {
+inline constexpr int divUp(int total, int grain) {
     return (total + grain - 1) / grain;
 }
 

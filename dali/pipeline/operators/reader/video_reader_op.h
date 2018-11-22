@@ -49,7 +49,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
  protected:
   void RunImpl(DeviceWorkspace *ws, const int idx) override {
-    const int data_idx = samples_processed_;
+    const int data_idx = samples_processed_.load();
     auto* input_sequence = prefetched_batch_[data_idx];
     auto* tl_sequence_output = ws->Output<GPUBackend>(0);
     auto* sequence_output = tl_sequence_output->mutable_tensor<float>(data_idx);
