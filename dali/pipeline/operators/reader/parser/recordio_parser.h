@@ -70,14 +70,25 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     ImageRecordIOHeader hdr;
     ReadSingle(&input, &hdr);
 
-    o_label->Resize({1});
-    o_label->mutable_data<float>()[0] = hdr.label;
+    if (hdr.flag == 0) {
+      o_label->Resize({1});
+      o_label->mutable_data<float>()[0] = hdr.label;
+    } else {
+      o_label->Resize({hdr.flag});
+      o_label->mutable_data<float>();
+    }
 
     int64_t data_size = clength - sizeof(ImageRecordIOHeader);
+    int64_t label_size = hdr.flag * sizeof(float);
+    int64_t image_size = data_size - label_size;
     if (cflag == 0) {
-      o_image->Resize({data_size});
+      o_image->Resize({image_size});
       uint8_t* data = o_image->mutable_data<uint8_t>();
-      memcpy(data, input, data_size);
+      memcpy(data, input + label_size, image_size);
+      if (hdr.flag > 0) {
+        float * label = o_label->mutable_data<float>();
+        memcpy(label, input, label_size);
+      }
     } else {
       std::vector<uint8_t> temp_vec(data_size);
       memcpy(&temp_vec[0], input, data_size);
@@ -103,9 +114,13 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
         memcpy(&temp_vec[s], input, clength);
         input += clength;
       }
-      o_image->Resize({static_cast<Index>(temp_vec.size())});
+      o_image->Resize({static_cast<Index>(temp_vec.size() - label_size)});
       uint8_t* data = o_image->mutable_data<uint8_t>();
-      memcpy(data, &temp_vec[0], temp_vec.size());
+      memcpy(data, (&temp_vec[0]) + label_size, temp_vec.size() - label_size);
+      if (hdr.flag > 0) {
+        float * label = o_label->mutable_data<float>();
+        memcpy(label, &temp_vec[0], label_size);
+      }
     }
   }
 };
