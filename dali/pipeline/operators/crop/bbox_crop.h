@@ -19,6 +19,7 @@
 #include <random>
 #include <utility>
 #include <vector>
+#include <tuple>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"

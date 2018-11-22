@@ -67,6 +67,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
                           .AddInput("boxes", "cpu")
+                          .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
                           .AddOutput("resized_boxes", "cpu")
@@ -113,9 +114,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
                           .AddInput("boxes", "cpu")
+                          .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu"));
+                          .AddOutput("resized_boxes", "cpu")
+                          .AddOutput("filtered_labels", "cpu"));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
