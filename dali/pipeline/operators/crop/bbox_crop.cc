@@ -96,7 +96,7 @@ template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
     SampleWorkspace *ws, const std::vector<int> &labels) {
   auto *labels_out = ws->Output<CPUBackend>(3);
-  labels_out->Resize({static_cast<Index>(labels.size())});
+  labels_out->Resize({static_cast<Index>(labels.size()), 1});
 
   auto *labels_out_data = labels_out->mutable_data<float>();
   for (size_t i = 0; i < labels.size(); ++i) {
