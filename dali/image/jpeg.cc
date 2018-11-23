@@ -143,7 +143,8 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     DALI_FAIL("Unsupported image type.");
   }
 
-  std::shared_ptr<uint8_t> decoded_image(new uint8_t[h * w * c]);
+  std::shared_ptr<uint8_t> decoded_image(new uint8_t[h * w * c],
+                            [=](uint8_t* data) { delete [] data;});
 
   auto error = tjDecompress2(tjhandle_, jpeg, length,
                              decoded_image.get(),

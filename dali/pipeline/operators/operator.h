@@ -39,7 +39,7 @@ enum DALIOpType {
 
 template <typename InputType>
 inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
-  auto schema = SchemaRegistry::GetSchema(spec.name());
+  auto &schema = SchemaRegistry::GetSchema(spec.name());
   if (schema.EnforceInputLayout()) {
     DALI_ENFORCE(input.GetLayout() == schema.InputLayout());
   }

@@ -710,7 +710,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("copy", [](OpSpec &o) -> OpSpec * {
         OpSpec * ret = new OpSpec(o);
         return ret;
-        }, py::return_value_policy::reference);
+        }, py::return_value_policy::take_ownership);
 
   // Registries for cpu, gpu & mixed operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
@@ -719,7 +719,7 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
 
   // Registry for OpSchema
-  m.def("GetSchema", &GetSchema);
+  m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
 
   py::class_<OpSchema>(m, "OpSchema")
     .def("Dox", &OpSchema::Dox)

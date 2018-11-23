@@ -29,7 +29,7 @@ class OpSchemaTest : public DALITest {
 };
 
 TEST(OpSchemaTest, SimpleTest) {
-  auto schema = SchemaRegistry::GetSchema("Dummy1");
+  auto &schema = SchemaRegistry::GetSchema("Dummy1");
 
   ASSERT_EQ(schema.MaxNumInput(), 1);
   ASSERT_EQ(schema.MaxNumInput(), 1);
@@ -44,7 +44,7 @@ DALI_SCHEMA(Dummy2)
 
 TEST(OpSchemaTest, OutputFNTest) {
   auto spec = OpSpec("Dummy2").AddInput("in", "cpu");
-  auto schema = SchemaRegistry::GetSchema("Dummy2");
+  auto &schema = SchemaRegistry::GetSchema("Dummy2");
 
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
 }
@@ -55,7 +55,7 @@ DALI_SCHEMA(Dummy3)
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   auto spec = OpSpec("Dummy3");
-  auto schema = SchemaRegistry::GetSchema("Dummy3");
+  auto &schema = SchemaRegistry::GetSchema("Dummy3");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
@@ -68,7 +68,7 @@ DALI_SCHEMA(Dummy4)
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto spec = OpSpec("Dummy4");
-  auto schema = SchemaRegistry::GetSchema("Dummy4");
+  auto &schema = SchemaRegistry::GetSchema("Dummy4");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
@@ -84,7 +84,7 @@ DALI_SCHEMA(Dummy5)
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   auto spec = OpSpec("Dummy5");
-  auto schema = SchemaRegistry::GetSchema("Dummy5");
+  auto &schema = SchemaRegistry::GetSchema("Dummy5");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_TRUE(schema.HasOptionalArgument("bar"));
@@ -105,7 +105,7 @@ DALI_SCHEMA(Dummy7)
   .AddParent("Dummy6");
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
-  auto schema = SchemaRegistry::GetSchema("Dummy7");
+  auto &schema = SchemaRegistry::GetSchema("Dummy7");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
   ASSERT_TRUE(schema.HasOptionalArgument("bar"));
@@ -133,7 +133,7 @@ TEST(OpSchemaTest, AdditionalOutputFNTest) {
   auto spec2 = OpSpec("Dummy8")
               .AddInput("in", "cpu")
               .AddArg("extra_out", 0);
-  auto schema = SchemaRegistry::GetSchema("Dummy8");
+  auto &schema = SchemaRegistry::GetSchema("Dummy8");
 
   ASSERT_EQ(schema.CalculateOutputs(spec), 1);
   ASSERT_EQ(schema.CalculateAdditionalOutputs(spec), 3);
