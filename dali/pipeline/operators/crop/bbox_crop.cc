@@ -98,7 +98,7 @@ void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
   auto *labels_out = ws->Output<CPUBackend>(3);
   labels_out->Resize({static_cast<Index>(labels.size()), 1});
 
-  auto *labels_out_data = labels_out->mutable_data<float>();
+  auto *labels_out_data = labels_out->mutable_data<int>();
   for (size_t i = 0; i < labels.size(); ++i) {
     labels_out_data[i] = labels[i];
   }
