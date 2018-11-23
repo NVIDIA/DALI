@@ -241,7 +241,7 @@ def train(infer_func, params):
 
     print("Training")
     if not deterministic:
-        num_preproc_threads = 2
+        num_preproc_threads = 4
     else:
         num_preproc_threads = 1
 
@@ -350,7 +350,7 @@ def validate(infer_func, params):
             keep_checkpoint_every_n_hours=3))
 
     if not deterministic:
-        num_preproc_threads = 2
+        num_preproc_threads = 4
     else:
         num_preproc_threads = 1
 
