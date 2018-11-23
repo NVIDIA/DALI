@@ -87,7 +87,7 @@ class DLL_PUBLIC OpSpec {
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
-    arguments_[name] = arg;
+    arguments_[name].reset(arg);
     return *this;
   }
 
@@ -191,7 +191,7 @@ class DLL_PUBLIC OpSpec {
     return argument_inputs_;
   }
 
-  DLL_PUBLIC inline const std::unordered_map<string, Argument*>& Arguments() const {
+  DLL_PUBLIC inline const std::unordered_map<string, std::shared_ptr<Argument>>& Arguments() const {
     return arguments_;
   }
 
@@ -307,7 +307,7 @@ class DLL_PUBLIC OpSpec {
   inline S GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const;
 
   string name_;
-  std::unordered_map<string, Argument*> arguments_;
+  std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
 
@@ -353,7 +353,7 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),                                     \
         "AddArg failed. Argument with name \"" + name +                                         \
         "\" already exists. ");                                                                 \
-    arguments_[name] = arg;                                                                     \
+    arguments_[name].reset(arg);                                                                \
     return *this;                                                                               \
   }                                                                                             \
   template<>                                                                                    \

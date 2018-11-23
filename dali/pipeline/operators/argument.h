@@ -19,6 +19,7 @@
 #include <string>
 #include <map>
 #include <utility>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/pipeline/data/types.h"
@@ -31,10 +32,11 @@ class Value {
  public:
   virtual std::string ToString() const = 0;
   template <typename T>
-  static inline Value * construct(const T& val);
+  static inline std::unique_ptr<Value> construct(const T& val);
   DALIDataType GetTypeID() const {
     return type_;
   }
+  virtual ~Value() = default;
 
  protected:
   Value() : type_(DALI_NO_TYPE) {}
@@ -67,21 +69,21 @@ class ValueInst : public Value {
 };
 
 template <typename T>
-inline Value * Value::construct(const T& val) {
-  return new ValueInst<T>(val);
+inline std::unique_ptr<Value> Value::construct(const T& val) {
+  return std::unique_ptr<Value>(new ValueInst<T>(val));
 }
 
 #define INSTANTIATE_VALUE_AS_INT64(T)                  \
   template<>                                           \
-  inline Value * Value::construct(const T& val) {      \
-    auto *ret = new ValueInst<Index>(val);             \
-    return ret;                                        \
+  inline std::unique_ptr<Value> Value::construct(const T& val) {      \
+    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val));     \
+    return ret;                                                       \
   }
 
 #define INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(T)                  \
   template<>                                                         \
-  inline Value * Value::construct(const T& val) {                    \
-    auto *ret = new ValueInst<Index>(val);                           \
+  inline std::unique_ptr<Value> Value::construct(const T& val) {     \
+    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val));    \
     /* preserve type information */                                  \
     ret->SetTypeID(TypeTable::GetTypeID<T>());                       \
     return ret;                                                      \
@@ -143,6 +145,7 @@ class Argument {
   static Argument * Store(const std::string& s,
       const T& val);
 
+  virtual ~Argument() = default;
 
  protected:
   Argument() :
