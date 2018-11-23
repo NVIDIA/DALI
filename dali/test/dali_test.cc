@@ -20,8 +20,8 @@
 
 int main(int argc, char **argv) {
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
-      dali::OpSpec("PinnedCPUAllocator"),
-      dali::OpSpec("GPUAllocator"));
+                 dali::OpSpec("PinnedCPUAllocator"),
+                 dali::OpSpec("GPUAllocator"));
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
