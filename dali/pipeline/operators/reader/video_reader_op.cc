@@ -49,4 +49,5 @@ number of frames).)code")
       R"code(Number of channels.)code",
       3)
   .AddParent("LoaderBase");
+  // TODO(spanev) Args to add: normalized bool
 }  // namespace dali

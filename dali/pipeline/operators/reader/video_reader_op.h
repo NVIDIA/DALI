@@ -56,7 +56,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     // TODO(spanev) copy the ouput into sequence_output
     CUDA_CALL(cudaMemcpy(sequence_output,
                          input_sequence->sequence.raw_data(),
-                         input_sequence->sequence.size(),
+                         input_sequence->sequence.nbytes(),
                          cudaMemcpyDeviceToDevice));
   }
 
