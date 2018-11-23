@@ -21,12 +21,10 @@
 
 namespace dali {
 
-class CoinFlip : public Operator<CPUBackend> {
-//class CoinFlip : public Operator<SupportBackend> {
+class CoinFlip : public Operator<SupportBackend> {
  public:
   inline explicit CoinFlip(const OpSpec &spec) :
-    Operator<CPUBackend>(spec),
-//    Operator<SupportBackend>(spec),
+    Operator<SupportBackend>(spec),
     dis_(spec.GetArgument<float>("probability")),
     rng_(spec.GetArgument<int>("seed")) {}
 
@@ -37,8 +35,7 @@ class CoinFlip : public Operator<CPUBackend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
-  void RunImpl(Workspace<CPUBackend> * ws, const int idx) override;
-//  void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;
+  void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;
 
  private:
   std::bernoulli_distribution dis_;

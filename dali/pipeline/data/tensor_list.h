@@ -44,18 +44,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DLL_PUBLIC TensorList() : meta_(DALI_NHWC),
                             tensor_view_(nullptr) {}
 
-  TensorList(const TensorList &) = delete;
-
-  TensorList &operator=(const TensorList &) = delete;
-
-  TensorList(TensorList &&) {
-    //TODO implement
-  }
-
-  TensorList &operator=(TensorList &&) {
-    //TODO implement
-  }
-
   DLL_PUBLIC ~TensorList() {
     delete tensor_view_;
   }
@@ -258,10 +246,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * @brief Return the shape of the tensor with the given index.
    */
   inline vector<Index> tensor_shape(int idx) const {
-#ifndef NDEBUG
     DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range");
-#endif
+    DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range " + std::to_string(idx) + " : "+ std::to_string(shape_.size()));
     return shape_[idx];
   }
 
@@ -319,7 +305,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   template <typename InBackend>
   friend class TensorList;
 
-//  DISABLE_COPY_MOVE_ASSIGN(TensorList);
+  DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
   inline DALITensorLayout GetLayout() const {
     return meta_.GetLayout();

@@ -17,8 +17,7 @@
 
 namespace dali {
 
-void CoinFlip::RunImpl(Workspace<CPUBackend> * ws, const int idx) {
-//void CoinFlip::RunImpl(SupportWorkspace * ws, const int idx) {
+void CoinFlip::RunImpl(SupportWorkspace * ws, const int idx) {
   DALI_ENFORCE(idx == 0, "CoinFlip does not support multiple input sets.");
   auto *output = ws->Output<CPUBackend>(idx);
   output->Resize({batch_size_});
@@ -30,8 +29,7 @@ void CoinFlip::RunImpl(Workspace<CPUBackend> * ws, const int idx) {
   }
 }
 
-DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, CPU);
-//DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, Support);
+DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, Support);
 
 DALI_SCHEMA(CoinFlip)
   .DocStr("Produce tensor filled with 0s and 1s - results of random coin flip,"
