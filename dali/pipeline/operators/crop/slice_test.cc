@@ -22,12 +22,13 @@ class SliceTest : public GenericBBoxesTest<ImgType> {
     DALISingleOpTest<ImgType>::SetUp();
 
     this->MakeImageBatch(this->jpegs_.nImages(), &images_, DALI_RGB);
-    this->MakeBBoxesBatch(&boxes_, this->jpegs_.nImages());
+    this->MakeBBoxesAndLabelsBatch(&boxes_, &labels_, this->jpegs_.nImages());
   }
 
  protected:
   TensorList<CPUBackend> images_;
   TensorList<CPUBackend> boxes_;
+  TensorList<CPUBackend> labels_;
   std::vector<TensorList<CPUBackend>*> outputs_;
 };
 
@@ -35,15 +36,17 @@ typedef ::testing::Types<RGB> Types;
 TYPED_TEST_CASE(SliceTest, Types);
 
 TYPED_TEST(SliceTest, RunCPUCheckImageCountMatches) {
-  this->outputs_ =
-      this->RunSliceCPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceCPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   EXPECT_EQ(this->outputs_.at(0)->shape().size(), this->images_.shape().size());
 }
 
 TYPED_TEST(SliceTest, RunCPUCheckBoxesCountMatches) {
-  this->outputs_ =
-      this->RunSliceCPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceCPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   EXPECT_EQ(this->outputs_.at(1)->shape().size(), this->boxes_.shape().size());
 }
@@ -54,8 +57,9 @@ TYPED_TEST(SliceTest, RunCPUCheckImageOutputShapesMatch) {
   // Because of this, in this test we try to match the shape of each output
   //  image to each input
   // image as they must be identical
-  this->outputs_ =
-      this->RunSliceCPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceCPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   for (size_t i = 0; i < this->images_.shape().size(); i++) {
     auto src_shape = this->images_.shape()[i];
@@ -75,8 +79,9 @@ TYPED_TEST(SliceTest, RunCPUCheckBoxesOutputShapesMatch) {
   // Because of this, in this test we try to match the shape of each output
   //  box to each input
   // box as they must be identical
-  this->outputs_ =
-      this->RunSliceCPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceCPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   for (size_t i = 0; i < this->boxes_.shape().size(); i++) {
     auto src_shape = this->boxes_.shape()[i];
@@ -91,15 +96,17 @@ TYPED_TEST(SliceTest, RunCPUCheckBoxesOutputShapesMatch) {
 }
 
 TYPED_TEST(SliceTest, RunGPUCheckImageCountMatches) {
-  this->outputs_ =
-      this->RunSliceGPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceGPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   EXPECT_EQ(this->outputs_.at(0)->shape().size(), this->images_.shape().size());
 }
 
 TYPED_TEST(SliceTest, RunGPUCheckBoxesCountMatches) {
-  this->outputs_ =
-      this->RunSliceGPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceGPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   EXPECT_EQ(this->outputs_.at(1)->shape().size(), this->boxes_.shape().size());
 }
@@ -110,8 +117,9 @@ TYPED_TEST(SliceTest, RunGPUCheckImageOutputShapesMatch) {
   // Because of this, in this test we try to match the shape of each output
   //  image to each input
   // image as they must be identical
-  this->outputs_ =
-      this->RunSliceGPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceGPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   for (size_t i = 0; i < this->images_.shape().size(); i++) {
     auto src_shape = this->images_.shape()[i];
@@ -131,8 +139,9 @@ TYPED_TEST(SliceTest, RunGPUCheckBoxesOutputShapesMatch) {
   // Because of this, in this test we try to match the shape of each output
   //  box to each input
   // box as they must be identical
-  this->outputs_ =
-      this->RunSliceGPU({{"images", &this->images_}, {"boxes", &this->boxes_}});
+  this->outputs_ = this->RunSliceGPU({{"images", &this->images_},
+                                      {"boxes", &this->boxes_},
+                                      {"labels", &this->labels_}});
 
   for (size_t i = 0; i < this->boxes_.shape().size(); i++) {
     auto src_shape = this->boxes_.shape()[i];

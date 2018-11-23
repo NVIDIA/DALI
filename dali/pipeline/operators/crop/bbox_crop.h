@@ -19,6 +19,7 @@
 #include <random>
 #include <utility>
 #include <vector>
+#include <tuple>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -85,6 +86,8 @@ class RandomBBoxCrop : public Operator<Backend> {
   void WriteBoxesToOutput(SampleWorkspace *ws,
                           const BoundingBoxes &bounding_boxes);
 
+  void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels);
+
   float SelectMinimumOverlap() {
     static std::uniform_int_distribution<> sampler(
         0, static_cast<int>(thresholds_.size() - 1));
@@ -135,27 +138,35 @@ class RandomBBoxCrop : public Operator<Backend> {
                           (height_offset + scaled_height));
   }
 
-  BoundingBoxes DiscardBoundingBoxesByCentroid(
-      const Crop &crop, const BoundingBoxes &bounding_boxes) {
-    BoundingBoxes result;
-    result.reserve(bounding_boxes.size());
+  std::pair<BoundingBoxes, std::vector<int>> DiscardBoundingBoxesByCentroid(
+      const Crop &crop, const BoundingBoxes &bounding_boxes,
+      const std::vector<int> &labels) {
+    DALI_ENFORCE(bounding_boxes.size() == labels.size(),
+                 "Labels and bounding boxes should have the same length");
+    BoundingBoxes candidate_boxes;
+    candidate_boxes.reserve(bounding_boxes.size());
+
+    std::vector<int> candidate_labels;
+    candidate_labels.reserve(labels.size());
 
     // Discard bboxes whose centroid is not in the cropped area
-    for (const auto &box : bounding_boxes) {
-      auto coord = box.AsLtrb();
+    for (size_t i = 0; i < bounding_boxes.size(); i++) {
+      auto coord = bounding_boxes[i].AsLtrb();
       const float x_center = 0.5f * (coord[2] - coord[0]) + coord[0];
       const float y_center = 0.5f * (coord[3] - coord[1]) + coord[1];
 
       if (crop.Contains(x_center, y_center)) {
-        result.push_back(box);
+        candidate_boxes.push_back(bounding_boxes[i]);
+        candidate_labels.push_back(labels[i]);
       }
     }
 
-    return result;
+    return std::make_pair(candidate_boxes, candidate_labels);
   }
 
-  std::pair<Crop, BoundingBoxes> FindProspectiveCrop(
-      const BoundingBoxes &bounding_boxes, float minimum_overlap) {
+  std::tuple<Crop, BoundingBoxes, std::vector<int>> FindProspectiveCrop(
+      const BoundingBoxes &bounding_boxes, const std::vector<int> &labels,
+      float minimum_overlap) {
     if (minimum_overlap > 0) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
@@ -166,21 +177,26 @@ class RandomBBoxCrop : public Operator<Backend> {
           const auto candidate_crop =
               SamplePatch(candidate_height, candidate_width);
 
-          auto candidate_boxes =
-              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes);
+          BoundingBoxes candidate_boxes;
+          std::vector<int> candidate_labels;
+
+          std::tie(candidate_boxes, candidate_labels) =
+              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes,
+                                             labels);
 
           if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
             const auto remapped_boxes =
                 RemapBoxes(candidate_crop, candidate_boxes, candidate_height,
                            candidate_width);
 
-            return std::make_pair(candidate_crop, remapped_boxes);
+            return std::make_tuple(candidate_crop, remapped_boxes,
+                                   candidate_labels);
           }
         }
       }
     }
 
-    return std::make_pair(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes);
+    return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
   }
 
   const std::vector<float> thresholds_;
