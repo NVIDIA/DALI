@@ -23,32 +23,43 @@
 namespace dali {
 
 template <typename Backend>
-class SSDBoxEncoder : public Operator<Backend> {
+class BoxEncoder : public Operator<Backend> {
  public:
-  explicit SSDBoxEncoder(const OpSpec &spec)
+  using Anchor = float4;
+  using BBox = float4;
+
+  static const int kSize = 4;
+
+  explicit BoxEncoder(const OpSpec &spec)
       : Operator<Backend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
     DALI_ENFORCE(criteria_ >= 0.f);
     DALI_ENFORCE(criteria_ <= 1.f);
 
     auto anchors = spec.GetArgument<vector<float>>("anchors");
 
-    DALI_ENFORCE((anchors.size() % 4) == 0);
+    DALI_ENFORCE((anchors.size() % kSize) == 0);
+    M_ = anchors.size() / kSize;
 
-    anchors_.Resize({(Index)anchors.size() / 4, 4});
+    anchors_.Resize({M_, kSize});
     float *anchors_data = anchors_.template mutable_data<float>();
 
     MemCopy(anchors_data, anchors.data(), anchors.size() * sizeof(float));
   }
 
-  virtual inline ~SSDBoxEncoder() = default;
+  virtual inline ~BoxEncoder() = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(SSDBoxEncoder);
-
-  const float criteria_;
-  Tensor<Backend> anchors_;
+  DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
+
+  void FindMatchingAnchors(const float *ious, const int64 N, const BBox *bboxes,
+                           const int *labels, BBox *out_boxes, int *out_labels);
+
+ private:
+  const float criteria_;
+  Tensor<Backend> anchors_;
+  int M_;
 };
 
 }  // namespace dali

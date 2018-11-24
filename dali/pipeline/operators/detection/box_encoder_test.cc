@@ -17,9 +17,9 @@
 namespace dali {
 
 template <typename ImgType>
-class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
+class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
  public:
-  SSDBoxEncoderTest() {
+  BoxEncoderTest() {
     CreateCocoObjects();
     CreateCocoAnchors();
   }
@@ -32,7 +32,7 @@ class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
   void RunForCoco(vector<float> anchors, float criteria) {
     this->SetBatchSize(coco_batch_size);
     this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
-    this->AddSingleOp(OpSpec("SSDBoxEncoder")
+    this->AddSingleOp(OpSpec("BoxEncoder")
                           .AddArg("device", "cpu")
                           .AddArg("criteria", criteria)
                           .AddArg("anchors", anchors)
@@ -52,36 +52,36 @@ class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
   const vector<vector<float>> coco_boxes = {
     {
-      0.00800000f, 0.01348684f, 0.46112499f, 1.00000000f, 
-      0.52606249f, 0.59971493f, 0.62974995f, 0.64885968f, 
+      0.00800000f, 0.01348684f, 0.46112499f, 1.00000000f,
+      0.52606249f, 0.59971493f, 0.62974995f, 0.64885968f,
       0.27350000f, 0.26585528f, 0.30095309f, 0.43789473f,
-      0.27260938f, 0.08747807f, 0.62365627f, 1.00000000f, 
-      0.61110938f, 0.58271933f, 0.81009370f, 0.78265357f, 
+      0.27260938f, 0.08747807f, 0.62365627f, 1.00000000f,
+      0.61110938f, 0.58271933f, 0.81009370f, 0.78265357f,
       0.82784379f, 0.88201755f, 0.90031254f, 1.00000000f,
-      0.53293747f, 0.89311403f, 0.60610932f, 1.00000000f, 
-      0.63068753f, 0.82796049f, 0.69424999f, 0.91853064f, 
+      0.53293747f, 0.89311403f, 0.60610932f, 1.00000000f,
+      0.63068753f, 0.82796049f, 0.69424999f, 0.91853064f,
       0.70648438f, 0.93995613f, 0.78620309f, 1.00000000f,
     },
     {
-      0.10112500f, 0.21797222f, 0.88735944f, 0.77077770f, 
-      0.98060942f, 0.40358332f, 0.99967194f, 0.44494441f, 
-      0.46729690f, 0.43291667f, 0.49932814f, 0.51297224f, 
-      0.90595311f, 0.44258335f, 0.91853124f, 0.47866669f, 
-      0.77206248f, 0.00000000f, 0.81173438f, 0.08411111f, 
-      0.96995318f, 0.42811111f, 1.00000000f, 0.56316662f, 
+      0.10112500f, 0.21797222f, 0.88735944f, 0.77077770f,
+      0.98060942f, 0.40358332f, 0.99967194f, 0.44494441f,
+      0.46729690f, 0.43291667f, 0.49932814f, 0.51297224f,
+      0.90595311f, 0.44258335f, 0.91853124f, 0.47866669f,
+      0.77206248f, 0.00000000f, 0.81173438f, 0.08411111f,
+      0.96995318f, 0.42811111f, 1.00000000f, 0.56316662f,
       0.88803130f, 0.46908331f, 0.98442191f, 0.58394444f,
     },
     {
-      0.49365625f, 0.16355971f, 0.72104686f, 0.82276350f, 
-      0.29301563f, 0.13063231f, 0.56199998f, 0.87838411f, 
+      0.49365625f, 0.16355971f, 0.72104686f, 0.82276350f,
+      0.29301563f, 0.13063231f, 0.56199998f, 0.87838411f,
       0.01050000f, 0.51911008f, 0.71517187f, 0.85843086f,
     },
     {
-      0.62010938f, 0.70079625f, 0.71157813f, 0.94072598f, 
-      0.37431249f, 0.22718970f, 0.56432807f, 0.71327871f, 
+      0.62010938f, 0.70079625f, 0.71157813f, 0.94072598f,
+      0.37431249f, 0.22718970f, 0.56432807f, 0.71327871f,
       0.51875001f, 0.20224825f, 0.67918748f, 0.69213110f,
-      0.26292187f, 0.22128806f, 0.37992185f, 0.71955502f, 
-      0.42656249f, 0.42451993f, 0.68387496f, 0.67292738f, 
+      0.26292187f, 0.22128806f, 0.37992185f, 0.71955502f,
+      0.42656249f, 0.42451993f, 0.68387496f, 0.67292738f,
       0.28239062f, 0.43517566f, 0.38075000f, 0.71091336f,
     },
   };
@@ -105,7 +105,7 @@ class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
     for (int sample = 0; sample < coco_batch_size; ++sample) {
       auto boxes_data = boxes_.mutable_tensor<float>(sample);
-      MemCopy(boxes_data, coco_boxes[sample].data(), coco_object_count[sample] * 4 * sizeof(float));
+      MemCopy(boxes_data, coco_boxes[sample].data(), coco_object_count[sample] * BoxEncoder::kSize * sizeof(float));
 
       labels_.Resize(labels_shape);
       auto labels_data = labels_.mutable_tensor<int>(sample);
@@ -232,11 +232,11 @@ class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
     anchors_ = vector<float>(coco_anchors_count_ * 4);
 
     int fig_size = 300;
-    vector<int> feat_sizes{38, 19, 10, 5, 3, 1};
+    vector<int> feat_sizes {38, 19, 10, 5, 3, 1};
     int feat_count = feat_sizes.size();
-    vector<float> steps{8.f, 16.f, 32.f, 64.f, 100.f, 300.f};
-    vector<float> scales = {21.f, 45.f, 99.f, 153.f, 207.f, 261.f, 315.f};
-    vector<vector<int>> aspect_ratios = {{2}, {2, 3}, {2, 3}, {2, 3}, {2}, {2}};
+    vector<float> steps {8.f, 16.f, 32.f, 64.f, 100.f, 300.f};
+    vector<float> scales {21.f, 45.f, 99.f, 153.f, 207.f, 261.f, 315.f};
+    vector<vector<int>> aspect_ratios {{2}, {2, 3}, {2, 3}, {2, 3}, {2}, {2}};
 
     vector<float> fks;
     for (auto &step : steps) fks.push_back(fig_size / step);
@@ -337,22 +337,22 @@ class SSDBoxEncoderTest : public GenericBBoxesTest<ImgType> {
   }
 };
 
-typedef ::testing::Types<Gray> Types;
-TYPED_TEST_CASE(SSDBoxEncoderTest, Types);
+typedef ::testing::Types<RGB, BGR, Gray> Types;
+TYPED_TEST_CASE(BoxEncoderTest, Types);
 
-TYPED_TEST(SSDBoxEncoderTest, TestOnCocoObjects) {
+TYPED_TEST(BoxEncoderTest, TestOnCocoObjects) {
   this->RunForCoco(this->anchors_, 0.5f);
 }
 
-TYPED_TEST(SSDBoxEncoderTest, TestNegativeCriteria) {
+TYPED_TEST(BoxEncoderTest, TestNegativeCriteria) {
   EXPECT_THROW(this->RunForCoco(this->anchors_, -0.5f), std::runtime_error);
 }
 
-TYPED_TEST(SSDBoxEncoderTest, TestCriteriaOverOne) {
+TYPED_TEST(BoxEncoderTest, TestCriteriaOverOne) {
   EXPECT_THROW(this->RunForCoco(this->anchors_, 1.5f), std::runtime_error);
 }
 
-TYPED_TEST(SSDBoxEncoderTest, TestInvalidAnchors) {
+TYPED_TEST(BoxEncoderTest, TestInvalidAnchors) {
   vector<float> invalid_anchors(this->anchors_);
   invalid_anchors.pop_back();
 

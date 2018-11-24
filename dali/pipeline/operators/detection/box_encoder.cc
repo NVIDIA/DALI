@@ -17,128 +17,138 @@
 #include "dali/pipeline/operators/detection/box_encoder.h"
 
 namespace dali {
-
 namespace detail {
-float iou(const float4 b1, const float4 b2) {
-  // (lt), (rb)
-  float l = std::max(b1.x, b2.x);
-  float t = std::max(b1.y, b2.y);
-  float r = std::min(b1.z, b2.z);
-  float b = std::min(b1.w, b2.w);
+using Anchor = BoxEncoder<CPUBackend>::Anchor;
+using BBox = BoxEncoder<CPUBackend>::BBox;
 
-  float first = (r - l);
-  first = (first < 0) ? 0 : first;
-  float second = (b - t);
-  second = (second < 0) ? 0 : second;
+float Iou(const Anchor a1, const Anchor a2) {
+  float l = std::max(a1.x, a2.x);
+  float t = std::max(a1.y, a2.y);
+  float r = std::min(a1.z, a2.z);
+  float b = std::min(a1.w, a2.w);
 
-  float intersection = first * second;
+  float width = r - l;
+  float height = b - t;
 
-  float area1 = (b1.w - b1.y) * (b1.z - b1.x);
-  float area2 = (b2.w - b2.y) * (b2.z - b2.x);
+  if (width <= 0.f || height <= 0.f) return 0.f;
+
+  float intersection = width * height;
+  float area1 = (a1.w - a1.y) * (a1.z - a1.x);
+  float area2 = (a2.w - a2.y) * (a2.z - a2.x);
 
   return intersection / (area1 + area2 - intersection);
 }
 
-float4 to_xywh(float4 box) {
-  float4 result;
-  result.x = 0.5f * (box.x + box.z);
-  result.y = 0.5f * (box.y + box.w);
-  result.z = box.z - box.x;
-  result.w = box.w - box.y;
-
-  return result;
-}
-}  // namespace detail
-
-template <>
-void SSDBoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  const auto &bboxes = ws->Input<CPUBackend>(0);
-  const auto &labels = ws->Input<CPUBackend>(1);
-
-  const auto N = bboxes.dim(0);
-  const auto M = anchors_.dim(0);
-
-  auto bboxes_data = reinterpret_cast<const float4 *>(bboxes.data<float>());
-  auto labels_data = labels.data<int>();
-  auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
-
-  Tensor<CPUBackend> ious;
-  ious.Resize({N, M});
-  auto ious_data = ious.mutable_data<float>();
+vector<float> CalculateIous(const Anchor *anchors, const BBox *bboxes, int N, int M) {
+  vector<float> ious(N * M);
 
   for (int bbox_idx = 0; bbox_idx < N; ++bbox_idx) {
-    int best_anchor_idx = -1;
-    float best_dbox_iou = -1.;
+    int best_idx = -1;
+    float best_iou = -1.;
 
     for (int anchor_idx = 0; anchor_idx < M; ++anchor_idx) {
-      ious_data[bbox_idx * M + anchor_idx] =
-          detail::iou(bboxes_data[bbox_idx], anchors_data[anchor_idx]);
+      ious[bbox_idx * M + anchor_idx] = detail::Iou(bboxes[bbox_idx], anchors[anchor_idx]);
 
-      if (ious_data[bbox_idx * M + anchor_idx] >= best_dbox_iou) {
-        best_dbox_iou = ious_data[bbox_idx * M + anchor_idx];
-        best_anchor_idx = anchor_idx;
+      if (ious[bbox_idx * M + anchor_idx] >= best_iou) {
+        best_iou = ious[bbox_idx * M + anchor_idx];
+        best_idx = anchor_idx;
       }
     }
 
     // For best default box matched with current object let iou = 2, to make sure there is a match,
     // as this object will be the best (highest IOU), for this default box
-    ious_data[bbox_idx * M + best_anchor_idx] = 2.;
+    ious[bbox_idx * M + best_idx] = 2.;
   }
+  return ious;
+}
 
-  // Create output
-  auto encoded_bboxes = ws->Output<CPUBackend>(0);
-  encoded_bboxes->set_type(anchors_.type());
-  encoded_bboxes->ResizeLike(anchors_);
+Anchor ToCenterWH(const Anchor a) {
+  return {0.5f * (a.x + a.z), 0.5f * (a.y + a.w), a.z - a.x, a.w - a.y};
+}
+}  // namespace detail
 
-  auto encoded_labels = ws->Output<CPUBackend>(1);
-  encoded_labels->set_type(labels.type());
-  encoded_labels->Resize({M});
-  int *encoded_labels_data = encoded_labels->mutable_data<int>();
-
-  // Copy default boxes (anchors) to output
-  TypeInfo type = anchors_.type();
-  type.Copy<CPUBackend, CPUBackend>(encoded_bboxes->raw_mutable_data(), anchors_.raw_data(),
-                                    anchors_.size(), 0);
-
-  auto encoded_boxes_data = reinterpret_cast<float4 *>(encoded_bboxes->mutable_data<float>());
-
-  // For every default box we are looking for the match
-  for (int anchor_idx = 0; anchor_idx < M; ++anchor_idx) {
-    int best_bbox_idx = -1;
-    float best_bbox_iou = -1.;
+template <>
+void BoxEncoder<CPUBackend>::FindMatchingAnchors(
+  const float *ious, const int64 N, const BBox *bboxes,
+  const int *labels, BBox *out_boxes, int *out_labels) {
+  // For every anchor we are looking, if there is a match
+  for (int anchor_idx = 0; anchor_idx < M_; ++anchor_idx) {
+    int best_idx = -1;
+    float best_iou = -1.;
 
     for (int bbox_idx = 0; bbox_idx < N; ++bbox_idx) {
-      if (ious_data[bbox_idx * M + anchor_idx] >= best_bbox_iou) {
-        best_bbox_iou = ious_data[bbox_idx * M + anchor_idx];
-        best_bbox_idx = bbox_idx;
+      if (ious[bbox_idx * M_ + anchor_idx] >= best_iou) {
+        best_iou = ious[bbox_idx * M_ + anchor_idx];
+        best_idx = bbox_idx;
       }
     }
 
-    encoded_labels_data[anchor_idx] = 0;
+    out_labels[anchor_idx] = 0;
 
     // Filter matches by criteria
     // We only report a match, when IOU > criteria
-    if (best_bbox_iou > criteria_) {
-      encoded_boxes_data[anchor_idx] = bboxes_data[best_bbox_idx];
-      encoded_labels_data[anchor_idx] = labels_data[best_bbox_idx];
+    if (best_iou > criteria_) {
+      out_boxes[anchor_idx] = bboxes[best_idx];
+      out_labels[anchor_idx] = labels[best_idx];
     }
 
     // Change to x, y, w, h per canonical SSD implementation
-    encoded_boxes_data[anchor_idx] = detail::to_xywh(encoded_boxes_data[anchor_idx]);
+    out_boxes[anchor_idx] = detail::ToCenterWH(out_boxes[anchor_idx]);
   }
 }
 
-DALI_REGISTER_OPERATOR(SSDBoxEncoder, SSDBoxEncoder<CPUBackend>, CPU);
+template <>
+void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+  const auto &bboxes_input = ws->Input<CPUBackend>(0);
+  const auto &labels_input = ws->Input<CPUBackend>(1);
 
-DALI_SCHEMA(SSDBoxEncoder)
+  const auto N = bboxes_input.dim(0);
+
+  auto bboxes = reinterpret_cast<const BBox *>(bboxes_input.data<float>());
+  auto labels = labels_input.data<int>();
+  auto anchors = reinterpret_cast<const Anchor *>(anchors_.data<float>());
+
+  auto ious = detail::CalculateIous(anchors, bboxes, N, M_);
+
+  // Create output
+  auto bboxes_output = ws->Output<CPUBackend>(0);
+  bboxes_output->set_type(anchors_.type());
+  bboxes_output->ResizeLike(anchors_);
+  auto out_boxes = reinterpret_cast<BBox *>(bboxes_output->mutable_data<float>());
+
+  auto labels_output = ws->Output<CPUBackend>(1);
+  labels_output->set_type(labels_input.type());
+  labels_output->Resize({M_});
+  auto out_labels = labels_output->mutable_data<int>();
+
+  // Copy default boxes (anchors) to output
+  TypeInfo type = anchors_.type();
+  type.Copy<CPUBackend, CPUBackend>(bboxes_output->raw_mutable_data(), anchors_.raw_data(),
+                                    anchors_.size(), 0);
+
+  FindMatchingAnchors(ious.data(), N, bboxes, labels, out_boxes, out_labels);
+}
+
+DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<CPUBackend>, CPU);
+
+DALI_SCHEMA(BoxEncoder)
     .DocStr(
-        "Matches set of bounding boxes to set of default bounding boxes (anchors) according to SSD "
-        "algorithm.")
+        R"code("Encodes input bounding boxes and labels using set of default boxes (anchors) passed 
+        during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and 
+        implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
+        Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as 
+        `[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box. 
+        Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`, 
+        where M is number of anchors and `EncodedLabels` containing the corresponding label for each
+        encoded box.")code")
     .NumInput(2)
     .NumOutput(2)
-    .AddArg("anchors", R"code(Default bounding boxes to be encoded. List of floats in ltrb format.)code", DALI_FLOAT_VEC)
-    .AddOptionalArg("criteria",
-                    R"code(Threshold IOU for matching bounding boxes with anchors)code", 0.5f,
-                    DALI_FLOAT);
+    .AddArg("anchors",
+            R"code(Anchors to be used for encoding. List of floats in ltrb format.)code",
+            DALI_FLOAT_VEC)
+    .AddOptionalArg(
+        "criteria",
+        R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1. Default is 0.5.)code",
+        0.5f, DALI_FLOAT);
 
 }  // namespace dali
