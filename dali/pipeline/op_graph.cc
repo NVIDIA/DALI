@@ -42,7 +42,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
 }
 
 void CheckOpConstraints(const OpSpec &spec) {
-  OpSchema schema = SchemaRegistry::GetSchema(spec.name());
+  const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
 
   bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);

@@ -15,13 +15,17 @@
 #ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_H_
 #define DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_H_
 
-#include <dali/pipeline/operators/operator.h>
 #include <dali/pipeline/operators/common.h>
+#include <dali/pipeline/operators/operator.h>
 #include <string>
 
 namespace dali {
 
-class BbFlip : public Operator<CPUBackend> {
+template <typename Backend>
+class BbFlip;
+
+template <>
+class BbFlip<CPUBackend> : public Operator<CPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec);
 
@@ -37,12 +41,13 @@ class BbFlip : public Operator<CPUBackend> {
    * in such case, extends this scalar to entire tensor
    * @tparam TensorDataType Underlying data type in tensor
    */
-  template<typename TensorDataType>
+  template <typename TensorDataType>
   void ExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
                             Tensor<CPUBackend> *tensor) {
     tensor->Resize({batch_size_});
     for (int i = 0; i < batch_size_; i++) {
-      tensor->mutable_data<TensorDataType>()[i] = spec.GetArgument<TensorDataType>(argument_name);
+      tensor->mutable_data<TensorDataType>()[i] =
+          spec.GetArgument<TensorDataType>(argument_name);
     }
   }
 
@@ -56,9 +61,10 @@ class BbFlip : public Operator<CPUBackend> {
    * Both of them have coordinates in image coordinate system
    * (i.e. 0.0-1.0)
    *
-   * If `coordinates_type_ltrb_` is true, then we deal with 2nd type. Otherwise, the 1st one.
+   * If `coordinates_type_ltrb_` is true, then we deal with 2nd type. Otherwise,
+   * the 1st one.
    */
-  const bool coordinates_type_ltrb_;
+  const bool ltrb_;
 
   /**
    * If true, flip is performed along vertical (x) axis
@@ -71,8 +77,8 @@ class BbFlip : public Operator<CPUBackend> {
   Tensor<CPUBackend> flip_type_horizontal_;
 
   /**
-   * XXX: This is workaround for architectural mishap, that there are 2 access points for
-   * operator arguments: Workspace and OpSpec
+   * XXX: This is workaround for architectural mishap, that there are 2 access
+   * points for operator arguments: Workspace and OpSpec
    */
   bool vflip_is_tensor_, hflip_is_tensor_;
 };

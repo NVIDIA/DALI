@@ -12,36 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_FILE_H_
-#define DALI_UTIL_FILE_H_
+#ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_CUH_
+#define DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_CUH_
 
-#include <cstdio>
-#include <string>
-#include <memory>
-
-#include "dali/api_helper.h"
-#include "dali/common.h"
+#include <dali/pipeline/operators/geometric/bb_flip.h>
 
 namespace dali {
 
-class DLL_PUBLIC FileStream {
+template <>
+class BbFlip<GPUBackend> : public Operator<GPUBackend> {
  public:
-  static std::unique_ptr<FileStream> Open(const std::string& uri);
+  explicit BbFlip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
-  virtual void Close() = 0;
-  virtual size_t Read(uint8_t * buffer, size_t n_bytes) = 0;
-  virtual void Seek(int64 pos) = 0;
-  virtual size_t Size() const = 0;
-  virtual ~FileStream() {}
-
- protected:
-  explicit FileStream(const std::string& path) :
-    path_(path)
-    {}
-
-  std::string path_;
+  void RunImpl(Workspace<GPUBackend> *ws, int idx = 0) override;
+ private:
 };
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_FILE_H_
+#endif  // DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_CUH_

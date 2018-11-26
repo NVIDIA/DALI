@@ -20,14 +20,15 @@ typedef struct {
 template <typename ImgType>
 class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
  protected:
-  void RunBBoxesCPU(const opDescr &descr) {
+  void RunBBoxesCPU(const opDescr &descr, bool ltrb) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
     TensorList<CPUBackend> boxes;
-    this->MakeBBoxesBatch(&boxes, batch_size);
-    this->SetExternalInputs({{"boxes", &boxes}});
+    TensorList<CPUBackend> labels;
+    this->MakeBBoxesAndLabelsBatch(&boxes, &labels, batch_size, ltrb);
+    this->SetExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
 
     shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
 
@@ -36,9 +37,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
                                     .AddInput("boxes", "cpu")
+                                    .AddInput("labels", "cpu")
                                     .AddOutput("output", "cpu")
                                     .AddOutput("output1", "cpu")
-                                    .AddOutput("output2", "cpu"));
+                                    .AddOutput("output2", "cpu")
+                                    .AddOutput("output3", "cpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
@@ -64,9 +67,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
                           .AddInput("boxes", "cpu")
+                          .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu"));
+                          .AddOutput("resized_boxes", "cpu")
+                          .AddOutput("filtered_labels", "cpu"));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
@@ -109,9 +114,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
                           .AddInput("boxes", "cpu")
+                          .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
                           .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu"));
+                          .AddOutput("resized_boxes", "cpu")
+                          .AddOutput("filtered_labels", "cpu"));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
@@ -147,12 +154,12 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
            t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
-  void RunBBoxesCPU(const singleParamOpDescr &paramOp,
-                    bool addImgType = false) {
+  void RunBBoxesCPU(const singleParamOpDescr &paramOp, bool addImgType = false,
+                    bool ltrb = true) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
-    RunBBoxesCPU(finalDesc);
+    RunBBoxesCPU(finalDesc, ltrb);
   }
 
   TensorList<CPUBackend> images_out;

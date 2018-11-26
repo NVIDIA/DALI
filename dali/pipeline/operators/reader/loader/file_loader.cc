@@ -14,6 +14,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
@@ -107,7 +108,7 @@ void FileLoader::ReadSample(ImageLabelWrapper* image_label) {
     current_index_ = 0;
   }
 
-  FileStream *current_image = FileStream::Open(file_root_ + "/" + image_pair.first);
+  auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first);
   Index image_size = current_image->Size();
 
   // resize tensor to hold [image]
