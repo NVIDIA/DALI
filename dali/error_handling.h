@@ -276,6 +276,7 @@ DLL_PUBLIC void cudaResultCheck(T status);
   } while (0)
 
 #define LOG_LINE \
+  if (0) \
   std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 }  // namespace dali

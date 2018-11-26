@@ -48,9 +48,8 @@ struct SequenceWrapper {
     if (started_) {
       CUDA_CALL(cudaEventDestroy(event_));
     }
-    CUDA_CALL(cudaEventCreate(&event_));
-
-    started_ = true;
+    CUDA_CALL(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming));
+    started_ = false;
   }
 
   ~SequenceWrapper() {
@@ -71,7 +70,6 @@ struct SequenceWrapper {
   void wait() const {
     LOG_LINE << event_ << " wait to start" << std::endl;
     wait_until_started_();
-    LOG_LINE << event_ << " wait to synchronize" << std::endl;
     CUDA_CALL(cudaEventSynchronize(event_));
     LOG_LINE << event_ << " synchronized!" << std::endl;
   }
