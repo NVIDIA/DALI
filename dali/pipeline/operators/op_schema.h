@@ -21,6 +21,7 @@
 #include <set>
 #include <vector>
 #include <utility>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -34,23 +35,36 @@ class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
+  OpSchema(OpSchema &&) = default;
+  OpSchema(const OpSchema &) = delete;
+  OpSchema &operator=(const OpSchema &) = delete;
+  OpSchema &operator=(OpSchema &&) = default;
+
   DLL_PUBLIC explicit inline OpSchema(const std::string &name)
     : name_(name),
       allow_multiple_input_sets_(false),
       enforce_layout_(false) {
     // Fill internal arguments
+    auto v = Value::construct(-1);
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
-        Value::construct(-1));
-    internal_arguments_["batch_size"] = std::make_pair("Batch size",
-        Value::construct(-1));
+        v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(-1);
+    internal_arguments_["batch_size"] = std::make_pair("Batch size", v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(1);
     internal_arguments_["num_input_sets"] = std::make_pair("Number of input sets given to an Op",
-        Value::construct(1));
-    internal_arguments_["device"] = std::make_pair("Device on which the Op is run",
-        Value::construct(std::string("cpu")));
-    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place",
-        Value::construct(false));
-    internal_arguments_["seed"] = std::make_pair("Random seed",
-        Value::construct(1234));
+        v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(std::string("cpu"));
+    internal_arguments_["device"] = std::make_pair("Device on which the Op is run", v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(false);
+    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(1234);
+    internal_arguments_["seed"] = std::make_pair("Random seed", v.get());
+    internal_arguments_unq_.push_back(std::move(v));
   }
 
   DLL_PUBLIC inline ~OpSchema() = default;
@@ -170,8 +184,9 @@ class DLL_PUBLIC OpSchema {
                                     T default_value,
                                     bool enable_tensor_input = false) {
     CheckArgument(s);
-    Value * to_store = Value::construct(default_value);
-    optional_arguments_[s] = std::make_pair(doc, to_store);
+    auto to_store = Value::construct(default_value);
+    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -185,8 +200,9 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
                                   std::vector<T> default_value, bool enable_tensor_input = false) {
     CheckArgument(s);
-    Value * to_store = Value::construct(std::vector<T>(default_value));
-    optional_arguments_[s] = std::make_pair(doc, to_store);
+    auto to_store = Value::construct(std::vector<T>(default_value));
+    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -312,6 +328,8 @@ class DLL_PUBLIC OpSchema {
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
   std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
+  std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
+  std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
 
   std::set<std::string> tensor_arguments_;
 };
@@ -325,7 +343,7 @@ class SchemaRegistry {
         "should only be called once per op.");
 
     // Insert the op schema and return a reference to it
-    schema_map.insert(std::make_pair(name, OpSchema(name)));
+    schema_map.emplace(std::make_pair(name, OpSchema(name)));
     return schema_map.at(name);
   }
 
@@ -370,7 +388,7 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
   const bool argFound = HasOptionalArgument(s, true);
 
   if (argFound || internal_arguments_.find(s) != internal_arguments_.end()) {
-    Value * v;
+    Value* v;
     if (argFound) {
       auto arg_pair = *optional_arguments_.find(s);
       v = arg_pair.second.second;

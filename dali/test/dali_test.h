@@ -22,8 +22,8 @@
 #include <fstream>
 #include <random>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -212,6 +212,14 @@ class DALITest : public ::testing::Test {
     MakeEncodedBatch(t, n, jpegs_);
   }
 
+  inline void MakeRandomLabels(int *ptr, size_t n) {
+    static std::uniform_int_distribution<> rint(0, 100);
+
+    for (size_t i = 0; i < n; i++) {
+      ptr[i] = rint(rd_);
+    }
+  }
+
   inline void MakeRandomBoxes(float *ptr, size_t n, bool ltrb = true) {
     static std::uniform_real_distribution<> rfloat(0.0f, 1.0f);
     for (size_t i = 0; i < n * 4; i += 4) {
@@ -225,12 +233,13 @@ class DALITest : public ::testing::Test {
         ptr[i + 3] = bottom;
       } else {
         ptr[i + 2] = right - ptr[i];
-        ptr[i + 3] = bottom - ptr[i+1];
+        ptr[i + 3] = bottom - ptr[i + 1];
       }
     }
   }
 
-  inline void MakeBBoxesBatch(TensorList<CPUBackend> *tl, int n, bool ltrb = true) {
+  inline void MakeBBoxesBatch(TensorList<CPUBackend> *tl, int n,
+                              bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
     vector<Dims> shape(n);
@@ -245,17 +254,27 @@ class DALITest : public ::testing::Test {
     }
   }
 
-  inline void MakeBBoxesBatch(vector<Tensor<CPUBackend>> *t, int n, bool ltrb = true) {
+  inline void MakeBBoxesAndLabelsBatch(TensorList<CPUBackend> *boxes,
+                                       TensorList<CPUBackend> *labels,
+                                       unsigned int n, bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
-    t->resize(n);
-    for (int i = 0; i < n; ++i) {
-      auto &ti = t->at(i);
-      ti = Tensor<CPUBackend>{};
-      const auto box_count = rint(rd_);
-      ti.Resize({box_count, 4});
+    vector<Dims> boxes_shape(n);
+    vector<Dims> labels_shape(n);
+    for (size_t i = 0; i < n; ++i) {
+      auto box_count = rint(rd_);
+      boxes_shape[i] = {box_count, 4};
+      labels_shape[i] = {box_count};
+    }
 
-      MakeRandomBoxes(ti.template mutable_data<float>(), box_count, ltrb);
+    boxes->Resize(boxes_shape);
+    labels->Resize(labels_shape);
+
+    for (size_t i = 0; i < n; ++i) {
+      MakeRandomBoxes(boxes->template mutable_tensor<float>(i),
+                      boxes_shape[i][0], ltrb);
+      MakeRandomLabels(labels->template mutable_tensor<int>(i),
+                       labels_shape[i][0]);
     }
   }
 
