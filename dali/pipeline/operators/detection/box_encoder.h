@@ -28,25 +28,31 @@ class BoxEncoder : public Operator<Backend> {
   using Anchor = float4;
   using BBox = float4;
 
-  static const int kSize = 4;
+  static const int BoxSize = 4;
 
   explicit BoxEncoder(const OpSpec &spec)
       : Operator<Backend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
-    DALI_ENFORCE(criteria_ >= 0.f);
-    DALI_ENFORCE(criteria_ <= 1.f);
+    DALI_ENFORCE(
+      criteria_ >= 0.f,
+      "Expected criteria >= 0, actual value = " + std::to_string(criteria_));
+    DALI_ENFORCE(
+      criteria_ <= 1.f,
+      "Expected criteria <= 1, actual value = " + std::to_string(criteria_));
 
     auto anchors = spec.GetArgument<vector<float>>("anchors");
 
-    DALI_ENFORCE((anchors.size() % kSize) == 0);
-    M_ = anchors.size() / kSize;
+    DALI_ENFORCE(
+      (anchors.size() % BoxSize) == 0,
+      "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors_.size()));
+    M_ = anchors.size() / BoxSize;
 
-    anchors_.Resize({M_, kSize});
+    anchors_.Resize({M_, BoxSize});
     float *anchors_data = anchors_.template mutable_data<float>();
 
     MemCopy(anchors_data, anchors.data(), anchors.size() * sizeof(float));
   }
 
-  virtual inline ~BoxEncoder() = default;
+  virtual ~BoxEncoder() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 

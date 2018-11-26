@@ -106,8 +106,8 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
     for (int sample = 0; sample < coco_batch_size; ++sample) {
       auto boxes_data = boxes_.mutable_tensor<float>(sample);
       MemCopy(
-        boxes_data, 
-        coco_boxes[sample].data(), 
+        boxes_data,
+        coco_boxes[sample].data(),
         coco_object_count[sample] * 4 * sizeof(float));
 
       labels_.Resize(labels_shape);
@@ -231,6 +231,8 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
   inline float Clamp(float val) { return val > 1.f ? 1.f : (val < 0.f ? 0.f : val); }
 
+  // Creates SSD default boxes (anchors) for COCO dataset.
+  // Exact description can be found in https://arxiv.org/abs/1512.02325
   void CreateCocoAnchors() {
     anchors_ = vector<float>(coco_anchors_count_ * 4);
 

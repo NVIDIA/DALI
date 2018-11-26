@@ -63,7 +63,11 @@ vector<float> CalculateIous(const Anchor *anchors, const BBox *bboxes, int N, in
 }
 
 Anchor ToCenterWH(const Anchor a) {
-  return {0.5f * (a.x + a.z), 0.5f * (a.y + a.w), a.z - a.x, a.w - a.y};
+  return {
+    0.5f * (a.x + a.z),
+    0.5f * (a.y + a.w),
+    a.z - a.x, 
+    a.w - a.y};
 }
 }  // namespace detail
 
@@ -76,6 +80,7 @@ void BoxEncoder<CPUBackend>::FindMatchingAnchors(
     int best_idx = -1;
     float best_iou = -1.;
 
+    //Looking for bbox with best IOU with current anchor
     for (int bbox_idx = 0; bbox_idx < N; ++bbox_idx) {
       if (ious[bbox_idx * M_ + anchor_idx] >= best_iou) {
         best_iou = ious[bbox_idx * M_ + anchor_idx];
