@@ -10,15 +10,6 @@ namespace dali {
 
 namespace detail {
 
-template<typename T>
-struct is_tuple : std::false_type {
-};
-
-template<typename... T>
-struct is_tuple<std::tuple<T...>> : std::true_type {
-};
-
-
 template<typename Backend>
 std::string BackendStringName() {
   DALI_FAIL("Selected Backend is not supported");
@@ -37,52 +28,36 @@ inline std::string BackendStringName<GPUBackend>() {
 }
 
 
-template<typename T>
-T GetOutputsFromWorkspace(DeviceWorkspace workspace) {
-  DALI_FAIL("Provided type not supported yet. You may want to write your own specialization.");
-}
+}  // namespace detail
 
-
-template<>
-inline std::vector<float> GetOutputsFromWorkspace(DeviceWorkspace workspace) {
-  // TODO(mszolucha): support other backends
-  auto tl = workspace.Output<CPUBackend>(0);
-  auto ptr = tl->template data<float>();
-  auto num = tl->size();
-  return std::vector<float>{ptr, ptr + num};
-}
-
-
-template<>
-inline int GetOutputsFromWorkspace(DeviceWorkspace workspace) {
-  // TODO(mszolucha): support other backends
-  auto i = workspace.Output<CPUBackend>(0);
-  auto val = i->template data<int>();
-  return *val;
-}
-
-
-}  // namespace util
-
+/**
+ *
+ * @tparam Input
+ * @tparam Output
+ */
 template<typename Input, typename Output>
 class DaliOperatorTest : public ::testing::Test {
 
  public:
   using Shape = std::vector<size_t>;
-  using Arguments =  std::map<std::string, float>; // TODO(mszolucha): boost::any
+  using Arguments =  std::map<std::string, int>; // TODO(mszolucha): Some generalization (boost::any?)
 
   template<typename Backend>
-  void RunTest(Arguments operator_arguments, Output anticipated_outputs) {
-    InitPipeline();
+  void RunTest(Arguments operator_arguments, std::vector<Output> anticipated_outputs) {
+    InitPipeline(batch_size_, num_threads_);
     const auto op_spec = CreateOpSpec<Backend>(operator_name_, operator_arguments);
     if (has_input_) {
-      AddInputsToPipeline<Backend>(*pipeline_);
+      AddInputsToPipeline<Backend>(*pipeline_, input_batch_, input_shape_);
     }
     AddOperatorToPipeline(*pipeline_, op_spec);
     BuildPipeline(*pipeline_, op_spec);
     RunPipeline(*pipeline_);
-    outputs_ = GetOutputFromPipeline(*pipeline_);
-    ASSERT_TRUE(Verify(outputs_, anticipated_outputs));
+    auto output_batch = GetOutputsFromPipeline(*pipeline_);
+    DALI_ENFORCE(output_batch.size() == anticipated_outputs.size(), "Sizes of outputs don't match");
+    for (size_t i = 0; i < anticipated_outputs.size(); i++) {
+      EXPECT_TRUE(Verify(output_batch[i], anticipated_outputs[i]))
+                    << "Verification fails for input_idx=" + std::to_string(i);
+    }
   }
 
 
@@ -90,7 +65,7 @@ class DaliOperatorTest : public ::testing::Test {
 
   virtual std::vector<std::pair<Input, Shape>> SetInputs() const = 0;
 
-  virtual std::string SetOperator() const = 0; // TODO(mszolucha): std::vector
+  virtual std::string SetOperator() const = 0; // TODO(mszolucha): Enable chained op (std::vector)
 
   virtual bool Verify(Output output, Output anticipated_output) const = 0;
 
@@ -101,8 +76,10 @@ class DaliOperatorTest : public ::testing::Test {
     assert(num_inputs >= 0);
     has_input_ = num_inputs != 0;
     if (has_input_) {
-      inputs_ = inp[0].first;
-      input_shape_ = inp[0].second;
+      const auto input_pair = ReshapeInputType(inp);
+      input_batch_ = input_pair.first;
+      batch_size_ = input_batch_.size();
+      input_shape_ = input_pair.second[0];
     }
     operator_name_ = SetOperator();
   }
@@ -113,23 +90,39 @@ class DaliOperatorTest : public ::testing::Test {
   }
 
 
-  void InitPipeline() {
+  void InitPipeline(size_t batch_size, size_t num_threads) {
     if (!pipeline_.get()) {
-      pipeline_.reset(new Pipeline(batch_size_, num_threads_, 0));
+      pipeline_.reset(new Pipeline(static_cast<int>(batch_size), static_cast<int>(num_threads), 0));
     }
   }
 
 
+  /**
+   * Converting vector of pairs to pair of vectors
+   */
+  std::pair<std::vector<Input>, std::vector<Shape>>
+  ReshapeInputType(const std::vector<std::pair<Input, Shape>> &input) const {
+    std::vector<Input> in(input.size());
+    std::vector<Shape> shape(input.size());
+    auto extract_input = [](const std::pair<Input, Shape> &input) -> Input { return input.first; };
+    auto extract_shape = [](const std::pair<Input, Shape> &input) -> Shape { return input.second; };
+    std::transform(input.begin(), input.end(), in.begin(), extract_input);
+    std::transform(input.begin(), input.end(), shape.begin(), extract_shape);
+    return std::make_pair(in, shape);
+  }
+
+
   template<typename Backend>
-  void AddInputsToPipeline(Pipeline &pipeline) {
+  void AddInputsToPipeline(Pipeline &pipeline, const std::vector<Input> &input_batch,
+                           Shape input_shape) {
     const std::string input_name = "input";
     pipeline.AddExternalInput(input_name);
-    auto tensor_list = ToTensorList<Backend>(inputs_, input_shape_);
+    auto tensor_list = ToTensorList<Backend>(input_batch, input_shape);
     pipeline.SetExternalInput(input_name, *tensor_list);
   }
 
 
-  void AddOperatorToPipeline(Pipeline &pipeline, OpSpec op_spec) {
+  void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
     pipeline.AddOperator(op_spec);
   }
 
@@ -146,14 +139,15 @@ class DaliOperatorTest : public ::testing::Test {
   }
 
 
-  Output GetOutputFromPipeline(Pipeline &pipeline) {
+  std::vector<Output> GetOutputsFromPipeline(Pipeline &pipeline) {
     auto workspace = CreateWorkspace();
     pipeline.Outputs(&workspace);
-    return detail::GetOutputsFromWorkspace<Output>(workspace);
+    auto tl = workspace.template Output<CPUBackend>(0);
+    return FromTensorList(*tl);
   }
 
 
-  void BuildPipeline(Pipeline &pipeline, OpSpec spec) {
+  void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
     std::vector<std::pair<string, string>> vecoutputs_;
     for (int i = 0; i < spec.NumOutput(); ++i) {
       vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
@@ -163,7 +157,7 @@ class DaliOperatorTest : public ::testing::Test {
 
 
   template<typename Backend>
-  OpSpec CreateOpSpec(std::string operator_name, Arguments operator_arguments) {
+  OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_arguments) const {
     OpSpec opspec = OpSpec(operator_name);
     for (const auto &arg : operator_arguments) {
       opspec.AddArg(arg.first, arg.second);
@@ -176,14 +170,13 @@ class DaliOperatorTest : public ::testing::Test {
   }
 
 
-  Input inputs_;
-  Output outputs_;
+  std::vector<Input> input_batch_;
   Shape input_shape_;
   std::string operator_name_;
   std::unique_ptr<Pipeline> pipeline_;
-  const size_t batch_size_ = 1;
+  size_t batch_size_ = 1;
   const size_t num_threads_ = 1;
-  bool has_input_;
+  bool has_input_ = false;
 
 };
 

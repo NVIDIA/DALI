@@ -9,58 +9,75 @@ namespace dali {
 namespace detail {
 
 /// Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
-template<typename Backend, typename Input>
-std::unique_ptr<TensorList<Backend>> ToTensorList(const Input &input, std::vector<int64_t> shape) {
+template<typename Backend, typename DataType>
+std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<DataType> &input_batch,
+                                                  const std::vector<int64_t> &shape) {
   DALI_FAIL(
-          "Converting provided input type to TensorList is not supported. You may want to write your own specialization for it.");
+          "Converting provided InputType to TensorList is not supported. You may want to write your own specialization for it.");
 };
 
 
-/// Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
-template<>
-inline std::unique_ptr<TensorList<CPUBackend>>
-ToTensorList<CPUBackend, std::array<float, 4ul>>
-(const std::array<float, 4ul> &input, std::vector<int64_t> shape) {
-  std::unique_ptr<TensorList<CPUBackend>> tensor_list(new TensorList<CPUBackend>);
-  tensor_list->Resize({shape});
-  auto ptr = tensor_list->template mutable_tensor<float>(0);
-  for (size_t i = 0; i < input.size(); i++) {
-    ptr[i] = input[i];
-  }
-  return tensor_list;
-}
-
-
-/// Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
+/// Specialization for std::vector<float>
 template<>
 inline std::unique_ptr<TensorList<CPUBackend>>
 ToTensorList<CPUBackend, std::vector<float>>
-(const std::vector<float> &input, std::vector<int64_t> shape) {
+(const std::vector<std::vector<float>> &input_batch, const std::vector<int64_t> &shape) {
+
   std::unique_ptr<TensorList<CPUBackend>> tensor_list(new TensorList<CPUBackend>);
-  tensor_list->Resize({shape});
+
+  std::vector<std::vector<int64_t>> new_shape(input_batch.size(), shape);
+  tensor_list->Resize(new_shape);
+
   auto ptr = tensor_list->template mutable_tensor<float>(0);
-  for (size_t i = 0; i < input.size(); i++) {
-    ptr[i] = input[i];
+  for (const auto &input : input_batch) {
+    for (const auto &val : input) {
+      *ptr++ = val;
+    }
   }
   return tensor_list;
 }
 
-} // namespace detail
+}  // namespace detail
+
 
 /**
+ * TODO
  * Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
  * @tparam Backend
- * @tparam Input
- * @param input
+ * @tparam DataType
+ * @param input_batch
  * @param shape
  * @return
  */
-template<typename Backend, typename Input>
-std::unique_ptr<TensorList<Backend>> ToTensorList(const Input &input, std::vector<size_t> shape) {
+template<typename Backend, typename InputType>
+std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<InputType> &input_batch,
+                                                  const std::vector<size_t>& shape) {
   std::vector<int64_t> converted_shape{shape.begin(), shape.end()};
-  return detail::ToTensorList<Backend>(input, converted_shape);
+  return detail::ToTensorList<Backend>(input_batch, converted_shape);
 };
+
+
+template<typename Backend, typename OutputType>
+std::vector<OutputType> FromTensorList(const TensorList <Backend> &tensor_list) {
+  DALI_FAIL(
+          "Converting TensorList to provided OutputType is not supported. You may want to write your own specialization for it.");
+}
+
+
+/// Specialization for std::vector<float>
+template<typename Backend>
+std::vector<std::vector<float>> FromTensorList(const TensorList <Backend> &tensor_list) {
+  auto single_output_size = tensor_list.size() / tensor_list.ntensor();
+  std::vector<std::vector<float>> ret;
+  for (size_t i = 0; i < tensor_list.ntensor(); i++) {
+    auto begin =
+            tensor_list.template data<float>() + tensor_list.tensor_offset(static_cast<int>(i));
+    auto end = begin + single_output_size;
+    ret.emplace_back(std::vector<float>{begin, end});
+  }
+  return ret;
+}
 
 }  // namespace dali
 
-#endif //DALI_DATATYPE_CONVERSIONS_H
+#endif  // DALI_DATATYPE_CONVERSIONS_H
