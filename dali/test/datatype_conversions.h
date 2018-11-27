@@ -18,6 +18,7 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<DataType> &i
 
 
 /// Specialization for std::vector<float>
+// TODO(mszolucha) support other backends
 template<>
 inline std::unique_ptr<TensorList<CPUBackend>>
 ToTensorList<CPUBackend, std::vector<float>>
@@ -41,13 +42,13 @@ ToTensorList<CPUBackend, std::vector<float>>
 
 
 /**
- * TODO
+ * Function, that converts given batch of inputs to the TensorList
+ *
  * Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
- * @tparam Backend
- * @tparam DataType
+ *
+ * @tparam InputType type of a single sample in batch
  * @param input_batch
- * @param shape
- * @return
+ * @param shape what the output TensorList shape shall be
  */
 template<typename Backend, typename InputType>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<InputType> &input_batch,
@@ -56,9 +57,12 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<InputType> &
   return detail::ToTensorList<Backend>(input_batch, converted_shape);
 };
 
-
+/**
+ * Function, that extracts a data batch from given TensorList.
+ * @tparam OutputType type of a single sample in batch
+ */
 template<typename Backend, typename OutputType>
-std::vector<OutputType> FromTensorList(const TensorList <Backend> &tensor_list) {
+std::vector<OutputType> FromTensorList(const TensorList<Backend> &tensor_list) {
   DALI_FAIL(
           "Converting TensorList to provided OutputType is not supported. You may want to write your own specialization for it.");
 }
@@ -66,7 +70,7 @@ std::vector<OutputType> FromTensorList(const TensorList <Backend> &tensor_list) 
 
 /// Specialization for std::vector<float>
 template<typename Backend>
-std::vector<std::vector<float>> FromTensorList(const TensorList <Backend> &tensor_list) {
+std::vector<std::vector<float>> FromTensorList(const TensorList<Backend> &tensor_list) {
   auto single_output_size = tensor_list.size() / tensor_list.ntensor();
   std::vector<std::vector<float>> ret;
   for (size_t i = 0; i < tensor_list.ntensor(); i++) {

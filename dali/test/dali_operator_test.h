@@ -31,9 +31,33 @@ inline std::string BackendStringName<GPUBackend>() {
 }  // namespace detail
 
 /**
+ * Class for creating a test for pipeline, which contains a chain of operators
  *
- * @tparam Input
- * @tparam Output
+ * In order to set up a test, create a custom test class, which will extend DaliOperatorTest.
+ * There you have 4 things to define:
+ * 1. Set of inputs
+ * 2. Sequence of tested operators
+ * 3. Method to verify anticipated_output vs output from operator execution
+ * 4. Input and Output types (see below)
+ * For details see corresponding functions' definitions.
+ *
+ * This will create GTest fixture for unit tests.
+ *
+ * To actually run the test, define `TEST_F` macro. There, a `DaliOperatorTest::RunTest(...)`
+ * function shall be called.
+ *
+ * The operator test idea, regarding GTest workflow is as follows:
+ * 1. TestSuite (==TestFixture) -> a test for given chain of ops
+ *                                 (e.g. [Crop], [Resize -> Crop], [Crop->Resize], etc.)
+ * 2. TestCase  (==TEST_F)      -> a test, for given set of OperatorArguments, that is
+ *                                 performed for every input in provided input set.
+ *
+ * @tparam Input type of a single input to sequence of operators, e.g.
+ *               std::array<float, 4>  -> for bounding box
+ *               std::vector<float>    -> also can be applied for bounding box
+ *               std::vector<float>    -> it can be an image
+ *               float*                -> this also can be an image
+ * @tparam Output type of a single output from sequence of operators
  */
 template<typename Input, typename Output>
 class DaliOperatorTest : public ::testing::Test {
