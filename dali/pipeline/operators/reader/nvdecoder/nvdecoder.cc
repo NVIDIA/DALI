@@ -104,43 +104,9 @@ NvDecoder::NvDecoder(int device_id,
     CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
     LOG_LINE << "Using device: " << device_name << std::endl;
 
-    try {
-        auto nvml_ret = nvmlInit();
-        if (nvml_ret != NVML_SUCCESS) {
-            std::stringstream ss;
-            ss << "nvmlInit returned error " << nvml_ret;
-            DALI_FAIL(ss.str());
-        }
-        char nvmod_version_string[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
-        nvml_ret = nvmlSystemGetDriverVersion(nvmod_version_string,
-                                              sizeof(nvmod_version_string));
-        if (nvml_ret != NVML_SUCCESS) {
-            std::stringstream ss;
-            ss << "nvmlSystemGetDriverVersion returned error " << nvml_ret;
-            DALI_FAIL(ss.str());
-        }
-        auto nvmod_version = std::stof(nvmod_version_string);
-        if (nvmod_version < 384.0f) {
-            LOG_LINE << "Older kernel module version " << nvmod_version
-                        << " so using the default stream."
-                        << std::endl;
-            use_default_stream();
-        } else {
-            LOG_LINE << "Kernel module version " << nvmod_version
-                        << ", so using our own stream."
-                        << std::endl;
-        }
-    } catch(const std::exception& e) {
-        LOG_LINE << "Unable to get nvidia kernel module version from NVML, "
-                    << "conservatively assuming it is an older version.\n"
-                    << "The error was: " << e.what()
-                    << std::endl;
-        use_default_stream();
-    }
-
     context_ = CUContext(device_);
     if (!context_.initialized()) {
-        DALI_FAIL("Problem initializing context, not initializing VideoDecoder\n");
+        DALI_FAIL("Problem initializing context, not initializing VideoDecoder");
     }
 
     auto codec = Codec::H264;
@@ -154,14 +120,14 @@ NvDecoder::NvDecoder(int device_id,
             break;
 
         default:
-            std::cerr << "Invalid codec for NvDecoder\n";
+            DALI_FAIL("Invalid codec for NvDecoder");
             return;
     }
 
     parser_.init(codec, this, 20, codecpar->extradata,
                         codecpar->extradata_size);
     if (!parser_.initialized()) {
-        std::cerr << "Problem creating video parser\n";
+        DALI_FAIL("Problem creating video parser");
         return;
     }
 
@@ -479,9 +445,9 @@ void NvDecoder::convert_frames_worker() {
         auto& sequence = *output_queue_.pop();
         if (done_) break;
         for (int i = 0; i < sequence.count; ++i) {
-//            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-//                        << frame_queue_.size() << " reqs left"
-//                        << std::endl;
+            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
+                        << frame_queue_.size() << " reqs left"
+                        << std::endl;
             auto frame = MappedFrame{frame_queue_.pop(), decoder_, stream_};
             if (done_) break;
             convert_frame(frame, sequence, i);
@@ -526,10 +492,6 @@ void NvDecoder::finish() {
 
  void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
     sequence.set_started(stream_);
-}
-
-void NvDecoder::use_default_stream() {
-    stream_ = CUStream{device_id_, true};
 }
 
 }  // namespace dali

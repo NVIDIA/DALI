@@ -181,7 +181,7 @@ void VideoLoader::seek(OpenFile& file, int frame) {
                              seek_time, AVSEEK_FLAG_BACKWARD);
 
     if (ret < 0) {
-        std::cerr << "Unable to skip to ts " << seek_time
+        LOG_LINE << "Unable to skip to ts " << seek_time
                   << ": " << av_err2str(ret) << std::endl;
     }
 

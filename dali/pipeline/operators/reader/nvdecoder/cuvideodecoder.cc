@@ -111,7 +111,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
             (format->coded_width != decoder_info_.ulWidth) ||
             (format->coded_height != decoder_info_.ulHeight) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
-            std::cerr << "Encountered a dynamic video format change.\n";
+            DALI_FAIL("Encountered a dynamic video format change.");
             return 0;
         }
         return 1;

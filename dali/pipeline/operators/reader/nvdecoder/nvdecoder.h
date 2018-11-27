@@ -109,7 +109,6 @@ class NvDecoder
     int decode_av_packet(AVPacket* pkt);
 
     void record_sequence_event_(SequenceWrapper& sequence);
-    void use_default_stream();
 
     const int device_id_;
     CUStream stream_;

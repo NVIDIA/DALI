@@ -173,7 +173,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
 #check_type_size("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
 
 # nvcuvid cuda and nvidia-ml from the driver
-list(APPEND DALI_LIBS ${FFmpeg_LIBS} nvcuvid cuda nvidia-ml)
+list(APPEND DALI_LIBS ${FFmpeg_LIBS} nvcuvid cuda)
 
 ##################################################################
 # Exclude stdlib

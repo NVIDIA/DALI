@@ -57,7 +57,7 @@ class CUVideoParser {
                 parser_info_.ulMaxNumDecodeSurfaces = 20;
                 break;
             default:
-                std::cerr << "Invalid codec\n";
+                DALI_FAIL("Invalid codec: must be H.264 or HEVC");
                 return;
         }
         parser_info_.ulMaxNumDecodeSurfaces = decode_surfaces;
