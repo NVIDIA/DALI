@@ -20,7 +20,7 @@
 namespace dali {
 namespace basic {
 
-namespace {
+namespace detail {
 
 template <size_t N>
 int64_t CalcOffsetToSubspace(const std::array<int64_t, N> &shape) {
@@ -42,7 +42,7 @@ std::array<int64_t, N - 1> GetSubspaceShape(const std::array<int64_t, N> &shape)
   return result;
 }
 
-}  // namespace
+}  // namespace detail
 
 template <typename Adapted>
 struct SequenceAdapter {
@@ -80,10 +80,10 @@ struct SequenceAdapter {
   static void Run(const InputType *in, const InputShape &in_shape, KernelAttributes attr,
                   OutputType *out, const OutputShape &out_shape) {
     const auto sequence_length = in_shape[0];
-    const auto in_offset = CalcOffsetToSubspace(in_shape);
-    auto in_subspace_shape = GetSubspaceShape(in_shape);
-    const auto out_offset = CalcOffsetToSubspace(out_shape);
-    auto out_subspace_shape = GetSubspaceShape(out_shape);
+    const auto in_offset = detail::CalcOffsetToSubspace(in_shape);
+    auto in_subspace_shape = detail::GetSubspaceShape(in_shape);
+    const auto out_offset = detail::CalcOffsetToSubspace(out_shape);
+    auto out_subspace_shape = detail::GetSubspaceShape(out_shape);
     for (int64_t i = 0; i < sequence_length; i++) {
       auto *in_elem = in + i * in_offset;
       auto *out_elem = out + i * out_offset;

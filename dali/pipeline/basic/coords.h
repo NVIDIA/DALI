@@ -22,7 +22,7 @@
 namespace dali {
 namespace basic {
 
-namespace {
+namespace detail {
 
 template <typename T, size_t N>
 int64_t getOffsetImplLinear(const T& shape, std::array<int64_t, N> coords) {
@@ -34,7 +34,7 @@ int64_t getOffsetImplLinear(const T& shape, std::array<int64_t, N> coords) {
   return result;
 }
 
-}  // namespace
+}  // namespace detail
 
 template <int64_t... Ints>
 class dali_index_sequence {};
@@ -97,7 +97,7 @@ std::array<int64_t, sizeof...(order)> permuteShape(
 template <int64_t... order, typename T>
 int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords,
                   dali_index_sequence<order...> = {}) {
-  return getOffsetImplLinear(shape, permuteShape<order...>(coords));
+  return detail::getOffsetImplLinear(shape, permuteShape<order...>(coords));
 }
 
 // TODO(klecki) - case where sizes are already permutated, go back to more compile time expansion?
