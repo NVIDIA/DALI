@@ -52,9 +52,8 @@ class Crop {
     const Index W_out;
   };
 
-  static void CalcOutputSize(const std::array<Index, input_dim> &in, KernelAttributes attr,
-                             std::array<Index, output_dim> &out) {  // NOLINT
-    out = permuteShape({attr.H_out, attr.W_out, in[2]}, OutShape{});
+  static std::array<Index, output_dim> CalcOutputSize(const std::array<Index, input_dim> &in, KernelAttributes attr) {  // NOLINT
+    return permuteShape({attr.H_out, attr.W_out, in[2]}, OutShape{});
   }
 
   // signature due to change, for now it is iterator-like, should be collection of iterators

@@ -35,20 +35,20 @@ struct SequenceAdapter {
 
   using KernelAttributes = typename Adapted::KernelAttributes;
 
-  static typename std::enable_if<Adapted::can_calculate_output_size>::type CalcOutputSize(
-      const std::array<Index, input_dim> &in, KernelAttributes attr,
-      std::array<Index, output_dim> &out) {  // NOLINT
+  static typename std::enable_if<Adapted::can_calculate_output_size, std::array<Index, output_dim>>::type CalcOutputSize(
+      const std::array<Index, input_dim> &in, KernelAttributes attr) {  // NOLINT
     // Forward length of sequence
+    std::array<Index, output_dim> out;
     out[0] = in[0];
     std::array<Index, Adapted::input_dim> adapted_in;
-    std::array<Index, Adapted::output_dim> adapted_out;
     for (size_t i = 1; i < input_dim; i++) {
       adapted_in[i - 1] = in[i];
     }
-    Adapted::CalcOutputSize(adapted_in, attr, adapted_out);
+    std::array<Index, Adapted::output_dim> adapted_out = Adapted::CalcOutputSize(adapted_in, attr);
     for (size_t i = 1; i < output_dim; i++) {
       out[i] = adapted_out[i - 1];
     }
+    return out;
   }
 
   static void Run(InputType in, KernelAttributes attr, OutputType out) {  // NOLINT

@@ -38,9 +38,8 @@ struct SizeHelperAllowMIS {
     const auto &input = ws->Input<CPUBackend>(idx);
     // using Op = SequenceCrop<uint8_t, Out, Seq>;
 
-    std::array<Index, Op::input_dim> in_shape = TensorShape<Op::input_dim>(input).GetShape();
-    std::array<Index, Op::output_dim> out_shape;
-    Op::CalcOutputSize(in_shape, {std::forward<U>(u)...}, out_shape);
+    auto in_shape = TensorShape<Op::input_dim>(input).GetShape();
+    auto out_shape = Op::CalcOutputSize(in_shape, {std::forward<U>(u)...});
 
     Dims out_dim;
     for (const auto &s : out_shape) {

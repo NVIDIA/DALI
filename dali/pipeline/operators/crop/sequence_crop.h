@@ -39,6 +39,15 @@ class SequenceCrop : public Crop<CPUBackend> {
   const std::vector<Index> CheckShapes(const SampleWorkspace *ws) override;
   // using Crop<CPUBackend>::CheckParam;
   using Crop<CPUBackend>::per_sample_crop_;
+ private:
+  template <typename Kernel>
+  void AllocateOutput(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
+                      Tensor<CPUBackend> *output);
+  template <typename Kernel>
+  void RunKernel(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
+                 Tensor<CPUBackend> *output);
+  template <typename Kernel>
+  void AllocateAndRunKernel(Workspace<CPUBackend> *ws, const int idx);
 };
 
 }  // namespace dali

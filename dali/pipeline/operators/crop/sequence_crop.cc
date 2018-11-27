@@ -31,33 +31,113 @@ DALI_SCHEMA(SequenceCrop)
     .AddParent("Crop")
     .EnforceInputLayout(DALI_NHWC);
 
-void SequenceCrop::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
+
+template <size_t N>
+std::array<Index, N> ToStaticShape(const std::vector<Index> &shape) {
+  std::array<Index, N> result;
+  for (size_t i = 0; i < N; i++) {
+    result[i] = shape[i];
+  }
+  return result;
+}
+
+template <size_t N>
+std::vector<Index> ToDynamicShape(const std::array<Index, N> &shape) {
+  return {shape.begin(), shape.end()};
+}
+
+template <typename Kernel>
+void SequenceCrop::AllocateOutput(const Tensor<CPUBackend> &input,
+                                  typename Kernel::KernelAttributes args,
+                                  Tensor<CPUBackend> *output) {
+  auto in_shape = ToStaticShape<Kernel::input_dim>(input.shape());
+  auto out_shape = Kernel::CalcOutputSize(in_shape, args);
+
+  output->Resize(ToDynamicShape(out_shape));
+}
+
+template <typename Kernel>
+void SequenceCrop::RunKernel(const Tensor<CPUBackend> &input,
+                             typename Kernel::KernelAttributes args, Tensor<CPUBackend> *output) {
+  // ValidateHelper not needed - TensorWrapper ensures that ptr != nullptr.
+  // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
+
+  typename Kernel::InputType in_wrapper(input);
+  typename Kernel::OutputType out_wrapper(*output);
+  Kernel::Run(in_wrapper, args, out_wrapper);
+}
+
+template <typename Kernel>
+void SequenceCrop::AllocateAndRunKernel(Workspace<CPUBackend> *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto *output = ws->Output<CPUBackend>(idx);
+  const int dataIdx = ws->data_idx();
+  const int threadIdx = ws->thread_idx();
+  const int h_start = per_sample_crop_[threadIdx].first;
+  const int w_start = per_sample_crop_[threadIdx].second;
+  const int crop_height = crop_height_[dataIdx];
+  const int crop_width = crop_width_[dataIdx];
 
-  DALITensorLayout outLayout = output_layout_ == DALI_SAME ? input.GetLayout() : output_layout_;
-  output->SetLayout(outLayout);
-  // output->Resize(GetOutShape(input.GetLayout(), &outLayout));
-  auto layout_id = layoutToTypeId(output->GetLayout());
-  using CropOutputTypes = std::tuple<uint8_t, int16_t, int32_t, int64_t, float>;
-  using CropOutputPermTypes =
-      std::tuple<dali_index_sequence<0, 1, 2>, dali_index_sequence<2, 0, 1>>;
+  typename Kernel::KernelAttributes args{h_start, w_start, crop_height, crop_width};
+  AllocateOutput<Kernel>(input, args, output);
+  RunKernel<Kernel>(input, args, output);
+}
+
+void SequenceCrop::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
+  // Ensure the layout
+  auto *output = ws->Output<CPUBackend>(idx);
+  DALITensorLayout out_layout = output_layout_ == DALI_SAME ? ws->Input<CPUBackend>(idx).GetLayout() : output_layout_;
+  output->SetLayout(out_layout);
 
   // Check if we use u8, RGB or Greyscale
   // CheckParam(input, "CropCPUBackend");
 
-  const int threadIdx = ws->thread_idx();
-  const int h_start = per_sample_crop_[threadIdx].first;
-  const int w_start = per_sample_crop_[threadIdx].second;
 
   // TODO(klecki): simplification - do not handle float16
 
-  const int dataIdx = ws->data_idx();
-  type_switch<basic::SequenceCropSizeHelper, CropOutputTypes, CropOutputPermTypes>::Run(
-      output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
-
-  type_switch<basic::SequenceCropRunHelper, CropOutputTypes, CropOutputPermTypes>::Run(
-      output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+  // Call AllocateAndRunKernel with SequenceCrop<uint8_t, output_type_, out_layout>,
+  // Note, that the last two template arguments are runtime values.
+  if (out_layout == DALI_NHWC) {
+    using nhwc_t = dali_index_sequence<0, 1, 2>;
+    if (output_type_ == DALI_FLOAT) {
+      using Kernel = basic::SequenceCrop<uint8_t, float, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      using Kernel = basic::SequenceCrop<uint8_t, uint8_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      using Kernel = basic::SequenceCrop<uint8_t, int16_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      using Kernel = basic::SequenceCrop<uint8_t, int32_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      using Kernel = basic::SequenceCrop<uint8_t, int64_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else {
+      DALI_FAIL("Unsupported output type.");
+    }
+  } else if (out_layout == DALI_NCHW) {
+    using nchw_t = dali_index_sequence<2, 0, 1>;
+    if (output_type_ == DALI_FLOAT) {
+      using Kernel = basic::SequenceCrop<uint8_t, float, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      using Kernel = basic::SequenceCrop<uint8_t, uint8_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      using Kernel = basic::SequenceCrop<uint8_t, int16_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      using Kernel = basic::SequenceCrop<uint8_t, int32_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      using Kernel = basic::SequenceCrop<uint8_t, int64_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else {
+      DALI_FAIL("Unsupported output type.");
+    }
+  }
 }
 
 const std::vector<Index> SequenceCrop::CheckShapes(const SampleWorkspace *ws) {
