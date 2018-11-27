@@ -88,47 +88,62 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto *output = ws->Output<CPUBackend>(idx);
 
-  DALITensorLayout outLayout = output_layout_ == DALI_SAME ? input.GetLayout() : output_layout_;
-  output->SetLayout(outLayout);
-  // output->Resize(GetOutShape(input.GetLayout(), &outLayout));
-  auto layout_id = layoutToTypeId(output->GetLayout());
-  using CropOutputTypes = std::tuple<uint8_t, int16_t, int32_t, int64_t, float>;
-  using CropOutputPermTypes =
-      std::tuple<dali_index_sequence<0, 1, 2>, dali_index_sequence<2, 0, 1>>;
+  DALITensorLayout out_layout = output_layout_ == DALI_SAME ? input.GetLayout() : output_layout_;
+  output->SetLayout(out_layout);
 
   // Check if we use u8, RGB or Greyscale
   CheckParam(input, "CropCPUBackend");
 
-  const int threadIdx = ws->thread_idx();
-  const int h_start = per_sample_crop_[threadIdx].first;
-  const int w_start = per_sample_crop_[threadIdx].second;
-
-  const int dataIdx = ws->data_idx();
-  // TODO(klecki): currently float16 on CPU is probably broken as far as TypeInfo is considered
-  if (output_type_ == DALI_FLOAT16) {
-    if (output->GetLayout() == DALITensorLayout::DALI_NHWC) {
-      basic::CropSizeHelper<half_float::half, dali_index_sequence<0, 1, 2>>::Run(
-          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+  // Call AllocateAndRunKernel with basic::Crop<uint8_t, output_type_, out_layout>,
+  // Note, that the last two template arguments are runtime values.
+  if (out_layout == DALI_NHWC) {
+    using nhwc_t = dali_index_sequence<0, 1, 2>;
+    if (output_type_ == DALI_FLOAT16) {
+      using Kernel = basic::Crop<uint8_t, half_float::half, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_FLOAT) {
+      using Kernel = basic::Crop<uint8_t, float, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      using Kernel = basic::Crop<uint8_t, uint8_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      using Kernel = basic::Crop<uint8_t, int16_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      using Kernel = basic::Crop<uint8_t, int32_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      using Kernel = basic::Crop<uint8_t, int64_t, nhwc_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
     } else {
-      basic::CropSizeHelper<half_float::half, dali_index_sequence<2, 0, 1>>::Run(
-          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+      DALI_FAIL("Unsupported output type.");
+    }
+  } else if (out_layout == DALI_NCHW) {
+    using nchw_t = dali_index_sequence<2, 0, 1>;
+    if (output_type_ == DALI_FLOAT16) {
+      using Kernel = basic::Crop<uint8_t, half_float::half, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_FLOAT) {
+      using Kernel = basic::Crop<uint8_t, float, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      using Kernel = basic::Crop<uint8_t, uint8_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      using Kernel = basic::Crop<uint8_t, int16_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      using Kernel = basic::Crop<uint8_t, int32_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      using Kernel = basic::Crop<uint8_t, int64_t, nchw_t>;
+      AllocateAndRunKernel<Kernel>(ws, idx);
+    } else {
+      DALI_FAIL("Unsupported output type.");
     }
   } else {
-    type_switch<basic::CropSizeHelper, CropOutputTypes, CropOutputPermTypes>::Run(
-        output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
-  }
-
-  if (output_type_ == DALI_FLOAT16) {
-    if (output->GetLayout() == DALITensorLayout::DALI_NHWC) {
-      basic::CropRunHelper<half_float::half, dali_index_sequence<0, 1, 2>>::Run(
-          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
-    } else {
-      basic::CropRunHelper<half_float::half, dali_index_sequence<2, 0, 1>>::Run(
-          ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
-    }
-  } else {
-    type_switch<basic::CropRunHelper, CropOutputTypes, CropOutputPermTypes>::Run(
-        output_type_, layout_id, ws, idx, h_start, w_start, crop_height_[dataIdx], crop_width_[dataIdx]);
+      DALI_FAIL("Unsupported output layout.");
   }
 }
 

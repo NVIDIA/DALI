@@ -22,6 +22,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/basic/crop.h"
 
 namespace dali {
 
@@ -156,6 +157,44 @@ class Crop : public Operator<Backend>, protected CropAttr {
   }
 
  protected:
+  // Invoke CalcOutputSize from CropKernel
+  template <typename Kernel>
+  void AllocateOutput(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
+                      Tensor<CPUBackend> *output) {
+    auto in_shape = basic::ToStaticShape<Kernel::input_dim>(input.shape());
+    auto out_shape = Kernel::CalcOutputSize(in_shape, args);
+
+    output->Resize(basic::ToDynamicShape(out_shape));
+  }
+
+  // Invoke Run from CropKernel
+  template <typename Kernel>
+  void RunKernel(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
+                 Tensor<CPUBackend> *output) {
+    // ValidateHelper not needed - TensorWrapper ensures that ptr != nullptr.
+    // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
+
+    typename Kernel::InputType in_wrapper(input);
+    typename Kernel::OutputType out_wrapper(*output);
+    Kernel::Run(in_wrapper, args, out_wrapper);
+  }
+
+  template <typename Kernel>
+  void AllocateAndRunKernel(Workspace<CPUBackend> *ws, const int idx) {
+    const auto &input = ws->Input<CPUBackend>(idx);
+    auto *output = ws->Output<CPUBackend>(idx);
+    const int dataIdx = ws->data_idx();
+    const int threadIdx = ws->thread_idx();
+    const int h_start = per_sample_crop_[threadIdx].first;
+    const int w_start = per_sample_crop_[threadIdx].second;
+    const int crop_height = crop_height_[dataIdx];
+    const int crop_width = crop_width_[dataIdx];
+
+    typename Kernel::KernelAttributes args{h_start, w_start, crop_height, crop_width};
+    AllocateOutput<Kernel>(input, args, output);
+    RunKernel<Kernel>(input, args, output);
+  }
+
   Tensor<CPUBackend> input_ptrs_, input_strides_, output_offsets_;
   Tensor<GPUBackend> input_ptrs_gpu_, input_strides_gpu_, output_offsets_gpu_;
   Tensor<GPUBackend> crop_width_gpu_, crop_height_gpu_;

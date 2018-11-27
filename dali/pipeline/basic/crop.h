@@ -25,6 +25,21 @@
 namespace dali {
 namespace basic {
 
+template <size_t N>
+std::array<Index, N> ToStaticShape(const std::vector<Index> &shape) {
+  std::array<Index, N> result;
+  for (size_t i = 0; i < N; i++) {
+    result[i] = shape[i];
+  }
+  return result;
+}
+
+template <size_t N>
+std::vector<Index> ToDynamicShape(const std::array<Index, N> &shape) {
+  return {shape.begin(), shape.end()};
+}
+
+
 // TODO(klecki) allow for Schema to be present without using concrete types
 struct CropSchema {
   using AllowedInputs = std::tuple<uint8_t>;
