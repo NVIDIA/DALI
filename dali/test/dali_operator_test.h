@@ -28,6 +28,8 @@
 
 namespace dali {
 
+namespace testing {
+
 namespace detail {
 
 template<typename Backend>
@@ -219,6 +221,8 @@ class DaliOperatorTest : public ::testing::Test {
   const size_t num_threads_ = 1;
   bool has_input_ = false;
 };
+
+}  // namespace testing
 
 }  // namespace dali
 

@@ -72,7 +72,7 @@ const TestData wh_rois = {{
 
 }  // namespace
 
-class BbFlipTest : public DaliOperatorTest<Roi, Roi> {
+class BbFlipTest : public testing::DaliOperatorTest<Roi, Roi> {
   std::vector<std::pair<Roi, Shape>> SetInputs() const override {
     std::vector<std::pair<Roi, Shape>> inputs;
     const Shape shape = {4};

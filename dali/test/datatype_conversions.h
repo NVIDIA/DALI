@@ -21,6 +21,8 @@
 
 namespace dali {
 
+namespace testing {
+
 namespace detail {
 
 /// Return type here is std::unique_ptr, since TensorList doesn't have move constructor (DALI-385)
@@ -97,6 +99,8 @@ std::vector<std::vector<float>> FromTensorList(const TensorList<Backend> &tensor
   }
   return ret;
 }
+
+}  // namespace testing
 
 }  // namespace dali
 
