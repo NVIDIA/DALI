@@ -18,9 +18,9 @@
 #include <tuple>
 #include <vector>
 
+#include "dali/common.h"
 #include "dali/pipeline/basic/coords.h"
 #include "dali/pipeline/basic/sequence.h"
-#include "dali/pipeline/basic/tensor.h"
 
 namespace dali {
 namespace basic {

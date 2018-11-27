@@ -18,7 +18,6 @@
 #include "dali/image/transform.h"
 #include "dali/pipeline/basic/coords.h"
 #include "dali/pipeline/basic/crop.h"
-#include "dali/pipeline/basic/tensor.h"
 #include "dali/util/half.hpp"
 #include "dali/pipeline/util/typed_layout.h"
 
