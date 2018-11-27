@@ -18,7 +18,6 @@
 #include <tuple>
 
 #include "dali/pipeline/basic/coords.h"
-#include "dali/pipeline/basic/runner.h"
 #include "dali/pipeline/basic/sequence.h"
 #include "dali/pipeline/basic/tensor.h"
 
@@ -38,7 +37,6 @@ template <size_t N>
 std::vector<Index> ToDynamicShape(const std::array<Index, N> &shape) {
   return {shape.begin(), shape.end()};
 }
-
 
 // TODO(klecki) allow for Schema to be present without using concrete types
 struct CropSchema {
@@ -67,13 +65,15 @@ class Crop {
     const Index W_out;
   };
 
-  static std::array<Index, output_dim> CalcOutputSize(const std::array<Index, input_dim> &in, KernelAttributes attr) {  // NOLINT
+  static std::array<Index, output_dim> CalcOutputSize(const std::array<Index, input_dim> &in,
+                                                      KernelAttributes attr) {  // NOLINT
     return permuteShape({attr.H_out, attr.W_out, in[2]}, OutShape{});
   }
 
   // signature due to change, for now it is iterator-like, should be collection of iterators
   static void Run(InputType in, KernelAttributes attr, OutputType out) {  // NOLINT
-    const auto *in_ptr = in.ptr + getOffset<0, 1, 2>(in.GetShape(), {attr.h_start, attr.w_start, 0});
+    const auto *in_ptr =
+        in.ptr + getOffset<0, 1, 2>(in.GetShape(), {attr.h_start, attr.w_start, 0});
     for (Index h = 0; h < attr.H_out; h++) {
       for (Index w = 0; w < attr.W_out; w++) {
         for (Index c = 0; c < in.GetShape()[2]; c++) {
@@ -90,18 +90,6 @@ class Crop {
 
 template <typename T, typename U, typename OutShape>
 using SequenceCrop = SequenceAdapter<Crop<T, U, OutShape>>;
-
-template <typename Out, typename OutShape>
-using CropRunHelper = RunHelperAllowMIS<Crop<uint8_t, Out, OutShape>>;
-
-template <typename Out, typename OutShape>
-using CropSizeHelper = SizeHelperAllowMIS<Crop<uint8_t, Out, OutShape>>;
-
-template <typename Out, typename OutShape>
-using SequenceCropRunHelper = RunHelperAllowMIS<SequenceCrop<uint8_t, Out, OutShape>>;
-
-template <typename Out, typename OutShape>
-using SequenceCropSizeHelper = SizeHelperAllowMIS<SequenceCrop<uint8_t, Out, OutShape>>;
 
 }  // namespace basic
 }  // namespace dali

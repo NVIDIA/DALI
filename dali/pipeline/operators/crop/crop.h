@@ -163,7 +163,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
                       Tensor<CPUBackend> *output) {
     auto in_shape = basic::ToStaticShape<Kernel::input_dim>(input.shape());
     auto out_shape = Kernel::CalcOutputSize(in_shape, args);
-
     output->Resize(basic::ToDynamicShape(out_shape));
   }
 

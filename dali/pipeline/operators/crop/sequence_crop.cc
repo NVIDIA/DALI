@@ -18,7 +18,6 @@
 #include "dali/pipeline/operators/crop/sequence_crop.h"
 #include "dali/pipeline/basic/crop.h"
 #include "dali/pipeline/basic/tensor.h"
-#include "dali/pipeline/basic/type_switch.h"
 #include "dali/pipeline/util/typed_layout.h"
 
 namespace dali {
