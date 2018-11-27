@@ -37,7 +37,7 @@ pip install tensorflow-gpu==1.10.0
 ```
 #### OpenMPI
 ```
-wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz | tar -xzf
+wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz | tar -xz
 cd openmpi-3.0.0
 ./configure --enable-orterun-prefix-by-default --with-cuda --prefix=/usr/local/mpi --disable-getpwuid
 make -j"$(nproc)" install
