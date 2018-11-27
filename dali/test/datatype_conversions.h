@@ -1,8 +1,23 @@
-#ifndef DALI_DATATYPE_CONVERSIONS_H
-#define DALI_DATATYPE_CONVERSIONS_H
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include "dali/pipeline/data/tensor_list.h"
+#ifndef DALI_TEST_DATATYPE_CONVERSIONS_H_
+#define DALI_TEST_DATATYPE_CONVERSIONS_H_
+
 #include <memory>
+#include <vector>
+#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -13,8 +28,9 @@ template<typename Backend, typename DataType>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<DataType> &input_batch,
                                                   const std::vector<int64_t> &shape) {
   DALI_FAIL(
-          "Converting provided InputType to TensorList is not supported. You may want to write your own specialization for it.");
-};
+          "Converting provided InputType to TensorList is not supported."
+          " You may want to write your own specialization for it.");
+}
 
 
 /// Specialization for std::vector<float>
@@ -23,7 +39,6 @@ template<>
 inline std::unique_ptr<TensorList<CPUBackend>>
 ToTensorList<CPUBackend, std::vector<float>>
 (const std::vector<std::vector<float>> &input_batch, const std::vector<int64_t> &shape) {
-
   std::unique_ptr<TensorList<CPUBackend>> tensor_list(new TensorList<CPUBackend>);
 
   std::vector<std::vector<int64_t>> new_shape(input_batch.size(), shape);
@@ -55,7 +70,7 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<InputType> &
                                                   const std::vector<size_t>& shape) {
   std::vector<int64_t> converted_shape{shape.begin(), shape.end()};
   return detail::ToTensorList<Backend>(input_batch, converted_shape);
-};
+}
 
 /**
  * Function, that extracts a data batch from given TensorList.
@@ -64,7 +79,8 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const std::vector<InputType> &
 template<typename Backend, typename OutputType>
 std::vector<OutputType> FromTensorList(const TensorList<Backend> &tensor_list) {
   DALI_FAIL(
-          "Converting TensorList to provided OutputType is not supported. You may want to write your own specialization for it.");
+          "Converting TensorList to provided OutputType is not supported. "
+          "You may want to write your own specialization for it.");
 }
 
 
@@ -84,4 +100,4 @@ std::vector<std::vector<float>> FromTensorList(const TensorList<Backend> &tensor
 
 }  // namespace dali
 
-#endif  // DALI_DATATYPE_CONVERSIONS_H
+#endif  // DALI_TEST_DATATYPE_CONVERSIONS_H_

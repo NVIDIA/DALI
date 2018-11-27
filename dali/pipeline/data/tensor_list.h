@@ -247,7 +247,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   inline vector<Index> tensor_shape(int idx) const {
     DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range " + std::to_string(idx) + " : "+ std::to_string(shape_.size()));
+    DALI_ENFORCE((size_t) idx < shape_.size(),
+                 "Index out of offset range " + std::to_string(idx) + " : " +
+                 std::to_string(shape_.size()));
     return shape_[idx];
   }
 

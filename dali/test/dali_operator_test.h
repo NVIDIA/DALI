@@ -1,10 +1,30 @@
-#ifndef DALI_DALI_OPERATOR_TEST_H
-#define DALI_DALI_OPERATOR_TEST_H
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_TEST_DALI_OPERATOR_TEST_H_
+#define DALI_TEST_DALI_OPERATOR_TEST_H_
 
 #include <gtest/gtest.h>
+#include <vector>
+#include <utility>
+#include <map>
+#include <memory>
+#include <algorithm>
+#include <string>
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/backend.h"
-#include "datatype_conversions.h"
+#include "dali/test/datatype_conversions.h"
 
 namespace dali {
 
@@ -61,22 +81,21 @@ inline std::string BackendStringName<GPUBackend>() {
  */
 template<typename Input, typename Output>
 class DaliOperatorTest : public ::testing::Test {
-
  public:
   using Shape = std::vector<size_t>;
-  using Arguments =  std::map<std::string, int>; // TODO(mszolucha): Some generalization (boost::any?)
+  using Arguments =  std::map<std::string, int>;  // TODO(mszolucha): Some generalization (boost::any?) NOLINT
 
   template<typename Backend>
   void RunTest(Arguments operator_arguments, std::vector<Output> anticipated_outputs) {
     InitPipeline(batch_size_, num_threads_);
     const auto op_spec = CreateOpSpec<Backend>(operator_name_, operator_arguments);
     if (has_input_) {
-      AddInputsToPipeline<Backend>(*pipeline_, input_batch_, input_shape_);
+      AddInputsToPipeline<Backend>(pipeline_.get(), input_batch_, input_shape_);
     }
-    AddOperatorToPipeline(*pipeline_, op_spec);
-    BuildPipeline(*pipeline_, op_spec);
-    RunPipeline(*pipeline_);
-    auto output_batch = GetOutputsFromPipeline(*pipeline_);
+    AddOperatorToPipeline(pipeline_.get(), op_spec);
+    BuildPipeline(pipeline_.get(), op_spec);
+    RunPipeline(pipeline_.get());
+    auto output_batch = GetOutputsFromPipeline(pipeline_.get());
     DALI_ENFORCE(output_batch.size() == anticipated_outputs.size(), "Sizes of outputs don't match");
     for (size_t i = 0; i < anticipated_outputs.size(); i++) {
       EXPECT_TRUE(Verify(output_batch[i], anticipated_outputs[i]))
@@ -86,10 +105,9 @@ class DaliOperatorTest : public ::testing::Test {
 
 
  private:
-
   virtual std::vector<std::pair<Input, Shape>> SetInputs() const = 0;
 
-  virtual std::string SetOperator() const = 0; // TODO(mszolucha): Enable chained op (std::vector)
+  virtual std::string SetOperator() const = 0;  // TODO(mszolucha): Enable chained op (std::vector)
 
   virtual bool Verify(Output output, Output anticipated_output) const = 0;
 
@@ -110,7 +128,6 @@ class DaliOperatorTest : public ::testing::Test {
 
 
   void TearDown() final {
-
   }
 
 
@@ -137,17 +154,17 @@ class DaliOperatorTest : public ::testing::Test {
 
 
   template<typename Backend>
-  void AddInputsToPipeline(Pipeline &pipeline, const std::vector<Input> &input_batch,
+  void AddInputsToPipeline(Pipeline *pipeline, const std::vector<Input> &input_batch,
                            Shape input_shape) {
     const std::string input_name = "input";
-    pipeline.AddExternalInput(input_name);
+    pipeline->AddExternalInput(input_name);
     auto tensor_list = ToTensorList<Backend>(input_batch, input_shape);
-    pipeline.SetExternalInput(input_name, *tensor_list);
+    pipeline->SetExternalInput(input_name, *tensor_list);
   }
 
 
-  void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
-    pipeline.AddOperator(op_spec);
+  void AddOperatorToPipeline(Pipeline *pipeline, const OpSpec &op_spec) {
+    pipeline->AddOperator(op_spec);
   }
 
 
@@ -157,26 +174,26 @@ class DaliOperatorTest : public ::testing::Test {
   }
 
 
-  void RunPipeline(Pipeline &pipeline) {
-    pipeline.RunCPU();
-    pipeline.RunGPU();
+  void RunPipeline(Pipeline *pipeline) {
+    pipeline->RunCPU();
+    pipeline->RunGPU();
   }
 
 
-  std::vector<Output> GetOutputsFromPipeline(Pipeline &pipeline) {
+  std::vector<Output> GetOutputsFromPipeline(Pipeline *pipeline) {
     auto workspace = CreateWorkspace();
-    pipeline.Outputs(&workspace);
+    pipeline->Outputs(&workspace);
     auto tl = workspace.template Output<CPUBackend>(0);
     return FromTensorList(*tl);
   }
 
 
-  void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
+  void BuildPipeline(Pipeline *pipeline, const OpSpec &spec) {
     std::vector<std::pair<string, string>> vecoutputs_;
     for (int i = 0; i < spec.NumOutput(); ++i) {
       vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
     }
-    pipeline.Build(vecoutputs_);
+    pipeline->Build(vecoutputs_);
   }
 
 
@@ -201,9 +218,8 @@ class DaliOperatorTest : public ::testing::Test {
   size_t batch_size_ = 1;
   const size_t num_threads_ = 1;
   bool has_input_ = false;
-
 };
 
 }  // namespace dali
 
-#endif //DALI_DALI_OPERATOR_TEST_H
+#endif  // DALI_TEST_DALI_OPERATOR_TEST_H_

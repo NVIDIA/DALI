@@ -1,3 +1,17 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <cmath>
 
 #include "dali/test/dali_operator_test.h"
@@ -43,23 +57,22 @@ const TestData wh_rois = {{
         {{{.25, .25, .5, .5}, {.25, .25, .5, .5}, {.25, .25, .5, .5}}},
 }};
 
-//const TestData two_pt_rois = {{
-//        {{{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5},  {.2,  .5,  .6,  .8}}},
-//        {{{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5},  {.0,  .5,  .5,  1.}}},
-//        {{{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3},  {.3,  .7,  .4,  .8}}},
-//        {{{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3},  {.0,  .7,  .2,  1.}}},
-//        {{{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1},  {.0,  .9,  .1,  1.}}},
-//        {{{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6},  {.5,  .4,  .6,  .5}}},
-//        {{{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9},  {.0,  .1,  .7,  .4}}},
-//        {{{.6,  .2,  .9,  .5},  {.1,  .2,  .4,  .5},  {.6,  .5,  .9,  .8}}},
-//        {{{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8},  {.4,  .2,  .9,  .7}}},
-//        {{{.25, .25, .75, .75}, {.25, .25, .75, .75}, {.25, .25, .75, .75}}},
-//}};
+// const TestData two_pt_rois = {{
+//         {{{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5},  {.2,  .5,  .6,  .8}}},
+//         {{{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5},  {.0,  .5,  .5,  1.}}},
+//         {{{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3},  {.3,  .7,  .4,  .8}}},
+//         {{{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3},  {.0,  .7,  .2,  1.}}},
+//         {{{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1},  {.0,  .9,  .1,  1.}}},
+//         {{{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6},  {.5,  .4,  .6,  .5}}},
+//         {{{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9},  {.0,  .1,  .7,  .4}}},
+//         {{{.6,  .2,  .9,  .5},  {.1,  .2,  .4,  .5},  {.6,  .5,  .9,  .8}}},
+//         {{{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8},  {.4,  .2,  .9,  .7}}},
+//         {{{.25, .25, .75, .75}, {.25, .25, .75, .75}, {.25, .25, .75, .75}}},
+// }};
 
 }  // namespace
 
 class BbFlipTest : public DaliOperatorTest<Roi, Roi> {
-
   std::vector<std::pair<Roi, Shape>> SetInputs() const override {
     std::vector<std::pair<Roi, Shape>> inputs;
     const Shape shape = {4};
@@ -87,7 +100,7 @@ class BbFlipTest : public DaliOperatorTest<Roi, Roi> {
   }
 
 
-private:
+ private:
   float epsilon_ = 0.001f;
 };
 
@@ -96,7 +109,7 @@ TEST_F(BbFlipTest, HorizontalTest) {
   for (auto roi_set : wh_rois) {
     anticipated_outputs.emplace_back(roi_set[1]);
   }
-  this->RunTest<CPUBackend>({{"horizontal", 1},{"vertical", 0}}, anticipated_outputs);
+  this->RunTest<CPUBackend>({{"horizontal", 1}, {"vertical", 0}}, anticipated_outputs);
 }
 
 TEST_F(BbFlipTest, VerticalTest) {
@@ -104,7 +117,7 @@ TEST_F(BbFlipTest, VerticalTest) {
   for (auto roi_set : wh_rois) {
     anticipated_outputs.emplace_back(roi_set[2]);
   }
-  this->RunTest<CPUBackend>({{"horizontal", 0},{"vertical", 1}}, anticipated_outputs);
+  this->RunTest<CPUBackend>({{"horizontal", 0}, {"vertical", 1}}, anticipated_outputs);
 }
 
 }  // namespace dali

@@ -122,7 +122,6 @@ void BbFlip::RunImpl(dali::SampleWorkspace *ws, const int idx) {
     output_data[i + 2] = !coordinates_type_ltrb_ ? w : output_data[0] + w;
     output_data[i + 3] = !coordinates_type_ltrb_ ? h : output_data[1] + h;
   }
-
 }
 
 
