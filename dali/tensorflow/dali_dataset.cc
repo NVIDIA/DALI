@@ -23,3 +23,23 @@
 #pragma GCC diagnostic pop
 #pragma GCC diagnostic pop
 
+class DaliDatasetOp : public tensorflow::DatasetOpKernel {
+public:
+  DaliDatasetOp(tensorflow::OpKernelConstruction* ctx) : DatasetOpKernel(ctx) {}
+
+  void MakeDataset(tensorflow::OpKernelContext* ctx,
+                   tensorflow::DatasetBase** output) override {}
+};
+
+REGISTER_OP("DALIDataset")
+    .Attr("serialized_pipeline: string")
+    .Attr("shapes: list(shape) >= 1")
+    .Attr("num_threads: int = -1")
+    .Attr("prefetch_queue_depth: int = 2")
+    .Attr("dtypes: list({float, int32, int64, half}) >= 1")
+    .Output("handle: variant")
+    .SetIsStateful()
+    .SetShapeFn(tensorflow::shape_inference::ScalarShape);
+
+REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_GPU),
+                        DaliDatasetOp)
