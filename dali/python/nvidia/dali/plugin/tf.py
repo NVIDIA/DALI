@@ -48,6 +48,29 @@ def DALIIterator():
 def DALIRawIterator():
     return _dali_tf
 
+dali_dataset_module = _dali_tf_module.dali_dataset
 
+class DALIDataset(tf.data.Dataset):
+
+  def __init__(self):
+    super(DALIDataset, self).__init__()
+
+  def _as_variant_tensor(self):
+    return dali_dataset_module.dali_dataset()
+
+  @property
+  def output_types(self):
+    raise NotImplementedError
+
+  @property
+  def output_shapes(self):
+    raise NotImplementedError
+
+  @property
+  def output_classes(self):
+    raise NotImplementedError
+
+
+DALIDataset.__doc__ = DALIDataset.__doc__
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALIRawIterator.__doc__ = _dali_tf.__doc__

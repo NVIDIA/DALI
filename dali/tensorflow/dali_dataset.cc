@@ -39,7 +39,16 @@ REGISTER_OP("DALIDataset")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
     .Output("handle: variant")
     .SetIsStateful()
-    .SetShapeFn(tensorflow::shape_inference::ScalarShape);
+    .SetShapeFn(tensorflow::shape_inference::ScalarShape)
+    .Doc(R"doc(
+DALI Dataset plugin
+
+Creates a Dali dataset compatible with tf.data.Dataset from a serialized DALI pipeline
+(given in `serialized_pipeline` parameter).
+
+`shapes` must match the shape of the coresponding DALI Pipeline output tensor shape.
+`dtypes` must match the type of the coresponding DALI Pipeline output tensors type.
+ )doc");
 
 REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_GPU),
                         DaliDatasetOp)
