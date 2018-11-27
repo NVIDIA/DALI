@@ -62,12 +62,10 @@ REGISTER_OP("Dali")
   .Attr("shapes: list(shape) >= 1")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  // .Attr("data_type: {float, int32, int64, half} = DT_FLOAT")
   .Attr("prefetch_queue_depth: int = 2")
   .Output("data: dtypes")
   .Attr("dtypes: list({float, int32, int64, half}) >= 1")
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
-    // define shape for the first output
     std::vector<tf::PartialTensorShape> shapes;
     TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
     for (unsigned i = 0; i < shapes.size(); ++i) {
@@ -224,3 +222,4 @@ class DaliOp : public tf::OpKernel {
 using tf::int64;
 
 REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_GPU), DaliOp)
+REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_CPU), DaliOp)
