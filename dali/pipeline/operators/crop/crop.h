@@ -173,9 +173,11 @@ class Crop : public Operator<Backend>, protected CropAttr {
     // ValidateHelper not needed - TensorWrapper ensures that ptr != nullptr.
     // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
 
-    typename Kernel::InputType in_wrapper(input);
-    typename Kernel::OutputType out_wrapper(*output);
-    Kernel::Run(in_wrapper, args, out_wrapper);
+    const auto *in = input.template data<typename Kernel::InputType>();
+    auto in_shape = basic::ToStaticShape<Kernel::input_dim>(input.shape());
+    auto *out = output->template mutable_data<typename Kernel::OutputType>();
+    auto out_shape = basic::ToStaticShape<Kernel::output_dim>(output->shape());
+    Kernel::Run(in, in_shape, args, out, out_shape);
   }
 
   template <typename Kernel>

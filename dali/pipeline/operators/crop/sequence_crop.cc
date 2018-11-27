@@ -15,9 +15,9 @@
 #include <tuple>
 #include <vector>
 
-#include "dali/pipeline/operators/crop/sequence_crop.h"
 #include "dali/pipeline/basic/crop.h"
 #include "dali/pipeline/basic/tensor.h"
+#include "dali/pipeline/operators/crop/sequence_crop.h"
 #include "dali/pipeline/util/typed_layout.h"
 
 namespace dali {
@@ -33,12 +33,12 @@ DALI_SCHEMA(SequenceCrop)
 void SequenceCrop::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   // Ensure the layout
   auto *output = ws->Output<CPUBackend>(idx);
-  DALITensorLayout out_layout = output_layout_ == DALI_SAME ? ws->Input<CPUBackend>(idx).GetLayout() : output_layout_;
+  DALITensorLayout out_layout =
+      output_layout_ == DALI_SAME ? ws->Input<CPUBackend>(idx).GetLayout() : output_layout_;
   output->SetLayout(out_layout);
 
   // Check if we use u8, RGB or Greyscale
   // CheckParam(input, "CropCPUBackend");
-
 
   // TODO(klecki): simplification - do not handle float16
 
@@ -85,7 +85,7 @@ void SequenceCrop::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
       DALI_FAIL("Unsupported output type.");
     }
   } else {
-      DALI_FAIL("Unsupported output layout.");
+    DALI_FAIL("Unsupported output layout.");
   }
 }
 

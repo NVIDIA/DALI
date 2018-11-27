@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_BASIC_CROP_H_
 
 #include <tuple>
+#include <vector>
 
 #include "dali/pipeline/basic/coords.h"
 #include "dali/pipeline/basic/sequence.h"
@@ -38,21 +39,17 @@ std::vector<Index> ToDynamicShape(const std::array<Index, N> &shape) {
   return {shape.begin(), shape.end()};
 }
 
-// TODO(klecki) allow for Schema to be present without using concrete types
-struct CropSchema {
-  using AllowedInputs = std::tuple<uint8_t>;
-  using AllowedOutputs = std::tuple<uint8_t, int8_t, int16_t, int32_t, int64_t, float>;
-};
-
-template <typename T, typename U, typename OutShape>
+template <typename InType, typename OutType, typename OutLayout>
 class Crop {
  public:
   Crop() = delete;
   static constexpr size_t input_dim = 3;
   static constexpr size_t output_dim = 3;
   // TODO(klecki) - should be converted to some kind of std::tuple for multiple input and outputs
-  using InputType = TensorWrapper<const T, input_dim>;
-  using OutputType = TensorWrapper<U, output_dim>;
+  using InputType = InType;
+  using OutputType = OutType;
+  using InputShape = std::array<Index, input_dim>;
+  using OutputShape = std::array<Index, output_dim>;
 
   static constexpr bool can_calculate_output_size = true;
 
@@ -66,30 +63,29 @@ class Crop {
   };
 
   static std::array<Index, output_dim> CalcOutputSize(const std::array<Index, input_dim> &in,
-                                                      KernelAttributes attr) {  // NOLINT
-    return permuteShape({attr.H_out, attr.W_out, in[2]}, OutShape{});
+                                                      KernelAttributes attr) {
+    return permuteShape({attr.H_out, attr.W_out, in[2]}, OutLayout{});
   }
 
-  // signature due to change, for now it is iterator-like, should be collection of iterators
-  static void Run(InputType in, KernelAttributes attr, OutputType out) {  // NOLINT
-    const auto *in_ptr =
-        in.ptr + getOffset<0, 1, 2>(in.GetShape(), {attr.h_start, attr.w_start, 0});
+  static void Run(const InputType *in, const InputShape &in_shape, KernelAttributes attr,
+                  OutputType *out, const OutputShape &out_shape) {
+    const auto *in_ptr = in + getOffset<0, 1, 2>(in_shape, {attr.h_start, attr.w_start, 0});
     for (Index h = 0; h < attr.H_out; h++) {
       for (Index w = 0; w < attr.W_out; w++) {
-        for (Index c = 0; c < in.GetShape()[2]; c++) {
+        for (Index c = 0; c < in_shape[2]; c++) {
           // From HWC
-          const auto in_idx = getOffset<0, 1, 2>(in.GetShape(), {h, w, c});
+          const auto in_idx = getOffset<0, 1, 2>(in_shape, {h, w, c});
           // To HWC or CHW
-          const auto out_idx = getOffset(out.GetShape(), {h, w, c}, OutShape{});
-          out.ptr[out_idx] = static_cast<U>(in_ptr[in_idx]);
+          const auto out_idx = getOffset(out_shape, {h, w, c}, OutLayout{});
+          out[out_idx] = static_cast<OutputType>(in_ptr[in_idx]);
         }
       }
     }
   }
 };
 
-template <typename T, typename U, typename OutShape>
-using SequenceCrop = SequenceAdapter<Crop<T, U, OutShape>>;
+template <typename InType, typename OutType, typename OutLayout>
+using SequenceCrop = SequenceAdapter<Crop<InType, OutType, OutLayout>>;
 
 }  // namespace basic
 }  // namespace dali

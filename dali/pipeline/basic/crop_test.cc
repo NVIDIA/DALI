@@ -93,12 +93,12 @@ TYPED_TEST_CASE(BasicCropTest, CropTypes);
 
 TYPED_TEST(BasicCropTest, FlatCrop) {
   std::array<Index, 3> in_shape = {TypeParam::H, TypeParam::W, TypeParam::C};
-  basic::TensorWrapper<const typename TypeParam::InT, 3> in(this->input, in_shape.cbegin());
   std::array<Index, 3> out_shape = {TypeParam::outH, TypeParam::outW, TypeParam::C};
-  basic::TensorWrapper<typename TypeParam::OutT, 3> out(this->output, out_shape.cbegin());
 
   basic::Crop<typename TypeParam::InT, typename TypeParam::OutT, dali_index_sequence<0, 1, 2>>::Run(
-      in, {TypeParam::startH, TypeParam::startW, TypeParam::outH, TypeParam::outW}, out);
+      this->input, in_shape,
+      {TypeParam::startH, TypeParam::startW, TypeParam::outH, TypeParam::outW}, this->output,
+      out_shape);
 }
 
 using CropSequenceTypes =
@@ -112,15 +112,13 @@ TYPED_TEST_CASE(SequenceCropTest, CropSequenceTypes);
 
 TYPED_TEST(SequenceCropTest, SequenceCrop) {
   std::array<Index, 4> in_shape = {TypeParam::S, TypeParam::H, TypeParam::W, TypeParam::C};
-  basic::TensorWrapper<const typename TypeParam::InT, 4> in(this->input, in_shape.cbegin());
   std::array<Index, 4> out_shape = {TypeParam::S, TypeParam::outH, TypeParam::outW, TypeParam::C};
-  basic::TensorWrapper<typename TypeParam::OutT, 4> out(this->output, out_shape.cbegin());
 
   basic::SequenceCrop<typename TypeParam::InT, typename TypeParam::OutT,
-                      dali_index_sequence<0, 1, 2>>::Run(in,
+                      dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
                                                          {TypeParam::startH, TypeParam::startW,
                                                           TypeParam::outH, TypeParam::outW},
-                                                         out);
+                                                         this->output, out_shape);
 }
 
 }  // namespace dali

@@ -25,7 +25,7 @@ namespace basic {
 namespace {
 
 template <typename T, size_t N>
-int64_t getOffsetImplLinear(const T &shape, std::array<int64_t, N> coords) {
+int64_t getOffsetImplLinear(const T& shape, std::array<int64_t, N> coords) {
   int64_t result = coords[0];
   for (size_t i = 1; i < N; i++) {
     result *= shape[i];
@@ -95,10 +95,10 @@ std::array<int64_t, sizeof...(order)> permuteShape(
  * @return int64_t offset to given coordinate
  */
 template <int64_t... order, typename T>
-int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords, dali_index_sequence<order...> = {}) {
+int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords,
+                  dali_index_sequence<order...> = {}) {
   return getOffsetImplLinear(shape, permuteShape<order...>(coords));
 }
-
 
 // TODO(klecki) - case where sizes are already permutated, go back to more compile time expansion?
 
