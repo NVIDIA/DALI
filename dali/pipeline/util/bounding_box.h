@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "dali/error_handling.h"
 
@@ -49,24 +50,26 @@ class BoundingBox {
     swap(lhs.area_, rhs.area_);
   }
 
-  static BoundingBox FromLtrb(const float* data) {
-    return FromLtrb(data[0], data[1], data[2], data[3]);
+  static BoundingBox FromLtrb(const float* data, bool check_input = true) {
+    return FromLtrb(data[0], data[1], data[2], data[3], check_input);
   }
 
-  static BoundingBox FromLtrb(float l, float t, float r, float b) {
-    DALI_ENFORCE(l >= 0 && l <= 1.f,
-                 "Expected 0 <= left <= 1. Received: " + to_string(l));
-    DALI_ENFORCE(t >= 0 && t <= 1.f,
-                 "Expected 0 <= top <= 1. Received: " + to_string(t));
-    DALI_ENFORCE(r >= 0 && r <= 1.f,
-                 "Expected 0 <= right <= 1. Received: " + to_string(r));
-    DALI_ENFORCE(b >= 0 && b <= 1.f,
-                 "Expected 0 <= bottom <= 1. Received: " + to_string(b));
+  static BoundingBox FromLtrb(float l, float t, float r, float b, bool check_input = true) {
+    if (check_input) {
+      DALI_ENFORCE(l >= 0 && l <= 1.f,
+                  "Expected 0 <= left <= 1. Received: " + to_string(l));
+      DALI_ENFORCE(t >= 0 && t <= 1.f,
+                  "Expected 0 <= top <= 1. Received: " + to_string(t));
+      DALI_ENFORCE(r >= 0 && r <= 1.f,
+                  "Expected 0 <= right <= 1. Received: " + to_string(r));
+      DALI_ENFORCE(b >= 0 && b <= 1.f,
+                  "Expected 0 <= bottom <= 1. Received: " + to_string(b));
 
-    DALI_ENFORCE(l <= r, "Expected left <= right. Received: " + to_string(l) +
-                             " <= " + to_string(r));
-    DALI_ENFORCE(t <= b, "Expected top <= bottom. Received: " + to_string(t) +
-                             " <= " + to_string(b));
+      DALI_ENFORCE(l <= r, "Expected left <= right. Received: " + to_string(l) +
+                              " <= " + to_string(r));
+      DALI_ENFORCE(t <= b, "Expected top <= bottom. Received: " + to_string(t) +
+                              " <= " + to_string(b));
+    }
 
     return {l, t, r, b};
   }
@@ -151,6 +154,25 @@ class BoundingBox {
 
   std::array<float, kSize> AsXywh() const {
     return {left_, top_, right_ - left_, bottom_ - top_};
+  }
+
+  void CopyAsCenterWh(float *destination) const {
+    destination[0] = (left_ + right_) * 0.5f;
+    destination[1] = (top_ + bottom_) * 0.5f;
+    destination[2] = right_ - left_;
+    destination[3] = bottom_ - top_;
+  }
+
+  static vector<BoundingBox> FromLtrbArray(const float *source, int num, bool check_input = true) {
+    vector<BoundingBox> boxes;
+    auto elem = source;
+
+    for (int idx = 0; idx < num; ++idx) {
+      boxes.push_back(FromLtrb(elem, check_input));
+      elem += kSize;
+    }
+
+    return boxes;
   }
 
  private:

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/test/dali_test_bboxes.h"
+#include "dali/pipeline/util/bounding_box.h"
 
 namespace dali {
 

@@ -17,73 +17,43 @@
 #include "dali/pipeline/operators/detection/box_encoder.h"
 
 namespace dali {
-namespace detail {
-using Anchor = BoxEncoder<CPUBackend>::Anchor;
-using BBox = BoxEncoder<CPUBackend>::BBox;
+vector<float> BoxEncoder<CPUBackend>::CalculateIous(vector<BoundingBox> boxes) {
+  vector<float> ious(boxes.size() * NumAnchors());
 
-float Iou(const Anchor a1, const Anchor a2) {
-  float l = std::max(a1.x, a2.x);
-  float t = std::max(a1.y, a2.y);
-  float r = std::min(a1.z, a2.z);
-  float b = std::min(a1.w, a2.w);
-
-  float width = r - l;
-  float height = b - t;
-
-  if (width <= 0.f || height <= 0.f) return 0.f;
-
-  float intersection = width * height;
-  float area1 = (a1.w - a1.y) * (a1.z - a1.x);
-  float area2 = (a2.w - a2.y) * (a2.z - a2.x);
-
-  return intersection / (area1 + area2 - intersection);
-}
-
-vector<float> CalculateIous(const Anchor *anchors, const BBox *bboxes, int N, int M) {
-  vector<float> ious(N * M);
-
-  for (int bbox_idx = 0; bbox_idx < N; ++bbox_idx) {
+  for (auto bbox_idx = 0u; bbox_idx < boxes.size(); ++bbox_idx) {
     int best_idx = -1;
     float best_iou = -1.;
 
-    for (int anchor_idx = 0; anchor_idx < M; ++anchor_idx) {
-      ious[bbox_idx * M + anchor_idx] = detail::Iou(bboxes[bbox_idx], anchors[anchor_idx]);
+    for (int anchor_idx = 0; anchor_idx < NumAnchors(); ++anchor_idx) {
+      ious[bbox_idx * anchors_.size() + anchor_idx] =
+          boxes[bbox_idx].IntersectionOverUnion(anchors_[anchor_idx]);
 
-      if (ious[bbox_idx * M + anchor_idx] >= best_iou) {
-        best_iou = ious[bbox_idx * M + anchor_idx];
+      if (ious[bbox_idx * anchors_.size() + anchor_idx] >= best_iou) {
+        best_iou = ious[bbox_idx * NumAnchors() + anchor_idx];
         best_idx = anchor_idx;
       }
     }
 
     // For best default box matched with current object let iou = 2, to make sure there is a match,
     // as this object will be the best (highest IOU), for this default box
-    ious[bbox_idx * M + best_idx] = 2.;
+    ious[bbox_idx * NumAnchors() + best_idx] = 2.;
   }
+
   return ious;
 }
 
-Anchor ToCenterWH(const Anchor a) {
-  return {
-    0.5f * (a.x + a.z),
-    0.5f * (a.y + a.w),
-    a.z - a.x,
-    a.w - a.y};
-}
-}  // namespace detail
+void BoxEncoder<CPUBackend>::MatchBoxesWithAnchors(
+  const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) {
+  int num_boxes = boxes.size();
+  auto ious = CalculateIous(boxes);
 
-template <>
-void BoxEncoder<CPUBackend>::FindMatchingAnchors(
-  const float *ious, const int64 N, const BBox *bboxes,
-  const int *labels, BBox *out_boxes, int *out_labels) {
-  // For every anchor we are looking, if there is a match
-  for (int anchor_idx = 0; anchor_idx < M_; ++anchor_idx) {
+  for (int anchor_idx = 0; anchor_idx < NumAnchors(); ++anchor_idx) {
     int best_idx = -1;
     float best_iou = -1.;
 
-    // Looking for bbox with best IOU with current anchor
-    for (int bbox_idx = 0; bbox_idx < N; ++bbox_idx) {
-      if (ious[bbox_idx * M_ + anchor_idx] >= best_iou) {
-        best_iou = ious[bbox_idx * M_ + anchor_idx];
+    for (int bbox_idx = 0; bbox_idx < num_boxes; ++bbox_idx) {
+      if (ious[bbox_idx * NumAnchors() + anchor_idx] >= best_iou) {
+        best_iou = ious[bbox_idx * NumAnchors() + anchor_idx];
         best_idx = bbox_idx;
       }
     }
@@ -93,59 +63,51 @@ void BoxEncoder<CPUBackend>::FindMatchingAnchors(
     // Filter matches by criteria
     // We only report a match, when IOU > criteria
     if (best_iou > criteria_) {
-      out_boxes[anchor_idx] = bboxes[best_idx];
       out_labels[anchor_idx] = labels[best_idx];
+      boxes[best_idx].CopyAsCenterWh(out_boxes + anchor_idx * BoundingBox::kSize);
     }
-
-    // Change to x, y, w, h per canonical SSD implementation
-    out_boxes[anchor_idx] = detail::ToCenterWH(out_boxes[anchor_idx]);
   }
 }
 
-template <>
 void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &bboxes_input = ws->Input<CPUBackend>(0);
   const auto &labels_input = ws->Input<CPUBackend>(1);
 
-  const auto N = bboxes_input.dim(0);
+  const auto num_boxes = bboxes_input.dim(0);
 
-  auto bboxes = reinterpret_cast<const BBox *>(bboxes_input.data<float>());
   auto labels = labels_input.data<int>();
-  auto anchors = reinterpret_cast<const Anchor *>(anchors_.data<float>());
-
-  auto ious = detail::CalculateIous(anchors, bboxes, N, M_);
+  auto boxes = BoundingBox::FromLtrbArray(
+    bboxes_input.data<float>(), num_boxes, false);
 
   // Create output
   auto bboxes_output = ws->Output<CPUBackend>(0);
-  bboxes_output->set_type(anchors_.type());
-  bboxes_output->ResizeLike(anchors_);
-  auto out_boxes = reinterpret_cast<BBox *>(bboxes_output->mutable_data<float>());
+  bboxes_output->set_type(bboxes_input.type());
+  bboxes_output->Resize({NumAnchors(), BoundingBox::kSize});
+  auto out_boxes = bboxes_output->mutable_data<float>();
 
   auto labels_output = ws->Output<CPUBackend>(1);
   labels_output->set_type(labels_input.type());
-  labels_output->Resize({M_});
+  labels_output->Resize({NumAnchors()});
   auto out_labels = labels_output->mutable_data<int>();
 
-  // Copy default boxes (anchors) to output
-  TypeInfo type = anchors_.type();
-  type.Copy<CPUBackend, CPUBackend>(bboxes_output->raw_mutable_data(), anchors_.raw_data(),
-                                    anchors_.size(), 0);
+  for (int idx = 0; idx < NumAnchors(); ++idx)
+    anchors_[idx].CopyAsCenterWh(out_boxes + idx * BoundingBox::kSize);
 
-  FindMatchingAnchors(ious.data(), N, bboxes, labels, out_boxes, out_labels);
+  MatchBoxesWithAnchors(boxes, labels, out_boxes, out_labels);
 }
 
 DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<CPUBackend>, CPU);
 
 DALI_SCHEMA(BoxEncoder)
     .DocStr(
-        R"code("Encodes input bounding boxes and labels using set of default boxes (anchors) passed 
-        during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and 
-        implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
-        Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as 
-        `[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box. 
-        Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`, 
-        where M is number of anchors and `EncodedLabels` containing the corresponding label for each
-        encoded box.")code")
+        R"code("Encodes input bounding boxes and labels using set of default boxes (anchors) passed
+during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and
+implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd
+Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as
+`[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box.
+Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`,
+where M is number of anchors and `EncodedLabels` containing the corresponding label for each
+encoded box.")code")
     .NumInput(2)
     .NumOutput(2)
     .AddArg("anchors",

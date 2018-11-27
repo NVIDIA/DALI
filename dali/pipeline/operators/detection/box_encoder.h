@@ -19,19 +19,18 @@
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/util/bounding_box.h"
 
 namespace dali {
 
-template <typename Backend>
-class BoxEncoder : public Operator<Backend> {
+template<typename Backend>
+class BoxEncoder;
+
+template <>
+class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
  public:
-  using Anchor = float4;
-  using BBox = float4;
-
-  static const int BoxSize = 4;
-
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<Backend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
+      : Operator<CPUBackend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
     DALI_ENFORCE(
       criteria_ >= 0.f,
       "Expected criteria >= 0, actual value = " + std::to_string(criteria_));
@@ -42,14 +41,11 @@ class BoxEncoder : public Operator<Backend> {
     auto anchors = spec.GetArgument<vector<float>>("anchors");
 
     DALI_ENFORCE(
-      (anchors.size() % BoxSize) == 0,
-      "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors_.size()));
-    M_ = anchors.size() / BoxSize;
+      (anchors.size() % BoundingBox::kSize) == 0,
+      "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-    anchors_.Resize({M_, BoxSize});
-    float *anchors_data = anchors_.template mutable_data<float>();
-
-    MemCopy(anchors_data, anchors.data(), anchors.size() * sizeof(float));
+    anchors_ = BoundingBox::FromLtrbArray(
+      anchors.data(), anchors.size() / BoundingBox::kSize, false);
   }
 
   virtual ~BoxEncoder() = default;
@@ -57,15 +53,18 @@ class BoxEncoder : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
-
-  void FindMatchingAnchors(const float *ious, const int64 N, const BBox *bboxes,
-                           const int *labels, BBox *out_boxes, int *out_labels);
+  void RunImpl(Workspace<CPUBackend> *ws, const int idx) override;
 
  private:
   const float criteria_;
-  Tensor<Backend> anchors_;
-  int M_;
+  vector<BoundingBox> anchors_;
+
+  int NumAnchors() { return anchors_.size(); }
+
+  vector<float> CalculateIous(vector<BoundingBox> boxes);
+
+  void MatchBoxesWithAnchors(
+    const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels);
 };
 
 }  // namespace dali
