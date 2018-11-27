@@ -58,7 +58,7 @@ const TestData wh_rois = {{
 
 }  // namespace
 
-class BbFlipV2Test : public DaliOperatorTest<Roi, Roi> {
+class BbFlipTest : public DaliOperatorTest<Roi, Roi> {
 
   std::vector<std::pair<Roi, Shape>> SetInputs() const override {
     std::vector<std::pair<Roi, Shape>> inputs;
@@ -91,7 +91,7 @@ private:
   float epsilon_ = 0.001f;
 };
 
-TEST_F(BbFlipV2Test, HorizontalTest) {
+TEST_F(BbFlipTest, HorizontalTest) {
   std::vector<Roi> anticipated_outputs;
   for (auto roi_set : wh_rois) {
     anticipated_outputs.emplace_back(roi_set[1]);
@@ -99,7 +99,7 @@ TEST_F(BbFlipV2Test, HorizontalTest) {
   this->RunTest<CPUBackend>({{"horizontal", 1},{"vertical", 0}}, anticipated_outputs);
 }
 
-TEST_F(BbFlipV2Test, VerticalTest) {
+TEST_F(BbFlipTest, VerticalTest) {
   std::vector<Roi> anticipated_outputs;
   for (auto roi_set : wh_rois) {
     anticipated_outputs.emplace_back(roi_set[2]);

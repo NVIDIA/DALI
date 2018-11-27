@@ -132,7 +132,7 @@ void InjectTestData(const TestData &test_data, DataType *destination) {
 }  // namespace
 
 template<typename ImageType>
-class BbFlipTest : public DALISingleOpTest<ImageType> {
+class BbFlipTestOld : public DALISingleOpTest<ImageType> {
  protected:
   std::vector<TensorList<CPUBackend> *>
   Reference(const std::vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
@@ -201,9 +201,9 @@ class BbFlipTest : public DALISingleOpTest<ImageType> {
 //      Therefore this test had to be TYPED, regardless
 //      of the fact, that it's unnecessary.
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(BbFlipTest, Types);
+TYPED_TEST_CASE(BbFlipTestOld, Types);
 
-TYPED_TEST(BbFlipTest, VerticalWHTest) {
+TYPED_TEST(BbFlipTestOld, VerticalWHTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
@@ -211,7 +211,7 @@ TYPED_TEST(BbFlipTest, VerticalWHTest) {
 }
 
 
-TYPED_TEST(BbFlipTest, Vertical2PTest) {
+TYPED_TEST(BbFlipTestOld, Vertical2PTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
@@ -219,7 +219,7 @@ TYPED_TEST(BbFlipTest, Vertical2PTest) {
 }
 
 
-TYPED_TEST(BbFlipTest, HorizontalWHTest) {
+TYPED_TEST(BbFlipTestOld, HorizontalWHTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
@@ -227,7 +227,7 @@ TYPED_TEST(BbFlipTest, HorizontalWHTest) {
 }
 
 
-TYPED_TEST(BbFlipTest, Horizontal2PTest) {
+TYPED_TEST(BbFlipTestOld, Horizontal2PTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &two_pt_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
@@ -235,7 +235,7 @@ TYPED_TEST(BbFlipTest, Horizontal2PTest) {
 }
 
 
-TYPED_TEST(BbFlipTest, NoFlipTest) {
+TYPED_TEST(BbFlipTestOld, NoFlipTest) {
   TensorList<CPUBackend> bb_test_data;
   this->LoadBbData(bb_test_data, &wh_rois);
   this->SetExternalInputs({std::make_pair("bb_input", &bb_test_data)});
