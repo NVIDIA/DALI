@@ -127,8 +127,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
       count_(spec.GetArgument<int>("count")),
-      output_height_(spec.GetArgument<int>("height")),
-      output_width_(spec.GetArgument<int>("width")),
       height_(0),
       width_(0),
       filenames_(filenames),
@@ -164,7 +162,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   ~VideoLoader() noexcept {
     done_ = true;
-    send_queue_.cancel_pops();
+    send_queue_.shutdown();
     if (vid_decoder_) {
       vid_decoder_->finish();
     }
@@ -187,6 +185,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
+  std::pair<int, int> load_width_height(const std::string& filename);
 
   // Params
   int count_;

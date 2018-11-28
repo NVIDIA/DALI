@@ -26,12 +26,17 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   : DataReader<GPUBackend, SequenceWrapper>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     count_(spec.GetArgument<int>("count")),
-    height_(spec.GetArgument<int>("height")),
-    width_(spec.GetArgument<int>("width")),
-    channels_(spec.GetArgument<int>("channels")) {
-    	loader_.reset(new VideoLoader(spec, filenames_));
+    channels_(spec.GetArgument<int>("channels")),
+    output_scale_(spec.GetArgument<float>("scale")) {
+    // TODO(spanev): support rescale
       try {
+    	  
+        loader_.reset(new VideoLoader(spec, filenames_));
         dynamic_cast<VideoLoader*>(loader_.get())->init();
+        auto w_h = dynamic_cast<VideoLoader*>(loader_.get())->load_width_height(filenames_[0]);
+        width_ = static_cast<int>(w_h.first * output_scale_);
+        height_ = static_cast<int>(w_h.second * output_scale_);
+
       } catch (std::runtime_error& e) {
         DALI_FAIL(std::string(e.what()));
       }
@@ -73,6 +78,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   int height_;
   int width_;
   int channels_;
+
+  float output_scale_;
 
   std::vector<std::vector<Index>> tl_shape_;
 

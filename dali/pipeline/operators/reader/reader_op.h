@@ -81,14 +81,15 @@ class DataReader : public Operator<Backend> {
     std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
 
     // if a result is already ready, wait until it's consumed
-    producer_.wait(lock, [&]() { return !prefetched_batch_ready_.load(); });
+    producer_.wait(lock, [&]() { return !prefetched_batch_ready_; });
 
     while (!finished_) {
       try {
         Prefetch();
       } catch (const std::exception& e) {
-        std::cout << "Prefetch Failed" << std::endl;
-        DALI_FAIL(e.what());
+        std::stringstream ss;
+        ss << "Prefetch Failed: " << e.what();
+        DALI_FAIL(ss.str());
       }
       // mark as ready
       prefetched_batch_ready_ = true;
@@ -96,7 +97,7 @@ class DataReader : public Operator<Backend> {
       consumer_.notify_all();
 
       // wait until the result is consumed
-      producer_.wait(lock, [&]() { return !prefetched_batch_ready_.load(); });
+      producer_.wait(lock, [&]() { return !prefetched_batch_ready_; });
     }
   }
 
@@ -117,7 +118,7 @@ class DataReader : public Operator<Backend> {
       {
         std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
 
-        consumer_.wait(lock, [&]() { return prefetched_batch_ready_.load(); });
+        consumer_.wait(lock, [&]() { return prefetched_batch_ready_; });
         finished_ = true;
         prefetched_batch_ready_ = false;
       }
@@ -150,7 +151,7 @@ class DataReader : public Operator<Backend> {
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_.load(); });
+        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
 
@@ -204,7 +205,7 @@ class DataReader : public Operator<Backend> {
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_.load(); });
+        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
 
@@ -256,7 +257,7 @@ class DataReader : public Operator<Backend> {
   std::condition_variable worker_threads_;
 
   // signal that a complete batch has been prefetched
-  std::atomic<bool> prefetched_batch_ready_;
+  bool prefetched_batch_ready_;
   std::atomic<bool> prefetch_ready_workers_;
 
   // signal that the prefetch thread has finished

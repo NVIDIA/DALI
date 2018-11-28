@@ -391,6 +391,43 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     }
 }
 
+std::pair<int, int> VideoLoader::load_width_height(const std::string& filename) {
+    av_register_all();
+
+    AVFormatContext* raw_fmt_ctx = nullptr;
+    auto ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
+    if (ret < 0) {
+        std::stringstream ss;
+        ss << "Could not open file " << filename
+            << ": " << av_err2str(ret);
+        DALI_FAIL(ss.str());
+    }
+
+    auto fmt_ctx = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
+
+    if (avformat_find_stream_info(fmt_ctx.get(), nullptr) < 0) {
+        std::stringstream ss;
+        ss << "Could not find stream information in " << filename;
+        DALI_FAIL(ss.str());
+    }
+
+    auto vid_stream_idx_ = av_find_best_stream(fmt_ctx.get(), AVMEDIA_TYPE_VIDEO,
+                                               -1, -1, nullptr, 0);
+    if (vid_stream_idx_ < 0) {
+        std::stringstream ss;
+        ss << "Could not find video stream in " << filename;
+        DALI_FAIL(ss.str());
+    }
+
+    auto stream = fmt_ctx->streams[vid_stream_idx_];
+
+    output_width_ = codecpar(stream)->width;
+    output_height_ = codecpar(stream)->height;
+
+    return std::make_pair(codecpar(stream)->width,
+                          codecpar(stream)->height);
+}
+
 void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
     tensor->initialize(count_, height_, width_, 3);
 }

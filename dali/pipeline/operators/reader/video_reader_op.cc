@@ -39,12 +39,9 @@ number of frames).)code")
   .AddArg("count",
       R"code(Frames to load per batch.)code",
       DALI_INT32)
-  .AddArg("height",
-      R"code(Height of the desired frames.)code",
-      DALI_INT32)
-  .AddArg("width",
-      R"code(Width of the desired frames.)code",
-      DALI_INT32)
+  .AddOptionalArg("scale",
+      R"code(Rescaling factor of height and width.)code",
+      1.f)
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
       3)

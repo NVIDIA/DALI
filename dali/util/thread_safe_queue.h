@@ -65,7 +65,7 @@ class ThreadSafeQueue {
         return queue_.size();
     }
 
-    void cancel_pops() {
+    void shutdown() {
         interrupt_ = true;
         cond_.notify_all();
     }
@@ -74,7 +74,7 @@ class ThreadSafeQueue {
     std::queue<T> queue_;
     std::mutex lock_;
     std::condition_variable cond_;
-    std::atomic<bool> interrupt_;
+    bool interrupt_;
 };
 
 }  // namespace dali

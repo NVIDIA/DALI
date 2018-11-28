@@ -485,9 +485,9 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
 
 void NvDecoder::finish() {
     done_ = true;
-    recv_queue_.cancel_pops();
-    frame_queue_.cancel_pops();
-    output_queue_.cancel_pops();
+    recv_queue_.shutdown();
+    frame_queue_.shutdown();
+    output_queue_.shutdown();
 }
 
  void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
