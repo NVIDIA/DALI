@@ -448,7 +448,10 @@ void NvDecoder::convert_frames_worker() {
             LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
                         << frame_queue_.size() << " reqs left"
                         << std::endl;
-            auto frame = MappedFrame{frame_queue_.pop(), decoder_, stream_};
+
+            auto* frame_disp_info = frame_queue_.pop();
+            if (done_) break;
+            auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
             if (done_) break;
             convert_frame(frame, sequence, i);
         }
