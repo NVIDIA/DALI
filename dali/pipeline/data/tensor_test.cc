@@ -418,4 +418,56 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor.nbytes());
 }
 
+TYPED_TEST(TensorTest, TestSubspaceTensor) {
+  // Insufficient dimensions
+  {
+    Tensor<TypeParam> empty_tensor;
+    vector<Index> empty_shape = {};
+    empty_tensor.Resize(empty_shape);
+    empty_tensor.set_type(TypeInfo::Create<uint8_t>());
+    ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
+  }
+  {
+    Tensor<TypeParam> one_dim_tensor;
+    vector<Index> one_dim_shape = {42};
+    one_dim_tensor.Resize(one_dim_shape);
+    one_dim_tensor.set_type(TypeInfo::Create<uint8_t>());
+    ASSERT_ANY_THROW(one_dim_tensor.SubspaceTensor(0));
+  }
+
+  // Wrong subspace
+  {
+    Tensor<TypeParam> tensor;
+    auto shape = this->GetRandShape();
+    shape.push_back(42);  // ensure we have at least two dims
+    tensor.Resize(shape);
+    tensor.set_type(TypeInfo::Create<uint8_t>());
+    ASSERT_ANY_THROW(tensor.SubspaceTensor(-1));
+    ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0]));
+    ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0] + 1));
+  }
+
+  // Valid subspace:
+  {
+    Tensor<TypeParam> tensor;
+    auto shape = this->GetRandShape();
+    shape.push_back(42);  // ensure we have at least two dims
+    tensor.Resize(shape);
+    tensor.set_type(TypeInfo::Create<uint8_t>());
+    int plane_size = 1;
+    for (size_t i = 1; i < shape.size(); i++) {
+      plane_size *= shape[i];
+    }
+    auto *base_ptr = tensor.template data<uint8_t>();
+    for (Index i = 0; i < shape[0]; i++) {
+      auto subspace = tensor.SubspaceTensor(i);
+      ASSERT_EQ(subspace.template data<uint8_t>(), base_ptr + plane_size * i);
+      ASSERT_EQ(subspace.ndim(), tensor.ndim() - 1);
+      for (int j = 0; j < subspace.ndim(); j++) {
+        ASSERT_EQ(subspace.dim(j), tensor.dim(j + 1));
+      }
+    }
+  }
+}
+
 }  // namespace dali
