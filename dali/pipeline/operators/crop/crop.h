@@ -21,8 +21,8 @@
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/crop/basic/crop.h"
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/basic/crop.h"
 
 namespace dali {
 
@@ -161,9 +161,9 @@ class Crop : public Operator<Backend>, protected CropAttr {
   template <typename Kernel>
   void AllocateOutput(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
                       Tensor<CPUBackend> *output) {
-    auto in_shape = basic::ToStaticShape<Kernel::input_dim>(input.shape());
+    auto in_shape = basic_crop::ToStaticShape<Kernel::input_dim>(input.shape());
     auto out_shape = Kernel::CalcOutputSize(in_shape, args);
-    output->Resize(basic::ToDynamicShape(out_shape));
+    output->Resize(basic_crop::ToDynamicShape(out_shape));
   }
 
   // Invoke Run from CropKernel
@@ -174,9 +174,9 @@ class Crop : public Operator<Backend>, protected CropAttr {
     // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
 
     const auto *in = input.template data<typename Kernel::InputType>();
-    auto in_shape = basic::ToStaticShape<Kernel::input_dim>(input.shape());
+    auto in_shape = basic_crop::ToStaticShape<Kernel::input_dim>(input.shape());
     auto *out = output->template mutable_data<typename Kernel::OutputType>();
-    auto out_shape = basic::ToStaticShape<Kernel::output_dim>(output->shape());
+    auto out_shape = basic_crop::ToStaticShape<Kernel::output_dim>(output->shape());
     Kernel::Run(in, in_shape, args, out, out_shape);
   }
 

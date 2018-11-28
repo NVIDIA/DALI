@@ -14,12 +14,11 @@
 
 #include <tuple>
 
-#include "dali/pipeline/operators/crop/crop.h"
 #include "dali/image/transform.h"
-#include "dali/pipeline/basic/coords.h"
-#include "dali/pipeline/basic/crop.h"
+#include "dali/pipeline/operators/crop/basic/coords.h"
+#include "dali/pipeline/operators/crop/basic/crop.h"
+#include "dali/pipeline/operators/crop/crop.h"
 #include "dali/util/half.hpp"
-#include "dali/pipeline/util/typed_layout.h"
 
 namespace dali {
 
@@ -92,50 +91,50 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   // Check if we use u8, RGB or Greyscale
   CheckParam(input, "CropCPUBackend");
 
-  // Call AllocateAndRunKernel with basic::Crop<uint8_t, output_type_, out_layout>,
+  // Call AllocateAndRunKernel with basic_crop::Crop<uint8_t, output_type_, out_layout>,
   // Note, that the last two template arguments are runtime values.
   if (out_layout == DALI_NHWC) {
-    using nhwc_t = dali_index_sequence<0, 1, 2>;
+    using nhwc_t = basic_crop::dali_index_sequence<0, 1, 2>;
     if (output_type_ == DALI_FLOAT16) {
-      using Kernel = basic::Crop<uint8_t, half_float::half, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, half_float::half, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_FLOAT) {
-      using Kernel = basic::Crop<uint8_t, float, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, float, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_UINT8) {
-      using Kernel = basic::Crop<uint8_t, uint8_t, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, uint8_t, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT16) {
-      using Kernel = basic::Crop<uint8_t, int16_t, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int16_t, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT32) {
-      using Kernel = basic::Crop<uint8_t, int32_t, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int32_t, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT64) {
-      using Kernel = basic::Crop<uint8_t, int64_t, nhwc_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int64_t, nhwc_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else {
       DALI_FAIL("Unsupported output type.");
     }
   } else if (out_layout == DALI_NCHW) {
-    using nchw_t = dali_index_sequence<2, 0, 1>;
+    using nchw_t = basic_crop::dali_index_sequence<2, 0, 1>;
     if (output_type_ == DALI_FLOAT16) {
-      using Kernel = basic::Crop<uint8_t, half_float::half, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, half_float::half, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_FLOAT) {
-      using Kernel = basic::Crop<uint8_t, float, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, float, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_UINT8) {
-      using Kernel = basic::Crop<uint8_t, uint8_t, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, uint8_t, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT16) {
-      using Kernel = basic::Crop<uint8_t, int16_t, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int16_t, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT32) {
-      using Kernel = basic::Crop<uint8_t, int32_t, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int32_t, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_INT64) {
-      using Kernel = basic::Crop<uint8_t, int64_t, nchw_t>;
+      using Kernel = basic_crop::Crop<uint8_t, int64_t, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else {
       DALI_FAIL("Unsupported output type.");

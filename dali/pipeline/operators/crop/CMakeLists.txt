@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+add_subdirectory(basic)
+
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
 set(DALI_SRCS ${DALI_SRCS} ${tmp})

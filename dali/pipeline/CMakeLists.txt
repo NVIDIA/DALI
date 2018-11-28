@@ -13,7 +13,6 @@
 # limitations under the License.
 
 # Add all subdirectories
-add_subdirectory(basic)
 add_subdirectory(data)
 add_subdirectory(operators)
 add_subdirectory(util)

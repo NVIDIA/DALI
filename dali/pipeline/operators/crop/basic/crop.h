@@ -19,11 +19,11 @@
 #include <vector>
 
 #include "dali/common.h"
-#include "dali/pipeline/basic/coords.h"
-#include "dali/pipeline/basic/sequence.h"
+#include "dali/pipeline/operators/crop/basic/coords.h"
+#include "dali/pipeline/operators/crop/basic/sequence.h"
 
 namespace dali {
-namespace basic {
+namespace basic_crop {
 
 template <size_t N>
 std::array<Index, N> ToStaticShape(const std::vector<Index> &shape) {
@@ -87,7 +87,7 @@ class Crop {
 template <typename InType, typename OutType, typename OutLayout>
 using SequenceCrop = SequenceAdapter<Crop<InType, OutType, OutLayout>>;
 
-}  // namespace basic
+}  // namespace basic_crop
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_BASIC_CROP_H_

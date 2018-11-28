@@ -15,8 +15,8 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-#include "dali/pipeline/basic/coords.h"
-#include "dali/pipeline/basic/crop.h"
+#include "dali/pipeline/operators/crop/basic/coords.h"
+#include "dali/pipeline/operators/crop/basic/crop.h"
 
 namespace dali {
 
@@ -93,10 +93,13 @@ TYPED_TEST(BasicCropTest, FlatCrop) {
   std::array<Index, 3> in_shape = {TypeParam::H, TypeParam::W, TypeParam::C};
   std::array<Index, 3> out_shape = {TypeParam::outH, TypeParam::outW, TypeParam::C};
 
-  basic::Crop<typename TypeParam::InT, typename TypeParam::OutT, dali_index_sequence<0, 1, 2>>::Run(
-      this->input, in_shape,
-      {TypeParam::startH, TypeParam::startW, TypeParam::outH, TypeParam::outW}, this->output,
-      out_shape);
+  basic_crop::Crop<typename TypeParam::InT, typename TypeParam::OutT,
+                   basic_crop::dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
+                                                                  {TypeParam::startH,
+                                                                   TypeParam::startW,
+                                                                   TypeParam::outH,
+                                                                   TypeParam::outW},
+                                                                  this->output, out_shape);
 }
 
 using CropSequenceTypes =
@@ -112,11 +115,13 @@ TYPED_TEST(SequenceCropTest, SequenceCrop) {
   std::array<Index, 4> in_shape = {TypeParam::S, TypeParam::H, TypeParam::W, TypeParam::C};
   std::array<Index, 4> out_shape = {TypeParam::S, TypeParam::outH, TypeParam::outW, TypeParam::C};
 
-  basic::SequenceCrop<typename TypeParam::InT, typename TypeParam::OutT,
-                      dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
-                                                         {TypeParam::startH, TypeParam::startW,
-                                                          TypeParam::outH, TypeParam::outW},
-                                                         this->output, out_shape);
+  basic_crop::SequenceCrop<typename TypeParam::InT, typename TypeParam::OutT,
+                           basic_crop::dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
+                                                                          {TypeParam::startH,
+                                                                           TypeParam::startW,
+                                                                           TypeParam::outH,
+                                                                           TypeParam::outW},
+                                                                          this->output, out_shape);
 }
 
 }  // namespace dali

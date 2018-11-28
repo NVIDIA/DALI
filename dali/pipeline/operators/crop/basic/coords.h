@@ -20,7 +20,7 @@
 #include <iostream>
 
 namespace dali {
-namespace basic {
+namespace basic_crop {
 
 namespace detail {
 
@@ -102,10 +102,7 @@ int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords,
 
 // TODO(klecki) - case where sizes are already permutated, go back to more compile time expansion?
 
-}  // namespace basic
-
-using basic::dali_index_sequence;
-using basic::permuteShape;
+}  // namespace basic_crop
 
 }  // namespace dali
 

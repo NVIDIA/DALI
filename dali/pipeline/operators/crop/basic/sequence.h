@@ -18,7 +18,7 @@
 #include <type_traits>
 
 namespace dali {
-namespace basic {
+namespace basic_crop {
 
 namespace detail {
 
@@ -36,7 +36,7 @@ template <size_t N>
 std::array<int64_t, N - 1> GetSubspaceShape(const std::array<int64_t, N> &shape) {
   static_assert(N > 1, "To get subspace there must be at least two dimensions");
   std::array<int64_t, N - 1> result;
-  for (int i = 1; i < N; i++) {
+  for (size_t i = 1; i < N; i++) {
     result[i - 1] = shape[i];
   }
   return result;
@@ -92,7 +92,7 @@ struct SequenceAdapter {
   }
 };
 
-}  // namespace basic
+}  // namespace basic_crop
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_BASIC_SEQUENCE_H_

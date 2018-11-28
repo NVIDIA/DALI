@@ -17,8 +17,8 @@
 
 #include <vector>
 
+#include "dali/pipeline/operators/crop/basic/crop.h"
 #include "dali/pipeline/operators/crop/crop.h"
-#include "dali/pipeline/basic/crop.h"
 
 namespace dali {
 
