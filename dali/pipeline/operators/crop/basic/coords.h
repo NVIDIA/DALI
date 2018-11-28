@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_BASIC_COORDS_H_
-#define DALI_PIPELINE_BASIC_COORDS_H_
+#ifndef DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
+#define DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
 
 #include <array>
 #include <cstdint>
@@ -106,4 +106,4 @@ int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords,
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_BASIC_COORDS_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
