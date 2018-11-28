@@ -110,53 +110,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
   template <typename Out>
   void RunHelper(Workspace<Backend> *ws, const int idx);
 
- private:
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
-
-  void SetupSharedSampleParams(const ArgumentWorkspace *ws, const vector<Index> &inputShape,
-                               int threadIdx, int dataIdx) {
-    DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
-
-    const int H = inputShape[0];
-    const int W = inputShape[1];
-
-    per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
-
-    int C = inputShape[2];
-    DALI_ENFORCE(C == C_,
-                 "Input channel dimension does not match "
-                 "the output image type. Expected input with " +
-                     to_string(C_) + " channels, got " + to_string(C) + ".");
-
-    per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
-  }
-
-  void Init(int size) {
-    per_sample_crop_.resize(size);
-    per_sample_dimensions_.resize(size);
-    output_type_ = DALI_NO_TYPE;
-    output_layout_ = DALI_SAME;
-  }
-
-  void CallRunHelper(Workspace<Backend> *ws, int idx) {
-    if (output_type_ == DALI_FLOAT) {
-      RunHelper<float>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      RunHelper<unsigned char>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      RunHelper<int16>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      RunHelper<int>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      RunHelper<int64>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
-  }
-
- protected:
   // Invoke CalcOutputSize from CropKernel
   template <typename Kernel>
   void AllocateOutput(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
@@ -213,6 +166,53 @@ class Crop : public Operator<Backend>, protected CropAttr {
   DALITensorLayout output_layout_;
 
   USE_OPERATOR_MEMBERS();
+
+ private:
+  void DataDependentSetup(Workspace<Backend> *ws, int idx);
+  template <typename Out>
+  void ValidateHelper(TensorList<Backend> *output);
+
+  void SetupSharedSampleParams(const ArgumentWorkspace *ws,
+                               const vector<Index> &inputShape, int threadIdx,
+                               int dataIdx) {
+    DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
+
+    const int H = inputShape[0];
+    const int W = inputShape[1];
+
+    per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
+
+    int C = inputShape[2];
+    DALI_ENFORCE(C == C_,
+                 "Input channel dimension does not match "
+                 "the output image type. Expected input with " +
+                     to_string(C_) + " channels, got " + to_string(C) + ".");
+
+    per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
+  }
+
+  void Init(int size) {
+    per_sample_crop_.resize(size);
+    per_sample_dimensions_.resize(size);
+    output_type_ = DALI_NO_TYPE;
+    output_layout_ = DALI_SAME;
+  }
+
+  void CallRunHelper(Workspace<Backend> *ws, int idx) {
+    if (output_type_ == DALI_FLOAT) {
+      RunHelper<float>(ws, idx);
+    } else if (output_type_ == DALI_UINT8) {
+      RunHelper<unsigned char>(ws, idx);
+    } else if (output_type_ == DALI_INT16) {
+      RunHelper<int16>(ws, idx);
+    } else if (output_type_ == DALI_INT32) {
+      RunHelper<int>(ws, idx);
+    } else if (output_type_ == DALI_INT64) {
+      RunHelper<int64>(ws, idx);
+    } else {
+      DALI_FAIL("Unsupported output type.");
+    }
+  }
 };
 
 }  // namespace dali
