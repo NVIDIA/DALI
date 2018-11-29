@@ -47,7 +47,7 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
     if (eCodec >= 0 && eCodec <= cudaVideoCodec_NumCodecs) {
         return aCodecName[eCodec].name;
     }
-    for (size_t i = cudaVideoCodec_NumCodecs + 1; i < sizeof(aCodecName) / sizeof(aCodecName[0]); i++) {
+    for (size_t i = static_cast<size_t>(cudaVideoCodec_NumCodecs) + 1; i < sizeof(aCodecName) / sizeof(aCodecName[0]); i++) {
         if (eCodec == aCodecName[i].eCodec) {
             return aCodecName[eCodec].name;
         }
@@ -66,7 +66,7 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
         { cudaVideoChromaFormat_444,        "YUV 444"              },
     };
 
-    if (eChromaFormat >= 0 && eChromaFormat < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
+    if (static_cast<size_t>(eChromaFormat) >= 0 && static_cast<size_t>(eChromaFormat) < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
         return aChromaFormatName[eChromaFormat].name;
     }
     return "Unknown";
