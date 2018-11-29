@@ -483,6 +483,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("FLOAT", DALI_FLOAT)
     .value("INT64", DALI_INT64)
     .value("INT32", DALI_INT32)
+    .value("INT16", DALI_INT16)
     .value("BOOL", DALI_BOOL)
     .value("STRING", DALI_STRING)
     .value("_BOOL_VEC", DALI_BOOL_VEC)
