@@ -39,15 +39,6 @@ int64_t getOffsetImplLinear(const T& shape, std::array<int64_t, N> coords) {
 template <int64_t... Ints>
 class dali_index_sequence {};
 
-template <typename T>
-struct index_to_array {};
-
-template <int64_t... Ints>
-struct index_to_array<dali_index_sequence<Ints...>> {
-  static constexpr std::array<int64_t, sizeof...(Ints)> array = {Ints...};
-  static constexpr size_t N = sizeof...(Ints);
-};
-
 /**
  * @brief Permute shape by given order
  *
