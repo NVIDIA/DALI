@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_CROP_BASIC_SEQUENCE_H_
 #define DALI_PIPELINE_OPERATORS_CROP_BASIC_SEQUENCE_H_
 
+#include <array>
+#include <cstdint>
 #include <type_traits>
 
 namespace dali {
