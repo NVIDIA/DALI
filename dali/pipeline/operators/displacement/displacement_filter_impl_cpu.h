@@ -188,6 +188,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     auto &input = ws->Input<CPUBackend>(idx);
     auto *output = ws->Output<CPUBackend>(idx);
 
+    DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
+
     const auto H = input.shape()[0];
     const auto W = input.shape()[1];
     const auto C = input.shape()[2];

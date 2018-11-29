@@ -81,9 +81,10 @@ enum DALIImageType { DALI_RGB = 0, DALI_BGR = 1, DALI_GRAY = 2 };
  */
 enum DALITensorLayout {
   DALI_UNKNOWN = -1,
-  DALI_NCHW = 0,
-  DALI_NHWC = 1,
-  DALI_SAME = 2
+  DALI_NCHW  = 0,
+  DALI_NHWC  = 1,
+  DALI_NFHWC = 2,
+  DALI_SAME  = 3
 };
 
 inline bool IsColor(DALIImageType type) {
@@ -212,6 +213,10 @@ inline std::string to_string(const DALITensorLayout& layout) {
       return "NCHW";
     case DALI_NHWC:
       return "NHWC";
+    case DALI_NFHWC:
+      return "NFHWC";
+    case DALI_SAME:
+      return "SAME";
     default:
       return "<unknown>";
   }

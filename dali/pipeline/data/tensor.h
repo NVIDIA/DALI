@@ -15,11 +15,12 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_H_
 #define DALI_PIPELINE_DATA_TENSOR_H_
 
+#include <algorithm>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <algorithm>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -39,6 +40,36 @@ class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() : meta_(DALI_NHWC) {}
   inline ~Tensor() = default;
+
+  /**
+   *
+   * @brief For tensor T of shape (s_0, s_1, ..., s_{n-1}) returns a n-1 dimensional tensor T'
+   *        of shape (s_1, s_2, ..., s_{n-1}), such that
+   *        T'(x_1, x_2, ..., x_{n-1}) = T(x, x_1, x_2, ..., x_{n-1})
+   *        for param 'x' and any valid x_1, x_2, ..., x_{n-1}
+   *
+   * Tensor should have at least 2 dimensions.
+   * Returned tensor is treated as a view to this tensors and shares memory with it.
+   * @param x Subspace between 0 and dim(0) - 1.
+   * @return Tensor<Backend>
+   */
+  Tensor<Backend> SubspaceTensor(Index x) {
+    DALI_ENFORCE(ndim() > 1,
+                 "To obtain subspace tensor, source tensor should have at least 2 dimensions");
+    DALI_ENFORCE(0 <= x && x < dim(0), "'x' should be valid index to first dimension: [0, dim(0))");
+    Tensor<Backend> view;
+    view.shape_ = std::vector<Index>(shape_.begin() + 1, shape_.end());
+    view.backend_ = backend_;
+    view.type_ = type_;
+    view.size_ = size_ / shape_[0];
+    view.num_bytes_ = view.type_.size() * view.size_;
+    // Point to data, as we are sharing use no-op deleter
+    view.data_.reset(static_cast<uint8_t *>(this->raw_mutable_data()) + x * view.num_bytes_,
+                     [](void *) {});
+    view.shares_data_ = true;
+    view.device_ = device_;
+    return view;
+  }
 
   /**
    * Loads the Tensor with data from the input vector.
