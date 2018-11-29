@@ -60,13 +60,13 @@ dali_dataset_module = _dali_tf_module.dali_dataset
 class DALIDataset(tf.data.Dataset):
     """A `Dataset` wrapping DALI iterators spread across a number of devices."""
 
-    def __init__(self, pipeline=None, shape=None, dtypes=None, devices=None):
+    def __init__(self, pipeline=None, shapes=None, dtypes=None, devices=None):
         """Creates a `DALIDataset`.
        Args:
          pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
-         shapes: A `tf.TensorShape` object with the expected features output shape
-         dtypes: A collection of `tf.Dtype` with the type of the output features and labels
-         devices: A collection of `int` with device ids
+         shapes: A `List` of `tf.TensorShape` with the expected output shapes
+         dtypes: A `List` of `tf.DType` with the expected output types
+         devices: A `List` of `int` with device ids
 
        """
         super(DALIDataset, self).__init__()
@@ -76,10 +76,10 @@ class DALIDataset(tf.data.Dataset):
         else:
             raise ValueError('No value provided for parameter \'pipeline\'')
 
-        if shape:
-            self._shape = shape
+        if shapes:
+            self._shapes = shapes
         else:
-            raise ValueError('No value provided for parameter \'shape\'')
+            raise ValueError('No value provided for parameter \'shapes\'')
 
         if dtypes:
             self._dtypes = dtypes
