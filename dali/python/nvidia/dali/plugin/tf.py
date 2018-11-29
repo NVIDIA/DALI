@@ -52,7 +52,8 @@ dali_dataset_module = _dali_tf_module.dali_dataset
 
 class DALIDataset(tf.data.Dataset):
 
-  def __init__(self, image_type=None, label_type=None):
+# todo: Add validation for types of parameters
+  def __init__(self, image_type=None, label_type=None, output_shape=None):
     super(DALIDataset, self).__init__()
 
     if image_type:
@@ -65,6 +66,11 @@ class DALIDataset(tf.data.Dataset):
     else:
       raise ValueError('No value provided for parameter \'label_type\'')
 
+    if output_shape:
+      self._output_shape = output_shape
+    else:
+      raise ValueError('No value provided for parameter \'output_shape\'')
+
   def _as_variant_tensor(self):
     return dali_dataset_module.dali_dataset()
 
@@ -74,7 +80,7 @@ class DALIDataset(tf.data.Dataset):
 
   @property
   def output_shapes(self):
-    raise NotImplementedError
+    return self._output_shape
 
   @property
   def output_classes(self):
