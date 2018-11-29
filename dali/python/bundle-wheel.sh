@@ -90,11 +90,19 @@ make_wheel_record() {
 DEPS_LIST=(
     "lib/libdali.so"
     "/usr/local/lib/libturbojpeg.so.0"
+    "/usr/local/lib/libavformat.so.57"
+    "/usr/local/lib/libavcodec.so.57"
+    "/usr/local/lib/libavfilter.so.6"
+    "/usr/local/lib/libavutil.so.55"
 )
 
 DEPS_SONAME=(
     "libdali.so"
     "libturbojpeg.so.0"
+    "libavformat.so.57"
+    "libavcodec.so.57"
+    "libavfilter.so.6"
+    "libavutil.so.55"
 )
 
 TMPDIR=$(mktemp -d)
