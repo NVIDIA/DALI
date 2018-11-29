@@ -57,7 +57,7 @@ REGISTER_OP("Dali")
   .Attr("device_id: int = -1")
   .Attr("prefetch_queue_depth: int = 2")
   .Output("data: dtypes")
-  .Attr("dtypes: list({float, int32, int64, half}) >= 1")
+  .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
   .SetShapeFn(tf::dali_shape_fn)
   .Doc(R"doc(
 DALI TensorFlow plugin
@@ -155,17 +155,23 @@ class DaliOp : public tf::OpKernel {
     for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
       void *dst = nullptr;
       switch (types_[i]) {
+        case tf::DT_HALF:
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data());
+          break;
         case tf::DT_FLOAT:
               dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<float>().data());
           break;
+        case tf::DT_UINT8:
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint8_t>().data());
+          break;
+        case tf::DT_INT16:
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int16_t>().data());
+          break;
         case tf::DT_INT32:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int>().data());
+              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int32_t>().data());
           break;
         case tf::DT_INT64:
               dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<tf::int64>().data());
-          break;
-        case tf::DT_HALF:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data());
           break;
         default:
           context->CtxFailure(__FILE__, __LINE__,
