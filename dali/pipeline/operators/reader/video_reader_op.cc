@@ -28,7 +28,7 @@ DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
 DALI_SCHEMA(VideoReader)
   .DocStr(R"code(
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
-The video codecs can be contained in most of container file formats.
+The video codecs can be contained in most of container file formats. FFmpeg is used to parse video containers.
 Returns a batch of sequences of `count` frames of shape [N, S, H, W, C] (N being the batch size and S the
 number of frames).)code")
   .NumInput(0)

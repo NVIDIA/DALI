@@ -33,12 +33,12 @@
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
 
-class AVPacket;
+struct AVPacket;
 #ifdef HAVE_AVSTREAM_CODECPAR
-class AVCodecParameters;
+struct AVCodecParameters;
 using CodecParameters = AVCodecParameters;
 #else
-class AVCodecContext;
+struct AVCodecContext;
 using CodecParameters = AVCodecContext;
 #endif
 

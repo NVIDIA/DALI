@@ -210,7 +210,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::vector<int> frame_starts_;
   unsigned current_frame_idx_;
 
-  bool done_;
+  volatile bool done_;
 };
 
 }  // namespace dali
