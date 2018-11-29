@@ -61,9 +61,10 @@ struct SequenceWrapper {
   void set_started(cudaStream_t stream) {
     CUDA_CALL(cudaEventRecord(event_, stream));
     LOG_LINE << event_ << " recorded with stream " << stream << std::endl;
-    std::unique_lock<std::mutex> lock{started_lock_};
-    started_ = true;
-    lock.unlock();
+    {
+      std::unique_lock<std::mutex> lock{started_lock_};
+      started_ = true;
+    }
     started_cv_.notify_one();
   }
 
