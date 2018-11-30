@@ -91,17 +91,17 @@ unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
   return ws->NumOutput();
 }
 
-void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n) {
+void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device_type_t dst_type) {
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
     dali::Tensor<dali::CPUBackend> t;
     t.ShareData(ws->Output<dali::CPUBackend>(n));
-    dali::CopyToExternalTensor(t, dst);
+    dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type);
   } else {
     dali::Tensor<dali::GPUBackend> t;
     t.ShareData(ws->Output<dali::GPUBackend>(n));
-    dali::CopyToExternalTensor(t, dst);
+    dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type);
   }
 }
 

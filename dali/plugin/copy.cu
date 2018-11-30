@@ -22,35 +22,51 @@
 
 namespace dali {
 
-void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr) {
+void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr,
+                                            device_type_t dst_type) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
-  std::memcpy(ptr,
+  if (dst_type == CPU) {
+    std::memcpy(ptr,
               t.raw_data(),
               Product(t.shape()) * t.type().size());
+  } else {
+    DALI_FAIL("Coping from CPUBackend to device type " + to_string(dst_type));
+  }
 }
 
-void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr) {
+void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr,
+                                            device_type_t dst_type) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   DeviceGuard d(t.device_id());
   cudaStream_t stream = UserStream::Get()->GetStream(t);
+  cudaMemcpyKind direction;
+  if (dst_type == GPU) {
+    direction = cudaMemcpyDeviceToDevice;
+  } else if (dst_type == CPU) {
+    direction = cudaMemcpyDeviceToHost;
+  } else {
+    DALI_FAIL("Coping from GPUBackend to device type " + to_string(dst_type));
+  }
   CUDA_CALL(cudaMemcpyAsync(ptr,
                             t.raw_data(),
                             Product(t.shape()) * t.type().size(),
-                            cudaMemcpyDeviceToDevice,
+                            direction,
                             stream));
   CUDA_CALL(cudaStreamSynchronize(stream));
 }
 
-void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr) {
+void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr,
+                                            device_type_t dst_type) {
   Tensor<CPUBackend> t;
   t.ShareData(tl);
-  CopyToExternalTensor(t, ptr);
+  CopyToExternalTensor(t, ptr, dst_type);
 }
 
-void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr) {
+void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr,
+                                            device_type_t dst_type) {
   Tensor<GPUBackend> t;
   t.ShareData(tl);
-  CopyToExternalTensor(t, ptr);
+  CopyToExternalTensor(t, ptr, dst_type);
 }
 
 }  // namespace dali
