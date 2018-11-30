@@ -10,6 +10,7 @@ mkdir -p idx_files
 cd docs/examples
 
 test_body() {
+    export MXNET_CUDNN_AUTOTUNE_DEFAULT=0
     # test code
     find */* -name "*.ipynb" | xargs -i jupyter nbconvert \
                    --to notebook --inplace --execute \
