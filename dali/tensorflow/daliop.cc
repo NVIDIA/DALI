@@ -58,7 +58,7 @@ tf::TensorShape DaliToShape(int64_t* ns) {
 }
 
 REGISTER_OP("Dali")
-  .Attr("serialized_pipeline: string")
+  .Attr("pipeline: string")
   .Attr("shapes: list(shape) >= 1")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")

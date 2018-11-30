@@ -72,7 +72,7 @@ class DALIDataset(tf.data.Dataset):
         super(DALIDataset, self).__init__()
 
         if pipeline:
-            self._pipeline = pipeline
+            self._pipeline = pipeline.serialize()
         else:
             raise ValueError('No value provided for parameter \'pipeline\'')
 
@@ -92,7 +92,7 @@ class DALIDataset(tf.data.Dataset):
             raise ValueError('No value provided for parameter \'devices\'')
 
     def _as_variant_tensor(self):
-        return dali_dataset_module.dali_dataset(self._pipeline, self._shapes, self._dtypes, self._devices)
+        return dali_dataset_module.dali_dataset(serialized_pipeline=self._pipeline, shapes=self._shapes, dtypes=self._dtypes, devices=self._devices)
 
     @property
     def output_types(self):
