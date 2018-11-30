@@ -28,14 +28,14 @@ namespace dali {
 class BoundingBox {
  public:
   static const size_t kSize = 4;
-  static constexpr float4 NoBounds() {
+  static constexpr array<float, kSize> NoBounds() {
     return {
       std::numeric_limits<float>::lowest(),
       std::numeric_limits<float>::lowest(),
       std::numeric_limits<float>::max(),
       std::numeric_limits<float>::max()};
   }
-  static constexpr float4 UniformSquare() {
+  static constexpr array<float, kSize> UniformSquare() {
     return {0.f, 0.f, 1.f, 1.f};
   }
 
@@ -62,22 +62,15 @@ class BoundingBox {
     swap(lhs.area_, rhs.area_);
   }
 
-  static BoundingBox FromLtrb(const float* data, float4 bounds = UniformSquare()) {
+  static BoundingBox FromLtrb(const float* data, array<float, kSize> bounds = UniformSquare()) {
     return FromLtrb(data[0], data[1], data[2], data[3], bounds);
   }
 
-  static void CheckBounds(float value, float lower, float upper, string name) {
-    DALI_ENFORCE(
-      value >= lower && value <= upper,
-      "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +
-        " Received:  " + to_string(value));
-  }
-
-  static BoundingBox FromLtrb(float l, float t, float r, float b, float4 bounds = UniformSquare()) {
-    CheckBounds(l, bounds.x, bounds.z, "left");
-    CheckBounds(r, bounds.x, bounds.z, "right");
-    CheckBounds(t, bounds.y, bounds.w, "top");
-    CheckBounds(b, bounds.y, bounds.w, "bottom");
+  static BoundingBox FromLtrb(float l, float t, float r, float b, array<float, kSize> bounds = UniformSquare()) {
+    CheckBounds(l, bounds[0], bounds[2], "left");
+    CheckBounds(r, bounds[0], bounds[2], "right");
+    CheckBounds(t, bounds[1], bounds[3], "top");
+    CheckBounds(b, bounds[1], bounds[3], "bottom");
 
     DALI_ENFORCE(
       l <= r, "Expected left <= right. Received: " + to_string(l) + " <= " + to_string(r));
@@ -174,6 +167,13 @@ class BoundingBox {
   }
 
  private:
+  static void CheckBounds(float value, float lower, float upper, string name) {
+    DALI_ENFORCE(
+      value >= lower && value <= upper,
+      "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +
+        " Received:  " + to_string(value));
+  }
+  
   BoundingBox() = default;
 
   BoundingBox(float l, float t, float r, float b)

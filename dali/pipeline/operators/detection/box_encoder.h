@@ -58,22 +58,22 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
   const float criteria_;
   vector<BoundingBox> anchors_;
 
-  int NumAnchors() const { return anchors_.size(); }
-
   vector<float> CalculateIous(const vector<BoundingBox> &boxes) const;
 
   void CalculateIousForBox(float *ious, const BoundingBox &box) const;
 
-  vector<BoundingBox> ReadBoxesFromInput(const float *in_boxes, int num_boxes) const;
+  vector<BoundingBox> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
 
   void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
 
   void WriteBoxToOutput(const BoundingBox &box, float *out_box_data) const;
 
-  void MatchBoxesWithAnchors(
+  void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches, 
     const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
 
-  int FindBestBoxForAnchor(int anchor_idx, const vector<float> &ious, int num_boxes) const;
+  vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(const vector<BoundingBox> &boxes) const;
+
+  unsigned FindBestBoxForAnchor(unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;
 };
 
 }  // namespace dali
