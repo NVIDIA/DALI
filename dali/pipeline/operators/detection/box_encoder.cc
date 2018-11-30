@@ -62,7 +62,8 @@ unsigned BoxEncoder<CPUBackend>::FindBestBoxForAnchor(
   return best_idx;
 }
 
-vector<std::pair<unsigned, unsigned>> BoxEncoder<CPUBackend>::MatchBoxesWithAnchors(const vector<BoundingBox> &boxes) const {
+vector<std::pair<unsigned, unsigned>> BoxEncoder<CPUBackend>::MatchBoxesWithAnchors(
+  const vector<BoundingBox> &boxes) const {
   const auto ious = CalculateIous(boxes);
   vector<std::pair<unsigned, unsigned>> matches;
 
@@ -107,7 +108,7 @@ void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_lab
 }
 
 void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
-  const vector<std::pair<unsigned, unsigned>> matches, const vector<BoundingBox> &boxes, 
+  const vector<std::pair<unsigned, unsigned>> matches, const vector<BoundingBox> &boxes,
   const int *labels, float *out_boxes, int *out_labels) const {
   for (const auto &match : matches) {
     WriteBoxToOutput(boxes[match.first], out_boxes + match.second * BoundingBox::kSize);

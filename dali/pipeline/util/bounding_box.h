@@ -66,7 +66,8 @@ class BoundingBox {
     return FromLtrb(data[0], data[1], data[2], data[3], bounds);
   }
 
-  static BoundingBox FromLtrb(float l, float t, float r, float b, array<float, kSize> bounds = UniformSquare()) {
+  static BoundingBox FromLtrb(
+    float l, float t, float r, float b, array<float, kSize> bounds = UniformSquare()) {
     CheckBounds(l, bounds[0], bounds[2], "left");
     CheckBounds(r, bounds[0], bounds[2], "right");
     CheckBounds(t, bounds[1], bounds[3], "top");
@@ -173,7 +174,7 @@ class BoundingBox {
       "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +
         " Received:  " + to_string(value));
   }
-  
+
   BoundingBox() = default;
 
   BoundingBox(float l, float t, float r, float b)

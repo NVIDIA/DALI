@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <vector>
+#include <utility>
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/bounding_box.h"
@@ -68,12 +69,14 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
   void WriteBoxToOutput(const BoundingBox &box, float *out_box_data) const;
 
-  void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches, 
+  void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,
     const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
 
-  vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(const vector<BoundingBox> &boxes) const;
+  vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(
+    const vector<BoundingBox> &boxes) const;
 
-  unsigned FindBestBoxForAnchor(unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;
+  unsigned FindBestBoxForAnchor(
+    unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;
 };
 
 }  // namespace dali
