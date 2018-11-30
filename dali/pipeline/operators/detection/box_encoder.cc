@@ -17,55 +17,94 @@
 #include "dali/pipeline/operators/detection/box_encoder.h"
 
 namespace dali {
-vector<float> BoxEncoder<CPUBackend>::CalculateIous(vector<BoundingBox> boxes) {
+void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const BoundingBox &box) const {
+  ious[0] = box.IntersectionOverUnion(anchors_[0]);
+  int best_idx = 0;
+  float best_iou = ious[0];
+
+  for (int anchor_idx = 1; anchor_idx < NumAnchors(); ++anchor_idx) {
+    ious[anchor_idx] = box.IntersectionOverUnion(anchors_[anchor_idx]);
+
+    if (ious[anchor_idx] >= best_iou) {
+      best_iou = ious[anchor_idx];
+      best_idx = anchor_idx;
+    }
+  }
+
+  // For best default box matched with current object let iou = 2, to make sure there is a match,
+  // as this object will be the best (highest IOU), for this default box
+  ious[best_idx] = 2.;
+}
+
+vector<float> BoxEncoder<CPUBackend>::CalculateIous(const vector<BoundingBox> &boxes) const {
   vector<float> ious(boxes.size() * NumAnchors());
 
   for (auto bbox_idx = 0u; bbox_idx < boxes.size(); ++bbox_idx) {
-    int best_idx = -1;
-    float best_iou = -1.;
-
-    for (int anchor_idx = 0; anchor_idx < NumAnchors(); ++anchor_idx) {
-      ious[bbox_idx * anchors_.size() + anchor_idx] =
-          boxes[bbox_idx].IntersectionOverUnion(anchors_[anchor_idx]);
-
-      if (ious[bbox_idx * anchors_.size() + anchor_idx] >= best_iou) {
-        best_iou = ious[bbox_idx * NumAnchors() + anchor_idx];
-        best_idx = anchor_idx;
-      }
-    }
-
-    // For best default box matched with current object let iou = 2, to make sure there is a match,
-    // as this object will be the best (highest IOU), for this default box
-    ious[bbox_idx * NumAnchors() + best_idx] = 2.;
+    auto ious_row = ious.data() + bbox_idx * NumAnchors();
+    CalculateIousForBox(ious_row, boxes[bbox_idx]);
   }
 
   return ious;
 }
 
+int BoxEncoder<CPUBackend>::FindBestBoxForAnchor(
+  int anchor_idx, const vector<float> &ious, int num_boxes) const {
+  int best_idx = 0;
+  float best_iou = ious[anchor_idx];
+
+  for (int bbox_idx = 1; bbox_idx < num_boxes; ++bbox_idx) {
+    if (ious[bbox_idx * NumAnchors() + anchor_idx] >= best_iou) {
+      best_iou = ious[bbox_idx * NumAnchors() + anchor_idx];
+      best_idx = bbox_idx;
+    }
+  }
+
+  return best_idx;
+}
+
 void BoxEncoder<CPUBackend>::MatchBoxesWithAnchors(
-  const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) {
+  const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) const {
   int num_boxes = boxes.size();
   auto ious = CalculateIous(boxes);
 
   for (int anchor_idx = 0; anchor_idx < NumAnchors(); ++anchor_idx) {
-    int best_idx = -1;
-    float best_iou = -1.;
-
-    for (int bbox_idx = 0; bbox_idx < num_boxes; ++bbox_idx) {
-      if (ious[bbox_idx * NumAnchors() + anchor_idx] >= best_iou) {
-        best_iou = ious[bbox_idx * NumAnchors() + anchor_idx];
-        best_idx = bbox_idx;
-      }
-    }
-
-    out_labels[anchor_idx] = 0;
+    auto best_idx = FindBestBoxForAnchor(anchor_idx, ious, num_boxes);
 
     // Filter matches by criteria
-    // We only report a match, when IOU > criteria
-    if (best_iou > criteria_) {
+    if (ious[best_idx * NumAnchors() + anchor_idx] > criteria_) {
+      WriteBoxToOutput(boxes[best_idx], out_boxes + anchor_idx * BoundingBox::kSize);
       out_labels[anchor_idx] = labels[best_idx];
-      boxes[best_idx].CopyAsCenterWh(out_boxes + anchor_idx * BoundingBox::kSize);
     }
+  }
+}
+
+vector<BoundingBox> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
+  const float *in_boxes, int num_boxes) const {
+  vector<BoundingBox> boxes;
+  boxes.reserve(num_boxes);
+  auto elem = in_boxes;
+
+  for (int idx = 0; idx < num_boxes; ++idx) {
+    boxes.push_back(BoundingBox::FromLtrb(elem, BoundingBox::NoBounds()));
+    elem += BoundingBox::kSize;
+  }
+
+  return boxes;
+}
+
+void BoxEncoder<CPUBackend>::WriteBoxToOutput(const BoundingBox &box, float *out_box_data) const {
+  auto out_box = box.AsCenterWh();
+
+  out_box_data[0] = out_box[0];
+  out_box_data[1] = out_box[1];
+  out_box_data[2] = out_box[2];
+  out_box_data[3] = out_box[3];
+}
+
+void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_labels) const {
+  for (int idx = 0; idx < NumAnchors(); ++idx) {
+    WriteBoxToOutput(anchors_[idx], out_boxes + idx * BoundingBox::kSize);
+    out_labels[idx] = 0;
   }
 }
 
@@ -76,8 +115,7 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto num_boxes = bboxes_input.dim(0);
 
   auto labels = labels_input.data<int>();
-  auto boxes = BoundingBox::FromLtrbArray(
-    bboxes_input.data<float>(), num_boxes, false);
+  auto boxes = ReadBoxesFromInput(bboxes_input.data<float>(), num_boxes);
 
   // Create output
   auto bboxes_output = ws->Output<CPUBackend>(0);
@@ -90,9 +128,7 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   labels_output->Resize({NumAnchors()});
   auto out_labels = labels_output->mutable_data<int>();
 
-  for (int idx = 0; idx < NumAnchors(); ++idx)
-    anchors_[idx].CopyAsCenterWh(out_boxes + idx * BoundingBox::kSize);
-
+  WriteAnchorsToOutput(out_boxes, out_labels);
   MatchBoxesWithAnchors(boxes, labels, out_boxes, out_labels);
 }
 

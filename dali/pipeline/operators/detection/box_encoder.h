@@ -44,8 +44,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
       (anchors.size() % BoundingBox::kSize) == 0,
       "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-    anchors_ = BoundingBox::FromLtrbArray(
-      anchors.data(), anchors.size() / BoundingBox::kSize, false);
+    anchors_ = ReadBoxesFromInput(anchors.data(), anchors.size() / BoundingBox::kSize);
   }
 
   virtual ~BoxEncoder() = default;
@@ -59,12 +58,22 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
   const float criteria_;
   vector<BoundingBox> anchors_;
 
-  int NumAnchors() { return anchors_.size(); }
+  int NumAnchors() const { return anchors_.size(); }
 
-  vector<float> CalculateIous(vector<BoundingBox> boxes);
+  vector<float> CalculateIous(const vector<BoundingBox> &boxes) const;
+
+  void CalculateIousForBox(float *ious, const BoundingBox &box) const;
+
+  vector<BoundingBox> ReadBoxesFromInput(const float *in_boxes, int num_boxes) const;
+
+  void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
+
+  void WriteBoxToOutput(const BoundingBox &box, float *out_box_data) const;
 
   void MatchBoxesWithAnchors(
-    const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels);
+    const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
+
+  int FindBestBoxForAnchor(int anchor_idx, const vector<float> &ious, int num_boxes) const;
 };
 
 }  // namespace dali

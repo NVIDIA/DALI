@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+#include <limits>
+#include <string>
 
 #include "dali/error_handling.h"
 
@@ -26,6 +28,16 @@ namespace dali {
 class BoundingBox {
  public:
   static const size_t kSize = 4;
+  static constexpr float4 NoBounds() {
+    return {
+      std::numeric_limits<float>::lowest(),
+      std::numeric_limits<float>::lowest(),
+      std::numeric_limits<float>::max(),
+      std::numeric_limits<float>::max()};
+  }
+  static constexpr float4 UniformSquare() {
+    return {0.f, 0.f, 1.f, 1.f};
+  }
 
   BoundingBox(const BoundingBox& other)
       : left_{other.left_},
@@ -50,26 +62,27 @@ class BoundingBox {
     swap(lhs.area_, rhs.area_);
   }
 
-  static BoundingBox FromLtrb(const float* data, bool check_input = true) {
-    return FromLtrb(data[0], data[1], data[2], data[3], check_input);
+  static BoundingBox FromLtrb(const float* data, float4 bounds = UniformSquare()) {
+    return FromLtrb(data[0], data[1], data[2], data[3], bounds);
   }
 
-  static BoundingBox FromLtrb(float l, float t, float r, float b, bool check_input = true) {
-    if (check_input) {
-      DALI_ENFORCE(l >= 0 && l <= 1.f,
-                  "Expected 0 <= left <= 1. Received: " + to_string(l));
-      DALI_ENFORCE(t >= 0 && t <= 1.f,
-                  "Expected 0 <= top <= 1. Received: " + to_string(t));
-      DALI_ENFORCE(r >= 0 && r <= 1.f,
-                  "Expected 0 <= right <= 1. Received: " + to_string(r));
-      DALI_ENFORCE(b >= 0 && b <= 1.f,
-                  "Expected 0 <= bottom <= 1. Received: " + to_string(b));
+  static void CheckBounds(float value, float lower, float upper, string name) {
+    DALI_ENFORCE(
+      value >= lower && value <= upper,
+      "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +
+        " Received:  " + to_string(value));
+  }
 
-      DALI_ENFORCE(l <= r, "Expected left <= right. Received: " + to_string(l) +
-                              " <= " + to_string(r));
-      DALI_ENFORCE(t <= b, "Expected top <= bottom. Received: " + to_string(t) +
-                              " <= " + to_string(b));
-    }
+  static BoundingBox FromLtrb(float l, float t, float r, float b, float4 bounds = UniformSquare()) {
+    CheckBounds(l, bounds.x, bounds.z, "left");
+    CheckBounds(r, bounds.x, bounds.z, "right");
+    CheckBounds(t, bounds.y, bounds.w, "top");
+    CheckBounds(b, bounds.y, bounds.w, "bottom");
+
+    DALI_ENFORCE(
+      l <= r, "Expected left <= right. Received: " + to_string(l) + " <= " + to_string(r));
+    DALI_ENFORCE(
+      t <= b, "Expected top <= bottom. Received: " + to_string(t) + " <= " + to_string(b));
 
     return {l, t, r, b};
   }
@@ -156,23 +169,8 @@ class BoundingBox {
     return {left_, top_, right_ - left_, bottom_ - top_};
   }
 
-  void CopyAsCenterWh(float *destination) const {
-    destination[0] = (left_ + right_) * 0.5f;
-    destination[1] = (top_ + bottom_) * 0.5f;
-    destination[2] = right_ - left_;
-    destination[3] = bottom_ - top_;
-  }
-
-  static vector<BoundingBox> FromLtrbArray(const float *source, int num, bool check_input = true) {
-    vector<BoundingBox> boxes;
-    auto elem = source;
-
-    for (int idx = 0; idx < num; ++idx) {
-      boxes.push_back(FromLtrb(elem, check_input));
-      elem += kSize;
-    }
-
-    return boxes;
+  std::array<float, kSize> AsCenterWh() const {
+    return {(left_ + right_) * 0.5f, (top_ + bottom_) * 0.5f, right_ - left_, bottom_ - top_};
   }
 
  private:
