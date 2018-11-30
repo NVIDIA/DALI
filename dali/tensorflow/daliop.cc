@@ -107,6 +107,10 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
 
+    // TF doing constant propagation runs all operators on the GPU first, so we need to provide
+    // ability to copy memory from the GPU pipeline to the CPU seamlessly
+    this->device_type_ = (context->device_type() == "CPU") ?
+                          device_type_t::CPU : device_type_t::GPU;
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
@@ -192,7 +196,7 @@ class DaliOp : public tf::OpKernel {
                                         "for tensor " + std::to_string(i)));
           break;
       }
-      TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i));
+      TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
     }
     int64_t copy_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
@@ -219,6 +223,7 @@ class DaliOp : public tf::OpKernel {
   tf::DataTypeVector types_;
   int device_id_;
   int prefetch_queue_depth_;
+  device_type_t device_type_;
 };
 
 using tf::int64;

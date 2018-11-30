@@ -20,10 +20,20 @@
 
 namespace dali {
 
-DLL_PUBLIC void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr);
-DLL_PUBLIC void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr);
-DLL_PUBLIC void CopyToExternalTensor(const Tensor<CPUBackend>& tl, void* ptr);
-DLL_PUBLIC void CopyToExternalTensor(const Tensor<GPUBackend>& tl, void* ptr);
+// this is copy from c_api.h
+enum device_type_t {
+  CPU = 0,
+  GPU = 1
+};
+
+DLL_PUBLIC void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr,
+                                                        device_type_t dst_type);
+DLL_PUBLIC void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr,
+                                                        device_type_t dst_type);
+DLL_PUBLIC void CopyToExternalTensor(const Tensor<CPUBackend>& tl, void* ptr,
+                                                        device_type_t dst_type);
+DLL_PUBLIC void CopyToExternalTensor(const Tensor<GPUBackend>& tl, void* ptr,
+                                                        device_type_t dst_type);
 
 }  // namespace dali
 
