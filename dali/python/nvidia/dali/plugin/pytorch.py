@@ -63,9 +63,10 @@ class DALIGenericIterator(object):
                 List of pipelines to use
     output_map : list of str
                  List of strings which maps consecutive outputs
-                 of DALI pipelines to proper type of tensor.
-                 Each string represents a category, and we assume all
-                 tensors from given category have the same type.
+                 of DALI pipelines to user specified name.
+                 Outputs will be returned from iterator as dictionary
+                 of those names.
+                 Each name should be distinct
     size : int
            Epoch size.
     """
@@ -88,6 +89,7 @@ class DALIGenericIterator(object):
         self._counter = 0
         self._current_data_batch = 0
         self._output_categories = set(output_map)
+        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self.output_map = output_map
 
         # We need data about the batches (like shape information),
@@ -111,17 +113,24 @@ class DALIGenericIterator(object):
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             # initialize dict for all output categories
-            category_outputs = {key : [] for key in self._output_categories}
+            category_outputs = dict()
             # segregate outputs into categories
             for j, out in enumerate(outputs[i]):
-                category_outputs[self.output_map[j]].append(out)
+                category_outputs[self.output_map[j]] = out
 
             # Change DALI TensorLists into Tensors
             category_tensors = dict()
             category_shapes = dict()
-            for category, output_list in category_outputs.items():
-                category_tensors[category] = [x.as_tensor() for x in output_list]
-                category_shapes[category] = [x.shape() for x in category_tensors[category]]
+            for category, out in category_outputs.items():
+                category_tensors[category] = out.as_tensor()
+                category_shapes[category] = category_tensors[category].shape()
+
+            # # Change label shape from [batch_size, 1] to [batch_size]
+            # if "label" in self._output_categories:
+            #     for l in category_tensors["label"]:
+            #         l.squeeze()
+            #     # Fix label shapes:
+            #     category_shapes["label"] = [x.shape() for x in category_tensors["label"]]
 
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
@@ -131,28 +140,26 @@ class DALIGenericIterator(object):
                 torch_cpu_device = torch.device('cpu')
                 # check category and device
                 for category in self._output_categories:
-                    category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category][0].dtype())]
+                    category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
                     from nvidia.dali.backend import TensorGPU
-                    if type(category_tensors[category][0]) is TensorGPU:
+                    if type(category_tensors[category]) is TensorGPU:
                         category_device[category] = torch_gpu_device
                     else:
                         category_device[category] = torch_cpu_device
 
                 pyt_tensors = dict()
                 for category in self._output_categories:
-                    pyt_tensors[category] = [torch.zeros(shape,
+                    pyt_tensors[category] = torch.zeros(category_shapes[category],
                                                          dtype=category_torch_type[category],
                                                          device=category_device[category])
-                                             for shape in category_shapes[category]]
 
                 self._data_batches[i][self._current_data_batch] = pyt_tensors
             else:
                 pyt_tensors = self._data_batches[i][self._current_data_batch]
 
             # Copy data from DALI Tensors to torch tensors
-            for category, tensors in category_tensors.items():
-                for j, t in enumerate(tensors):
-                    feed_ndarray(t, pyt_tensors[category][j])
+            for category, tensor in category_tensors.items():
+                  feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
             p._release_outputs()
