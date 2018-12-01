@@ -137,6 +137,10 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto out_labels = labels_output->mutable_data<int>();
 
   WriteAnchorsToOutput(out_boxes, out_labels);
+
+  if (num_boxes == 0)
+    return;
+
   const auto matches = MatchBoxesWithAnchors(boxes);
   WriteMatchesToOutput(matches, boxes, labels, out_boxes, out_labels);
 }
