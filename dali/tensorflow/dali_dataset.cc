@@ -12,120 +12,107 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "tensorflow/core/public/version.h"
+
+#if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION == 12
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreorder"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
-#include "tensorflow/core/framework/dataset.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
+#include "tensorflow/core/framework/dataset.h"
 #include "tensorflow/core/framework/op.h"
-#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
+#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor.h"
 #pragma GCC diagnostic pop
 #pragma GCC diagnostic pop
 
-namespace tf = tensorflow;
 
-class DaliDatasetOp : public tf::DatasetOpKernel {
-public:
-  DaliDatasetOp(tf::OpKernelConstruction* context)
-  : tf::DatasetOpKernel(context) {
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("serialized_pipeline", &serialized_pipeline_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("shapes", &shapes_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("dtypes", &dtypes_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("devices", &devices_));
+namespace tensorflow {
 
-    OP_REQUIRES(
-        context, shapes_.size() == 2,
-        tf::errors::InvalidArgument("`shapes` must be a a list or tuple with 2 elements."));
-    OP_REQUIRES(
-        context, dtypes_.size() == 2,
-        tf::errors::InvalidArgument("`dtypes` must be a a list or tuple with 2 elements."));
-    OP_REQUIRES(
-        context, !devices_.empty(),
-        tf::errors::InvalidArgument("`devices` cannot be empty."));
+namespace data {
+
+namespace {
+
+class DALIDatasetOp : public DatasetOpKernel {
+ public:
+  using DatasetOpKernel::DatasetOpKernel;
+
+  void MakeDataset(OpKernelContext* ctx, DatasetBase** output) override {
+    *output =
+        new Dataset(ctx);
   }
 
-  void MakeDataset(tf::OpKernelContext* ctx, tf::DatasetBase** output) override {
-  }
-
-private:
-  class Dataset : public tf::DatasetBase {
-  public:
-    explicit Dataset(tf::OpKernelContext* ctx, std::vector<std::string> filenames,
-                     const string& compression_type, int64 buffer_size)
-        : DatasetBase(tf::DatasetContext(ctx)) {
+ private:
+  class Dataset : public DatasetBase {
+   public:
+    explicit Dataset(OpKernelContext* ctx)
+        : DatasetBase(DatasetContext(ctx)) {
     }
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
         const string& prefix) const override {
       return std::unique_ptr<IteratorBase>(
-          new Iterator({this, tf::strings::StrCat(prefix, "::DALIDataset")}));
+          new Iterator({this, strings::StrCat(prefix, "::DaliDataset")}));
     }
 
     const DataTypeVector& output_dtypes() const override {
-      // Todo: Assign correct types
-      static tf::DataTypeVector* dtypes = new tf::DataTypeVector({tf::DT_STRING});
+      // TODO set the correct types
+      static DataTypeVector* dtypes = new DataTypeVector({DT_STRING});
       return *dtypes;
     }
 
-    const std::vector<tf::PartialTensorShape>& output_shapes() const override {
-      // TODO assign correct shapes
-      static std::vector<tf::PartialTensorShape>* shapes =
-          new std::vector<tf::PartialTensorShape>({{}});
+    const std::vector<PartialTensorShape>& output_shapes() const override {
+      // TODO set the correct shapes
+      static std::vector<PartialTensorShape>* shapes =
+          new std::vector<PartialTensorShape>({{}});
       return *shapes;
     }
 
-    std::string DebugString() const override { return "DALIDataset::Dataset"; }
+    string DebugString() const override { return "DALIDatasetOp::Dataset"; }
 
-  protected:
-    Status AsGraphDefInternal(tf::SerializationContext* ctx,
-                              tf::DatasetGraphDefBuilder* b,
-                              tf::Node** output) const override {
-      return tf::Status::OK();
+   protected:
+    Status AsGraphDefInternal(SerializationContext* ctx,
+                              DatasetGraphDefBuilder* b,
+                              Node** output) const override {
+      return Status::OK();
     }
 
-  private:
-    class Iterator : public tf::DatasetIterator<Dataset> {
-    public:
-      explicit Iterator(const tf::Params& params)
-          : tf::DatasetIterator<Dataset>(params) {}
+   private:
+    class Iterator : public DatasetIterator<Dataset> {
+     public:
+      explicit Iterator(const Params& params)
+          : DatasetIterator<Dataset>(params) {}
 
-      Status GetNextInternal(tf::IteratorContext* ctx,
-                             std::vector<tf::Tensor>* out_tensors,
+      Status GetNextInternal(IteratorContext* ctx,
+                             std::vector<Tensor>* out_tensors,
                              bool* end_of_sequence) override {
-        return tf::Status::OK();
+        return Status::OK();
       }
 
-    protected:
-      Status SaveInternal(tf::IteratorStateWriter* writer) override {
-        return tf::Status::OK();
+     protected:
+      Status SaveInternal(IteratorStateWriter* writer) override {
+        return Status::OK();
       }
 
-      Status RestoreInternal(tf::IteratorContext* ctx,
-                             tf::IteratorStateReader* reader) override {
-        return tf::Status::OK();
+      Status RestoreInternal(IteratorContext* ctx,
+                             IteratorStateReader* reader) override {
+        return Status::OK();
       }
 
-    private:
-      Status SetupStreamsLocked(tf::Env* env) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-          return tf::Status::OK();
+     private:
+      Status SetupStreamsLocked(Env* env) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return Status::OK();
       }
 
       void ResetStreamsLocked() EXCLUSIVE_LOCKS_REQUIRED(mu_) {
       }
+
+      mutex mu_;
     };
   };
-
-  std::string serialized_pipeline_
-  std::vector<tf::TensorShape> shapes_;
-  tf::DataTypeVector dtypes_;
-  std::vector<int> devices_;
 };
 
 REGISTER_OP("DALIDataset")
@@ -134,22 +121,39 @@ REGISTER_OP("DALIDataset")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
     .Attr("devices: list(type) >= 1")
     .Output("handle: variant")
-    .SetIsStateful() // TODO: Is it necessary in order to prevent folding?
-    .SetShapeFn([](tensorflow::shape_inference::InferenceContext* c) {
+    .
+
+    SetIsStateful()  // TODO: Is it necessary in order to prevent folding?
+    .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {
       // define shape for the first output
       std::vector<tensorflow::PartialTensorShape> shapes;
       TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-      for (unsigned i = 0; i < shapes.size(); ++i) {
-        if (shapes[i].dims() > 0) {
+      for (unsigned i = 0; i < shapes.
+
+                               size();
+
+           ++i) {
+        if (shapes[i].
+
+            dims()
+
+            > 0) {
           tensorflow::shape_inference::ShapeHandle passed_shape;
           TF_RETURN_IF_ERROR(
               c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
-          TF_RETURN_IF_ERROR(
-              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+          TF_RETURN_IF_ERROR(c->WithRank(passed_shape,
+                                         shapes[i].
+
+                                         dims(),
+                                         &passed_shape
+
+                                         ));
           c->set_output(i, passed_shape);
         }
       }
-      return tensorflow::Status::OK();
+      return
+
+          tensorflow::Status::OK();
     })
     .Doc(R"doc(
 DALI Dataset plugin
@@ -162,4 +166,10 @@ Creates a Dali dataset compatible with tf.data.Dataset from a serialized DALI pi
  )doc");
 
 REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_GPU),
-                        DaliDatasetOp)
+                        DALIDatasetOp)
+
+}  // namespace
+}  // namespace data
+}  // namespace tensorflow
+
+#endif
