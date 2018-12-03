@@ -48,25 +48,18 @@ class DALIDatasetOp : public DatasetOpKernel {
                    context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context,
                    context->GetAttr("dtypes", &dtypes_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("devices", &devices_));
-
-    OP_REQUIRES(
-        context, !devices_.empty(),
-        errors::InvalidArgument("`devices` cannot be empty."));
   }
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
     *output =
-        new Dataset(context, &serialized_pipeline_, &shapes_, &dtypes_, &devices_);
+        new Dataset(context, &serialized_pipeline_, &shapes_, &dtypes_);
   }
 
  private:
   class Dataset : public DatasetBase {
    public:
     explicit Dataset(OpKernelContext* ctx, const std::string* serialized_pipeline,
-        const std::vector<TensorShape>* shapes, const DataTypeVector* types,
-        const std::vector<int>* devices)
+        const std::vector<TensorShape>* shapes, const DataTypeVector* types)
         : DatasetBase(DatasetContext(ctx)),
           dtypes_{types},
           shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape())} {
@@ -135,14 +128,12 @@ class DALIDatasetOp : public DatasetOpKernel {
   std::string serialized_pipeline_;
   std::vector<TensorShape> shapes_;
   DataTypeVector dtypes_;
-  std::vector<int> devices_;
 };
 
 REGISTER_OP("DALIDataset")
     .Attr("serialized_pipeline: string")
     .Attr("shapes: list(shape) >= 1")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
-    .Attr("devices: list(type) >= 1")
     .Output("handle: variant")
     .SetIsStateful()  // TODO: Is it necessary in order to prevent folding?
     .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {

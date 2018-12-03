@@ -54,19 +54,18 @@ def DALIRawIterator():
     return _dali_tf
 
 
-dali_dataset_module = _dali_tf_module.dali_dataset
+_dali_dataset = _dali_tf_module.dali_dataset
 
 
 class DALIDataset(tf.data.Dataset):
     """A `Dataset` wrapping DALI iterators spread across a number of devices."""
 
-    def __init__(self, pipeline=None, shapes=None, dtypes=None, devices=None):
+    def __init__(self, pipeline=None, shapes=None, dtypes=None):
         """Creates a `DALIDataset`.
        Args:
          pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
          shapes: A `List` of `tf.TensorShape` with the expected output shapes
          dtypes: A `List` of `tf.DType` with the expected output types
-         devices: A `List` of `int` with device ids
 
        """
         super(DALIDataset, self).__init__()
@@ -86,13 +85,10 @@ class DALIDataset(tf.data.Dataset):
         else:
             raise ValueError('No value provided for parameter \'dtypes\'')
 
-        if devices:
-            self._devices = devices
-        else:
-            raise ValueError('No value provided for parameter \'devices\'')
-
     def _as_variant_tensor(self):
-        return dali_dataset_module.dali_dataset(serialized_pipeline=self._pipeline, shapes=self._shapes, dtypes=self._dtypes, devices=self._devices)
+        return _dali_dataset(serialized_pipeline=self._pipeline,
+                             shapes=self._shapes,
+                             dtypes=self._dtypes)
 
     @property
     def output_types(self):
@@ -104,7 +100,7 @@ class DALIDataset(tf.data.Dataset):
 
     @property
     def output_classes(self):
-        return ops.Tensor
+        return ops.Tensor, ops.Tensor
 
 
 DALIDataset.__doc__ = DALIDataset.__doc__
