@@ -22,287 +22,283 @@
 #include <utility>
 #include <vector>
 #include <istream>
+#include <memory>
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/pipeline/operators/reader/parser/coco_parser.h"
-#include "dali/util/json.h"
 
 #include "dali/util/rapidjson/reader.h"
 #include "dali/util/rapidjson/document.h"
-#ifdef __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wunused-value"
-  #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#endif  // __GNUC__
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
 RAPIDJSON_DIAG_OFF(effc++)
 #endif
 
-using namespace rapidjson;
+using rapidjson::SizeType;
+using rapidjson::Value;
+using rapidjson::Reader;
+using rapidjson::InsituStringStream;
+using rapidjson::kParseDefaultFlags;
+using rapidjson::kParseInsituFlag;
+using rapidjson::kArrayType;
+using rapidjson::kObjectType;
 
+namespace {
+
+// taken from https://github.com/Tencent/rapidjson/blob/master/example/lookaheadparser/lookaheadparser.cpp
 
 class LookaheadParserHandler {
-public:
-    bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
-    bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
-    bool Int(int i) { st_ = kHasNumber; v_.SetInt(i); return true; }
-    bool Uint(unsigned u) { st_ = kHasNumber; v_.SetUint(u); return true; }
-    bool Int64(int64_t i) { st_ = kHasNumber; v_.SetInt64(i); return true; }
-    bool Uint64(uint64_t u) { st_ = kHasNumber; v_.SetUint64(u); return true; }
-    bool Double(double d) { st_ = kHasNumber; v_.SetDouble(d); return true; }
-    bool RawNumber(const char*, SizeType, bool) { return false; }
-    bool String(const char* str, SizeType length, bool) { st_ = kHasString; v_.SetString(str, length); return true; }
-    bool StartObject() { st_ = kEnteringObject; return true; }
-    bool Key(const char* str, SizeType length, bool) { st_ = kHasKey; v_.SetString(str, length); return true; }
-    bool EndObject(SizeType) { st_ = kExitingObject; return true; }
-    bool StartArray() { st_ = kEnteringArray; return true; }
-    bool EndArray(SizeType) { st_ = kExitingArray; return true; }
+ public:
+  bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
+  bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
+  bool Int(int i) { st_ = kHasNumber; v_.SetInt(i); return true; }
+  bool Uint(unsigned u) { st_ = kHasNumber; v_.SetUint(u); return true; }
+  bool Int64(int64_t i) { st_ = kHasNumber; v_.SetInt64(i); return true; }
+  bool Uint64(uint64_t u) { st_ = kHasNumber; v_.SetUint64(u); return true; }
+  bool Double(double d) { st_ = kHasNumber; v_.SetDouble(d); return true; }
+  bool RawNumber(const char*, SizeType, bool) { return false; }
+  bool String(const char* str, SizeType length, bool) {
+    st_ = kHasString;
+    v_.SetString(str, length);
+    return true;
+  }
+  bool StartObject() { st_ = kEnteringObject; return true; }
+  bool Key(const char* str, SizeType length, bool) {
+    st_ = kHasKey;
+    v_.SetString(str, length);
+    return true;
+  }
+  bool EndObject(SizeType) { st_ = kExitingObject; return true; }
+  bool StartArray() { st_ = kEnteringArray; return true; }
+  bool EndArray(SizeType) { st_ = kExitingArray; return true; }
 
-protected:
-    LookaheadParserHandler(char* str);
-    void ParseNext();
+ protected:
+  explicit LookaheadParserHandler(char* str);
+  void ParseNext();
 
-protected:
-    enum LookaheadParsingState {
-        kInit,
-        kError,
-        kHasNull,
-        kHasBool,
-        kHasNumber,
-        kHasString,
-        kHasKey,
-        kEnteringObject,
-        kExitingObject,
-        kEnteringArray,
-        kExitingArray
-    };
-    
-    Value v_;
-    LookaheadParsingState st_;
-    Reader r_;
-    InsituStringStream ss_;
-    
-    static const int parseFlags = kParseDefaultFlags | kParseInsituFlag;
+ protected:
+  enum LookaheadParsingState {
+    kInit,
+    kError,
+    kHasNull,
+    kHasBool,
+    kHasNumber,
+    kHasString,
+    kHasKey,
+    kEnteringObject,
+    kExitingObject,
+    kEnteringArray,
+    kExitingArray
+  };
+
+  Value v_;
+  LookaheadParsingState st_;
+  Reader r_;
+  InsituStringStream ss_;
+
+  static const int parseFlags = kParseDefaultFlags | kParseInsituFlag;
 };
 
-LookaheadParserHandler::LookaheadParserHandler(char* str) : v_(), st_(kInit), r_(), ss_(str) {
-    r_.IterativeParseInit();
-    ParseNext();
+LookaheadParserHandler::LookaheadParserHandler(char* str) :
+    v_(), st_(kInit), r_(), ss_(str) {
+  r_.IterativeParseInit();
+  ParseNext();
 }
 
 void LookaheadParserHandler::ParseNext() {
-    if (r_.HasParseError()) {
-        st_ = kError;
-        return;
-    }
-    
-    r_.IterativeParseNext<parseFlags>(ss_, *this);
+  if (r_.HasParseError()) {
+    st_ = kError;
+    return;
+  }
+
+  r_.IterativeParseNext<parseFlags>(ss_, *this);
 }
 
 class LookaheadParser : protected LookaheadParserHandler {
-public:
-    LookaheadParser(char* str) : LookaheadParserHandler(str) {}
-    
-    bool EnterObject();
-    bool EnterArray();
-    const char* NextObjectKey();
-    bool NextArrayValue();
-    int GetInt();
-    double GetDouble();
-    const char* GetString();
-    bool GetBool();
-    void GetNull();
+ public:
+  explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
 
-    void SkipObject();
-    void SkipArray();
-    void SkipValue();
-    Value* PeekValue();
-    int PeekType(); // returns a rapidjson::Type, or -1 for no value (at end of object/array)
-    
-    bool IsValid() { return st_ != kError; }
-    
-protected:
-    void SkipOut(int depth);
+  bool EnterObject();
+  bool EnterArray();
+  const char* NextObjectKey();
+  bool NextArrayValue();
+  int GetInt();
+  double GetDouble();
+  const char* GetString();
+  bool GetBool();
+  void GetNull();
+
+  void SkipObject();
+  void SkipArray();
+  void SkipValue();
+  Value* PeekValue();
+  // returns a rapidjson::Type, or -1 for no value (at end of object/array)
+  int PeekType();
+
+  bool IsValid() { return st_ != kError; }
+
+ protected:
+  void SkipOut(int depth);
 };
 
 bool LookaheadParser::EnterObject() {
-    if (st_ != kEnteringObject) {
-        st_  = kError;
-        return false;
-    }
-    
-    ParseNext();
-    return true;
+  if (st_ != kEnteringObject) {
+    st_  = kError;
+    return false;
+  }
+
+  ParseNext();
+  return true;
 }
 
 bool LookaheadParser::EnterArray() {
-    if (st_ != kEnteringArray) {
-        st_  = kError;
-        return false;
-    }
-    
-    ParseNext();
-    return true;
+  if (st_ != kEnteringArray) {
+    st_  = kError;
+    return false;
+  }
+
+  ParseNext();
+  return true;
 }
 
 const char* LookaheadParser::NextObjectKey() {
-    if (st_ == kHasKey) {
-        const char* result = v_.GetString();
-        ParseNext();
-        return result;
-    }
-    
-    if (st_ != kExitingObject) {
-        st_ = kError;
-        return 0;
-    }
-    
-    ParseNext();
-    return 0;
-}
-
-bool LookaheadParser::NextArrayValue() {
-    if (st_ == kExitingArray) {
-        ParseNext();
-        return false;
-    }
-    
-    if (st_ == kError || st_ == kExitingObject || st_ == kHasKey) {
-        st_ = kError;
-        return false;
-    }
-
-    return true;
-}
-
-int LookaheadParser::GetInt() {
-    if (st_ != kHasNumber || !v_.IsInt()) {
-        st_ = kError;
-        return 0;
-    }
-
-    int result = v_.GetInt();
-    ParseNext();
-    return result;
-}
-
-double LookaheadParser::GetDouble() {
-    if (st_ != kHasNumber) {
-        st_  = kError;
-        return 0.;
-    }
-    
-    double result = v_.GetDouble();
-    ParseNext();
-    return result;
-}
-
-bool LookaheadParser::GetBool() {
-    if (st_ != kHasBool) {
-        st_  = kError;
-        return false;
-    }
-    
-    bool result = v_.GetBool();
-    ParseNext();
-    return result;
-}
-
-void LookaheadParser::GetNull() {
-    if (st_ != kHasNull) {
-        st_  = kError;
-        return;
-    }
-
-    ParseNext();
-}
-
-const char* LookaheadParser::GetString() {
-    if (st_ != kHasString) {
-        st_  = kError;
-        return 0;
-    }
-    
+  if (st_ == kHasKey) {
     const char* result = v_.GetString();
     ParseNext();
     return result;
+  }
+
+  if (st_ != kExitingObject) {
+    st_ = kError;
+    return 0;
+  }
+
+  ParseNext();
+  return 0;
+}
+
+bool LookaheadParser::NextArrayValue() {
+  if (st_ == kExitingArray) {
+    ParseNext();
+    return false;
+  }
+
+  if (st_ == kError || st_ == kExitingObject || st_ == kHasKey) {
+    st_ = kError;
+    return false;
+  }
+
+  return true;
+}
+
+int LookaheadParser::GetInt() {
+  if (st_ != kHasNumber || !v_.IsInt()) {
+    st_ = kError;
+    return 0;
+  }
+
+  int result = v_.GetInt();
+  ParseNext();
+  return result;
+}
+
+double LookaheadParser::GetDouble() {
+  if (st_ != kHasNumber) {
+    st_  = kError;
+    return 0.;
+  }
+
+  double result = v_.GetDouble();
+  ParseNext();
+  return result;
+}
+
+bool LookaheadParser::GetBool() {
+  if (st_ != kHasBool) {
+    st_  = kError;
+    return false;
+  }
+
+  bool result = v_.GetBool();
+  ParseNext();
+  return result;
+}
+
+void LookaheadParser::GetNull() {
+  if (st_ != kHasNull) {
+    st_  = kError;
+    return;
+  }
+
+  ParseNext();
+}
+
+const char* LookaheadParser::GetString() {
+  if (st_ != kHasString) {
+    st_  = kError;
+    return 0;
+  }
+
+  const char* result = v_.GetString();
+  ParseNext();
+  return result;
 }
 
 void LookaheadParser::SkipOut(int depth) {
-    do {
-        if (st_ == kEnteringArray || st_ == kEnteringObject) {
-            ++depth;
-        }
-        else if (st_ == kExitingArray || st_ == kExitingObject) {
-            --depth;
-        }
-        else if (st_ == kError) {
-            return;
-        }
-
-        ParseNext();
+  do {
+    if (st_ == kEnteringArray || st_ == kEnteringObject) {
+      ++depth;
+    } else if (st_ == kExitingArray || st_ == kExitingObject) {
+      --depth;
+    } else if (st_ == kError) {
+      return;
     }
-    while (depth > 0);
+
+    ParseNext();
+  } while (depth > 0);
 }
 
 void LookaheadParser::SkipValue() {
-    SkipOut(0);
+  SkipOut(0);
 }
 
 void LookaheadParser::SkipArray() {
-    SkipOut(1);
+  SkipOut(1);
 }
 
 void LookaheadParser::SkipObject() {
-    SkipOut(1);
+  SkipOut(1);
 }
 
 Value* LookaheadParser::PeekValue() {
-    if (st_ >= kHasNull && st_ <= kHasKey) {
-        return &v_;
-    }
-    
-    return 0;
+  if (st_ >= kHasNull && st_ <= kHasKey) {
+    return &v_;
+  }
+
+  return 0;
 }
 
 int LookaheadParser::PeekType() {
-    if (st_ >= kHasNull && st_ <= kHasKey) {
-        return v_.GetType();
-    }
-    
-    if (st_ == kEnteringArray) {
-        return kArrayType;
-    }
-    
-    if (st_ == kEnteringObject) {
-        return kObjectType;
-    }
+  if (st_ >= kHasNull && st_ <= kHasKey) {
+    return v_.GetType();
+  }
 
-    return -1;
+  if (st_ == kEnteringArray) {
+    return kArrayType;
+  }
+
+  if (st_ == kEnteringObject) {
+    return kObjectType;
+  }
+
+  return -1;
 }
 
-//-------------------------------------------------------------------------
-
-template <typename I>
-nlohmann::json::const_iterator find_in_json(const I &im, std::string field) {
-  auto it = im.find(field);
-  DALI_ENFORCE(it != im.end(), "`" + field + "` not found in JSON annotions file");
-  return it;
-}
-
-template <typename T, typename I>
-T get_from_json(const I &im, std::string field) {
-  auto it = im.find(field);
-  DALI_ENFORCE(it != im.end(), "`" + field + "` not found in JSON annotions file");
-  return it.value();
-}
+} // namespace
 
 namespace dali {
-
-typedef std::chrono::high_resolution_clock Clock;
 
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
@@ -311,25 +307,9 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
     ltrb_(spec.GetArgument<bool>("ltrb")),
     ratio_(spec.GetArgument<bool>("ratio")) {
-    auto s = Clock::now();
     ParseAnnotationFiles();
-    auto end = Clock::now();
-    int64_t output_time = std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - s).count();
-    std::cout << "1 " << output_time << std::endl;
-    s = Clock::now();
     loader_.reset(new FileLoader(spec, image_id_pairs_));
-    end = Clock::now();
-    output_time = std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - s).count();
-    std::cout << "2 " << output_time << std::endl;
-    s = Clock::now();
     parser_.reset(new COCOParser(spec, annotations_multimap_));
-    end = Clock::now();
-    output_time = std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - s).count();
-    std::cout << "3 " << output_time << std::endl;
-
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -345,18 +325,17 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  protected:
   void ParseAnnotationFiles() {
     for (auto& file_name : annotations_filename_) {
-
-#if 1
       // Loading raw json into the RAM
       std::ifstream f(file_name);
       DALI_ENFORCE(f, "Could not open JSON annotations file");
       f.seekg(0, std::ios::end);
       size_t file_size = f.tellg();
-      char* buff = new char[file_size];
+      std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size],
+                            [](char* data) {delete [] data;});
       f.seekg(0, std::ios::beg);
-      f.read(buff, file_size);
+      f.read(buff.get(), file_size);
 
-      LookaheadParser r(buff);
+      LookaheadParser r(buff.get());
 
       // mapping each image_id to its WH dimension
       std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
@@ -411,7 +390,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
           r.EnterArray();
           int image_id;
           int category_id;
-          std::array<float, 4> bbox = {0,};
+          std::array<float, 4> bbox = {0, };
           while (r.NextArrayValue()) {
             if (r.PeekType() != kObjectType) {
               continue;
@@ -460,90 +439,6 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
           elm.second.bbox[3] /= static_cast<float>(wh.second);
         }
       }
-
-      delete [] buff;
-#else
-      // Loading raw json into the RAM
-      std::ifstream f(file_name);
-      DALI_ENFORCE(f, "Could not open JSON annotations file");
-      std::string raw_json;
-      f.seekg(0, std::ios::end);
-      raw_json.reserve(f.tellg());
-      f.seekg(0, std::ios::beg);
-      raw_json.assign((std::istreambuf_iterator<char>(f)),
-                      std::istreambuf_iterator<char>());
-
-      // Parsing the JSON into image vector and annotation multimap
-      std::stringstream ss;
-
-      ss << raw_json;
-      auto j = nlohmann::json::parse(ss);
-
-      // mapping each image_id to its WH dimension
-      std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
-
-      // Parse images
-      auto images = find_in_json(j, "images");
-      for (auto& im : *images) {
-        auto id = get_from_json<int>(im, "id");
-        auto image_file_name = get_from_json<std::string>(im, "file_name");
-        auto width = get_from_json<int>(im, "width");
-        auto height = get_from_json<int>(im, "height");
-
-        image_id_pairs_.push_back(std::make_pair(image_file_name, id));
-        image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
-      }
-
-      // Parse annotations
-      auto annotations = find_in_json(j, "annotations");
-      int annotation_size = (*annotations).size();
-
-      // Change categories IDs to be in range [1, 80]
-      std::vector<int> deleted_categories{ 12, 26, 29, 30, 45, 66, 68, 69, 71, 83, 91 };
-      std::map<int, int> new_category_ids;
-      int current_id = 1;
-      int vector_id = 0;
-      for (int i = 1; i <= 90; i++) {
-        if (i == deleted_categories[vector_id]) {
-          vector_id++;
-        } else {
-          new_category_ids.insert(std::make_pair(i, current_id));
-          current_id++;
-        }
-      }
-
-      for (auto& an : *annotations) {
-        auto image_id = get_from_json<int>(an, "image_id");
-        auto category_id = get_from_json<int>(an, "category_id");
-        auto bbox = get_from_json<std::array<float, 4>>(an, "bbox");
-
-        if (bbox[2] < 0.1 || bbox[3] < 0.1) {
-          continue;
-        }
-
-        if (ltrb_) {
-          bbox[2] += bbox[0];
-          bbox[3] += bbox[1];
-        }
-
-        if (ratio_) {
-          auto wh_it = image_id_to_wh.find(image_id);
-          DALI_ENFORCE(wh_it != image_id_to_wh.end(),
-              "annotation has an invalid image_id: " + std::to_string(image_id));
-          auto wh = wh_it->second;
-          bbox[0] /= static_cast<float>(wh.first);
-          bbox[1] /= static_cast<float>(wh.second);
-          bbox[2] /= static_cast<float>(wh.first);
-          bbox[3] /= static_cast<float>(wh.second);
-        }
-
-        annotations_multimap_.insert(
-            std::make_pair(image_id,
-              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], new_category_ids[category_id])));
-      }
-
-#endif
-      cout << annotations_multimap_.size() << " " << image_id_to_wh.size() << endl;
       f.close();
     }
   }
@@ -558,11 +453,6 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
 }  // namespace dali
 
-
 RAPIDJSON_DIAG_POP
-
-#ifdef __GNUC__
-  #pragma GCC diagnostic pop
-#endif  // __GNUC__
 
 #endif  // DALI_PIPELINE_OPERATORS_READER_COCO_READER_OP_H_
