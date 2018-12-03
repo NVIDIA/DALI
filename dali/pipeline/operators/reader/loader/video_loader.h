@@ -32,19 +32,6 @@ extern "C" {
 
 //namespace {
 
-// libav resource free function take the address of a pointer...
-template<typename T>
-class AVDeleter {
-  public:
-    AVDeleter() : deleter_(nullptr) {}
-    AVDeleter(std::function<void(T**)> deleter) : deleter_{deleter} {}
-
-    void operator()(T *p) {
-        deleter_(&p);
-    }
-  private:
-    std::function<void(T**)> deleter_;
-};
 
 // except for the old AVBitSTreamFilterContext
 #ifndef HAVE_AVBSFCONTEXT
@@ -57,18 +44,12 @@ class BSFDeleter {
 #endif
 
 template<typename T>
-using av_unique_ptr = std::unique_ptr<T, AVDeleter<T>>;
-
+using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
 template<typename T>
 av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
-    return av_unique_ptr<T>(raw_ptr, AVDeleter<T>(deleter));
+    // libav resource free functions take the address of a pointer.
+    return av_unique_ptr<T>(raw_ptr, [=] (T* data) {deleter(&data);});
 }
-
-// #define STRINGIFY(s) XSTRINGIFY(s)
-// #define XSTRINGIFY(s) #s
-// #pragma message ("HAVE_AVSTREAM_CODECPAR=" STRINGIFY(HAVE_AVSTREAM_CODECPAR))
-// #pragma message ("HAVE_AVBSFCONTEXT=" STRINGIFY(HAVE_AVBSFCONTEXT))
-
 
 namespace dali {
 #ifdef HAVE_AVSTREAM_CODECPAR
