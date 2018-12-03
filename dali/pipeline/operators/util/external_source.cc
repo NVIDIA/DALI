@@ -41,9 +41,9 @@ DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
 DALI_SCHEMA(ExternalSource)
   .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline,
-           see :meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
-           :meth:`nvidia.dali.pipeline.Pipeline.iter_setup`. Currenlty this operator is not
-           supported in TensorFlow.)code")
+see :meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
+:meth:`nvidia.dali.pipeline.Pipeline.iter_setup`. Currenlty this operator is not
+supported in TensorFlow.)code")
   .NumInput(0)
   .NumOutput(1);
 

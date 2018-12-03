@@ -47,6 +47,9 @@ version = str(version_long + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
 
+# generate table of supported operators and their devices
+subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
+
 # hack: version is used for html creation, so put the version picker
 # link here as well:
 version = version + """<br/>
@@ -71,7 +74,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.ifconfig',
     'sphinx.ext.extlinks',
-    'nbsphinx'
+    'nbsphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
