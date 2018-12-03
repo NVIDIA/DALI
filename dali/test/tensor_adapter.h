@@ -8,22 +8,25 @@ namespace dali {
 
 namespace testing {
 
-template<typename DataType>
+template<typename UnderlyingDataType>
 class TensorAdapter {
-  static_assert(std::is_fundamental<DataType>::value, "Underlying data type for tensor has to be fundamental");
+  static_assert(std::is_fundamental<UnderlyingDataType>::value, "Underlying data type for tensor has to be fundamental");
 public:
-  TensorAdapter(std::vector<DataType> data, std::vector<size_t> shape) noexcept {}
+  TensorAdapter(std::vector<UnderlyingDataType> data, std::vector<size_t> shape) noexcept {}
+
+  template<typename Backend, typename T>
+  static dali::TensorList<Backend> ToTensorList(std::vector<TensorAdapter<T>> tensors) noexcept {
+  }
 
 private:
-  std::vector<DataType> data;
+  std::vector<UnderlyingDataType> data;
   std::vector<size_t> shape;
 };
 
-template<typename Backend, typename DataType>
-dali::TensorList<Backend> ToTensorList(TensorAdapter<DataType> tensors) noexcept {}
 
-template<typename DataType, typename Backend>
-std::vector<TensorAdapter<DataType>> CreateTensorAdapters(dali::TensorList<Backend> tensor_list) noexcept {}
+
+template<typename UnderlyingDataType, typename Backend>
+std::vector<TensorAdapter<UnderlyingDataType>> CreateTensorAdapters(dali::TensorList<Backend> tensor_list) noexcept {}
 
 }  // namespace testing
 
