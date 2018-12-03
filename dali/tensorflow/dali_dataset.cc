@@ -58,33 +58,32 @@ class DALIDatasetOp : public DatasetOpKernel {
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
     *output =
-        new Dataset(context);
+        new Dataset(context, &serialized_pipeline_, &shapes_, &dtypes_, &devices_);
   }
 
  private:
   class Dataset : public DatasetBase {
    public:
-    explicit Dataset(OpKernelContext* ctx)
-        : DatasetBase(DatasetContext(ctx)) {
+    explicit Dataset(OpKernelContext* ctx, const std::string* serialized_pipeline,
+        const std::vector<TensorShape>* shapes, const DataTypeVector* types,
+        const std::vector<int>* devices)
+        : DatasetBase(DatasetContext(ctx)),
+          dtypes_{types},
+          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape())} {
     }
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
         const string& prefix) const override {
       return std::unique_ptr<IteratorBase>(
-          new Iterator({this, strings::StrCat(prefix, "::DaliDataset")}));
+          new Iterator({this, strings::StrCat(prefix, "::DALIDataset")}));
     }
 
     const DataTypeVector& output_dtypes() const override {
-      // TODO set the correct types
-      static DataTypeVector* dtypes = new DataTypeVector({DT_STRING});
-      return *dtypes;
+      return *dtypes_;
     }
 
     const std::vector<PartialTensorShape>& output_shapes() const override {
-      // TODO set the correct shapes
-      static std::vector<PartialTensorShape>* shapes =
-          new std::vector<PartialTensorShape>({{}});
-      return *shapes;
+      return shapes_;
     }
 
     string DebugString() const override { return "DALIDatasetOp::Dataset"; }
@@ -128,6 +127,9 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       mutex mu_;
     };
+
+    const DataTypeVector* dtypes_;
+    const std::vector<PartialTensorShape> shapes_;
   };
 
   std::string serialized_pipeline_;
