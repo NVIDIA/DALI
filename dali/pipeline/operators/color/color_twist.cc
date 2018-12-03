@@ -125,7 +125,7 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     float *m = reinterpret_cast<float *>(matrix);
     IdentityMatrix(m);
     for (size_t j = 0; j < augments_.size(); ++j) {
-      augments_[j]->Prepare(0, spec_, ws);
+      augments_[j]->Prepare(ws->data_idx(), spec_, ws);
       (*augments_[j])(m);
     }
 
