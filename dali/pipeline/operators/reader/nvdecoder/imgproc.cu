@@ -1,3 +1,17 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
 
 #include <cuda_fp16.h>
@@ -108,7 +122,7 @@ inline constexpr int divUp(int total, int grain) {
     return (total + grain - 1) / grain;
 }
 
-} //  namespace
+}  // namespace
 
 template<typename T>
 void process_frame(
@@ -125,7 +139,8 @@ void process_frame(
     dim3 grid(divUp(output.width, block.x), divUp(output.height, block.y));
 
     int frame_stride = index * output.height * output.width * output.channels;
-    LOG_LINE << "Processing frame " << index << " (frame_stride=" << frame_stride << ")" << std::endl;
+    LOG_LINE << "Processing frame " << index
+             << " (frame_stride=" << frame_stride << ")" << std::endl;
     auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
 
     process_frame_kernel<<<grid, block, 0, stream>>>

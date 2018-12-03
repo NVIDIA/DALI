@@ -32,10 +32,6 @@ CUContext::CUContext(CUdevice device, unsigned int flags)
     CUDA_CALL(cuCtxSynchronize());
 }
 
-CUContext::CUContext(CUcontext ctx)
-    : context_{ctx}, initialized_{true} {
-}
-
 CUContext::~CUContext() {
     if (initialized_) {
         // cuCtxPopCurrent?

@@ -213,11 +213,11 @@ class DataReader : public Operator<Backend> {
       }
     }
 
-    for (samples_processed_ = 0; samples_processed_.load() < Operator<Backend>::batch_size_; ++samples_processed_) {
-
+    for (samples_processed_ = 0;
+         samples_processed_.load() < Operator<Backend>::batch_size_;
+         ++samples_processed_) {
       // consume batch
       Operator<Backend>::Run(ws);
-
       loader_->ReturnTensor(prefetched_batch_[samples_processed_]);
     }
 

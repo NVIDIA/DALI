@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iomanip>
+#include "dali/pipeline/operators/reader/loader/video_loader.h"
+
 #include <unistd.h>
 
-#include "dali/pipeline/operators/reader/loader/video_loader.h"
+#include <iomanip>
 
 namespace dali {
 
@@ -97,7 +98,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
                 new NvDecoder(device_id_,
                               codecpar(stream),
                               stream->time_base)};
-        } else { // already opened a file
+        } else {  // already opened a file
             if (!vid_decoder_) {
                 throw std::logic_error("width is already set but we don't have a vid_decoder_");
             }
@@ -253,7 +254,7 @@ void VideoLoader::read_file() {
                         seek_hack *= 2;
                         if (final_try) {
                             std::stringstream ss;
-                            ss << device_id_ << ": I give up, I can't get it to seek to frame "
+                            ss << device_id_ << ": failed to seek frame "
                                << req.frame;
                             DALI_FAIL(ss.str());
                         }
@@ -444,4 +445,5 @@ void VideoLoader::ReadSample(SequenceWrapper* tensor) {
 Index VideoLoader::Size() {
     return static_cast<Index>(total_frame_count_);
 }
+
 }  // namespace dali

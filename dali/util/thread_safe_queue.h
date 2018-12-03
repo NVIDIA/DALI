@@ -19,62 +19,63 @@
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+#include <utility>
 
 namespace dali {
 
 template<typename T>
 class ThreadSafeQueue {
-  public:
-    ThreadSafeQueue() : interrupt_{false} {}
+ public:
+  ThreadSafeQueue() : interrupt_{false} {}
 
-    void push(T item) {
-        {
-            std::lock_guard<std::mutex> lock(lock_);
-            queue_.push(std::move(item));
-        }
-        cond_.notify_one();
+  void push(T item) {
+    {
+      std::lock_guard<std::mutex> lock(lock_);
+      queue_.push(std::move(item));
     }
+    cond_.notify_one();
+  }
 
-    T pop() {
-        static auto int_return = T{};
-        std::unique_lock<std::mutex> lock{lock_};
-        cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
-        if (interrupt_) {
-            return std::move(int_return);
-        }
-        T item = std::move(queue_.front());
-        queue_.pop();
-        return item;
+  T pop() {
+    static auto int_return = T{};
+    std::unique_lock<std::mutex> lock{lock_};
+    cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
+    if (interrupt_) {
+      return std::move(int_return);
     }
+    T item = std::move(queue_.front());
+    queue_.pop();
+    return item;
+  }
 
-    const T& peek() {
-        static auto int_return = T{};
-        std::unique_lock<std::mutex> lock{lock_};
-        cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
-        if (interrupt_) {
-            return std::move(int_return);
-        }
-        return queue_.front();
+  const T& peek() {
+    static auto int_return = T{};
+    std::unique_lock<std::mutex> lock{lock_};
+    cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
+    if (interrupt_) {
+      return std::move(int_return);
     }
+    return queue_.front();
+  }
 
-    bool empty() const {
-        return queue_.empty();
-    }
+  bool empty() const {
+    return queue_.empty();
+  }
 
-    typename std::queue<T>::size_type size() const {
-        return queue_.size();
-    }
+  typename std::queue<T>::size_type size() const {
+    return queue_.size();
+  }
 
-    void shutdown() {
-        interrupt_ = true;
-        cond_.notify_all();
-    }
+  void shutdown() {
+    interrupt_ = true;
+    cond_.notify_all();
+  }
 
-  private:
-    std::queue<T> queue_;
-    std::mutex lock_;
-    std::condition_variable cond_;
-    bool interrupt_;
+ private:
+  std::queue<T> queue_;
+  std::mutex lock_;
+  std::condition_variable cond_;
+  bool interrupt_;
 };
 
 }  // namespace dali

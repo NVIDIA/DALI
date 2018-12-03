@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <nvml.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -19,67 +26,57 @@
 #include <queue>
 #include <sstream>
 #include <string>
-
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <nvml.h>
-#include <unistd.h>
-
-extern "C" {
-#include <libavformat/avformat.h>
-}
+#include <utility>
 
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/util/cucontext.h"
 #include "dali/error_handling.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
-
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 
 namespace dali {
 
 CUStream::CUStream(int device_id, bool default_stream) : created_{false}, stream_{0} {
-    if (!default_stream) {
-        int orig_device;
-        cudaGetDevice(&orig_device);
-        auto set_device = false;
-        if (device_id >= 0 && orig_device != device_id) {
-            set_device = true;
-            cudaSetDevice(device_id);
-        }
-        CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-        created_ = true;
-        if (set_device) {
-            CUDA_CALL(cudaSetDevice(orig_device));
-        }
+  if (!default_stream) {
+    int orig_device;
+    cudaGetDevice(&orig_device);
+    auto set_device = false;
+    if (device_id >= 0 && orig_device != device_id) {
+      set_device = true;
+      cudaSetDevice(device_id);
     }
+    CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+    created_ = true;
+    if (set_device) {
+      CUDA_CALL(cudaSetDevice(orig_device));
+    }
+  }
 }
 
 CUStream::~CUStream() {
-    if (created_) {
-        CUDA_CALL(cudaStreamDestroy(stream_));
-    }
+  if (created_) {
+    CUDA_CALL(cudaStreamDestroy(stream_));
+  }
 }
 
 CUStream::CUStream(CUStream&& other)
     : created_{other.created_}, stream_{other.stream_}
 {
-    other.stream_ = 0;
-    other.created_ = false;
+  other.stream_ = 0;
+  other.created_ = false;
 }
 
 CUStream& CUStream::operator=(CUStream&& other) {
-    stream_ = other.stream_;
-    created_ = other.created_;
-    other.stream_ = 0;
-    other.created_ = false;
-    return *this;
+  stream_ = other.stream_;
+  created_ = other.created_;
+  other.stream_ = 0;
+  other.created_ = false;
+  return *this;
 }
 
 
 CUStream::operator cudaStream_t() {
-    return stream_;
+  return stream_;
 }
 
 NvDecoder::NvDecoder(int device_id,
@@ -88,149 +85,147 @@ NvDecoder::NvDecoder(int device_id,
     : device_id_{device_id}, stream_{device_id, false}, codecpar_{codecpar},
       device_{}, context_{}, parser_{}, decoder_{},
       time_base_{time_base.num, time_base.den},
-      frame_in_use_(32), // 32 is cuvid's max number of decode surfaces
+      frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_{}, frame_queue_{}, output_queue_{},
       current_recv_{}, textures_{}, done_{false}
 {
-    if (!codecpar) {
-        return;
-    }
+  if (!codecpar) {
+    // TODO(spanev) explicit handling
+    return;
+  }
 
-    CUDA_CALL(cuInit(0));
+  CUDA_CALL(cuInit(0));
 
-    CUDA_CALL(cuDeviceGet(&device_, device_id_));
+  CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
-    char device_name[100];
-    CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
-    LOG_LINE << "Using device: " << device_name << std::endl;
+  char device_name[100];
+  CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
+  LOG_LINE << "Using device: " << device_name << std::endl;
 
-    context_ = CUContext(device_);
-    if (!context_.initialized()) {
-        DALI_FAIL("Problem initializing context, not initializing VideoDecoder");
-    }
+  context_ = CUContext(device_);
+  if (!context_.initialized()) {
+    DALI_FAIL("Problem initializing context, not initializing VideoDecoder");
+  }
 
-    auto codec = Codec::H264;
-    switch (codecpar->codec_id) {
-        case AV_CODEC_ID_H264:
-            codec = Codec::H264;
-            break;
+  auto codec = Codec::H264;
+  switch (codecpar->codec_id) {
+    case AV_CODEC_ID_H264:
+      codec = Codec::H264;
+      break;
 
-        case AV_CODEC_ID_HEVC:
-            codec = Codec::HEVC;
-            break;
+    case AV_CODEC_ID_HEVC:
+      codec = Codec::HEVC;
+      break;
 
-        default:
-            DALI_FAIL("Invalid codec for NvDecoder");
-            return;
-    }
+    default:
+      DALI_FAIL("Invalid codec for NvDecoder");
+      return;
+  }
 
-    parser_.init(codec, this, 20, codecpar->extradata,
-                        codecpar->extradata_size);
-    if (!parser_.initialized()) {
-        DALI_FAIL("Problem creating video parser");
-        return;
-    }
+  parser_.init(codec, this, 20, codecpar->extradata,
+                      codecpar->extradata_size);
+  if (!parser_.initialized()) {
+    DALI_FAIL("Problem creating video parser");
+    return;
+  }
 
-    thread_convert_ = std::thread{&NvDecoder::convert_frames_worker, this};
+  thread_convert_ = std::thread{&NvDecoder::convert_frames_worker, this};
 }
 
 bool NvDecoder::initialized() const {
     return parser_.initialized();
 }
 NvDecoder::~NvDecoder() {
-    if (thread_convert_.joinable()) {
-      try {
-        thread_convert_.join();
-      } catch (const std::system_error& e) {
-        DALI_FAIL("System error joining thread: " + e.what());
-      }
+  if (thread_convert_.joinable()) {
+    try {
+      thread_convert_.join();
+    } catch (const std::system_error& e) {
+      DALI_FAIL("System error joining thread: " + e.what());
     }
+  }
 }
 
 int NvDecoder::decode_av_packet(AVPacket* avpkt) {
-    if (done_) return 0;
+  if (done_) return 0;
 
-    CUVIDSOURCEDATAPACKET cupkt = {0};
+  CUVIDSOURCEDATAPACKET cupkt = {0};
 
-    context_.push();
+  context_.push();
 
-    if (avpkt && avpkt->size) {
-        cupkt.payload_size = avpkt->size;
-        cupkt.payload = avpkt->data;
-        if (avpkt->pts != AV_NOPTS_VALUE) {
-            cupkt.flags = CUVID_PKT_TIMESTAMP;
-            if (time_base_.num && time_base_.den) {
-                cupkt.timestamp = av_rescale_q(avpkt->pts, time_base_, nv_time_base_);
-            } else {
-                cupkt.timestamp = avpkt->pts;
-            }
+  if (avpkt && avpkt->size) {
+      cupkt.payload_size = avpkt->size;
+      cupkt.payload = avpkt->data;
+      if (avpkt->pts != AV_NOPTS_VALUE) {
+        cupkt.flags = CUVID_PKT_TIMESTAMP;
+        if (time_base_.num && time_base_.den) {
+          cupkt.timestamp = av_rescale_q(avpkt->pts, time_base_, nv_time_base_);
+        } else {
+          cupkt.timestamp = avpkt->pts;
         }
-    } else {
-        cupkt.flags = CUVID_PKT_ENDOFSTREAM;
-        // mark as flushing?
-    }
+      }
+  } else {
+      cupkt.flags = CUVID_PKT_ENDOFSTREAM;
+      // mark as flushing?
+  }
 
-    // parser_ will call handle_* callbacks after parsing
-    CUDA_CALL(cuvidParseVideoData(parser_, &cupkt));
-    return 0;
+  // parser_ will call handle_* callbacks after parsing
+  CUDA_CALL(cuvidParseVideoData(parser_, &cupkt));
+  return 0;
 }
 
 int CUDAAPI NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
-    auto decoder = reinterpret_cast<NvDecoder*>(user_data);
-    return decoder->handle_sequence_(format);
+  auto decoder = reinterpret_cast<NvDecoder*>(user_data);
+  return decoder->handle_sequence_(format);
 }
 
 int CUDAAPI NvDecoder::handle_decode(void* user_data,
                                             CUVIDPICPARAMS* pic_params) {
-    auto decoder = reinterpret_cast<NvDecoder*>(user_data);
-    return decoder->handle_decode_(pic_params);
+  auto decoder = reinterpret_cast<NvDecoder*>(user_data);
+  return decoder->handle_decode_(pic_params);
 }
 
 int CUDAAPI NvDecoder::handle_display(void* user_data,
                                              CUVIDPARSERDISPINFO* disp_info) {
-    auto decoder = reinterpret_cast<NvDecoder*>(user_data);
-    return decoder->handle_display_(disp_info);
+  auto decoder = reinterpret_cast<NvDecoder*>(user_data);
+  return decoder->handle_display_(disp_info);
 }
 
 int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
-    // std::cout << "Frame base is " << format->frame_rate.denominator
-    //           << " / " << format->frame_rate.numerator << std::endl;
-    // std::cout << "handle_sequence" << std::endl;
-    frame_base_ = {static_cast<int>(format->frame_rate.denominator),
-                   static_cast<int>(format->frame_rate.numerator)};
+  frame_base_ = {static_cast<int>(format->frame_rate.denominator),
+                  static_cast<int>(format->frame_rate.numerator)};
 
-    // Prepare params and calls cuvidCreateDecoder
-    return decoder_.initialize(format);
+  // Prepare params and calls cuvidCreateDecoder
+  return decoder_.initialize(format);
 }
 
 int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
-    int total_wait = 0;
-    constexpr auto sleep_period = 500;
-    constexpr auto timeout_sec = 20;
-    constexpr auto enable_timeout = false;
-    while(frame_in_use_[pic_params->CurrPicIdx]) {
-        if (enable_timeout &&
-            total_wait++ > timeout_sec * 1000000 / sleep_period) {
-            std::cout << device_id_ << ": Waiting for picture "
-                      << pic_params->CurrPicIdx
-                      << " to become available..." << std::endl;
-            std::stringstream ss;
-            ss << "Waited too long (" << timeout_sec << " seconds) "
-               << "for decode output buffer to become available";
-            DALI_FAIL(ss.str());
-        }
-        usleep(sleep_period);
-        if (done_) return 0;
+  int total_wait = 0;
+  constexpr auto sleep_period = 500;
+  constexpr auto timeout_sec = 20;
+  constexpr auto enable_timeout = false;
+  while(frame_in_use_[pic_params->CurrPicIdx]) {
+    if (enable_timeout &&
+      total_wait++ > timeout_sec * 1000000 / sleep_period) {
+      std::cout << device_id_ << ": Waiting for picture "
+                << pic_params->CurrPicIdx
+                << " to become available..." << std::endl;
+      std::stringstream ss;
+      ss << "Waited too long (" << timeout_sec << " seconds) "
+          << "for decode output buffer to become available";
+      DALI_FAIL(ss.str());
     }
+    usleep(sleep_period);
+    if (done_) return 0;
+  }
 
-    LOG_LINE << "Sending a picture for decode"
-                << " size: " << pic_params->nBitstreamDataLen
-                << " pic index: " << pic_params->CurrPicIdx
-                << std::endl;
+  LOG_LINE << "Sending a picture for decode"
+              << " size: " << pic_params->nBitstreamDataLen
+              << " pic index: " << pic_params->CurrPicIdx
+              << std::endl;
 
-    // decoder_ operator () returns a CUvideodecoder
-    CUDA_CALL(cuvidDecodePicture(decoder_, pic_params));
-    return 1;
+  // decoder_ operator () returns a CUvideodecoder
+  CUDA_CALL(cuvidDecodePicture(decoder_, pic_params));
+  return 1;
 }
 
 NvDecoder::MappedFrame::MappedFrame()
@@ -242,39 +237,39 @@ NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
                                     CUstream stream)
     : disp_info{disp_info}, valid_{false}, decoder_(decoder), params_{0} {
 
-    if (!disp_info->progressive_frame) {
-        DALI_FAIL("Got an interlaced frame. We don't do interlaced frames.");
-    }
+  if (!disp_info->progressive_frame) {
+    DALI_FAIL("Got an interlaced frame. We don't do interlaced frames.");
+  }
 
-    params_.progressive_frame = disp_info->progressive_frame;
-    params_.top_field_first = disp_info->top_field_first;
-    params_.second_field = 0;
-    params_.output_stream = stream;
+  params_.progressive_frame = disp_info->progressive_frame;
+  params_.top_field_first = disp_info->top_field_first;
+  params_.second_field = 0;
+  params_.output_stream = stream;
 
-    CUDA_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
-                                 &ptr_, &pitch_, &params_));
-    valid_ = true;
+  CUDA_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
+                                &ptr_, &pitch_, &params_));
+  valid_ = true;
 }
 
 NvDecoder::MappedFrame::MappedFrame(MappedFrame&& other)
     : disp_info(other.disp_info), valid_(other.valid_), decoder_(other.decoder_),
       ptr_(other.ptr_), pitch_(other.pitch_), params_(other.params_) {
-    other.disp_info = nullptr;
-    other.valid_ = false;
+  other.disp_info = nullptr;
+  other.valid_ = false;
 }
 
 NvDecoder::MappedFrame::~MappedFrame() {
-    if (valid_) {
-        CUDA_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
-    }
+  if (valid_) {
+    CUDA_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
+  }
 }
 
 uint8_t* NvDecoder::MappedFrame::get_ptr() const {
-    return reinterpret_cast<uint8_t*>(ptr_);
+  return reinterpret_cast<uint8_t*>(ptr_);
 }
 
 unsigned int NvDecoder::MappedFrame::get_pitch() const {
-    return pitch_;
+  return pitch_;
 }
 
 NvDecoder::TextureObject::TextureObject() : valid_{false} {
@@ -285,8 +280,8 @@ NvDecoder::TextureObject::TextureObject(const cudaResourceDesc* pResDesc,
                                         const cudaResourceViewDesc* pResViewDesc)
     : valid_{false}
 {
-    CUDA_CALL(cudaCreateTextureObject(&object_, pResDesc, pTexDesc, pResViewDesc));
-    valid_ = true;
+  CUDA_CALL(cudaCreateTextureObject(&object_, pResDesc, pTexDesc, pResViewDesc));
+  valid_ = true;
 }
 
 NvDecoder::TextureObject::~TextureObject() {
@@ -298,90 +293,90 @@ NvDecoder::TextureObject::~TextureObject() {
 NvDecoder::TextureObject::TextureObject(NvDecoder::TextureObject&& other)
     : valid_{other.valid_}, object_{other.object_}
 {
-    other.valid_ = false;
+  other.valid_ = false;
 }
 
 NvDecoder::TextureObject& NvDecoder::TextureObject::operator=(NvDecoder::TextureObject&& other) {
-    valid_ = other.valid_;
-    object_ = other.object_;
-    other.valid_ = false;
-    return *this;
+  valid_ = other.valid_;
+  object_ = other.object_;
+  other.valid_ = false;
+  return *this;
 }
 
 NvDecoder::TextureObject::operator cudaTextureObject_t() const {
-    if (valid_) {
-        return object_;
-    } else {
-        return cudaTextureObject_t{};
-    }
+  if (valid_) {
+      return object_;
+  } else {
+      return cudaTextureObject_t{};
+  }
 }
 
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
-    auto frame = av_rescale_q(disp_info->timestamp,
-                              nv_time_base_, frame_base_);
+  auto frame = av_rescale_q(disp_info->timestamp,
+                            nv_time_base_, frame_base_);
 
-    if (current_recv_.count <= 0) {
-        if (recv_queue_.empty()) {
-            LOG_LINE << "Ditching frame " << frame << " since "
-                    << "the receive queue is empty." << std::endl;
-            return 1;
-        }
-        LOG_LINE << "Moving on to next request, " << recv_queue_.size()
-                   << " reqs left" << std::endl;
-        current_recv_ = recv_queue_.pop();
+  if (current_recv_.count <= 0) {
+    if (recv_queue_.empty()) {
+      LOG_LINE << "Ditching frame " << frame << " since "
+              << "the receive queue is empty." << std::endl;
+      return 1;
     }
+    LOG_LINE << "Moving on to next request, " << recv_queue_.size()
+                << " reqs left" << std::endl;
+    current_recv_ = recv_queue_.pop();
+  }
 
-    if (done_) return 0;
+  if (done_) return 0;
 
-    if (current_recv_.count <= 0) {
-        // a new req with count <= 0 probably means we are finishing
-        // up and should just ditch this frame
-        LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
-        return 1;
-    }
-
-    if (frame != current_recv_.frame) {
-        // TODO(spanev) This definitely needs better error handling...
-        // Add exception? Directly or after countdown treshold?
-        LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
-                    << "frame " << current_recv_.frame << std::endl;
-        return 1;
-    }
-
-    LOG_LINE << "\e[1mGoing ahead with frame " << frame
-                << " wanted count: " << current_recv_.count
-                << " disp_info->picture_index: " << disp_info->picture_index
-                << "\e[0m" << std::endl;
-
-    current_recv_.frame++;
-    current_recv_.count--;
-
-    frame_in_use_[disp_info->picture_index] = true;
-    frame_queue_.push(disp_info);
+  if (current_recv_.count <= 0) {
+    // a new req with count <= 0 probably means we are finishing
+    // up and should just ditch this frame
+    LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
     return 1;
+  }
+
+  if (frame != current_recv_.frame) {
+    // TODO(spanev) This definitely needs better error handling...
+    // Add exception? Directly or after countdown treshold?
+    LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
+                << "frame " << current_recv_.frame << std::endl;
+    return 1;
+  }
+
+  LOG_LINE << "\e[1mGoing ahead with frame " << frame
+              << " wanted count: " << current_recv_.count
+              << " disp_info->picture_index: " << disp_info->picture_index
+              << "\e[0m" << std::endl;
+
+  current_recv_.frame++;
+  current_recv_.count--;
+
+  frame_in_use_[disp_info->picture_index] = true;
+  frame_queue_.push(disp_info);
+  return 1;
 }
 
 int NvDecoder::decode_packet(AVPacket* pkt) {
-    switch(codecpar_->codec_type) {
-        case AVMEDIA_TYPE_AUDIO:
-        case AVMEDIA_TYPE_VIDEO:
-            return decode_av_packet(pkt);
+  switch (codecpar_->codec_type) {
+    case AVMEDIA_TYPE_AUDIO:
+    case AVMEDIA_TYPE_VIDEO:
+      return decode_av_packet(pkt);
 
-        default:
-            DALI_FAIL("Got to decode_packet in a decoder that is not "
-                      "for an audio, video, or subtitle stream.");
-    }
-    return -1;
+    default:
+      DALI_FAIL("Got to decode_packet in a decoder that is not "
+                "for an audio, video, or subtitle stream.");
+  }
+  return -1;
 }
 
 
 void NvDecoder::push_req(FrameReq req) {
-    recv_queue_.push(std::move(req));
+  recv_queue_.push(std::move(req));
 }
 
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
-    LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
-    output_queue_.push(&sequence);
+  LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
+  output_queue_.push(&sequence);
 }
 
 // We assume here that a pointer and scale_method
@@ -390,111 +385,106 @@ const NvDecoder::TextureObjects&
 NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
                         uint16_t input_width, uint16_t input_height,
                         ScaleMethod scale_method) {
-    auto tex_id = std::make_tuple(input, scale_method);
-    auto tex = textures_.find(tex_id);
-    if (tex != textures_.end()) {
-        return tex->second;
-    }
-    TextureObjects objects;
-    cudaTextureDesc tex_desc = {};
-    tex_desc.addressMode[0]   = cudaAddressModeClamp;
-    tex_desc.addressMode[1]   = cudaAddressModeClamp;
-    if (scale_method == ScaleMethod_Nearest) {
-        tex_desc.filterMode   = cudaFilterModePoint;
-    } else {
-        tex_desc.filterMode   = cudaFilterModeLinear;
-    }
-    tex_desc.readMode         = cudaReadModeNormalizedFloat;
-    tex_desc.normalizedCoords = 0;
+  auto tex_id = std::make_tuple(input, scale_method);
+  auto tex = textures_.find(tex_id);
+  if (tex != textures_.end()) {
+    return tex->second;
+  }
+  TextureObjects objects;
+  cudaTextureDesc tex_desc = {};
+  tex_desc.addressMode[0]   = cudaAddressModeClamp;
+  tex_desc.addressMode[1]   = cudaAddressModeClamp;
+  if (scale_method == ScaleMethod_Nearest) {
+      tex_desc.filterMode   = cudaFilterModePoint;
+  } else {
+      tex_desc.filterMode   = cudaFilterModeLinear;
+  }
+  tex_desc.readMode         = cudaReadModeNormalizedFloat;
+  tex_desc.normalizedCoords = 0;
 
-    cudaResourceDesc res_desc = {};
-    res_desc.resType = cudaResourceTypePitch2D;
-    res_desc.res.pitch2D.devPtr = input;
-    res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar1>();
-    res_desc.res.pitch2D.width = input_width;
-    res_desc.res.pitch2D.height = input_height;
-    res_desc.res.pitch2D.pitchInBytes = input_pitch;
+  cudaResourceDesc res_desc = {};
+  res_desc.resType = cudaResourceTypePitch2D;
+  res_desc.res.pitch2D.devPtr = input;
+  res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar1>();
+  res_desc.res.pitch2D.width = input_width;
+  res_desc.res.pitch2D.height = input_height;
+  res_desc.res.pitch2D.pitchInBytes = input_pitch;
 
-    objects.luma = TextureObject{&res_desc, &tex_desc, nullptr};
+  objects.luma = TextureObject{&res_desc, &tex_desc, nullptr};
 
-    tex_desc.addressMode[0]   = cudaAddressModeClamp;
-    tex_desc.addressMode[1]   = cudaAddressModeClamp;
-    tex_desc.filterMode       = cudaFilterModeLinear;
-    tex_desc.readMode         = cudaReadModeNormalizedFloat;
-    tex_desc.normalizedCoords = 0;
+  tex_desc.addressMode[0]   = cudaAddressModeClamp;
+  tex_desc.addressMode[1]   = cudaAddressModeClamp;
+  tex_desc.filterMode       = cudaFilterModeLinear;
+  tex_desc.readMode         = cudaReadModeNormalizedFloat;
+  tex_desc.normalizedCoords = 0;
 
-    res_desc.resType = cudaResourceTypePitch2D;
-    res_desc.res.pitch2D.devPtr = input + (input_height * input_pitch);
-    res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar2>();
-    res_desc.res.pitch2D.width = input_width;
-    res_desc.res.pitch2D.height = input_height / 2;
-    res_desc.res.pitch2D.pitchInBytes = input_pitch;
+  res_desc.resType = cudaResourceTypePitch2D;
+  res_desc.res.pitch2D.devPtr = input + (input_height * input_pitch);
+  res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar2>();
+  res_desc.res.pitch2D.width = input_width;
+  res_desc.res.pitch2D.height = input_height / 2;
+  res_desc.res.pitch2D.pitchInBytes = input_pitch;
 
-    objects.chroma = TextureObject{&res_desc, &tex_desc, nullptr};
+  objects.chroma = TextureObject{&res_desc, &tex_desc, nullptr};
 
-    auto p = textures_.emplace(tex_id, std::move(objects));
-    if (!p.second) {
-        DALI_FAIL("Unable to cache a new texture object.");
-    }
-    return p.first->second;
+  auto p = textures_.emplace(tex_id, std::move(objects));
+  if (!p.second) {
+    DALI_FAIL("Unable to cache a new texture object.");
+  }
+  return p.first->second;
 }
 
 void NvDecoder::convert_frames_worker() {
-    context_.push();
-    while (!done_) {
-        auto& sequence = *output_queue_.pop();
-        if (done_) break;
-        for (int i = 0; i < sequence.count; ++i) {
-            LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-                        << frame_queue_.size() << " reqs left"
-                        << std::endl;
+  context_.push();
+  while (!done_) {
+    auto& sequence = *output_queue_.pop();
+    if (done_) break;
+    for (int i = 0; i < sequence.count; ++i) {
+      LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
+                  << frame_queue_.size() << " reqs left"
+                  << std::endl;
 
-            auto* frame_disp_info = frame_queue_.pop();
-            if (done_) break;
-            auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
-            if (done_) break;
-            convert_frame(frame, sequence, i);
-        }
-        if (done_) break;
-        record_sequence_event_(sequence);
+      auto* frame_disp_info = frame_queue_.pop();
+      if (done_) break;
+      auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
+      if (done_) break;
+      convert_frame(frame, sequence, i);
     }
-    LOG_LINE << "Leaving convert frames" << std::endl;
+    if (done_) break;
+    record_sequence_event_(sequence);
+  }
+  LOG_LINE << "Leaving convert frames" << std::endl;
 }
 
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
-    auto input_width = decoder_.width();
-    auto input_height = decoder_.height();
+  auto input_width = decoder_.width();
+  auto input_height = decoder_.height();
 
-    auto output_idx = index;
-    // TODO(spanev) Add ScaleMethod choice
-    auto& textures = this->get_textures(frame.get_ptr(),
-                                        frame.get_pitch(),
-                                        input_width,
-                                        input_height,
-                                        ScaleMethod_Linear);
-     process_frame<float>(textures.chroma, textures.luma,
-                    sequence,
-                    output_idx, stream_,
-                    input_width, input_height);
+  auto output_idx = index;
+  // TODO(spanev) Add ScaleMethod choice
+  auto& textures = this->get_textures(frame.get_ptr(),
+                                      frame.get_pitch(),
+                                      input_width,
+                                      input_height,
+                                      ScaleMethod_Linear);
+    process_frame<float>(textures.chroma, textures.luma,
+                  sequence,
+                  output_idx, stream_,
+                  input_width, input_height);
 
-    frame_in_use_[frame.disp_info->picture_index] = false;
-
-    //auto frame_num = av_rescale_q(frame.disp_info->timestamp,
-    //                              nv_time_base_, frame_base_);
-
-    //sequence.get_or_add_meta<int>("frame_num")[index] = frame_num;
+  frame_in_use_[frame.disp_info->picture_index] = false;
 }
 
 void NvDecoder::finish() {
-    done_ = true;
-    recv_queue_.shutdown();
-    frame_queue_.shutdown();
-    output_queue_.shutdown();
+  done_ = true;
+  recv_queue_.shutdown();
+  frame_queue_.shutdown();
+  output_queue_.shutdown();
 }
 
- void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
-    sequence.set_started(stream_);
+void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
+  sequence.set_started(stream_);
 }
 
 }  // namespace dali

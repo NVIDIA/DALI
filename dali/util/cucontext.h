@@ -20,27 +20,26 @@
 namespace dali {
 
 class CUContext {
-  public:
-    CUContext();
-    CUContext(CUdevice device, unsigned int flags = 0);
-    CUContext(CUcontext);
-    ~CUContext();
+ public:
+  CUContext();
+  explicit CUContext(CUdevice device, unsigned int flags = 0);
+  ~CUContext();
 
-    // no copying
-    CUContext(const CUContext&) = delete;
-    CUContext& operator=(const CUContext&) = delete;
+  // no copying
+  CUContext(const CUContext&) = delete;
+  CUContext& operator=(const CUContext&) = delete;
 
-    CUContext(CUContext&& other);
-    CUContext& operator=(CUContext&& other);
+  CUContext(CUContext&& other);
+  CUContext& operator=(CUContext&& other);
 
-    operator CUcontext() const;
+  operator CUcontext() const;
 
-    void push() const;
-    bool initialized() const;
-  private:
-    CUdevice device_;
-    CUcontext context_;
-    bool initialized_;
+  void push() const;
+  bool initialized() const;
+ private:
+  CUdevice device_;
+  CUcontext context_;
+  bool initialized_;
 };
 
 }  // namespace dali

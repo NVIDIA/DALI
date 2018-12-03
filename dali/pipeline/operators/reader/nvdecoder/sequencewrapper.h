@@ -30,8 +30,7 @@ namespace dali {
 // Struct that Loader::ReadOne will read
 struct SequenceWrapper {
  public:
-
-  explicit SequenceWrapper()
+  SequenceWrapper()
   : started_(false) {}
 
   void initialize(int count, int height, int width, int channels) {
