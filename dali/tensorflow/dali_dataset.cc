@@ -40,9 +40,25 @@ class DALIDatasetOp : public DatasetOpKernel {
  public:
   using DatasetOpKernel::DatasetOpKernel;
 
-  void MakeDataset(OpKernelContext* ctx, DatasetBase** output) override {
+  DALIDatasetOp(OpKernelConstruction* context)
+  : DatasetOpKernel(context) {
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("serialized_pipeline", &serialized_pipeline_));
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("shapes", &shapes_));
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("dtypes", &dtypes_));
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("devices", &devices_));
+
+    OP_REQUIRES(
+        context, !devices_.empty(),
+        errors::InvalidArgument("`devices` cannot be empty."));
+  }
+
+  void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
     *output =
-        new Dataset(ctx);
+        new Dataset(context);
   }
 
  private:
@@ -113,6 +129,11 @@ class DALIDatasetOp : public DatasetOpKernel {
       mutex mu_;
     };
   };
+
+  std::string serialized_pipeline_;
+  std::vector<TensorShape> shapes_;
+  DataTypeVector dtypes_;
+  std::vector<int> devices_;
 };
 
 REGISTER_OP("DALIDataset")
@@ -121,33 +142,18 @@ REGISTER_OP("DALIDataset")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
     .Attr("devices: list(type) >= 1")
     .Output("handle: variant")
-    .
-
-    SetIsStateful()  // TODO: Is it necessary in order to prevent folding?
+    .SetIsStateful()  // TODO: Is it necessary in order to prevent folding?
     .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {
-      // define shape for the first output
       std::vector<tensorflow::PartialTensorShape> shapes;
       TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-      for (unsigned i = 0; i < shapes.
-
-                               size();
-
-           ++i) {
-        if (shapes[i].
-
-            dims()
-
-            > 0) {
+      for (unsigned int i = 0; i < shapes.size(); ++i) {
+        if (shapes[i].dims() > 0) {
           tensorflow::shape_inference::ShapeHandle passed_shape;
           TF_RETURN_IF_ERROR(
               c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
           TF_RETURN_IF_ERROR(c->WithRank(passed_shape,
-                                         shapes[i].
-
-                                         dims(),
-                                         &passed_shape
-
-                                         ));
+                                         shapes[i].dims(),
+                                         &passed_shape));
           c->set_output(i, passed_shape);
         }
       }
