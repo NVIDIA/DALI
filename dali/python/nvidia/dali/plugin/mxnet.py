@@ -99,9 +99,10 @@ class DALIGenericIterator(object):
         self._current_data_batch = 0
         self._output_names_map = [x[0] for x in output_map]
         self._output_categories_map = [x[1] for x in output_map]
-        self._output_categories = {DATA_TAG, LABEL_TAG]}
-        assert self._output_categories == set(self._output_categories_map), "Only DATA_TAG and LABEL_TAG are allowed"
-        assert len(set(self._output_names_map)) == len(self._output_names_map),
+        self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
+        assert self._output_categories == set(self._output_categories_map), \
+            "Only DATA_TAG and LABEL_TAG are allowed"
+        assert len(set(self._output_names_map)) == len(self._output_names_map), \
             "output_names in output_map should be distinct"
         self.output_map = output_map
 
@@ -118,10 +119,12 @@ class DALIGenericIterator(object):
             category_names[category].append(name)
         for i, data in enumerate(self._first_batch[0].data):
             data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
-            self.provide_data.append(mx.io.DataDesc(category_names[DATA_TAG][i], data_shape, data.dtype, layout=data_layout))
+            self.provide_data.append(mx.io.DataDesc(category_names[DALIGenericIterator.DATA_TAG][i], \
+                data_shape, data.dtype, layout=data_layout))
         for i, label in enumerate(self._first_batch[0].label):
             label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
-            self.provide_label.append(mx.io.DataDesc(category_names[LABEL_TAG][i], label_shape, label.dtype))
+            self.provide_label.append(mx.io.DataDesc(category_names[DALIGenericIterator.LABEL_TAG][i], \
+                label_shape, label.dtype))
 
 
     def __next__(self):
@@ -147,9 +150,18 @@ class DALIGenericIterator(object):
             # Change DALI TensorLists into Tensors
             category_tensors = dict()
             category_info = dict()
-            for category, output_list in category_outputs.items():
-                category_tensors[category] = [x.as_tensor() for x in output_list]
-                category_info[category] = [x.shape(), np.dtype(x.dtype()) for x in category_tensors[category]]
+            # For data proceed normally
+            category_tensors[DALIGenericIterator.DATA_TAG] = \
+                [x.as_tensor() for x in category_outputs[DALIGenericIterator.DATA_TAG]]
+            category_info[DALIGenericIterator.DATA_TAG] = \
+                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.DATA_TAG]]
+            # For labels we squeeze the tensors
+            category_tensors[DALIGenericIterator.LABEL_TAG] = \
+                [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
+            for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
+                label.squeeze()
+            category_info[DALIGenericIterator.LABEL_TAG] = \
+                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
@@ -165,10 +177,10 @@ class DALIGenericIterator(object):
                             category_device[category].append(mx_cpu_device)
                 d = []
                 l = []
-                for j, (shape, dtype) in enumerate(category_info[DATA_TAG]):
-                    d.append(mx.nd.zeros(shape, categort_device[DATA_TAG], dtype = dtype))
-                for j, (shape, dtype) in enumerate(category_info[LABEL_TAG]):
-                    l.append(mx.nd.zeros(shape, categort_device[LABEL_TAG], dtype = dtype))
+                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
+                    d.append(mx.nd.zeros(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
+                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
+                    l.append(mx.nd.zeros(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
 
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
 
@@ -176,9 +188,9 @@ class DALIGenericIterator(object):
             l = self._data_batches[i][self._current_data_batch].label
             # Copy data from DALI Tensors to MXNet NDArrays
             for j, d_arr in enumerate(d):
-                feed_ndarray(category_tensors[DATA_TAG][j], d_arr)
+                feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
             for j, l_arr in enumerate(l):
-                feed_ndarray(category_tensors[LABEL_TAG][j], l_arr)
+                feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
 
         for p in self._pipes:
             p._release_outputs()
@@ -278,8 +290,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data_layout='NCHW',
                  fill_last_batch=True):
         super(DALIClassificationIterator, self).__init__(pipelines,
-                                                         [data_name, DALIClassificationIterator.DATA_TAG,
-                                                          label_name, DALIClassificationIterator.LABEL_TAG],
+                                                         [(data_name, DALIClassificationIterator.DATA_TAG),
+                                                          (label_name, DALIClassificationIterator.LABEL_TAG)],
                                                          size,
                                                          data_layout     = data_layout,
                                                          fill_last_batch = fill_last_batch)
