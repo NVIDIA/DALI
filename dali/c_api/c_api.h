@@ -26,6 +26,11 @@ extern "C" {
     void* ws;
   };
 
+  enum device_type_t {
+    CPU = 0,
+    GPU = 1
+  };
+
   /**
    * @brief Create DALI pipeline. Setting batch_size,
    * num_threads or device_id here overrides
@@ -76,8 +81,10 @@ extern "C" {
   /**
    * @brief Copy the output tensor stored
    * at position `n` in the pipeline.
+   * dst_type (0 - CPU, 1 - GPU)
    */
-  DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n);
+  DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
+                                          device_type_t dst_type);
 
   /**
    * @brief Delete the pipeline object.

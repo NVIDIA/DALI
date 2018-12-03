@@ -147,7 +147,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr);
+          CopyToExternalTensor(t, ptr, CPU);
         },
       "ptr"_a,
       R"code(
@@ -180,7 +180,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr);
+          CopyToExternalTensor(t, ptr, GPU);
         },
       "ptr"_a,
       R"code(
@@ -324,7 +324,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(&t, ptr);
+          CopyToExternalTensor(&t, ptr, CPU);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -381,7 +381,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           PyObject *p_ptr = p.ptr();
           PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
           void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(&t, ptr);
+          CopyToExternalTensor(&t, ptr, GPU);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
