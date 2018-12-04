@@ -41,10 +41,13 @@ private:
 
   virtual bool Verify(TensorAdapter<OutputType> output, TensorAdapter<OutputType> anticipated_output) const noexcept = 0;
 
-  void SetUp() final {}
+  void SetUp() final {
+    inputs_ = SetInputs();
+  }
 
   void TearDown() final {}
 
+  std::vector<TensorAdapter<InputType>> inputs_;
 };
 
 }  // namespace testing
