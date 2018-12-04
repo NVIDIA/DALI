@@ -154,7 +154,7 @@ list(APPEND DALI_EXCLUDES libprotobuf.a)
 ##################################################################
 # FFmpeg
 ##################################################################
-# find_package(PkgConfig REQUIRED)
+find_package(PkgConfig REQUIRED)
 foreach(m avformat avcodec avfilter avutil)
     string(TOUPPER ${m} M)
     #pkg_check_modules(${m} REQUIRED IMPORTED_TARGET lib${m})

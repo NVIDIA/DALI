@@ -20,28 +20,20 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
-#include <thread>
 #include <algorithm>
+#include <memory>
 #include <random>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
-
-//namespace {
-
-
-// except for the old AVBitSTreamFilterContext
-#ifndef HAVE_AVBSFCONTEXT
-class BSFDeleter {
-  public:
-    void operator()(AVBitStreamFilterContext* bsf) {
-        av_bitstream_filter_close(bsf);
-    }
-};
-#endif
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -70,6 +62,11 @@ struct OpenFile {
 #ifdef HAVE_AVBSFCONTEXT
   av_unique_ptr<AVBSFContext> bsf_ctx_;
 #else
+  struct BSFDeleter {
+    void operator()(AVBitStreamFilterContext* bsf) {
+      av_bitstream_filter_close(bsf);
+    }
+  };
   using bsf_ptr = std::unique_ptr<AVBitStreamFilterContext, BSFDeleter>;
   bsf_ptr bsf_ctx_;
   AVCodecContext* codec;
@@ -77,28 +74,27 @@ struct OpenFile {
   av_unique_ptr<AVFormatContext> fmt_ctx_;
 };
 
-/// Provides statistics, see VideoLoader::get_stats() and VideoLoader::reset_stats()
 struct VideoLoaderStats {
-    /** Total number of bytes read from disk */
-    uint64_t bytes_read;
+  /** Total number of bytes read from disk */
+  uint64_t bytes_read;
 
-    /** Number of compressed packets read from disk */
-    uint64_t packets_read;
+  /** Number of compressed packets read from disk */
+  uint64_t packets_read;
 
-    /** Total number of bytes sent to NVDEC for decoding, can be
-     *  different from bytes_read when seeking is a bit off or if
-     *  there are extra streams in the video file. */
-    uint64_t bytes_decoded;
+  /** Total number of bytes sent to NVDEC for decoding, can be
+   *  different from bytes_read when seeking is a bit off or if
+   *  there are extra streams in the video file. */
+  uint64_t bytes_decoded;
 
-    /** Total number of packets sent to NVDEC for decoding, see bytes_decoded */
-    uint64_t packets_decoded;
+  /** Total number of packets sent to NVDEC for decoding, see bytes_decoded */
+  uint64_t packets_decoded;
 
-    /** Total number of frames actually used. This is usually less
-     *  than packets_decoded because decoding must happen key frame to
-     *  key frame and output sequences often span key frame sequences,
-     *  requiring more frames to be decoded than are actually used in
-     *  the output. */
-    uint64_t frames_used;
+  /** Total number of frames actually used. This is usually less
+   *  than packets_decoded because decoding must happen key frame to
+   *  key frame and output sequences often span key frame sequences,
+   *  requiring more frames to be decoded than are actually used in
+   *  the output. */
+  uint64_t frames_used;
 };
 
 
@@ -118,7 +114,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
   void init() {
-
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
@@ -168,6 +163,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void receive_frames(SequenceWrapper& sequence);
   std::pair<int, int> load_width_height(const std::string& filename);
 
+ private:
   // Params
   int count_;
   int output_height_;

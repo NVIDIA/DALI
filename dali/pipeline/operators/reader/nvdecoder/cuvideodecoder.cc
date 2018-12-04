@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/error_handling.h"
@@ -24,32 +25,32 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
     static struct {
         cudaVideoCodec eCodec;
         const char *name;
-    } aCodecName [] = {
-        { cudaVideoCodec_MPEG1,    "MPEG-1"       },
-        { cudaVideoCodec_MPEG2,    "MPEG-2"       },
-        { cudaVideoCodec_MPEG4,    "MPEG-4 (ASP)" },
-        { cudaVideoCodec_VC1,      "VC-1/WMV"     },
-        { cudaVideoCodec_H264,     "AVC/H.264"    },
-        { cudaVideoCodec_JPEG,     "M-JPEG"       },
-        { cudaVideoCodec_H264_SVC, "H.264/SVC"    },
-        { cudaVideoCodec_H264_MVC, "H.264/MVC"    },
-        { cudaVideoCodec_HEVC,     "H.265/HEVC"   },
-        //{ cudaVideoCodec_VP8,      "VP8"          }, // ?
-        //{ cudaVideoCodec_VP9,      "VP9"          },
-        { cudaVideoCodec_NumCodecs,"Invalid"      },
-        { cudaVideoCodec_YUV420,   "YUV  4:2:0"   },
-        { cudaVideoCodec_YV12,     "YV12 4:2:0"   },
-        { cudaVideoCodec_NV12,     "NV12 4:2:0"   },
-        { cudaVideoCodec_YUYV,     "YUYV 4:2:2"   },
-        { cudaVideoCodec_UYVY,     "UYVY 4:2:2"   },
+    } aCodecName[] = {
+        { cudaVideoCodec_MPEG1,     "MPEG-1"       },
+        { cudaVideoCodec_MPEG2,     "MPEG-2"       },
+        { cudaVideoCodec_MPEG4,     "MPEG-4 (ASP)" },
+        { cudaVideoCodec_VC1,       "VC-1/WMV"     },
+        { cudaVideoCodec_H264,      "AVC/H.264"    },
+        { cudaVideoCodec_JPEG,      "M-JPEG"       },
+        { cudaVideoCodec_H264_SVC,  "H.264/SVC"    },
+        { cudaVideoCodec_H264_MVC,  "H.264/MVC"    },
+        { cudaVideoCodec_HEVC,      "H.265/HEVC"   },
+        { cudaVideoCodec_NumCodecs, "Invalid"      },
+        { cudaVideoCodec_YUV420,    "YUV  4:2:0"   },
+        { cudaVideoCodec_YV12,      "YV12 4:2:0"   },
+        { cudaVideoCodec_NV12,      "NV12 4:2:0"   },
+        { cudaVideoCodec_YUYV,      "YUYV 4:2:2"   },
+        { cudaVideoCodec_UYVY,      "UYVY 4:2:2"   },
     };
 
     if (eCodec >= 0 && eCodec <= cudaVideoCodec_NumCodecs) {
         return aCodecName[eCodec].name;
     }
-    for (size_t i = static_cast<size_t>(cudaVideoCodec_NumCodecs) + 1; i < sizeof(aCodecName) / sizeof(aCodecName[0]); i++) {
+    for (size_t i = static_cast<size_t>(cudaVideoCodec_NumCodecs) + 1;
+         i < sizeof(aCodecName) / sizeof(aCodecName[0]);
+         i++) {
         if (eCodec == aCodecName[i].eCodec) {
-            return aCodecName[eCodec].name;
+          return aCodecName[eCodec].name;
         }
     }
     return "Unknown";
@@ -66,13 +67,15 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
         { cudaVideoChromaFormat_444,        "YUV 444"              },
     };
 
-    if (static_cast<size_t>(eChromaFormat) >= 0 && static_cast<size_t>(eChromaFormat) < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
+    if (static_cast<size_t>(eChromaFormat) >= 0
+        && static_cast<size_t>(eChromaFormat)
+           < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
         return aChromaFormatName[eChromaFormat].name;
     }
     return "Unknown";
 }
 
-}
+}  // namespace
 
 CUVideoDecoder::CUVideoDecoder() : decoder_{0},
                                    decoder_info_{}, initialized_{false} {
@@ -119,15 +122,19 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
 
     LOG_LINE << "Hardware Decoder Input Information" << std::endl
         << "\tVideo codec     : " << GetVideoCodecString(format->codec) << std::endl
-        << "\tFrame rate      : " << format->frame_rate.numerator << "/" << format->frame_rate.denominator
-        << " = " << 1.0 * format->frame_rate.numerator / format->frame_rate.denominator << " fps" << std::endl
-        << "\tSequence format : " << (format->progressive_sequence ? "Progressive" : "Interlaced") << std::endl
-        << "\tCoded frame size: [" << format->coded_width << ", " << format->coded_height << "]" << std::endl
-        << "\tDisplay area    : [" << format->display_area.left << ", " << format->display_area.top << ", "
+        << "\tFrame rate      : " << format->frame_rate.numerator
+        << "/" << format->frame_rate.denominator
+        << " = " << 1.0 * format->frame_rate.numerator / format->frame_rate.denominator
+        << " fps" << std::endl
+        << "\tSequence format : " << (format->progressive_sequence ? "Progressive" : "Interlaced")
+         << std::endl
+        << "\tCoded frame size: [" << format->coded_width << ", " << format->coded_height << "]"
+        << std::endl
+        << "\tDisplay area    : [" << format->display_area.left << ", "
+        << format->display_area.top << ", "
         << format->display_area.right << ", " << format->display_area.bottom << "]" << std::endl
         << "\tChroma format   : " << GetVideoChromaFormatString(format->chroma_format) << std::endl
         << "\tBit depth       : " << format->bit_depth_luma_minus8 + 8 << std::endl;
-
 
     auto caps = CUVIDDECODECAPS{};
     caps.eCodecType = format->codec;
@@ -165,7 +172,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.ulNumDecodeSurfaces = 20;
     decoder_info_.ChromaFormat = format->chroma_format;
     decoder_info_.OutputFormat = cudaVideoSurfaceFormat_NV12;
-    decoder_info_.bitDepthMinus8 = format->bit_depth_luma_minus8; // in ffmpeg but not sample
+    decoder_info_.bitDepthMinus8 = format->bit_depth_luma_minus8;
     decoder_info_.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
     decoder_info_.ulTargetWidth = format->display_area.right - format->display_area.left;
     decoder_info_.ulTargetHeight = format->display_area.bottom - format->display_area.top;

@@ -21,31 +21,31 @@
 namespace dali {
 
 class CUVideoDecoder {
-  public:
-    CUVideoDecoder();
-    CUVideoDecoder(CUvideodecoder);
-    ~CUVideoDecoder();
+ public:
+  CUVideoDecoder();
+  explicit CUVideoDecoder(CUvideodecoder);
+  ~CUVideoDecoder();
 
-    // no copying
-    CUVideoDecoder(const CUVideoDecoder&) = delete;
-    CUVideoDecoder& operator=(const CUVideoDecoder&) = delete;
+  // no copying
+  CUVideoDecoder(const CUVideoDecoder&) = delete;
+  CUVideoDecoder& operator=(const CUVideoDecoder&) = delete;
 
-    CUVideoDecoder(CUVideoDecoder&& other);
-    CUVideoDecoder& operator=(CUVideoDecoder&& other);
+  CUVideoDecoder(CUVideoDecoder&& other);
+  CUVideoDecoder& operator=(CUVideoDecoder&& other);
 
-    operator CUvideodecoder() const;
+  operator CUvideodecoder() const;
 
-    int initialize(CUVIDEOFORMAT* format);
-    bool initialized() const;
+  int initialize(CUVIDEOFORMAT* format);
+  bool initialized() const;
 
-    uint16_t width() const;
-    uint16_t height() const;
+  uint16_t width() const;
+  uint16_t height() const;
 
-  private:
-    CUvideodecoder decoder_;
-    CUVIDDECODECREATEINFO decoder_info_;
+ private:
+  CUvideodecoder decoder_;
+  CUVIDDECODECREATEINFO decoder_info_;
 
-    bool initialized_;
+  bool initialized_;
 };
 
 }  // namespace dali

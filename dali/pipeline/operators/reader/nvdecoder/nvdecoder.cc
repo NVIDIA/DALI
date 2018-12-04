@@ -203,7 +203,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
   constexpr auto sleep_period = 500;
   constexpr auto timeout_sec = 20;
   constexpr auto enable_timeout = false;
-  while(frame_in_use_[pic_params->CurrPicIdx]) {
+  while (frame_in_use_[pic_params->CurrPicIdx]) {
     if (enable_timeout &&
       total_wait++ > timeout_sec * 1000000 / sleep_period) {
       std::cout << device_id_ << ": Waiting for picture "
