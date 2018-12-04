@@ -88,8 +88,8 @@ class DALIGenericIterator(object):
         self._data_batches = [[None, None] for i in range(self._num_gpus)]
         self._counter = 0
         self._current_data_batch = 0
-        self._output_categories = set(output_map)
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        self._output_categories = set(output_map)
         self.output_map = output_map
 
         # We need data about the batches (like shape information),
