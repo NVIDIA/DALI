@@ -39,7 +39,7 @@ private:
 
   virtual OperatorsGraph GenerateOperatorsGraph() const noexcept = 0;
 
-  virtual bool Verify(TensorAdapter<OutputType> output, TensorAdapter<OutputType> anticipated_output) const noexcept = 0;
+  virtual void Verify(TensorAdapter<OutputType> output, TensorAdapter<OutputType> anticipated_output) const noexcept = 0;
 
   void SetUp() final {
     inputs_ = GenerateInputs();
