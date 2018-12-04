@@ -125,13 +125,6 @@ class DALIGenericIterator(object):
                 category_tensors[category] = out.as_tensor()
                 category_shapes[category] = category_tensors[category].shape()
 
-            # # Change label shape from [batch_size, 1] to [batch_size]
-            # if "label" in self._output_categories:
-            #     for l in category_tensors["label"]:
-            #         l.squeeze()
-            #     # Fix label shapes:
-            #     category_shapes["label"] = [x.shape() for x in category_tensors["label"]]
-
             # If we did not yet allocate memory for that batch, do it now
             if self._data_batches[i][self._current_data_batch] is None:
                 category_torch_type = dict()
