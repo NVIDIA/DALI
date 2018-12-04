@@ -62,7 +62,8 @@ class DALIDatasetOp : public DatasetOpKernel {
         const std::vector<TensorShape>* shapes, const DataTypeVector* types)
         : DatasetBase(DatasetContext(ctx)),
           dtypes_{types},
-          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape())} {
+          // TODO: Temporary partial shape that will be generalized
+          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape({-1,-1}))} {
     }
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
@@ -97,6 +98,7 @@ class DALIDatasetOp : public DatasetOpKernel {
       Status GetNextInternal(IteratorContext* ctx,
                              std::vector<Tensor>* out_tensors,
                              bool* end_of_sequence) override {
+        // Exploit the iterator context to acquire allocations
         return Status::OK();
       }
 
@@ -135,7 +137,7 @@ REGISTER_OP("DALIDataset")
     .Attr("shapes: list(shape) >= 1")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
     .Output("handle: variant")
-    .SetIsStateful()  // TODO: Is it necessary in order to prevent folding?
+    .SetIsStateful()
     .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {
       std::vector<tensorflow::PartialTensorShape> shapes;
       TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
@@ -164,7 +166,7 @@ Creates a Dali dataset compatible with tf.data.Dataset from a serialized DALI pi
 `dtypes` must match the type of the corresponding DALI Pipeline output tensors type.
  )doc");
 
-REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_GPU),
+REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_CPU),
                         DALIDatasetOp)
 
 }  // namespace

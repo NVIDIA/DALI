@@ -96,7 +96,9 @@ class DALIDataset(tf.data.Dataset):
 
     @property
     def output_shapes(self):
-        return tensor_shape.TensorShape([]), tensor_shape.TensorShape([])
+        # TODO: Tenporary shapes to be generalized
+        return tensor_shape.TensorShape(self._shapes[0]),\
+               tensor_shape.TensorShape(self._shapes[1])
 
     @property
     def output_classes(self):
