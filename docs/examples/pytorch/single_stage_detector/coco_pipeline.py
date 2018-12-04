@@ -1,0 +1,276 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import torch
+import ctypes
+import logging
+
+import numpy as np
+
+# DALI imports
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
+
+import time
+
+
+class COCOPipeline(Pipeline):
+    def __init__(
+        self, 
+        batch_size,  
+        file_root, 
+        annotations_file, 
+        default_boxes,
+        seed,
+        device_id=0,
+        num_threads=4):
+
+        super(COCOPipeline, self).__init__(
+            batch_size=batch_size, device_id=device_id, num_threads=num_threads, seed = seed)
+
+        self.input = ops.COCOReader(
+            file_root = file_root,
+            annotations_file = annotations_file,
+            ratio=True, ltrb=True,
+            random_shuffle=True)
+        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+
+        # Augumentation techniques
+        self.crop = ops.RandomBBoxCrop(
+            device="cpu",
+            aspect_ratio=[0.5, 2.0],
+            thresholds=[0.1, 0.3, 0.5, 0.7, 0.9],
+            scaling=[0.8, 1.0],
+            ltrb=True)
+        self.slice = ops.Slice(device="gpu")
+        self.twist = ops.ColorTwist(device="gpu")
+        self.resize = ops.Resize(device = "gpu", resize_x = 300, resize_y = 300)
+        self.normalize = ops.CropMirrorNormalize(
+            device="gpu", crop=(300, 300),
+            mean=[0.485 * 255., 0.456 * 255., 0.406 * 255.],
+            std=[0.229 * 255., 0.224 * 255., 0.225 * 255.])
+
+        # Random variables
+        self.rng1 = ops.Uniform(range=[0.5, 1.5])
+        self.rng2 = ops.Uniform(range=[0.875, 1.125])
+        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
+
+        self.flip = ops.Flip(device = "gpu")
+        self.bbflip = ops.BbFlip(device = "cpu", ltrb=True)
+        self.flip_coin = ops.CoinFlip(probability=0.5)
+
+        self.box_encoder = ops.BoxEncoder(
+            device="cpu", 
+            criteria=0.5, 
+            anchors=default_boxes.as_ltrb_list())
+
+    def define_graph(self):
+        saturation = self.rng1()
+        contrast = self.rng1()
+        brightness = self.rng2()
+        hue = self.rng3()
+
+        coin_rnd = self.flip_coin()
+
+        inputs, bboxes, labels = self.input()
+        images = self.decode(inputs)
+
+        images = images.gpu()
+
+        crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
+        images = self.slice(images, crop_begin, crop_size)
+
+        images = self.flip(images, horizontal = coin_rnd)
+        bboxes = self.bbflip(bboxes, horizontal = coin_rnd)
+
+        images = self.resize(images)
+        images = self.twist(images, saturation=saturation, contrast=contrast, brightness=brightness, hue=hue)
+        images = self.normalize(images)
+
+        boxes, labels = self.box_encoder(bboxes, labels)
+
+        return (images, boxes.gpu(), labels.gpu())
+
+to_torch_type = {
+    np.dtype(np.float32) : torch.float32,
+    np.dtype(np.float64) : torch.float64,
+    np.dtype(np.float16) : torch.float16,
+    np.dtype(np.uint8)   : torch.uint8,
+    np.dtype(np.int8)    : torch.int8,
+    np.dtype(np.int16)   : torch.int16,
+    np.dtype(np.int32)   : torch.int32,
+    np.dtype(np.int64)   : torch.int64
+}
+
+def feed_ndarray(dali_tensor, arr):
+    """
+    Copy contents of DALI tensor to pyTorch's Tensor.
+
+    Parameters
+    ----------
+    `dali_tensor` : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
+                    Tensor from which to copy
+    `arr` : torch.Tensor
+            Destination of the copy
+    """
+    assert dali_tensor.shape() == list(arr.size()), \
+            ("Shapes do not match: DALI tensor has size {0}"
+            ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
+    #turn raw int to a c void pointer
+    c_type_pointer = ctypes.c_void_p(arr.data_ptr())
+    dali_tensor.copy_to_external(c_type_pointer)
+    return arr
+
+class DALICOCOIterator(object):
+    """
+    General DALI iterator for pyTorch. It can return any number of
+    outputs from the DALI pipeline in the form of pyTorch's Tensors.
+
+    Parameters
+    ----------
+    pipelines : list of nvidia.dali.pipeline.Pipeline
+                List of pipelines to use
+    output_map : list of str
+                 List of strings which maps consecutive outputs
+                 of DALI pipelines to user specified name.
+                 Outputs will be returned from iterator as dictionary
+                 of those names.
+                 Each name should be distinct
+    size : int
+           Epoch size.
+    """
+    def __init__(self,
+                 pipelines,
+                 output_map,
+                 size):
+        if not isinstance(pipelines, list):
+            pipelines = [pipelines]
+        self._num_gpus = len(pipelines)
+        assert pipelines is not None, "Number of provided pipelines has to be at least 1"
+        self.batch_size = pipelines[0].batch_size
+        self._size = int(size)
+        self._pipes = pipelines
+        # Build all pipelines
+        for p in self._pipes:
+            p.build()
+        # Use double-buffering of data batches
+        self._data_batches = [[None, None] for i in range(self._num_gpus)]
+        self._counter = 0
+        self._current_data_batch = 0
+        self._output_categories = set(output_map)
+        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        self.output_map = output_map
+
+        # We need data about the batches (like shape information),
+        # so we need to run a single batch as part of setup to get that info
+        self._first_batch = None
+        self._first_batch = self.next()
+
+    def __next__(self):
+        if self._first_batch is not None:
+            batch = self._first_batch
+            self._first_batch = None
+            return batch
+        if self._counter >= self._size:
+            raise StopIteration
+        # Gather outputs
+        outputs = []
+        for p in self._pipes:
+            p._prefetch()
+        for p in self._pipes:
+            outputs.append(p._share_outputs())
+        for i in range(self._num_gpus):
+            dev_id = self._pipes[i].device_id
+            # initialize dict for all output categories
+            category_outputs = dict()
+            # segregate outputs into categories
+            for j, out in enumerate(outputs[i]):
+                category_outputs[self.output_map[j]] = out
+
+            # Change DALI TensorLists into Tensors
+            category_tensors = dict()
+            category_shapes = dict()
+            for category, out in category_outputs.items():
+                category_tensors[category] = out.as_tensor()
+                category_shapes[category] = category_tensors[category].shape()
+
+            # # Change label shape from [batch_size, 1] to [batch_size]
+            # if "label" in self._output_categories:
+            #     for l in category_tensors["label"]:
+            #         l.squeeze()
+            #     # Fix label shapes:
+            #     category_shapes["label"] = [x.shape() for x in category_tensors["label"]]
+
+            # If we did not yet allocate memory for that batch, do it now
+            if self._data_batches[i][self._current_data_batch] is None:
+                category_torch_type = dict()
+                category_device = dict()
+                torch_gpu_device = torch.device('cuda', dev_id)
+                torch_cpu_device = torch.device('cpu')
+                # check category and device
+                for category in self._output_categories:
+                    category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
+                    from nvidia.dali.backend import TensorGPU
+                    if type(category_tensors[category]) is TensorGPU:
+                        category_device[category] = torch_gpu_device
+                    else:
+                        category_device[category] = torch_cpu_device
+
+                pyt_tensors = dict()
+                for category in self._output_categories:
+                    pyt_tensors[category] = torch.zeros(category_shapes[category],
+                                                         dtype=category_torch_type[category],
+                                                         device=category_device[category])
+
+                self._data_batches[i][self._current_data_batch] = pyt_tensors
+            else:
+                pyt_tensors = self._data_batches[i][self._current_data_batch]
+
+            # Copy data from DALI Tensors to torch tensors
+            for category, tensor in category_tensors.items():
+                  feed_ndarray(tensor, pyt_tensors[category])
+
+        for p in self._pipes:
+            p._release_outputs()
+            p._start_run()
+
+        copy_db_index = self._current_data_batch
+        # Change index for double buffering
+        self._current_data_batch = (self._current_data_batch + 1) % 2
+        self._counter += self._num_gpus * self.batch_size
+        return [db[copy_db_index] for db in self._data_batches]
+
+    def next(self):
+        """
+        Returns the next batch of data.
+        """
+        return self.__next__();
+
+    def __iter__(self):
+        return self
+
+    def reset(self):
+        """
+        Resets the iterator after the full epoch.
+        DALI iterators do not support resetting before the end of the epoch
+        and will ignore such request.
+        """
+        if self._counter >= self._size:
+            self._counter = self._counter % self._size
+        else:
+            logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
