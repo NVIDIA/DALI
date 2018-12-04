@@ -128,9 +128,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     for (int i = 0; i < seq_per_epoch; ++i) {
       frame_starts_[i] = i * count_;
     }
-    // TODO(spanev) change random engine
-    auto rng = std::default_random_engine {};
-    std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), rng);
+
+    if (shuffle_) {
+      // TODO(spanev) decide of a policy for multi-gpu here
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(524287);
+      std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
+    }
+
     current_frame_idx_ = 0;
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
