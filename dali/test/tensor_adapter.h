@@ -1,7 +1,7 @@
 #ifndef DALI_TENSOR_BATCH_ADAPTER_H
 #define DALI_TENSOR_BATCH_ADAPTER_H
 
-#include "../pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include <vector>
 
 namespace dali {
