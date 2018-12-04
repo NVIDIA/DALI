@@ -100,7 +100,7 @@ class DALIGenericIterator(object):
         self._output_names_map = [x[0] for x in output_map]
         self._output_categories_map = [x[1] for x in output_map]
         self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
-        assert self._output_categories == set(self._output_categories_map), \
+        assert set(self._output_categories_map) <= self._output_categories, \
             "Only DATA_TAG and LABEL_TAG are allowed"
         assert len(set(self._output_names_map)) == len(self._output_names_map), \
             "output_names in output_map should be distinct"
