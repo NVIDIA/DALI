@@ -35,14 +35,14 @@ public:
   void RunTest(Arguments operator_arguments, std::vector<TensorAdapter<OutputType>> anticipated_outputs) noexcept {}
 
 private:
-  virtual std::vector<TensorAdapter<InputType>> SetInputs() const noexcept = 0;
+  virtual std::vector<TensorAdapter<InputType>> GenerateInputs() const noexcept = 0;
 
-  virtual OperatorsGraph SetOperators() const noexcept = 0;
+  virtual OperatorsGraph GenerateOperatorsGraph() const noexcept = 0;
 
   virtual bool Verify(TensorAdapter<OutputType> output, TensorAdapter<OutputType> anticipated_output) const noexcept = 0;
 
   void SetUp() final {
-    inputs_ = SetInputs();
+    inputs_ = GenerateInputs();
   }
 
   void TearDown() final {}

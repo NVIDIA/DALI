@@ -12,7 +12,7 @@ struct InputData {
 std::vector<InputData> input_data;
 
 class MyOperatorTest : public DaliOperatorTest<int, float> {
-  std::vector<TensorAdapter<int>> SetInputs() const noexcept override {
+  std::vector<TensorAdapter<int>> GenerateInputs() const noexcept override {
     std::vector<TensorAdapter<int>> ret;
     for (auto in : input_data) {
       ret.emplace_back(in.data, in.shape);
@@ -21,7 +21,7 @@ class MyOperatorTest : public DaliOperatorTest<int, float> {
   }
 
 
-  OperatorsGraph SetOperators() const noexcept override {
+  OperatorsGraph GenerateOperatorsGraph() const noexcept override {
     return "MyOp";
   };
 
