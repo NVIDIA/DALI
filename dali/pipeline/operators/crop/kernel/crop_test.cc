@@ -15,10 +15,11 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-#include "dali/pipeline/operators/crop/basic/coords.h"
-#include "dali/pipeline/operators/crop/basic/crop.h"
+#include "dali/pipeline/operators/crop/kernel/coords.h"
+#include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
 
 namespace dali {
+namespace detail {
 
 template <typename InT_, typename OutT_, bool is_seq_, Index S_, Index H_, Index W_, Index C_,
           Index startH_, Index startW_, Index outH_, Index outW_>
@@ -93,8 +94,8 @@ TYPED_TEST(BasicCropTest, FlatCrop) {
   std::array<Index, 3> in_shape = {TypeParam::H, TypeParam::W, TypeParam::C};
   std::array<Index, 3> out_shape = {TypeParam::outH, TypeParam::outW, TypeParam::C};
 
-  basic_crop::Crop<typename TypeParam::InT, typename TypeParam::OutT,
-                   basic_crop::dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
+  CropKernel<typename TypeParam::InT, typename TypeParam::OutT,
+                   dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
                                                                   {TypeParam::startH,
                                                                    TypeParam::startW,
                                                                    TypeParam::outH,
@@ -115,8 +116,8 @@ TYPED_TEST(SequenceCropTest, SequenceCrop) {
   std::array<Index, 4> in_shape = {TypeParam::S, TypeParam::H, TypeParam::W, TypeParam::C};
   std::array<Index, 4> out_shape = {TypeParam::S, TypeParam::outH, TypeParam::outW, TypeParam::C};
 
-  basic_crop::SequenceCrop<typename TypeParam::InT, typename TypeParam::OutT,
-                           basic_crop::dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
+  SequenceCropKernel<typename TypeParam::InT, typename TypeParam::OutT,
+                           dali_index_sequence<0, 1, 2>>::Run(this->input, in_shape,
                                                                           {TypeParam::startH,
                                                                            TypeParam::startW,
                                                                            TypeParam::outH,
@@ -124,4 +125,5 @@ TYPED_TEST(SequenceCropTest, SequenceCrop) {
                                                                           this->output, out_shape);
 }
 
+}  // namespace detail
 }  // namespace dali

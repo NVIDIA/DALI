@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_BASIC_CROP_H_
-#define DALI_PIPELINE_OPERATORS_CROP_BASIC_CROP_H_
+#ifndef DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_
+#define DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_
 
 #include <tuple>
 #include <vector>
 
 #include "dali/common.h"
-#include "dali/pipeline/operators/crop/basic/coords.h"
-#include "dali/pipeline/operators/crop/basic/sequence.h"
+#include "dali/pipeline/operators/crop/kernel/coords.h"
+#include "dali/pipeline/operators/crop/kernel/sequence.h"
 
 namespace dali {
-namespace basic_crop {
+namespace detail {
 
 template <size_t N>
 std::array<Index, N> ToStaticShape(const std::vector<Index> &shape) {
@@ -40,9 +40,9 @@ std::vector<Index> ToDynamicShape(const std::array<Index, N> &shape) {
 }
 
 template <typename InType, typename OutType, typename OutLayout>
-class Crop {
+class CropKernel {
  public:
-  Crop() = delete;
+  CropKernel() = delete;
   static constexpr size_t input_dim = 3;
   static constexpr size_t output_dim = 3;
   // TODO(klecki) - should be converted to some kind of std::tuple for multiple input and outputs
@@ -54,7 +54,7 @@ class Crop {
   static constexpr bool can_calculate_output_size = true;
 
   // TODO(klecki): One of the issues is if this type can depend on T and U or if we can have
-  //               the same KernelAttributes for all concrete Crop<T, U> types.
+  //               the same KernelAttributes for all concrete CropKernel<T, U> types.
   struct KernelAttributes {
     const Index h_start;
     const Index w_start;
@@ -85,9 +85,9 @@ class Crop {
 };
 
 template <typename InType, typename OutType, typename OutLayout>
-using SequenceCrop = SequenceAdapter<Crop<InType, OutType, OutLayout>>;
+using SequenceCropKernel = SequenceAdapter<CropKernel<InType, OutType, OutLayout>>;
 
-}  // namespace basic_crop
+}  // namespace detail
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_BASIC_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_

@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
-#define DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
+#ifndef DALI_PIPELINE_OPERATORS_CROP_KERNEL_COORDS_H_
+#define DALI_PIPELINE_OPERATORS_CROP_KERNEL_COORDS_H_
 
 #include <array>
 #include <cstdint>
 #include <iostream>
 
 namespace dali {
-namespace basic_crop {
-
 namespace detail {
 
 template <typename T, size_t N>
@@ -33,8 +31,6 @@ int64_t getOffsetImplLinear(const T& shape, std::array<int64_t, N> coords) {
   }
   return result;
 }
-
-}  // namespace detail
 
 template <int64_t... Ints>
 class dali_index_sequence {};
@@ -65,8 +61,6 @@ std::array<int64_t, sizeof...(order)> permuteShape(
  * + c[o_{n-1}] * (s[n])
  * + c[o_n]
  *
- * TODO(klecki) formal explanation and handle default case
- *
  * Example: for given shape {N, H, W, C}, and coordiantes (n, h, w, c),
  * and order <0, 1, 2, 3> it would calculate offsets for NHWC data layout.
  * Other order will produce offsets to permutation of dimensions, for example:
@@ -93,8 +87,8 @@ int64_t getOffset(const T& shape, std::array<int64_t, sizeof...(order)> coords,
 
 // TODO(klecki) - case where sizes are already permutated, go back to more compile time expansion?
 
-}  // namespace basic_crop
+}  // namespace detail
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_BASIC_COORDS_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_KERNEL_COORDS_H_

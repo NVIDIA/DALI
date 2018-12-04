@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_BASIC_SEQUENCE_H_
-#define DALI_PIPELINE_OPERATORS_CROP_BASIC_SEQUENCE_H_
+#ifndef DALI_PIPELINE_OPERATORS_CROP_KERNEL_SEQUENCE_H_
+#define DALI_PIPELINE_OPERATORS_CROP_KERNEL_SEQUENCE_H_
 
 #include <array>
 #include <cstdint>
 #include <type_traits>
 
 namespace dali {
-namespace basic_crop {
-
 namespace detail {
 
 template <size_t N>
@@ -43,8 +41,6 @@ std::array<int64_t, N - 1> GetSubspaceShape(const std::array<int64_t, N> &shape)
   }
   return result;
 }
-
-}  // namespace detail
 
 template <typename Adapted>
 struct SequenceAdapter {
@@ -82,10 +78,10 @@ struct SequenceAdapter {
   static void Run(const InputType *in, const InputShape &in_shape, KernelAttributes attr,
                   OutputType *out, const OutputShape &out_shape) {
     const auto sequence_length = in_shape[0];
-    const auto in_offset = detail::CalcOffsetToSubspace(in_shape);
-    auto in_subspace_shape = detail::GetSubspaceShape(in_shape);
-    const auto out_offset = detail::CalcOffsetToSubspace(out_shape);
-    auto out_subspace_shape = detail::GetSubspaceShape(out_shape);
+    const auto in_offset = CalcOffsetToSubspace(in_shape);
+    auto in_subspace_shape = GetSubspaceShape(in_shape);
+    const auto out_offset = CalcOffsetToSubspace(out_shape);
+    auto out_subspace_shape = GetSubspaceShape(out_shape);
     for (int64_t i = 0; i < sequence_length; i++) {
       auto *in_elem = in + i * in_offset;
       auto *out_elem = out + i * out_offset;
@@ -94,7 +90,7 @@ struct SequenceAdapter {
   }
 };
 
-}  // namespace basic_crop
+}  // namespace detail
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_BASIC_SEQUENCE_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_KERNEL_SEQUENCE_H_

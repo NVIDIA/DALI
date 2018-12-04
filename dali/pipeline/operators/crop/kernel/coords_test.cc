@@ -15,14 +15,10 @@
 #include <gtest/gtest.h>
 #include <random>
 
-#include "dali/pipeline/operators/crop/basic/coords.h"
+#include "dali/pipeline/operators/crop/kernel/coords.h"
 
 namespace dali {
-namespace basic_crop {
-
-// namespace {
-// template <typename
-// }
+namespace detail {
 
 class GetOffsetTest : public ::testing::Test {
  protected:
@@ -64,28 +60,22 @@ TEST_F(GetOffsetTest, OrderSupport) {
 TEST_F(GetOffsetTest, NonPermutatedPlanesOnly) {
   dali_index_sequence<0, 1, 2, 3, 4> non_perm;
   // Check individual planes
-  for (size_t i = 0; i < shape_[0]; i++) {
-    ASSERT_EQ(getOffset(shape_, {static_cast<int64_t>(i), 0, 0, 0, 0}, non_perm),
-              i * plane_offsets_[0]);
+  for (int64_t i = 0; i < shape_[0]; i++) {
+    ASSERT_EQ(getOffset(shape_, {i, 0, 0, 0, 0}, non_perm), i * plane_offsets_[0]);
   }
-  for (size_t i = 0; i < shape_[1]; i++) {
-    ASSERT_EQ(getOffset(shape_, {0, static_cast<int64_t>(i), 0, 0, 0}, non_perm),
-              i * plane_offsets_[1]);
+  for (int64_t i = 0; i < shape_[1]; i++) {
+    ASSERT_EQ(getOffset(shape_, {0, i, 0, 0, 0}, non_perm), i * plane_offsets_[1]);
   }
-  for (size_t i = 0; i < shape_[2]; i++) {
-    ASSERT_EQ(getOffset(shape_, {0, 0, static_cast<int64_t>(i), 0, 0}, non_perm),
-              i * plane_offsets_[2]);
+  for (int64_t i = 0; i < shape_[2]; i++) {
+    ASSERT_EQ(getOffset(shape_, {0, 0, i, 0, 0}, non_perm), i * plane_offsets_[2]);
   }
-  for (size_t i = 0; i < shape_[3]; i++) {
-    ASSERT_EQ(getOffset(shape_, {0, 0, 0, static_cast<int64_t>(i), 0}, non_perm),
-              i * plane_offsets_[3]);
+  for (int64_t i = 0; i < shape_[3]; i++) {
+    ASSERT_EQ(getOffset(shape_, {0, 0, 0, i, 0}, non_perm), i * plane_offsets_[3]);
   }
-  for (size_t i = 0; i < shape_[4]; i++) {
-    ASSERT_EQ(getOffset(shape_, {0, 0, 0, 0, static_cast<int64_t>(i)}, non_perm),
-              i * plane_offsets_[4]);
+  for (int64_t i = 0; i < shape_[4]; i++) {
+    ASSERT_EQ(getOffset(shape_, {0, 0, 0, 0, i}, non_perm), i * plane_offsets_[4]);
   }
-};
-
+}
 
 TEST_F(GetOffsetTest, NonPermutatedRandomCoords) {
   dali_index_sequence<0, 1, 2, 3, 4> non_perm;
@@ -98,31 +88,31 @@ TEST_F(GetOffsetTest, NonPermutatedRandomCoords) {
     }
     ASSERT_EQ(getOffset(shape_, coords, non_perm), result);
   }
-};
+}
 
 TEST_F(GetOffsetTest, ReversedRandomCoords) {
   dali_index_sequence<4, 3, 2, 1, 0> rev_perm;
   dali_index_sequence<0, 1, 2, 3, 4> non_perm;
-  std::array<int64_t, 5> rev_shape = { shape_[4], shape_[3], shape_[2], shape_[1], shape_[0] };
+  std::array<int64_t, 5> rev_shape = {shape_[4], shape_[3], shape_[2], shape_[1], shape_[0]};
   // Check individual planes
   for (size_t i = 0; i < 1000; i++) {
     auto coords = GetRandomArray(shape_);
-    decltype(coords) rev_coords = { coords[4], coords[3], coords[2], coords[1], coords[0] };
+    decltype(coords) rev_coords = {coords[4], coords[3], coords[2], coords[1], coords[0]};
     ASSERT_EQ(getOffset(rev_shape, coords, rev_perm), getOffset(rev_shape, rev_coords, non_perm));
   }
-};
+}
 
 TEST_F(GetOffsetTest, PermutatedRandomCoords) {
   dali_index_sequence<4, 2, 0, 3, 1> perm;
   dali_index_sequence<0, 1, 2, 3, 4> non_perm;
-  std::array<int64_t, 5> perm_shape = { shape_[4], shape_[2], shape_[0], shape_[1], shape_[3] };
+  std::array<int64_t, 5> perm_shape = {shape_[4], shape_[2], shape_[0], shape_[1], shape_[3]};
   // Check individual planes
   for (size_t i = 0; i < 1000; i++) {
     auto coords = GetRandomArray(shape_);
-    decltype(coords) perm_coords = { coords[4], coords[2], coords[0], coords[3], coords[1] };
+    decltype(coords) perm_coords = {coords[4], coords[2], coords[0], coords[3], coords[1]};
     ASSERT_EQ(getOffset(perm_shape, coords, perm), getOffset(perm_shape, perm_coords, non_perm));
   }
-};
+}
 
-}  // namespace basic_crop
+}  // namespace detail
 }  // namespace dali
