@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+pip_packages="numpy"
+
 pushd ../..
 
 cd docs/examples/video
