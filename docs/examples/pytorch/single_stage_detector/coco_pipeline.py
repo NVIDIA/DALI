@@ -48,7 +48,7 @@ class COCOPipeline(Pipeline):
             annotations_file = annotations_file,
             ratio=True, ltrb=True,
             random_shuffle=True)
-        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
 
         # Augumentation techniques
         self.crop = ops.RandomBBoxCrop(
