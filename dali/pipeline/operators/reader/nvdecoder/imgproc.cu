@@ -86,7 +86,7 @@ __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
     rgb[stride*2] = convert<RGB_T>(b);
 }
 
-template<typename T>
+template<typename T, bool Normalized = false>
 __global__ void process_frame_kernel(
     cudaTextureObject_t luma, cudaTextureObject_t chroma,
     T* dst, int index,
@@ -104,18 +104,22 @@ __global__ void process_frame_kernel(
     auto src_y = static_cast<float>(dst_y) * fy;
 
 
+
+
+    // TODO(spanev) something less hacky here, why 4:2:0 fails on this edge?
+    float shift = (dst_x == dst_width - 1) ? 0 : 0.5f;
+
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#tex2d-object
     yuv<float> yuv;
-    yuv.y = tex2D<float>(luma, src_x + 0.5, src_y + 0.5);
-    auto uv = tex2D<float2>(chroma, (src_x / 2) + 0.5, (src_y / 2) + 0.5);
+    yuv.y = tex2D<float>(luma, src_x + shift, src_y + shift);
+    auto uv = tex2D<float2>(chroma, (src_x / 2) + shift, (src_y / 2) + shift);
     yuv.u = uv.x;
     yuv.v = uv.y;
 
     auto* out = &dst[(dst_x + dst_y * dst_width) * c];
 
     size_t stride = 1;
-    // TODO(spanev) Handle normalized version
-    yuv2rgb<float, float, false>(yuv, out, stride);
+    yuv2rgb<float, float, Normalized>(yuv, out, stride);
 }
 
 inline constexpr int divUp(int total, int grain) {
@@ -143,7 +147,9 @@ void process_frame(
              << " (frame_stride=" << frame_stride << ")" << std::endl;
     auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
 
-    process_frame_kernel<<<grid, block, 0, stream>>>
+    // TODO(spanev) Handle normalized and YCbCr versions
+    constexpr bool normalized = false;
+    process_frame_kernel<T, normalized><<<grid, block, 0, stream>>>
             (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
 }
 
