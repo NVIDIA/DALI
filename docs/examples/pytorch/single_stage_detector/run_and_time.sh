@@ -7,4 +7,4 @@ SEED=${1:-1}
 TARGET=${2:-0.212}
 
 time stdbuf -o 0 \
-  python3 train.py --data=/data/coco --seed $SEED --threshold $TARGET | tee run.log.$SEED
+  python3 train.py --seed $SEED --threshold $TARGET | tee run.log.$SEED

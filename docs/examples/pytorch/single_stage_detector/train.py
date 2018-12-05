@@ -225,6 +225,7 @@ def train300_mlperf_coco(args):
     data_perf = AverageMeter()
     batch_perf = AverageMeter()
     end = time.time()
+    train_start = end
 
     mlperf_log.ssd_print(key=mlperf_log.TRAIN_LOOP)
     for epoch in range(args.epochs):
@@ -241,6 +242,12 @@ def train300_mlperf_coco(args):
                 continue
 
             label = label.type(torch.cuda.LongTensor)
+
+            img = Variable(img, requires_grad=True)
+            trans_bbox = bbox.transpose(1,2).contiguous()
+
+            gloc, glabel = Variable(trans_bbox, requires_grad=False), \
+                           Variable(label, requires_grad=False)
 
             data_perf.update(time.time() - end)
 
@@ -262,22 +269,16 @@ def train300_mlperf_coco(args):
                 mlperf_log.ssd_print(key=mlperf_log.OPT_LR,
                                      value=current_lr)
 
-            img = Variable(img, requires_grad=True)
             ploc, plabel = ssd300(img)
-            trans_bbox = bbox.transpose(1,2).contiguous()
-
-            gloc, glabel = Variable(trans_bbox, requires_grad=False), \
-                           Variable(label, requires_grad=False)
             loss = loss_func(ploc, plabel, gloc, glabel)
 
             if not np.isinf(loss.item()): avg_loss = 0.999*avg_loss + 0.001*loss.item()
 
-            batch_perf.update(time.time() - end)
-            print("Iteration: {:6d}, Loss function: {:5.3f}, Average Loss: {:.3f}, Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec"\
-                        .format(iter_num, loss.item(), avg_loss, args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
             optim.zero_grad()
             loss.backward()
             optim.step()
+
+            batch_perf.update(time.time() - end)
 
             if iter_num in args.evaluation:
                 if not args.no_save:
@@ -293,12 +294,20 @@ def train300_mlperf_coco(args):
                 except:
                     print("Eval error on iteration {0}".format(iter_num))
 
+            print("Iteration: {:6d}, Loss function: {:5.3f}, Average Loss: {:.3f}, Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec, Avg Data perf: {:3f} img/sec, Avg Batch perf: {:3f} img/sec"\
+                        .format(iter_num, loss.item(), avg_loss, args.batch_size / data_perf.val, args.batch_size / batch_perf.val, args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
+
             end = time.time()
             iter_num += 1
+            if iter_num == 10 and epoch == 0:
+                data_perf.reset()
+                batch_perf.reset()
+                
         train_loader.reset()
 
-    print("Training end: Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec"\
-        .format(args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
+    print("\n\n")
+    print("Training end: Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec, Total time: {:3f} sec"\
+        .format(args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg, time.time() - train_start))
     return False
 
 class AverageMeter(object):
