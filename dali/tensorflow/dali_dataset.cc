@@ -29,6 +29,7 @@
 #pragma GCC diagnostic pop
 #pragma GCC diagnostic pop
 
+#include "dali/c_api/c_api.h"
 
 namespace tensorflow {
 
@@ -48,6 +49,28 @@ class DALIDatasetOp : public DatasetOpKernel {
                    context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context,
                    context->GetAttr("dtypes", &dtypes_));
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+      OP_REQUIRES_OK(context,
+                   context->GetAttr("num_threads", &num_threads_));
+
+    std::vector<int> devices;
+    OP_REQUIRES_OK(context,
+                   context->GetAttr("devices", &devices));
+
+    pipe_handles_.reserve(devices.size());
+
+    for (size_t  i = 0; i < devices.size(); i++) {
+      pipe_handles_.emplace_back(daliPipelineHandle());
+
+      daliCreatePipeline(&pipe_handles_.back(),
+                  serialized_pipeline_.c_str(),
+                  serialized_pipeline_.length(),
+                  128, // TODO: get batch size from shapes
+                  num_threads_,
+                  devices[i],
+                  prefetch_queue_depth_);
+    }
   }
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
@@ -127,15 +150,22 @@ class DALIDatasetOp : public DatasetOpKernel {
     const std::vector<PartialTensorShape> shapes_;
   };
 
+protected:
+  std::vector<daliPipelineHandle> pipe_handles_;
   std::string serialized_pipeline_;
   std::vector<TensorShape> shapes_;
   DataTypeVector dtypes_;
+  int prefetch_queue_depth_;
+  int num_threads_;
 };
 
 REGISTER_OP("DALIDataset")
     .Attr("serialized_pipeline: string")
     .Attr("shapes: list(shape) >= 1")
     .Attr("dtypes: list({float, int32, int64, half}) >= 1")
+    .Attr("devices: list(int) >= 1")
+    .Attr("prefetch_queue_depth: int = 2")
+    .Attr("num_threads: int = -1")
     .Output("handle: variant")
     .SetIsStateful()
     .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {

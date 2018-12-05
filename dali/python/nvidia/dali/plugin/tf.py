@@ -60,7 +60,13 @@ _dali_dataset = _dali_tf_module.dali_dataset
 class DALIDataset(tf.data.Dataset):
     """A `Dataset` wrapping DALI iterators spread across a number of devices."""
 
-    def __init__(self, pipeline=None, shapes=None, dtypes=None):
+    def __init__(self,
+                 pipeline=None,
+                 shapes=None,
+                 dtypes=None,
+                 devices=None,
+                 prefetch_queue_depth=2,
+                 num_threads=-1):
         """Creates a `DALIDataset`.
        Args:
          pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
@@ -85,10 +91,21 @@ class DALIDataset(tf.data.Dataset):
         else:
             raise ValueError('No value provided for parameter \'dtypes\'')
 
+        if devices:
+            self._devices = devices
+        else:
+            raise ValueError('No value provided for parameter \'devices\'')
+
+        self._prefetch_queue_threads = prefetch_queue_depth
+        self._num_threads = num_threads
+
     def _as_variant_tensor(self):
         return _dali_dataset(serialized_pipeline=self._pipeline,
                              shapes=self._shapes,
-                             dtypes=self._dtypes)
+                             dtypes=self._dtypes,
+                             devices=self._devices,
+                             prefetch_queue_depth=self._prefetch_queue_threads,
+                             num_threads=self._num_threads)
 
     @property
     def output_types(self):
