@@ -165,6 +165,6 @@ encoded box.")code")
     .AddOptionalArg(
         "criteria",
         R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1. Default is 0.5.)code",
-        0.5f, DALI_FLOAT);
+        0.5f, false);
 
 }  // namespace dali
