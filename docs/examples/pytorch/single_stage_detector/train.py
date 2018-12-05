@@ -222,6 +222,10 @@ def train300_mlperf_coco(args):
 
     mean, std = generate_mean_std()
 
+    data_perf = AverageMeter()
+    batch_perf = AverageMeter()
+    end = time.time()
+
     mlperf_log.ssd_print(key=mlperf_log.TRAIN_LOOP)
     for epoch in range(args.epochs):
         mlperf_log.ssd_print(key=mlperf_log.TRAIN_EPOCH, value=epoch)
@@ -237,6 +241,8 @@ def train300_mlperf_coco(args):
                 continue
 
             label = label.type(torch.cuda.LongTensor)
+
+            data_perf.update(time.time() - end)
 
             if iter_num == 160000:
                 current_lr = 1e-4
@@ -266,8 +272,9 @@ def train300_mlperf_coco(args):
 
             if not np.isinf(loss.item()): avg_loss = 0.999*avg_loss + 0.001*loss.item()
 
-            print("Iteration: {:6d}, Loss function: {:5.3f}, Average Loss: {:.3f}"\
-                        .format(iter_num, loss.item(), avg_loss), end="\r")
+            batch_perf.update(time.time() - end)
+            print("Iteration: {:6d}, Loss function: {:5.3f}, Average Loss: {:.3f}, Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec"\
+                        .format(iter_num, loss.item(), avg_loss, args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
             optim.zero_grad()
             loss.backward()
             optim.step()
@@ -286,10 +293,30 @@ def train300_mlperf_coco(args):
                 except:
                     print("Eval error on iteration {0}".format(iter_num))
 
-
+            end = time.time()
             iter_num += 1
         train_loader.reset()
+
+    print("Training end: Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec"\
+        .format(args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
     return False
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 def main():
     args = parse_args()
