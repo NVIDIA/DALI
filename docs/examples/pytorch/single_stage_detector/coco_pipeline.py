@@ -87,7 +87,7 @@ class COCOPipeline(Pipeline):
 
         coin_rnd = self.flip_coin()
 
-        inputs, bboxes, labels = self.input()
+        inputs, bboxes, labels = self.input(name="Reader")
         images = self.decode(inputs)
 
         images = images.gpu()

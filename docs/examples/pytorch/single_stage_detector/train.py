@@ -186,7 +186,7 @@ def train300_mlperf_coco(args):
         dboxes,
         args.seed)
     train_pipe.build()
-    train_loader = DALIGenericIterator(train_pipe, ["images", "boxes", "labels"], 118287)
+    train_loader = DALIGenericIterator(train_pipe, ["images", "boxes", "labels"], train_pipe.epoch_size("Reader"))
 
     mlperf_log.ssd_print(key=mlperf_log.INPUT_SHARD, value=None)
     mlperf_log.ssd_print(key=mlperf_log.INPUT_ORDER)
