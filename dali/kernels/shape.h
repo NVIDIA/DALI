@@ -16,73 +16,71 @@
 #define DALI_KERNELS_SHAPE_H_
 
 #include <dali/common.h>
-#include <vector>
 #include <array>
 #include <cassert>
+#include <vector>
 
 namespace dali {
 
-template <typename T>
-constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T &)
-{ return 1; }
+// template <typename T>
+// constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T
+// &) { return 1; }
 
-template <typename T, size_t N>
-constexpr int ShapeDim(T (&)[N]) { return int(N); }
+// template <typename T, size_t N>
+// constexpr int ShapeDim(T (&)[N]) { return int(N); }
 
-template <typename T, size_t N>
-constexpr int ShapeDim(const std::array<T, N> &) { return N; }
+// template <typename T>
+// constexpr int ShapeDim(const T &t) {
+//   return int(t.size());
+// }
 
-template <typename T, typename A>
-constexpr int ShapeDim(const std::vector<T, A> &shape) { return int(shape.size()); }
+// /// @brief Calculates flat index of a given element in the tensor
+// /// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
+// template <typename Shape, typename SamplePos>
+// ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
+//   ptrdiff_t ofs = pos[0];
+//   const int m = ShapeDim(pos);
+//   const int n = ShapeDim(shape);
+//   int i;
+//   for (i = 1; i < m; i++) {
+//     ofs *= shape[i];
+//     ofs += pos[i];
+//   }
+//   for (; i < n; i++) {
+//     ofs *= shape[i];
+//   }
+//   return ofs;
+// }
 
-template <typename T>
-constexpr int ShapeDim(const std::initializer_list<T> &shape) { return shape.size(); }
-
-/// @brief Calculates flat index of a given element in the tensor
-/// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
-template <typename Shape, typename SamplePos>
-ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
-  ptrdiff_t ofs = pos[0];
-  const int m = ShapeDim(pos);
-  const int n = ShapeDim(shape);
-  int i;
-  for (i = 1; i < m; i++) {
-    ofs *= shape[i];
-    ofs += pos[i];
-  }
-  for (; i < n; i++) {
-    ofs *= shape[i];
-  }
-  return ofs;
-}
-
-/// @brief Returns the product of all elements in shapeZ
-/// @param shape - shape of a tensor whose elements we count
-template <typename Shape>
-inline Index Volume(const Shape &shape) {
-  int n = ShapeDim(shape);
-  if (n < 1)
-    return 0;
-  Index v = shape[0];
-  for (int i = 1; i < n; i++) {
-    v *= shape[i];
-  }
-  return v;
-}
+// /// @brief Returns the product of all elements in shapeZ
+// /// @param shape - shape of a tensor whose elements we count
+// template <typename Shape>
+// inline Index Volume(const Shape &shape) {
+//   int n = ShapeDim(shape);
+//   if (n < 1)
+//     return 0;
+//   Index v = shape[0];
+//   for (int i = 1; i < n; i++) {
+//     v *= shape[i];
+//   }
+//   return v;
+// }
 
 template <int dim_>
 struct TensorShape {
   TensorShape(std::array<Index, dim_> &&s = {}) : data(std::move(s)) {}
 
-  Index &operator[](int d) { return data[d]; }
-  Index operator[](int d) const { return data[d]; }
-  std::array<Index, dim_> data;
+  int64_t &operator[](int d) { return data[d]; }
+  const int64_t &operator[](int d) const { return data[d]; }
+
+  std::array<int64_t , dim_> data;
 
   constexpr int size() const { return dim_; }
 
   template <int other_dim>
   TensorShape &operator=(const TensorShape<other_dim> &other) {
-    assert(other.size() == dim_ && "Cannot assigned a tensor of different dimensionality to a fixed-size tensor");
+    static_assert(other.size() == dim_ &&
+           "Cannot assigned a tensor of different dimensionality to a fixed-size tensor");
     for (int i = 0; i < dim_; i++) {
       data[i] = other[i];
     }
@@ -123,19 +121,17 @@ struct TensorShape<-1> {
 template <int sample_dim_>
 struct TensorListDim {
   inline constexpr int sample_dim() const { return sample_dim_; }
-protected:
-  inline void set_sample_dim(int dim) {
-    assert(dim == sample_dim_);
-  }
+
+ protected:
+  inline void set_sample_dim(int dim) { assert(dim == sample_dim_); }
 };
 
 template <>
 struct TensorListDim<-1> {
   inline constexpr int sample_dim() const { return sample_dim_; }
-protected:
-  inline void set_sample_dim(int dim) {
-    sample_dim_ = dim;
-  }
+
+ protected:
+  inline void set_sample_dim(int dim) { sample_dim_ = dim; }
   int sample_dim_;
 };
 
@@ -168,7 +164,6 @@ struct span<T, (size_t)-1> {
   constexpr size_t size() const { return n; }
 };
 
-
 }  // namespace dali
 
-#endif   // DALI_KERNELS_SHAPE_H_
+#endif  // DALI_KERNELS_SHAPE_H_

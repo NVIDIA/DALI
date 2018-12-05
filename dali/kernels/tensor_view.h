@@ -15,9 +15,8 @@
 #ifndef DALI_KERNELS_TENSOR_VIEW_
 #define DALI_KERNELS_TENSOR_VIEW_
 
-
-#include "shape.h"
 #include "backend_tags.h"
+#include "shape.h"
 
 namespace dali {
 
@@ -35,8 +34,8 @@ struct TensorView {
   }
 
   template <typename... Indices>
-  DataType *at(Index idx0, Indices&& ...idx) const {
-    return data + CalcOfffset(shape, { idx0, (static_cast<Index>(idx))... });
+  DataType *at(Index idx0, Indices &&... idx) const {
+    return data + CalcOfffset(shape, {idx0, (static_cast<Index>(idx))...});
   }
 };
 
@@ -52,20 +51,20 @@ struct TensorListView : TensorListDim<sample_dim_> {
 
   const Index num_samples() const { return shape.size() / sample_dim(); }
 
-  TensorListView(DataType *data, const vector<TensorShape<sample_dim_>> &shapes)
-  : data(data) {
-    if (sample_dim_ == -1 && !shapes.empty())
-      set_sample_dim(shapes[0]);
+  TensorListView(DataType *data, const vector<TensorShape<sample_dim_>> &shapes) : data(data) {
+    if (sample_dim_ == -1 && !shapes.empty()) set_sample_dim(shapes[0]);
     shapes.resize(sample_dim() * shapes.size());
     for (size_t i = 0; i < shapes.size(); i++) {
-      assert(shapes[i].size() == sample_dim() && "All tensors in a tensor list must have same number of dimensions");
+      assert(shapes[i].size() == sample_dim() &&
+             "All tensors in a tensor list must have same number of dimensions");
     }
     UpdateOffsets();
   }
 
   template <int dim = sample_dim_>
   TensorShape<dim> tensor_shape(Index sample) const {
-    static_assert(sample_dim_ < 0 || dim < 0 || sample_dim_ == dim, "Mismatched number of dimensions");
+    static_assert(sample_dim_ < 0 || dim < 0 || sample_dim_ == dim,
+                  "Mismatched number of dimensions");
     if (sample_dim_ < 0 && dim >= 0) {
       assert(dim == sample_dim());
     }
@@ -82,7 +81,7 @@ struct TensorListView : TensorListDim<sample_dim_> {
   }
 
   span<Index, sample_dim_> tensor_shape_span(Index sample) const {
-    return { &shape[sample * sample_dim()], sample_dim() };
+    return {&shape[sample * sample_dim()], sample_dim()};
   }
 
   void UpdateOffsets() {
@@ -93,8 +92,7 @@ struct TensorListView : TensorListDim<sample_dim_> {
       offsets[i] = offset;
       auto s = tensor_shape_span(i);
       Index v = s[0];
-      for (int j = 1; j < s.size(); j++)
-        v *= s[j];
+      for (int j = 1; j < s.size(); j++) v *= s[j];
       offset += v;
     }
     offsets.back() = offset;
@@ -102,7 +100,7 @@ struct TensorListView : TensorListDim<sample_dim_> {
 
   template <int dim = sample_dim_>
   TensorView<backend, DataType, dim> operator[](Index sample) const {
-    return { data + offsets[sample], TensorShape<dim>(sample) };
+    return {data + offsets[sample], TensorShape<dim>(sample)};
   }
 
   template <typename Offset>
@@ -112,8 +110,9 @@ struct TensorListView : TensorListDim<sample_dim_> {
   }
 
   template <typename... Indices>
-  DataType *at(Index sample, Index idx0, Indices&& ...idx) const {
-    return data + offsets[sample] + CalcOfffset(tensor_shape_span(sample), { idx0, (static_cast<Index>(idx))... });
+  DataType *at(Index sample, Index idx0, Indices &&... idx) const {
+    return data + offsets[sample] +
+           CalcOfffset(tensor_shape_span(sample), {idx0, (static_cast<Index>(idx))...});
   }
 };
 
