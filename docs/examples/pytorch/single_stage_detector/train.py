@@ -10,7 +10,8 @@ from torch.utils.data import DataLoader
 import time
 import numpy as np
 from mlperf_compliance import mlperf_log
-from coco_pipeline import COCOPipeline, DALICOCOIterator
+from coco_pipeline import COCOPipeline
+from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
 def parse_args():
     parser = ArgumentParser(description="Train Single Shot MultiBox Detector"
@@ -185,7 +186,7 @@ def train300_mlperf_coco(args):
         dboxes,
         args.seed)
     train_pipe.build()
-    train_loader = DALICOCOIterator(train_pipe, ["images", "boxes", "labels"], 118287)
+    train_loader = DALIGenericIterator(train_pipe, ["images", "boxes", "labels"], 118287)
 
     mlperf_log.ssd_print(key=mlperf_log.INPUT_SHARD, value=None)
     mlperf_log.ssd_print(key=mlperf_log.INPUT_ORDER)
