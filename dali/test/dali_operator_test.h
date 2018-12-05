@@ -19,35 +19,42 @@
 #include <vector>
 #include "tensor_adapter.h"
 #include "operators_graph.h"
+#include "operator_arguments.h"
 
 namespace dali {
 
 namespace testing {
 
-template<typename InputType, typename OutputType>
+template<typename InputBackend, typename OutputBackend>
 class DaliOperatorTest : public ::testing::Test {
-  static_assert(std::is_fundamental<InputType>::value, "DaliOperatorTest expects fundamental type as InputType");
-  static_assert(std::is_fundamental<OutputType>::value, "DaliOperatorTest expects fundamental type as OutputType");
 
-public:
-  using Arguments =  std::map<std::string, int>;  // TODO some generalization (boost::any? tagged union?)
+ public:
+  void RunTest(OperatorArguments operator_arguments,
+               std::vector<std::unique_ptr<dali::TensorList<OutputBackend>>> anticipated_outputs)
+               noexcept {
 
-  void RunTest(Arguments operator_arguments, std::vector<TensorAdapter<OutputType>> anticipated_outputs) noexcept {}
+  }
 
-private:
-  virtual std::vector<TensorAdapter<InputType>> GenerateInputs() const noexcept = 0;
+
+ private:
+  virtual std::vector<std::unique_ptr<dali::TensorList<InputBackend>>>
+  GenerateInputs() const noexcept = 0;
 
   virtual OperatorsGraph GenerateOperatorsGraph() const noexcept = 0;
 
-  virtual void Verify(TensorAdapter<OutputType> output, TensorAdapter<OutputType> anticipated_output) const noexcept = 0;
+  virtual void Verify(const dali::TensorList<OutputBackend> &output,
+                      const dali::TensorList<OutputBackend> &anticipated_output) const noexcept = 0;
+
 
   void SetUp() final {
     inputs_ = GenerateInputs();
   }
 
+
   void TearDown() final {}
 
-  std::vector<TensorAdapter<InputType>> inputs_;
+
+  std::vector<std::unique_ptr<dali::TensorList<InputBackend>>> inputs_;
 };
 
 }  // namespace testing
@@ -55,3 +62,4 @@ private:
 }  // namespace dali
 
 #endif // DALI_TEST_DALI_OPERATOR_TEST_H_
+
