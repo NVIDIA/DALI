@@ -187,10 +187,10 @@ class DALIDatasetOp : public DatasetOpKernel {
 
               daliCopyTensorNTo(&current_handle, dst, i);
               out_tensors->emplace_back(out);
-
-              daliOutputRelease(&current_handle);
-              daliRun(&current_handle);
             }
+
+            daliOutputRelease(&current_handle);
+            daliRun(&current_handle);
 
             ++current_idx_;
             *end_of_sequence = false;
