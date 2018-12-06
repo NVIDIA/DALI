@@ -15,31 +15,107 @@
 #ifndef DALI_KERNELS_TENSOR_VIEW_
 #define DALI_KERNELS_TENSOR_VIEW_
 
-#include "backend_tags.h"
 #include "shape.h"
 
 namespace dali {
 
-template <StorageBackend backend, typename DataType, int dim_>
-struct TensorView {
-  DataType *data = nullptr;
-  TensorShape<dim_> shape;
+struct EmptyBackendTag {};
 
-  static const int static_dim = dim_;
-  int dim() const { return ShapeDim(shape); }
+template <typename Backend, typename DataType, int dim_>
+struct TensorView;
 
-  template <typename Offset>
-  DataType *at(const Offset &pos) const {
-    return data + CalcOfffset(shape, pos);
+
+template <typename Backend, typename DataType>
+struct TensorView<Backend, DataType, DynamicTensorShape> {
+  TensorView() : data(nullptr), shape() {}
+
+  template <int dim>
+  TensorView(DataType *data, TensorShape<dim> shape) : data(data), shape(shape) {}
+  TensorView(const TensorView &) = default;
+  TensorView(TensorView &&) = default;
+  TensorView &operator=(const TensorView &) = default;
+  TensorView &operator=(TensorView &&) = default;
+
+  // Dynamic accepts anything
+  template <int other_dim>
+  TensorView(const TensorView<Backend, DataType, other_dim> &other) : data(other.data), shape(other.shape) {}
+
+  template <int other_dim>
+  TensorView(TensorView<Backend, DataType, other_dim> &&other) : data(other.data), shape(other.shape) {}
+
+  template <int other_dim>
+  TensorView& operator=(const TensorView<Backend, DataType, other_dim> &other) {
+    data = other.data;
+    shape = other.shape;
+    return *this;
   }
 
-  template <typename... Indices>
-  DataType *at(Index idx0, Indices &&... idx) const {
-    return data + CalcOfffset(shape, {idx0, (static_cast<Index>(idx))...});
+  template <int other_dim>
+  TensorView& operator=(TensorView<Backend, DataType, other_dim> &&other) {
+    data = std::move(other.data); // TODO(klecki), should I null it?
+    shape = std::move(other.shape);
+    return *this;
   }
+
+  template <int other_dim>
+  explicit operator TensorView<Backend, DataType, other_dim>() {
+    return {data, TensorShape<other_dim>(shape)};
+  }
+
+  DataType *data;
+  TensorShape<DynamicTensorShape> shape;
+
+  // static const int static_dim = dim_;
+  // int dim() const { return ShapeDim(shape); }
+
+  // template <typename Offset>
+  // DataType *at(const Offset &pos) const {
+  //   return data + CalcOfffset(shape, pos);
+  // }
+
+  // template <typename... Indices>
+  // DataType *at(Index idx0, Indices &&... idx) const {
+  //   return data + CalcOfffset(shape, {idx0, (static_cast<Index>(idx))...});
+  // }
 };
 
-template <StorageBackend backend, typename DataType, int sample_dim_>
+template <typename Backend, typename DataType, int dim_>
+struct TensorView {
+  TensorView() : data(nullptr), shape() {}
+  TensorView(DataType *data, TensorShape<dim_> shape) : data(data), shape(shape) {}
+  TensorView(const TensorView &) = default;
+  TensorView(TensorView &&) = default;
+  TensorView &operator=(const TensorView &) = default;
+  TensorView &operator=(TensorView &&) = default;
+
+  // template <int other_dim, typename = typename std::enable_if<other_dim == dim_ || dim_ == DynamicTensorShape >::type>
+  // TensorView(const TensorView<Backend, DataType, other_dim> &other) : data(other.data), shape(other.shape) {}
+
+  DataType *data;
+  TensorShape<dim_> shape;
+
+  // static const int static_dim = dim_;
+  // int dim() const { return ShapeDim(shape); }
+
+  // template <typename Offset>
+  // DataType *at(const Offset &pos) const {
+  //   return data + CalcOfffset(shape, pos);
+  // }
+
+  // template <typename... Indices>
+  // DataType *at(Index idx0, Indices &&... idx) const {
+  //   return data + CalcOfffset(shape, {idx0, (static_cast<Index>(idx))...});
+  // }
+};
+
+
+// template <typename Backend, typename DataType, int dim_>
+// template <int other_dim>
+// TensorView<Backend, DataType, DynamicTensorShape>::TensorView(
+//     const TensorView<Backend, DataType, other_dim> &other)
+//     : data(other.data), shape(other.shape) {}
+
+template <typename Backend, typename DataType, int sample_dim_>
 struct TensorListView : TensorListDim<sample_dim_> {
   DataType *data = nullptr;
   vector<Index> shape;
@@ -99,7 +175,7 @@ struct TensorListView : TensorListDim<sample_dim_> {
   }
 
   template <int dim = sample_dim_>
-  TensorView<backend, DataType, dim> operator[](Index sample) const {
+  TensorView<Backend, DataType, dim> operator[](Index sample) const {
     return {data + offsets[sample], TensorShape<dim>(sample)};
   }
 
