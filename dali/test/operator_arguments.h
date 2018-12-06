@@ -7,9 +7,10 @@ namespace dali {
 
 namespace testing {
 
+
 class OperatorArguments {
  public:
-  using Arguments = std::map<std::string, double>; // TODO generalization (boost:any? tagged union?)
+  using Arguments = std::map<std::string, double>;
   OperatorArguments(Arguments single_operator_arguments) {}
 };
 

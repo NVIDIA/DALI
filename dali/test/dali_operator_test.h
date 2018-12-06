@@ -17,7 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include "tensor_adapter.h"
+#include <dali/pipeline/pipeline.h>
 #include "operators_graph.h"
 #include "operator_arguments.h"
 
@@ -29,32 +29,31 @@ template<typename InputBackend, typename OutputBackend>
 class DaliOperatorTest : public ::testing::Test {
 
  public:
-  void RunTest(OperatorArguments operator_arguments,
-               std::vector<std::unique_ptr<dali::TensorList<OutputBackend>>> anticipated_outputs)
-               noexcept {
+  template<typename Backend>
+  using DataType = std::unique_ptr<dali::TensorList<Backend>>;
+
+  /**
+   * Verify(output, anticipated_output)
+   */
+  using Verify = std::function<void(const dali::TensorList<OutputBackend> &,
+                                    const dali::TensorList<OutputBackend> &)>;
+
+
+  void
+  RunTest(const std::vector<DataType<InputBackend>> &inputs, OperatorArguments operator_arguments,
+          const std::vector<DataType<OutputBackend>> &anticipated_outputs, Verify verify) const {
 
   }
 
 
  private:
-  virtual std::vector<std::unique_ptr<dali::TensorList<InputBackend>>>
-  GenerateInputs() const noexcept = 0;
-
   virtual OperatorsGraph GenerateOperatorsGraph() const noexcept = 0;
 
-  virtual void Verify(const dali::TensorList<OutputBackend> &output,
-                      const dali::TensorList<OutputBackend> &anticipated_output) const noexcept = 0;
 
-
-  void SetUp() final {
-    inputs_ = GenerateInputs();
-  }
+  void SetUp() final {}
 
 
   void TearDown() final {}
-
-
-  std::vector<std::unique_ptr<dali::TensorList<InputBackend>>> inputs_;
 };
 
 }  // namespace testing
