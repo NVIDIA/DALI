@@ -42,7 +42,7 @@ TensorShape DaliToShape(int64_t* ns) {
   TensorShape ts;
   for (int i = 0; ns[i] != 0; ++i)
     ts.InsertDim(i, ns[i]);
-  delete ns;
+  delete[] ns;
   return ts;
 }
 
@@ -81,7 +81,9 @@ class DALIDatasetOp : public DatasetOpKernel {
                   prefetch_queue_depth_);
 
       for (int j = 0; j < prefetch_queue_depth_; j++) {
-        daliRun(&pipe_handles_.back());
+        for (auto& handle : pipe_handles_) {
+          daliRun(&handle);
+        }
       }
     }
   }

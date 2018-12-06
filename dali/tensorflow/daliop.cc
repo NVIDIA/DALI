@@ -53,7 +53,7 @@ tf::TensorShape DaliToShape(int64_t* ns) {
   tf::TensorShape ts;
   for (int i = 0; ns[i] != 0; ++i)
     ts.InsertDim(i, ns[i]);
-  delete ns;
+  delete[] ns;
   return ts;
 }
 
