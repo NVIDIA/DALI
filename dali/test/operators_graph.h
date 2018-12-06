@@ -2,11 +2,12 @@
 #define DALI_OPERATORS_GRAPH_H
 
 #include <string>
-#include "operator_adapter.h"
 
 namespace dali {
 
 namespace testing {
+
+struct Operator{};
 
 class OperatorsGraph {
 
@@ -14,7 +15,7 @@ public:
   OperatorsGraph(const char* operator_name) {}
 
 private:
-  std::vector<std::pair<OperatorAdapter, std::set<size_t>>> graph_;
+  std::vector<std::pair<Operator, std::set<size_t>>> graph_;
 };
 
 }  // namespace dali
