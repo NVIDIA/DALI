@@ -37,6 +37,15 @@ namespace data {
 
 namespace {
 
+// TODO extract this guy. By now C&P from daliop
+TensorShape DaliToShape(int64_t* ns) {
+  TensorShape ts;
+  for (int i = 0; ns[i] != 0; ++i)
+    ts.InsertDim(i, ns[i]);
+  delete ns;
+  return ts;
+}
+
 class DALIDatasetOp : public DatasetOpKernel {
  public:
   using DatasetOpKernel::DatasetOpKernel;
@@ -70,23 +79,34 @@ class DALIDatasetOp : public DatasetOpKernel {
                   num_threads_,
                   devices[i],
                   prefetch_queue_depth_);
+
+      for (int j = 0; j < prefetch_queue_depth_; j++) {
+        daliRun(&pipe_handles_.back());
+      }
+    }
+  }
+
+  ~DALIDatasetOp() {
+    for (auto& handle : pipe_handles_) {
+      daliDeletePipeline(&handle);
     }
   }
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
     *output =
-        new Dataset(context, &serialized_pipeline_, &shapes_, &dtypes_);
+        new Dataset(context, &pipe_handles_, &shapes_, &dtypes_);
   }
 
  private:
   class Dataset : public DatasetBase {
    public:
-    explicit Dataset(OpKernelContext* ctx, const std::string* serialized_pipeline,
+    explicit Dataset(OpKernelContext* ctx, const std::vector<daliPipelineHandle>* pipe_handles,
         const std::vector<TensorShape>* shapes, const DataTypeVector* types)
         : DatasetBase(DatasetContext(ctx)),
-          dtypes_{types},
+          pipe_handles_{pipe_handles},
           // TODO: Temporary partial shape that will be generalized
-          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape({-1,-1}))} {
+          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape({-1,-1}))},
+          dtypes_{types} {
     }
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
@@ -112,42 +132,97 @@ class DALIDatasetOp : public DatasetOpKernel {
       return Status::OK();
     }
 
+  protected:
+    const std::vector<daliPipelineHandle>* pipe_handles_;
+    const std::vector<PartialTensorShape> shapes_;
+    const DataTypeVector* dtypes_;
+
    private:
     class Iterator : public DatasetIterator<Dataset> {
      public:
       explicit Iterator(const Params& params)
-          : DatasetIterator<Dataset>(params) {}
+          : DatasetIterator<Dataset>(params),
+              current_idx_{0},
+              num_pipelines_{dataset()->pipe_handles_->size()} {}
 
       Status GetNextInternal(IteratorContext* ctx,
                              std::vector<Tensor>* out_tensors,
                              bool* end_of_sequence) override {
-        // Exploit the iterator context to acquire allocations
+          mutex_lock l(mu_);
+
+          if (current_idx_ < num_pipelines_) {
+            auto current_handle = dataset()->pipe_handles_->at(current_idx_);
+
+            daliShareOutput(&current_handle);
+
+            const auto output_count = daliGetNumOutput(&current_handle);
+
+            for (size_t i = 0; i < output_count; i++) {
+              auto shape = DaliToShape(daliShapeAt(&current_handle, i));
+
+              Tensor out(ctx->allocator({}),
+                  dataset()->dtypes_->at(i), shape);
+
+              void *dst = nullptr;
+              switch (dataset()->dtypes_->at(i)) {
+                case DT_FLOAT:
+                      dst = reinterpret_cast<void*>(out.flat<float>().data());
+                  break;
+                case DT_INT32:
+                      dst = reinterpret_cast<void*>(out.flat<int>().data());
+                  break;
+                case DT_INT64:
+                      dst = reinterpret_cast<void*>(out.flat<int64>().data());
+                  break;
+                case DT_HALF:
+                      dst = reinterpret_cast<void*>(out.flat<uint16_t>().data());
+                  break;
+                default:
+                  // todo assert here to catch the failure, because types are not yet converted ?
+                  // todo support the new types ?
+                  break;
+              }
+
+              daliCopyTensorNTo(&current_handle, dst, i);
+              out_tensors->emplace_back(out);
+
+              daliOutputRelease(&current_handle);
+              daliRun(&current_handle);
+            }
+
+            ++current_idx_;
+            *end_of_sequence = false;
+          } else {
+            current_idx_ = 0;
+            *end_of_sequence = true;
+          }
+
         return Status::OK();
       }
 
      protected:
       Status SaveInternal(IteratorStateWriter* writer) override {
+        mutex_lock l(mu_);
+        TF_RETURN_IF_ERROR(writer->WriteScalar(
+            full_name("current_idx"), current_idx_));
+
         return Status::OK();
       }
 
       Status RestoreInternal(IteratorContext* ctx,
                              IteratorStateReader* reader) override {
-        return Status::OK();
-      }
+        int64 current_index;
+        TF_RETURN_IF_ERROR(reader->ReadScalar(full_name("current_index"),
+                                              &current_index));
+        current_idx_ = static_cast<unsigned int>(current_index);
 
-     private:
-      Status SetupStreamsLocked(Env* env) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
         return Status::OK();
-      }
-
-      void ResetStreamsLocked() EXCLUSIVE_LOCKS_REQUIRED(mu_) {
       }
 
       mutex mu_;
+      unsigned int current_idx_;
+      const size_t num_pipelines_;
     };
-
-    const DataTypeVector* dtypes_;
-    const std::vector<PartialTensorShape> shapes_;
   };
 
 protected:
@@ -162,7 +237,7 @@ protected:
 REGISTER_OP("DALIDataset")
     .Attr("serialized_pipeline: string")
     .Attr("shapes: list(shape) >= 1")
-    .Attr("dtypes: list({float, int32, int64, half}) >= 1")
+    .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
     .Attr("devices: list(int) >= 1")
     .Attr("prefetch_queue_depth: int = 2")
     .Attr("num_threads: int = -1")
