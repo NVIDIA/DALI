@@ -17,7 +17,7 @@
 #include "dali/kernels/shape.h"
 #include "dali/kernels/tensor_view.h"
 
-namespace dali {
+namespace tensor {
 
 TEST(TensorShapeTest, Assignement) {
   TensorShape<2> a;
@@ -29,8 +29,9 @@ TEST(TensorShapeTest, Assignement) {
   b = c;
   TensorShape<-1> d(std::vector<int64_t>{2, 42, 1});
   // d = static_cast<TensorShape<-1>>(b);
-  b = TensorShape<3>(d);
-  TensorShape<5> t5(d);
+  // b = TensorShape<3>(d);
+  b = d.to_static<3>();
+  TensorShape<5> t5(d.to_static<5>());
   std::array<int64_t, 4> x = {1, 2, 3, 4};
   TensorShape<4> f(1, 2, 3, 4);
   TensorShape<4> g(x);
@@ -47,13 +48,12 @@ TEST(TensorViewTest, Assignement) {
 
   TensorView<EmptyBackendTag, int, 4> int_4_2{int_4};
   TensorView<EmptyBackendTag, int, -1> int_4_3{int_4};
-  TensorView<EmptyBackendTag, int, 4> int_4_4{int_4_3};
-  auto x = TensorView<EmptyBackendTag, int, 4>(TensorView<EmptyBackendTag, int, -1>(int_3));
-  foo(x);
+  TensorView<EmptyBackendTag, int, 4> int_4_4{int_4_3.to_static<4>()};
+  // foo(x);
   // int_4_4 = int_4_3;
   // TensorView<EmptyBackendTag, int, DynamicTensorShape> int_dyn;
   // // int_4 = int_dyn;
   // int_dyn = int_4;
 }
 
-}  // namespace dali
+}  // namespace tensor

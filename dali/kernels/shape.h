@@ -15,12 +15,15 @@
 #ifndef DALI_KERNELS_SHAPE_H_
 #define DALI_KERNELS_SHAPE_H_
 
-#include <dali/common.h>
 #include <array>
 #include <cassert>
-#include <vector>
 #include <iostream>
-namespace dali {
+#include <numeric>
+#include <vector>
+
+#include "dali/kernels/span.h"
+
+namespace tensor {
 
 // template <typename T>
 // constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T
@@ -55,11 +58,11 @@ namespace dali {
 // /// @brief Returns the product of all elements in shapeZ
 // /// @param shape - shape of a tensor whose elements we count
 // template <typename Shape>
-// inline Index Volume(const Shape &shape) {
+// inline int64_t Volume(const Shape &shape) {
 //   int n = ShapeDim(shape);
 //   if (n < 1)
 //     return 0;
-//   Index v = shape[0];
+//   int64_t v = shape[0];
 //   for (int i = 1; i < n; i++) {
 //     v *= shape[i];
 //   }
@@ -73,32 +76,34 @@ struct TensorShape;
 
 template <>
 struct TensorShape<DynamicTensorShape> {
-  TensorShape(const std::vector<Index> &s) : shape(s) {}
-  TensorShape(std::vector<Index> &&s) : shape(std::move(s)) {}
+  TensorShape(const std::vector<int64_t> &s) : shape(s) {}
+  TensorShape(std::vector<int64_t> &&s) : shape(std::move(s)) {}
   template <size_t N>
   TensorShape(std::array<int64_t, N> s) : shape(s.begin(), s.end()) {}
 
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;
   TensorShape(TensorShape &&) = default;
-  TensorShape& operator=(const TensorShape &other) = default;
-  TensorShape& operator=(TensorShape &&other) = default;
+  TensorShape &operator=(const TensorShape &other) = default;
+  TensorShape &operator=(TensorShape &&other) = default;
 
   // TODO(klecki) efficient size calculation for this vector?
   template <int other_dim>
-  TensorShape(const TensorShape<other_dim> &other) : shape(other.shape.begin(), other.shape.end()) {}
+  TensorShape(const TensorShape<other_dim> &other) : shape(other.shape.begin(), other.shape.end()) {
+    static_assert(other_dim != DynamicTensorShape, "This constructor should be not used");
+  }
 
   template <int other_dim>
   TensorShape(TensorShape<other_dim> &&other) : shape(other.shape.begin(), other.shape.end()) {}
 
   template <int other_dim>
-  TensorShape& operator=(const TensorShape<other_dim> &other) {
+  TensorShape &operator=(const TensorShape<other_dim> &other) {
     shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
     return *this;
   }
 
   template <int other_dim>
-  TensorShape& operator=(TensorShape<other_dim> &&other) {
+  TensorShape &operator=(TensorShape<other_dim> &&other) {
     shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
     return *this;
   }
@@ -107,7 +112,6 @@ struct TensorShape<DynamicTensorShape> {
   // TensorShape(const TensorShape<other_dim> &other) {
   //   *this = other;
   // }
-
 
   // template <int other_dim>
   // TensorShape &operator=(const TensorShape<other_dim> &other) {
@@ -124,46 +128,62 @@ struct TensorShape<DynamicTensorShape> {
   // }
 
   // We allow only explicit conversion from dynamic to static dim
+  // template <int other_dim>
+  // explicit operator TensorShape<other_dim>() const;
   template <int other_dim>
-  explicit operator TensorShape<other_dim>() const;
+  TensorShape<other_dim> to_static() const;
 
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
 
   std::vector<int64_t> shape;
-  const int size() const { return shape.size(); }
+  int size() const { return shape.size(); }
 };
 
 template <int dim_>
 struct TensorShape {
-  TensorShape(const std::array<int64_t, dim_> &s) : shape(s) {std::cout << "const std::array<int64_t, dim_> &s" << std::endl;}
-  TensorShape(std::array<int64_t, dim_> &&s) : shape(std::move(s)) {std::cout << "std::array<int64_t, dim_> &&s" << std::endl;}
+  TensorShape(const std::array<int64_t, dim_> &s) : shape(s) {
+    std::cout << "const std::array<int64_t, dim_> &s" << std::endl;
+  }
+  TensorShape(std::array<int64_t, dim_> &&s) : shape(std::move(s)) {
+    std::cout << "std::array<int64_t, dim_> &&s" << std::endl;
+  }
 
   // We just want zero-initialization
   TensorShape() : shape{} {}
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape(TensorShape &&) = default;
-  TensorShape& operator=(const TensorShape &other) = default;
-  TensorShape& operator=(TensorShape &&other) = default;
-
+  TensorShape &operator=(const TensorShape &other) = default;
+  TensorShape &operator=(TensorShape &&other) = default;
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {
     static_assert(sizeof...(Ts) == dim_ - 1, "Number of shapes passed must match dim_");
     std::cout << "TensorShape(int64_t i0, Ts... s)" << std::endl;
-    //TODO static_assert for Ts == int64_t
+    // TODO static_assert for Ts == int64_t
   }
 
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
 
-  std::array<int64_t , dim_> shape;
+  std::array<int64_t, dim_> shape;
   constexpr int size() const { return dim_; }
 };
 
-template<int other_dim>
-TensorShape<DynamicTensorShape>::operator TensorShape<other_dim>() const {
+// template<int other_dim>
+// TensorShape<DynamicTensorShape>::operator TensorShape<other_dim>() const {
+//   std::cout << "operator TensorShape<other_dim>()" << std::endl;
+//   assert(size() == other_dim);
+//   TensorShape<other_dim> shape;
+//   for (int i = 0; i < other_dim; i++) {
+//     shape[i] = (*this)[i];
+//   }
+//   return shape;
+// }
+
+template <int other_dim>
+TensorShape<other_dim> TensorShape<DynamicTensorShape>::to_static() const {
   std::cout << "operator TensorShape<other_dim>()" << std::endl;
   assert(size() == other_dim);
   TensorShape<other_dim> shape;
@@ -172,6 +192,90 @@ TensorShape<DynamicTensorShape>::operator TensorShape<other_dim>() const {
   }
   return shape;
 }
+
+// TODO should we be able to only output a tensor of sample_dim dim for all cases of TensorListShape
+template <int sample_dim_>
+struct TensorListShape {
+  TensorListShape(std::vector<TensorShape<sample_dim_>> sample_shapes)
+      : shapes(std::accumulate(sample_shapes.begin(), sample_shapes.end(), std::vector<int64_t>(),
+                               [](std::vector<int64_t> current, const TensorShape<sample_dim_> &next) {
+                                 return std::move(current).insert(current.end(), next.shape.begin(),
+                                                                  next.shape.end());
+                               })) {}
+
+  template <int tensor_dim = sample_dim_>
+  typename std::enable_if<tensor_dim == sample_dim_ || tensor_dim == DynamicTensorShape,
+                          TensorShape<tensor_dim>>::type
+  tensor_shape(int64_t sample) const {
+    TensorShape<tensor_dim> out;
+    if (tensor_dim == DynamicTensorShape) {
+      out.shape.resize(sample_dim());
+    }
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      out[i] = shapes[base + i];
+    }
+    return out;
+  }
+
+  span<int64_t, sample_dim_> tensor_shape_span(int64_t sample) const {
+    return {&shapes[sample * sample_dim()], sample_dim()};
+  }
+
+  constexpr int sample_dim() const { return sample_dim_; }
+
+  int samples() const { return shapes.size() / sample_dim(); }
+
+  std::vector<int64_t> shapes;
+};
+
+template <>
+struct TensorListShape<DynamicTensorShape> {
+  template <int tensor_dim>
+  TensorShape<tensor_dim> tensor_shape(int64_t sample) const {
+    TensorShape<tensor_dim> out;
+    if (tensor_dim == DynamicTensorShape) {
+      out.shape.resize(sample_dim());
+    }
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      out[i] = shapes[base + i];
+    }
+    return out;
+  }
+
+  span<int64_t> tensor_shape_span(int64_t sample) const {
+    return {&shapes[sample * sample_dim()], static_cast<size_t>(sample_dim())};
+  }
+
+  int sample_dim() const { return dim; }
+
+  int samples() const { return shapes.size() / sample_dim(); }
+
+  std::vector<int64_t> shapes;
+  int dim;
+};
+
+template <int sample_dim>
+std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_dim> &tls) {
+  std::vector<ptrdiff_t> offsets;
+  offsets.resize(tls.samples() + 1);
+  offsets.push_back(0);
+  for (int i = 0; i < tls.samples(); i++) {
+    auto sample_shape_span = tls.tensor_shape_span(i);
+    auto off = std::accumulate(sample_shape_span.begin(), sample_shape_span.end(),
+                               static_cast<ptrdiff_t>(1),
+                               [](const ptrdiff_t &a, const ptrdiff_t &b) { return a * b; });
+    offsets.push_back(off);
+  }
+  return offsets;
+}
+
+// TODO:
+// * `multiply(span)`
+// * `flatten` to vector
+// * `T* at(...)` as free function
+
 
 template <int sample_dim_>
 struct TensorListDim {
@@ -190,35 +294,6 @@ struct TensorListDim<-1> {
   int sample_dim_;
 };
 
-template <typename T, size_t static_size = (size_t)-1>
-struct span {
-  span() = default;
-  span(T *p, size_t n = static_size) : p(p) { assert(n == static_size); }
-
-  const T *p = nullptr;
-
-  constexpr T *base() const { return p; }
-  constexpr T &operator[](ptrdiff_t index) const { return p[index]; }
-  constexpr T *begin() const { return p; }
-  constexpr T *end() const { return p + size(); }
-  constexpr size_t size() const { return static_size; }
-};
-
-template <typename T>
-struct span<T, (size_t)-1> {
-  span() = default;
-  span(T *p, size_t n) : p(p), n(n) {}
-
-  const T *p = nullptr;
-  const size_t n = 0;
-
-  constexpr T *base() const { return p; }
-  constexpr T &operator[](ptrdiff_t index) const { return p[index]; }
-  constexpr T *begin() const { return p; }
-  constexpr T *end() const { return p + size(); }
-  constexpr size_t size() const { return n; }
-};
-
-}  // namespace dali
+}  // namespace tensor
 
 #endif  // DALI_KERNELS_SHAPE_H_
