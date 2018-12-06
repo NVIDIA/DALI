@@ -222,7 +222,7 @@ class DALIGenericIterator(object):
         """
         Returns the next batch of data.
         """
-        return self.__next__();
+        return self.__next__()
 
     def __iter__(self):
         return self
