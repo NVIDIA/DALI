@@ -201,6 +201,16 @@ template <>
 struct TensorListShape<DynamicDimensions> {
   TensorListShape() : shapes(), dim(0) {}
 
+  TensorListShape(const TensorListShape &) = default;
+  TensorListShape(TensorListShape &&) = default;
+
+
+  template <int other_sample_ndim>
+  TensorListShape(const TensorListShape<other_sample_ndim> &other) : shapes(other.shapes), dim(other_sample_ndim) {}
+
+  template <int other_sample_ndim>
+  TensorListShape(TensorListShape<other_sample_ndim> &&other) : shapes(std::move(other.shapes)), dim(other_sample_ndim) {}
+
   TensorListShape(const std::vector<std::vector<int64_t>> &sample_shapes, int uniform_sample_ndim)
       : shapes(flatten_shapes(sample_shapes, uniform_sample_ndim)), dim(uniform_sample_ndim) {}
 
@@ -237,6 +247,8 @@ struct TensorListShape<DynamicDimensions> {
 
   std::vector<int64_t> shapes;
   int dim;
+
+  //todo as static shape?
 };
 
 

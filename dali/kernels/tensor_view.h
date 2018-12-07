@@ -154,6 +154,9 @@ struct TensorListView {
   TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape, const std::vector<ptrdiff_t> &offsets) :
     data(data), shape(shape), offsets(offsets) {}
 
+  TensorListView(DataType *data, TensorListShape<sample_ndim> &&shape, std::vector<ptrdiff_t> &&offsets) :
+    data(data), shape(std::move(shape)), offsets(std::move(offsets)) {}
+
   TensorView<Backend, DataType, sample_ndim> operator[](int64_t sample) const {
     return {data + offsets[sample], shape[sample]};
   }
