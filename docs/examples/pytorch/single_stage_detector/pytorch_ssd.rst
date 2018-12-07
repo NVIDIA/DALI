@@ -4,7 +4,7 @@ Single Shot MultiBox Detector training in PyTorch
 This example implements Single Shot Multibox Detector originally published by Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, 
 Scott Reed, Cheng-Yang Fu, Alexander C. Berg as `SSD: Single Shot MultiBox Detector <https://arxiv.org/abs/1512.02325>`_.
 
-Code is based on MLPerf example from `here <https://github.com/mlperf/training/tree/master/single_stage_detector/ssd>`_ and has been modified to use DALI. 
+Code is based on `MLPerf example <https://github.com/mlperf/training/tree/master/single_stage_detector/ssd>`_ and has been modified to use DALI. 
 
 To run use following command:
 
@@ -18,7 +18,7 @@ Requirements
 
 - This example was tested with :bash:`python3.5.2` and it should work with later versions. It will not work with :bash:`python2.7` and earlier.
 
-- Download COCO 2017 dataset. It can be found `here <http://cocodataset.org/#download>`_. You can also use:
+- Download `COCO 2017 dataset <http://cocodataset.org/#download>`_. You can also use:
 
   .. code-block:: bash
 
