@@ -25,7 +25,7 @@ template <typename Backend, typename DataType, int ndim>
 struct TensorView;
 
 template <typename Backend, typename DataType>
-struct TensorView<Backend, DataType, DynamicTensorShape> {
+struct TensorView<Backend, DataType, DynamicDimensions> {
   TensorView() : data(nullptr), shape() {}
 
   template <int dim>
@@ -65,27 +65,27 @@ struct TensorView<Backend, DataType, DynamicTensorShape> {
 
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static() {
-    static_assert(other_ndim != DynamicTensorShape,
+    static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     return {data, shape.to_static<other_ndim>()};
   }
 
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape) {
-    static_assert(other_ndim != DynamicTensorShape,
+    static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     return {data, new_shape};
   }
 
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape) {
-    static_assert(other_ndim != DynamicTensorShape,
+    static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     return {data, std::move(new_shape)};
   }
 
   DataType *data;
-  TensorShape<DynamicTensorShape> shape;
+  TensorShape<DynamicDimensions> shape;
 
   static const bool has_static_dim = false;
   int dim() const { return shape.size(); }

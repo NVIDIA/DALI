@@ -51,7 +51,7 @@ TEST(TensorViewTest, Assignement) {
   TensorView<EmptyBackendTag, int, 4> int_4_4{int_4_3.to_static<4>()};
   // foo(x);
   // int_4_4 = int_4_3;
-  // TensorView<EmptyBackendTag, int, DynamicTensorShape> int_dyn;
+  // TensorView<EmptyBackendTag, int, DynamicDimensions> int_dyn;
   // // int_4 = int_dyn;
   // int_dyn = int_4;
 }

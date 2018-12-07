@@ -69,13 +69,13 @@ namespace tensor {
 //   return v;
 // }
 
-constexpr int DynamicTensorShape = -1;
+constexpr int DynamicDimensions = -1;
 
 template <int ndim>
 struct TensorShape;
 
 template <>
-struct TensorShape<DynamicTensorShape> {
+struct TensorShape<DynamicDimensions> {
   TensorShape(const std::vector<int64_t> &s) : shape(s) {}
   TensorShape(std::vector<int64_t> &&s) : shape(std::move(s)) {}
   template <size_t N>
@@ -90,7 +90,7 @@ struct TensorShape<DynamicTensorShape> {
   // TODO(klecki) efficient size calculation for this vector?
   template <int other_ndim>
   TensorShape(const TensorShape<other_ndim> &other) : shape(other.shape.begin(), other.shape.end()) {
-    static_assert(other_ndim != DynamicTensorShape, "This constructor should be not used");
+    static_assert(other_ndim != DynamicDimensions, "This constructor should be not used");
   }
 
   template <int other_ndim>
@@ -172,7 +172,7 @@ struct TensorShape {
 };
 
 // template<int other_ndim>
-// TensorShape<DynamicTensorShape>::operator TensorShape<other_ndim>() const {
+// TensorShape<DynamicDimensions>::operator TensorShape<other_ndim>() const {
 //   std::cout << "operator TensorShape<other_ndim>()" << std::endl;
 //   assert(size() == other_ndim);
 //   TensorShape<other_ndim> shape;
@@ -183,7 +183,7 @@ struct TensorShape {
 // }
 
 template <int other_ndim>
-TensorShape<other_ndim> TensorShape<DynamicTensorShape>::to_static() const {
+TensorShape<other_ndim> TensorShape<DynamicDimensions>::to_static() const {
   std::cout << "operator TensorShape<other_ndim>()" << std::endl;
   assert(size() == other_ndim);
   TensorShape<other_ndim> shape;
@@ -204,11 +204,11 @@ struct TensorListShape {
                                })) {}
 
   template <int tensor_dim = sample_ndim>
-  typename std::enable_if<tensor_dim == sample_ndim || tensor_dim == DynamicTensorShape,
+  typename std::enable_if<tensor_dim == sample_ndim || tensor_dim == DynamicDimensions,
                           TensorShape<tensor_dim>>::type
   tensor_shape(int64_t sample) const {
     TensorShape<tensor_dim> out;
-    if (tensor_dim == DynamicTensorShape) {
+    if (tensor_dim == DynamicDimensions) {
       out.shape.resize(sample_dim());
     }
     int64_t base = sample_dim() * sample;
@@ -230,11 +230,11 @@ struct TensorListShape {
 };
 
 template <>
-struct TensorListShape<DynamicTensorShape> {
+struct TensorListShape<DynamicDimensions> {
   template <int tensor_dim>
   TensorShape<tensor_dim> tensor_shape(int64_t sample) const {
     TensorShape<tensor_dim> out;
-    if (tensor_dim == DynamicTensorShape) {
+    if (tensor_dim == DynamicDimensions) {
       out.shape.resize(sample_dim());
     }
     int64_t base = sample_dim() * sample;
