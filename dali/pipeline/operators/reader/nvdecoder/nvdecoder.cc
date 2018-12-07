@@ -470,7 +470,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                       frame.get_pitch(),
                                       input_width,
                                       input_height,
-                                      ScaleMethod_Linear);
+                                      ScaleMethod_Nearest);
     process_frame<float>(textures.chroma, textures.luma,
                   sequence,
                   output_idx, stream_,
