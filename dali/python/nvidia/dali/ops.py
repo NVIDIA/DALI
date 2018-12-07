@@ -21,6 +21,8 @@ from nvidia.dali.tensor import TensorReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
+_blacklisted_ops = set(["MakeContiguous"])
+
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
     __cpu_ops.add("TFRecordReader")
@@ -250,6 +252,9 @@ def python_op_factory(name, op_device = "cpu"):
 _cpugpu_ops = (set(b.RegisteredCPUOps())
             .union(set(b.RegisteredGPUOps()))
             .union(set(b.RegisteredMixedOps())))
+
+_cpugpu_ops -= _blacklisted_ops
+
 _support_ops = set(b.RegisteredSupportOps())
 for op_name in _cpugpu_ops:
     setattr(sys.modules[__name__], op_name,
