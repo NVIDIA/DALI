@@ -45,6 +45,12 @@ number of frames).)code")
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
       3)
+  .AddOptionalArg("normalized",
+      R"code(Get output as normalized data.)code",
+      false)
+  .AddOptionalArg("image_type",
+      R"code(The color space of the output frames (supports RGB and YCBCR).)code",
+      DALI_RGB)
   .AddParent("LoaderBase");
   // TODO(spanev) Args to add: normalized bool
 }  // namespace dali

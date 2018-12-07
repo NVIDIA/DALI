@@ -89,7 +89,9 @@ class NvDecoder {
  public:
   NvDecoder(int device_id,
             const CodecParameters* codecpar,
-            AVRational time_base);
+            AVRational time_base,
+            DALIImageType image_type,
+            bool normalized);
 
   NvDecoder(const NvDecoder&) = default;
   NvDecoder(NvDecoder&&) = default;
@@ -111,16 +113,16 @@ class NvDecoder {
 
   void finish();
 
- protected:
+ private:
   int decode_av_packet(AVPacket* pkt);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
-  const int device_id_;
-  CUStream stream_;
-  const CodecParameters* codecpar_;
 
- private:
+  int handle_sequence_(CUVIDEOFORMAT* format);
+  int handle_decode_(CUVIDPICPARAMS* pic_params);
+  int handle_display_(CUVIDPARSERDISPINFO* disp_info);
+
   class MappedFrame {
    public:
     MappedFrame();
@@ -166,6 +168,21 @@ class NvDecoder {
     TextureObject chroma;
   };
 
+  const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
+                                     uint16_t input_width, uint16_t input_height,
+                                       ScaleMethod scale_method);
+  void convert_frames_worker();
+  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
+                     int index);
+
+
+  const int device_id_;
+  CUStream stream_;
+  const CodecParameters* codecpar_;
+
+  DALIImageType image_type_;
+  bool normalized_;
+
   CUdevice device_;
   CUContext context_;
   CUVideoParser parser_;
@@ -196,17 +213,6 @@ class NvDecoder {
   volatile bool done_;
 
   std::thread thread_convert_;
-
-  int handle_sequence_(CUVIDEOFORMAT* format);
-  int handle_decode_(CUVIDPICPARAMS* pic_params);
-  int handle_display_(CUVIDPARSERDISPINFO* disp_info);
-
-  const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
-                                     uint16_t input_width, uint16_t input_height,
-                                       ScaleMethod scale_method);
-  void convert_frames_worker();
-  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                     int index);
 };
 
 }  // namespace dali

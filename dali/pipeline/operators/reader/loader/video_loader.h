@@ -106,9 +106,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       count_(spec.GetArgument<int>("count")),
       height_(0),
       width_(0),
+      image_type_(spec.GetArgument<DALIImageType>("image_type")),
+      normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
-      // TODO(spanev) handle device_id != 0
-      device_id_(0),
       codec_id_(0),
       done_(false) {
   }
@@ -117,6 +117,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
+
+    CUDA_CALL(cudaGetDevice(&device_id_));
+
     av_register_all();
 
     // TODO(spanev) Implem several files handling
@@ -176,6 +179,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int output_width_;
   int height_;
   int width_;
+  DALIImageType image_type_;
+  bool normalized_;
+
   std::vector<std::string> filenames_;
 
   int device_id_;
