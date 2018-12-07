@@ -29,9 +29,9 @@ Requirements
       curl -O http://images.cocodataset.org/annotations/annotations_trainval2017.zip; unzip annotations_trainval2017.zip
       cd $dir
 
-- Install packages listed below into your :bash:`python` interpreter:
+- Install packages listed below into your ``python`` interpreter:
 
-  :bash:`numpy torch torchvision mlperf_compliance matplotlib Cython pycocotools`
+  ``numpy torch torchvision mlperf_compliance matplotlib Cython pycocotools``
 
 Usage
 -----
