@@ -16,7 +16,7 @@ To run use following command:
 Requirements
 ------------
 
-- This example was tested with :bash:`python3.5.2` and it should work with later versions. It will not work with :bash:`python2.7` and earlier.
+- This example was tested with ``python3.5.2`` and it should work with later versions. It will not work with ``python2.7`` and earlier.
 
 - Download `COCO 2017 dataset <http://cocodataset.org/#download>`_. You can also use:
 
@@ -43,7 +43,7 @@ Usage
                   [--checkpoint CHECKPOINT] [--no-save]
                   [--evaluation [EVALUATION [EVALUATION ...]]]
 
-For example, if you have COCO data in :bash:`/data/coco2017` and wish to train for 80 epochs you could use:
+For example, if you have COCO data in ``/data/coco2017`` and wish to train for 80 epochs you could use:
 
   .. code-block:: bash
 
