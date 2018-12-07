@@ -26,7 +26,7 @@ DLL_PUBLIC void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
     SequenceWrapper& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height,
-    DALIImageType image_type, bool normalized);
+    bool rgb, bool normalized);
 
 }  // namespace dali
 

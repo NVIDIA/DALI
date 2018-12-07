@@ -74,7 +74,7 @@ enum DALIInterpType {
 /**
  * @brief Supported image formats
  */
-enum DALIImageType { DALI_RGB = 0, DALI_BGR = 1, DALI_GRAY = 2, DALI_YCBCR = 3 };
+enum DALIImageType { DALI_RGB = 0, DALI_BGR = 1, DALI_GRAY = 2, DALI_YCbCr = 3 };
 
 /**
  * @brief Supported tensor layouts
@@ -88,7 +88,7 @@ enum DALITensorLayout {
 };
 
 inline bool IsColor(DALIImageType type) {
-  return type == DALI_RGB || type == DALI_BGR || type == DALI_YCBCR;
+  return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
 // Compatible wrapper for CUDA 8 which does not have builtin
@@ -202,8 +202,8 @@ inline std::string to_string(const DALIImageType& im_type) {
       return "BGR";
     case DALI_GRAY:
       return "GRAY";
-    case DALI_YCBCR:
-      return "YCBCR";
+    case DALI_YCbCr:
+      return "YCbCr";
     default:
       return "<unknown>";
   }

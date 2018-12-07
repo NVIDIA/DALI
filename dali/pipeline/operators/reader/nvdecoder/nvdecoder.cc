@@ -85,7 +85,7 @@ NvDecoder::NvDecoder(int device_id,
                      DALIImageType image_type,
                      bool normalized)
     : device_id_{device_id}, stream_{device_id, false}, codecpar_{codecpar},
-      image_type_(image_type), normalized_(normalized),
+      rgb_(image_type == DALI_RGB), normalized_(normalized),
       device_{}, context_{}, parser_{}, decoder_{},
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
@@ -475,7 +475,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                   sequence,
                   output_idx, stream_,
                   input_width, input_height,
-                  image_type_, normalized_);
+                  rgb_, normalized_);
 
   frame_in_use_[frame.disp_info->picture_index] = false;
 }

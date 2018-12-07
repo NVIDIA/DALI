@@ -49,7 +49,7 @@ number of frames).)code")
       R"code(Get output as normalized data.)code",
       false)
   .AddOptionalArg("image_type",
-      R"code(The color space of the output frames (supports RGB and YCBCR).)code",
+      R"code(The color space of the output frames (supports RGB and YCbCr).)code",
       DALI_RGB)
   .AddParent("LoaderBase");
   // TODO(spanev) Args to add: normalized bool

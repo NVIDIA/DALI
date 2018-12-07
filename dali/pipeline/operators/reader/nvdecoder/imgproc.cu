@@ -36,9 +36,9 @@ __constant__ float yuv2rgb_mat_norm[9] = {
 
 // not normalized need *255
 __constant__ float yuv2rgb_mat[9] = {
-  1.164383f * 255.f,  0.0f,       1.596027f * 255.f,
-  1.164383f * 255.f, -0.391762f * 255.f, -0.812968f * 255.f,
-  1.164383f * 255.f,  2.017232f * 255.f,  0.0f
+  1.164383f * 255.0f,  0.0f,       1.596027f * 255.0f,
+  1.164383f * 255.0f, -0.391762f * 255.0f, -0.812968f * 255.0f,
+  1.164383f * 255.0f,  2.017232f * 255.0f,  0.0f
 };
 
 __device__ float clip(float x, float max) {
@@ -63,22 +63,22 @@ __device__ uint8_t convert<uint8_t>(const float x) {
 template<typename YUV_T, typename RGB_T, bool Normalized = false>
 __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
                         size_t stride) {
-  auto y = (static_cast<float>(yuv.y) - 16.0f/255);
-  auto u = (static_cast<float>(yuv.u) - 128.0f/255);
-  auto v = (static_cast<float>(yuv.v) - 128.0f/255);
+  auto y = (static_cast<float>(yuv.y) - 16.0f/255.0f);
+  auto u = (static_cast<float>(yuv.u) - 128.0f/255.0f);
+  auto v = (static_cast<float>(yuv.v) - 128.0f/255.0f);
 
 
   float r, g, b;
   if (Normalized) {
     auto& m = yuv2rgb_mat_norm;
-    r = clip(y*m[0] + u*m[1] + v*m[2], 1.0);
-    g = clip(y*m[3] + u*m[4] + v*m[5], 1.0);
-    b = clip(y*m[6] + u*m[7] + v*m[8], 1.0);
+    r = clip(y*m[0] + u*m[1] + v*m[2], 1.0f);
+    g = clip(y*m[3] + u*m[4] + v*m[5], 1.0f);
+    b = clip(y*m[6] + u*m[7] + v*m[8], 1.0f);
   } else {
     auto& m = yuv2rgb_mat;
-    r = clip(y*m[0] + u*m[1] + v*m[2], 255.0);
-    g = clip(y*m[3] + u*m[4] + v*m[5], 255.0);
-    b = clip(y*m[6] + u*m[7] + v*m[8], 255.0);
+    r = clip(y*m[0] + u*m[1] + v*m[2], 255.0f);
+    g = clip(y*m[3] + u*m[4] + v*m[5], 255.0f);
+    b = clip(y*m[6] + u*m[7] + v*m[8], 255.0f);
   }
 
   rgb[0] = convert<RGB_T>(r);
@@ -86,7 +86,7 @@ __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
   rgb[stride*2] = convert<RGB_T>(b);
 }
 
-template<typename T, bool Normalized = false>
+template<typename T, bool Normalized = false, bool RGB = true>
 __global__ void process_frame_kernel(
   cudaTextureObject_t luma, cudaTextureObject_t chroma,
   T* dst, int index,
@@ -114,8 +114,15 @@ __global__ void process_frame_kernel(
 
   auto* out = &dst[(dst_x + dst_y * dst_width) * c];
 
-  size_t stride = 1;
-  yuv2rgb<float, float, Normalized>(yuv, out, stride);
+  constexpr size_t stride = 1;
+  if (RGB) {
+    yuv2rgb<float, T, Normalized>(yuv, out, stride);
+  } else {
+    constexpr float scaling = Normalized ? 1.0f : 255.0f;
+    out[0] = yuv.y * scaling;
+    out[stride] = yuv.u * scaling;
+    out[stride*2] = yuv.v * scaling;
+  }
 }
 
 inline constexpr int divUp(int total, int grain) {
@@ -129,7 +136,7 @@ void process_frame(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
   SequenceWrapper& output, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,
-  DALIImageType image_type, bool normalized) {
+  bool rgb, bool normalized) {
   auto scale_width = input_width;
   auto scale_height = input_height;
 
@@ -144,13 +151,22 @@ void process_frame(
             << " (frame_stride=" << frame_stride << ")" << std::endl;
   auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
 
-  // TODO(spanev) Handle normalized and YCbCr versions
   if (normalized) {
-    process_frame_kernel<T, true><<<grid, block, 0, stream>>>
-            (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    if (rgb) {
+      process_frame_kernel<T, true, true><<<grid, block, 0, stream>>>
+          (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    } else {
+      process_frame_kernel<T, true, false><<<grid, block, 0, stream>>>
+          (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    }
   } else {
-    process_frame_kernel<T, false><<<grid, block, 0, stream>>>
-            (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    if (rgb) {
+      process_frame_kernel<T, false, true><<<grid, block, 0, stream>>>
+          (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    } else {
+      process_frame_kernel<T, false, false><<<grid, block, 0, stream>>>
+          (luma, chroma, tensor_out, index, fx, fy, output.width, output.height, output.channels);
+    }
   }
 }
 
@@ -159,6 +175,20 @@ void process_frame<float>(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
   SequenceWrapper& output, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,
-  DALIImageType image_type, bool normalized);
+  bool rgb, bool normalized);
+
+template
+void process_frame<uint8_t>(
+  cudaTextureObject_t chroma, cudaTextureObject_t luma,
+  SequenceWrapper& output, int index, cudaStream_t stream,
+  uint16_t input_width, uint16_t input_height,
+  bool rgb, bool normalized);
+
+template
+void process_frame<half>(
+  cudaTextureObject_t chroma, cudaTextureObject_t luma,
+  SequenceWrapper& output, int index, cudaStream_t stream,
+  uint16_t input_width, uint16_t input_height,
+  bool rgb, bool normalized);
 
 }  // namespace dali

@@ -170,7 +170,7 @@ class NvDecoder {
 
   const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
                                      uint16_t input_width, uint16_t input_height,
-                                       ScaleMethod scale_method);
+                                     ScaleMethod scale_method);
   void convert_frames_worker();
   void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                      int index);
@@ -180,7 +180,7 @@ class NvDecoder {
   CUStream stream_;
   const CodecParameters* codecpar_;
 
-  DALIImageType image_type_;
+  bool rgb_;
   bool normalized_;
 
   CUdevice device_;
