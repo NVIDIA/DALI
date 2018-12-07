@@ -47,11 +47,6 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
     return *this;
   }
 
-  // template <int other_ndim>
-  // explicit operator TensorView<Backend, DataType, other_ndim>() {
-  //   return {data, shape.to_static_ndim<other_ndim>()};
-  // }
-
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static_ndim() {
     static_assert(other_ndim != DynamicDimensions,
@@ -80,9 +75,6 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
   static const bool has_static_dim = false;
   int dim() const { return shape.size(); }
 
-  // static const int static_dim = ndim;
-  // int dim() const { return ShapeDim(shape); }
-
   // template <typename Offset>
   // DataType *at(const Offset &pos) const {
   //   return data + CalcOfffset(shape, pos);
@@ -104,11 +96,8 @@ struct TensorView {
   DataType *data;
   TensorShape<ndim> shape;
 
-  static const bool has_static_dim = false;
+  static const bool has_static_dim = true;
   constexpr int dim() const { return shape.size(); }
-
-  // static const int static_dim = ndim;
-  // int dim() const { return ShapeDim(shape); }
 
   // template <typename Offset>
   // DataType *at(const Offset &pos) const {
@@ -127,7 +116,8 @@ struct TensorListView;
 template <typename Backend, typename DataType>
 struct TensorListView<Backend, DataType, DynamicDimensions> {
   TensorListView() : data(nullptr), shape(), offsets() {}
-  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes, int uniform_sample_ndim)
+  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes,
+                 int uniform_sample_ndim)
       : data(data), shape(shapes, uniform_sample_ndim), offsets(calculate_offsets(shape)) {}
 
   TensorView<Backend, DataType, DynamicDimensions> operator[](int64_t sample) const {
@@ -144,18 +134,19 @@ struct TensorListView<Backend, DataType, DynamicDimensions> {
   std::vector<ptrdiff_t> offsets;
 };
 
-
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView {
   TensorListView() : data(nullptr), shape(), offsets() {}
   TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes)
       : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
 
-  TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape, const std::vector<ptrdiff_t> &offsets) :
-    data(data), shape(shape), offsets(offsets) {}
+  TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape,
+                 const std::vector<ptrdiff_t> &offsets)
+      : data(data), shape(shape), offsets(offsets) {}
 
-  TensorListView(DataType *data, TensorListShape<sample_ndim> &&shape, std::vector<ptrdiff_t> &&offsets) :
-    data(data), shape(std::move(shape)), offsets(std::move(offsets)) {}
+  TensorListView(DataType *data, TensorListShape<sample_ndim> &&shape,
+                 std::vector<ptrdiff_t> &&offsets)
+      : data(data), shape(std::move(shape)), offsets(std::move(offsets)) {}
 
   TensorView<Backend, DataType, sample_ndim> operator[](int64_t sample) const {
     return {data + offsets[sample], shape[sample]};
@@ -166,15 +157,11 @@ struct TensorListView {
   std::vector<ptrdiff_t> offsets;
 };
 
-
-
-
-  // TODO:
-  // * size utilities
-  // * dynamic dim handling
-  // * generic `at` free function
-
-
+// TODO:
+// * size utilities
+// * dynamic dim handling
+// * generic `at` free function
+// * range loop? we're creating TensorView on the fly
 
 // template <typename Backend, typename DataType, int sample_ndim>
 // struct TensorListView : TensorListDim<sample_ndim> {

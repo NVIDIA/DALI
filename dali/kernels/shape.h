@@ -91,7 +91,6 @@ struct TensorShape<DynamicDimensions> {
   TensorShape &operator=(const TensorShape &other) = default;
   TensorShape &operator=(TensorShape &&other) = default;
 
-  // TODO(klecki) efficient size calculation for this vector?
   template <int other_ndim>
   TensorShape(const TensorShape<other_ndim> &other)
       : shape(other.shape.begin(), other.shape.end()) {}
@@ -103,10 +102,17 @@ struct TensorShape<DynamicDimensions> {
   }
 
   // We allow only explicit conversion from dynamic to static dim
-  // template <int other_ndim>
-  // explicit operator TensorShape<other_ndim>() const;
   template <int other_ndim>
-  TensorShape<other_ndim> to_static_ndim() const;
+  TensorShape<other_ndim> to_static_ndim() const {
+    static_assert(other_ndim != DynamicDimensions,
+                  "Conversion to static only allowed for static shape");
+    assert(size() == other_ndim);
+    TensorShape<other_ndim> shape;
+    for (int i = 0; i < other_ndim; i++) {
+      shape[i] = (*this)[i];
+    }
+    return shape;
+  }
 
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
@@ -123,8 +129,6 @@ struct TensorShape {
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape &operator=(const TensorShape &other) = default;
-  // TensorShape(TensorShape &&) = delete;
-  // TensorShape &operator=(TensorShape &&other) = delete;
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {
@@ -137,17 +141,6 @@ struct TensorShape {
   std::array<int64_t, ndim> shape;
   constexpr int size() const { return ndim; }
 };
-
-template <int other_ndim>
-TensorShape<other_ndim> TensorShape<DynamicDimensions>::to_static_ndim() const {
-  std::cout << "operator TensorShape<other_ndim>()" << std::endl;
-  assert(size() == other_ndim);
-  TensorShape<other_ndim> shape;
-  for (int i = 0; i < other_ndim; i++) {
-    shape[i] = (*this)[i];
-  }
-  return shape;
-}
 
 template <int left_ndim, int right_ndim>
 bool operator==(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
@@ -207,17 +200,19 @@ struct TensorListShape<DynamicDimensions> {
   TensorListShape(const TensorListShape &) = default;
   TensorListShape(TensorListShape &&) = default;
 
+  template <int other_sample_ndim>
+  TensorListShape(const TensorListShape<other_sample_ndim> &other)
+      : shapes(other.shapes), dim(other_sample_ndim) {}
 
   template <int other_sample_ndim>
-  TensorListShape(const TensorListShape<other_sample_ndim> &other) : shapes(other.shapes), dim(other_sample_ndim) {}
-
-  template <int other_sample_ndim>
-  TensorListShape(TensorListShape<other_sample_ndim> &&other) : shapes(std::move(other.shapes)), dim(other_sample_ndim) {}
+  TensorListShape(TensorListShape<other_sample_ndim> &&other)
+      : shapes(std::move(other.shapes)), dim(other_sample_ndim) {}
 
   TensorListShape(const std::vector<std::vector<int64_t>> &sample_shapes, int uniform_sample_ndim)
       : shapes(flatten_shapes(sample_shapes, uniform_sample_ndim)), dim(uniform_sample_ndim) {}
 
-  TensorListShape(const std::vector<TensorShape<DynamicDimensions>> &sample_shapes, int uniform_sample_ndim)
+  TensorListShape(const std::vector<TensorShape<DynamicDimensions>> &sample_shapes,
+                  int uniform_sample_ndim)
       : shapes(flatten_shapes(sample_shapes, uniform_sample_ndim)), dim(uniform_sample_ndim) {}
 
   // TODO(klecki): not sure if we should allow to create static tensor shapes direclty from dynamic
@@ -251,11 +246,10 @@ struct TensorListShape<DynamicDimensions> {
   std::vector<int64_t> shapes;
   int dim;
 
-  //todo as static shape?
+  // todo as static shape?
 };
 
-
-// TODO should we be able to only output a tensor of sample_dim dim for all cases of
+// TODO should we be able to only output a TensorShape of ndim=sample_dim for all cases of
 // TensorListShape?
 template <int sample_ndim>
 struct TensorListShape {
@@ -297,7 +291,6 @@ struct TensorListShape {
   std::vector<int64_t> shapes;
 };
 
-
 template <int sample_ndim>
 std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
   std::vector<ptrdiff_t> offsets;
@@ -312,23 +305,8 @@ std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls
 
 // TODO:
 // * `T* at(...)` as free function
-
-// template <int sample_ndim>
-// struct TensorListDim {
-//   inline constexpr int sample_dim() const { return sample_ndim; }
-
-//  protected:
-//   inline void set_sample_dim(int dim) { assert(dim == sample_ndim); }
-// };
-
-// template <>
-// struct TensorListDim<-1> {
-//   inline constexpr int sample_dim() const { return sample_ndim; }
-
-//  protected:
-//   inline void set_sample_dim(int dim) { sample_ndim = dim; }
-//   int sample_ndim;
-// };
+// * discarding left and right elements of the shape
+// * zero filling?
 
 }  // namespace tensor
 

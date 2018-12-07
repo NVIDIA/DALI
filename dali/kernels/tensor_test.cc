@@ -68,7 +68,6 @@ TEST(TensorShapeTest, StaticShapeConstructor) {
 }
 
 TEST(TensorShapeTest, DynamicShapeConstructor) {
-
   // Default
   TensorShape<DynamicDimensions> zero_tensor;
   ASSERT_EQ(zero_tensor.size(), 0);
@@ -176,7 +175,7 @@ TEST(TensorShapeTest, StaticDynamicConversions) {
   }
 }
 
-TEST(TensorShapeTest, EqualityTests) {
+TEST(TensorShapeTest, Comparisons) {
   // Static ndim
   ASSERT_EQ(TensorShape<1>(1) == TensorShape<1>(1), true);
   ASSERT_EQ(TensorShape<1>(1) != TensorShape<1>(1), false);
@@ -246,31 +245,42 @@ TEST(TensorShapeTest, EqualityTests) {
 
 }
 
-void foo(TensorView<EmptyBackendTag, int, 4> &) {}
+TEST(TensorViewTest, Conversions) {
+  TensorView<EmptyBackendTag, int, 4> empty_static_dim{};
+  ASSERT_EQ(empty_static_dim.data, nullptr);
+  ASSERT_EQ(empty_static_dim.shape, TensorShape<4>());
 
-TEST(TensorViewTest, Assignement) {
-  int tab[20];
-  int *p = tab;
-  TensorView<EmptyBackendTag, int, 4> int_4{p, {1, 2, 3, 4}};
-  TensorView<EmptyBackendTag, int, 3> int_3{p, {1, 2, 3}};
-
-  TensorView<EmptyBackendTag, int, 4> int_4_2{int_4};
-  TensorView<EmptyBackendTag, int, -1> int_4_3{int_4};
-  TensorView<EmptyBackendTag, int, 4> int_4_4{int_4_3.to_static_ndim<4>()};
-  // foo(x);
-  // int_4_4 = int_4_3;
-  // TensorView<EmptyBackendTag, int, DynamicDimensions> int_dyn;
-  // // int_4 = int_dyn;
-  // int_dyn = int_4;
+  TensorView<EmptyBackendTag, int, 4> static_dim{static_cast<int*>(nullptr), {1, 2, 3, 4}};
+  // Allowed conversions
+  TensorView<EmptyBackendTag, int, DynamicDimensions> dynamic_dim{static_dim};
+  ASSERT_EQ(dynamic_dim.shape, static_dim.shape);
+  TensorView<EmptyBackendTag, int, 4> static_dim_2(dynamic_dim.to_static_ndim<4>());
+  ASSERT_EQ(static_dim_2.shape, static_dim.shape);
+  ASSERT_EQ(static_dim_2.shape, dynamic_dim.shape);
 }
 
-TEST(TensorListShapeTest, Assignement) {
+TEST(VolumeTest, Result) {
+  //todo
+}
 
+TEST(FlattenTest, Result) {
+  //todo
+}
+
+TEST(CalculateOffsetsTest, Result) {
+  //todo
 }
 
 TEST(TensorTest, WontCompile) {
-  // TensorShape<5> static_shape(1, 2, 3, 4);
-  // TensorShape<5> static_shape(1, 2, 3, 4, 5, 6);
+  // TensorShape<5> static_shape_less(1, 2, 3, 4);
+  // TensorShape<5> static_shape_more(1, 2, 3, 4, 5, 6);
+  // TensorShape<DynamicDimensions>().to_static_ndim<DynamicDimensions>();
+  // TensorShape<5>{TensorShape<DynamicDimensions>()};
+
+  // TensorView<EmptyBackendTag, int8_t, 4>(static_cast<int*>(nullptr), {1, 2, 3, 4});
+  // TensorView<EmptyBackendTag, int, 4>{TensorView<EmptyBackendTag, int, DynamicDimensions>{}};
+  // TensorView<EmptyBackendTag, int, DynamicDimensions>{TensorView<EmptyBackendTag, int8_t, 4>{}};
+
 
 }
 
