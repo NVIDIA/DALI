@@ -82,6 +82,9 @@ struct TensorShape<DynamicDimensions> {
   template <size_t N>
   TensorShape(std::array<int64_t, N> s) : shape(s.begin(), s.end()) {}
 
+  template <typename... Ts>
+  TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {}
+
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;
   TensorShape(TensorShape &&) = default;
