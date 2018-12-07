@@ -5,5 +5,5 @@ MXNet
    :maxdepth: 2
    :glob:
 
-   ../examples/mxnet/*
+   ../examples/mxnet/**
    mxnet_plugin_api
