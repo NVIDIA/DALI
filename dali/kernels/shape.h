@@ -71,7 +71,7 @@ namespace tensor {
 
 constexpr int DynamicTensorShape = -1;
 
-template <int dim_>
+template <int ndim>
 struct TensorShape;
 
 template <>
@@ -88,33 +88,33 @@ struct TensorShape<DynamicTensorShape> {
   TensorShape &operator=(TensorShape &&other) = default;
 
   // TODO(klecki) efficient size calculation for this vector?
-  template <int other_dim>
-  TensorShape(const TensorShape<other_dim> &other) : shape(other.shape.begin(), other.shape.end()) {
-    static_assert(other_dim != DynamicTensorShape, "This constructor should be not used");
+  template <int other_ndim>
+  TensorShape(const TensorShape<other_ndim> &other) : shape(other.shape.begin(), other.shape.end()) {
+    static_assert(other_ndim != DynamicTensorShape, "This constructor should be not used");
   }
 
-  template <int other_dim>
-  TensorShape(TensorShape<other_dim> &&other) : shape(other.shape.begin(), other.shape.end()) {}
+  template <int other_ndim>
+  TensorShape(TensorShape<other_ndim> &&other) : shape(other.shape.begin(), other.shape.end()) {}
 
-  template <int other_dim>
-  TensorShape &operator=(const TensorShape<other_dim> &other) {
+  template <int other_ndim>
+  TensorShape &operator=(const TensorShape<other_ndim> &other) {
     shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
     return *this;
   }
 
-  template <int other_dim>
-  TensorShape &operator=(TensorShape<other_dim> &&other) {
+  template <int other_ndim>
+  TensorShape &operator=(TensorShape<other_ndim> &&other) {
     shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
     return *this;
   }
 
-  // template <int other_dim>
-  // TensorShape(const TensorShape<other_dim> &other) {
+  // template <int other_ndim>
+  // TensorShape(const TensorShape<other_ndim> &other) {
   //   *this = other;
   // }
 
-  // template <int other_dim>
-  // TensorShape &operator=(const TensorShape<other_dim> &other) {
+  // template <int other_ndim>
+  // TensorShape &operator=(const TensorShape<other_ndim> &other) {
   //   data.resize(other.size());
   //   for (int i = 0; i < size(); i++) {
   //     data[i] = other[i];
@@ -128,10 +128,10 @@ struct TensorShape<DynamicTensorShape> {
   // }
 
   // We allow only explicit conversion from dynamic to static dim
-  // template <int other_dim>
-  // explicit operator TensorShape<other_dim>() const;
-  template <int other_dim>
-  TensorShape<other_dim> to_static() const;
+  // template <int other_ndim>
+  // explicit operator TensorShape<other_ndim>() const;
+  template <int other_ndim>
+  TensorShape<other_ndim> to_static() const;
 
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
@@ -140,13 +140,13 @@ struct TensorShape<DynamicTensorShape> {
   int size() const { return shape.size(); }
 };
 
-template <int dim_>
+template <int ndim>
 struct TensorShape {
-  TensorShape(const std::array<int64_t, dim_> &s) : shape(s) {
-    std::cout << "const std::array<int64_t, dim_> &s" << std::endl;
+  TensorShape(const std::array<int64_t, ndim> &s) : shape(s) {
+    std::cout << "const std::array<int64_t, ndim> &s" << std::endl;
   }
-  TensorShape(std::array<int64_t, dim_> &&s) : shape(std::move(s)) {
-    std::cout << "std::array<int64_t, dim_> &&s" << std::endl;
+  TensorShape(std::array<int64_t, ndim> &&s) : shape(std::move(s)) {
+    std::cout << "std::array<int64_t, ndim> &&s" << std::endl;
   }
 
   // We just want zero-initialization
@@ -159,7 +159,7 @@ struct TensorShape {
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {
-    static_assert(sizeof...(Ts) == dim_ - 1, "Number of shapes passed must match dim_");
+    static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
     std::cout << "TensorShape(int64_t i0, Ts... s)" << std::endl;
     // TODO static_assert for Ts == int64_t
   }
@@ -167,44 +167,44 @@ struct TensorShape {
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
 
-  std::array<int64_t, dim_> shape;
-  constexpr int size() const { return dim_; }
+  std::array<int64_t, ndim> shape;
+  constexpr int size() const { return ndim; }
 };
 
-// template<int other_dim>
-// TensorShape<DynamicTensorShape>::operator TensorShape<other_dim>() const {
-//   std::cout << "operator TensorShape<other_dim>()" << std::endl;
-//   assert(size() == other_dim);
-//   TensorShape<other_dim> shape;
-//   for (int i = 0; i < other_dim; i++) {
+// template<int other_ndim>
+// TensorShape<DynamicTensorShape>::operator TensorShape<other_ndim>() const {
+//   std::cout << "operator TensorShape<other_ndim>()" << std::endl;
+//   assert(size() == other_ndim);
+//   TensorShape<other_ndim> shape;
+//   for (int i = 0; i < other_ndim; i++) {
 //     shape[i] = (*this)[i];
 //   }
 //   return shape;
 // }
 
-template <int other_dim>
-TensorShape<other_dim> TensorShape<DynamicTensorShape>::to_static() const {
-  std::cout << "operator TensorShape<other_dim>()" << std::endl;
-  assert(size() == other_dim);
-  TensorShape<other_dim> shape;
-  for (int i = 0; i < other_dim; i++) {
+template <int other_ndim>
+TensorShape<other_ndim> TensorShape<DynamicTensorShape>::to_static() const {
+  std::cout << "operator TensorShape<other_ndim>()" << std::endl;
+  assert(size() == other_ndim);
+  TensorShape<other_ndim> shape;
+  for (int i = 0; i < other_ndim; i++) {
     shape[i] = (*this)[i];
   }
   return shape;
 }
 
 // TODO should we be able to only output a tensor of sample_dim dim for all cases of TensorListShape
-template <int sample_dim_>
+template <int sample_ndim>
 struct TensorListShape {
-  TensorListShape(std::vector<TensorShape<sample_dim_>> sample_shapes)
+  TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)
       : shapes(std::accumulate(sample_shapes.begin(), sample_shapes.end(), std::vector<int64_t>(),
-                               [](std::vector<int64_t> current, const TensorShape<sample_dim_> &next) {
+                               [](std::vector<int64_t> current, const TensorShape<sample_ndim> &next) {
                                  return std::move(current).insert(current.end(), next.shape.begin(),
                                                                   next.shape.end());
                                })) {}
 
-  template <int tensor_dim = sample_dim_>
-  typename std::enable_if<tensor_dim == sample_dim_ || tensor_dim == DynamicTensorShape,
+  template <int tensor_dim = sample_ndim>
+  typename std::enable_if<tensor_dim == sample_ndim || tensor_dim == DynamicTensorShape,
                           TensorShape<tensor_dim>>::type
   tensor_shape(int64_t sample) const {
     TensorShape<tensor_dim> out;
@@ -218,11 +218,11 @@ struct TensorListShape {
     return out;
   }
 
-  span<int64_t, sample_dim_> tensor_shape_span(int64_t sample) const {
+  span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
     return {&shapes[sample * sample_dim()], sample_dim()};
   }
 
-  constexpr int sample_dim() const { return sample_dim_; }
+  constexpr int sample_dim() const { return sample_ndim; }
 
   int samples() const { return shapes.size() / sample_dim(); }
 
@@ -277,22 +277,22 @@ std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_dim> &tls)
 // * `T* at(...)` as free function
 
 
-template <int sample_dim_>
-struct TensorListDim {
-  inline constexpr int sample_dim() const { return sample_dim_; }
+// template <int sample_ndim>
+// struct TensorListDim {
+//   inline constexpr int sample_dim() const { return sample_ndim; }
 
- protected:
-  inline void set_sample_dim(int dim) { assert(dim == sample_dim_); }
-};
+//  protected:
+//   inline void set_sample_dim(int dim) { assert(dim == sample_ndim); }
+// };
 
-template <>
-struct TensorListDim<-1> {
-  inline constexpr int sample_dim() const { return sample_dim_; }
+// template <>
+// struct TensorListDim<-1> {
+//   inline constexpr int sample_dim() const { return sample_ndim; }
 
- protected:
-  inline void set_sample_dim(int dim) { sample_dim_ = dim; }
-  int sample_dim_;
-};
+//  protected:
+//   inline void set_sample_dim(int dim) { sample_ndim = dim; }
+//   int sample_ndim;
+// };
 
 }  // namespace tensor
 

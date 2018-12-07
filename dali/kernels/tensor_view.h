@@ -21,7 +21,7 @@ namespace tensor {
 
 struct EmptyBackendTag {};
 
-template <typename Backend, typename DataType, int dim_>
+template <typename Backend, typename DataType, int ndim>
 struct TensorView;
 
 template <typename Backend, typename DataType>
@@ -36,50 +36,50 @@ struct TensorView<Backend, DataType, DynamicTensorShape> {
   TensorView &operator=(TensorView &&) = default;
 
   // Dynamic accepts anything
-  template <int other_dim>
-  TensorView(const TensorView<Backend, DataType, other_dim> &other)
+  template <int other_ndim>
+  TensorView(const TensorView<Backend, DataType, other_ndim> &other)
       : data(other.data), shape(other.shape) {}
 
-  template <int other_dim>
-  TensorView(TensorView<Backend, DataType, other_dim> &&other)
+  template <int other_ndim>
+  TensorView(TensorView<Backend, DataType, other_ndim> &&other)
       : data(other.data), shape(other.shape) {}
 
-  template <int other_dim>
-  TensorView &operator=(const TensorView<Backend, DataType, other_dim> &other) {
+  template <int other_ndim>
+  TensorView &operator=(const TensorView<Backend, DataType, other_ndim> &other) {
     data = other.data;
     shape = other.shape;
     return *this;
   }
 
-  template <int other_dim>
-  TensorView &operator=(TensorView<Backend, DataType, other_dim> &&other) {
+  template <int other_ndim>
+  TensorView &operator=(TensorView<Backend, DataType, other_ndim> &&other) {
     data = std::move(other.data);  // TODO(klecki), should I null it?
     shape = std::move(other.shape);
     return *this;
   }
 
-  // template <int other_dim>
-  // explicit operator TensorView<Backend, DataType, other_dim>() {
-  //   return {data, shape.to_static<other_dim>()};
+  // template <int other_ndim>
+  // explicit operator TensorView<Backend, DataType, other_ndim>() {
+  //   return {data, shape.to_static<other_ndim>()};
   // }
 
-  template <int other_dim>
-  TensorView<Backend, DataType, other_dim> to_static() {
-    static_assert(other_dim != DynamicTensorShape,
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static() {
+    static_assert(other_ndim != DynamicTensorShape,
                   "Conversion to static only allowed for static shape");
-    return {data, shape.to_static<other_dim>()};
+    return {data, shape.to_static<other_ndim>()};
   }
 
-  template <int other_dim>
-  TensorView<Backend, DataType, other_dim> to_static(const TensorShape<other_dim> &new_shape) {
-    static_assert(other_dim != DynamicTensorShape,
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape) {
+    static_assert(other_ndim != DynamicTensorShape,
                   "Conversion to static only allowed for static shape");
     return {data, new_shape};
   }
 
-  template <int other_dim>
-  TensorView<Backend, DataType, other_dim> to_static(TensorShape<other_dim> &&new_shape) {
-    static_assert(other_dim != DynamicTensorShape,
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape) {
+    static_assert(other_ndim != DynamicTensorShape,
                   "Conversion to static only allowed for static shape");
     return {data, std::move(new_shape)};
   }
@@ -90,7 +90,7 @@ struct TensorView<Backend, DataType, DynamicTensorShape> {
   static const bool has_static_dim = false;
   int dim() const { return shape.size(); }
 
-  // static const int static_dim = dim_;
+  // static const int static_dim = ndim;
   // int dim() const { return ShapeDim(shape); }
 
   // template <typename Offset>
@@ -104,22 +104,22 @@ struct TensorView<Backend, DataType, DynamicTensorShape> {
   // }
 };
 
-template <typename Backend, typename DataType, int dim_>
+template <typename Backend, typename DataType, int ndim>
 struct TensorView {
   TensorView() : data(nullptr), shape() {}
-  TensorView(DataType *data, TensorShape<dim_> shape) : data(data), shape(shape) {}
+  TensorView(DataType *data, TensorShape<ndim> shape) : data(data), shape(shape) {}
   TensorView(const TensorView &) = default;
   TensorView(TensorView &&) = default;
   TensorView &operator=(const TensorView &) = default;
   TensorView &operator=(TensorView &&) = default;
 
   DataType *data;
-  TensorShape<dim_> shape;
+  TensorShape<ndim> shape;
 
   static const bool has_static_dim = false;
   constexpr int dim() const { return shape.size(); }
 
-  // static const int static_dim = dim_;
+  // static const int static_dim = ndim;
   // int dim() const { return ShapeDim(shape); }
 
   // template <typename Offset>
@@ -133,19 +133,19 @@ struct TensorView {
   // }
 };
 
-template <typename Backend, typename DataType, int sample_dim_>
+template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView;
 
-template <typename Backend, typename DataType, int sample_dim_>
+template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView {
   TensorListView() : data(nullptr), shape(), offsets() {}
-  TensorListView(DataType *data, const std::vector<TensorShape<sample_dim_>> &shapes) : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
+  TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes) : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
 
   DataType *data;
-  TensorListShape<sample_dim_> shape;
+  TensorListShape<sample_ndim> shape;
   std::vector<ptrdiff_t> offsets;
 
-  template <int dim = sample_dim_>
+  template <int dim = sample_ndim>
   TensorView<Backend, DataType, dim> operator[](int64_t sample) const {
     return {data + offsets[sample], shape.tensor_shape(sample)};
   }
@@ -155,20 +155,20 @@ struct TensorListView {
   // * generic `at` free function
 };
 
-// template <typename Backend, typename DataType, int sample_dim_>
-// struct TensorListView : TensorListDim<sample_dim_> {
+// template <typename Backend, typename DataType, int sample_ndim>
+// struct TensorListView : TensorListDim<sample_ndim> {
 //   DataType *data = nullptr;
 //   vector<int64_t> shape;
 //   std::vector<ptrdiff_t> offsets;
-//   using TensorListDim<sample_dim_>::sample_dim;
-//   using TensorListDim<sample_dim_>::set_sample_dim;
+//   using TensorListDim<sample_ndim>::sample_dim;
+//   using TensorListDim<sample_ndim>::set_sample_dim;
 
 //   size_t total_size() const { return offsets.empty() ? size_t(0) : offsets[num_samples()]; }
 
 //   const int64_t num_samples() const { return shape.size() / sample_dim(); }
 
-//   TensorListView(DataType *data, const vector<TensorShape<sample_dim_>> &shapes) : data(data) {
-//     if (sample_dim_ == -1 && !shapes.empty()) set_sample_dim(shapes[0]);
+//   TensorListView(DataType *data, const vector<TensorShape<sample_ndim>> &shapes) : data(data) {
+//     if (sample_ndim == -1 && !shapes.empty()) set_sample_dim(shapes[0]);
 //     shapes.resize(sample_dim() * shapes.size());
 //     for (size_t i = 0; i < shapes.size(); i++) {
 //       assert(shapes[i].size() == sample_dim() &&
@@ -177,11 +177,11 @@ struct TensorListView {
 //     UpdateOffsets();
 //   }
 
-//   template <int dim = sample_dim_>
+//   template <int dim = sample_ndim>
 //   TensorShape<dim> tensor_shape(int64_t sample) const {
-//     static_assert(sample_dim_ < 0 || dim < 0 || sample_dim_ == dim,
+//     static_assert(sample_ndim < 0 || dim < 0 || sample_ndim == dim,
 //                   "Mismatched number of dimensions");
-//     if (sample_dim_ < 0 && dim >= 0) {
+//     if (sample_ndim < 0 && dim >= 0) {
 //       assert(dim == sample_dim());
 //     }
 
@@ -196,7 +196,7 @@ struct TensorListView {
 //     return out;
 //   }
 
-//   span<int64_t, sample_dim_> tensor_shape_span(int64_t sample) const {
+//   span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
 //     return {&shape[sample * sample_dim()], sample_dim()};
 //   }
 
@@ -214,7 +214,7 @@ struct TensorListView {
 //     offsets.back() = offset;
 //   }
 
-//   template <int dim = sample_dim_>
+//   template <int dim = sample_ndim>
 //   TensorView<Backend, DataType, dim> operator[](int64_t sample) const {
 //     return {data + offsets[sample], tensor_shape(sample)};
 //   }
