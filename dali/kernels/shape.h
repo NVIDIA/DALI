@@ -55,19 +55,20 @@ namespace tensor {
 //   return ofs;
 // }
 
-// /// @brief Returns the product of all elements in shapeZ
-// /// @param shape - shape of a tensor whose elements we count
-// template <typename Shape>
-// inline int64_t Volume(const Shape &shape) {
-//   int n = ShapeDim(shape);
-//   if (n < 1)
-//     return 0;
-//   int64_t v = shape[0];
-//   for (int i = 1; i < n; i++) {
-//     v *= shape[i];
-//   }
-//   return v;
-// }
+/// @brief Returns the product of all elements in shape
+/// @param shape - shape of a tensor whose elements we count
+template <typename T>
+inline int64_t volume(const T &shape) {
+  int n = shape.size();
+  if (n < 1) {
+    return 0;
+  }
+  int64_t v = shape[0];
+  for (int i = 1; i < n; i++) {
+    v *= shape[i];
+  }
+  return v;
+}
 
 constexpr int DynamicDimensions = -1;
 
@@ -77,7 +78,7 @@ struct TensorShape;
 template <>
 struct TensorShape<DynamicDimensions> {
   TensorShape(const std::vector<int64_t> &s) : shape(s) {}
-  TensorShape(std::vector<int64_t> &&s) : shape(std::move(s)) {}
+
   template <size_t N>
   TensorShape(std::array<int64_t, N> s) : shape(s.begin(), s.end()) {}
 
@@ -89,12 +90,8 @@ struct TensorShape<DynamicDimensions> {
 
   // TODO(klecki) efficient size calculation for this vector?
   template <int other_ndim>
-  TensorShape(const TensorShape<other_ndim> &other) : shape(other.shape.begin(), other.shape.end()) {
-    static_assert(other_ndim != DynamicDimensions, "This constructor should be not used");
-  }
-
-  template <int other_ndim>
-  TensorShape(TensorShape<other_ndim> &&other) : shape(other.shape.begin(), other.shape.end()) {}
+  TensorShape(const TensorShape<other_ndim> &other)
+      : shape(other.shape.begin(), other.shape.end()) {}
 
   template <int other_ndim>
   TensorShape &operator=(const TensorShape<other_ndim> &other) {
@@ -102,36 +99,11 @@ struct TensorShape<DynamicDimensions> {
     return *this;
   }
 
-  template <int other_ndim>
-  TensorShape &operator=(TensorShape<other_ndim> &&other) {
-    shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
-    return *this;
-  }
-
-  // template <int other_ndim>
-  // TensorShape(const TensorShape<other_ndim> &other) {
-  //   *this = other;
-  // }
-
-  // template <int other_ndim>
-  // TensorShape &operator=(const TensorShape<other_ndim> &other) {
-  //   data.resize(other.size());
-  //   for (int i = 0; i < size(); i++) {
-  //     data[i] = other[i];
-  //   }
-  //   return *this;
-  // }
-
-  // TensorShape &operator=(TensorShape<-1> &&other) {
-  //   data = std::move(other.data);
-  //   return *this;
-  // }
-
   // We allow only explicit conversion from dynamic to static dim
   // template <int other_ndim>
   // explicit operator TensorShape<other_ndim>() const;
   template <int other_ndim>
-  TensorShape<other_ndim> to_static() const;
+  TensorShape<other_ndim> to_static_ndim() const;
 
   int64_t &operator[](int d) { return shape[d]; }
   const int64_t &operator[](int d) const { return shape[d]; }
@@ -142,26 +114,18 @@ struct TensorShape<DynamicDimensions> {
 
 template <int ndim>
 struct TensorShape {
-  TensorShape(const std::array<int64_t, ndim> &s) : shape(s) {
-    std::cout << "const std::array<int64_t, ndim> &s" << std::endl;
-  }
-  TensorShape(std::array<int64_t, ndim> &&s) : shape(std::move(s)) {
-    std::cout << "std::array<int64_t, ndim> &&s" << std::endl;
-  }
-
+  TensorShape(const std::array<int64_t, ndim> &s) : shape(s) {}
   // We just want zero-initialization
   TensorShape() : shape{} {}
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
-  TensorShape(TensorShape &&) = default;
   TensorShape &operator=(const TensorShape &other) = default;
-  TensorShape &operator=(TensorShape &&other) = default;
+  // TensorShape(TensorShape &&) = delete;
+  // TensorShape &operator=(TensorShape &&other) = delete;
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
-    std::cout << "TensorShape(int64_t i0, Ts... s)" << std::endl;
-    // TODO static_assert for Ts == int64_t
   }
 
   int64_t &operator[](int d) { return shape[d]; }
@@ -171,19 +135,8 @@ struct TensorShape {
   constexpr int size() const { return ndim; }
 };
 
-// template<int other_ndim>
-// TensorShape<DynamicDimensions>::operator TensorShape<other_ndim>() const {
-//   std::cout << "operator TensorShape<other_ndim>()" << std::endl;
-//   assert(size() == other_ndim);
-//   TensorShape<other_ndim> shape;
-//   for (int i = 0; i < other_ndim; i++) {
-//     shape[i] = (*this)[i];
-//   }
-//   return shape;
-// }
-
 template <int other_ndim>
-TensorShape<other_ndim> TensorShape<DynamicDimensions>::to_static() const {
+TensorShape<other_ndim> TensorShape<DynamicDimensions>::to_static_ndim() const {
   std::cout << "operator TensorShape<other_ndim>()" << std::endl;
   assert(size() == other_ndim);
   TensorShape<other_ndim> shape;
@@ -193,48 +146,74 @@ TensorShape<other_ndim> TensorShape<DynamicDimensions>::to_static() const {
   return shape;
 }
 
-// TODO should we be able to only output a tensor of sample_dim dim for all cases of TensorListShape
+template <int left_ndim, int right_ndim>
+bool operator==(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+  if (left.size() != right.size()) {
+    return false;
+  }
+  int size = left.size();
+  for (int i = 0; i < size; i++) {
+    if (left[i] != right[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <int left_ndim, int right_ndim>
+bool operator!=(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+  return !(left == right);
+}
+
 template <int sample_ndim>
-struct TensorListShape {
-  TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)
-      : shapes(std::accumulate(sample_shapes.begin(), sample_shapes.end(), std::vector<int64_t>(),
-                               [](std::vector<int64_t> current, const TensorShape<sample_ndim> &next) {
-                                 return std::move(current).insert(current.end(), next.shape.begin(),
-                                                                  next.shape.end());
-                               })) {}
-
-  template <int tensor_dim = sample_ndim>
-  typename std::enable_if<tensor_dim == sample_ndim || tensor_dim == DynamicDimensions,
-                          TensorShape<tensor_dim>>::type
-  tensor_shape(int64_t sample) const {
-    TensorShape<tensor_dim> out;
-    if (tensor_dim == DynamicDimensions) {
-      out.shape.resize(sample_dim());
+typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>::type
+flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
+  std::vector<int64_t> result;
+  result.resize(sample_ndim * shapes.size());
+  for (int sample = 0; sample < shapes.size(); sample++) {
+    for (int axis = 0; axis < sample_ndim; axis++) {
+      result[sample * sample_ndim + axis] = shapes[sample][axis];
     }
-    int64_t base = sample_dim() * sample;
-    for (int i = 0; i < sample_dim(); i++) {
-      out[i] = shapes[base + i];
+  }
+  return result;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
+                            std::is_same<T, std::vector<int64_t>>::value,
+                        std::vector<int64_t>>::type
+flatten_shapes(const std::vector<T> &shapes, int uniform_sample_ndim) {
+  std::vector<int64_t> result;
+  result.resize(uniform_sample_ndim * shapes.size());
+  for (int sample = 0; sample < shapes.size(); sample++) {
+    assert(shapes[sample].size() == uniform_sample_ndim);
+    for (int axis = 0; axis < uniform_sample_ndim; axis++) {
+      result[sample * uniform_sample_ndim + axis] = shapes[sample][axis];
     }
-    return out;
   }
+  return result;
+}
 
-  span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
-    return {&shapes[sample * sample_dim()], sample_dim()};
-  }
-
-  constexpr int sample_dim() const { return sample_ndim; }
-
-  int samples() const { return shapes.size() / sample_dim(); }
-
-  std::vector<int64_t> shapes;
-};
+template <int sample_ndim>
+struct TensorListShape;
 
 template <>
 struct TensorListShape<DynamicDimensions> {
-  template <int tensor_dim>
-  TensorShape<tensor_dim> tensor_shape(int64_t sample) const {
-    TensorShape<tensor_dim> out;
-    if (tensor_dim == DynamicDimensions) {
+  TensorListShape() : shapes(), dim(0) {}
+
+  TensorListShape(const std::vector<std::vector<int64_t>> &sample_shapes, int uniform_sample_ndim)
+      : shapes(flatten_shapes(sample_shapes, uniform_sample_ndim)), dim(uniform_sample_ndim) {}
+
+  TensorListShape(const std::vector<TensorShape<DynamicDimensions>> &sample_shapes, int uniform_sample_ndim)
+      : shapes(flatten_shapes(sample_shapes, uniform_sample_ndim)), dim(uniform_sample_ndim) {}
+
+  // TODO(klecki): not sure if we should allow to create static tensor shapes direclty from dynamic
+  // list shape
+  template <int tensor_ndim>
+  TensorShape<tensor_ndim> tensor_shape(int64_t sample) const {
+    assert(tensor_ndim == sample_dim());
+    TensorShape<tensor_ndim> out;
+    if (tensor_ndim == DynamicDimensions) {
       out.shape.resize(sample_dim());
     }
     int64_t base = sample_dim() * sample;
@@ -248,7 +227,11 @@ struct TensorListShape<DynamicDimensions> {
     return {&shapes[sample * sample_dim()], static_cast<size_t>(sample_dim())};
   }
 
-  int sample_dim() const { return dim; }
+  TensorShape<DynamicDimensions> operator[](int64_t sample) const {
+    return tensor_shape<DynamicDimensions>(sample);
+  }
+
+  constexpr int sample_dim() const { return dim; }
 
   int samples() const { return shapes.size() / sample_dim(); }
 
@@ -256,26 +239,64 @@ struct TensorListShape<DynamicDimensions> {
   int dim;
 };
 
-template <int sample_dim>
-std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_dim> &tls) {
+
+// TODO should we be able to only output a tensor of sample_dim dim for all cases of
+// TensorListShape?
+template <int sample_ndim>
+struct TensorListShape {
+  TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)
+      : shapes(flatten_shapes(sample_shapes)) {}
+
+  template <int tensor_ndim = sample_ndim>
+  typename std::enable_if<tensor_ndim == sample_ndim || tensor_ndim == DynamicDimensions,
+                          TensorShape<tensor_ndim>>::type
+  tensor_shape(int64_t sample) const {
+    TensorShape<tensor_ndim> out;
+    if (tensor_ndim == DynamicDimensions) {
+      out.shape.resize(sample_dim());
+    }
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      out[i] = shapes[base + i];
+    }
+    return out;
+  }
+
+  span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
+    return {&shapes[sample * sample_dim()]};
+  }
+
+  TensorShape<sample_ndim> operator[](int64_t sample) const {
+    TensorShape<sample_ndim> result;
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      result[i] = shapes[base + i];
+    }
+    return result;
+  }
+
+  constexpr int sample_dim() const { return sample_ndim; }
+
+  int samples() const { return shapes.size() / sample_dim(); }
+
+  std::vector<int64_t> shapes;
+};
+
+
+template <int sample_ndim>
+std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
   std::vector<ptrdiff_t> offsets;
   offsets.resize(tls.samples() + 1);
-  offsets.push_back(0);
+  offsets[0] = 0;
   for (int i = 0; i < tls.samples(); i++) {
     auto sample_shape_span = tls.tensor_shape_span(i);
-    auto off = std::accumulate(sample_shape_span.begin(), sample_shape_span.end(),
-                               static_cast<ptrdiff_t>(1),
-                               [](const ptrdiff_t &a, const ptrdiff_t &b) { return a * b; });
-    offsets.push_back(off);
+    offsets[i] = volume(sample_shape_span);
   }
   return offsets;
 }
 
 // TODO:
-// * `multiply(span)`
-// * `flatten` to vector
 // * `T* at(...)` as free function
-
 
 // template <int sample_ndim>
 // struct TensorListDim {
