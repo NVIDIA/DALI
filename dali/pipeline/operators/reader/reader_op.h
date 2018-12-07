@@ -57,7 +57,7 @@ class DataReader : public Operator<Backend> {
 
   virtual ~DataReader() noexcept {
     StopPrefetchThread();
-    for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
+    for (size_t i = 0; i < prefetched_batch_.size(); ++i) {
       // return unconsumed batches
       if (prefetched_batch_[i]) {
         loader_->ReturnTensor(prefetched_batch_[i]);
