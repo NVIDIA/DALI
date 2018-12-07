@@ -26,6 +26,8 @@ option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
 
+option(WERROR "Threat all warnings as errors" OFF)
+
 include(cmake/Utils.cmake)
 
 get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
@@ -53,7 +55,11 @@ else()
 endif()
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
+
+if (WERROR)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wno-inconsistent-missing-override")
