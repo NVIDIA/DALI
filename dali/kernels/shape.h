@@ -422,7 +422,7 @@ std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls
 
 // TODO:
 // * `T* at(...)` as free function
-// * discarding left and right elements of the shape
+// * discarding left and right elements of the ShapeList
 // * zero filling?
 
 }  // namespace tensor

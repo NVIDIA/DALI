@@ -325,7 +325,10 @@ TEST(TensorViewTest, Conversions) {
 }
 
 TEST(VolumeTest, Result) {
-  //todo
+  ASSERT_EQ(volume(std::vector<int64_t>{}), 0);
+  ASSERT_EQ(volume(std::vector<int64_t>{1}), 1);
+  ASSERT_EQ(volume(std::vector<int64_t>{1, 2}), 2);
+  ASSERT_EQ(volume(std::vector<int64_t>{1, 2, 3, 4, 5}), 1 * 2 * 3 * 4 * 5);
 }
 
 TEST(FlattenTest, Result) {
