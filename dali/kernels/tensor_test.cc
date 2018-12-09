@@ -20,13 +20,15 @@
 namespace tensor {
 
 TEST(TensorShapeTest, StaticShapeConstructor) {
+  TensorShape<0> zero_tensor;
+
   constexpr int test_dim = 5;
   std::array<int64_t, test_dim> test_shape = {1, 2, 3, 4, 5};
 
   // Default constructor
-  TensorShape<test_dim> zero_tensor;
+  TensorShape<test_dim> empty_tensor;
   for (int i = 0; i < test_dim; i++) {
-    ASSERT_EQ(zero_tensor[i], int64_t(0));
+    ASSERT_EQ(empty_tensor[i], int64_t(0));
   }
 
   // std::array and expanded list constructor
@@ -243,6 +245,69 @@ TEST(TensorShapeTest, Comparisons) {
   ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) == TensorShape<1>(1), false);
   ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) != TensorShape<1>(1), true);
 
+}
+
+TEST(TensorShapeTest, RangeLoop) {
+  TensorShape<5> ts{0, 1, 2, 3, 4};
+  int expected = 0;
+  for (auto s : ts) {
+    ASSERT_EQ(s, expected);
+    expected++;
+  }
+}
+
+TEST(TensorShapeTest, FirstStatic) {
+  TensorShape<5> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.first<0>(), TensorShape<0>());
+  ASSERT_EQ(ts.first<1>(), TensorShape<1>(1));
+  ASSERT_EQ(ts.first<2>(), TensorShape<2>(1, 2));
+  ASSERT_EQ(ts.first<3>(), TensorShape<3>(1, 2, 3));
+  ASSERT_EQ(ts.first<4>(), TensorShape<4>(1, 2, 3, 4));
+  ASSERT_EQ(ts.first<5>(), TensorShape<5>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, LastStatic) {
+  TensorShape<5> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.last<0>(), TensorShape<0>());
+  ASSERT_EQ(ts.last<1>(), TensorShape<1>(5));
+  ASSERT_EQ(ts.last<2>(), TensorShape<2>(4, 5));
+  ASSERT_EQ(ts.last<3>(), TensorShape<3>(3, 4, 5));
+  ASSERT_EQ(ts.last<4>(), TensorShape<4>(2, 3, 4, 5));
+  ASSERT_EQ(ts.last<5>(), TensorShape<5>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, FirstDynamic) {
+  TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.first(0), TensorShape<DynamicDimensions>());
+  ASSERT_EQ(ts.first(1), TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(ts.first(2), TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_EQ(ts.first(3), TensorShape<DynamicDimensions>(1, 2, 3));
+  ASSERT_EQ(ts.first(4), TensorShape<DynamicDimensions>(1, 2, 3, 4));
+  ASSERT_EQ(ts.first(5), TensorShape<DynamicDimensions>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, LastDynamic) {
+  TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.last(0), TensorShape<DynamicDimensions>());
+  ASSERT_EQ(ts.last(1), TensorShape<DynamicDimensions>(5));
+  ASSERT_EQ(ts.last(2), TensorShape<DynamicDimensions>(4, 5));
+  ASSERT_EQ(ts.last(3), TensorShape<DynamicDimensions>(3, 4, 5));
+  ASSERT_EQ(ts.last(4), TensorShape<DynamicDimensions>(2, 3, 4, 5));
+  ASSERT_EQ(ts.last(5), TensorShape<DynamicDimensions>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, Concatenation) {
+  ASSERT_EQ(TensorShape<0>() + TensorShape<0>(), TensorShape<0>());
+  ASSERT_EQ(TensorShape<1>(1) + TensorShape<0>(), TensorShape<1>(1));
+  ASSERT_EQ(TensorShape<0>() + TensorShape<1>(1), TensorShape<1>(1));
+  ASSERT_EQ(TensorShape<2>(1, 2) + TensorShape<3>(1, 2, 3), TensorShape<5>(1, 2, 1, 2, 3));
+
+  
+  
+  ASSERT_EQ(TensorShape<DynamicDimensions>() + TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>());
+  ASSERT_EQ(TensorShape<DynamicDimensions>(1) + TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(TensorShape<DynamicDimensions>() + TensorShape<DynamicDimensions>(1), TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) + TensorShape<DynamicDimensions>(1, 2, 3), TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
 }
 
 TEST(TensorViewTest, Conversions) {
