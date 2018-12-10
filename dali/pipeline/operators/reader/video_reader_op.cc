@@ -37,8 +37,11 @@ number of frames).)code")
       R"code(File names of the video files to load.)code",
       DALI_STRING_VEC)
   .AddArg("count",
-      R"code(Frames to load per batch.)code",
+      R"code(Frames to load per sequence.)code",
       DALI_INT32)
+  .AddOptionalArg("step",
+      R"code(Frame interval between each sequence.)code",
+      -1)
   .AddOptionalArg("scale",
       R"code(Rescaling factor of height and width.)code",
       1.f)
