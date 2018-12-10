@@ -62,6 +62,7 @@ class DALIDataset(tf.data.Dataset):
 
     def __init__(self,
                  pipeline=None,
+                 batch_size=1,
                  shapes=None,
                  dtypes=None,
                  devices=None,
@@ -70,8 +71,12 @@ class DALIDataset(tf.data.Dataset):
         """Creates a `DALIDataset`.
        Args:
          pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
+         batch_size: `int` defining the number of samples in a batch
          shapes: A `List` of `tf.TensorShape` with the expected output shapes
          dtypes: A `List` of `tf.DType` with the expected output types
+         devices: A `List` with the indexes of the devices to use
+         prefetch_queue_depth: `int` with the amount of prefetched batches
+         num_threads: `int` with the number of reader threads in the pipeline
 
        """
         super(DALIDataset, self).__init__()
@@ -96,11 +101,13 @@ class DALIDataset(tf.data.Dataset):
         else:
             raise ValueError('No value provided for parameter \'devices\'')
 
+        self._batch_size = batch_size
         self._prefetch_queue_threads = prefetch_queue_depth
         self._num_threads = num_threads
 
     def _as_variant_tensor(self):
         return _dali_dataset(serialized_pipeline=self._pipeline,
+                             batch_size=self._batch_size,
                              shapes=self._shapes,
                              dtypes=self._dtypes,
                              devices=self._devices,
@@ -113,7 +120,6 @@ class DALIDataset(tf.data.Dataset):
 
     @property
     def output_shapes(self):
-        # TODO: Tenporary shapes to be generalized
         return tensor_shape.TensorShape(self._shapes[0]),\
                tensor_shape.TensorShape(self._shapes[1])
 

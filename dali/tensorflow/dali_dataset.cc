@@ -16,6 +16,8 @@
 
 #if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION == 12
 
+#include "dali/tensorflow/tf_util.h"
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreorder"
 #pragma GCC diagnostic push
@@ -37,14 +39,6 @@ namespace tensorflow {
 namespace data {
 
 namespace {
-
-// TODO extract this guy. By now C&P from daliop
-TensorShape DaliToShape(int64_t* ns) {
-  TensorShape ts;
-  for (int i = 0; ns[i] != 0; ++i) ts.InsertDim(i, ns[i]);
-  delete[] ns;
-  return ts;
-}
 
 class DALIDatasetOp : public DatasetOpKernel {
  public:
@@ -256,23 +250,7 @@ REGISTER_OP("DALIDataset")
     .Attr("num_threads: int = -1")
     .Output("handle: variant")
     .SetIsStateful()
-    .SetShapeFn([](tensorflow::shape_inference::InferenceContext* c) {
-      std::vector<tensorflow::PartialTensorShape> shapes;
-      TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-      for (unsigned int i = 0; i < shapes.size(); ++i) {
-        if (shapes[i].dims() > 0) {
-          tensorflow::shape_inference::ShapeHandle passed_shape;
-          TF_RETURN_IF_ERROR(
-              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
-          TF_RETURN_IF_ERROR(
-              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
-          c->set_output(i, passed_shape);
-        }
-      }
-      return
-
-          tensorflow::Status::OK();
-    })
+    .SetShapeFn(dali_shape_fn)
     .Doc(R"doc(
 DALI Dataset plugin
 

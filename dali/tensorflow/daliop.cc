@@ -31,6 +31,7 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api/c_api.h"
 #include "dali/error_handling.h"
+#include "dali/tensorflow/tf_util.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -49,39 +50,15 @@ namespace tf = tensorflow;
       }                                                                            \
     } while (0)
 
-tf::TensorShape DaliToShape(int64_t* ns) {
-  tf::TensorShape ts;
-  for (int i = 0; ns[i] != 0; ++i)
-    ts.InsertDim(i, ns[i]);
-  delete[] ns;
-  return ts;
-}
-
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
   .Attr("shapes: list(shape) >= 1")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  // .Attr("data_type: {float, int32, int64, half} = DT_FLOAT")
   .Attr("prefetch_queue_depth: int = 2")
   .Output("data: dtypes")
   .Attr("dtypes: list({float, int32, int64, half}) >= 1")
-  .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
-    // define shape for the first output
-    std::vector<tf::PartialTensorShape> shapes;
-    TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-    for (unsigned i = 0; i < shapes.size(); ++i) {
-      if (shapes[i].dims() > 0) {
-        tf::shape_inference::ShapeHandle passed_shape;
-        TF_RETURN_IF_ERROR(
-            c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
-        TF_RETURN_IF_ERROR(
-            c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
-        c->set_output(i, passed_shape);
-      }
-    }
-    return tf::Status::OK();
-  })
+  .SetShapeFn(tf::dali_shape_fn)
   .Doc(R"doc(
 DALI TensorFlow plugin
 
@@ -163,7 +140,7 @@ class DaliOp : public tf::OpKernel {
     for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
       int64_t* data_tensor_shape;
       TF_DALI_CALL(data_tensor_shape = daliShapeAt(&pipe_handle_, i));
-      tf::TensorShape data_output_shape = DaliToShape(data_tensor_shape);
+      tf::TensorShape data_output_shape = tf::DaliToShape(data_tensor_shape);
       // If tensor has shape provided it need to match
       OP_REQUIRES(context, shapes_[i].dims() <= 0 || data_output_shape == shapes_[i],
       tf::errors::InvalidArgument("DALI pipeline output shape at " + std::to_string(i) +
