@@ -20,6 +20,7 @@
 #pragma GCC diagnostic ignored "-Wreorder"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
+#include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/dataset.h"
 #include "tensorflow/core/framework/op.h"
@@ -40,8 +41,7 @@ namespace {
 // TODO extract this guy. By now C&P from daliop
 TensorShape DaliToShape(int64_t* ns) {
   TensorShape ts;
-  for (int i = 0; ns[i] != 0; ++i)
-    ts.InsertDim(i, ns[i]);
+  for (int i = 0; ns[i] != 0; ++i) ts.InsertDim(i, ns[i]);
   delete[] ns;
   return ts;
 }
@@ -50,35 +50,27 @@ class DALIDatasetOp : public DatasetOpKernel {
  public:
   using DatasetOpKernel::DatasetOpKernel;
 
-  DALIDatasetOp(OpKernelConstruction* context)
-  : DatasetOpKernel(context) {
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("serialized_pipeline", &serialized_pipeline_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("shapes", &shapes_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("dtypes", &dtypes_));
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
-      OP_REQUIRES_OK(context,
-                   context->GetAttr("num_threads", &num_threads_));
+  DALIDatasetOp(OpKernelConstruction* context) : DatasetOpKernel(context) {
+    OP_REQUIRES_OK(context, context->GetAttr("serialized_pipeline",
+                                             &serialized_pipeline_));
+    OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
+    OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size_));
+    OP_REQUIRES_OK(context, context->GetAttr("dtypes", &dtypes_));
+    OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth",
+                                             &prefetch_queue_depth_));
+    OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads_));
 
     std::vector<int> devices;
-    OP_REQUIRES_OK(context,
-                   context->GetAttr("devices", &devices));
+    OP_REQUIRES_OK(context, context->GetAttr("devices", &devices));
 
     pipe_handles_.reserve(devices.size());
 
-    for (size_t  i = 0; i < devices.size(); i++) {
+    for (size_t i = 0; i < devices.size(); i++) {
       pipe_handles_.emplace_back(daliPipelineHandle());
 
-      daliCreatePipeline(&pipe_handles_.back(),
-                  serialized_pipeline_.c_str(),
-                  serialized_pipeline_.length(),
-                  shapes_.at(0).dim_size(0),
-                  num_threads_,
-                  devices[i],
-                  prefetch_queue_depth_);
+      daliCreatePipeline(&pipe_handles_.back(), serialized_pipeline_.c_str(),
+                         serialized_pipeline_.length(), batch_size_,
+                         num_threads_, devices[i], prefetch_queue_depth_);
 
       for (int j = 0; j < prefetch_queue_depth_; j++) {
         for (auto& handle : pipe_handles_) {
@@ -95,31 +87,32 @@ class DALIDatasetOp : public DatasetOpKernel {
   }
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-    *output =
-        new Dataset(context, &pipe_handles_, &shapes_, &dtypes_);
+    *output = new Dataset(context, &pipe_handles_, &shapes_, &dtypes_);
   }
 
  private:
   class Dataset : public DatasetBase {
    public:
-    explicit Dataset(OpKernelContext* ctx, const std::vector<daliPipelineHandle>* pipe_handles,
-        const std::vector<TensorShape>* shapes, const DataTypeVector* types)
+    explicit Dataset(OpKernelContext* ctx,
+                     const std::vector<daliPipelineHandle>* pipe_handles,
+                     const std::vector<TensorShape>* shapes,
+                     const DataTypeVector* types)
         : DatasetBase(DatasetContext(ctx)),
           pipe_handles_{pipe_handles},
-          shapes_{[shapes](){
+          shapes_{[shapes]() {
             std::vector<PartialTensorShape> partial_shapes;
 
             for (size_t i = 0; i < shapes->size(); i++) {
-              std::vector<int64> dims(shapes->at(0).dims(), -1);
+              std::vector<int64> dims(shapes->at(i).dims(), -1);
               PartialTensorShape s;
-              PartialTensorShape::MakePartialShape(dims.data(), dims.size(), &s);
+              PartialTensorShape::MakePartialShape(dims.data(), dims.size(),
+                                                   &s);
               partial_shapes.push_back(s);
             }
 
             return partial_shapes;
           }()},
-          dtypes_{types} {
-    }
+          dtypes_{types} {}
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
         const string& prefix) const override {
@@ -127,9 +120,7 @@ class DALIDatasetOp : public DatasetOpKernel {
           new Iterator({this, strings::StrCat(prefix, "::DALIDataset")}));
     }
 
-    const DataTypeVector& output_dtypes() const override {
-      return *dtypes_;
-    }
+    const DataTypeVector& output_dtypes() const override { return *dtypes_; }
 
     const std::vector<PartialTensorShape>& output_shapes() const override {
       return shapes_;
@@ -144,7 +135,7 @@ class DALIDatasetOp : public DatasetOpKernel {
       return Status::OK();
     }
 
-  protected:
+   protected:
     const std::vector<daliPipelineHandle>* pipe_handles_;
     const std::vector<PartialTensorShape> shapes_;
     const DataTypeVector* dtypes_;
@@ -154,60 +145,68 @@ class DALIDatasetOp : public DatasetOpKernel {
      public:
       explicit Iterator(const Params& params)
           : DatasetIterator<Dataset>(params),
-              current_idx_{0},
-              num_pipelines_{dataset()->pipe_handles_->size()} {}
+            current_idx_{0},
+            num_pipelines_{dataset()->pipe_handles_->size()} {}
 
       Status GetNextInternal(IteratorContext* ctx,
                              std::vector<Tensor>* out_tensors,
                              bool* end_of_sequence) override {
-          mutex_lock l(mu_);
+        mutex_lock l(mu_);
 
-          if (current_idx_ < num_pipelines_) {
-            auto current_handle = dataset()->pipe_handles_->at(current_idx_);
+        auto current_handle = dataset()->pipe_handles_->at(current_idx_++);
 
-            daliShareOutput(&current_handle);
+        daliShareOutput(&current_handle);
 
-            const auto output_count = daliGetNumOutput(&current_handle);
+        const auto output_count = daliGetNumOutput(&current_handle);
 
-            for (size_t i = 0; i < output_count; i++) {
-              auto shape = DaliToShape(daliShapeAt(&current_handle, i));
+        for (size_t i = 0; i < output_count; i++) {
+          auto shape = DaliToShape(daliShapeAt(&current_handle, i));
 
-              Tensor out(ctx->allocator({}),
-                  dataset()->dtypes_->at(i), shape);
-//
-//              void *dst = nullptr;
-//              switch (dataset()->dtypes_->at(i)) {
-//                case DT_FLOAT:
-//                      dst = reinterpret_cast<void*>(out.flat<float>().data());
-//                  break;
-//                case DT_INT32:
-//                      dst = reinterpret_cast<void*>(out.flat<int>().data());
-//                  break;
-//                case DT_INT64:
-//                      dst = reinterpret_cast<void*>(out.flat<int64>().data());
-//                  break;
-//                case DT_HALF:
-//                      dst = reinterpret_cast<void*>(out.flat<uint16_t>().data());
-//                  break;
-//                default:
-//                  // todo assert here to catch the failure, because types are not yet converted ?
-//                  // todo support the new types ?
-//                  break;
-//              }
+          // TODO (pribalta): We could be able to get the correct allocator
+          //                  by setting the appropriate flags for this guy
+          AllocatorAttributes attrs;
 
-//              daliCopyTensorNTo(&current_handle, dst, i);
-              out_tensors->emplace_back(out);
-            }
+          Tensor out(ctx->lib()->device()->GetAllocator(attrs),
+                     dataset()->dtypes_->at(i), shape);
 
-            daliOutputRelease(&current_handle);
-            daliRun(&current_handle);
-
-            ++current_idx_;
-            *end_of_sequence = false;
-          } else {
-            current_idx_ = 0;
-            *end_of_sequence = true;
+          void* dst = nullptr;
+          switch (dataset()->dtypes_->at(i)) {
+            case DT_FLOAT:
+              dst = reinterpret_cast<void*>(out.flat<float>().data());
+              break;
+            case DT_UINT8:
+              dst = reinterpret_cast<void*>(out.flat<uint8_t>().data());
+              break;
+            case DT_INT16:
+              dst = reinterpret_cast<void*>(out.flat<int16_t>().data());
+              break;
+            case DT_INT32:
+              dst = reinterpret_cast<void*>(out.flat<int>().data());
+              break;
+            case DT_INT64:
+              dst = reinterpret_cast<void*>(out.flat<int64>().data());
+              break;
+            case DT_HALF:
+              dst = reinterpret_cast<void*>(out.flat<uint16_t>().data());
+              break;
+            default:
+              return errors::InvalidArgument(
+                  "Unsupported type: " +
+                  DataTypeString(dataset()->dtypes_->at(i)) + "for tensor " +
+                  std::to_string(i));
           }
+
+          // TODO (pribalta): Temporary. We _must_ copy to a GPU allocation.
+          daliCopyTensorNTo(&current_handle, dst, i, device_type_t::CPU);
+          out_tensors->emplace_back(out);
+        }
+
+        daliOutputRelease(&current_handle);
+        daliRun(&current_handle);
+
+        current_idx_ = current_idx_ % num_pipelines_;
+
+        *end_of_sequence = false;
 
         return Status::OK();
       }
@@ -215,8 +214,8 @@ class DALIDatasetOp : public DatasetOpKernel {
      protected:
       Status SaveInternal(IteratorStateWriter* writer) override {
         mutex_lock l(mu_);
-        TF_RETURN_IF_ERROR(writer->WriteScalar(
-            full_name("current_idx"), current_idx_));
+        TF_RETURN_IF_ERROR(
+            writer->WriteScalar(full_name("current_idx"), current_idx_));
 
         return Status::OK();
       }
@@ -224,8 +223,8 @@ class DALIDatasetOp : public DatasetOpKernel {
       Status RestoreInternal(IteratorContext* ctx,
                              IteratorStateReader* reader) override {
         int64 current_index;
-        TF_RETURN_IF_ERROR(reader->ReadScalar(full_name("current_index"),
-                                              &current_index));
+        TF_RETURN_IF_ERROR(
+            reader->ReadScalar(full_name("current_index"), &current_index));
         current_idx_ = static_cast<unsigned int>(current_index);
 
         return Status::OK();
@@ -237,9 +236,10 @@ class DALIDatasetOp : public DatasetOpKernel {
     };
   };
 
-protected:
+ protected:
   std::vector<daliPipelineHandle> pipe_handles_;
   std::string serialized_pipeline_;
+  int batch_size_;
   std::vector<TensorShape> shapes_;
   DataTypeVector dtypes_;
   int prefetch_queue_depth_;
@@ -248,6 +248,7 @@ protected:
 
 REGISTER_OP("DALIDataset")
     .Attr("serialized_pipeline: string")
+    .Attr("batch_size: int = 1")
     .Attr("shapes: list(shape) >= 1")
     .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
     .Attr("devices: list(int) >= 1")
@@ -255,7 +256,7 @@ REGISTER_OP("DALIDataset")
     .Attr("num_threads: int = -1")
     .Output("handle: variant")
     .SetIsStateful()
-    .SetShapeFn([](tensorflow::shape_inference::InferenceContext *c) {
+    .SetShapeFn([](tensorflow::shape_inference::InferenceContext* c) {
       std::vector<tensorflow::PartialTensorShape> shapes;
       TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
       for (unsigned int i = 0; i < shapes.size(); ++i) {
@@ -263,9 +264,8 @@ REGISTER_OP("DALIDataset")
           tensorflow::shape_inference::ShapeHandle passed_shape;
           TF_RETURN_IF_ERROR(
               c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
-          TF_RETURN_IF_ERROR(c->WithRank(passed_shape,
-                                         shapes[i].dims(),
-                                         &passed_shape));
+          TF_RETURN_IF_ERROR(
+              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
           c->set_output(i, passed_shape);
         }
       }
