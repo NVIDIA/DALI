@@ -75,7 +75,7 @@ class DALIDatasetOp : public DatasetOpKernel {
       daliCreatePipeline(&pipe_handles_.back(),
                   serialized_pipeline_.c_str(),
                   serialized_pipeline_.length(),
-                  128, // TODO: get batch size from shapes
+                  shapes_.at(0).dim_size(0),
                   num_threads_,
                   devices[i],
                   prefetch_queue_depth_);
@@ -106,8 +106,18 @@ class DALIDatasetOp : public DatasetOpKernel {
         const std::vector<TensorShape>* shapes, const DataTypeVector* types)
         : DatasetBase(DatasetContext(ctx)),
           pipe_handles_{pipe_handles},
-          // TODO: Temporary partial shape that will be generalized
-          shapes_{std::vector<PartialTensorShape>(shapes->size(), PartialTensorShape({-1,-1}))},
+          shapes_{[shapes](){
+            std::vector<PartialTensorShape> partial_shapes;
+
+            for (size_t i = 0; i < shapes->size(); i++) {
+              std::vector<int64> dims(shapes->at(0).dims(), -1);
+              PartialTensorShape s;
+              PartialTensorShape::MakePartialShape(dims.data(), dims.size(), &s);
+              partial_shapes.push_back(s);
+            }
+
+            return partial_shapes;
+          }()},
           dtypes_{types} {
     }
 
@@ -164,28 +174,28 @@ class DALIDatasetOp : public DatasetOpKernel {
 
               Tensor out(ctx->allocator({}),
                   dataset()->dtypes_->at(i), shape);
+//
+//              void *dst = nullptr;
+//              switch (dataset()->dtypes_->at(i)) {
+//                case DT_FLOAT:
+//                      dst = reinterpret_cast<void*>(out.flat<float>().data());
+//                  break;
+//                case DT_INT32:
+//                      dst = reinterpret_cast<void*>(out.flat<int>().data());
+//                  break;
+//                case DT_INT64:
+//                      dst = reinterpret_cast<void*>(out.flat<int64>().data());
+//                  break;
+//                case DT_HALF:
+//                      dst = reinterpret_cast<void*>(out.flat<uint16_t>().data());
+//                  break;
+//                default:
+//                  // todo assert here to catch the failure, because types are not yet converted ?
+//                  // todo support the new types ?
+//                  break;
+//              }
 
-              void *dst = nullptr;
-              switch (dataset()->dtypes_->at(i)) {
-                case DT_FLOAT:
-                      dst = reinterpret_cast<void*>(out.flat<float>().data());
-                  break;
-                case DT_INT32:
-                      dst = reinterpret_cast<void*>(out.flat<int>().data());
-                  break;
-                case DT_INT64:
-                      dst = reinterpret_cast<void*>(out.flat<int64>().data());
-                  break;
-                case DT_HALF:
-                      dst = reinterpret_cast<void*>(out.flat<uint16_t>().data());
-                  break;
-                default:
-                  // todo assert here to catch the failure, because types are not yet converted ?
-                  // todo support the new types ?
-                  break;
-              }
-
-              daliCopyTensorNTo(&current_handle, dst, i);
+//              daliCopyTensorNTo(&current_handle, dst, i);
               out_tensors->emplace_back(out);
             }
 
