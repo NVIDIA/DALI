@@ -144,7 +144,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 
-    current_frame_idx_ = 0;
+    current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
@@ -201,7 +201,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   // pair -> (filename index, frame index)
   std::vector<std::pair<int,int>> frame_starts_;
-  unsigned current_frame_idx_;
+  Index current_frame_idx_;
 
   volatile bool done_;
 };
