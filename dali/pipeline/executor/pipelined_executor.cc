@@ -35,6 +35,7 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
 }
 
 void PipelinedExecutor::SetupStageOutputsForGraph() {
+  DeviceGuard g(device_id_);
   // Make a set of the outputs names for quick lookup
   std::set<string> output_set(output_names_.begin(), output_names_.end());
 
@@ -175,6 +176,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
 
 void PipelinedExecutor::SetStageOutputsForIter(
     int queue_idx, WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
   for (size_t i = 0; i < support_stage_outputs_.size(); ++i) {
     auto &tvp = support_stage_outputs_[i];
     auto &info = support_stage_output_info_[i];
