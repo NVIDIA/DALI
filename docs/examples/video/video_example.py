@@ -1,6 +1,8 @@
 #!/bin/env python
 
+import os
 import numpy as np
+
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -20,9 +22,6 @@ except ImportError:
 BATCH_SIZE=4
 COUNT=5
 
-VIDEO_FILES=["prepared.mp4"]
-ITER=8
-
 def YUV2RGB(yuv):
     yuv = np.multiply(yuv, 255)
     m = np.array([[ 1.0, 1.0, 1.0],
@@ -33,6 +32,11 @@ def YUV2RGB(yuv):
     rgb[:,:,1]+=135.45870971679688
     rgb[:,:,2]-=226.8183044444304
     return rgb
+
+VIDEO_FILES=os.listdir("videos")
+VIDEO_FILES = ['videos/' + f for f in VIDEO_FILES]
+
+ITER=100
 
 class VideoPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data):
@@ -71,3 +75,4 @@ if __name__ == "__main__":
         plt.imshow(frame_to_show.astype('uint8'), interpolation='bicubic')
         plt.show()
         plt.savefig('saved_frame.png')
+
