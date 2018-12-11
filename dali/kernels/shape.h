@@ -75,28 +75,56 @@ constexpr int DynamicDimensions = -1;
 template <int ndim>
 struct TensorShape;
 
-template <>
-struct TensorShape<DynamicDimensions> {
-  // TODO overkill like standard containers with all the iterator, elemet_types, reference_type etc?
-  // or just use decltype(shape.begin()) begin() { return shape.begin(); } ?
-  using element_type = int64_t;
-  using value_type = int64_t;
+/**
+ * @brief Base class for TensorShape containing common code for iterators and operator[]
+ */
+template <typename Container>
+struct TensorShapeBase {
+  TensorShapeBase() : shape{} {}
+
+  TensorShapeBase(const Container &c) : shape(c) {}
+  TensorShapeBase(Container &&c) : shape(std::move(c)) {}
+  using value_type = typename Container::value_type;
   using size_type = int;
   using reference = value_type &;
   using const_reference = const value_type &;
-  using container_type = std::vector<element_type>;
+  using container_type = Container;
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
   using reverse_iterator = typename container_type::reverse_iterator;
   using const_reverse_iterator = typename container_type::const_reverse_iterator;
 
-  TensorShape(const std::vector<int64_t> &s) : shape(s) {}
+  reference operator[](int d) { return shape[d]; }
+  const_reference operator[](int d) const { return shape[d]; }
+
+  iterator begin() noexcept { return shape.begin(); }
+  iterator end() noexcept { return shape.end(); }
+  const_iterator begin() const noexcept { return shape.begin(); }
+  const_iterator end() const noexcept { return shape.end(); }
+  const_iterator cbegin() const noexcept { return shape.cbegin(); }
+  const_iterator cend() const noexcept { return shape.cend(); }
+  reverse_iterator rbegin() noexcept { return shape.rbegin(); }
+  reverse_iterator rend() noexcept { return shape.rend(); }
+  const_reverse_iterator rbegin() const noexcept { return shape.rbegin(); }
+  const_reverse_iterator rend() const noexcept { return shape.rend(); }
+  const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
+  const_reverse_iterator crend() const noexcept { return shape.crend(); }
+
+  size_type size() const { return shape.size(); }
+
+  Container shape;
+};
+
+template <>
+struct TensorShape<DynamicDimensions> : public TensorShapeBase<std::vector<int64_t>> {
+  using Base = TensorShapeBase<std::vector<int64_t>>;
+  TensorShape(const std::vector<int64_t> &s) : Base(s) {}
 
   template <size_t N>
-  TensorShape(std::array<int64_t, N> s) : shape(s.begin(), s.end()) {}
+  TensorShape(std::array<int64_t, N> s) : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts>
-  TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {}
+  TensorShape(int64_t i0, Ts... s) : Base(typename Base::container_type{i0, int64_t{s}...}) {}
 
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;
@@ -106,17 +134,17 @@ struct TensorShape<DynamicDimensions> {
 
   template <int other_ndim>
   TensorShape(const TensorShape<other_ndim> &other)
-      : shape(other.shape.begin(), other.shape.end()) {}
+      : Base(typename Base::container_type(other.shape.begin(), other.shape.end())) {}
 
   template <int other_ndim>
   TensorShape &operator=(const TensorShape<other_ndim> &other) {
-    shape = std::vector<int64_t>(other.shape.begin(), other.shape.end());
+    shape = Base::container_type(other.shape.begin(), other.shape.end());
     return *this;
   }
 
   // We allow only explicit conversion from dynamic to static dim
   template <int other_ndim>
-  TensorShape<other_ndim> to_static_ndim() const {
+  TensorShape<other_ndim> to_static() const {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(size() == other_ndim);
@@ -127,25 +155,9 @@ struct TensorShape<DynamicDimensions> {
     return shape;
   }
 
-  reference operator[](int d) { return shape[d]; }
-  const_reference operator[](int d) const { return shape[d]; }
-
-  iterator begin() noexcept { return shape.begin(); }
-  iterator end() noexcept { return shape.end(); }
-  const_iterator begin() const noexcept { return shape.begin(); }
-  const_iterator end() const noexcept { return shape.end(); }
-  const_iterator cbegin() const noexcept { return shape.cbegin(); }
-  const_iterator cend() const noexcept { return shape.cend(); }
-  reverse_iterator rbegin() noexcept { return shape.rbegin(); }
-  reverse_iterator rend() noexcept { return shape.rend(); }
-  const_reverse_iterator rbegin() const noexcept { return shape.rbegin(); }
-  const_reverse_iterator rend() const noexcept { return shape.rend(); }
-  const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
-  const_reverse_iterator crend() const noexcept { return shape.crend(); }
-
   TensorShape<DynamicDimensions> first(int count) {
     assert(0 <= count && count <= size() &&
-                  "Number of elements in subshape must be between 0 and size()");
+           "Number of elements in subshape must be between 0 and size()");
     TensorShape<DynamicDimensions> result;
     result.shape.resize(count);
     for (int i = 0; i < count; i++) {
@@ -156,7 +168,7 @@ struct TensorShape<DynamicDimensions> {
 
   TensorShape<DynamicDimensions> last(int count) {
     assert(0 <= count && count <= size() &&
-                  "Number of elements in subshape must be between 0 and size()");
+           "Number of elements in subshape must be between 0 and size()");
     TensorShape<DynamicDimensions> result;
     result.shape.resize(count);
     int start_offset = size() - count;
@@ -165,58 +177,22 @@ struct TensorShape<DynamicDimensions> {
     }
     return result;
   }
-
-  TensorShape<DynamicDimensions> operator+(const TensorShape<DynamicDimensions> &other) {
-    TensorShape<DynamicDimensions> result;
-    result.shape.insert(result.shape.end(), shape.begin(), shape.end());
-    result.shape.insert(result.shape.end(), other.shape.begin(), other.shape.end());
-    return result;
-  }
-
-  std::vector<int64_t> shape;
-  int size() const { return shape.size(); }
 };
 
 template <int ndim>
-struct TensorShape {
-  using element_type = int64_t;
-  using value_type = int64_t;
-  using size_type = int;
-  using reference = value_type &;
-  using const_reference = const value_type &;
-  using container_type = std::array<element_type, ndim>;
-  using iterator = typename container_type::iterator;
-  using const_iterator = typename container_type::const_iterator;
-  using reverse_iterator = typename container_type::reverse_iterator;
-  using const_reverse_iterator = typename container_type::const_reverse_iterator;
-
-  TensorShape(const std::array<int64_t, ndim> &s) : shape(s) {}
+struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>> {
+  using Base = TensorShapeBase<std::array<int64_t, ndim>>;
+  TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}
   // We just want zero-initialization
-  TensorShape() : shape{} {}
+  TensorShape() = default;
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape &operator=(const TensorShape &other) = default;
 
   template <typename... Ts>
-  TensorShape(int64_t i0, Ts... s) : shape{i0, int64_t{s}...} {
+  TensorShape(int64_t i0, Ts... s) : Base(typename Base::container_type{i0, int64_t{s}...}) {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
   }
-
-  reference operator[](int d) { return shape[d]; }
-  const_reference operator[](int d) const { return shape[d]; }
-
-  iterator begin() noexcept { return shape.begin(); }
-  iterator end() noexcept { return shape.end(); }
-  const_iterator begin() const noexcept { return shape.begin(); }
-  const_iterator end() const noexcept { return shape.end(); }
-  const_iterator cbegin() const noexcept { return shape.cbegin(); }
-  const_iterator cend() const noexcept { return shape.cend(); }
-  reverse_iterator rbegin() noexcept { return shape.rbegin(); }
-  reverse_iterator rend() noexcept { return shape.rend(); }
-  const_reverse_iterator rbegin() const noexcept { return shape.rbegin(); }
-  const_reverse_iterator rend() const noexcept { return shape.rend(); }
-  const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
-  const_reverse_iterator crend() const noexcept { return shape.crend(); }
 
   template <int other_ndim>
   TensorShape<other_ndim> first() {
@@ -240,9 +216,6 @@ struct TensorShape {
     }
     return result;
   }
-
-  std::array<int64_t, ndim> shape;
-  constexpr int size() const { return ndim; }
 };
 
 template <int left_ndim, int right_ndim>
@@ -265,9 +238,25 @@ bool operator!=(const TensorShape<left_ndim> &left, const TensorShape<right_ndim
 }
 
 template <int left_ndim, int right_ndim>
-typename std::enable_if<left_ndim != DynamicDimensions && right_ndim != DynamicDimensions, 
-                        TensorShape<left_ndim + right_ndim>>::type 
-    operator+(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+typename std::enable_if<left_ndim == DynamicDimensions || right_ndim == DynamicDimensions,
+                        TensorShape<DynamicDimensions>>::type
+shape_cat(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+  TensorShape<DynamicDimensions> result;
+  int total_size = left.size() + right.size();
+  result.shape.resize(total_size);
+  for (int i = 0; i < left.size(); i++) {
+    result[i] = left[i];
+  }
+  for (int i = 0; i < right.size(); i++) {
+    result[left.size() + i] = right[i];
+  }
+  return result;
+}
+
+template <int left_ndim, int right_ndim>
+typename std::enable_if<left_ndim != DynamicDimensions && right_ndim != DynamicDimensions,
+                        TensorShape<left_ndim + right_ndim>>::type
+shape_cat(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
   TensorShape<left_ndim + right_ndim> result;
   for (int i = 0; i < left_ndim; i++) {
     result[i] = left[i];

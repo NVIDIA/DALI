@@ -33,7 +33,8 @@ TEST(TensorShapeTest, StaticShapeConstructor) {
 
   // std::array and expanded list constructor
   TensorShape<test_dim> a(test_shape);
-  TensorShape<test_dim> b(test_shape[0], test_shape[1], test_shape[2], test_shape[3], test_shape[4]);
+  TensorShape<test_dim> b(test_shape[0], test_shape[1], test_shape[2], test_shape[3],
+                          test_shape[4]);
   ASSERT_EQ(a.size(), test_dim);
   ASSERT_EQ(b.size(), test_dim);
   for (int i = 0; i < test_dim; i++) {
@@ -66,7 +67,6 @@ TEST(TensorShapeTest, StaticShapeConstructor) {
   for (int i = 0; i < test_dim; i++) {
     ASSERT_EQ(check_move_assign[i], test_shape[i]);
   }
-
 }
 
 TEST(TensorShapeTest, DynamicShapeConstructor) {
@@ -82,7 +82,6 @@ TEST(TensorShapeTest, DynamicShapeConstructor) {
   for (int i = 0; i < test_dim; i++) {
     ASSERT_EQ(a[i], test_shape_arr[i]);
   }
-
 
   // std::vector constructor
   std::vector<int64_t> test_shape_vec = {1, 2, 3, 4, 5, 6, 7};
@@ -125,8 +124,9 @@ TEST(TensorShapeTest, DynamicShapeConstructor) {
     ASSERT_EQ(check_assign[i], b[i]);
   }
 
-    // Move rvalue
-  TensorShape<DynamicDimensions> check_move_construct(TensorShape<DynamicDimensions>{test_shape_arr});
+  // Move rvalue
+  TensorShape<DynamicDimensions> check_move_construct(
+      TensorShape<DynamicDimensions>{test_shape_arr});
   for (int i = 0; i < test_dim; i++) {
     ASSERT_EQ(check_move_construct[i], test_shape_arr[i]);
   }
@@ -138,7 +138,6 @@ TEST(TensorShapeTest, DynamicShapeConstructor) {
     ASSERT_EQ(check_move_assign[i], test_shape_arr[i]);
   }
 }
-
 
 TEST(TensorShapeTest, StaticDynamicConversions) {
   TensorShape<3> static_shape_3(1, 2, 3);
@@ -171,7 +170,7 @@ TEST(TensorShapeTest, StaticDynamicConversions) {
 
   auto s3 = TensorShape<3>{2, 4, 6};
   check_assign = s3;
-  static_shape_3 = check_assign.to_static_ndim<3>();
+  static_shape_3 = check_assign.to_static<3>();
   for (int i = 0; i < s3.size(); i++) {
     ASSERT_EQ(static_shape_3[i], s3[i]);
   }
@@ -179,72 +178,70 @@ TEST(TensorShapeTest, StaticDynamicConversions) {
 
 TEST(TensorShapeTest, Comparisons) {
   // Static ndim
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<1>(1), true);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<1>(1), false);
+  ASSERT_TRUE(TensorShape<1>(1) == TensorShape<1>(1));
+  ASSERT_FALSE(TensorShape<1>(1) != TensorShape<1>(1));
 
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<1>(2), false);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<1>(2), true);
+  ASSERT_FALSE(TensorShape<1>(1) == TensorShape<1>(2));
+  ASSERT_TRUE(TensorShape<1>(1) != TensorShape<1>(2));
 
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) == TensorShape<3>(1, 2, 3), true);
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) != TensorShape<3>(1, 2, 3), false);
+  ASSERT_TRUE(TensorShape<3>(1, 2, 3) == TensorShape<3>(1, 2, 3));
+  ASSERT_FALSE(TensorShape<3>(1, 2, 3) != TensorShape<3>(1, 2, 3));
 
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) == TensorShape<3>(1, 4, 3), false);
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) != TensorShape<3>(1, 4, 3), true);
+  ASSERT_FALSE(TensorShape<3>(1, 2, 3) == TensorShape<3>(1, 4, 3));
+  ASSERT_TRUE(TensorShape<3>(1, 2, 3) != TensorShape<3>(1, 4, 3));
 
-
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<2>(1, 2), false);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<2>(1, 2), true);
-  ASSERT_EQ(TensorShape<2>(1, 2) == TensorShape<1>(1), false);
-  ASSERT_EQ(TensorShape<2>(1, 2) != TensorShape<1>(1), true);
+  ASSERT_FALSE(TensorShape<1>(1) == TensorShape<2>(1, 2));
+  ASSERT_TRUE(TensorShape<1>(1) != TensorShape<2>(1, 2));
+  ASSERT_FALSE(TensorShape<2>(1, 2) == TensorShape<1>(1));
+  ASSERT_TRUE(TensorShape<2>(1, 2) != TensorShape<1>(1));
 
   // Dynamic ndim
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(1), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(1), false);
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(1));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(1));
 
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(2), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(2), true);
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(2));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(2));
 
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 2, 3), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 2, 3), false);
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 2, 3));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 2, 3));
 
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 4, 3), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 4, 3), true);
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 4, 3));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 4, 3));
 
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(1, 2), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(1, 2), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) == TensorShape<DynamicDimensions>(1), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) != TensorShape<DynamicDimensions>(1), true);
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) == TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) != TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2) == TensorShape<DynamicDimensions>(1));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2) != TensorShape<DynamicDimensions>(1));
 
   // Mixed ndim
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<DynamicDimensions>(1), true);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<DynamicDimensions>(1), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<1>(1), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<1>(1), false);
+  ASSERT_TRUE(TensorShape<1>(1) == TensorShape<DynamicDimensions>(1));
+  ASSERT_FALSE(TensorShape<1>(1) != TensorShape<DynamicDimensions>(1));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) == TensorShape<1>(1));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) != TensorShape<1>(1));
 
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<DynamicDimensions>(2), false);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<DynamicDimensions>(2), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<1>(2), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<1>(2), true);
+  ASSERT_FALSE(TensorShape<1>(1) == TensorShape<DynamicDimensions>(2));
+  ASSERT_TRUE(TensorShape<1>(1) != TensorShape<DynamicDimensions>(2));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) == TensorShape<1>(2));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) != TensorShape<1>(2));
 
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 2, 3), true);
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 2, 3), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<3>(1, 2, 3), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<3>(1, 2, 3), false);
+  ASSERT_TRUE(TensorShape<3>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 2, 3));
+  ASSERT_FALSE(TensorShape<3>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 2, 3));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<3>(1, 2, 3));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<3>(1, 2, 3));
 
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 4, 3), false);
-  ASSERT_EQ(TensorShape<3>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 4, 3), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<3>(1, 4, 3), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<3>(1, 4, 3), true);
+  ASSERT_FALSE(TensorShape<3>(1, 2, 3) == TensorShape<DynamicDimensions>(1, 4, 3));
+  ASSERT_TRUE(TensorShape<3>(1, 2, 3) != TensorShape<DynamicDimensions>(1, 4, 3));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2, 3) == TensorShape<3>(1, 4, 3));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2, 3) != TensorShape<3>(1, 4, 3));
 
-  ASSERT_EQ(TensorShape<1>(1) == TensorShape<DynamicDimensions>(1, 2), false);
-  ASSERT_EQ(TensorShape<1>(1) != TensorShape<DynamicDimensions>(1, 2), true);
-  ASSERT_EQ(TensorShape<2>(1, 2) == TensorShape<DynamicDimensions>(1), false);
-  ASSERT_EQ(TensorShape<2>(1, 2) != TensorShape<DynamicDimensions>(1), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) == TensorShape<2>(1, 2), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) != TensorShape<2>(1, 2), true);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) == TensorShape<1>(1), false);
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) != TensorShape<1>(1), true);
-
+  ASSERT_FALSE(TensorShape<1>(1) == TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_TRUE(TensorShape<1>(1) != TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_FALSE(TensorShape<2>(1, 2) == TensorShape<DynamicDimensions>(1));
+  ASSERT_TRUE(TensorShape<2>(1, 2) != TensorShape<DynamicDimensions>(1));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1) == TensorShape<2>(1, 2));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1) != TensorShape<2>(1, 2));
+  ASSERT_FALSE(TensorShape<DynamicDimensions>(1, 2) == TensorShape<1>(1));
+  ASSERT_TRUE(TensorShape<DynamicDimensions>(1, 2) != TensorShape<1>(1));
 }
 
 TEST(TensorShapeTest, RangeLoop) {
@@ -297,17 +294,40 @@ TEST(TensorShapeTest, LastDynamic) {
 }
 
 TEST(TensorShapeTest, Concatenation) {
-  ASSERT_EQ(TensorShape<0>() + TensorShape<0>(), TensorShape<0>());
-  ASSERT_EQ(TensorShape<1>(1) + TensorShape<0>(), TensorShape<1>(1));
-  ASSERT_EQ(TensorShape<0>() + TensorShape<1>(1), TensorShape<1>(1));
-  ASSERT_EQ(TensorShape<2>(1, 2) + TensorShape<3>(1, 2, 3), TensorShape<5>(1, 2, 1, 2, 3));
+  ASSERT_EQ(shape_cat(TensorShape<0>(), TensorShape<0>()), TensorShape<0>());
+  ASSERT_EQ(shape_cat(TensorShape<1>(1), TensorShape<0>()), TensorShape<1>(1));
+  ASSERT_EQ(shape_cat(TensorShape<0>(), TensorShape<1>(1)), TensorShape<1>(1));
+  ASSERT_EQ(shape_cat(TensorShape<2>(1, 2), TensorShape<3>(1, 2, 3)),
+            TensorShape<5>(1, 2, 1, 2, 3));
 
-  
-  
-  ASSERT_EQ(TensorShape<DynamicDimensions>() + TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>());
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1) + TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>(1));
-  ASSERT_EQ(TensorShape<DynamicDimensions>() + TensorShape<DynamicDimensions>(1), TensorShape<DynamicDimensions>(1));
-  ASSERT_EQ(TensorShape<DynamicDimensions>(1, 2) + TensorShape<DynamicDimensions>(1, 2, 3), TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>()),
+            TensorShape<DynamicDimensions>());
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(1), TensorShape<DynamicDimensions>()),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(), TensorShape<DynamicDimensions>(1)),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(
+      shape_cat(TensorShape<DynamicDimensions>(1, 2), TensorShape<DynamicDimensions>(1, 2, 3)),
+      TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
+
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(), TensorShape<0>()),
+            TensorShape<DynamicDimensions>());
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(1), TensorShape<0>()),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(shape_cat(TensorShape<DynamicDimensions>(), TensorShape<1>(1)),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(
+      shape_cat(TensorShape<DynamicDimensions>(1, 2), TensorShape<DynamicDimensions>(1, 2, 3)),
+      TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
+
+  ASSERT_EQ(shape_cat(TensorShape<0>(), TensorShape<DynamicDimensions>()),
+            TensorShape<DynamicDimensions>());
+  ASSERT_EQ(shape_cat(TensorShape<1>(1), TensorShape<DynamicDimensions>()),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(shape_cat(TensorShape<0>(), TensorShape<DynamicDimensions>(1)),
+            TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(shape_cat(TensorShape<2>(1, 2), TensorShape<DynamicDimensions>(1, 2, 3)),
+            TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
 }
 
 TEST(TensorViewTest, Conversions) {
@@ -319,7 +339,7 @@ TEST(TensorViewTest, Conversions) {
   // Allowed conversions
   TensorView<EmptyBackendTag, int, DynamicDimensions> dynamic_dim{static_dim};
   ASSERT_EQ(dynamic_dim.shape, static_dim.shape);
-  TensorView<EmptyBackendTag, int, 4> static_dim_2(dynamic_dim.to_static_ndim<4>());
+  TensorView<EmptyBackendTag, int, 4> static_dim_2(dynamic_dim.to_static<4>());
   ASSERT_EQ(static_dim_2.shape, static_dim.shape);
   ASSERT_EQ(static_dim_2.shape, dynamic_dim.shape);
 }
@@ -332,24 +352,22 @@ TEST(VolumeTest, Result) {
 }
 
 TEST(FlattenTest, Result) {
-  //todo
+  // todo
 }
 
 TEST(CalculateOffsetsTest, Result) {
-  //todo
+  // todo
 }
 
 TEST(TensorTest, WontCompile) {
   // TensorShape<5> static_shape_less(1, 2, 3, 4);
   // TensorShape<5> static_shape_more(1, 2, 3, 4, 5, 6);
-  // TensorShape<DynamicDimensions>().to_static_ndim<DynamicDimensions>();
+  // TensorShape<DynamicDimensions>().to_static<DynamicDimensions>();
   // TensorShape<5>{TensorShape<DynamicDimensions>()};
 
   // TensorView<EmptyBackendTag, int8_t, 4>(static_cast<int*>(nullptr), {1, 2, 3, 4});
   // TensorView<EmptyBackendTag, int, 4>{TensorView<EmptyBackendTag, int, DynamicDimensions>{}};
   // TensorView<EmptyBackendTag, int, DynamicDimensions>{TensorView<EmptyBackendTag, int8_t, 4>{}};
-
-
 }
 
 }  // namespace tensor

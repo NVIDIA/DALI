@@ -48,22 +48,21 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
   }
 
   template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static_ndim() {
+  TensorView<Backend, DataType, other_ndim> to_static() {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
-    return {data, shape.to_static_ndim<other_ndim>()};
+    return {data, shape.to_static<other_ndim>()};
   }
 
   template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static_ndim(
-      const TensorShape<other_ndim> &new_shape) {
+  TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape) {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     return {data, new_shape};
   }
 
   template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static_ndim(TensorShape<other_ndim> &&new_shape) {
+  TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape) {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     return {data, std::move(new_shape)};
