@@ -41,7 +41,7 @@ extern "C" {
 #include "dali/util/thread_safe_queue.h"
 
 struct AVPacket;
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 struct AVCodecParameters;
 using CodecParameters = AVCodecParameters;
 #else
