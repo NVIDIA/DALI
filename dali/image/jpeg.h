@@ -42,9 +42,11 @@ class JpegImage final : public GenericImage {
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
 
  private:
-  // This field is in fact modified by `DecodeImpl(...) const`,
+#ifdef DALI_USE_JPEG_TURBO
+  // Contents of this field are in fact modified by `DecodeImpl(...) const`,
   // but since it's a typedef of void*, it's legal
   tjhandle tjhandle_;
+#endif  // DALI_USE_JPEG_TURBO
 };
 
 }  // namespace dali

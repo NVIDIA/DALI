@@ -24,31 +24,64 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5));
 }
 
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates) {
+  BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5, BoundingBox::NoBounds());
+}
+
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates2) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, -0.5, 0.5, 0.5));
+}
+
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates2) {
+  BoundingBox::FromLtrb(0.5, -0.5, 0.5, 0.5, BoundingBox::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates3) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, 0.5, -0.5, 0.5));
 }
 
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates3) {
+  BoundingBox::FromLtrb(-1.5, 0.5, -0.5, 0.5, BoundingBox::NoBounds());
+}
+
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates4) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, 0.5, 0.5, -0.5));
 }
+
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates4) {
+  BoundingBox::FromLtrb(0.5, -1.5, 0.5, -0.5, BoundingBox::NoBounds());
+}
+
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(1.1, 0.5, 0.5, 0.5));
+}
+
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne) {
+  BoundingBox::FromLtrb(1.1, 0.5, 1.5, 0.5, BoundingBox::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne2) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, 1.1, 0.5, 0.5));
 }
 
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne2) {
+  BoundingBox::FromLtrb(0.5, 1.1, 0.5, 1.5, BoundingBox::NoBounds());
+}
+
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne3) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, 0.5, 1.1, 0.5));
 }
 
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne3) {
+  BoundingBox::FromLtrb(0.5, 0.5, 1.1, 0.5, BoundingBox::NoBounds());
+}
+
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne4) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(0.5, 0.5, 0.5, 1.1));
+}
+
+TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne4) {
+  BoundingBox::FromLtrb(0.5, 0.5, 0.5, 1.1, BoundingBox::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxRightMustBeGreaterOrEqualToLeft) {

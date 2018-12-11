@@ -44,4 +44,5 @@ void DALIReportFatalProblem(const char *file, int lineNumb, const char *pComment
   throw std::runtime_error(error_str);
 }
 
+
 }  // namespace dali

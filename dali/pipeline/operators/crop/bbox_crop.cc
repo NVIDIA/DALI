@@ -19,27 +19,27 @@ namespace dali {
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
         R"code(Perform a prospective crop to an image while keeping bounding boxes and labels consistent. Inputs must be supplied as
-        two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[x,y,w,h]`, and `Labels` containing the
-        corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
-        coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
-        Bounding boxes are provided as a `(m*4)` Tensor, where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`. Resulting
-        labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.)code")
+two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[x,y,w,h]`, and `Labels` containing the
+corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
+coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
+Bounding boxes are provided as a `(m*4)` Tensor, where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`. Resulting
+labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.)code")
     .NumInput(2)
     .NumOutput(4)
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-    Selected at random for every sample from provided values. Default value is `[0.0]`, leaving the input image as-is in the new crop.)code",
+Selected at random for every sample from provided values. Default value is `[0.0]`, leaving the input image as-is in the new crop.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
         R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.
-        Default values are `[1.0, 1.0]`, disallowing changes in aspect ratio.)code",
+Default values are `[1.0, 1.0]`, disallowing changes in aspect ratio.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
         R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`
-        Default values are `[1.0, 1.0]`.)code",
+Default values are `[1.0, 1.0]`.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "ltrb",

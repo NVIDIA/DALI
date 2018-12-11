@@ -9,6 +9,8 @@
 - Try to keep pull requests (PRs) as concise as possible:
   - Avoid committing commented-out code.
   - Wherever possible, each PR should address a single concern. If there are several otherwise-unrelated things that should be fixed to reach a desired endpoint, it is perfectly fine to open several PRs and state in the description which PR depends on another PR. The more complex the changes are in a single PR, the more time it will take to review those changes.
+- Write PR and commit titles using imperative mood.
+  - Format commit messages sticking to rules described in [this](https://chris.beams.io/posts/git-commit/) guide.
 - Make sure that the build log is clean, meaning no warnings or errors should be present.
 - Make sure all `L0_*` tests pass:
   - In the `qa/` directory, there are basic sanity tests scripted in directories named `L0_...`.  A given test can be executed by running the `./test.sh` command in each test directory with no additional options needed.
@@ -39,12 +41,12 @@ This will append the following to your commit message:
 
 By doing this you certify the below:
 
-    Developer Certificate of Origin  
+    Developer Certificate of Origin
     Version 1.1
 
-    Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-    1 Letterman Drive  
-    Suite D4700  
+    Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+    1 Letterman Drive
+    Suite D4700
     San Francisco, CA, 94129
 
     Everyone is permitted to copy and distribute verbatim copies of this license document, but changing it is not allowed.

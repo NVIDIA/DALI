@@ -16,7 +16,9 @@
 #define DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
 
 #include "dali/common.h"
+#include "dali/error_handling.h"
 
+namespace dali {
 /**
  * Simple RAII device handling:
  * Switch to new device on construction, back to old
@@ -34,5 +36,7 @@ class DeviceGuard {
  private:
   int original_device_;
 };
+
+}  // namespace dali
 
 #endif  // DALI_PIPELINE_UTIL_DEVICE_GUARD_H_

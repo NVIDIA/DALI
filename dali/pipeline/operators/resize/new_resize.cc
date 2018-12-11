@@ -21,6 +21,7 @@ template <>
 void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   const auto &output = ws->Output<CPUBackend>(idx);
+  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
   const auto &input_shape = input.shape();
   DALISize out_size, input_size;

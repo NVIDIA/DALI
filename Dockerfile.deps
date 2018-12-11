@@ -9,11 +9,11 @@
 ##     to `docker build -f Dockerfile.deps ... .`
 #########################################################################################
 #ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
-ARG FROM_IMAGE_NAME=gitlab-dl.nvidia.com:5005/dali/manylinux:manylinux3_x86_64
+ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y zip
+RUN yum install -y zip wget yasm
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
@@ -87,6 +87,49 @@ RUN CLANG_VERSION=6.0.1 && \
     wget http://releases.llvm.org/${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
     tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
     rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
+
+
+ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
+
+# FMpeg
+RUN FFMPEG_VERSION=3.4.2 && \
+    cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
+    tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+    rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
+    cd ffmpeg-$FFMPEG_VERSION && \
+    ./configure \
+      --prefix=/usr/local \
+      --disable-static \
+      --disable-all \
+      --disable-autodetect \
+      --disable-iconv \
+      --enable-shared \
+      --enable-avformat \
+      --enable-avcodec \
+      --enable-avfilter \
+      --enable-protocol=file \
+      --enable-demuxer=mov,matroska \
+      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
+    cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
+
+# cuda and nvcuvid libraries from the DRIVER
+RUN cd /tmp && \
+    DRIVER_VERSION=410.78 && \
+    wget -q http://us.download.nvidia.com/XFree86/Linux-x86_64/410.78/NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run && \
+    DRIVER=NVIDIA-Linux-x86_64-* && \
+    chmod +x ${DRIVER}.run && \
+    ./${DRIVER}.run -x && \
+    pushd ${DRIVER} && \
+    cp libnvcuvid.so* libcuda.so* libnvidia-fatbinaryloader.so* /usr/local/lib64 && \
+    ln -s /usr/local/lib64/libcuda.so.* /usr/local/lib64/libcuda.so.1 && \
+    ln -s /usr/local/lib64/libcuda.so.1 /usr/local/lib64/libcuda.so && \
+    ln -s /usr/local/lib64/libnvcuvid.so.* /usr/local/lib64/libnvcuvid.so.1 && \
+    ln -s /usr/local/lib64/libnvcuvid.so.1 /usr/local/lib64/libnvcuvid.so && \
+    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.so.* /usr/local/lib64/libnvidia-fatbinaryloader.1 && \
+    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.1 /usr/local/lib64/libnvidia-fatbinaryloader.so && \
+    popd && \
+    rm -rf ${DRIVER}*
 
 # CUDA
 ARG USE_CUDA_VERSION=9

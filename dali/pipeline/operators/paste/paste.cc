@@ -30,7 +30,7 @@ The canvas size is equal to `input size * ratio`.)code")
       3)
   .AddArg("fill_value",
       R"code(Tuple of values of the color to fill the canvas.
-  Length of the tuple needs to be equal to `n_channels`.)code",
+Length of the tuple needs to be equal to `n_channels`.)code",
       DALI_INT_VEC)
   .AddOptionalArg("paste_x",
       R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0))code",

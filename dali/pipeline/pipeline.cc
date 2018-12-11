@@ -265,7 +265,15 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     string& inst_name = name_op_spec.first;
     OpSpec op_spec = name_op_spec.second;
     PrepareOpSpec(&op_spec);
-    graph_.AddOp(op_spec, inst_name);
+    try {
+      graph_.AddOp(op_spec, inst_name);
+    } catch (std::runtime_error &e) {
+      throw std::runtime_error("Critical error in pipeline: "
+          + std::string(e.what())
+          + "\nCurrent pipeline object is no longer valid.");
+    } catch (...) {
+      throw std::runtime_error("Unknown Critical error in pipeline");
+    }
   }
 
   // Validate the output tensors names

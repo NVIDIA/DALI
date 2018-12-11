@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 # Copyright (c) 2009 Google Inc. All rights reserved.
+# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -4993,7 +4994,7 @@ def IsInitializerList(clean_lines, linenum):
   # constructor initializer list.
   return False
 
-
+# This check is disabled for DALI
 def CheckForNonConstReference(filename, clean_lines, linenum,
                               nesting_state, error):
   """Check for non-const references.
@@ -5793,7 +5794,7 @@ def ProcessLine(filename, file_extension, clean_lines, line,
   CheckStyle(filename, clean_lines, line, file_extension, nesting_state, error)
   CheckLanguage(filename, clean_lines, line, file_extension, include_state,
                 nesting_state, error)
-  CheckForNonConstReference(filename, clean_lines, line, nesting_state, error)
+  # CheckForNonConstReference(filename, clean_lines, line, nesting_state, error)
   CheckForNonStandardConstructs(filename, clean_lines, line,
                                 nesting_state, error)
   CheckVlogArguments(filename, clean_lines, line, error)

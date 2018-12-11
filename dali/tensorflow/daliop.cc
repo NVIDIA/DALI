@@ -212,3 +212,4 @@ class DaliOp : public tf::OpKernel {
 using tf::int64;
 
 REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_GPU), DaliOp)
+REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_CPU), DaliOp)
