@@ -30,8 +30,28 @@ DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
 
 DALI_SCHEMA(SequenceReader)
     .DocStr(
-        "Read [Frame] sequences from a directory representing collection of "
-        "streams")
+        R"code(Read [Frame] sequences from a directory representing collection of streams."
+Expects file_root to contain set of directories, each of them represents one extracted video
+stream. Extracted video stream is represented by one file for each frame, sorting the paths to
+frames lexicographically should give the original order of frames.
+Example:
+> file_root
+  > 0
+    > 00001.png
+    > 00002.png
+    > 00003.png
+    > 00004.png
+    > 00005.png
+    > 00006.png
+    ....
+  > 1
+    > 00001.png
+    > 00002.png
+    > 00003.png
+    > 00004.png
+    > 00005.png
+    > 00006.png
+    ....)code")
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
     .AddArg("file_root",

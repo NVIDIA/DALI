@@ -17,6 +17,7 @@
 #include <map>
 #include <memory>
 
+#include "dali/image/image.h"
 #include "dali/pipeline/operators/reader/loader/sequence_loader.h"
 #include "dali/util/file.h"
 
@@ -31,6 +32,59 @@ std::string parent_dir(std::string path) {
 }
 
 }  // namespace
+
+namespace filesystem {
+
+std::vector<Stream> GatherExtractedStreams(string file_root) {
+  glob_t glob_buff;
+  std::string glob_pattern = file_root + "/*/*";
+  const int glob_flags = 0;
+  int glob_ret = glob(glob_pattern.c_str(), glob_flags, nullptr, &glob_buff);
+  DALI_ENFORCE(glob_ret == 0,
+               "Glob for pattern: \"" + glob_pattern + "\" failed. Verify the file_root argument");
+  std::vector<std::string> files;
+  for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
+    std::string file = glob_buff.gl_pathv[i];
+    std::string file_name_lowercase = std::string{file};
+    std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
+                   file_name_lowercase.begin(), ::tolower);
+    for (const std::string& ext : RegisteredImageExtensions) {
+      size_t pos = file_name_lowercase.rfind(ext);
+      if (pos != std::string::npos && pos + ext.size() == file_name_lowercase.size()) {
+        files.push_back(std::move(file));
+        break;
+      }
+    }
+  }
+  globfree(&glob_buff);
+  std::sort(files.begin(), files.end());
+  std::map<std::string, size_t> streamName_bucket_map;
+  std::vector<Stream> streams;
+  for (const auto &f : files) {
+    auto parent = parent_dir(f);
+    auto bucket = streamName_bucket_map.find(parent);
+    if (bucket == streamName_bucket_map.end()) {
+      streams.push_back({parent, {f}});
+      streamName_bucket_map[parent] = streams.size() - 1;
+    } else {
+      streams[bucket->second].second.push_back(f);
+    }
+  }
+  return streams;
+}
+
+}  // namespace filesystem
+
+std::vector<size_t> detail::CalculateSequencesCounts(const std::vector<filesystem::Stream> &streams,
+                                                     size_t sequence_lenght) {
+  std::vector<size_t> result;
+  for (const auto &s : streams) {
+    auto sequences_count =
+        s.second.size() >= (sequence_lenght - 1) ? s.second.size() - (sequence_lenght - 1) : 0;
+    result.push_back(sequences_count);
+  }
+  return result;
+}
 
 void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
   sequence->tensors.resize(sequence_length_);
@@ -49,7 +103,7 @@ void SequenceLoader::ReadSample(TensorSequence *sequence) {
   }
   current_frame_++;
   // wrap-around
-  if (current_frame_ == stream_sizes_[current_stream_]) {
+  if (current_frame_ == sequences_counts_[current_stream_]) {
     current_stream_++;
     current_frame_ = 0;
   }
@@ -62,43 +116,8 @@ Index SequenceLoader::Size() {
   return total_size_;
 }
 
-std::vector<SequenceLoader::Stream> SequenceLoader::ParseStreams(string file_root) {
-  glob_t glob_buff;
-  std::string glob_pattern = file_root + "/*/*";
-  const int glob_flags = 0;
-  int glob_ret = glob(glob_pattern.c_str(), glob_flags, nullptr, &glob_buff);
-  DALI_ENFORCE(glob_ret == 0,
-               "Glob for pattern: \"" + glob_pattern + "\" failed. Verify the file_root argument");
-  std::vector<std::string> files;
-  for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
-    files.emplace_back(glob_buff.gl_pathv[i]);
-  }
-  std::sort(files.begin(), files.end());
-  std::map<std::string, size_t> streamName_bucket_map;
-  std::vector<Stream> streams;
-  for (const auto &f : files) {
-    auto parent = parent_dir(f);
-    auto bucket = streamName_bucket_map.find(parent);
-    if (bucket == streamName_bucket_map.end()) {
-      streams.push_back({parent, {f}});
-      streamName_bucket_map[parent] = streams.size() - 1;
-    } else {
-      streams[bucket->second].second.push_back(f);
-    }
-  }
-  return streams;
-}
-
-std::vector<size_t> SequenceLoader::CalculateStreamSizes(const std::vector<Stream> &streams,
-                                                         size_t sample_lenght) {
-  std::vector<size_t> result;
-  for (const auto &s : streams) {
-    result.push_back(s.second.size() - (sample_lenght - 1));
-  }
-  return result;
-}
-
-void SequenceLoader::LoadFrame(const Stream &s, Index frame_idx, Tensor<CPUBackend> *target) {
+void SequenceLoader::LoadFrame(const filesystem::Stream &s, Index frame_idx,
+                               Tensor<CPUBackend> *target) {
   const auto frame_filename = s.second[frame_idx];
   std::unique_ptr<FileStream> frame(FileStream::Open(frame_filename));
   Index frame_size = frame->Size();
