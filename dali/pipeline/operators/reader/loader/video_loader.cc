@@ -451,7 +451,7 @@ void VideoLoader::ReadSample(SequenceWrapper* tensor) {
 }
 
 Index VideoLoader::Size() {
-    return static_cast<Index>(total_frame_count_);
+    return static_cast<Index>(frame_starts_.size());
 }
 
 }  // namespace dali

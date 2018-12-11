@@ -129,14 +129,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     av_register_all();
 
-    total_frame_count_ = 0;
-
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
       for (int s = 0; s < frame_count; s += step_) {
         frame_starts_.push_back(std::make_pair(i, s));
       }
-      total_frame_count_ += frame_count;
     }
 
     if (shuffle_) {
@@ -202,7 +199,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   std::thread thread_file_reader_;
 
-  int total_frame_count_;
   // pair -> (filename index, frame index)
   std::vector<std::pair<int,int>> frame_starts_;
   unsigned current_frame_idx_;
