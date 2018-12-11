@@ -76,7 +76,7 @@ class DALIDataset(tf.data.Dataset):
          dtypes: A `List` of `tf.DType` with the expected output types
          devices: A `List` with the indexes of the devices to use
          prefetch_queue_depth: `int` with the amount of prefetched batches
-         num_threads: `int` with the number of reader threads in the pipeline
+         num_threads: `int` with the number of reader threads in the pipeline per GPU
 
        """
         super(DALIDataset, self).__init__()
