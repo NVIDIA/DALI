@@ -63,15 +63,13 @@ std::vector<Stream> DLL_PUBLIC GatherExtractedStreams(string file_root);
 
 namespace detail {
 /**
- * @brief Calculate how many full sequences of sequence_lenght fit in each stream.
+ * @brief Generate sets of paths for each sequence to be loaded.
  *
- * For stream [0, 1, 2, 3, 4, 5], and sequence_lenght = 3 we will consider:
- * [0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5] -> 4 full sequences
- *
- * Behaviour for sequence of length 0 is undefined
+ * Only consider full sequences that do not cross stream boundary
  */
-std::vector<size_t> DLL_PUBLIC
-CalculateSequencesCounts(const std::vector<filesystem::Stream> &streams, size_t sequence_lenght);
+std::vector<std::vector<std::string>> DLL_PUBLIC
+GenerateSequences(const std::vector<filesystem::Stream> &streams, size_t sequence_lenght,
+                  size_t step, size_t stride);
 }  // namespace detail
 
 struct TensorSequence {
@@ -91,11 +89,19 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         file_root_(spec.GetArgument<string>("file_root")),
         sequence_length_(
             spec.GetArgument<int32_t>("sequence_length")),  // TODO(klecki) change to size_t
+        step_(spec.GetArgument<int32_t>("step")),
+        stride_(spec.GetArgument<int32_t>("stride")),
         streams_(filesystem::GatherExtractedStreams(file_root_)),
-        sequences_counts_(detail::CalculateSequencesCounts(streams_, sequence_length_)),
-        total_size_(std::accumulate(sequences_counts_.begin(), sequences_counts_.end(), Index{})),
-        current_stream_(0),
-        current_frame_(0) {}
+        sequences_(detail::GenerateSequences(streams_, sequence_length_, step_, stride_)),
+        total_size_(sequences_.size()),
+        current_sequence_(0) {
+    if (shuffle_) {
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(524287);
+      std::shuffle(sequences_.begin(), sequences_.end(), g);
+    }
+  }
 
   void PrepareEmpty(TensorSequence *tensor) override;
   void ReadSample(TensorSequence *tensor) override;
@@ -107,12 +113,14 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
 
   string file_root_;
   int32_t sequence_length_;
+  int32_t step_;
+  int32_t stride_;
   std::vector<filesystem::Stream> streams_;
-  std::vector<size_t> sequences_counts_;
+  std::vector<std::vector<std::string>> sequences_;
   Index total_size_;
-  size_t current_stream_, current_frame_;
+  size_t current_sequence_;
 
-  void LoadFrame(const filesystem::Stream &s, Index frame, Tensor<CPUBackend> *target);
+  void LoadFrame(const std::vector<std::string> &s, Index frame, Tensor<CPUBackend> *target);
 };
 
 }  // namespace dali

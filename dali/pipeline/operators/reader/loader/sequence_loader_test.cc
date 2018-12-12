@@ -48,38 +48,43 @@ TEST(GatherExtractedStreamsTest, LoadTestDir) {
   }
 }
 
-TEST(CalculateSequencesCountsTest, Test) {
+TEST(GenerateSequencesTest, Test) {
   std::vector<filesystem::Stream> zero_stream = {{"/0", {}}};
-  auto zero_length_1 = detail::CalculateSequencesCounts(zero_stream, 1);
-  ASSERT_EQ(zero_length_1[0], 0);
-  auto zero_length_2 = detail::CalculateSequencesCounts(zero_stream, 2);
-  ASSERT_EQ(zero_length_2[0], 0);
-
+  auto zero_length_1 = detail::GenerateSequences(zero_stream, 1, 1, 1);
+  ASSERT_EQ(zero_length_1.size(), 0);
 
   std::vector<filesystem::Stream> test_streams = {
       {"/0", {"/0/00.png", "/0/01.png", "/0/02.png", "/0/03.png", "/0/04.png", "/0/05.png"}},
       {"/1", {"/1/00.png", "/1/01.png", "/1/02.png", "/1/03.png"}}};
-  auto length_1 = detail::CalculateSequencesCounts(test_streams, 1);
-  ASSERT_EQ(length_1[0], 6);
-  ASSERT_EQ(length_1[1], 4);
-  auto length_2 = detail::CalculateSequencesCounts(test_streams, 2);
-  ASSERT_EQ(length_2[0], 5);
-  ASSERT_EQ(length_2[1], 3);
-  auto length_3 = detail::CalculateSequencesCounts(test_streams, 3);
-  ASSERT_EQ(length_3[0], 4);
-  ASSERT_EQ(length_3[1], 2);
-  auto length_4 = detail::CalculateSequencesCounts(test_streams, 4);
-  ASSERT_EQ(length_4[0], 3);
-  ASSERT_EQ(length_4[1], 1);
-  auto length_5 = detail::CalculateSequencesCounts(test_streams, 5);
-  ASSERT_EQ(length_5[0], 2);
-  ASSERT_EQ(length_5[1], 0);
-  auto length_6 = detail::CalculateSequencesCounts(test_streams, 6);
-  ASSERT_EQ(length_6[0], 1);
-  ASSERT_EQ(length_6[1], 0);
-  auto length_7 = detail::CalculateSequencesCounts(test_streams, 7);
-  ASSERT_EQ(length_7[0], 0);
-  ASSERT_EQ(length_7[1], 0);
+
+  auto seq_1_1_1 = detail::GenerateSequences(test_streams, 1, 1, 1);
+  auto exp_1_1_1 = std::vector<std::vector<std::string>>{
+      {"/0/00.png"}, {"/0/01.png"}, {"/0/02.png"}, {"/0/03.png"}, {"/0/04.png"},
+      {"/0/05.png"}, {"/1/00.png"}, {"/1/01.png"}, {"/1/02.png"}, {"/1/03.png"}};
+  ASSERT_EQ(seq_1_1_1, exp_1_1_1);
+
+  auto seq_1_2_1 = detail::GenerateSequences(test_streams, 1, 2, 1);
+  auto exp_1_2_1 = std::vector<std::vector<std::string>>{
+      {"/0/00.png"}, {"/0/02.png"}, {"/0/04.png"}, {"/1/00.png"}, {"/1/02.png"}};
+  ASSERT_EQ(seq_1_2_1, exp_1_2_1);
+
+  auto seq_2_1_1 = detail::GenerateSequences(test_streams, 2, 1, 1);
+  auto exp_2_1_1 = std::vector<std::vector<std::string>>{
+      {"/0/00.png", "/0/01.png"}, {"/0/01.png", "/0/02.png"}, {"/0/02.png", "/0/03.png"},
+      {"/0/03.png", "/0/04.png"}, {"/0/04.png", "/0/05.png"}, {"/1/00.png", "/1/01.png"},
+      {"/1/01.png", "/1/02.png"}, {"/1/02.png", "/1/03.png"}};
+  ASSERT_EQ(seq_2_1_1, exp_2_1_1);
+
+  auto seq_2_1_2 = detail::GenerateSequences(test_streams, 2, 1, 2);
+  auto exp_2_1_2 = std::vector<std::vector<std::string>>{
+      {"/0/00.png", "/0/02.png"}, {"/0/01.png", "/0/03.png"}, {"/0/02.png", "/0/04.png"},
+      {"/0/03.png", "/0/05.png"}, {"/1/00.png", "/1/02.png"}, {"/1/01.png", "/1/03.png"}};
+  ASSERT_EQ(seq_2_1_2, exp_2_1_2);
+
+  auto seq_2_2_2 = detail::GenerateSequences(test_streams, 2, 2, 2);
+  auto exp_2_2_2 = std::vector<std::vector<std::string>>{
+      {"/0/00.png", "/0/02.png"}, {"/0/02.png", "/0/04.png"}, {"/1/00.png", "/1/02.png"}};
+  ASSERT_EQ(seq_2_2_2, exp_2_2_2);
 }
 
 }  // namespace dali

@@ -21,6 +21,7 @@
 #include "dali/pipeline/operators/reader/loader/sequence_loader.h"
 #include "dali/util/file.h"
 
+
 namespace dali {
 
 namespace {
@@ -48,7 +49,7 @@ std::vector<Stream> GatherExtractedStreams(string file_root) {
     std::string file_name_lowercase = std::string{file};
     std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
                    file_name_lowercase.begin(), ::tolower);
-    for (const std::string& ext : RegisteredImageExtensions) {
+    for (const std::string &ext : RegisteredImageExtensions) {
       size_t pos = file_name_lowercase.rfind(ext);
       if (pos != std::string::npos && pos + ext.size() == file_name_lowercase.size()) {
         files.push_back(std::move(file));
@@ -75,16 +76,31 @@ std::vector<Stream> GatherExtractedStreams(string file_root) {
 
 }  // namespace filesystem
 
-std::vector<size_t> detail::CalculateSequencesCounts(const std::vector<filesystem::Stream> &streams,
-                                                     size_t sequence_lenght) {
-  std::vector<size_t> result;
+namespace detail {
+
+std::vector<std::vector<std::string>> GenerateSequences(
+    const std::vector<filesystem::Stream> &streams, size_t sequence_lenght, size_t step,
+    size_t stride) {
+  std::vector<std::vector<std::string>> sequences;
   for (const auto &s : streams) {
-    auto sequences_count =
-        s.second.size() >= (sequence_lenght - 1) ? s.second.size() - (sequence_lenght - 1) : 0;
-    result.push_back(sequences_count);
+    for (int i = 0; i < s.second.size(); i += step) {
+      std::vector<std::string> sequence;
+      sequence.reserve(sequence_lenght);
+      // this sequence won't fit
+      if (i + (sequence_lenght - 1) * stride >= s.second.size()) {
+        break;
+      }
+      // fill the sequence
+      for (int seq_elem = 0; seq_elem < sequence_lenght; seq_elem++) {
+        sequence.push_back(s.second[i + seq_elem * stride]);
+      }
+      sequences.push_back((sequence));
+    }
   }
-  return result;
+  return sequences;
 }
+
+}  // namespace detail
 
 void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
   sequence->tensors.resize(sequence_length_);
@@ -95,20 +111,16 @@ void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
 
 void SequenceLoader::ReadSample(TensorSequence *sequence) {
   // TODO(klecki) this is written as a prototype for video handling
-  const auto &stream = streams_[current_stream_];
+  const auto &sequence_paths = sequences_[current_sequence_];
   // TODO(klecki) we probably should buffer the "stream", or recently used
   // frames
   for (int i = 0; i < sequence_length_; i++) {
-    LoadFrame(stream, current_frame_ + i, &sequence->tensors[i]);
+    LoadFrame(sequence_paths, i, &sequence->tensors[i]);
   }
-  current_frame_++;
+  current_sequence_++;
   // wrap-around
-  if (current_frame_ == sequences_counts_[current_stream_]) {
-    current_stream_++;
-    current_frame_ = 0;
-  }
-  if (current_stream_ == streams_.size()) {
-    current_stream_ = 0;
+  if (current_sequence_ == total_size_) {
+    current_sequence_ = 0;
   }
 }
 
@@ -116,10 +128,10 @@ Index SequenceLoader::Size() {
   return total_size_;
 }
 
-void SequenceLoader::LoadFrame(const filesystem::Stream &s, Index frame_idx,
+void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_idx,
                                Tensor<CPUBackend> *target) {
-  const auto frame_filename = s.second[frame_idx];
-  std::unique_ptr<FileStream> frame(FileStream::Open(frame_filename));
+  const auto frame_filename = s[frame_idx];
+  auto frame = FileStream::Open(frame_filename);
   Index frame_size = frame->Size();
   target->Resize({frame_size});
   frame->Read(target->mutable_data<uint8_t>(), frame_size);
