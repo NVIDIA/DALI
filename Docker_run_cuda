@@ -26,5 +26,7 @@ RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
     rm get-pip.py
 
 COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
+COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
 
 RUN pip install /opt/dali/*.whl
+RUN pip show tensorflow-gpu && pip install /opt/dali/*.tar.gz || true
