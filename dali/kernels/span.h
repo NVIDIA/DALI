@@ -47,7 +47,7 @@ class span {
   // [span.cons], span constructors, copy, assignment, and destructor
   // This constructor shall not participate in overload resolution unless Extent <= 0 is true
   constexpr span() noexcept = delete;
-  constexpr span(pointer ptr, index_type count) : data_(ptr) { /* assert(count == Extent); */ }
+  constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) { /* assert(count == Extent); */ }
   constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
   }

@@ -72,7 +72,7 @@ inline int64_t volume(const T &shape) {
 
 constexpr int DynamicDimensions = -1;
 
-template <int ndim>
+template <int ndim = DynamicDimensions>
 struct TensorShape;
 
 /**
@@ -84,11 +84,11 @@ struct TensorShapeBase {
 
   TensorShapeBase(const Container &c) : shape(c) {}
   TensorShapeBase(Container &&c) : shape(std::move(c)) {}
-  using value_type = typename Container::value_type;
+  using container_type = Container;
+  using value_type = typename container_type::value_type;
   using size_type = int;
   using reference = value_type &;
   using const_reference = const value_type &;
-  using container_type = Container;
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
   using reverse_iterator = typename container_type::reverse_iterator;
@@ -155,6 +155,29 @@ struct TensorShape<DynamicDimensions> : public TensorShapeBase<std::vector<int64
     return shape;
   }
 
+  template <int other_ndim>
+  TensorShape<other_ndim> first() {
+    assert(0 <= other_ndim && other_ndim <= size() &&
+                  "Number of elements in subshape must be between 0 and size()");
+    TensorShape<other_ndim> result;
+    for (int i = 0; i < other_ndim; i++) {
+      result[i] = (*this)[i];
+    }
+    return result;
+  }
+
+  template <int other_ndim>
+  TensorShape<other_ndim> last() {
+    assert(0 <= other_ndim && other_ndim <= size() &&
+                  "Number of elements in subshape must be between 0 and size()");
+    TensorShape<other_ndim> result;
+    int start_offset = size() - other_ndim;
+    for (int i = 0; i < other_ndim; i++) {
+      result[i] = (*this)[start_offset + i];
+    }
+    return result;
+  }
+
   TensorShape<DynamicDimensions> first(int count) {
     assert(0 <= count && count <= size() &&
            "Number of elements in subshape must be between 0 and size()");
@@ -212,6 +235,29 @@ struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>> {
     TensorShape<other_ndim> result;
     int start_offset = ndim - other_ndim;
     for (int i = 0; i < other_ndim; i++) {
+      result[i] = (*this)[start_offset + i];
+    }
+    return result;
+  }
+
+  TensorShape<DynamicDimensions> first(int count) {
+    assert(0 <= count && count <= ndim &&
+           "Number of elements in subshape must be between 0 and size()");
+    TensorShape<DynamicDimensions> result;
+    result.shape.resize(count);
+    for (int i = 0; i < count; i++) {
+      result[i] = (*this)[i];
+    }
+    return result;
+  }
+
+  TensorShape<DynamicDimensions> last(int count) {
+    assert(0 <= count && count <= ndim &&
+           "Number of elements in subshape must be between 0 and size()");
+    TensorShape<DynamicDimensions> result;
+    result.shape.resize(count);
+    int start_offset = ndim - count;
+    for (int i = 0; i < count; i++) {
       result[i] = (*this)[start_offset + i];
     }
     return result;
@@ -296,7 +342,7 @@ flatten_shapes(const std::vector<T> &shapes, int uniform_sample_ndim) {
   return result;
 }
 
-template <int sample_ndim>
+template <int sample_ndim = DynamicDimensions>
 struct TensorListShape;
 
 template <>
@@ -377,7 +423,7 @@ struct TensorListShape {
     return out;
   }
 
-  span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
+  span<const int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
     return {&shapes[sample * sample_dim()]};
   }
 
@@ -404,11 +450,24 @@ std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls
   offsets[0] = 0;
   for (int i = 0; i < tls.samples(); i++) {
     auto sample_shape_span = tls.tensor_shape_span(i);
-    offsets[i] = volume(sample_shape_span);
+    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
   }
   return offsets;
 }
 
+template <int ndim>
+bool is_uniform(const TensorListShape<ndim> &tls) {
+  if (!tls.size()) {
+    return true; // empty is uniform
+  }
+  auto first_span = tls.tensor_shape_span(0);
+  for (int i = 1; i < tls.size(); i++) {
+    if (first_span != tls.tensor_shape_span(i)) {
+      return false;
+    }
+  }
+  return true;
+}
 // TODO:
 // * `T* at(...)` as free function
 // * discarding left and right elements of the ShapeList

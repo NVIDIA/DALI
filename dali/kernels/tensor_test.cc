@@ -253,7 +253,7 @@ TEST(TensorShapeTest, RangeLoop) {
   }
 }
 
-TEST(TensorShapeTest, FirstStatic) {
+TEST(TensorShapeTest, FirstStaticOnStatic) {
   TensorShape<5> ts(1, 2, 3, 4, 5);
   ASSERT_EQ(ts.first<0>(), TensorShape<0>());
   ASSERT_EQ(ts.first<1>(), TensorShape<1>(1));
@@ -263,7 +263,7 @@ TEST(TensorShapeTest, FirstStatic) {
   ASSERT_EQ(ts.first<5>(), TensorShape<5>(1, 2, 3, 4, 5));
 }
 
-TEST(TensorShapeTest, LastStatic) {
+TEST(TensorShapeTest, LastStaticOnStatic) {
   TensorShape<5> ts(1, 2, 3, 4, 5);
   ASSERT_EQ(ts.last<0>(), TensorShape<0>());
   ASSERT_EQ(ts.last<1>(), TensorShape<1>(5));
@@ -273,7 +273,47 @@ TEST(TensorShapeTest, LastStatic) {
   ASSERT_EQ(ts.last<5>(), TensorShape<5>(1, 2, 3, 4, 5));
 }
 
-TEST(TensorShapeTest, FirstDynamic) {
+TEST(TensorShapeTest, FirstStaticOnDynamic) {
+  TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.first<0>(), TensorShape<DynamicDimensions>());
+  ASSERT_EQ(ts.first<1>(), TensorShape<DynamicDimensions>(1));
+  ASSERT_EQ(ts.first<2>(), TensorShape<DynamicDimensions>(1, 2));
+  ASSERT_EQ(ts.first<3>(), TensorShape<DynamicDimensions>(1, 2, 3));
+  ASSERT_EQ(ts.first<4>(), TensorShape<DynamicDimensions>(1, 2, 3, 4));
+  ASSERT_EQ(ts.first<5>(), TensorShape<DynamicDimensions>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, LastStaticOnDynamic) {
+  TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.last<0>(), TensorShape<DynamicDimensions>());
+  ASSERT_EQ(ts.last<1>(), TensorShape<DynamicDimensions>(5));
+  ASSERT_EQ(ts.last<2>(), TensorShape<DynamicDimensions>(4, 5));
+  ASSERT_EQ(ts.last<3>(), TensorShape<DynamicDimensions>(3, 4, 5));
+  ASSERT_EQ(ts.last<4>(), TensorShape<DynamicDimensions>(2, 3, 4, 5));
+  ASSERT_EQ(ts.last<5>(), TensorShape<DynamicDimensions>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, FirstDynamicOnStatic) {
+  TensorShape<5> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.first(0), TensorShape<0>());
+  ASSERT_EQ(ts.first(1), TensorShape<1>(1));
+  ASSERT_EQ(ts.first(2), TensorShape<2>(1, 2));
+  ASSERT_EQ(ts.first(3), TensorShape<3>(1, 2, 3));
+  ASSERT_EQ(ts.first(4), TensorShape<4>(1, 2, 3, 4));
+  ASSERT_EQ(ts.first(5), TensorShape<5>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, LastDynamicOnStatic) {
+  TensorShape<5> ts(1, 2, 3, 4, 5);
+  ASSERT_EQ(ts.last(0), TensorShape<0>());
+  ASSERT_EQ(ts.last(1), TensorShape<1>(5));
+  ASSERT_EQ(ts.last(2), TensorShape<2>(4, 5));
+  ASSERT_EQ(ts.last(3), TensorShape<3>(3, 4, 5));
+  ASSERT_EQ(ts.last(4), TensorShape<4>(2, 3, 4, 5));
+  ASSERT_EQ(ts.last(5), TensorShape<5>(1, 2, 3, 4, 5));
+}
+
+TEST(TensorShapeTest, FirstDynamicOnDynamic) {
   TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
   ASSERT_EQ(ts.first(0), TensorShape<DynamicDimensions>());
   ASSERT_EQ(ts.first(1), TensorShape<DynamicDimensions>(1));
@@ -283,7 +323,7 @@ TEST(TensorShapeTest, FirstDynamic) {
   ASSERT_EQ(ts.first(5), TensorShape<DynamicDimensions>(1, 2, 3, 4, 5));
 }
 
-TEST(TensorShapeTest, LastDynamic) {
+TEST(TensorShapeTest, LastDynamicOnDynamic) {
   TensorShape<DynamicDimensions> ts(1, 2, 3, 4, 5);
   ASSERT_EQ(ts.last(0), TensorShape<DynamicDimensions>());
   ASSERT_EQ(ts.last(1), TensorShape<DynamicDimensions>(5));
@@ -351,12 +391,33 @@ TEST(VolumeTest, Result) {
   ASSERT_EQ(volume(std::vector<int64_t>{1, 2, 3, 4, 5}), 1 * 2 * 3 * 4 * 5);
 }
 
-TEST(FlattenTest, Result) {
-  // todo
+TEST(FlattenTest, StaticTensorShape) {
+  auto shapes_vec = std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  auto expected = std::vector<int64_t>{1, 2, 3, 2, 3, 4, 3, 4, 5};
+  ASSERT_EQ(flatten_shapes(shapes_vec), expected);
+}
+
+TEST(FlattenTest, DynamicTensorShape) {
+  auto shapes_vec = std::vector<TensorShape<>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  auto vec_vec = std::vector<std::vector<int64_t>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  auto expected = std::vector<int64_t>{1, 2, 3, 2, 3, 4, 3, 4, 5};
+  ASSERT_EQ(flatten_shapes(shapes_vec, 3), expected);
+  ASSERT_EQ(flatten_shapes(vec_vec, 3), expected);
 }
 
 TEST(CalculateOffsetsTest, Result) {
-  // todo
+  TensorListShape<3> tls_static({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<> tls_dynamic(
+      std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}}, 3);
+  auto static_offs = calculate_offsets(tls_static);
+  auto dynamic_offs = calculate_offsets(tls_dynamic);
+  auto expected = std::vector<ptrdiff_t>{0, 6, 30, 90};
+  ASSERT_EQ(static_offs, expected);
+  ASSERT_EQ(dynamic_offs, expected);
+}
+
+TEST(TensorListShape, IsUniform) {
+
 }
 
 TEST(TensorTest, WontCompile) {
