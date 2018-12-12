@@ -32,7 +32,7 @@ std::string av_err2str(int errnum) {
 }
 }
 
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
   return stream->codecpar;
 }
@@ -136,7 +136,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
         filtername = "hevc_mp4toannexb";
       }
 
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
       auto bsf = av_bsf_get_by_name(filtername);
       if (!bsf) {
         DALI_FAIL("Error finding bit stream filter.");
@@ -299,7 +299,7 @@ void VideoLoader::read_file() {
 
       if (file.bsf_ctx_ && pkt->size > 0) {
         int ret;
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
         auto raw_filtered_pkt = AVPacket{};
 
         if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {

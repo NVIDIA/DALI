@@ -44,7 +44,7 @@ av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
 }
 
 namespace dali {
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
 #else
 auto codecpar(AVStream* stream) -> decltype(stream->codec);
@@ -59,7 +59,7 @@ struct OpenFile {
   int vid_stream_idx_;
   int last_frame_;
 
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
   av_unique_ptr<AVBSFContext> bsf_ctx_;
 #else
   struct BSFDeleter {
