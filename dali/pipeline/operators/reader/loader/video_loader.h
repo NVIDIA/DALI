@@ -103,7 +103,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
-      count_(spec.GetArgument<int>("count")),
+      count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
       height_(0),
       width_(0),
@@ -112,7 +112,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       codec_id_(0),
       done_(false) {
-      if (step_ == -1)
+      if (step_ < 0)
         step_ = count_;
   }
 
@@ -132,7 +132,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
       for (int s = 0; s < frame_count; s += step_) {
-        frame_starts_.push_back(std::make_pair(i, s));
+        frame_starts_.emplace_back(i, s);
       }
     }
 

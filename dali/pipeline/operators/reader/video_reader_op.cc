@@ -29,18 +29,18 @@ DALI_SCHEMA(VideoReader)
   .DocStr(R"code(
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
 The video codecs can be contained in most of container file formats. FFmpeg is used to parse video containers.
-Returns a batch of sequences of `count` frames of shape [N, S, H, W, C] (N being the batch size and S the
+Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
 number of frames).)code")
   .NumInput(0)
   .NumOutput(1)
   .AddArg("filenames",
       R"code(File names of the video files to load.)code",
       DALI_STRING_VEC)
-  .AddArg("count",
+  .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
       DALI_INT32)
   .AddOptionalArg("step",
-      R"code(Frame interval between each sequence.)code",
+      R"code(Frame interval between each sequence (if `step` < 0, `step` is set to `sequence_length`).)code",
       -1)
   .AddOptionalArg("scale",
       R"code(Rescaling factor of height and width.)code",
