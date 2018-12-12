@@ -33,6 +33,8 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   output_names_ = output_names;
   graph_ = graph;
 
+  DeviceGuard g(device_id_);
+
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
   PruneUnusedGraphNodes();
@@ -74,8 +76,9 @@ void Executor::RunCPU() {
   free_queue_.pop();
   lock.unlock();
 
-  // Run the support ops
+  DeviceGuard g(device_id_);
 
+  // Run the support ops
   try {
     WorkspaceBlob &wsb = wss_[queue_idx];
     for (int i = 0; i < graph_->NumSupportOp(); ++i) {
@@ -136,6 +139,7 @@ void Executor::RunMixed() {
   int queue_idx = mixed_work_queue_.front();
   mixed_work_queue_.pop();
   lock.unlock();
+  DeviceGuard g(device_id_);
 
   WorkspaceBlob &wsb = wss_[queue_idx];
 
@@ -173,6 +177,7 @@ void Executor::RunGPU() {
   int queue_idx = gpu_work_queue_.front();
   gpu_work_queue_.pop();
   gpu_lock.unlock();
+  DeviceGuard g(device_id_);
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -267,6 +272,7 @@ void Executor::Outputs(DeviceWorkspace *ws) {
 
 void Executor::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
+  DeviceGuard g(device_id_);
   ws->Clear();
 
   if (exec_error_) {
@@ -371,6 +377,8 @@ void Executor::PruneUnusedGraphNodes() {
 }
 
 void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
+
   // Clear any old data setup
   wsb->Clear();
 
@@ -570,6 +578,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
 void Executor::PresizeData(WorkspaceBlob *wsb) {
   TimeRange tr("[Executor] PresizeData");
+  DeviceGuard g(device_id_);
   // Note: At some point our graph has source nodes that
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
@@ -620,6 +629,7 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
 }
 
 void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
   auto mixed_op_stream = stream_pool_.GetStream();
   for (int i = 0; i < graph_->NumMixedOp(); ++i) {
     // We assign unique stream to mixed ops.
@@ -655,6 +665,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
 }
 
 void Executor::SetupOutputQueuesForGraph() {
+  DeviceGuard g(device_id_);
   // Allocate output TensorList pools for each output
   for (auto &name : output_names_) {
     auto tensor_meta = graph_->TensorSourceMeta(name);
@@ -699,6 +710,7 @@ void Executor::SetupOutputQueuesForGraph() {
 }
 
 void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
   // For each output, we need to hookup the next buffer
   // to the desired output workspaces, and also the
   // input workspaces of later ops that use them
