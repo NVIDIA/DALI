@@ -337,8 +337,8 @@ struct TensorListShape<DynamicDimensions> {
     return out;
   }
 
-  span<int64_t> tensor_shape_span(int64_t sample) const {
-    return {&shapes[sample * sample_dim()], static_cast<size_t>(sample_dim())};
+  span<const int64_t> tensor_shape_span(int64_t sample) const {
+    return {&shapes[sample * sample_dim()], static_cast<ptrdiff_t>(sample_dim())};
   }
 
   TensorShape<DynamicDimensions> operator[](int64_t sample) const {
