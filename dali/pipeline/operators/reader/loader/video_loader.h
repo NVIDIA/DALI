@@ -200,7 +200,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::thread thread_file_reader_;
 
   // pair -> (filename index, frame index)
-  std::vector<std::pair<int,int>> frame_starts_;
+  std::vector<std::pair<int, int>> frame_starts_;
   Index current_frame_idx_;
 
   volatile bool done_;
