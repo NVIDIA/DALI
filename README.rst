@@ -141,6 +141,7 @@ Prerequisites
      --enable-demuxer=mov,matroska \
      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
      make
+   sudo make install
 
 Get the DALI source
 ^^^^^^^^^^^^^^^^^^^
