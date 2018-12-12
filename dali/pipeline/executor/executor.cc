@@ -377,9 +377,10 @@ void Executor::PruneUnusedGraphNodes() {
 }
 
 void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
+
   // Clear any old data setup
   wsb->Clear();
-  DeviceGuard g(device_id_);
 
   // Create workspaces for each operator
   wsb->cpu_op_data.resize(graph_->NumCPUOp());
