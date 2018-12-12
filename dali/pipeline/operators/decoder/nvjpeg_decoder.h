@@ -194,6 +194,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                      info.widths, info.heights);
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
+        auto file_name = in.GetSourceInfo();
         try {
           const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
           const auto dims = image->GetImageDims();
@@ -201,7 +202,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           info.widths[0] = std::get<1>(dims);
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
-          DALI_FAIL("Unsupported image format.");
+          DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
         // Handle errors
@@ -352,7 +353,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                     cudaStream_t stream,
                     string file_name) {
     if (!info.nvjpeg_support) {
-      OCVFallback(data, in_size, output, stream);
+      OCVFallback(data, in_size, output, stream, file_name);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
@@ -363,12 +364,23 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     out_desc.pitch[0] = GetOutputPitch(output_type_) * info.widths[0];
 
     // Huffman Decode
-    NVJPEG_CALL_EX(nvjpegDecodePhaseOne(handle,
+    nvjpegStatus_t ret = nvjpegDecodePhaseOne(handle,
           state,
           data,
           in_size,
           GetFormat(output_type_),
-          stream), file_name);
+          stream);
+
+    // If image is somehow not supported try hostdecoder
+    if (ret != NVJPEG_STATUS_SUCCESS) {
+      if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED) {
+        OCVFallback(data, in_size, output, stream, file_name);
+        CUDA_CALL(cudaStreamSynchronize(stream));
+        return;
+      } else {
+        NVJPEG_CALL_EX(ret, file_name);
+      }
+    }
 
     // Ensure previous GPU work is finished
     CUDA_CALL(cudaStreamSynchronize(stream));
@@ -393,7 +405,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                               cudaStream_t stream,
                               string file_name) {
     if (!info.nvjpeg_support) {
-      OCVFallback(data, in_size, output, stream);
+      OCVFallback(data, in_size, output, stream, file_name);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
@@ -411,7 +423,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
    * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
    */
   void OCVFallback(const uint8_t* data, int size,
-                   uint8_t *decoded_device_data, cudaStream_t s) {
+                   uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
     const int c = (output_type_ == DALI_GRAY) ? 1 : 3;
     auto decode_type = (output_type_ == DALI_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE \
                                                    : CV_LOAD_IMAGE_COLOR;
@@ -420,6 +432,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                   CV_8UC1,
                   reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
     cv::Mat tmp = cv::imdecode(input, decode_type);
+
+    if (tmp.data == nullptr) {
+      DALI_FAIL("Unsupported image type: " + file_name);
+    }
 
     // Transpose BGR -> RGB if needed
     if (output_type_ == DALI_RGB) {

@@ -17,6 +17,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <tuple>
+#include <memory>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
@@ -40,6 +41,7 @@ class HostDecoder : public Operator<CPUBackend> {
   void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
     auto output = ws->Output<CPUBackend>(idx);
+    auto file_name = input.GetSourceInfo();
 
     // Verify input
     DALI_ENFORCE(input.ndim() == 1,
@@ -47,8 +49,13 @@ class HostDecoder : public Operator<CPUBackend> {
     DALI_ENFORCE(IsType<uint8>(input.type()),
                  "Input must be stored as uint8 data.");
 
-    auto img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
-    img->Decode();
+    std::unique_ptr<Image> img;
+    try {
+      img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
+      img->Decode();
+    } catch (std::runtime_error &e) {
+      DALI_FAIL(e.what() + "File: " + file_name);
+    }
     const auto decoded = img->GetImage();
     const auto hwc = img->GetImageDims();
     const auto h = std::get<0>(hwc);
