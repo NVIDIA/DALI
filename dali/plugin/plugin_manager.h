@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ class DLL_PUBLIC PluginManager {
  public:
     static DLL_PUBLIC PluginManager& Instance();
 
+    DISABLE_COPY_MOVE_ASSIGN(PluginManager);
+
     /**
      * @brief Load plugin library
      * @remarks Will invoke dlopen()
@@ -35,6 +37,7 @@ class DLL_PUBLIC PluginManager {
     DLL_PUBLIC void LoadLibrary(const std::string& lib_path);
 
  private:
+    PluginManager() = default;
     ~PluginManager();
 
     using LibraryHandle = void*;

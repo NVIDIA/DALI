@@ -117,10 +117,6 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 }
 
 void daliLoadLibrary(const char* lib_path) {
-  try {
     dali::PluginManager::Instance().LoadLibrary(lib_path);
-  } catch( const std::exception& e ) {
-    // TODO(janton): what to do when an error occurs?
-  }
 }
 

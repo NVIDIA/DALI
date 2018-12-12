@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,9 +35,11 @@ PluginManager::~PluginManager() {
 }
 
 void PluginManager::LoadLibrary(const std::string& lib_path) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    void* handle = dlopen(lib_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+    // dlopen is thread safe
+    LibraryHandle handle = dlopen(lib_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
     DALI_ENFORCE(handle != nullptr, "Failed to load library: " + std::string(dlerror()));
+
+    std::lock_guard<std::mutex> lock(mutex_);
     handles_.push_back(handle);
 }
 

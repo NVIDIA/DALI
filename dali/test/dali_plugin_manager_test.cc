@@ -14,10 +14,10 @@
 
 #include <gtest/gtest.h>
 #include "dali/plugin/plugin_manager.h"
-
 #include "dali/test/dali_test_matching.h"
+#include "dali/test/dali_test_utils.h"
 
-#define DUMMY_PLUGIN_LIB TEST_PLUGINS_BINARY_DIR "/dummy/libcustomdummyplugin.so"
+const std::string DUMMY_PLUGIN_LIB = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
 
 namespace other_ns {
 

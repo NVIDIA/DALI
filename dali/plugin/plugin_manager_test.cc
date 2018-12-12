@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,26 +14,25 @@
 
 #include <gtest/gtest.h>
 #include "dali/plugin/plugin_manager.h"
+#include "dali/test/dali_test_utils.h"
 
-#define DUMMY_PLUGIN_LIB TEST_PLUGINS_BINARY_DIR "/dummy/libcustomdummyplugin.so"
+const std::string NON_EXISTING_LIB = "not_a_dali_plugin.so";
+const std::string DUMMY_PLUGIN_LIB = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
 
 TEST(PluginManagerTest, LoadLibraryFail) {
-    const std::string NOT_EXISTING_LIBRARY{ "libunexisting.so" };
     EXPECT_THROW(
-        dali::PluginManager::Instance().LoadLibrary(NOT_EXISTING_LIBRARY),
+        dali::PluginManager::Instance().LoadLibrary(NON_EXISTING_LIB),
         std::runtime_error);
 }
 
 TEST(PluginManagerTest, LoadLibraryOK) {
-    const std::string EXISTING_LIBRARY{ DUMMY_PLUGIN_LIB };
     EXPECT_NO_THROW(
-        dali::PluginManager::Instance().LoadLibrary(EXISTING_LIBRARY) );
+        dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB) );
 }
 
 TEST(PluginManagerTest, LoadingSameLibraryTwiceShouldBeOk) {
-    const std::string EXISTING_LIBRARY{ DUMMY_PLUGIN_LIB };
     for (int i = 0; i < 2; i++) {
         EXPECT_NO_THROW(
-            dali::PluginManager::Instance().LoadLibrary(EXISTING_LIBRARY) );
+            dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB) );
     }
 }

@@ -13,50 +13,89 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.plugin_manager as plugin_manager
 import unittest
+import os
+import numpy as np
 
-image_dir = "../docs/examples/images"
-batch_size = 128
+test_bin_dir = os.path.dirname(dali.__file__) + "/test"
+batch_size = 4
+W = 800
+H = 600
+C = 3
+
+class ExternalInputIterator(object):
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        batch = []
+        labels = []
+        for _ in range(self.batch_size):
+            batch.append( np.array( np.random.rand(H, W, C) * 255, dtype = np.uint8 ) )
+            batch.append( np.array( np.random.rand(1) * 10, dtype = np.uint8))
+            self.i = (self.i + 1) % self.n
+        return (batch, labels)
+    
+    next = __next__
+
+eii = ExternalInputIterator(batch_size)
+iterator = iter(eii)
 
 class CustomPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
-            super(CustomPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.FileReader(file_root = image_dir)
-            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            super(CustomPipeline, self).__init__(batch_size, num_threads, device_id)        
+            self.inputs = ops.ExternalSource()
             self.custom_dummy = ops.CustomDummy( device = "gpu")
 
         def define_graph(self):
-            inputs, labels = self.input(name="Reader")
-            images = self.decode(inputs)
-            custom_dummy_out = self.custom_dummy(images.gpu())
-            return (images, custom_dummy_out)
+            self.images = self.inputs()
+            custom_dummy_out = self.custom_dummy(self.images.gpu())
+            return (self.images, custom_dummy_out)
 
         def iter_setup(self):
-            pass
+            (images, labels) = iterator.next()
+            self.feed_input(self.images, images)
 
 class TestLoadedPlugin(unittest.TestCase):
     def test_load_unexisting_library(self):
         with self.assertRaises(RuntimeError):
-            plugin_manager.load_library("unexisting.so")
+            plugin_manager.load_library("not_a_dali_plugin.so")
+
+    def test_load_existing_but_not_a_library(self):
+        with self.assertRaises(RuntimeError):
+            plugin_manager.load_library( test_bin_dir + "/dali_test.bin" )
 
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
             print ops.CustomDummy
-        plugin_manager.load_library("./dali/test/plugins/dummy/libcustomdummyplugin.so")
+        plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so" )
         print ops.CustomDummy
 
     def test_pipeline_including_custom_plugin(self):
-        plugin_manager.load_library("./dali/test/plugins/dummy/libcustomdummyplugin.so")
+        plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so")
         pipe = CustomPipeline(batch_size, 1, 0)
         pipe.build()
         pipe_out = pipe.run()
         print pipe_out
-        images, labels = pipe_out
+        images, output = pipe_out
+        output_cpu = output.asCPU()
         assert len(images) == batch_size
-        assert len(labels) == batch_size
+        assert len(output_cpu) == batch_size
+
+        for i in range(len(images)):
+            img = images.at(i)
+            out = output_cpu.at(i)
+            assert img.shape == out.shape
+            np.testing.assert_array_equal( img, out )
 
 if __name__ == '__main__':
     unittest.main()

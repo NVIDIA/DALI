@@ -108,9 +108,7 @@ add_custom_command(
 # Build test suite
 ################################################
 if (BUILD_TEST)
-  # define directory for test plugins
-  set(TEST_PLUGINS_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/test/plugins)
-  add_definitions( "-DTEST_PLUGINS_BINARY_DIR=\"${TEST_PLUGINS_BINARY_DIR}\"" )
+  set(TEST_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
 
   # get all test srcs
   add_subdirectory(test)
@@ -126,7 +124,7 @@ if (BUILD_TEST)
   target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS} ${dali_lib} gtest)
 
   set_target_properties(${test_main_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 endif()
 
 

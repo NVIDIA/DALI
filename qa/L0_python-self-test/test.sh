@@ -8,7 +8,9 @@ cd dali/test/python
 
 test_body() {
     # test code
-    nosetests --verbose test_pipeline.py
+    for test_script in $(ls *.py); do
+        nosetests --verbose $test_script
+    done
 }
 
 source ../../../qa/test_template.sh
