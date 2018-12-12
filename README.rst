@@ -73,6 +73,8 @@ Prerequisites
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
+.. |ffmpeg link| replace:: **FFmpeg 3.4.2**
+.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
 .. |opencv link| replace:: **OpenCV 3**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
@@ -98,6 +100,8 @@ Prerequisites
    | |cmake link|_ or later                 |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below*                                              |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |opencv link|_ or later                | | We recommend using version 3.4+, however previous versions are also compatible.           |
    |                                        | | *OpenCV 2.x compatibility is provided unofficially*                                       |
