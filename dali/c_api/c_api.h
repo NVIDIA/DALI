@@ -90,6 +90,11 @@ extern "C" {
    * @brief Delete the pipeline object.
    */
   DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle* pipe_handle);
+
+  /**
+   * @brief Load plugin library 
+   */
+  DLL_PUBLIC void daliLoadLibrary(const char* lib_path);
 }
 
 #endif  // DALI_C_API_C_API_H_

@@ -108,6 +108,10 @@ add_custom_command(
 # Build test suite
 ################################################
 if (BUILD_TEST)
+  # define directory for test plugins
+  set(TEST_PLUGINS_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/test/plugins)
+  add_definitions( "-DTEST_PLUGINS_BINARY_DIR=\"${TEST_PLUGINS_BINARY_DIR}\"" )
+
   # get all test srcs
   add_subdirectory(test)
 

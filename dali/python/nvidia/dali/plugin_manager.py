@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from pkg_resources import get_distribution, DistributionNotFound
+from nvidia.dali import backend as b
+from nvidia.dali import ops as ops
 
-from . import ops
-from . import pipeline
-from . import tensor
-from . import tfrecord
-from . import types
-from . import plugin_manager
+def load_library(library_path):
+    """Loads a DALI plugin, containing one or more operators.
 
-try:
-    __version__ = get_distribution('nvidia-dali').version
-except:
-    __version__ = None
+    Args:
+        library_path: Path to the plugin library (relative or absolute)
+    
+    Returns:
+        None.
+
+    Raises:
+        RuntimeError: when unable to load the library.
+    """
+    b.LoadLibrary(library_path)
+    ops.Reload()

@@ -240,7 +240,7 @@ DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
   static int ANONYMIZE_VARIABLE(OpName) =                       \
     DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();               \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,                 \
-      device##Operator, dali::OperatorBase, #device)
+      device##Operator, ::dali::OperatorBase, #device)
 
 class ResizeParamDescr;
 

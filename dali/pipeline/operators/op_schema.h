@@ -415,8 +415,8 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
   int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
     return 42;                                              \
   }                                                         \
-  static OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
-    &SchemaRegistry::RegisterSchema(#OpName)
+  static ::dali::OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
+    &::dali::SchemaRegistry::RegisterSchema(#OpName)
 
 #define DALI_SCHEMA(OpName)                            \
       DALI_SCHEMA_REG(OpName)

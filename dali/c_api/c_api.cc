@@ -19,6 +19,7 @@
 #include "dali/c_api/c_api.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
+#include "dali/plugin/plugin_manager.h"
 
 void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     const char *serialized_pipeline,
@@ -113,5 +114,13 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   delete pipeline;
   pipe_handle->ws = nullptr;
   pipe_handle->pipe = nullptr;
+}
+
+void daliLoadLibrary(const char* lib_path) {
+  try {
+    dali::PluginManager::Instance().LoadLibrary(lib_path);
+  } catch( const std::exception& e ) {
+    // TODO(janton): what to do when an error occurs?
+  }
 }
 

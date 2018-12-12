@@ -27,6 +27,7 @@
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/copy.h"
+#include "dali/plugin/plugin_manager.h"
 
 namespace dali {
 namespace python {
@@ -470,6 +471,11 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // DALI Init function
   m.def("Init", &DALIInit);
+
+  m.def("LoadLibrary",
+        [](const std::string& lib_path){
+            PluginManager::Instance().LoadLibrary(lib_path);
+        });
 
   // Types
   py::module types_m = m.def_submodule("types");

@@ -249,20 +249,25 @@ def python_op_factory(name, op_device = "cpu"):
     Operator.__name__ = str(name)
     return Operator
 
-_cpugpu_ops = (set(b.RegisteredCPUOps())
-            .union(set(b.RegisteredGPUOps()))
-            .union(set(b.RegisteredMixedOps())))
+def _load_ops():
+    _cpugpu_ops = (set(b.RegisteredCPUOps())
+                .union(set(b.RegisteredGPUOps()))
+                .union(set(b.RegisteredMixedOps())))
 
-_cpugpu_ops -= _blacklisted_ops
+    _cpugpu_ops -= _blacklisted_ops
 
-_support_ops = set(b.RegisteredSupportOps())
-for op_name in _cpugpu_ops:
-    setattr(sys.modules[__name__], op_name,
-            python_op_factory(op_name, op_device = "cpu"))
-# add support ops
-for op_name in _support_ops:
-    setattr(sys.modules[__name__], op_name,
-            python_op_factory(op_name, op_device = "support"))
+    _support_ops = set(b.RegisteredSupportOps())
+    for op_name in _cpugpu_ops:
+        setattr(sys.modules[__name__], op_name,
+                python_op_factory(op_name, op_device = "cpu"))
+    # add support ops
+    for op_name in _support_ops:
+        setattr(sys.modules[__name__], op_name,
+                python_op_factory(op_name, op_device = "support"))
+_load_ops()
+
+def Reload():
+    _load_ops()
 
 # custom wrappers around ops
 
