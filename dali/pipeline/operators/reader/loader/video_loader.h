@@ -131,7 +131,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
-      for (int s = 0; s < frame_count; s += step_) {
+      for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
         frame_starts_.emplace_back(i, s);
       }
     }
