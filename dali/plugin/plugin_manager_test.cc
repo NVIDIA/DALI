@@ -16,8 +16,12 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/test/dali_test_utils.h"
 
-const std::string NON_EXISTING_LIB = "not_a_dali_plugin.so";
-const std::string DUMMY_PLUGIN_LIB = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
+const char NON_EXISTING_LIB[] = "not_a_dali_plugin.so";
+
+static const std::string& DUMMY_PLUGIN_LIB() {
+    static const std::string plugin_lib = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
+    return plugin_lib;
+}
 
 TEST(PluginManagerTest, LoadLibraryFail) {
     EXPECT_THROW(
@@ -27,12 +31,12 @@ TEST(PluginManagerTest, LoadLibraryFail) {
 
 TEST(PluginManagerTest, LoadLibraryOK) {
     EXPECT_NO_THROW(
-        dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB) );
+        dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB()) );
 }
 
 TEST(PluginManagerTest, LoadingSameLibraryTwiceShouldBeOk) {
     for (int i = 0; i < 2; i++) {
         EXPECT_NO_THROW(
-            dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB) );
+            dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB()) );
     }
 }
