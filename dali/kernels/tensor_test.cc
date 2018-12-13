@@ -401,14 +401,14 @@ TEST(FlattenTest, DynamicTensorShape) {
   auto shapes_vec = std::vector<TensorShape<>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   auto vec_vec = std::vector<std::vector<int64_t>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   auto expected = std::vector<int64_t>{1, 2, 3, 2, 3, 4, 3, 4, 5};
-  ASSERT_EQ(flatten_shapes(shapes_vec, 3), expected);
-  ASSERT_EQ(flatten_shapes(vec_vec, 3), expected);
+  ASSERT_EQ(flatten_shapes(shapes_vec), expected);
+  ASSERT_EQ(flatten_shapes(vec_vec), expected);
 }
 
 TEST(CalculateOffsetsTest, Result) {
   TensorListShape<3> tls_static({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
   TensorListShape<> tls_dynamic(
-      std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}}, 3);
+      std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
   auto static_offs = calculate_offsets(tls_static);
   auto dynamic_offs = calculate_offsets(tls_dynamic);
   auto expected = std::vector<ptrdiff_t>{0, 6, 30, 90};
@@ -418,6 +418,38 @@ TEST(CalculateOffsetsTest, Result) {
 
 TEST(TensorListShape, IsUniform) {
   // TensorListShape
+}
+
+TEST(TensorListShape, FirstStatic) {
+  TensorListShape<3> tls_static({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<> tls_dynamic(
+      std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+
+  TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
+  TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{1}, {2}, {3}});
+  TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{1, 2}, {2, 3}, {3, 4}});
+  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+
+  auto first_0 = tls_static.first<0>();
+  auto first_1 = tls_static.first<1>();
+  auto first_2 = tls_static.first<2>();
+  auto first_3 = tls_static.first<3>();
+  ASSERT_EQ(first_0, expected_static_0);
+  ASSERT_EQ(first_1, expected_static_1);
+  ASSERT_EQ(first_2, expected_static_2);
+  ASSERT_EQ(first_3, expected_static_3);
+}
+
+TEST(TensorListShape, ToStatic) {
+  TensorListShape<> tls_dynamic(
+      std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  auto tls_static = tls_dynamic.to_static<3>();
+  ASSERT_EQ(tls_static, tls_dynamic);
+  static_assert(std::is_same<decltype(tls_static), TensorListShape<3>>::value, "Wrong type");
+  auto copy(tls_dynamic);
+  auto moved_static = std::move(copy).to_static<3>();
+  ASSERT_EQ(moved_static, tls_dynamic);
+  static_assert(std::is_same<decltype(moved_static), TensorListShape<3>>::value, "Wrong type");
 }
 
 TEST(TensorTest, WontCompile) {

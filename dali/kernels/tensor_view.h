@@ -115,9 +115,8 @@ struct TensorListView;
 template <typename Backend, typename DataType>
 struct TensorListView<Backend, DataType, DynamicDimensions> {
   TensorListView() : data(nullptr), shape(), offsets() {}
-  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes,
-                 int uniform_sample_ndim)
-      : data(data), shape(shapes, uniform_sample_ndim), offsets(calculate_offsets(shape)) {}
+  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
+      : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
 
   TensorView<Backend, DataType, DynamicDimensions> operator[](int64_t sample) const {
     return {data + offsets[sample], shape[sample]};
