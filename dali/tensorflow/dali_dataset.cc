@@ -123,6 +123,12 @@ class DALIDatasetOp : public DatasetOpKernel {
     string DebugString() const override { return "DALIDatasetOp::Dataset"; }
 
    protected:
+    Status AsGraphDefInternal(SerializationContext* ctx,
+                              DatasetGraphDefBuilder* b,
+                              Node** output) const override {
+      return Status::OK();
+    }
+
     const std::vector<daliPipelineHandle>* pipe_handles_;
     const std::vector<PartialTensorShape> shapes_;
     const DataTypeVector* dtypes_;
