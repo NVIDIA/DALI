@@ -140,7 +140,7 @@ NvDecoder::~NvDecoder() {
     try {
       thread_convert_.join();
     } catch (const std::system_error& e) {
-      DALI_FAIL("System error joining thread: " + e.what());
+        // We should not throw here
     }
   }
 }
