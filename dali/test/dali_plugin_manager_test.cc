@@ -17,7 +17,7 @@
 #include "dali/test/dali_test_matching.h"
 #include "dali/test/dali_test_utils.h"
 
-static const std::string& DUMMY_PLUGIN_LIB() {
+static const std::string& DummyPluginLibName() {
     static const std::string plugin_lib = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
     return plugin_lib;
 }
@@ -32,7 +32,7 @@ typedef ::testing::Types<::dali::RGB> Types;
 TYPED_TEST_CASE(DummyTest, Types);
 
 static void LoadDummyPlugin() {
-  ::dali::PluginManager::Instance().LoadLibrary(DUMMY_PLUGIN_LIB());
+  ::dali::PluginManager::Instance().LoadLibrary(DummyPluginLibName());
 }
 
 TYPED_TEST(DummyTest, PluginShouldBeUsable) {
