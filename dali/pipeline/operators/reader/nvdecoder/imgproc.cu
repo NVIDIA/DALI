@@ -50,6 +50,7 @@ __device__ T convert(const float x) {
     return static_cast<T>(x);
 }
 
+#if 0
 template<>
 __device__ half convert<half>(const float x) {
     return __float2half(x);
@@ -59,6 +60,7 @@ template<>
 __device__ uint8_t convert<uint8_t>(const float x) {
     return static_cast<uint8_t>(roundf(x));
 }
+#endif
 
 template<typename YUV_T, typename RGB_T, bool Normalized = false>
 __device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
