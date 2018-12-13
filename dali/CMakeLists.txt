@@ -100,7 +100,7 @@ add_custom_target(install_headers ALL
 add_custom_command(
     TARGET install_headers
     COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
-    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${CMAKE_BINARY_DIR}/include/dali\\2,'
+    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/include/dali\\2,'
     | xargs -n 2 install -D
   )
 

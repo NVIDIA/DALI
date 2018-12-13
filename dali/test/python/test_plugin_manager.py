@@ -44,7 +44,7 @@ class ExternalInputIterator(object):
             batch.append( np.array( np.random.rand(1) * 10, dtype = np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
-    
+
     next = __next__
 
 eii = ExternalInputIterator(batch_size)
@@ -52,7 +52,7 @@ iterator = iter(eii)
 
 class CustomPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
-            super(CustomPipeline, self).__init__(batch_size, num_threads, device_id)        
+            super(CustomPipeline, self).__init__(batch_size, num_threads, device_id)
             self.inputs = ops.ExternalSource()
             self.custom_dummy = ops.CustomDummy( device = "gpu")
 
@@ -76,16 +76,16 @@ class TestLoadedPlugin(unittest.TestCase):
 
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
-            print ops.CustomDummy
+            print(ops.CustomDummy)
         plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so" )
-        print ops.CustomDummy
+        print(ops.CustomDummy)
 
     def test_pipeline_including_custom_plugin(self):
         plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so")
         pipe = CustomPipeline(batch_size, 1, 0)
         pipe.build()
         pipe_out = pipe.run()
-        print pipe_out
+        print(pipe_out)
         images, output = pipe_out
         output_cpu = output.asCPU()
         assert len(images) == batch_size

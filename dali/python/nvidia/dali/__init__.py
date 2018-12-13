@@ -21,6 +21,7 @@ from . import tensor
 from . import tfrecord
 from . import types
 from . import plugin_manager
+from . import sysconfig
 
 try:
     __version__ = get_distribution('nvidia-dali').version
