@@ -25,35 +25,7 @@
 
 namespace tensor {
 
-// template <typename T>
-// constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T
-// &) { return 1; }
 
-// template <typename T, size_t N>
-// constexpr int ShapeDim(T (&)[N]) { return int(N); }
-
-// template <typename T>
-// constexpr int ShapeDim(const T &t) {
-//   return int(t.size());
-// }
-
-// /// @brief Calculates flat index of a given element in the tensor
-// /// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
-// template <typename Shape, typename SamplePos>
-// ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
-//   ptrdiff_t ofs = pos[0];
-//   const int m = ShapeDim(pos);
-//   const int n = ShapeDim(shape);
-//   int i;
-//   for (i = 1; i < m; i++) {
-//     ofs *= shape[i];
-//     ofs += pos[i];
-//   }
-//   for (; i < n; i++) {
-//     ofs *= shape[i];
-//   }
-//   return ofs;
-// }
 
 /// @brief Returns the product of all elements in shape
 /// @param shape - shape of a tensor whose elements we count
@@ -409,6 +381,10 @@ struct TensorListShapeBase {
   };
   iterator begin() const { return {0, static_cast<const Derived *>(this)}; }
   iterator end() const { return {get_size(), static_cast<const Derived *>(this)}; }
+
+  decltype(shapes.data()) data() {
+    return shapes.data();
+  }
 
  protected:
   int get_size() const { return static_cast<const Derived *>(this)->size(); }

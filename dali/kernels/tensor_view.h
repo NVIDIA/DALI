@@ -19,6 +19,39 @@
 
 namespace tensor {
 
+template <typename T>
+constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T &) {
+  return 1;
+}
+
+template <typename T, size_t N>
+constexpr int ShapeDim(T (&)[N]) {
+  return int(N);
+}
+
+template <typename T>
+constexpr int ShapeDim(const T &t) {
+  return int(t.size());
+}
+
+/// @brief Calculates flat index of a given element in the tensor
+/// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
+template <typename Shape, typename SamplePos>
+ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
+  ptrdiff_t ofs = pos[0];
+  const int m = ShapeDim(pos);
+  const int n = ShapeDim(shape);
+  int i;
+  for (i = 1; i < m; i++) {
+    ofs *= shape[i];
+    ofs += pos[i];
+  }
+  for (; i < n; i++) {
+    ofs *= shape[i];
+  }
+  return ofs;
+}
+
 struct EmptyBackendTag {};
 
 template <typename Backend, typename DataType, int ndim>
@@ -83,6 +116,16 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
   // DataType *at(int64_t idx0, Indices &&... idx) const {
   //   return data + CalcOfffset(shape, {idx0, (static_cast<int64_t>(idx))...});
   // }
+
+  template <typename... Indices>
+  DataType operator()(int64_t idx0, Indices &&... idx) const {
+    return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
+  }
+
+  template <typename Offset>
+  DataType operator()(const Offset &pos) const {
+    return data + CalcOfffset(shape, pos);
+  }
 };
 
 template <typename Backend, typename DataType, int ndim>
@@ -107,6 +150,16 @@ struct TensorView {
   // DataType *at(int64_t idx0, Indices &&... idx) const {
   //   return data + CalcOfffset(shape, {idx0, (static_cast<int64_t>(idx))...});
   // }
+
+  template <typename... Indices>
+  DataType operator()(int64_t idx0, Indices &&... idx) const {
+    return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
+  }
+
+  template <typename Offset>
+  DataType operator()(const Offset &pos) const {
+    return data + CalcOfffset(shape, pos);
+  }
 };
 
 template <typename Backend, typename DataType, int sample_ndim>
@@ -118,7 +171,7 @@ struct TensorListView<Backend, DataType, DynamicDimensions> {
   TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
       : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
 
-  TensorView<Backend, DataType, DynamicDimensions> operator[](int64_t sample) const {
+  TensorView<Backend, DataType, DynamicDimensions> operator[](int sample) const {
     return {data + offsets[sample], shape[sample]};
   }
 
@@ -146,7 +199,7 @@ struct TensorListView {
                  std::vector<ptrdiff_t> &&offsets)
       : data(data), shape(std::move(shape)), offsets(std::move(offsets)) {}
 
-  TensorView<Backend, DataType, sample_ndim> operator[](int64_t sample) const {
+  TensorView<Backend, DataType, sample_ndim> operator[](int sample) const {
     return {data + offsets[sample], shape[sample]};
   }
 
