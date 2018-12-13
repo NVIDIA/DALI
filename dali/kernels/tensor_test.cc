@@ -417,7 +417,7 @@ TEST(CalculateOffsetsTest, Result) {
 }
 
 TEST(TensorListShape, IsUniform) {
-
+  // TensorListShape
 }
 
 TEST(TensorTest, WontCompile) {
@@ -425,10 +425,12 @@ TEST(TensorTest, WontCompile) {
   // TensorShape<5> static_shape_more(1, 2, 3, 4, 5, 6);
   // TensorShape<DynamicDimensions>().to_static<DynamicDimensions>();
   // TensorShape<5>{TensorShape<DynamicDimensions>()};
+  // TensorShape<-2> negative;
 
   // TensorView<EmptyBackendTag, int8_t, 4>(static_cast<int*>(nullptr), {1, 2, 3, 4});
   // TensorView<EmptyBackendTag, int, 4>{TensorView<EmptyBackendTag, int, DynamicDimensions>{}};
   // TensorView<EmptyBackendTag, int, DynamicDimensions>{TensorView<EmptyBackendTag, int8_t, 4>{}};
+
 }
 
 }  // namespace tensor
