@@ -155,6 +155,9 @@ list(APPEND DALI_EXCLUDES libprotobuf.a)
 # FFmpeg
 ##################################################################
 
+include(CheckStructHasMember)
+include(CheckTypeSize)
+
 set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains FFmeg")
 
 find_package(PkgConfig REQUIRED)
@@ -162,7 +165,6 @@ foreach(m avformat avcodec avfilter avutil)
     # We do a find_library only if FFMPEG_ROOT_DIR is provided
     if(NOT FFMPEG_ROOT_DIR)
       string(TOUPPER ${m} M)
-      #pkg_check_modules(${m} REQUIRED IMPORTED_TARGET lib${m})
       pkg_check_modules(${m} REQUIRED lib${m})
       list(APPEND FFmpeg_LIBS ${m})
     else()
@@ -173,29 +175,14 @@ foreach(m avformat avcodec avfilter avutil)
       list(APPEND FFmpeg_LIBS ${FFmpeg_Lib})
       message(STATUS ${m})
     endif()
-    #list(APPEND FFmpeg_LIBS PkgConfig::${m})
 endforeach(m)
 
-# TODO check set(CMAKE_REQUIRED_INCLUDES ${avformat_INCLUDE_DIRS})
 include_directories(${avformat_INCLUDE_DIRS})
-# TODO check if set(CMAKE_REQUIRED_LIBRARIES ${avformat_LIBRARIES})
-# optional?
 list(APPEND DALI_LIBS ${avformat_LIBRARIES})
-# CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
+CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
 set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
-#check_type_size("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
-#find_library(nvcuvid_Lib nvcuvid
-#      PATHS /usr/lib
-#      PATH_SUFFIXES lib lib64 lib32
-#      NO_DEFAULT_PATH)
+CHECK_TYPE_SIZE("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
 
-# todo better way to find stubs
-find_library(cuda_Lib cuda
-      PATHS /usr/local/cuda/lib64/stubs
-      NO_DEFAULT_PATH)
-
-# we link cuda with a stub, but dynload nvcuvid (no stub provided)
-# list(APPEND DALI_LIBS ${FFmpeg_LIBS} ${cuda_Lib})
 list(APPEND DALI_LIBS ${FFmpeg_LIBS} cuda)
 
 ##################################################################
