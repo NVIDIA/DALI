@@ -65,6 +65,8 @@ REGISTER_OP("Dali")
   .Attr("prefetch_queue_depth: int = 2")
   .Output("data: dtypes")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
+  // To prevent replacing DALI op with constant tensor during TF constant folding process
+  .SetIsStateful()
   .SetShapeFn([](tf::shape_inference::InferenceContext* c) {
     std::vector<tf::PartialTensorShape> shapes;
     TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
