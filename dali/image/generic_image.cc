@@ -31,6 +31,9 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
           cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),          //NOLINT
           IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
+  if (decoded_image.data == nullptr) {
+     DALI_FAIL("Unsupported image type.");
+  }
   // if RGB needed, permute from BGR
   if (image_type == DALI_RGB) {
     cv::cvtColor(decoded_image, decoded_image, cv::COLOR_BGR2RGB);
