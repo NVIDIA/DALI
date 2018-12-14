@@ -154,10 +154,10 @@ class DALIDatasetOp : public DatasetOpKernel {
 
         for (size_t i = 0; i < output_count; i++) {
           auto shape = DaliToShape(daliShapeAt(&current_handle, i));
-
-          // TODO (pribalta): We could be able to get the correct allocator
-          //                  by setting the appropriate flags for this guy
+  
           AllocatorAttributes attrs;
+          attrs.set_on_host(false);
+          attrs.set_gpu_compatible(true);
 
           Tensor out(ctx->lib()->device()->GetAllocator(attrs),
                      dataset()->dtypes_->at(i), shape);
@@ -190,7 +190,7 @@ class DALIDatasetOp : public DatasetOpKernel {
           }
 
           // TODO (pribalta): Temporary. We _must_ copy to a GPU allocation.
-          daliCopyTensorNTo(&current_handle, dst, i, device_type_t::CPU);
+          daliCopyTensorNTo(&current_handle, dst, i, device_type_t::GPU);
           out_tensors->emplace_back(out);
         }
 
@@ -249,7 +249,21 @@ REGISTER_OP("DALIDataset")
     .Attr("num_threads: int = -1")
     .Output("handle: variant")
     .SetIsStateful()
-    .SetShapeFn(dali_shape_fn)
+    .SetShapeFn([](tensorflow::shape_inference::InferenceContext* c) {
+      std::vector<tensorflow::PartialTensorShape> shapes;
+      TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
+      for (unsigned int i = 0; i < shapes.size(); ++i) {
+        if (shapes[i].dims() > 0) {
+          tensorflow::shape_inference::ShapeHandle passed_shape;
+          TF_RETURN_IF_ERROR(
+              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
+          TF_RETURN_IF_ERROR(
+              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+          c->set_output(i, passed_shape);
+        }
+      }
+      return tensorflow::Status::OK();
+    })
     .Doc(R"doc(
 DALI Dataset plugin
 

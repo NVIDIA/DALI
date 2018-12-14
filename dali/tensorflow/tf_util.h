@@ -27,22 +27,22 @@ inline TensorShape DaliToShape(int64_t* ns) {
   return ts;
 }
 
-const auto dali_shape_fn =
-    [](tensorflow::shape_inference::InferenceContext* c) {
-      std::vector<tensorflow::PartialTensorShape> shapes;
-      TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
-      for (unsigned int i = 0; i < shapes.size(); ++i) {
-        if (shapes[i].dims() > 0) {
-          tensorflow::shape_inference::ShapeHandle passed_shape;
-          TF_RETURN_IF_ERROR(
-              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
-          TF_RETURN_IF_ERROR(
-              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
-          c->set_output(i, passed_shape);
-        }
-      }
-      return tensorflow::Status::OK();
-    };
+//const auto dali_shape_fn =
+//    [](tensorflow::shape_inference::InferenceContext* c) {
+//      std::vector<tensorflow::PartialTensorShape> shapes;
+//      TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
+//      for (unsigned int i = 0; i < shapes.size(); ++i) {
+//        if (shapes[i].dims() > 0) {
+//          tensorflow::shape_inference::ShapeHandle passed_shape;
+//          TF_RETURN_IF_ERROR(
+//              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
+//          TF_RETURN_IF_ERROR(
+//              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+//          c->set_output(i, passed_shape);
+//        }
+//      }
+//      return tensorflow::Status::OK();
+//    };
 
 }  // namespace tensorflow
 
