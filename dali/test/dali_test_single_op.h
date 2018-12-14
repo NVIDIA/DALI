@@ -439,6 +439,14 @@ class DALISingleOpTest : public DALITest {
   }
 
   template <typename T>
+  std::unique_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> *calcOutput) {
+    std::unique_ptr<TensorList<CPUBackend>> output(new TensorList<CPUBackend>());
+    output->Copy(*calcOutput, 0);
+
+    return output;
+  }
+
+  template <typename T>
   int CheckBuffers(int lenRaster, const T *img1, const T *img2, bool checkAll,
                    double *pMean = nullptr, const vector<Index> *shape = nullptr) const {
 #ifdef PIXEL_STAT_FILE
