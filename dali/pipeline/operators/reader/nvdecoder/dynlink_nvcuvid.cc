@@ -204,3 +204,8 @@ CUresult CUDAAPI cuvidInit(unsigned int Flags)
 
     return CUDA_SUCCESS;
 }
+
+bool cuvidInitChecked(unsigned int Flags) {
+    CUresult res = cuvidInit(Flags);
+    return res == CUDA_SUCCESS;
+}

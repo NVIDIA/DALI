@@ -114,7 +114,10 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
   void init() {
-    cuvidInit(0);
+    DALI_ENFORCE(cuvidInitChecked(0),
+     "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
+     "If you are running in a Docker container, please refer "
+     "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */

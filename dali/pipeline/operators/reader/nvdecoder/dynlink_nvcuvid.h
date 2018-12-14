@@ -363,6 +363,8 @@ extern tcuvidDestroyVideoParser              *cuvidDestroyVideoParser;
 }
 #endif /* __cplusplus */
 
+bool cuvidInitChecked(unsigned int Flags);
+
 #endif // __NVCUVID_H__
 
 
