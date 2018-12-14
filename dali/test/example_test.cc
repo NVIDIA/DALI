@@ -4,26 +4,49 @@ namespace dali {
 
 namespace testing {
 
-class MyOperatorTest : public DaliOperatorTest<GPUBackend, CPUBackend> {
- protected:
-  OperatorsGraph GenerateOperatorsGraph() const noexcept override {
-    return "MyOp";
-  };
+void ExVerify(DaliOperatorTest::Outputs<GPUBackend>, DaliOperatorTest::Outputs<GPUBackend>,
+              Arguments) { ASSERT_TRUE(false); };
 
-  std::vector<DataType<GPUBackend>> inputs;
-  std::vector<DataType<CPUBackend>> outputs;
+class ExampleOperatorTestCase : public DaliOperatorTest {
+  OperatorGraph GenerateOperatorsGraph() const noexcept override {
+    return "ExampleOp";
+  };
+ protected:
+  Inputs <CPUBackend> in_;
+  Outputs <GPUBackend> out_;
+
+
 };
 
-TEST_F(MyOperatorTest, DISABLED_MyOperatorTestCase) {
-  auto func = [](const dali::TensorList<CPUBackend> &output,
-                 const dali::TensorList<CPUBackend> &anticipated_output) -> void {
-    EXPECT_ANY_THROW(goto some_ppl_like_to_see_the_world_burn);
-    some_ppl_like_to_see_the_world_burn:;
-  };
+TEST_F(ExampleOperatorTestCase, DISABLED_ExampleTest) {
+  Inputs <CPUBackend> in;
+  Outputs <GPUBackend> out;
+  Arguments args;
 
-  OperatorArguments::Arguments args = {{"arg1",  1.0},
-                                       {"args2", 2.0}};
-  this->RunTest(inputs, args, outputs, func);
+  this->RunTest(in, out, args, [](Outputs <GPUBackend>, Outputs <GPUBackend>, Arguments) -> void {
+      ASSERT_FALSE(false);
+  });
+}
+
+
+std::vector<Arguments> args1 = {{{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}}};
+
+
+INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
+
+TEST_P(ExampleOperatorTestCase, DISABLED_ExamplePTest1) {
+
+  Verify <GPUBackend> v = ExVerify;
+  this->RunTest(in_, out_, GetParam(), v);
+}
+
+
+INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
+
+TEST_P(ExampleOperatorTestCase, DISABLED_ExamplePTest2) {
+
+  Verify <GPUBackend> v = ExVerify;
+  this->RunTest(in_, out_, GetParam(), v);
 }
 
 } // namespace testing

@@ -18,42 +18,44 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <dali/pipeline/pipeline.h>
-#include "operators_graph.h"
-#include "operator_arguments.h"
 
 namespace dali {
 
 namespace testing {
 
-template<typename InputBackend, typename OutputBackend>
-class DaliOperatorTest : public ::testing::Test {
+using Arguments = std::map<std::string, double>; // TODO: some generalization. boost::any?
 
+using OperatorGraph = std::string; // TODO: insert proper graph
+
+class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
  public:
+
   template<typename Backend>
-  using DataType = std::unique_ptr<dali::TensorList<Backend>>;
+  using Inputs = std::tuple<TensorList<Backend>>;
 
-  /**
-   * Verify(output, anticipated_output)
-   */
-  using Verify = std::function<void(const dali::TensorList<OutputBackend> &,
-                                    const dali::TensorList<OutputBackend> &)>;
+  template<typename Backend>
+  using Outputs = std::tuple<TensorList<Backend>>;
 
+  template<typename Backend>
+  using Verify = std::function<void(Outputs<Backend>, Outputs<Backend>, Arguments)>;
 
-  void
-  RunTest(const std::vector<DataType<InputBackend>> &inputs, OperatorArguments operator_arguments,
-          const std::vector<DataType<OutputBackend>> &anticipated_outputs, Verify verify) const {
+ protected:
+
+  template<typename Backend>
+  void RunTest(Inputs<Backend> inputs, Outputs<Backend> outputs, Arguments arguments, Verify<Backend> verify) const {
 
   }
 
 
  private:
-  virtual OperatorsGraph GenerateOperatorsGraph() const noexcept = 0;
+  virtual OperatorGraph GenerateOperatorsGraph() const noexcept = 0;
 
 
   void SetUp() final {}
 
 
   void TearDown() final {}
+
 };
 
 }  // namespace testing
