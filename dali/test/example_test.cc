@@ -4,28 +4,28 @@ namespace dali {
 
 namespace testing {
 
-void ExVerify(DaliOperatorTest::Outputs<GPUBackend>, DaliOperatorTest::Outputs<GPUBackend>,
-              Arguments) { ASSERT_TRUE(false); };
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-  OperatorGraph GenerateOperatorsGraph() const noexcept override {
+  OpDAG GenerateOperatorsGraph() const noexcept override {
     return "ExampleOp";
   };
- protected:
-  Inputs <CPUBackend> in_;
-  Outputs <GPUBackend> out_;
+protected:
+  Inputs <CPUBackend> in_; // fill it somewhere
+  Outputs <GPUBackend> out_; // fill it somewhere
 
 
 };
 
-TEST_F(ExampleOperatorTestCase, DISABLED_ExampleTest) {
+TEST_F(ExampleOperatorTestCase, ExampleTest) {
   Inputs <CPUBackend> in;
   Outputs <GPUBackend> out;
   Arguments args;
 
-  this->RunTest(in, out, args, [](Outputs <GPUBackend>, Outputs <GPUBackend>, Arguments) -> void {
-      ASSERT_FALSE(false);
-  });
+  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+    ASSERT_FALSE(false);
+  };
+
+  this->RunTest<CPUBackend, GPUBackend>(in, out, args, ver); // Can't compile currently - no template lambdas in C++11
 }
 
 
@@ -34,19 +34,25 @@ std::vector<Arguments> args1 = {{{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}}};
 
 INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
 
-TEST_P(ExampleOperatorTestCase, DISABLED_ExamplePTest1) {
+TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
 
-  Verify <GPUBackend> v = ExVerify;
-  this->RunTest(in_, out_, GetParam(), v);
+  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+    ASSERT_FALSE(false);
+  };
+
+  this->RunTest<CPUBackend, GPUBackend>(in_, out_, GetParam(), ver); // Can't compile currently - no template lambdas in C++11
 }
 
 
 INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
 
-TEST_P(ExampleOperatorTestCase, DISABLED_ExamplePTest2) {
+TEST_P(ExampleOperatorTestCase, ExamplePTest2) {
 
-  Verify <GPUBackend> v = ExVerify;
-  this->RunTest(in_, out_, GetParam(), v);
+  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+    ASSERT_FALSE(false);
+  };
+
+  this->RunTest<CPUBackend, GPUBackend>(in_, out_, GetParam(), ver); // Can't compile currently - no template lambdas in C++11
 }
 
 } // namespace testing
