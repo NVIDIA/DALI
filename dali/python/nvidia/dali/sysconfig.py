@@ -14,7 +14,7 @@
 
 import os
 
-def get_dali_include_dir():
+def get_include_dir():
     """Get the path to the directory containing C++ header files.
 
     Returns:
@@ -24,7 +24,7 @@ def get_dali_include_dir():
     import nvidia.dali as dali
     return os.path.join(os.path.dirname(dali.__file__), 'include')
 
-def get_dali_lib_dir():
+def get_lib_dir():
     """Get the path to the directory containing DALI library.
 
     Returns:
@@ -39,9 +39,10 @@ def get_compile_flags():
     Returns:
         The compilation flags
     """
+    import nvidia.dali.backend as b
     flags = []
-    flags.append('-I%s' % get_dali_include_dir())
-    flags.append('-D_GLIBCXX_USE_CXX11_ABI=0') # TODO(janton): fetch the value from the build config
+    flags.append('-I%s' % get_include_dir())
+    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.cxx11_abi_flag )
     return flags
 
 def get_link_flags():
@@ -51,6 +52,6 @@ def get_link_flags():
         The link flags
     """
     flags = []
-    flags.append('-L%s' % get_dali_lib_dir())
+    flags.append('-L%s' % get_lib_dir())
     flags.append('-ldali')
     return flags

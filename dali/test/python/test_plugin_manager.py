@@ -66,6 +66,13 @@ class CustomPipeline(Pipeline):
             self.feed_input(self.images, images)
 
 class TestLoadedPlugin(unittest.TestCase):
+    def test_sysconfig_provides_non_empty_flags(self):
+        import nvidia.dali.sysconfig as dali_sysconfig
+        assert "" != dali_sysconfig.get_compile_flags()
+        assert "" != dali_sysconfig.get_link_flags()
+        assert "" != dali_sysconfig.get_include_dir()
+        assert "" != dali_sysconfig.get_lib_dir()
+
     def test_load_unexisting_library(self):
         with self.assertRaises(RuntimeError):
             plugin_manager.load_library("not_a_dali_plugin.so")

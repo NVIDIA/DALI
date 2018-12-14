@@ -435,6 +435,15 @@ static vector<string> GetRegisteredSupportOps() {
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
+
+static const int GetCxx11AbiFlag() {
+#ifdef _GLIBCXX_USE_CXX11_ABI
+  return _GLIBCXX_USE_CXX11_ABI;
+#else
+  return 0;
+#endif
+}
+
 #ifdef DALI_BUILD_PROTO3
 typedef dali::TFRecordParser::FeatureType TFFeatureType;
 typedef dali::TFRecordParser::Feature TFFeature;
@@ -476,6 +485,8 @@ PYBIND11_MODULE(backend_impl, m) {
         [](const std::string& lib_path){
             PluginManager::Instance().LoadLibrary(lib_path);
         });
+
+  m.attr("cxx11_abi_flag") = GetCxx11AbiFlag();
 
   // Types
   py::module types_m = m.def_submodule("types");

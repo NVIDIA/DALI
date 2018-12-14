@@ -82,9 +82,9 @@ target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
-# install libdali to build dir
+# install libdali to the wheel dir
 set_target_properties(${dali_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/
 )
 
 set_target_properties(${dali_operator_lib} PROPERTIES

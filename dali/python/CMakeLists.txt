@@ -36,6 +36,3 @@ copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "$
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
-
-# TODO(janton): remove when we find a better way
-copy_post_build(${dali_python_lib} "${PROJECT_BINARY_DIR}/lib/libdali.so" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
