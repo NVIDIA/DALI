@@ -33,7 +33,7 @@ extern "C" {
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -114,6 +114,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
   void init() {
+    cuvidInit(0);
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
