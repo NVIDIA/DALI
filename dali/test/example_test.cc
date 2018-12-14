@@ -6,26 +6,26 @@ namespace testing {
 
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-  OpDAG GenerateOperatorsGraph() const noexcept override {
-    return "ExampleOp";
+  std::unique_ptr<OpDag> GenerateOperatorsGraph() const noexcept override {
+    return std::unique_ptr<OpDag>(new OpDagStub("ExampleOp"));
   };
 protected:
-  Inputs <CPUBackend> in_; // fill it somewhere
-  Outputs <GPUBackend> out_; // fill it somewhere
+  TensorListWrapper in_; // fill it somewhere
+  TensorListWrapper out_; // fill it somewhere
 
 
 };
 
 TEST_F(ExampleOperatorTestCase, ExampleTest) {
-  Inputs <CPUBackend> in;
-  Outputs <GPUBackend> out;
+  TensorListWrapper in;
+  TensorListWrapper out;
   Arguments args;
 
-  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+  auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
     ASSERT_FALSE(false);
   };
 
-  this->RunTest<CPUBackend, GPUBackend>(in, out, args, ver); // Can't compile currently - no template lambdas in C++11
+  this->RunTest(in, out, args, ver);
 }
 
 
@@ -36,11 +36,11 @@ INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(a
 
 TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
 
-  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+  auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
     ASSERT_FALSE(false);
   };
 
-  this->RunTest<CPUBackend, GPUBackend>(in_, out_, GetParam(), ver); // Can't compile currently - no template lambdas in C++11
+  this->RunTest(in_, out_, GetParam(), ver);
 }
 
 
@@ -48,11 +48,11 @@ INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(
 
 TEST_P(ExampleOperatorTestCase, ExamplePTest2) {
 
-  auto ver = [](Outputs<GPUBackend>, Outputs<GPUBackend>, Arguments) -> void {
+  auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
     ASSERT_FALSE(false);
   };
 
-  this->RunTest<CPUBackend, GPUBackend>(in_, out_, GetParam(), ver); // Can't compile currently - no template lambdas in C++11
+  this->RunTest(in_, out_, GetParam(), ver);
 }
 
 } // namespace testing

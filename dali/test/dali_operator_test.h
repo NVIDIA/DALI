@@ -17,46 +17,38 @@
 
 #include <gtest/gtest.h>
 #include <vector>
+#include <memory>
 #include <dali/pipeline/pipeline.h>
+#include <dali/test/op_graph.h>
+#include <dali/test/tensor_list_wrapper.h>
 
 namespace dali {
-
 namespace testing {
 
 using Arguments = std::map<std::string, double>; // TODO: some generalization. boost::any?
 
-using OpDAG = std::string; // temporary
+
 
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
 public:
-
-  template<typename Backend>
-  using Inputs = TensorList<Backend>; // TODO std::tuple<TensorList<Backend>>. But how to deal with heterogeneous backends?
-
-  template<typename Backend>
-  using Outputs = TensorList<Backend>;
-
-  template<typename Backend>
-  using Verify = std::function<void(Outputs<Backend>, Outputs<Backend>, Arguments)>;
-
+  using Verify = std::function<void(TensorListWrapper, TensorListWrapper, Arguments)>;
 protected:
-
-  template<typename InputBackend, typename OutputBackend>
-  void RunTest(const Inputs<InputBackend> &inputs, const Outputs<OutputBackend> &outputs, Arguments arguments,
-               Verify<OutputBackend> verify) const {
-
+  void RunTest(TensorListWrapper inputs, TensorListWrapper outputs, Arguments operator_arguments, Verify verify) {
   }
 
 
 private:
-  virtual OpDAG GenerateOperatorsGraph() const noexcept = 0;
+  virtual std::unique_ptr<OpDag> GenerateOperatorsGraph() const noexcept = 0;
 
 
-  void SetUp() final {}
+  void SetUp() final {
+  }
 
 
   void TearDown() final {}
 
+
+  std::unique_ptr<OpDag> operator_graph_;
 };
 
 }  // namespace testing
