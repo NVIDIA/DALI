@@ -32,7 +32,7 @@
 #include "dali/util/cucontext.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
 namespace dali {
 

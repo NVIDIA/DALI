@@ -46,8 +46,9 @@ list(REMOVE_ITEM LINT_FILES
 
 # nvdecoder
 list(REMOVE_ITEM LINT_FILES
-    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/nvcuvid.h
-    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/cuviddec.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_cuviddec.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.cc
 )
 
 execute_process(

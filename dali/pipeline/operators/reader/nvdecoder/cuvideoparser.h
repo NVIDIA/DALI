@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/error_handling.h"
 
 
