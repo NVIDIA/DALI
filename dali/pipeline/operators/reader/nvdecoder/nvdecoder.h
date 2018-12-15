@@ -15,8 +15,6 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 
-// #include <cuda.h>
-
 extern "C" {
 #include <libavformat/avformat.h>
 }
@@ -34,6 +32,7 @@ extern "C" {
 #include <vector>
 
 #include "dali/util/cucontext.h"
+#include "dali/util/dynlink_cuda.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
@@ -99,9 +98,9 @@ class NvDecoder {
 
   bool initialized() const;
 
-  static int CUDAAPI handle_sequence(void* user_data, CUVIDEOFORMAT* format);
-  static int CUDAAPI handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
-  static int CUDAAPI handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
+  static int handle_sequence(void* user_data, CUVIDEOFORMAT* format);
+  static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
+  static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
   int decode_packet(AVPacket* pkt);
 

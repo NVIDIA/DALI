@@ -25,7 +25,6 @@
 #endif  // DALI_USE_STACKTRACE
 
 #include <cuda_runtime_api.h>
-#include <cuda.h>
 #include <nvml.h>
 
 #include <sstream>
@@ -34,6 +33,7 @@
 #include <algorithm>
 
 #include "dali/common.h"
+#include "dali/util/dynlink_cuda.h"
 #include "dali/util/npp.h"
 
 namespace dali {

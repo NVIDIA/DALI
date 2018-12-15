@@ -61,49 +61,6 @@ CCtxAutoLock::~CCtxAutoLock()
 
 #define STRINGIFY(X) #X
 
-#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-#include <Windows.h>
-
-#ifdef UNICODE
-   static LPCWSTR __DriverLibName = L"nvcuvid.dll";
-#else
-   static LPCSTR __DriverLibName = "nvcuvid.dll";
-#endif
-
-
-typedef HMODULE DLLDRIVER;
-
-static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
-{
-    *pInstance = LoadLibrary(__DriverLibName);
-
-    if (*pInstance == NULL)
-    {
-        printf("LoadLibrary \"%s\" failed!\n", __DriverLibName);
-        return CUDA_ERROR_UNKNOWN;
-    }
-
-    return CUDA_SUCCESS;
-}
-
-#define GET_PROC_EX(name, alias, required)                     \
-    alias = (t##name *)GetProcAddress(DriverLib, #name);               \
-    if (alias == NULL && required) {                                    \
-        printf("Failed to find required function \"%s\" in %s\n",       \
-               #name, __DriverLibName);                                  \
-        return CUDA_ERROR_UNKNOWN;                                      \
-    }
-
-#define GET_PROC_EX_V2(name, alias, required)                           \
-    alias = (t##name *)GetProcAddress(DriverLib, STRINGIFY(name##_v2));\
-    if (alias == NULL && required) {                                    \
-        printf("Failed to find required function \"%s\" in %s\n",       \
-               STRINGIFY(name##_v2), __DriverLibName);                       \
-        return CUDA_ERROR_UNKNOWN;                                      \
-    }
-
-#elif defined(__unix__) || defined(__APPLE__) || defined(__MACOSX)
-
 #include <dlfcn.h>
 
 static char __DriverLibName[] = "libnvcuvid.so";
@@ -145,10 +102,6 @@ static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
         return CUDA_ERROR_UNKNOWN;                                      \
     }
 
-#else
-#error unsupported platform
-#endif
-
 #define CHECKED_CALL(call)              \
     do {                                \
         CUresult result = (call);       \
@@ -162,7 +115,7 @@ static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
 #define GET_PROC(name)          GET_PROC_REQUIRED(name)
 #define GET_PROC_V2(name)       GET_PROC_EX_V2(name,name,1)
 
-CUresult CUDAAPI cuvidInit(unsigned int Flags)
+CUresult cuvidInit(unsigned int Flags)
 {
     DLLDRIVER DriverLib;
 
