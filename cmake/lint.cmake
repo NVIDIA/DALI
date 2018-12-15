@@ -5,8 +5,9 @@ file(GLOB_RECURSE LINT_FILES ${CMAKE_SOURCE_DIR}/dali/*.cc ${CMAKE_SOURCE_DIR}/d
 
 # Excluded files
 list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/util/json.h)
-list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/nvcuvid.h)
-list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/cuviddec.h)
+list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h)
+list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_cuviddec.h)
+list(REMOVE_ITEM LINT_FILES ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.cc)
 
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_FILES}

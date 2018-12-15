@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 
-#include <cuda.h>
+// #include <cuda.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -37,7 +37,7 @@ extern "C" {
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
 
 struct AVPacket;
