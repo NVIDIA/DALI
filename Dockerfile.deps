@@ -113,24 +113,6 @@ RUN FFMPEG_VERSION=3.4.2 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 
-# cuda and nvcuvid libraries from the DRIVER
-RUN cd /tmp && \
-    DRIVER_VERSION=410.78 && \
-    wget -q http://us.download.nvidia.com/XFree86/Linux-x86_64/410.78/NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run && \
-    DRIVER=NVIDIA-Linux-x86_64-* && \
-    chmod +x ${DRIVER}.run && \
-    ./${DRIVER}.run -x && \
-    pushd ${DRIVER} && \
-    cp libnvcuvid.so* libcuda.so* libnvidia-fatbinaryloader.so* /usr/local/lib64 && \
-    ln -s /usr/local/lib64/libcuda.so.* /usr/local/lib64/libcuda.so.1 && \
-    ln -s /usr/local/lib64/libcuda.so.1 /usr/local/lib64/libcuda.so && \
-    ln -s /usr/local/lib64/libnvcuvid.so.* /usr/local/lib64/libnvcuvid.so.1 && \
-    ln -s /usr/local/lib64/libnvcuvid.so.1 /usr/local/lib64/libnvcuvid.so && \
-    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.so.* /usr/local/lib64/libnvidia-fatbinaryloader.1 && \
-    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.1 /usr/local/lib64/libnvidia-fatbinaryloader.so && \
-    popd && \
-    rm -rf ${DRIVER}*
-
 # CUDA
 ARG USE_CUDA_VERSION=9
 
