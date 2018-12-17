@@ -16,7 +16,6 @@
 #define DALI_UTIL_USER_STREAM_H_
 
 #include <cuda_runtime_api.h>
-#include <cuda.h>
 
 #include <mutex>
 #include <unordered_map>

@@ -15,8 +15,6 @@
 #ifndef DALI_PIPELINE_DATA_ALLOCATOR_H_
 #define DALI_PIPELINE_DATA_ALLOCATOR_H_
 
-#include <cuda.h>
-
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator_factory.h"
 

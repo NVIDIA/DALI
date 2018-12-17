@@ -183,7 +183,7 @@ CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_A
 set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
 CHECK_TYPE_SIZE("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
 
-list(APPEND DALI_LIBS ${FFmpeg_LIBS} cuda)
+list(APPEND DALI_LIBS ${FFmpeg_LIBS})
 
 ##################################################################
 # Exclude stdlib

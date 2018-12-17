@@ -14,7 +14,6 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 
-#include <cuda.h>
 #include <cuda_runtime.h>
 #include <nvml.h>
 #include <unistd.h>
@@ -30,6 +29,7 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/util/cucontext.h"
+#include "dali/util/dynlink_cuda.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
@@ -97,7 +97,9 @@ NvDecoder::NvDecoder(int device_id,
     return;
   }
 
-  CUDA_CALL(cuInit(0));
+  DALI_ENFORCE(cuInitChecked(),
+    "Failed to load libcuda.so. "
+    "Check your library paths and if NVIDIA driver is installed correctly.");
 
   CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
@@ -176,18 +178,18 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
   return 0;
 }
 
-int CUDAAPI NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
+int NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_sequence_(format);
 }
 
-int CUDAAPI NvDecoder::handle_decode(void* user_data,
+int NvDecoder::handle_decode(void* user_data,
                                             CUVIDPICPARAMS* pic_params) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_decode_(pic_params);
 }
 
-int CUDAAPI NvDecoder::handle_display(void* user_data,
+int NvDecoder::handle_display(void* user_data,
                                              CUVIDPARSERDISPINFO* disp_info) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_display_(disp_info);

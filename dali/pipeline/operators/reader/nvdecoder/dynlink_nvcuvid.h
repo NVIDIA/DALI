@@ -44,7 +44,7 @@ extern "C" {
 /*********************************
 ** Initialization
 *********************************/
-CUresult  CUDAAPI cuvidInit(unsigned int Flags);
+CUresult  cuvidInit(unsigned int Flags);
 
 /***********************************************/
 //!
@@ -200,7 +200,7 @@ typedef struct _CUVIDSOURCEDATAPACKET
 } CUVIDSOURCEDATAPACKET;
 
 // Callback for packet delivery
-typedef int (CUDAAPI *PFNVIDSOURCECALLBACK)(void *, CUVIDSOURCEDATAPACKET *);
+typedef int (*PFNVIDSOURCECALLBACK)(void *, CUVIDSOURCEDATAPACKET *);
 
 /**************************************************************************************************************************/
 //! \ingroup STRUCTS
@@ -232,51 +232,51 @@ typedef enum {
 
 #if !defined(__APPLE__)
 /**************************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams)
+//! \fn CUresult cuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams)
 //! Create CUvideosource object. CUvideosource spawns demultiplexer thread that provides two callbacks: 
 //! pfnVideoDataHandler() and pfnAudioDataHandler()
 //! NVDECODE API is intended for HW accelerated video decoding so CUvideosource doesn't have audio demuxer for all supported 
 //! containers. It's recommended to clients to use their own or third party demuxer if audio support is needed.
 /**************************************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams);
+typedef CUresult tcuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams);
 
 /****************************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidCreateVideoSourceW(CUvideosource *pObj, const wchar_t *pwszFileName, CUVIDSOURCEPARAMS *pParams)
+//! \fn CUresult cuvidCreateVideoSourceW(CUvideosource *pObj, const wchar_t *pwszFileName, CUVIDSOURCEPARAMS *pParams)
 //! Create video source object and initialize
 /****************************************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidCreateVideoSourceW(CUvideosource *pObj, const wchar_t *pwszFileName, CUVIDSOURCEPARAMS *pParams);
+typedef CUresult tcuvidCreateVideoSourceW(CUvideosource *pObj, const wchar_t *pwszFileName, CUVIDSOURCEPARAMS *pParams);
 
 /*********************************************************************/
-//! \fn CUresult CUDAAPI cuvidDestroyVideoSource(CUvideosource obj)
+//! \fn CUresult cuvidDestroyVideoSource(CUvideosource obj)
 //! Destroy video source
 /*********************************************************************/
-typedef CUresult CUDAAPI tcuvidDestroyVideoSource(CUvideosource obj);
+typedef CUresult tcuvidDestroyVideoSource(CUvideosource obj);
 
 /******************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidSetVideoSourceState(CUvideosource obj, cudaVideoState state)
+//! \fn CUresult cuvidSetVideoSourceState(CUvideosource obj, cudaVideoState state)
 //! Set video source state
 /******************************************************************************************/
-typedef CUresult CUDAAPI tcuvidSetVideoSourceState(CUvideosource obj, cudaVideoState state);
+typedef CUresult tcuvidSetVideoSourceState(CUvideosource obj, cudaVideoState state);
 
 /******************************************************************************************/
-//! \fn cudaVideoState CUDAAPI cuvidGetVideoSourceState(CUvideosource obj)
+//! \fn cudaVideoState cuvidGetVideoSourceState(CUvideosource obj)
 //! Get video source state
 /******************************************************************************************/
-typedef cudaVideoState CUDAAPI tcuvidGetVideoSourceState(CUvideosource obj);
+typedef cudaVideoState tcuvidGetVideoSourceState(CUvideosource obj);
 
 /****************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidGetSourceVideoFormat(CUvideosource obj, CUVIDEOFORMAT *pvidfmt, unsigned int flags)
+//! \fn CUresult cuvidGetSourceVideoFormat(CUvideosource obj, CUVIDEOFORMAT *pvidfmt, unsigned int flags)
 //! Gets details of video stream in pvidfmt
 /****************************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidGetSourceVideoFormat(CUvideosource obj, CUVIDEOFORMAT *pvidfmt, unsigned int flags);
+typedef CUresult tcuvidGetSourceVideoFormat(CUvideosource obj, CUVIDEOFORMAT *pvidfmt, unsigned int flags);
 
 /****************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags)
+//! \fn CUresult cuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags)
 //! Get audio source format
 //! NVDECODE API is intended for HW accelarated video decoding so CUvideosource doesn't have audio demuxer for all suppported 
 //! containers. It's recommended to clients to use their own or third party demuxer if audio support is needed.
 /****************************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags);
+typedef CUresult tcuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags);
 
 #endif
 /**********************************************************************************/
@@ -299,9 +299,9 @@ typedef struct _CUVIDPARSERDISPINFO
 //! The parser will call these synchronously from within cuvidParseVideoData(), whenever a picture is ready to
 //! be decoded and/or displayed. First argument in functions is "void *pUserData" member of structure CUVIDSOURCEPARAMS
 /***********************************************************************************************************************/
-typedef int (CUDAAPI *PFNVIDSEQUENCECALLBACK)(void *, CUVIDEOFORMAT *);
-typedef int (CUDAAPI *PFNVIDDECODECALLBACK)(void *, CUVIDPICPARAMS *);
-typedef int (CUDAAPI *PFNVIDDISPLAYCALLBACK)(void *, CUVIDPARSERDISPINFO *);
+typedef int (*PFNVIDSEQUENCECALLBACK)(void *, CUVIDEOFORMAT *);
+typedef int (*PFNVIDDECODECALLBACK)(void *, CUVIDPICPARAMS *);
+typedef int (*PFNVIDDISPLAYCALLBACK)(void *, CUVIDPARSERDISPINFO *);
 
 /**************************************/
 //! \ingroup STRUCTS
@@ -327,23 +327,23 @@ typedef struct _CUVIDPARSERPARAMS
 } CUVIDPARSERPARAMS;
 
 /************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidCreateVideoParser(CUvideoparser *pObj, CUVIDPARSERPARAMS *pParams)
+//! \fn CUresult cuvidCreateVideoParser(CUvideoparser *pObj, CUVIDPARSERPARAMS *pParams)
 //! Create video parser object and initialize
 /************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidCreateVideoParser(CUvideoparser *pObj, CUVIDPARSERPARAMS *pParams);
+typedef CUresult tcuvidCreateVideoParser(CUvideoparser *pObj, CUVIDPARSERPARAMS *pParams);
 
 /************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET *pPacket)
+//! \fn CUresult cuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET *pPacket)
 //! Parse the video data from source data packet in pPacket 
 //! Extracts parameter sets like SPS, PPS, bitstream etc. from pPacket and 
 //! calls back pfnDecodePicture with CUVIDPICPARAMS data for kicking of HW decoding
 /************************************************************************************************/
-typedef CUresult CUDAAPI tcuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET *pPacket);
+typedef CUresult tcuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET *pPacket);
 
 /*******************************************************************/
-//! \fn CUresult CUDAAPI cuvidDestroyVideoParser(CUvideoparser obj)
+//! \fn CUresult cuvidDestroyVideoParser(CUvideoparser obj)
 /*******************************************************************/
-typedef CUresult CUDAAPI tcuvidDestroyVideoParser(CUvideoparser obj);
+typedef CUresult tcuvidDestroyVideoParser(CUvideoparser obj);
 
 extern tcuvidCreateVideoSource               *cuvidCreateVideoSource;
 extern tcuvidCreateVideoSourceW              *cuvidCreateVideoSourceW;
