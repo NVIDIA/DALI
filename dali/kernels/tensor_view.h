@@ -195,132 +195,67 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView;
 
+template <typename Backend, typename DataType, int sample_ndim>
+struct TensorListViewBase {
+  DataType *data = nullptr;
+  TensorListShape<sample_ndim> shape;
+  std::vector<ptrdiff_t> offsets;
 
-template <typename Backend, typename DataType>
-struct TensorListView<Backend, DataType, DynamicDimensions> {
-  TensorListView() : data(nullptr), shape(), offsets() {}
-  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
-      : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
-
-  TensorView<Backend, DataType, DynamicDimensions> operator[](int sample) const {
-    return {data + offsets[sample], shape[sample]};
+  TensorView<Backend, DataType, sample_ndim> operator[](int sample) const {
+    return {this->data + offsets[sample], shape[sample]};
   }
 
+  int size() const { return shape.size(); }
+  int sample_dim() const { return shape.sample_dim(); }
+
   template <int other_sample_ndim>
-  TensorListView<Backend, DataType, other_sample_ndim> as_static_ndim() {
+  TensorListView<Backend, DataType, other_sample_ndim> to_static() {
+  static_assert(other_sample_ndim != DynamicDimensions,
+                "Conversion to static only allowed for static shape");
     return {data, shape, offsets};
   }
 
-  DataType *data;
-  TensorListShape<DynamicDimensions> shape;
-  std::vector<ptrdiff_t> offsets;
+ protected:
+  TensorListViewBase() = default;
+  TensorListViewBase(const TensorListViewBase &) = default;
+  TensorListViewBase(TensorListViewBase &&) = default;
+  TensorListViewBase(DataType *data, const TensorListShape<sample_ndim> &shapes)
+      : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
+  TensorListViewBase(DataType *data, TensorListShape<sample_ndim> &&shapes)
+      : data(data), shape(std::move(shapes)), offsets(calculate_offsets(shape)) {}
+  TensorListViewBase(DataType *data, const TensorListShape<sample_ndim> &shapes,
+                     const std::vector<ptrdiff_t> &offsets)
+      : data(data), shape(shapes), offsets(offsets) {}
+  TensorListViewBase(DataType *data, TensorListShape<sample_ndim> &&shapes,
+                     std::vector<ptrdiff_t> &&offsets)
+      : data(data), shape(std::move(shapes)), offsets(std::move(offsets)) {}
+};
+
+template <typename Backend, typename DataType>
+struct TensorListView<Backend, DataType, DynamicDimensions>
+    : TensorListViewBase<Backend, DataType, DynamicDimensions> {
+  using Base = TensorListViewBase<Backend, DataType, DynamicDimensions>;
+  TensorListView() = default;
+  TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
+      : Base(data, shapes) {}
 };
 
 template <typename Backend, typename DataType, int sample_ndim>
-struct TensorListView {
-  TensorListView() : data(nullptr), shape(), offsets() {}
+struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
+  using Base = TensorListViewBase<Backend, DataType, sample_ndim>;
+  TensorListView() = default;
   TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes)
-      : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
+      : Base(data, shapes) {}
 
   TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape,
                  const std::vector<ptrdiff_t> &offsets)
-      : data(data), shape(shape), offsets(offsets) {}
+      : Base(data, shape, offsets) {}
 
   TensorListView(DataType *data, TensorListShape<sample_ndim> &&shape,
                  std::vector<ptrdiff_t> &&offsets)
-      : data(data), shape(std::move(shape)), offsets(std::move(offsets)) {}
-
-  TensorView<Backend, DataType, sample_ndim> operator[](int sample) const {
-    return {data + offsets[sample], shape[sample]};
-  }
-
-  DataType *data;
-  TensorListShape<sample_ndim> shape;
-  std::vector<ptrdiff_t> offsets;
+      : Base(data, std::move(shape), std::move(offsets)) {}
 };
 
-// TODO:
-// * size utilities
-// * dynamic dim handling
-// * generic `at` free function
-// * range loop? we're creating TensorView on the fly
-
-// template <typename Backend, typename DataType, int sample_ndim>
-// struct TensorListView : TensorListDim<sample_ndim> {
-//   DataType *data = nullptr;
-//   vector<int64_t> shape;
-//   std::vector<ptrdiff_t> offsets;
-//   using TensorListDim<sample_ndim>::sample_dim;
-//   using TensorListDim<sample_ndim>::set_sample_dim;
-
-//   size_t total_size() const { return offsets.empty() ? size_t(0) : offsets[num_samples()]; }
-
-//   const int64_t num_samples() const { return shape.size() / sample_dim(); }
-
-//   TensorListView(DataType *data, const vector<TensorShape<sample_ndim>> &shapes) : data(data) {
-//     if (sample_ndim == -1 && !shapes.empty()) set_sample_dim(shapes[0]);
-//     shapes.resize(sample_dim() * shapes.size());
-//     for (size_t i = 0; i < shapes.size(); i++) {
-//       assert(shapes[i].size() == sample_dim() &&
-//              "All tensors in a tensor list must have same number of dimensions");
-//     }
-//     UpdateOffsets();
-//   }
-
-//   template <int dim = sample_ndim>
-//   TensorShape<dim> tensor_shape(int64_t sample) const {
-//     static_assert(sample_ndim < 0 || dim < 0 || sample_ndim == dim,
-//                   "Mismatched number of dimensions");
-//     if (sample_ndim < 0 && dim >= 0) {
-//       assert(dim == sample_dim());
-//     }
-
-//     TensorShape<dim> out;
-//     if (dim == -1) {
-//       out.resize(sample_dim());
-//     }
-//     int64_t base = sample_dim() * sample;
-//     for (int i = 0; i < sample_dim(); i++) {
-//       out[i] = shape[base + i];
-//     }
-//     return out;
-//   }
-
-//   span<int64_t, sample_ndim> tensor_shape_span(int64_t sample) const {
-//     return {&shape[sample * sample_dim()], sample_dim()};
-//   }
-
-//   void UpdateOffsets() {
-//     offsets.resize(num_samples() + 1);
-//     ptrdiff_t offset = 0;
-//     auto d = sample_dim();
-//     for (int i = 0; i < num_samples(); i++) {
-//       offsets[i] = offset;
-//       auto s = tensor_shape_span(i);
-//       int64_t v = s[0];
-//       for (int j = 1; j < s.size(); j++) v *= s[j];
-//       offset += v;
-//     }
-//     offsets.back() = offset;
-//   }
-
-//   template <int dim = sample_ndim>
-//   TensorView<Backend, DataType, dim> operator[](int64_t sample) const {
-//     return {data + offsets[sample], tensor_shape(sample)};
-//   }
-
-//   // template <typename Offset>
-//   // DataType *at(int64_t sample, const Offset &pos) const {
-//   //   DALI_ENFORCE(ShapeDim(pos) < sample_dim());
-//   //   return data + offsets[sample] + CalcOfffset(tensor_shape_span(sample), pos);
-//   // }
-
-//   // template <typename... Indices>
-//   // DataType *at(int64_t sample, int64_t idx0, Indices &&... idx) const {
-//   //   return data + offsets[sample] +
-//   //          CalcOfffset(tensor_shape_span(sample), {idx0, (static_cast<int64_t>(idx))...});
-//   // }
-// };
 
 }  // namespace tensor
 

@@ -590,10 +590,6 @@ bool is_uniform(const TensorListShape<ndim> &tls) {
   }
   return true;
 }
-// TODO:
-// * `T* at(...)` as free function
-// * zero filling?
-
 }  // namespace tensor
 
 #endif  // DALI_KERNELS_SHAPE_H_
