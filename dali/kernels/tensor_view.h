@@ -77,15 +77,14 @@ struct TensorViewBase {
   int dim() const { return shape.size(); }
 
   template <typename... Indices>
-  DataType* operator()(int64_t idx0, Indices &&... idx) const {
+  DataType *operator()(int64_t idx0, Indices &&... idx) const {
     return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
   }
 
   template <typename Offset>
-  DataType* operator()(const Offset &pos) const {
+  DataType *operator()(const Offset &pos) const {
     return data + CalcOfffset(shape, pos);
   }
-
 
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static();
@@ -107,9 +106,9 @@ struct TensorViewBase {
   TensorViewBase(DataType *data, TensorShape<ndim> &&shape) : data(data), shape(std::move(shape)) {}
 };
 
-
 template <typename Backend, typename DataType>
-struct TensorView<Backend, DataType, DynamicDimensions> : TensorViewBase<Backend, DataType, DynamicDimensions> {
+struct TensorView<Backend, DataType, DynamicDimensions>
+    : TensorViewBase<Backend, DataType, DynamicDimensions> {
   using Base = TensorViewBase<Backend, DataType, DynamicDimensions>;
 
   TensorView() = default;
@@ -119,15 +118,24 @@ struct TensorView<Backend, DataType, DynamicDimensions> : TensorViewBase<Backend
   template <int ndim>
   TensorView(DataType *data, TensorShape<ndim> &&shape) : Base(data, std::move(shape)) {}
   TensorView(const TensorView &) = default;
-  TensorView(TensorView &&) = default;
   TensorView &operator=(const TensorView &) = default;
-  TensorView &operator=(TensorView &&) = default;
+  TensorView(TensorView &&other) : Base(other.data, std::move(other.shape)) {
+    other.data = nullptr;
+  }
+  TensorView &operator=(TensorView &&other) {
+    this->data = other.data;
+    other.data = nullptr;
+    this->shape = std::move(other.shape);
+    return *this;
+  }
 
   // Dynamic accepts anything
   template <int other_ndim>
-  TensorView(const TensorView<Backend, DataType, other_ndim> &other) : Base(other.data, other.shape) {}
+  TensorView(const TensorView<Backend, DataType, other_ndim> &other)
+      : Base(other.data, other.shape) {}
   template <int other_ndim>
-  TensorView(TensorView<Backend, DataType, other_ndim> &&other) : Base(other.data, std::move(other.shape)) {
+  TensorView(TensorView<Backend, DataType, other_ndim> &&other)
+      : Base(other.data, std::move(other.shape)) {
     other.data = nullptr;
   }
 
@@ -145,72 +153,17 @@ struct TensorView<Backend, DataType, DynamicDimensions> : TensorViewBase<Backend
     this->shape = std::move(other.shape);
     return *this;
   }
-
-  // template <int other_ndim>
-  // TensorView<Backend, DataType, other_ndim> to_static() {
-  //   static_assert(other_ndim != DynamicDimensions,
-  //                 "Conversion to static only allowed for static shape");
-  //   assert(other_ndim == dim() && "Cannot convert to other ndim");
-  //   return {data, shape.to_static<other_ndim>()};
-  // }
-
-  // template <int other_ndim>
-  // TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape) {
-  //   static_assert(other_ndim != DynamicDimensions,
-  //                 "Conversion to static only allowed for static shape");
-  //   return {data, new_shape};
-  // }
-
-  // template <int other_ndim>
-  // TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape) {
-  //   static_assert(other_ndim != DynamicDimensions,
-  //                 "Conversion to static only allowed for static shape");
-  //   return {data, std::move(new_shape)};
-  // }
-
-  // DataType *data = nullptr;
-  // TensorShape<DynamicDimensions> shape;
-
-  // static const bool has_static_dim = false;
-  // int dim() const { return shape.size(); }
-
-  // template <typename... Indices>
-  // DataType* operator()(int64_t idx0, Indices &&... idx) const {
-  //   return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
-  // }
-
-  // template <typename Offset>
-  // DataType* operator()(const Offset &pos) const {
-  //   return data + CalcOfffset(shape, pos);
-  // }
 };
 
 template <typename Backend, typename DataType, int ndim>
-struct TensorView : TensorViewBase<Backend, DataType, ndim>{
+struct TensorView : TensorViewBase<Backend, DataType, ndim> {
   using Base = TensorViewBase<Backend, DataType, ndim>;
   TensorView() = default;
   TensorView(DataType *data, const TensorShape<ndim> &shape) : Base(data, shape) {}
   TensorView(DataType *data, TensorShape<ndim> &&shape) : Base(data, std::move(shape)) {}
   TensorView(const TensorView &) = default;
   TensorView &operator=(const TensorView &) = default;
-
-  // DataType *data = nullptr;
-  // TensorShape<ndim> shape;
-
-  // static const bool has_static_dim = true;
-  // constexpr int dim() const { return shape.size(); }
-
-  // template <typename... Indices>
-  // DataType* operator()(int64_t idx0, Indices &&... idx) const {
-  //   return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
-  // }
-
-  // template <typename Offset>
-  // DataType* operator()(const Offset &pos) const {
-  //   return data + CalcOfffset(shape, pos);
-  // }
 };
-
 
 template <typename Backend, typename DataType, int ndim>
 template <int other_ndim>
@@ -223,7 +176,8 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
 
 template <typename Backend, typename DataType, int ndim>
 template <int other_ndim>
-TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(const TensorShape<other_ndim> &new_shape) {
+TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(
+    const TensorShape<other_ndim> &new_shape) {
   static_assert(other_ndim != DynamicDimensions,
                 "Conversion to static only allowed for static shape");
   return {data, new_shape};
@@ -231,7 +185,8 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
 
 template <typename Backend, typename DataType, int ndim>
 template <int other_ndim>
-TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(TensorShape<other_ndim> &&new_shape) {
+TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(
+    TensorShape<other_ndim> &&new_shape) {
   static_assert(other_ndim != DynamicDimensions,
                 "Conversion to static only allowed for static shape");
   return {data, std::move(new_shape)};
@@ -239,6 +194,7 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
 
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView;
+
 
 template <typename Backend, typename DataType>
 struct TensorListView<Backend, DataType, DynamicDimensions> {
