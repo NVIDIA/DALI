@@ -18,7 +18,7 @@
 #include <utility>
 
 namespace dali {
-__host__ __device__ float4 ToCenterWidthHeight(const float4 &box) {
+__host__ __device__ inline float4 ToCenterWidthHeight(const float4 &box) {
     return {
       0.5f * (box.x + box.z),
       0.5f * (box.y + box.w),
@@ -50,7 +50,7 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
     anchors_count_ * BoundingBox::kSize * sizeof(float));
 }
 
-__device__ float CalculateIou(const float4 &b1, const float4 &b2) {
+__device__ __forceinline__ float CalculateIou(const float4 &b1, const float4 &b2) {
   float l = max(b1.x, b2.x);
   float t = max(b1.y, b2.y);
   float r = min(b1.z, b2.z);
@@ -64,17 +64,16 @@ __device__ float CalculateIou(const float4 &b1, const float4 &b2) {
   return intersection / (area1 + area2 - intersection);
 }
 
-__device__ void FindBestMatch(int N, volatile float *vals, volatile int *idx) {
+__device__ inline void FindBestMatch(const int N, volatile float *vals, volatile int *idx) {
   for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
     if (threadIdx.x < stride) {
       if (vals[threadIdx.x] <= vals[threadIdx.x + stride]) {
         if (vals[threadIdx.x] == vals[threadIdx.x + stride]) {
           idx[threadIdx.x] = max(idx[threadIdx.x], idx[threadIdx.x + stride]);  // NOLINT
-          continue;
+        } else {
+          vals[threadIdx.x] = vals[threadIdx.x + stride];
+          idx[threadIdx.x] = idx[threadIdx.x + stride];
         }
-
-        vals[threadIdx.x] = vals[threadIdx.x + stride];
-        idx[threadIdx.x] = idx[threadIdx.x + stride];
       }
     }
     __syncthreads();
@@ -178,7 +177,7 @@ std::pair<int *, float *> BoxEncoder<GPUBackend>::ClearBuffers(const cudaStream_
   auto best_box_iou_data = best_box_iou_.mutable_data<float>();
 
   CUDA_CALL(cudaMemsetAsync(best_box_idx_data, 0, batch_size_ * anchors_count_ * sizeof(int)));
-  CUDA_CALL(cudaMemsetAsync(best_box_iou_data, 0.f, batch_size_ * anchors_count_ * sizeof(float)));
+  CUDA_CALL(cudaMemsetAsync(best_box_iou_data, 0, batch_size_ * anchors_count_ * sizeof(float)));
 
   return {best_box_idx_data, best_box_iou_data};
 }
@@ -230,6 +229,8 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   const auto boxes_data = reinterpret_cast<const float4 *>(boxes_input.data<float>());
   const auto labels_data = labels_input.data<int>();
 
+  const auto buffers = ClearBuffers(ws->stream());
+
   auto offsets_data = CalculateOffsets(boxes_input, ws->stream());
   auto dims = CalculateDims(boxes_input);
 
@@ -244,7 +245,6 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   auto labels_out_data = labels_output->mutable_data<int>();
 
   WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws->stream());
-  auto buffers = ClearBuffers(ws->stream());
 
   Encode<BlockSize><<<batch_size_, BlockSize, 0, ws->stream()>>>(
     boxes_data,

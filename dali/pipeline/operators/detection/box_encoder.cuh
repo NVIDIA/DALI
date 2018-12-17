@@ -36,8 +36,8 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
     boxes_offsets_.Resize({batch_size_ + 1});
 
-    best_box_idx_.Resize({batch_size_, anchors_count_});
-    best_box_iou_.Resize({batch_size_, anchors_count_});
+    best_box_idx_.Resize({batch_size_ * anchors_count_});
+    best_box_iou_.Resize({batch_size_ * anchors_count_});
   }
 
   virtual ~BoxEncoder() = default;
