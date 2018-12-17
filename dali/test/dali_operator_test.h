@@ -33,19 +33,39 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 public:
   using Verify = std::function<void(TensorListWrapper, TensorListWrapper, Arguments)>;
 protected:
-  void RunTest(TensorListWrapper inputs, TensorListWrapper outputs, Arguments operator_arguments, Verify verify) {
+  void RunTest(const TensorListWrapper &input, const TensorListWrapper &output,
+               const Arguments &operator_arguments, const Verify &verify) {
+
+  }
+
+
+  void RunTest(const std::vector<TensorListWrapper> &inputs, const std::vector<TensorListWrapper> &outputs,
+               const Arguments &operator_arguments, const std::vector<Verify> &verify) {
+    assert(false);
+  }
+
+
+  void RunTest(const std::vector<TensorListWrapper> &inputs, const std::vector<TensorListWrapper> &outputs,
+               const std::map<std::string, Arguments> &operator_arguments, const std::vector<Verify> &verify) {
+    assert(false);
   }
 
 
 private:
-  virtual std::unique_ptr<OpDag> GenerateOperatorsGraph() const noexcept = 0;
+  virtual OpDag GenerateOperatorsGraph() const noexcept = 0;
 
 
   void SetUp() final {
+    {
+      auto dag = GenerateOperatorsGraph();
+      operator_graph_ = std::unique_ptr<OpDag>(&dag);
+    }
   }
 
 
-  void TearDown() final {}
+  void TearDown() final {
+    std::cout<<"TearDown\n";
+  }
 
 
   std::unique_ptr<OpDag> operator_graph_;

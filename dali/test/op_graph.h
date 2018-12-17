@@ -8,18 +8,11 @@ namespace testing {
 
 class OpDag {
 public:
-  virtual std::string get_op_name() = 0;
+  OpDag(std::string name) : name_(name) {}
+  std::string get_op_name() { return name_; };
+  std::string name_;
 }; // PR #369
 
-struct OpDagStub : public OpDag {
-  OpDagStub(std::string name) : name_(name) {}
-
-
-  std::string get_op_name() { return name_; }
-
-
-  std::string name_;
-};
 
 }  // namespace testing
 }  // namespace dali

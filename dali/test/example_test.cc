@@ -6,14 +6,15 @@ namespace testing {
 
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-  std::unique_ptr<OpDag> GenerateOperatorsGraph() const noexcept override {
-    return std::unique_ptr<OpDag>(new OpDagStub("ExampleOp"));
-  };
+  OpDag GenerateOperatorsGraph() const noexcept override {
+    OpDag graph("ExampleOp");
+    return graph;
+  }
+
+
 protected:
   TensorListWrapper in_; // fill it somewhere
   TensorListWrapper out_; // fill it somewhere
-
-
 };
 
 TEST_F(ExampleOperatorTestCase, ExampleTest) {
@@ -22,7 +23,7 @@ TEST_F(ExampleOperatorTestCase, ExampleTest) {
   Arguments args;
 
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(false);
+    ASSERT_FALSE(true);
   };
 
   this->RunTest(in, out, args, ver);
@@ -37,7 +38,7 @@ INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(a
 TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
 
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(false);
+    ASSERT_FALSE(true);
   };
 
   this->RunTest(in_, out_, GetParam(), ver);
@@ -46,13 +47,17 @@ TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
 
 INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
 
-TEST_P(ExampleOperatorTestCase, ExamplePTest2) {
+TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
 
-  auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(false);
+  auto ver_in1 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
+    ASSERT_FALSE(true);
   };
 
-  this->RunTest(in_, out_, GetParam(), ver);
+  auto ver_in2 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
+    ASSERT_FALSE(true);
+  };
+
+  this->RunTest({in_, in_}, {out_, out_}, GetParam(), {ver_in1, ver_in2});
 }
 
 } // namespace testing
