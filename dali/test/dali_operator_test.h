@@ -15,33 +15,37 @@
 #ifndef DALI_TEST_DALI_OPERATOR_TEST_H_
 #define DALI_TEST_DALI_OPERATOR_TEST_H_
 
-#include <gtest/gtest.h>
-#include <vector>
-#include <memory>
 #include <dali/pipeline/pipeline.h>
 #include <dali/test/op_graph.h>
 #include <dali/test/tensor_list_wrapper.h>
-#include "argument_key.h"
+#include <dali/test/argument_key.h>
+#include <gtest/gtest.h>
+#include <vector>
+#include <memory>
+#include <map>
 
 namespace dali {
 namespace testing {
 
-using Arguments = std::map<ArgumentKey, double>; // TODO boost::any?
+using Arguments = std::map<ArgumentKey, double>;  // TODO(mszolucha) some generalization boost::any?
 
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
-public:
+ public:
   using Verify = std::function<void(TensorListWrapper, TensorListWrapper, Arguments)>;
-protected:
+
+ protected:
   void RunTest(const TensorListWrapper &input, const TensorListWrapper &output,
                const Arguments &operator_arguments, const Verify &verify) {
   }
 
-  void RunTest(const std::vector<TensorListWrapper> &inputs, const std::vector<TensorListWrapper> &outputs,
+
+  void RunTest(const std::vector<TensorListWrapper> &inputs,
+               const std::vector<TensorListWrapper> &outputs,
                const Arguments &operator_arguments, const std::vector<Verify> &verify) {
   }
 
 
-private:
+ private:
   virtual OpDag GenerateOperatorsGraph() const noexcept = 0;
 
 
@@ -51,12 +55,10 @@ private:
 
   void TearDown() final {
   }
-
 };
 
 }  // namespace testing
 
 }  // namespace dali
 
-#endif // DALI_TEST_DALI_OPERATOR_TEST_H_
-
+#endif  // DALI_TEST_DALI_OPERATOR_TEST_H_

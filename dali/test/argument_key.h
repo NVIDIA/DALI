@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATOR_ARGUMENTS_H
-#define DALI_OPERATOR_ARGUMENTS_H
+#ifndef DALI_TEST_ARGUMENT_KEY_H_
+#define DALI_TEST_ARGUMENT_KEY_H_
 
 #include <utility>
 #include <string>
@@ -27,16 +27,16 @@ class ArgumentKey : public std::pair<std::string, std::string> {
   using Base = std::pair<std::string, std::string>;
 
 
-  ArgumentKey(const char* arg_name) : Base({}, arg_name) {}
+  ArgumentKey(const char *arg_name) : Base({}, arg_name) {  // NOLINT (non-explicit ctor)
+  }
 
 
   ArgumentKey(std::string node_name, std::string arg_name) :
           Base(std::move(node_name), std::move(arg_name)) {
-
   }
 };
 
 }  // namespace testing
 }  // namespace dali
 
-#endif  // DALI_OPERATOR_ARGUMENTS_H
+#endif  // DALI_TEST_ARGUMENT_KEY_H_

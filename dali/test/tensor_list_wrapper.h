@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TENSOR_LIST_WRAPPER_H
-#define DALI_TENSOR_LIST_WRAPPER_H
+#ifndef DALI_TEST_TENSOR_LIST_WRAPPER_H_
+#define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
 namespace dali {
 namespace testing {
@@ -24,4 +24,4 @@ struct TensorListWrapper {
 }  // namespace testing
 }  // namespace dali
 
-#endif //DALI_TENSOR_LIST_WRAPPER_H
+#endif  // DALI_TEST_TENSOR_LIST_WRAPPER_H_
