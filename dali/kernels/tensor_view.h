@@ -34,19 +34,34 @@ constexpr int ShapeDim(const T &t) {
   return int(t.size());
 }
 
+template <typename Shape, typename Position>
+bool ContainsCoords(const Shape &shape, const Position &pos) {
+  const int shape_dim = ShapeDim(shape);
+  const int pos_dim = ShapeDim(pos);
+  if (pos_dim > shape_dim) {
+    return false;
+  }
+  for (int i = 0; i < pos_dim; i++) {
+    if (pos[i] > shape[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /// @brief Calculates flat index of a given element in the tensor
 /// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
-template <typename Shape, typename SamplePos>
-ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
+template <typename Shape, typename Position>
+ptrdiff_t CalcOffset(const Shape &shape, const Position &pos) {
   ptrdiff_t ofs = pos[0];
-  const int m = ShapeDim(pos);
-  const int n = ShapeDim(shape);
+  const int pos_dim = ShapeDim(pos);
+  const int shape_dim = ShapeDim(shape);
   int i;
-  for (i = 1; i < m; i++) {
+  for (i = 1; i < pos_dim; i++) {
     ofs *= shape[i];
     ofs += pos[i];
   }
-  for (; i < n; i++) {
+  for (; i < shape_dim; i++) {
     ofs *= shape[i];
   }
   return ofs;
@@ -55,11 +70,60 @@ ptrdiff_t CalcOffset(const Shape &shape, const SamplePos &pos) {
 struct EmptyBackendTag {};
 
 template <typename Backend, typename DataType, int ndim>
+struct TensorViewBase {
+
+
+  TensorViewBase(const TensorViewBase &) = default;
+  TensorViewBase(TensorViewBase &&) = default;
+
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static() {
+    static_assert(other_ndim != DynamicDimensions,
+                  "Conversion to static only allowed for static shape");
+    assert(other_ndim == dim() && "Cannot convert to other ndim");
+    return {data, shape.to_static<other_ndim>()};
+  }
+
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape) {
+    static_assert(other_ndim != DynamicDimensions,
+                  "Conversion to static only allowed for static shape");
+    return {data, new_shape};
+  }
+
+  template <int other_ndim>
+  TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape) {
+    static_assert(other_ndim != DynamicDimensions,
+                  "Conversion to static only allowed for static shape");
+    return {data, std::move(new_shape)};
+  }
+
+  int dim() const { return shape.size(); }
+
+  template <typename... Indices>
+  DataType* operator()(int64_t idx0, Indices &&... idx) const {
+    return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
+  }
+
+  template <typename Offset>
+  DataType* operator()(const Offset &pos) const {
+    return data + CalcOfffset(shape, pos);
+  }
+
+  DataType *data = nullptr;
+  TensorShape<ndim> shape;
+
+ protected:
+  TensorViewBase(DataType *data, TensorShape<ndim> &&shape) : data(data), shape(std::move(shape)) {}
+};
+
+
+template <typename Backend, typename DataType, int ndim>
 struct TensorView;
 
 template <typename Backend, typename DataType>
 struct TensorView<Backend, DataType, DynamicDimensions> {
-  TensorView() : data(nullptr), shape() {}
+  TensorView() = default;
 
   template <int ndim>
   TensorView(DataType *data, TensorShape<ndim> shape) : data(data), shape(shape) {}
@@ -84,6 +148,7 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
   TensorView<Backend, DataType, other_ndim> to_static() {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
+    assert(other_ndim == dim() && "Cannot convert to other ndim");
     return {data, shape.to_static<other_ndim>()};
   }
 
@@ -101,63 +166,43 @@ struct TensorView<Backend, DataType, DynamicDimensions> {
     return {data, std::move(new_shape)};
   }
 
-  DataType *data;
+  DataType *data = nullptr;
   TensorShape<DynamicDimensions> shape;
 
   static const bool has_static_dim = false;
   int dim() const { return shape.size(); }
 
-  // template <typename Offset>
-  // DataType *at(const Offset &pos) const {
-  //   return data + CalcOfffset(shape, pos);
-  // }
-
-  // template <typename... Indices>
-  // DataType *at(int64_t idx0, Indices &&... idx) const {
-  //   return data + CalcOfffset(shape, {idx0, (static_cast<int64_t>(idx))...});
-  // }
-
   template <typename... Indices>
-  DataType operator()(int64_t idx0, Indices &&... idx) const {
+  DataType* operator()(int64_t idx0, Indices &&... idx) const {
     return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
   }
 
   template <typename Offset>
-  DataType operator()(const Offset &pos) const {
+  DataType* operator()(const Offset &pos) const {
     return data + CalcOfffset(shape, pos);
   }
 };
 
 template <typename Backend, typename DataType, int ndim>
 struct TensorView {
-  TensorView() : data(nullptr), shape() {}
+  TensorView() = default;
   TensorView(DataType *data, TensorShape<ndim> shape) : data(data), shape(shape) {}
   TensorView(const TensorView &) = default;
   TensorView &operator=(const TensorView &) = default;
 
-  DataType *data;
+  DataType *data = nullptr;
   TensorShape<ndim> shape;
 
   static const bool has_static_dim = true;
   constexpr int dim() const { return shape.size(); }
 
-  // template <typename Offset>
-  // DataType *at(const Offset &pos) const {
-  //   return data + CalcOfffset(shape, pos);
-  // }
-
-  // template <typename... Indices>
-  // DataType *at(int64_t idx0, Indices &&... idx) const {
-  //   return data + CalcOfffset(shape, {idx0, (static_cast<int64_t>(idx))...});
-  // }
-
   template <typename... Indices>
-  DataType operator()(int64_t idx0, Indices &&... idx) const {
+  DataType* operator()(int64_t idx0, Indices &&... idx) const {
     return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
   }
 
   template <typename Offset>
-  DataType operator()(const Offset &pos) const {
+  DataType* operator()(const Offset &pos) const {
     return data + CalcOfffset(shape, pos);
   }
 };

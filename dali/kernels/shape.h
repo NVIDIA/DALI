@@ -93,6 +93,8 @@ struct TensorShapeBase {
 
  protected:
   // Disallow instatiation of Base class
+
+  // Zero-fill the shape for Container=std::array<int64_t> with shape{}
   TensorShapeBase() : shape{} {}
 
   TensorShapeBase(const Container &c) : shape(c) {}
@@ -106,7 +108,7 @@ struct TensorShape<DynamicDimensions>
   TensorShape(const std::vector<int64_t> &s) : Base(s) {}
 
   template <size_t N>
-  TensorShape(std::array<int64_t, N> s) : Base(typename Base::container_type(s.begin(), s.end())) {}
+  TensorShape(const std::array<int64_t, N> &s) : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s) : Base(typename Base::container_type{i0, int64_t{s}...}) {}
@@ -141,17 +143,13 @@ struct TensorShape<DynamicDimensions>
   }
 
   void resize(typename Base::size_type count) { shape.resize(count); }
-
-  void resize(typename Base::size_type count, const typename Base::value_type &val) {
-    shape.resize(count, val);
-  }
 };
 
 template <int ndim>
 struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
   using Base = TensorShapeBase<std::array<int64_t, ndim>, ndim>;
   TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}
-  // We just want zero-initialization
+  // Base class constructor will zero-initialize array
   TensorShape() = default;
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
@@ -172,9 +170,6 @@ struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
     assert(count == ndim && "Not supported for count other than statically defined");
   }
 
-  void resize(typename Base::size_type count, const typename Base::value_type &val) {
-    assert(count == ndim && "Not supported for count other than statically defined");
-  }
   static_assert(ndim >= 0, "TensorShape dimension should not be negative");
 };
 
@@ -338,13 +333,11 @@ struct TensorListShapeBase {
     return {&shapes[sample * get_sample_dim()], get_sample_dim()};
   }
 
-  // TODO(klecki): not sure if we should allow to create static tensor shapes direclty from dynamic
-  // list shape
   template <int tensor_ndim = sample_ndim>
   TensorShape<tensor_ndim> tensor_shape(int64_t sample) const {
     static_assert(tensor_ndim == sample_ndim || sample_ndim == DynamicDimensions,
                   "Cannot convert to other static ndim");
-    assert(tensor_ndim == get_sample_dim() && "Cannot convert to other static ndim");
+    assert(tensor_ndim == get_sample_dim() && "Cannot convert to other ndim");
     TensorShape<tensor_ndim> out;
     out.resize(get_sample_dim());
     int64_t base = get_sample_dim() * sample;
@@ -437,7 +430,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
-    assert(sample_dim() == other_ndim);
+    assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
     return {shapes};
   }
 
@@ -445,7 +438,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
-    assert(sample_dim() == other_ndim);
+    assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
     return {std::move(shapes)};
   }
 };
@@ -562,9 +555,6 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::la
 template <int left_ndim, int right_ndim>
 bool operator==(const TensorListShape<left_ndim> &left, const TensorListShape<right_ndim> &right) {
   if (left.sample_dim() != right.sample_dim()) {
-    return false;
-  }
-  if (left.size() != right.size()) {
     return false;
   }
   return left.shapes == right.shapes;
