@@ -56,10 +56,6 @@ private:
 
 
   void SetUp() final {
-    {
-      auto dag = GenerateOperatorsGraph();
-      operator_graph_ = std::unique_ptr<OpDag>(&dag);
-    }
   }
 
 
@@ -68,7 +64,7 @@ private:
   }
 
 
-  std::unique_ptr<OpDag> operator_graph_;
+  OpDag operator_graph_;
 };
 
 }  // namespace testing
