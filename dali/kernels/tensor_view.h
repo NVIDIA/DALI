@@ -15,9 +15,10 @@
 #ifndef DALI_KERNELS_TENSOR_VIEW_H_
 #define DALI_KERNELS_TENSOR_VIEW_H_
 
-#include "shape.h"
+#include "tensor_shape.h"
 
-namespace tensor {
+namespace dali {
+namespace kernels {
 
 template <typename T>
 constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T &) {
@@ -69,7 +70,7 @@ ptrdiff_t CalcOffset(const Shape &shape, const Position &pos) {
 
 struct EmptyBackendTag {};
 
-template <typename Backend, typename DataType, int ndim>
+template <typename Backend, typename DataType, int ndim = DynamicDimensions>
 struct TensorView;
 
 template <typename Backend, typename DataType, int ndim>
@@ -78,22 +79,17 @@ struct TensorViewBase {
 
   template <typename... Indices>
   DataType *operator()(int64_t idx0, Indices &&... idx) const {
-    return data + CalcOfffset(shape, {idx0, (int64_t{idx})...});
+    return data + CalcOffset(shape, std::array<ptrdiff_t, sizeof...(Indices) + 1>{
+                                        idx0, (ptrdiff_t{idx})...});
   }
 
   template <typename Offset>
   DataType *operator()(const Offset &pos) const {
-    return data + CalcOfffset(shape, pos);
+    return data + CalcOffset(shape, pos);
   }
 
   template <int other_ndim>
   TensorView<Backend, DataType, other_ndim> to_static();
-
-  template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static(const TensorShape<other_ndim> &new_shape);
-
-  template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static(TensorShape<other_ndim> &&new_shape);
 
   DataType *data = nullptr;
   TensorShape<ndim> shape;
@@ -101,7 +97,6 @@ struct TensorViewBase {
  protected:
   TensorViewBase() = default;
   TensorViewBase(const TensorViewBase &) = default;
-  TensorViewBase(TensorViewBase &&) = default;
   TensorViewBase(DataType *data, const TensorShape<ndim> &shape) : data(data), shape(shape) {}
   TensorViewBase(DataType *data, TensorShape<ndim> &&shape) : data(data), shape(std::move(shape)) {}
 };
@@ -174,25 +169,7 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
   return {data, shape.template to_static<other_ndim>()};
 }
 
-template <typename Backend, typename DataType, int ndim>
-template <int other_ndim>
-TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(
-    const TensorShape<other_ndim> &new_shape) {
-  static_assert(other_ndim != DynamicDimensions,
-                "Conversion to static only allowed for static shape");
-  return {data, new_shape};
-}
-
-template <typename Backend, typename DataType, int ndim>
-template <int other_ndim>
-TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static(
-    TensorShape<other_ndim> &&new_shape) {
-  static_assert(other_ndim != DynamicDimensions,
-                "Conversion to static only allowed for static shape");
-  return {data, std::move(new_shape)};
-}
-
-template <typename Backend, typename DataType, int sample_ndim>
+template <typename Backend, typename DataType, int sample_ndim = DynamicDimensions>
 struct TensorListView;
 
 template <typename Backend, typename DataType, int sample_ndim>
@@ -210,15 +187,26 @@ struct TensorListViewBase {
 
   template <int other_sample_ndim>
   TensorListView<Backend, DataType, other_sample_ndim> to_static() {
-  static_assert(other_sample_ndim != DynamicDimensions,
-                "Conversion to static only allowed for static shape");
-    return {data, shape, offsets};
+    static_assert(other_sample_ndim != DynamicDimensions,
+                  "Conversion to static only allowed for static shape");
+    // Ofssets do not change
+    return {data, shape.template to_static<other_sample_ndim>(), offsets};
   }
 
  protected:
   TensorListViewBase() = default;
   TensorListViewBase(const TensorListViewBase &) = default;
-  TensorListViewBase(TensorListViewBase &&) = default;
+  TensorListViewBase(TensorListViewBase &&other)
+      : data(other.data), shape(std::move(other.shape)), offsets(std::move(other.offsets)) {
+    other.data = nullptr;
+  }
+  TensorListViewBase &operator=(const TensorListViewBase &) = default;
+  TensorListViewBase &operator=(TensorListViewBase &&other) {
+    data = other.data;
+    other.data = nullptr;
+    shape = std::move(other.shape);
+    offsets = std::move(other.offsets);
+  }
   TensorListViewBase(DataType *data, const TensorListShape<sample_ndim> &shapes)
       : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
   TensorListViewBase(DataType *data, TensorListShape<sample_ndim> &&shapes)
@@ -236,14 +224,39 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
     : TensorListViewBase<Backend, DataType, DynamicDimensions> {
   using Base = TensorListViewBase<Backend, DataType, DynamicDimensions>;
   TensorListView() = default;
+  TensorListView(const TensorListView &) = default;
+  TensorListView(TensorListView &&) = default;
+  TensorListView &operator=(const TensorListView &) = default;
+  TensorListView &operator=(TensorListView &&) = default;
   TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
       : Base(data, shapes) {}
+
+  TensorListView(DataType *data, const TensorListShape<DynamicDimensions> &shape,
+                 const std::vector<ptrdiff_t> &offsets)
+      : Base(data, shape, offsets) {}
+
+  TensorListView(DataType *data, TensorListShape<DynamicDimensions> &&shape,
+                 std::vector<ptrdiff_t> &&offsets)
+      : Base(data, std::move(shape), std::move(offsets)) {}
+
+  template <int other_sample_ndim>
+  TensorListView(const TensorListView<Backend, DataType, other_sample_ndim> &other)
+      : Base(other.data, other.shape, other.offsets) {}
+  template <int other_sample_ndim>
+  TensorListView(TensorListView<Backend, DataType, other_sample_ndim> &&other)
+      : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+    other.data = nullptr;
+  }
 };
 
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   using Base = TensorListViewBase<Backend, DataType, sample_ndim>;
   TensorListView() = default;
+  TensorListView(const TensorListView &) = default;
+  TensorListView(TensorListView &&) = default;
+  TensorListView &operator=(const TensorListView &) = default;
+  TensorListView &operator=(TensorListView &&) = default;
   TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes)
       : Base(data, shapes) {}
 
@@ -256,7 +269,7 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
       : Base(data, std::move(shape), std::move(offsets)) {}
 };
 
-
-}  // namespace tensor
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_TENSOR_VIEW_H_

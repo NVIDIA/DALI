@@ -23,7 +23,8 @@
 
 #include "dali/kernels/span.h"
 
-namespace tensor {
+namespace dali {
+namespace kernels {
 
 
 
@@ -349,31 +350,31 @@ struct TensorListShapeBase {
 
   std::vector<int64_t> shapes;
 
-  struct iterator {
-    iterator(int sample_idx, const Derived *iterated)
-        : sample_idx(sample_idx), iterated(iterated) {}
-    iterator &operator++() {
-      ++sample_idx;
-      return *this;
-    }
+  // struct iterator {
+  //   iterator(int sample_idx, const Derived *iterated)
+  //       : sample_idx(sample_idx), iterated(iterated) {}
+  //   iterator &operator++() {
+  //     ++sample_idx;
+  //     return *this;
+  //   }
 
-    iterator operator++(int) {
-      iterator result = *this;
-      sample_idx++;
-      return result;
-    }
-    TensorShape<sample_ndim> operator*() const { return (*iterated)[sample_idx]; }
-    bool operator==(const iterator &other) const {
-      return iterated == other.iterated && sample_idx == other.sample_idx;
-    }
-    bool operator!=(const iterator &other) const { return !(*this == other); }
+  //   iterator operator++(int) {
+  //     iterator result = *this;
+  //     sample_idx++;
+  //     return result;
+  //   }
+  //   TensorShape<sample_ndim> operator*() const { return (*iterated)[sample_idx]; }
+  //   bool operator==(const iterator &other) const {
+  //     return iterated == other.iterated && sample_idx == other.sample_idx;
+  //   }
+  //   bool operator!=(const iterator &other) const { return !(*this == other); }
 
-   private:
-    int sample_idx;
-    const Derived *iterated;
-  };
-  iterator begin() const { return {0, static_cast<const Derived *>(this)}; }
-  iterator end() const { return {get_size(), static_cast<const Derived *>(this)}; }
+  //  private:
+  //   int sample_idx;
+  //   const Derived *iterated;
+  // };
+  // iterator begin() const { return {0, static_cast<const Derived *>(this)}; }
+  // iterator end() const { return {get_size(), static_cast<const Derived *>(this)}; }
 
   decltype(shapes.data()) data() {
     return shapes.data();
@@ -529,6 +530,7 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::fi
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
   result.shapes.resize(count * get_size());
+  result.dim = count;
   for (int sample = 0; sample < get_size(); sample++) {
     for (int d = 0; d < count; d++) {
       result.shapes[sample * count + d] = shapes[sample * get_sample_dim() + d];
@@ -543,6 +545,7 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::la
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
   result.shapes.resize(count * get_size());
+  result.dim = count;
   int start_offset = get_sample_dim() - count;
   for (int sample = 0; sample < get_size(); sample++) {
     for (int d = 0; d < count; d++) {
@@ -590,6 +593,8 @@ bool is_uniform(const TensorListShape<ndim> &tls) {
   }
   return true;
 }
-}  // namespace tensor
+
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_SHAPE_H_

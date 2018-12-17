@@ -18,7 +18,8 @@
 #include <cstddef>
 #include <type_traits>
 
-namespace tensor {
+namespace dali {
+namespace kernels {
 
 // Based on "span: bounds-safe views for sequences of objects"
 // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0122r7.pdf
@@ -140,6 +141,7 @@ template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
   return !(l == r);
 }
 
-}  // namespace tensor
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_SPAN_H_
