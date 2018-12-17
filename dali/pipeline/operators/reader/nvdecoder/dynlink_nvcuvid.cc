@@ -159,6 +159,14 @@ CUresult cuvidInit(unsigned int Flags)
 }
 
 bool cuvidInitChecked(unsigned int Flags) {
+    static std::mutex m;
+    static bool initialized = false;
+
+    std::unique_lock<std::mutex> l(m);
+
+    if (initialized)
+        return true;
     CUresult res = cuvidInit(Flags);
+    initialized = true;
     return res == CUDA_SUCCESS;
 }

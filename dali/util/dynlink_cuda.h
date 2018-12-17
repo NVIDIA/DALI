@@ -10,6 +10,9 @@
  */
 
 
+#include <mutex>
+#include <thread>
+
 #ifndef __cuda_drvapi_dynlink_cuda_h__
 #define __cuda_drvapi_dynlink_cuda_h__
 
@@ -1959,13 +1962,7 @@ extern tcuProfilerStop                    *cuProfilerStop;
 }
 #endif
 
-inline bool cuInitWrapped() {
-    static bool initialized = false;
-    if (initialized)
-        return true;
-    CUresult res = cuInit(0, __CUDA_API_VERSION);
-    return res == CUDA_SUCCESS;
-}
+bool cuInitChecked();
 
 //#undef __CUDA_API_VERSION
 

@@ -24,7 +24,7 @@ CUContext::CUContext() : context_{0}, initialized_{false} {
 
 CUContext::CUContext(CUdevice device, unsigned int flags)
     : device_{device}, context_{0}, initialized_{false} {
-    DALI_ENFORCE(cuInitWrapped(),
+    DALI_ENFORCE(cuInitChecked(),
         "Failed to load libcuda.so. "
         "Check your library paths and if the driver is installed correctly.");
     CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device));

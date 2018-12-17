@@ -94,7 +94,7 @@ NvDecoder::NvDecoder(int device_id,
     return;
   }
 
-  DALI_ENFORCE(cuInitWrapped(),
+  DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
     "Check your library paths and if NVIDIA driver is installed correctly.");
 

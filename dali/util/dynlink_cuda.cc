@@ -588,15 +588,15 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     return CUDA_SUCCESS;
 }
 
-namespace dali {
+bool cuInitChecked() {
+    static std::mutex m;
+    static bool initialized = false;
 
-static void cudaDriverInit() {
-    static bool cudaDriverLoaded = false;
-    if (cudaDriverLoaded) {
-        return;
-    }
-    cuInit(0, __CUDA_API_VERSION);
-    cudaDriverLoaded = true;
-}
+    std::unique_lock<std::mutex> l(m);
 
+    if (initialized)
+        return true;
+    CUresult res = cuInit(0, __CUDA_API_VERSION);
+    initialized = true;
+    return res == CUDA_SUCCESS;
 }
