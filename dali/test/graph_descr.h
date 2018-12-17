@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_OP_GRAPH_H_
-#define DALI_TEST_OP_GRAPH_H_
+#ifndef DALI_TEST_GRAPH_DESCR_H_
+#define DALI_TEST_GRAPH_DESCR_H_
 
 #include <string>
 
 namespace dali {
 namespace testing {
 
-class OpDag {
+class GraphDescr {
  public:
-  OpDag(std::string name) : name_(name) {}  // NOLINT (non-explicit ctor)
+  GraphDescr(std::string name) : name_(name) {}  // NOLINT (non-explicit ctor)
   std::string get_op_name() { return name_; }
   std::string name_;
 };  // PR #369
@@ -31,4 +31,4 @@ class OpDag {
 }  // namespace testing
 }  // namespace dali
 
-#endif  // DALI_TEST_OP_GRAPH_H_
+#endif  // DALI_TEST_GRAPH_DESCR_H_
