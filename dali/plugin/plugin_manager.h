@@ -16,33 +16,19 @@
 #define DALI_PLUGIN_PLUGIN_MANAGER_H_
 
 #include <string>
-#include <vector>
-#include <mutex>
 #include "dali/common.h"
 
 namespace dali {
 
 class DLL_PUBLIC PluginManager {
  public:
-    static DLL_PUBLIC PluginManager& Instance();
-
-    DISABLE_COPY_MOVE_ASSIGN(PluginManager);
-
     /**
      * @brief Load plugin library
      * @remarks Will invoke dlopen()
      * @param [in] lib_path path to the plugin library, e.g. "/usr/lib/libcustomplugin.so"
      * @throws std::runtime_error if the library could not be loaded
      */
-    DLL_PUBLIC void LoadLibrary(const std::string& lib_path);
-
- private:
-    PluginManager() = default;
-    ~PluginManager();
-
-    using LibraryHandle = void*;
-    std::vector<LibraryHandle> handles_;
-    std::mutex mutex_;
+    static DLL_PUBLIC void LoadLibrary(const std::string& lib_path);
 };
 
 }  // namespace dali

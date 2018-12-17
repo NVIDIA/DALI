@@ -18,29 +18,10 @@
 
 namespace dali {
 
-PluginManager& PluginManager::Instance() {
-    static PluginManager instance;
-    return instance;
-}
-
-PluginManager::~PluginManager() {
-    // WARNING! Calling dlclose will produce a crash because the lifecycle
-    //          of SchemaRegistry and OperatorRegistry is not managed
-    // TODO(janton): consider doing dlclose after refactoring of the registry's lifecycle
-#if 0
-    for (auto handle : handles_) {
-        dlclose(handle);
-    }
-#endif
-}
-
 void PluginManager::LoadLibrary(const std::string& lib_path) {
     // dlopen is thread safe
-    LibraryHandle handle = dlopen(lib_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+    auto handle = dlopen(lib_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
     DALI_ENFORCE(handle != nullptr, "Failed to load library: " + std::string(dlerror()));
-
-    std::lock_guard<std::mutex> lock(mutex_);
-    handles_.push_back(handle);
 }
 
 }  // namespace dali

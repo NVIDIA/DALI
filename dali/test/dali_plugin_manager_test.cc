@@ -32,7 +32,7 @@ typedef ::testing::Types<::dali::RGB> Types;
 TYPED_TEST_CASE(DummyTest, Types);
 
 static void LoadDummyPlugin() {
-  ::dali::PluginManager::Instance().LoadLibrary(DummyPluginLibPath());
+  ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
 }
 
 TYPED_TEST(DummyTest, PluginShouldBeUsable) {

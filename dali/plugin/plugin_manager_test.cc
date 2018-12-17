@@ -25,18 +25,18 @@ static const std::string& DummyPluginLibPath() {
 
 TEST(PluginManagerTest, LoadLibraryFail) {
     EXPECT_THROW(
-        dali::PluginManager::Instance().LoadLibrary(kNonExistingLibName),
+        dali::PluginManager::LoadLibrary(kNonExistingLibName),
         std::runtime_error);
 }
 
 TEST(PluginManagerTest, LoadLibraryOK) {
     EXPECT_NO_THROW(
-        dali::PluginManager::Instance().LoadLibrary(DummyPluginLibPath()) );
+        dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
 }
 
 TEST(PluginManagerTest, LoadingSameLibraryTwiceShouldBeOk) {
     for (int i = 0; i < 2; i++) {
         EXPECT_NO_THROW(
-            dali::PluginManager::Instance().LoadLibrary(DummyPluginLibPath()) );
+            dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
     }
 }

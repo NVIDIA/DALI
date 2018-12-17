@@ -117,6 +117,6 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 }
 
 void daliLoadLibrary(const char* lib_path) {
-    dali::PluginManager::Instance().LoadLibrary(lib_path);
+    dali::PluginManager::LoadLibrary(lib_path);
 }
 

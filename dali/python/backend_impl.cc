@@ -436,7 +436,7 @@ static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
 
-static const int GetCxx11AbiFlag() {
+static constexpr int GetCxx11AbiFlag() {
 #ifdef _GLIBCXX_USE_CXX11_ABI
   return _GLIBCXX_USE_CXX11_ABI;
 #else
@@ -481,12 +481,9 @@ PYBIND11_MODULE(backend_impl, m) {
   // DALI Init function
   m.def("Init", &DALIInit);
 
-  m.def("LoadLibrary",
-        [](const std::string& lib_path){
-            PluginManager::Instance().LoadLibrary(lib_path);
-        });
+  m.def("LoadLibrary", &PluginManager::LoadLibrary);
 
-  m.attr("cxx11_abi_flag") = GetCxx11AbiFlag();
+  m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
   // Types
   py::module types_m = m.def_submodule("types");
