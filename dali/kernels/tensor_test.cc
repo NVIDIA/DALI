@@ -87,7 +87,7 @@ TEST(TensorShapeTest, DynamicShapeConstructor) {
   std::vector<int64_t> test_shape_vec = {1, 2, 3, 4, 5, 6, 7};
   TensorShape<DynamicDimensions> b(test_shape_vec);
   ASSERT_EQ(b.size(), test_shape_vec.size());
-  for (int i = 0; i < test_shape_vec.size(); i++) {
+  for (size_t i = 0; i < test_shape_vec.size(); i++) {
     ASSERT_EQ(b[i], test_shape_vec[i]);
   }
 

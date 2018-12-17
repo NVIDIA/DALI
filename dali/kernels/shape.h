@@ -274,7 +274,7 @@ typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>:
 flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
   std::vector<int64_t> result;
   result.resize(sample_ndim * shapes.size());
-  for (int sample = 0; sample < shapes.size(); sample++) {
+  for (size_t sample = 0; sample < shapes.size(); sample++) {
     for (int axis = 0; axis < sample_ndim; axis++) {
       result[sample * sample_ndim + axis] = shapes[sample][axis];
     }
@@ -301,7 +301,7 @@ flatten_shapes(const std::vector<T> &shapes) {
   std::vector<int64_t> result;
   int uniform_sample_ndim = get_dim_from_uniform(shapes);
   result.resize(uniform_sample_ndim * shapes.size());
-  for (int sample = 0; sample < shapes.size(); sample++) {
+  for (size_t sample = 0; sample < shapes.size(); sample++) {
     assert(shapes[sample].size() == uniform_sample_ndim);
     for (int axis = 0; axis < uniform_sample_ndim; axis++) {
       result[sample * uniform_sample_ndim + axis] = shapes[sample][axis];
@@ -417,8 +417,8 @@ struct TensorListShape<DynamicDimensions>
   TensorShape<DynamicDimensions> operator[](int64_t sample) const {
     return tensor_shape<DynamicDimensions>(sample);
   }
-
-  constexpr int sample_dim() const { return dim; }
+  //gcc complains about constexpr
+  /*constexpr*/ int sample_dim() const { return dim; }
 
   int size() const { return shapes.size() / sample_dim(); }
 

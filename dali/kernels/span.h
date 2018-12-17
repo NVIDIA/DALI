@@ -123,7 +123,7 @@ class span<ElementType, dynamic_extent> {
 
 // [span.comparison], span comparison operators
 template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-constexpr bool operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
+/* constexpr */bool operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   if (l.size() != r.size()) {
     return false;
   }
@@ -136,7 +136,7 @@ constexpr bool operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) 
   return true;
 }
 template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-constexpr bool operator!=(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
+/* constexpr */ bool operator!=(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   return !(l == r);
 }
 
