@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <dali/test/op_graph.h>
+#include <dali/test/graph_desc.h>
 
 namespace dali {
 namespace testing {
 
 TEST(OpGraph, ValidDAG1) {
-  OpDAG dag;
+  GraphDesc dag;
   auto &n1 = dag.add("MyOp1")(dag.in[0]);
   auto &n2 = dag.add("MyOp2")(dag.in[1]);
   auto &n3 = dag.add("MyOp3")(n1[0], n2[0]);
@@ -28,7 +28,7 @@ TEST(OpGraph, ValidDAG1) {
 }
 
 TEST(OpGraph, ValidDAG2) {
-  OpDAG dag;
+  GraphDesc dag;
   auto &n1 = dag.add("MyOp1")(dag.in[0]);
   auto &n2 = dag.add("MyOp2")(dag.in[1], n1[0]);
   auto &n3 = dag.add("MyOp3")(n1[0], n2[0]);
@@ -37,7 +37,7 @@ TEST(OpGraph, ValidDAG2) {
 }
 
 TEST(OpGraph, InvalidDAG) {
-  OpDAG dag;
+  GraphDesc dag;
   auto &n1 = dag.add("MyOp1")(dag.in[0]);
   auto &n2 = dag.add("MyOp2")(dag.in[1], n1[0]);
   auto &n3 = dag.add("MyOp3")(n1[0], n2[0]);

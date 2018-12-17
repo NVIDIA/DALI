@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_OP_GRAPH_H_
-#define DALI_TEST_OP_GRAPH_H_
+#ifndef DALI_TEST_GRAPH_DESC_H_
+#define DALI_TEST_GRAPH_DESC_H_
 
 #include <string>
 #include <unordered_map>
@@ -80,7 +80,7 @@ struct Node {
   std::vector<Edge> in;
 };
 
-struct OpDAG {
+struct GraphDesc {
   Node &add(std::string op_name, std::string node_name, int backend_mask = Node::AnyBackend) {
     Node node(std::move(op_name), std::move(node_name), backend_mask);
     auto result = nodes.emplace(node.op_name, std::move(node));
@@ -96,16 +96,18 @@ struct OpDAG {
     return add(std::move(op_name), std::move(node_name), backend_mask);
   }
 
-  bool check_cycles(
+  static bool is_acyclic(
       const Node *n,
       std::unordered_set<const Node *> &done,
-      std::unordered_set<const Node *> &in_progress) const {
+      std::unordered_set<const Node *> &in_progress) {
+    // the subgraph containing this node has already been validated
     if (done.count(n))
       return true;
+    // cycle detected
     if (!in_progress.insert(n).second)
       return false;
     for (auto in : n->in)
-      if (!check_cycles(in.node, done, in_progress))
+      if (!is_acyclic(in.node, done, in_progress))
         return false;
     done.insert(n);
     in_progress.erase(n);
@@ -115,7 +117,7 @@ struct OpDAG {
   bool validate() const {
     std::unordered_set<const Node *> done;
     std::unordered_set<const Node *> in_progress;
-    if (!check_cycles(&out, done, in_progress))
+    if (!is_acyclic(&out, done, in_progress))
       return false;
 
     return in.num_outputs == 0 || done.count(&in);
@@ -133,10 +135,10 @@ struct OpDAG {
 ///                      of inputs supplied to a function running the graph
 /// @param num_outputs - number of outputs, if 0 then it's inferred from number
 ///                      of reference outputs supplied to a function running the graph
-OpDAG SingleOpGraph(const std::string &op_name,
+GraphDesc SingleOpGraph(const std::string &op_name,
                     int backend_mask = Node::AnyBackend,
                     int num_inputs = 0, int num_outputs = 0) {
-  OpDAG dag;
+  GraphDesc dag;
   auto &n = dag.add(op_name, backend_mask);
   for (int i = 0; i < num_inputs; i++)
     n.in.push_back(dag.in[i]);
@@ -149,4 +151,4 @@ OpDAG SingleOpGraph(const std::string &op_name,
 }  // namespace testing
 }  // namespace dali
 
-#endif  // DALI_TEST_OP_GRAPH_H_
+#endif  // DALI_TEST_GRAPH_DESC_H_
