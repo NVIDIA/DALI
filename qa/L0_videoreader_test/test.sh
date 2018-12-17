@@ -2,7 +2,8 @@
 
 pip_packages="numpy"
 
-apt-get install ffmpeg
+apt-get update
+apt-get install -y ffmpeg
 
 pushd ../..
 
@@ -24,7 +25,6 @@ done
 
 test_body() {
     # test code
-    ls
     python video_example.py
 }
 
