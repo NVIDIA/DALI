@@ -31,6 +31,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     count_(spec.GetArgument<int>("count")),
     channels_(spec.GetArgument<int>("channels")),
     output_scale_(spec.GetArgument<float>("scale")) {
+    DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
+
+    DALI_ENFORCE(image_type == DALI_RGB || image_type == DALI_YCbCr,
+                 "Image type must be RGB or YCbCr.");
+
     // TODO(spanev): support rescale
       try {
         loader_.reset(new VideoLoader(spec, filenames_));

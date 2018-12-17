@@ -94,17 +94,19 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
       codec_id_ = codec_id;
 
       if (vid_decoder_) {
-        throw std::logic_error("width and height not set, but we have a decoder?");
+        DALI_FAIL("Width and height not set, but we have a decoder?");
       }
       LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
 
       vid_decoder_ = std::unique_ptr<NvDecoder>{
           new NvDecoder(device_id_,
                         codecpar(stream),
-                        stream->time_base)};
+                        stream->time_base,
+                        image_type_,
+                        normalized_)};
     } else {  // already opened a file
       if (!vid_decoder_) {
-          throw std::logic_error("width is already set but we don't have a vid_decoder_");
+          DALI_FAIL("width is already set but we don't have a vid_decoder_");
       }
 
       if (width_ != codecpar(stream)->width ||
