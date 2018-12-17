@@ -21,13 +21,12 @@
 #include <dali/pipeline/pipeline.h>
 #include <dali/test/op_graph.h>
 #include <dali/test/tensor_list_wrapper.h>
+#include "argument_key.h"
 
 namespace dali {
 namespace testing {
 
-using Arguments = std::map<std::string, double>; // TODO: some generalization. boost::any?
-
-
+using Arguments = std::map<ArgumentKey, double>; // TODO boost::any?
 
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
 public:
@@ -35,19 +34,10 @@ public:
 protected:
   void RunTest(const TensorListWrapper &input, const TensorListWrapper &output,
                const Arguments &operator_arguments, const Verify &verify) {
-
   }
-
 
   void RunTest(const std::vector<TensorListWrapper> &inputs, const std::vector<TensorListWrapper> &outputs,
                const Arguments &operator_arguments, const std::vector<Verify> &verify) {
-    assert(false);
-  }
-
-
-  void RunTest(const std::vector<TensorListWrapper> &inputs, const std::vector<TensorListWrapper> &outputs,
-               const std::map<std::string, Arguments> &operator_arguments, const std::vector<Verify> &verify) {
-    assert(false);
   }
 
 
@@ -60,11 +50,8 @@ private:
 
 
   void TearDown() final {
-    std::cout<<"TearDown\n";
   }
 
-
-  OpDag operator_graph_;
 };
 
 }  // namespace testing

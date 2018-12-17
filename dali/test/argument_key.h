@@ -15,8 +15,28 @@
 #ifndef DALI_OPERATOR_ARGUMENTS_H
 #define DALI_OPERATOR_ARGUMENTS_H
 
-class OperatorArguments {
+#include <utility>
+#include <string>
 
+
+namespace dali {
+namespace testing {
+
+class ArgumentKey : public std::pair<std::string, std::string> {
+ public:
+  using Base = std::pair<std::string, std::string>;
+
+
+  ArgumentKey(const char* arg_name) : Base({}, arg_name) {}
+
+
+  ArgumentKey(std::string node_name, std::string arg_name) :
+          Base(std::move(node_name), std::move(arg_name)) {
+
+  }
 };
 
-#endif //DALI_OPERATOR_ARGUMENTS_H
+}  // namespace testing
+}  // namespace dali
+
+#endif  // DALI_OPERATOR_ARGUMENTS_H
