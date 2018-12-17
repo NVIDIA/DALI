@@ -14,6 +14,7 @@
 
 # Set variables used by subdirectories
 set(DALI_SRCS)
+set(DALI_OPERATOR_SRCS)
 set(DALI_TEST_SRCS)
 set(DALI_BENCHMARK_SRCS)
 set(DALI_TF_SRCS)
@@ -28,6 +29,7 @@ add_subdirectory(plugin)
 add_subdirectory(c_api)
 
 set(dali_lib "dali")
+set(dali_operator_lib "dali_operators")
 
 # Collect source files for dali
 file(GLOB tmp *.cc)
@@ -47,16 +49,25 @@ if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   # So this is a workaround to append PRIVATE in front of it 
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
+cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
+
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
 # Options for using Dockerfile FFmpeg version
 target_compile_definitions(${dali_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
 target_compile_definitions(${dali_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
 
+target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
+
 # Define symbol version script for libdali.so
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(dali_lib_exports "lib${dali_lib}.map")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
+target_link_libraries(${dali_lib} PRIVATE ${dali_operator_lib})
+# link whole content of dali_operator_lib into dali_lib
+target_link_libraries(${dali_lib} PRIVATE "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_operator_lib}> -Wl,--no-whole-archive")
+
 target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
 add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
 add_dependencies(${dali_lib} ${dali_lib_exports})
@@ -73,6 +84,10 @@ target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 # install libdali to build dir
 set_target_properties(${dali_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
+
+set_target_properties(${dali_operator_lib} PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
 # filter all *.h which don't have 'test' in name, create pairs 'src dst' string with sed and call xargs

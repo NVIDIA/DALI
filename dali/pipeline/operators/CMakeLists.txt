@@ -38,3 +38,5 @@ if (BUILD_TEST)
   file(GLOB tmp *_test.cc)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
+
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
