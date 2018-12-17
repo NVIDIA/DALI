@@ -46,6 +46,7 @@ tcuCtxGetDevice                       *cuCtxGetDevice;
 tcuCtxSynchronize                     *cuCtxSynchronize;
 tcuDevicePrimaryCtxRetain             *cuDevicePrimaryCtxRetain;
 tcuDevicePrimaryCtxRelease            *cuDevicePrimaryCtxRelease;
+#if 0
 tcuModuleLoad                         *cuModuleLoad;
 tcuModuleLoadData                     *cuModuleLoadData;
 tcuModuleLoadDataEx                   *cuModuleLoadDataEx;
@@ -138,12 +139,14 @@ tcuParamSetTexRef                     *cuParamSetTexRef;
 tcuLaunch                             *cuLaunch;
 tcuLaunchGrid                         *cuLaunchGrid;
 tcuLaunchGridAsync                    *cuLaunchGridAsync;
+#endif
 tcuEventCreate                        *cuEventCreate;
 tcuEventRecord                        *cuEventRecord;
 tcuEventQuery                         *cuEventQuery;
 tcuEventSynchronize                   *cuEventSynchronize;
 tcuEventDestroy                       *cuEventDestroy;
 tcuEventElapsedTime                   *cuEventElapsedTime;
+#if 0
 tcuStreamCreate                       *cuStreamCreate;
 tcuStreamWaitEvent                    *cuStreamWaitEvent;
 tcuStreamAddCallback                  *cuStreamAddCallback;
@@ -156,6 +159,7 @@ tcuGraphicsResourceGetMappedPointer   *cuGraphicsResourceGetMappedPointer;
 tcuGraphicsResourceSetMapFlags        *cuGraphicsResourceSetMapFlags;
 tcuGraphicsMapResources               *cuGraphicsMapResources;
 tcuGraphicsUnmapResources             *cuGraphicsUnmapResources;
+#endif
 tcuGetExportTable                     *cuGetExportTable;
 tcuCtxSetLimit                        *cuCtxSetLimit;
 tcuCtxGetLimit                        *cuCtxGetLimit;
@@ -165,11 +169,13 @@ tcuCtxGetSharedMemConfig              *cuCtxGetSharedMemConfig;
 tcuCtxSetSharedMemConfig              *cuCtxSetSharedMemConfig;
 tcuCtxGetApiVersion                   *cuCtxGetApiVersion;
 
+#if 0
 tcuMipmappedArrayCreate               *cuMipmappedArrayCreate;
 tcuMipmappedArrayGetLevel             *cuMipmappedArrayGetLevel;
 tcuMipmappedArrayDestroy              *cuMipmappedArrayDestroy;
 
 tcuProfilerStop                       *cuProfilerStop;
+#endif 
 
 #ifdef CUDA_INIT_D3D9
 // D3D9/CUDA interop (CUDA 1.x compatible API). These functions
@@ -328,6 +334,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     GET_PROC(cuCtxGetCacheConfig);
     GET_PROC(cuCtxSetCacheConfig);
     GET_PROC(cuCtxGetApiVersion);
+    #if 0
     GET_PROC(cuModuleLoad);
     GET_PROC(cuModuleLoadData);
     GET_PROC(cuModuleUnload);
@@ -359,19 +366,23 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     GET_PROC(cuLaunch);
     GET_PROC(cuLaunchGrid);
     GET_PROC(cuLaunchGridAsync);
+    #endif
     GET_PROC(cuEventCreate);
     GET_PROC(cuEventRecord);
     GET_PROC(cuEventQuery);
     GET_PROC(cuEventSynchronize);
     GET_PROC(cuEventDestroy);
     GET_PROC(cuEventElapsedTime);
+    #if 0
     GET_PROC(cuStreamCreate);
     GET_PROC(cuStreamWaitEvent);
     GET_PROC(cuStreamAddCallback);
     GET_PROC(cuStreamQuery);
     GET_PROC(cuStreamSynchronize);
     GET_PROC(cuStreamDestroy);
+    #endif
 
+    #if 0
     // These are CUDA 5.0 new functions
     if (driverVer >= 5000)
     {
@@ -387,7 +398,9 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
         GET_PROC(cuCtxGetSharedMemConfig);
         GET_PROC(cuCtxSetSharedMemConfig);
     }
+    #endif
 
+    #if 0
     // These are CUDA 4.1 new functions
     if (cudaVersion >= 4010 && __CUDA_API_VERSION >= 4010)
     {
@@ -400,13 +413,17 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
         GET_PROC(cuIpcCloseMemHandle);
     }
 
+    #endif
+     
     // These could be _v2 interfaces
     if (cudaVersion >= 4000 && __CUDA_API_VERSION >= 4000)
     {
         GET_PROC_V2(cuCtxDestroy);
         GET_PROC_V2(cuCtxPopCurrent);
         GET_PROC_V2(cuCtxPushCurrent);
+        #if 0
         GET_PROC_V2(cuStreamDestroy);
+        #endif
         GET_PROC_V2(cuEventDestroy);
     }
 
@@ -414,6 +431,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     {
         GET_PROC_V2(cuDeviceTotalMem);
         GET_PROC_V2(cuCtxCreate);
+        #if 0
         GET_PROC_V2(cuModuleGetGlobal);
         GET_PROC_V2(cuMemGetInfo);
         GET_PROC_V2(cuMemAlloc);
@@ -460,12 +478,14 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
         {
             GET_PROC_V2(cuTexRefSetAddress2D);
         }
+        #endif
     }
     else
     {
         // versions earlier than 3020
         GET_PROC(cuDeviceTotalMem);
         GET_PROC(cuCtxCreate);
+        #if 0
         GET_PROC(cuModuleGetGlobal);
         GET_PROC(cuMemGetInfo);
         GET_PROC(cuMemAlloc);
@@ -504,6 +524,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
         GET_PROC(cuTexRefSetAddress);
         GET_PROC(cuTexRefSetAddress2D);
         GET_PROC(cuTexRefGetAddress);
+        #endif
     }
 
     // The following functions are specific to CUDA versions
@@ -511,23 +532,28 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     {
         GET_PROC(cuCtxSetCurrent);
         GET_PROC(cuCtxGetCurrent);
+        #if 0
         GET_PROC(cuMemHostRegister);
         GET_PROC(cuMemHostUnregister);
         GET_PROC(cuMemcpy);
         GET_PROC(cuMemcpyPeer);
         GET_PROC(cuLaunchKernel);
         GET_PROC(cuProfilerStop);
+        #endif
     }
 
     if (driverVer >= 3010)
     {
+        #if 0
         GET_PROC(cuModuleGetSurfRef);
         GET_PROC(cuSurfRefSetArray);
         GET_PROC(cuSurfRefGetArray);
+        #endif
         GET_PROC(cuCtxSetLimit);
         GET_PROC(cuCtxGetLimit);
     }
 
+    #if 0
     if (driverVer >= 3000)
     {
         GET_PROC(cuMemcpyDtoDAsync);
@@ -584,6 +610,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
         GET_PROC(cuGraphicsD3D9RegisterResource);
 #endif
     }
+    #endif
 
     return CUDA_SUCCESS;
 }
@@ -592,11 +619,12 @@ bool cuInitChecked() {
     static std::mutex m;
     static bool initialized = false;
 
-    std::unique_lock<std::mutex> l(m);
-
     if (initialized)
         return true;
-    CUresult res = cuInit(0, __CUDA_API_VERSION);
-    initialized = true;
-    return res == CUDA_SUCCESS;
+
+    std::lock_guard<std::mutex> lock(m);
+
+    static CUresult res = cuInit(0, __CUDA_API_VERSION);
+    initialized = (res == CUDA_SUCCESS);
+    return initialized;
 }
