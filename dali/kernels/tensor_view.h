@@ -15,24 +15,28 @@
 #ifndef DALI_KERNELS_TENSOR_VIEW_H_
 #define DALI_KERNELS_TENSOR_VIEW_H_
 
-#include "tensor_shape.h"
+#include <dali/kernels/tensor_shape.h>
+#include <utility>
+#include <vector>
+#include <type_traits>
 
 namespace dali {
 namespace kernels {
 
 template <typename T>
-constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T &) {
+constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type
+ShapeDim(const T &) {
   return 1;
 }
 
 template <typename T, size_t N>
 constexpr int ShapeDim(T (&)[N]) {
-  return int(N);
+  return static_cast<int>(N);
 }
 
 template <typename T>
 constexpr int ShapeDim(const T &t) {
-  return int(t.size());
+  return static_cast<int>(t.size());
 }
 
 template <typename Shape, typename Position>
@@ -105,7 +109,8 @@ struct TensorViewBase {
   TensorViewBase() = default;
   TensorViewBase(const TensorViewBase &) = default;
   TensorViewBase(DataType *data, const TensorShape<ndim> &shape) : data(data), shape(shape) {}
-  TensorViewBase(DataType *data, TensorShape<ndim> &&shape) : data(data), shape(std::move(shape)) {}
+  TensorViewBase(DataType *data, TensorShape<ndim> &&shape)
+  : data(data), shape(std::move(shape)) {}
 };
 
 /// @brief Dynamic TensorView can be constructed from any Static TensorView
