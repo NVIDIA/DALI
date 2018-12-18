@@ -76,10 +76,13 @@ typedef struct CUgraphicsResource_st *CUgraphicsResource; /**< CUDA graphics int
 typedef unsigned long long CUtexObject;                   /**< CUDA texture object */
 typedef unsigned long long CUsurfObject;                  /**< CUDA surface object */
 
+#ifndef CU_UUID_HAS_BEEN_DEFINED
+#define CU_UUID_HAS_BEEN_DEFINED
 typedef struct CUuuid_st                                  /**< CUDA definition of UUID */
 {
     char bytes[16];
 } CUuuid;
+#endif
 
 /**
  * Context creation flags
