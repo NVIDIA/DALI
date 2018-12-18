@@ -206,7 +206,7 @@ struct TensorListViewBase {
   TensorView<Backend, DataType, other_sample_ndim> tensor_view(int sample) const {
     static_assert(other_sample_ndim == sample_ndim || sample_ndim == DynamicDimensions
                   || other_sample_ndim == DynamicDimensions, "Cannot convert to other static ndim");
-    return {this->data + offsets[sample], shape[sample]};
+    return {this->data + offsets[sample], shape.template tensor_shape<other_sample_ndim>(sample)};
   }
 
   /// @brief Number of samples

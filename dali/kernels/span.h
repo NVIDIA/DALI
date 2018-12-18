@@ -46,7 +46,10 @@ class span {
   // [span.cons], span constructors, copy, assignment, and destructor
   // This constructor shall not participate in overload resolution unless Extent <= 0 is true
   constexpr span() noexcept = delete;
-  constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) { /* assert(count == Extent); */ }
+  constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) {  // NOLINT
+    /* assert(count == Extent); */
+  }
+
   constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
   }
@@ -93,7 +96,9 @@ class span<ElementType, dynamic_extent> {
   // [span.cons], span constructors, copy, assignment, and destructor
   constexpr span() noexcept : data_(nullptr), size_(0) {}
   constexpr span(pointer ptr, index_type count) : data_(ptr), size_(count) {}
-  constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem), size_(lastElem - firstElem) {}
+  constexpr span(pointer firstElem, pointer lastElem)
+  : data_(firstElem), size_(lastElem - firstElem) {}
+
   constexpr span(const span &other) noexcept = default;
   ~span() noexcept = default;
   span &operator=(const span &other) noexcept = default;

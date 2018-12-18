@@ -81,5 +81,30 @@ TEST(TensorListViewTest, OperatorSubscript) {
   EXPECT_EQ(tlv[3].data, static_cast<int*>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
 }
 
+TEST(TensorListViewTest, ObtainingTensorViewFromStatic) {
+  TensorListView<EmptyBackendTag, int, 3> tlv_static{
+      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+
+  auto t0 = tlv_static[0];
+  static_assert(std::is_same<decltype(t0), TensorView<EmptyBackendTag, int, 3>>::value, "Wrong type");
+  auto t1 = tlv_static.tensor_view<3>(1);
+  static_assert(std::is_same<decltype(t1), TensorView<EmptyBackendTag, int, 3>>::value, "Wrong type");
+  auto t2 = tlv_static.tensor_view<DynamicDimensions>(2);
+  static_assert(std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value, "Wrong type");
+  EXPECT_EQ(t2.dim(), 3);
+}
+
+TEST(TensorListViewTest, ObtainingTensorViewFromDynamic) {
+  TensorListView<EmptyBackendTag, int> tlv_dynamic{
+      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+  auto t0 = tlv_dynamic[0];
+  static_assert(std::is_same<decltype(t0), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value, "Wrong type");
+  auto t1 = tlv_dynamic.tensor_view<3>(1);
+  static_assert(std::is_same<decltype(t1), TensorView<EmptyBackendTag, int, 3>>::value, "Wrong type");
+  auto t2 = tlv_dynamic.tensor_view<DynamicDimensions>(2);
+  static_assert(std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value, "Wrong type");
+  EXPECT_EQ(t2.dim(), 3);
+}
+
 }  // namespace kernels
 }  // namespace dali

@@ -436,7 +436,12 @@ TEST(CalculateOffsetsTest, Result) {
 }
 
 TEST(TensorListShapeTest, IsUniform) {
-  // TensorListShape
+  TensorListShape<3> non_uniform({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  EXPECT_FALSE(is_uniform(non_uniform));
+  TensorListShape<3> uniform({{1, 2, 3}, {1, 2, 3}, {1, 2, 3}, {1, 2, 3}});
+  EXPECT_TRUE(is_uniform(uniform));
+  TensorListShape<3> empty;
+  EXPECT_TRUE(is_uniform(empty));
 }
 
 
