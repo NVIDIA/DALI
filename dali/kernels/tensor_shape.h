@@ -80,6 +80,8 @@ struct TensorShapeBase {
   const_reverse_iterator crend() const noexcept { return shape.crend(); }
 
   size_type size() const { return shape.size(); }
+  size_type sample_dim() const { return shape.size(); }
+  constexpr bool empty() const { return size() == 0; }
 
   Container shape;
   static constexpr int static_ndim = ndim;
@@ -350,35 +352,10 @@ struct TensorListShapeBase {
 
   std::vector<int64_t> shapes;
 
-  // struct iterator {
-  //   iterator(int sample_idx, const Derived *iterated)
-  //       : sample_idx(sample_idx), iterated(iterated) {}
-  //   iterator &operator++() {
-  //     ++sample_idx;
-  //     return *this;
-  //   }
-
-  //   iterator operator++(int) {
-  //     iterator result = *this;
-  //     sample_idx++;
-  //     return result;
-  //   }
-  //   TensorShape<sample_ndim> operator*() const { return (*iterated)[sample_idx]; }
-  //   bool operator==(const iterator &other) const {
-  //     return iterated == other.iterated && sample_idx == other.sample_idx;
-  //   }
-  //   bool operator!=(const iterator &other) const { return !(*this == other); }
-
-  //  private:
-  //   int sample_idx;
-  //   const Derived *iterated;
-  // };
-  // iterator begin() const { return {0, static_cast<const Derived *>(this)}; }
-  // iterator end() const { return {get_size(), static_cast<const Derived *>(this)}; }
-
   decltype(shapes.data()) data() {
     return shapes.data();
   }
+  constexpr bool empty() const { return get_size() == 0; }
 
  protected:
   int get_size() const { return static_cast<const Derived *>(this)->size(); }
@@ -420,8 +397,8 @@ struct TensorListShape<DynamicDimensions>
   }
   //gcc complains about constexpr
   /*constexpr*/ int sample_dim() const { return dim; }
-
   int size() const { return shapes.size() / sample_dim(); }
+  int num_samples() const { return size(); }
 
   int dim;
   using Base::shapes;

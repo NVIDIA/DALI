@@ -183,6 +183,8 @@ struct TensorListViewBase {
   }
 
   int size() const { return shape.size(); }
+  int num_samples() const { return size(); }
+  int nume_elements() const { return offsets[size()]; }
   int sample_dim() const { return shape.sample_dim(); }
 
   template <int other_sample_ndim>
