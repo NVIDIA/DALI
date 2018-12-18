@@ -134,7 +134,7 @@ template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
     return false;
   }
   auto size = l.size();
-  for (size_t i = 0; i < size; i++) {
+  for (decltype(size) i = 0; i < size; i++) {
     if (l[i] != r[i]) {
       return false;
     }
