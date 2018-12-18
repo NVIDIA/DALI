@@ -395,9 +395,8 @@ TEST(TensorShapeTest, ConcatenationMixedIdentityElem) {
 }
 
 TEST(TensorShapeTest, ConcatenationMixed) {
-  EXPECT_EQ(
-      shape_cat(TensorShape<DynamicDimensions>(1, 2), TensorShape<3>(1, 2, 3)),
-      TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
+  EXPECT_EQ(shape_cat(TensorShape<DynamicDimensions>(1, 2), TensorShape<3>(1, 2, 3)),
+            TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
 
   EXPECT_EQ(shape_cat(TensorShape<2>(1, 2), TensorShape<DynamicDimensions>(1, 2, 3)),
             TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
@@ -444,7 +443,6 @@ TEST(TensorListShapeTest, IsUniform) {
   EXPECT_TRUE(is_uniform(empty));
 }
 
-
 TEST(TensorListShapeTest, Comparisons) {
   TensorListShape<3> empty_1, empty_2;
   EXPECT_TRUE(empty_1 == empty_2);
@@ -463,7 +461,8 @@ TEST(TensorListShapeTest, FirstStaticFromStatic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{1}, {2}, {3}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{1, 2}, {2, 3}, {3, 4}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto first_0 = tls.first<0>();
   auto first_1 = tls.first<1>();
@@ -482,7 +481,8 @@ TEST(TensorListShapeTest, FirstStaticFromDynamic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{1}, {2}, {3}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{1, 2}, {2, 3}, {3, 4}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto first_0 = tls.first<0>();
   auto first_1 = tls.first<1>();
@@ -500,7 +500,8 @@ TEST(TensorListShapeTest, FirstDynamicFromStatic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{1}, {2}, {3}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{1, 2}, {2, 3}, {3, 4}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto first_0 = tls.first(0);
   auto first_1 = tls.first(1);
@@ -519,7 +520,8 @@ TEST(TensorListShapeTest, FirstDynamicFromDynamic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{1}, {2}, {3}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{1, 2}, {2, 3}, {3, 4}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto first_0 = tls.first(0);
   auto first_1 = tls.first(1);
@@ -537,7 +539,8 @@ TEST(TensorListShapeTest, LastStaticFromStatic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{3}, {4}, {5}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{2, 3}, {3, 4}, {4, 5}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto last_0 = tls.last<0>();
   auto last_1 = tls.last<1>();
@@ -556,7 +559,8 @@ TEST(TensorListShapeTest, LastStaticFromDynamic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{3}, {4}, {5}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{2, 3}, {3, 4}, {4, 5}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto last_0 = tls.last<0>();
   auto last_1 = tls.last<1>();
@@ -574,7 +578,8 @@ TEST(TensorListShapeTest, LastDynamicFromStatic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{3}, {4}, {5}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{2, 3}, {3, 4}, {4, 5}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto last_0 = tls.last(0);
   auto last_1 = tls.last(1);
@@ -593,7 +598,8 @@ TEST(TensorListShapeTest, LastDynamicFromDynamic) {
   TensorListShape<0> expected_static_0(std::vector<TensorShape<0>>{{}, {}, {}});
   TensorListShape<1> expected_static_1(std::vector<TensorShape<1>>{{3}, {4}, {5}});
   TensorListShape<2> expected_static_2(std::vector<TensorShape<2>>{{2, 3}, {3, 4}, {4, 5}});
-  TensorListShape<3> expected_static_3(std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> expected_static_3(
+      std::vector<TensorShape<3>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
 
   auto last_0 = tls.last(0);
   auto last_1 = tls.last(1);
@@ -604,7 +610,6 @@ TEST(TensorListShapeTest, LastDynamicFromDynamic) {
   EXPECT_EQ(last_2, expected_static_2);
   EXPECT_EQ(last_3, expected_static_3);
 }
-
 
 TEST(TensorListShapeTest, ToStatic) {
   TensorListShape<> tls_dynamic(
@@ -628,7 +633,6 @@ TEST(TensorTest, WontCompile) {
   // TensorView<EmptyBackendTag, int8_t, 4>(static_cast<int*>(nullptr), {1, 2, 3, 4});
   // TensorView<EmptyBackendTag, int, 4>{TensorView<EmptyBackendTag, int, DynamicDimensions>{}};
   // TensorView<EmptyBackendTag, int, DynamicDimensions>{TensorView<EmptyBackendTag, int8_t, 4>{}};
-
 }
 
 }  // namespace kernels
