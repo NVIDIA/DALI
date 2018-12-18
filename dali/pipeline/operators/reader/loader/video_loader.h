@@ -103,7 +103,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
-      count_(spec.GetArgument<int>("count")),
+      count_(spec.GetArgument<int>("sequence_length")),
+      step_(spec.GetArgument<int>("step")),
       height_(0),
       width_(0),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
@@ -111,6 +112,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       codec_id_(0),
       done_(false) {
+      if (step_ < 0)
+        step_ = count_;
   }
 
   void init() {
@@ -126,14 +129,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     av_register_all();
 
-    // TODO(spanev) Implem several files handling
-    total_frame_count_ = get_or_open_file(filenames_[0]).frame_count_;
-
-    // TODO(spanev) to change after deciding what we want
-    int seq_per_epoch = total_frame_count_ / count_;
-    frame_starts_.resize(seq_per_epoch);
-    for (int i = 0; i < seq_per_epoch; ++i) {
-      frame_starts_[i] = i * count_;
+    for (size_t i = 0; i < filenames_.size(); ++i) {
+      int frame_count = get_or_open_file(filenames_[i]).frame_count_;
+      for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
+        frame_starts_.emplace_back(i, s);
+      }
     }
 
     if (shuffle_) {
@@ -144,7 +144,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 
-    current_frame_idx_ = 0;
+    current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
@@ -178,6 +178,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  private:
   // Params
   int count_;
+  int step_;
   int output_height_;
   int output_width_;
   int height_;
@@ -198,9 +199,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   std::thread thread_file_reader_;
 
-  int total_frame_count_;
-  std::vector<int> frame_starts_;
-  unsigned current_frame_idx_;
+  // pair -> (filename index, frame index)
+  std::vector<std::pair<int, int>> frame_starts_;
+  Index current_frame_idx_;
 
   volatile bool done_;
 };

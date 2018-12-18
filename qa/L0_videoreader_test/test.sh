@@ -2,16 +2,29 @@
 
 pip_packages="numpy"
 
+apt-get update
+apt-get install -y ffmpeg
+
 pushd ../..
 
 cd docs/examples/video
 
+mkdir -p videos
+
+container_name=prepared.mp4
+
 # Download video sample
-wget -q -O prepared.mp4 https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4
+wget -q -O ${container_name} https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4
+
+IFS='.' read -a splitted <<< "$container_name"
+
+for i in {0..4};
+do
+    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy videos/${splitted[0]}_$i.${splitted[1]}
+done
 
 test_body() {
     # test code
-    ls
     python video_example.py
 }
 

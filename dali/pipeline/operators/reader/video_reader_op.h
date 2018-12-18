@@ -28,7 +28,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   explicit VideoReader(const OpSpec &spec)
   : DataReader<GPUBackend, SequenceWrapper>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    count_(spec.GetArgument<int>("count")),
+    count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
     output_scale_(spec.GetArgument<float>("scale")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));

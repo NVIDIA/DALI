@@ -127,8 +127,8 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
     file.frame_base_ = AVRational{stream->avg_frame_rate.den,
                                   stream->avg_frame_rate.num};
     file.frame_count_ = av_rescale_q(stream->duration,
-                                      stream->time_base,
-                                      file.frame_base_);
+                                     stream->time_base,
+                                     file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
       const char* filtername = nullptr;
@@ -441,16 +441,17 @@ void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
 
 void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
-    push_sequence_to_read(filenames_[0], frame_starts_[current_frame_idx_], count_);
+    auto& fileidx_frame = frame_starts_[current_frame_idx_];
+    push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
     receive_frames(*tensor);
     tensor->wait();
-    if (++current_frame_idx_ >= frame_starts_.size()) {
+    if (++current_frame_idx_ >= static_cast<Index>(frame_starts_.size())) {
       current_frame_idx_ = 0;
     }
 }
 
 Index VideoLoader::Size() {
-    return static_cast<Index>(total_frame_count_);
+    return static_cast<Index>(frame_starts_.size());
 }
 
 }  // namespace dali
