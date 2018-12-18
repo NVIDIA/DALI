@@ -30,8 +30,6 @@ NVIDIA DALI documentation
    framework_plugins
    api
    supported_ops
-   extend/index
-
 
 Indices and tables
 ==================
