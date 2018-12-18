@@ -70,6 +70,11 @@ ptrdiff_t CalcOffset(const Shape &shape, const Position &pos) {
 
 struct EmptyBackendTag {};
 
+/// @brief Non-owning wrapper for Tensor, containing typed pointer to data and TensorShape
+///
+/// @tparam Backend
+/// @tparam DataType
+/// @tparam ndim either static for ndim >= 0 or DynamicDimensions
 template <typename Backend, typename DataType, int ndim = DynamicDimensions>
 struct TensorView;
 
@@ -77,12 +82,14 @@ template <typename Backend, typename DataType, int ndim>
 struct TensorViewBase {
   int dim() const { return shape.size(); }
 
+  /// @brief Utility to calculate pointer to element at given coordinates
   template <typename... Indices>
   DataType *operator()(int64_t idx0, Indices &&... idx) const {
     return data + CalcOffset(shape, std::array<ptrdiff_t, sizeof...(Indices) + 1>{
                                         idx0, (ptrdiff_t{idx})...});
   }
 
+  /// @brief Utility to calculate pointer to element at given coordinates
   template <typename Offset>
   DataType *operator()(const Offset &pos) const {
     return data + CalcOffset(shape, pos);
@@ -101,6 +108,7 @@ struct TensorViewBase {
   TensorViewBase(DataType *data, TensorShape<ndim> &&shape) : data(data), shape(std::move(shape)) {}
 };
 
+/// @brief Dynamic TensorView can be constructed from any Static TensorView
 template <typename Backend, typename DataType>
 struct TensorView<Backend, DataType, DynamicDimensions>
     : TensorViewBase<Backend, DataType, DynamicDimensions> {
@@ -165,10 +173,16 @@ template <int other_ndim>
 TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static() {
   static_assert(other_ndim != DynamicDimensions,
                 "Conversion to static only allowed for static shape");
+  static_assert(ndim == other_ndim || ndim == DynamicDimensions, "Cannot convert to other ndim");
   // assert(other_ndim == dim() && "Cannot convert to other ndim");
   return {data, shape.template to_static<other_ndim>()};
 }
 
+/// @brief Non-owning list of Tensors in contigous memory.
+///
+/// Contains pointer to data, TensorListShape and offsets to all samples
+/// For sample `i`, offsets[i] is an offset to first element and offsets[i+1] is an offset to
+/// last + 1 element.
 template <typename Backend, typename DataType, int sample_ndim = DynamicDimensions>
 struct TensorListView;
 
@@ -178,10 +192,19 @@ struct TensorListViewBase {
   TensorListShape<sample_ndim> shape;
   std::vector<ptrdiff_t> offsets;
 
+  /// @brief Return non-ownin View to `sample`
   TensorView<Backend, DataType, sample_ndim> operator[](int sample) const {
     return {this->data + offsets[sample], shape[sample]};
   }
 
+  template <int other_sample_ndim>
+  TensorView<Backend, DataType, other_sample_ndim> tensor_view(int sample) const {
+    static_assert(other_sample_ndim == sample_ndim || sample_ndim == DynamicDimensions
+                  || other_sample_ndim == DynamicDimensions, "Cannot convert to other static ndim");
+    return {this->data + offsets[sample], shape[sample]};
+  }
+
+  /// @brief Number of samples
   int size() const { return shape.size(); }
   int num_samples() const { return size(); }
   int nume_elements() const { return offsets[size()]; }
