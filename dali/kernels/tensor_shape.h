@@ -45,12 +45,15 @@ inline int64_t volume(const T &shape) {
 
 constexpr int DynamicDimensions = -1;
 
+/// @brief Class representing shape of a Tensor
+///
+/// Static shapes do not allocate additional memory as they are backed by std::array
+/// @tparam ndim Either non-negative integer representing static number of dimensions
+///         or DynamicDimensions.
 template <int ndim = DynamicDimensions>
 struct TensorShape;
 
-/**
- * @brief Base class for TensorShape containing common code for iterators and operator[]
- */
+/// @brief Base class for TensorShape containing common code for iterators and operator[]
 template <typename Container, int ndim>
 struct TensorShapeBase {
   using container_type = Container;
@@ -79,19 +82,29 @@ struct TensorShapeBase {
   const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
   const_reverse_iterator crend() const noexcept { return shape.crend(); }
 
+  /// @brief Returns number of dimensions in this shape
   size_type size() const { return shape.size(); }
+  /// @brief Returns number of dimensions in this shape
   size_type sample_dim() const { return shape.size(); }
   constexpr bool empty() const { return size() == 0; }
 
   Container shape;
   static constexpr int static_ndim = ndim;
 
+  /// @brief Returns a static subshape consisting of first other_ndim dimensions (outer dimensions)
+  /// [1, 2, 3, 4].first<2>() -> [1, 2]
   template <int other_ndim>
   TensorShape<other_ndim> first();
+  /// @brief Returns a static subshape consisting of last other_ndim dimensions (inner dimensions)
+  /// [1, 2, 3, 4].last<2>() -> [3, 4]
   template <int other_ndim>
   TensorShape<other_ndim> last();
 
+  /// @brief Returns a dynamic subshape consisting of first count dimensions (outer dimensions)
+  /// [1, 2, 3, 4].first(2) -> [1, 2]
   TensorShape<DynamicDimensions> first(int count);
+  /// @brief Returns a dynamic subshape consisting of last count dimensions (inner dimensions)
+  /// [1, 2, 3, 4].last(2) -> [3, 4]
   TensorShape<DynamicDimensions> last(int count);
 
  protected:
@@ -132,7 +145,8 @@ struct TensorShape<DynamicDimensions>
     return *this;
   }
 
-  // We allow only explicit conversion from dynamic to static dim
+  /// @brief Convert to static shape
+  /// Behaviour is undefined for other_ndim != dim()
   template <int other_ndim>
   TensorShape<other_ndim> to_static() const {
     static_assert(other_ndim != DynamicDimensions,
@@ -232,6 +246,7 @@ TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::last(int count)
   return result;
 }
 
+/// @brief Checks if both shapes have the same number of dimensions and all of them are equal
 template <int left_ndim, int right_ndim>
 bool operator==(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
   if (left.size() != right.size()) {
@@ -257,6 +272,9 @@ constexpr int shape_cat_ndim(int left_ndim, int right_ndim) {
              : left_ndim + right_ndim;
 }
 
+/// @brief Concatenate shapes
+/// @return TensorShape<shape_cat_ndim(left_ndim, right_ndim)> Static shape if both of arguments
+///         are static, otherwise dynamic
 template <int left_ndim, int right_ndim>
 TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<left_ndim> &left,
                                                              const TensorShape<right_ndim> &right) {
@@ -272,6 +290,7 @@ TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<l
   return result;
 }
 
+/// @brief Flatten list of shapes into contigous vector
 template <int sample_ndim>
 typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>::type
 flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
@@ -285,6 +304,10 @@ flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
   return result;
 }
 
+/// @brief Get the dim from list of shapes that have uniform dimensions.
+/// @return 0 if list is empty, otherwise dim of first element
+std::is_same<T, std::vector<int64_t>>::value,
+int>::type
 template <typename T>
 typename std::enable_if<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
                             std::is_same<T, std::vector<int64_t>>::value,
@@ -313,19 +336,33 @@ flatten_shapes(const std::vector<T> &shapes) {
   return result;
 }
 
+/// @brief List of TensorShapes stored as contigous vector.
+///        All shapes have the same number of dimensions
+///
+/// @tparam sample_ndim Either non-negative integer representing static number of dimensions
+///         or DynamicDimensions.
 template <int sample_ndim = DynamicDimensions>
 struct TensorListShape;
 
 template <typename Derived, int sample_ndim>
 struct TensorListShapeBase {
+  /// @brief Returns a static subshape list consisting of first other_ndim dimensions
+  ///        (outer dimensions) for each sample
   template <int other_ndim>
   TensorListShape<other_ndim> first();
+  /// @brief Returns a static subshape list consisting of last other_ndim dimensions
+  ///        (inner dimensions) for each sample
   template <int other_ndim>
   TensorListShape<other_ndim> last();
 
+  /// @brief Returns a dynamic subshape list consisting of first count dimensions
+  ///        (outer dimensions) for each sample
   TensorListShape<DynamicDimensions> first(int count);
+  /// @brief Returns a dynamic subshape list consisting of last count dimensions
+  ///        (inner dimensions) for each sample
   TensorListShape<DynamicDimensions> last(int count);
 
+  /// @brief Return a span containing the shape of `sample`
   span<int64_t, sample_ndim == DynamicDimensions ? dynamic_extent : sample_ndim> tensor_shape_span(
       int64_t sample) {
     return {&shapes[sample * get_sample_dim()], get_sample_dim()};
@@ -336,6 +373,10 @@ struct TensorListShapeBase {
     return {&shapes[sample * get_sample_dim()], get_sample_dim()};
   }
 
+  /// @brief Return the TensorShape for given `sample`
+  ///
+  /// @tparam tensor_ndim Should be equal sample_dim() or DynamicDimensions to obtain either static
+  ///         or dynamic TensorShape
   template <int tensor_ndim = sample_ndim>
   TensorShape<tensor_ndim> tensor_shape(int64_t sample) const {
     static_assert(tensor_ndim == sample_ndim || sample_ndim == DynamicDimensions,
@@ -356,6 +397,7 @@ struct TensorListShapeBase {
     return shapes.data();
   }
   constexpr bool empty() const { return get_size() == 0; }
+  int num_samples() const { return get_size(); }
 
  protected:
   int get_size() const { return static_cast<const Derived *>(this)->size(); }
@@ -392,18 +434,21 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape(const std::vector<int64_t> &shapes, int ndim) : Base(shapes), dim(ndim) {}
   TensorListShape(std::vector<int64_t> &&shapes, int ndim) : Base(std::move(shapes)), dim(ndim) {}
 
+  /// @brief Return a dynamic TensorShape for `sample`
   TensorShape<DynamicDimensions> operator[](int64_t sample) const {
     return tensor_shape<DynamicDimensions>(sample);
   }
   //gcc complains about constexpr
   /*constexpr*/ int sample_dim() const { return dim; }
   int size() const { return shapes.size() / sample_dim(); }
-  int num_samples() const { return size(); }
 
   int dim;
   using Base::shapes;
 
-  // We allow only explicit conversion from dynamic to static dim
+  /// @brief Convert to static TensorListShape
+  ///
+  /// Behaviour is undefined for other_ndim != sample_dim()
+  /// @tparam other_ndim must be equal sample_dim()
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim != DynamicDimensions,
@@ -437,6 +482,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
     assert(ndim == sample_ndim);
   }
 
+  /// @brief Return a static TensorShape for `sample`
   TensorShape<sample_ndim> operator[](int64_t sample) const {
     TensorShape<sample_ndim> result;
     int64_t base = sample_dim() * sample;
@@ -447,8 +493,8 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   }
 
   constexpr int sample_dim() const { return sample_ndim; }
-
   int size() const { return shapes.size() / sample_dim(); }
+
   using Base::shapes;
 
   template <int other_ndim>
@@ -545,6 +591,11 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
   return !(left == right);
 }
 
+/// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
+///        are described by tls. Offsets are calculated as number of elements of each tensors
+///
+/// @return std::vector<ptrdiff_t> containing tls.size() + 1 elements,
+///         [i] is an offset to sample `i`, [i+1] is an offset one past sample `i`.
 template <int sample_ndim>
 std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
   std::vector<ptrdiff_t> offsets;
@@ -557,6 +608,7 @@ std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls
   return offsets;
 }
 
+/// @brief Checks if all TensorShapes stored in `tls` have the same sizes
 template <int ndim>
 bool is_uniform(const TensorListShape<ndim> &tls) {
   if (!tls.size()) {
