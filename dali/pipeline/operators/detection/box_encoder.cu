@@ -127,6 +127,10 @@ __global__ void Encode(
   int *box_idx_buffer, float *box_iou_buffer) {
   const int sample = blockIdx.x;
 
+  // Remark: This algorithm is very fragile to floating point arithmetic effects.
+  // For now, excessive use of volatile in this code,
+  // makes it conform to reference solution in terms of resulting encoding.
+
   __shared__ volatile int best_anchor_idx_tmp[BLOCK_SIZE];
   __shared__ volatile float best_anchor_iou_tmp[BLOCK_SIZE];
 
