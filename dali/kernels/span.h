@@ -97,7 +97,7 @@ class span<ElementType, dynamic_extent> {
   constexpr span() noexcept : data_(nullptr), size_(0) {}
   constexpr span(pointer ptr, index_type count) : data_(ptr), size_(count) {}
   constexpr span(pointer firstElem, pointer lastElem)
-  : data_(firstElem), size_(lastElem - firstElem) {}
+      : data_(firstElem), size_(lastElem - firstElem) {}
 
   constexpr span(const span &other) noexcept = default;
   ~span() noexcept = default;
@@ -126,10 +126,9 @@ class span<ElementType, dynamic_extent> {
   index_type size_;
 };
 
-
 // [span.comparison], span comparison operators
 template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-/* constexpr */bool operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
+/* constexpr */ bool operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   if (l.size() != r.size()) {
     return false;
   }

@@ -19,8 +19,8 @@
 #include <array>
 #include <cassert>
 #include <iostream>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace dali {
 namespace kernels {
@@ -110,7 +110,7 @@ struct TensorShapeBase {
   // Zero-fill the shape for Container=std::array<int64_t> with shape{}
   TensorShapeBase() : shape{} {}
 
-  TensorShapeBase(const Container &c) : shape(c) {}  // NOLINT
+  TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
   TensorShapeBase(Container &&c) : shape(std::move(c)) {}  // NOLINT
 };
 
@@ -124,11 +124,11 @@ struct TensorShape<DynamicDimensions>
 
   template <size_t N>
   TensorShape(const std::array<int64_t, N> &s)  // NOLINT
-  : Base(typename Base::container_type(s.begin(), s.end())) {}
+      : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s)  // NOLINT
-  : Base(typename Base::container_type{i0, int64_t{s}...}) {}
+      : Base(typename Base::container_type{i0, int64_t{s}...}) {}
 
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;
@@ -175,7 +175,7 @@ struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s)  // NOLINT
-  : Base(typename Base::container_type{i0, int64_t{s}...}) {
+      : Base(typename Base::container_type{i0, int64_t{s}...}) {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
   }
 
@@ -393,9 +393,7 @@ struct TensorListShapeBase {
 
   std::vector<int64_t> shapes;
 
-  decltype(shapes.data()) data() {
-    return shapes.data();
-  }
+  decltype(shapes.data()) data() { return shapes.data(); }
   constexpr bool empty() const { return get_size() == 0; }
   int num_samples() const { return get_size(); }
 
@@ -403,7 +401,7 @@ struct TensorListShapeBase {
   int get_size() const { return static_cast<const Derived *>(this)->size(); }
   int get_sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
   TensorListShapeBase() = default;
-  TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}  // NOLINT
+  TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}        // NOLINT
   TensorListShapeBase(std::vector<int64_t> &&shapes) : shapes(std::move(shapes)) {}  // NOLINT
 };
 
@@ -491,15 +489,15 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(TensorListShape &&) = default;
 
   TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)  // NOLINT
-  : Base(flatten_shapes(sample_shapes)) {}
+      : Base(flatten_shapes(sample_shapes)) {}
 
   TensorListShape(const std::vector<int64_t> &shapes, int ndim = sample_ndim)  // NOLINT
-  : Base(shapes) {
+      : Base(shapes) {
     assert(ndim == sample_ndim);
   }
 
   TensorListShape(std::vector<int64_t> &&shapes, int ndim = sample_ndim)  // NOLINT
-  : Base(std::move(shapes)) {
+      : Base(std::move(shapes)) {
     assert(ndim == sample_ndim);
   }
 
@@ -565,7 +563,7 @@ TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::last() {
   int start_offset = get_sample_dim() - other_ndim;
   for (int sample = 0; sample < get_size(); sample++) {
     for (int d = 0; d < other_ndim; d++) {
-      result.shapes[sample*other_ndim + d] = shapes[sample*get_sample_dim() + start_offset + d];
+      result.shapes[sample * other_ndim + d] = shapes[sample * get_sample_dim() + start_offset + d];
     }
   }
   return result;
