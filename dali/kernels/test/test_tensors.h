@@ -17,6 +17,7 @@
 
 #include <cuda_runtime_api.h>
 #include <dali/kernels/tensor_view.h>
+#include <memory>
 
 namespace dali {
 namespace kernels {
@@ -25,43 +26,59 @@ template <typename T, int dim = -1>
 class TestTensorList {
  public:
 
-  template <typename T>
-  TensorListView<StorageBackend::CPU, T, dim> cpu(cudaStream_t stream = 0) {
-    TensorListView<StorageBackend::CPU, T, dim> ret;
-    ret.set_sample_dim(shape_.sample_dim);
-    ret.offsets = shape_.offsets;
-    ret.data = cpu_.get();
-    return ret;
+  void reshape(TensorListShape<dim> shape) {
+    cpumem_.reset();
+    gpumem_.reset();
+    any_ = { nullptr, shape };
   }
 
-  template <typename T>
-  TensorListView<StorageBackend::GPU, T, dim> gpu(cudaStream_t stream = 0) {
-    TensorListView<StorageBackend::GPU, T, dim> ret;
-    ret.set_sample_dim(shape_.sample_dim);
-    ret.offsets = shape_.offsets;
-    if (!gpu && cpu) {
-      void *ptr;
-      auto size = shape_.total_size();
-      cudaMalloc(&ptr, size);
-      gpu.reset(reinterpret_cast<char*>(ptr), GPUDeleter);
-      cudaMemcpy(ptr, cpu.get(), size, cudaMemcpyHostToDevice);
+  template <int out_dim>
+  TensorListView<StorageCPU, T, out_dim> cpu(cudaStream_t stream = 0) {
+    TensorListView<StorageCPU, T, out_dim> ret;
+    if (!cpumem_) {
+      auto size = any_.num_elements() * sizeof(T);
+      char *ptr = new char[size];
+      cpumem_ = { ptr, CPUDeleter };
+      if (gpumem_)
+        cudaMemcpy(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost);
     }
-    ret.data = gpu_.get();
-    return ret;
+    auto out_shape = convert_dim<out_dim>(any_.shape);
+    auto out_offsets = any_.offsets;
+    return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape), std::move(out_offsets) };
   }
+
+  /*template <int out_dim>
+  TensorListView<StorageGPU, T, out_dim> gpu(cudaStream_t stream = 0) {
+    if (gpu_.data != nullptr) {
+      return gpu;
+    }
+    TensorListView<StorageGPU, T, out_dim> ret(gpu_.get(), shape_);
+    if (!gpumem_) {
+      void *ptr;
+      auto size = shape_.num_elements() * sizeof(T);
+      cudaMalloc(&ptr, size);
+      gpumem_.reset(reinterpret_cast<char*>(ptr), GPUDeleter);
+      if (cpumem_)
+        cudaMemcpy(ptr, cpu.get(), size, cudaMemcpyHostToDevice);
+    }
+    ret.data = gpumem_.get();
+    return ret;
+  }*/
 
 private:
-  // TODO(michalz): change to TensorListShape when ready
-  TensorListView<StorageBackend::CPU, T, dim> shape_;
-  std::unique_ptr<char, Deleter> cpu_, gpu_;
-
   using Deleter = void(*)(char *);
   static void CPUDeleter(char *mem) {
     delete [] mem;
   }
+  static void PinnedDeleter(char *mem) {
+    cudaFreeHost(mem);
+  }
   static void GPUDeleter(char *mem) {
     cudaFree(mem);
   }
+
+  std::unique_ptr<char, Deleter> cpumem_{nullptr, CPUDeleter}, gpumem_{nullptr, GPUDeleter};
+  TensorListView<void, char, dim> any_;
 };
 
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <dali/kernels/kernel.h>
+#include <dali/kernels/test/test_tensors.h>
 #include <gtest/gtest.h>
 
 using std::cout;
@@ -36,7 +37,7 @@ template <int dim>
 std::ostream &operator<<(std::ostream &os, const TensorListShape<dim> &shape) {
   os << "{";
   for (int i = 0; i < shape.num_samples(); i++) {
-    if (i) os << ", \n";
+    if (i) os << ",\n ";
     os << shape[i];
   }
   os << "}";
@@ -100,10 +101,29 @@ void RunTest()
 
   KernelContext ctx;
 
+  TestTensorList<Input1> tl1;
+  TestTensorList<Input2> tl2;
+  TestTensorList<Output> tlo;
+
+  std::vector<TensorShape<3>> shapes;
+  for (int i=0; i<3; i++)
+    shapes.push_back({ rand()%3+1, rand()%512+512, rand()%512+512});
+  TensorListShape<3> list_shape(shapes);
+  cout << list_shape << endl;
+
+  tl1.reshape(list_shape);
+  tl2.reshape(list_shape);
+
   cout << i1.shape << " " << i2.shape << endl;
 
+  i1 = tl1.template cpu<3>();
+  i2 = tl2.template cpu<3>();
+
   cout << "GetReq" << endl;
-  K.GetRequirements(ctx, i1, i2, 0.5f);
+  auto req = K.GetRequirements(ctx, i1, i2, 0.5f);
+  ASSERT_EQ(req.output_shapes.size(), 1);
+  tlo.reshape(req.output_shapes[0]);
+  o = tlo.template cpu<3>();
 
   cout << "Run" << endl;
   K.Run(ctx, o, i1, i2, 0.5f);
