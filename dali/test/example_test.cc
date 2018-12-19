@@ -20,8 +20,8 @@ namespace testing {
 
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-  OpDag GenerateOperatorsGraph() const noexcept override {
-    OpDag graph("ExampleOp");
+  GraphDescr GenerateOperatorsGraph() const noexcept override {
+    GraphDescr graph("ExampleOp");
     return graph;
   }
 

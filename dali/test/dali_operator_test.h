@@ -46,7 +46,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
 
  private:
-  virtual OpDag GenerateOperatorsGraph() const noexcept = 0;
+  virtual GraphDescr GenerateOperatorsGraph() const noexcept = 0;
 
 
   void SetUp() final {
