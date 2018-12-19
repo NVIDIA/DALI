@@ -59,5 +59,79 @@ TEST(Scratch, Estimator) {
   EXPECT_EQ(E.sizes[static_cast<int>(AllocType::GPU)], 64);
 }
 
+TEST(Scratch, BumpAllocator) {
+  const size_t size = 1024;
+  std::aligned_storage<size, 64> storage;
+  BumpAllocator<char> allocator((char*)&storage, size);
+  size_t n0 = 10, n1 = 20, n2 = 33;
+
+  EXPECT_EQ(allocator.total(), size);
+  EXPECT_EQ(allocator.avail(), size);
+  EXPECT_EQ(allocator.used(), 0);
+  auto *p0 = allocator.New(n0);
+  auto *p1 = allocator.New(n1);
+  auto *p2 = allocator.New(n2);
+
+  EXPECT_EQ(allocator.avail(), size-(n0+n1+n2));
+  EXPECT_EQ(allocator.used(), n0+n1+n2);
+  EXPECT_EQ(p1-p0, n0);
+  EXPECT_EQ(p2-p1, n1);
+  EXPECT_EQ(allocator.total(), size) << "Total size should remain constant";
+
+  BumpAllocator<char> allocator2 = std::move(allocator);
+  EXPECT_EQ(allocator.total(), 0) << "After move, allocator should be empty";
+
+  auto *p3 = allocator2.New(size-(n0+n1+n2));
+  EXPECT_EQ(p3-p0, n0+n1+n2);
+  EXPECT_EQ(allocator2.total(), size) << "Total size should remain constant";
+  EXPECT_EQ(allocator2.used(), size);
+  EXPECT_EQ(allocator2.avail(), 0);
+}
+
+template <typename T>
+bool is_aligned(T *ptr, size_t alignment = alignof(T)) {
+  return intptr_t(ptr) % alignment == 0;
+}
+
+typedef float float32x8 __attribute__((vector_size(32)));
+
+TEST(Scratch, Scratchpad) {
+  Scratchpad pad;
+
+  const size_t size = 256;
+  const size_t num_allocs = (size_t)AllocType::Count;
+  ASSERT_EQ(pad.allocs.size(), num_allocs);
+
+  const size_t alignment = 16;
+  alignas(alignment) char storage[num_allocs][size];
+  for (size_t i = 0; i < num_allocs; i++)
+    pad.allocs[i] = BumpAllocator<char>(storage[i], sizeof(storage[i]));
+
+  for (size_t i = 0; i < num_allocs; i++) {
+    AllocType type = AllocType(i);
+    ASSERT_TRUE(is_aligned(pad.allocs[i].next(), alignment)) << "Misaligned storage #" << i << "\n";
+
+    int *p0 = pad.New<int>(type, 2);
+    EXPECT_EQ(p0, reinterpret_cast<int*>(&storage[i]))
+     << "First item should be allocated at the beginning of the storage area";
+    EXPECT_TRUE(is_aligned(p0));
+    EXPECT_EQ(pad.New<char>(type, 1), reinterpret_cast<char*>(p0) + 2*sizeof(*p0));
+
+    int *p1 = pad.New<int>(type, 3);
+    EXPECT_TRUE(is_aligned(p1));
+    EXPECT_EQ(pad.New<char>(type, 1), reinterpret_cast<char*>(p1) + 3*sizeof(*p1));
+
+    double *p2 = pad.New<double>(type, 4);
+    EXPECT_TRUE(is_aligned(p2));
+    EXPECT_EQ(pad.New<char>(type, 1), reinterpret_cast<char*>(p2) + 4*sizeof(*p2));
+
+    double *p3 = pad.New<double>(type, 1);
+    EXPECT_TRUE(is_aligned(p2));
+    EXPECT_EQ(pad.New<char>(type, 1), reinterpret_cast<char*>(p3) + 1*sizeof(*p3));
+  }
+
+}
+
+
 }  // namespace kernels
 }  // namespace dali
