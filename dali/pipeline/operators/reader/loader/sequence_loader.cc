@@ -76,7 +76,7 @@ std::vector<std::vector<std::string>> GenerateSequences(
     size_t stride) {
   std::vector<std::vector<std::string>> sequences;
   for (const auto &s : streams) {
-    for (int i = 0; i < s.second.size(); i += step) {
+    for (size_t i = 0; i < s.second.size(); i += step) {
       std::vector<std::string> sequence;
       sequence.reserve(sequence_length);
       // this sequence won't fit
@@ -84,7 +84,7 @@ std::vector<std::vector<std::string>> GenerateSequences(
         break;
       }
       // fill the sequence
-      for (int seq_elem = 0; seq_elem < sequence_length; seq_elem++) {
+      for (size_t seq_elem = 0; seq_elem < sequence_length; seq_elem++) {
         sequence.push_back(s.second[i + seq_elem * stride]);
       }
       sequences.push_back((sequence));

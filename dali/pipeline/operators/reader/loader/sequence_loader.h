@@ -120,7 +120,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   std::vector<filesystem::Stream> streams_;
   std::vector<std::vector<std::string>> sequences_;
   Index total_size_;
-  size_t current_sequence_;
+  Index current_sequence_;
 
   void LoadFrame(const std::vector<std::string> &s, Index frame, Tensor<CPUBackend> *target);
 };
