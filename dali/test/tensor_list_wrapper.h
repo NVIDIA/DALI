@@ -15,11 +15,57 @@
 #ifndef DALI_TEST_TENSOR_LIST_WRAPPER_H_
 #define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
+#include <dali/pipeline/data/tensor_list.h>
+
 namespace dali {
 namespace testing {
 
-struct TensorListWrapper {
+class TensorListWrapper {
+
+ public:
+  TensorListWrapper(const TensorList<GPUBackend> *tensor_list)  // NOLINT non-explicit ctor
+          : gpu_(tensor_list) {}
+
+
+  TensorListWrapper(const TensorList<CPUBackend> *tensor_list)  // NOLINT non-explicit ctor
+          : cpu_(tensor_list) {}
+
+
+  enum Backend {
+    CPU, GPU,
+  };
+
+
+  template<typename Backend>
+  const TensorList<Backend> *get() const noexcept {
+    DALI_ENFORCE(false,
+                 "Backend type not supported. You may want to write your own specialization");
+  }
+
+
+  /// Because no type deduction in C++11
+  TensorListWrapper::Backend get_backend() {
+    return gpu_ == nullptr ? CPU : GPU;
+  }
+
+
+ private:
+  const TensorList<GPUBackend> *gpu_ = nullptr;
+  const TensorList<CPUBackend> *cpu_ = nullptr;
 };
+
+
+template<>
+const TensorList<CPUBackend> *TensorListWrapper::get() const noexcept {
+  return cpu_;
+}
+
+
+template<>
+const TensorList<GPUBackend> *TensorListWrapper::get() const noexcept {
+  return gpu_;
+}
+
 
 }  // namespace testing
 }  // namespace dali

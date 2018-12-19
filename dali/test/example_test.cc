@@ -18,26 +18,46 @@ namespace dali {
 
 namespace testing {
 
+TensorList<CPUBackend> tlcpu;
+TensorList<CPUBackend> tlgpu;
+
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-  OpDag GenerateOperatorsGraph() const noexcept override {
-    OpDag graph("ExampleOp");
+
+ protected:
+  ExampleOperatorTestCase() {
+    tlcpu.Resize({{1}});
+    auto ptrcpu = tlcpu.mutable_data<int>();
+    ptrcpu[0] = 666;
+
+    tlgpu.Resize({{1}});
+    auto ptrgpu = tlgpu.mutable_data<int>();
+    ptrgpu[0] = 69;
+
+    *in_ = TensorListWrapper(&tlcpu);
+    *out_ = TensorListWrapper(&tlgpu);
+  }
+
+
+ private:
+  GraphDescr GenerateOperatorsGraph() const noexcept override {
+    GraphDescr graph("ExampleOp");
     return graph;
   }
 
 
  protected:
-  TensorListWrapper in_;  // fill it somewhere
-  TensorListWrapper out_;  // fill it somewhere
+  TensorListWrapper* in_;  // fill it somewhere
+  TensorListWrapper* out_;  // fill it somewhere
 };
 
 TEST_F(ExampleOperatorTestCase, ExampleTest) {
-  TensorListWrapper in;
-  TensorListWrapper out;
+  TensorListWrapper in(&tlcpu);
+  TensorListWrapper out(&tlgpu);
   Arguments args;
 
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
   this->RunTest(in, out, args, ver);
@@ -51,10 +71,10 @@ INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(a
 
 TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
-  this->RunTest(in_, out_, GetParam(), ver);
+  this->RunTest(*in_, *out_, GetParam(), ver);
 }
 
 
@@ -62,14 +82,14 @@ INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(
 
 TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
   auto ver_in1 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
   auto ver_in2 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
-  this->RunTest({in_, in_}, {out_, out_}, GetParam(), {ver_in1, ver_in2});
+  this->RunTest({*in_, *in_}, {*out_, *out_}, GetParam(), {ver_in1, ver_in2});
 }
 
 }  // namespace testing
