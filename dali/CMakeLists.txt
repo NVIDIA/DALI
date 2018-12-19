@@ -22,6 +22,7 @@ set(DALI_TF_SRCS)
 # Build libdali
 ################################################
 add_subdirectory(image)
+add_subdirectory(kernels)
 add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
@@ -44,7 +45,7 @@ endif()
 set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
 if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PRIVATE in front of it 
+  # So this is a workaround to append PRIVATE in front of it
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
@@ -80,7 +81,7 @@ set_target_properties(${dali_lib} PROPERTIES
 add_custom_target(install_headers ALL
     DEPENDS ${dali_lib}
 )
-  
+
 add_custom_command(
     TARGET install_headers
     COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
@@ -137,12 +138,12 @@ endif()
 if (BUILD_TENSORFLOW)
 
   add_subdirectory(tensorflow)
- 
+
   # get default TF installation path
    execute_process(
      COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
      OUTPUT_VARIABLE DIST_PACKAGES_DIR)
- 
+
   set(TF_PATHS)
   set(TF_VER)
   # obtain custom versions of TF we want to build aganist
