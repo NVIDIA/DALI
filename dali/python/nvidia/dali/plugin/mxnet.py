@@ -76,7 +76,7 @@ class DALIGenericIterator(object):
                       Whether to fill the last batch with the data from the
                       next epoch.
     auto_reset : bool, optional, default = False
-                 Whether the iterator reset itself for the next epoch
+                 Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
     """
     def __init__(self,
@@ -289,7 +289,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                       Whether to fill the last batch with the data from the
                       next epoch.
     auto_reset : bool, optional, default = False
-                 Whether the iterator reset itself for the next epoch
+                 Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
     """
     def __init__(self,
