@@ -51,7 +51,7 @@ class NormalizePermute : public Operator<Backend> {
     for (auto &shape : output_shape_) shape = {C_, H_, W_};
   }
 
-  virtual inline ~NormalizePermute() = default;
+  inline ~NormalizePermute() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;

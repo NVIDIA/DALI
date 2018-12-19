@@ -55,7 +55,7 @@ class DataReader : public Operator<Backend> {
   batch_stop_(false) {
   }
 
-  virtual ~DataReader() noexcept {
+  ~DataReader() noexcept override {
     StopPrefetchThread();
     for (size_t i = 0; i < prefetched_batch_.size(); ++i) {
       // return unconsumed batches

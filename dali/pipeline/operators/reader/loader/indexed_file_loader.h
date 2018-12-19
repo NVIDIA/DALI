@@ -64,7 +64,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     return indices_.size();
   }
 
-  virtual ~IndexedFileLoader() {
+  ~IndexedFileLoader() override {
     if (current_file_ != nullptr) {
       current_file_->Close();
     }

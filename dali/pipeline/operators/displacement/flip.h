@@ -47,7 +47,7 @@ class Flip : public DisplacementFilter<Backend, FlipAugment> {
   inline explicit Flip(const OpSpec &spec)
     : DisplacementFilter<Backend, FlipAugment>(spec) {}
 
-  virtual ~Flip() = default;
+  ~Flip() override = default;
 };
 
 }  // namespace dali

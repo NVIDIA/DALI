@@ -54,10 +54,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       }
   }
 
-  virtual inline ~VideoReader() = default;
+  inline ~VideoReader() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace *ws) {
+  void SetupSharedSampleParams(DeviceWorkspace *ws) override {
     auto* tl_sequence_output = ws->Output<GPUBackend>(0);
     tl_sequence_output->set_type(TypeInfo::Create<float>());
     tl_sequence_output->Resize(tl_shape_);

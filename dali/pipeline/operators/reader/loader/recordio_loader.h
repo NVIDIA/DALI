@@ -32,7 +32,7 @@ class RecordIOLoader : public IndexedFileLoader {
     : IndexedFileLoader(options, false) {
     Init(options);
   }
-  ~RecordIOLoader() {}
+  ~RecordIOLoader() override {}
 
   void ReadIndexFile(const std::vector<std::string>& index_uris) override {
     std::vector<size_t> file_offsets;

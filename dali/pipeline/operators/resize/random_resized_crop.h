@@ -44,7 +44,7 @@ class RandomResizedCrop : public Operator<Backend> {
     InitParams(spec);
   }
 
-  virtual inline ~RandomResizedCrop() = default;
+  inline ~RandomResizedCrop() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(RandomResizedCrop);
 

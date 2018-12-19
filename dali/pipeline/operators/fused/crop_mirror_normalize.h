@@ -74,7 +74,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     per_sample_dimensions_.resize(batch_size_);
   }
 
-  virtual inline ~CropMirrorNormalize() = default;
+  inline ~CropMirrorNormalize() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;

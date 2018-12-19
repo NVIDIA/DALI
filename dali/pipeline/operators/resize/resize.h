@@ -85,7 +85,7 @@ template <typename Backend>
 class Resize : public Operator<Backend>, protected ResizeAttr {
  public:
   explicit Resize(const OpSpec &spec);
-  virtual inline ~Resize()    { delete resizeParam_; }
+  inline ~Resize() override    { delete resizeParam_; }
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;

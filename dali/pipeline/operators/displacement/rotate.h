@@ -47,7 +47,7 @@ class Rotate : public DisplacementFilter<Backend, RotateAugment> {
   inline explicit Rotate(const OpSpec &spec)
     : DisplacementFilter<Backend, RotateAugment>(spec) {}
 
-  virtual ~Rotate() = default;
+  ~Rotate() override = default;
 };
 
 }  // namespace dali

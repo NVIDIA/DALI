@@ -29,7 +29,7 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec);
 
-  virtual ~BbFlip() = default;
+  ~BbFlip() override = default;
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:

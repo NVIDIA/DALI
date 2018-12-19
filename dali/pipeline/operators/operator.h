@@ -166,7 +166,7 @@ class Operator : public OperatorBase {
     OperatorBase(spec)
   {}
 
-  virtual inline ~Operator() noexcept(false)
+  inline ~Operator() noexcept(false) override
   {}
 
   using OperatorBase::Run;
@@ -221,7 +221,7 @@ class Operator<MixedBackend> : public OperatorBase {
     OperatorBase(spec)
   {}
 
-  virtual inline ~Operator() noexcept(false)
+  inline ~Operator() noexcept(false) override
   {}
 
   using OperatorBase::Run;

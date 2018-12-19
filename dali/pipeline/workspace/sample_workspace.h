@@ -44,7 +44,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  public:
   DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
-  DLL_PUBLIC ~SampleWorkspace() = default;
+  DLL_PUBLIC ~SampleWorkspace() override = default;
 
   /**
    * @brief Clears the contents of the workspaces, reseting it

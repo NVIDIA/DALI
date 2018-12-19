@@ -131,7 +131,7 @@ class NewResize : public Resize<Backend> {
     }
   }
 
-  virtual inline ~NewResize() {
+  inline ~NewResize() override {
     for (size_t i = 0; i < _countof(mapMem_); ++i)
       CUDA_CALL(cudaFree(mapMem_[i]));
 

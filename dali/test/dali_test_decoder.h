@@ -15,7 +15,7 @@ template <typename ImgType>
 class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  public:
   vector<TensorList<CPUBackend> *> Reference(
-      const vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) {
+      const vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
     // single input - encoded images
     // single output - decoded images
 

@@ -53,7 +53,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
     loader_.reset(new DummyLoader(spec));
   }
 
-  ~DummyDataReader() {
+  ~DummyDataReader() override {
     DataReader<CPUBackend, Tensor<CPUBackend>>::StopPrefetchThread();
   }
   /*

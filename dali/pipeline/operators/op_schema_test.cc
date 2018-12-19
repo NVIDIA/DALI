@@ -24,8 +24,8 @@ DALI_SCHEMA(Dummy1)
 
 class OpSchemaTest : public DALITest {
  public:
-  inline void SetUp() {}
-  inline void TearDown() {}
+  inline void SetUp() override {}
+  inline void TearDown() override {}
 };
 
 TEST(OpSchemaTest, SimpleTest) {

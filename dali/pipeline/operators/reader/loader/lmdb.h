@@ -89,7 +89,7 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
     }
   }
-  ~LMDBReader() {
+  ~LMDBReader() override {
     mdb_cursor_close(mdb_cursor_);
     mdb_dbi_close(mdb_env_, mdb_dbi_);
     mdb_txn_abort(mdb_transaction_);

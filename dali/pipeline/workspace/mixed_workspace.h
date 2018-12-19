@@ -41,7 +41,7 @@ using MixedOutputType = shared_ptr<TensorList<Backend>>;
 class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
  public:
   DLL_PUBLIC inline MixedWorkspace() : stream_(0) {}
-  DLL_PUBLIC inline ~MixedWorkspace() = default;
+  DLL_PUBLIC inline ~MixedWorkspace() override = default;
 
 
   /**

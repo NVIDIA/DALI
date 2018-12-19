@@ -45,7 +45,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DLL_PUBLIC TensorList() : meta_(DALI_NHWC),
                             tensor_view_(nullptr) {}
 
-  DLL_PUBLIC ~TensorList() {
+  DLL_PUBLIC ~TensorList() override {
     delete tensor_view_;
   }
 

@@ -77,7 +77,7 @@ class WarpAffine : public DisplacementFilter<Backend, WarpAffineAugment> {
     inline explicit WarpAffine(const OpSpec &spec)
       : DisplacementFilter<Backend, WarpAffineAugment>(spec) {}
 
-    virtual ~WarpAffine() = default;
+    ~WarpAffine() override = default;
 };
 
 }  // namespace dali

@@ -46,7 +46,7 @@ class SSDRandomCrop : public Operator<Backend> {
     sample_options_.push_back(SampleOption{false, FLT_MAX});
   }
 
-  virtual inline ~SSDRandomCrop() = default;
+  inline ~SSDRandomCrop() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(SSDRandomCrop);
 
