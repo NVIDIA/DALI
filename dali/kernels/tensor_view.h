@@ -177,7 +177,9 @@ TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim
   static_assert(other_ndim != DynamicDimensions,
                 "Conversion to static only allowed for static shape");
   static_assert(ndim == other_ndim || ndim == DynamicDimensions, "Cannot convert to other ndim");
-  // assert(other_ndim == dim() && "Cannot convert to other ndim");
+  if (other_ndim == DynamicDimensions) {
+    assert(other_ndim == dim() && "Cannot convert to other ndim");
+  }
   return {data, shape.template to_static<other_ndim>()};
 }
 

@@ -381,7 +381,9 @@ struct TensorListShapeBase {
   TensorShape<tensor_ndim> tensor_shape(int64_t sample) const {
     static_assert(tensor_ndim == sample_ndim || sample_ndim == DynamicDimensions
                   || tensor_ndim == DynamicDimensions, "Cannot convert to other static ndim");
-    assert(tensor_ndim == sample_dim() && "Cannot convert to other ndim");
+    if (tensor_ndim != DynamicDimensions) {
+      assert(tensor_ndim == sample_dim() && "Cannot convert to other ndim");
+    }
     TensorShape<tensor_ndim> out;
     out.resize(sample_dim());
     int64_t base = sample_dim() * sample;
