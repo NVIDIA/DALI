@@ -68,7 +68,7 @@ namespace detail {
  * Only consider full sequences that do not cross stream boundary
  */
 std::vector<std::vector<std::string>> DLL_PUBLIC
-GenerateSequences(const std::vector<filesystem::Stream> &streams, size_t sequence_lenght,
+GenerateSequences(const std::vector<filesystem::Stream> &streams, size_t sequence_length,
                   size_t step, size_t stride);
 }  // namespace detail
 
@@ -87,14 +87,16 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   explicit SequenceLoader(const OpSpec &spec)
       : Loader(spec),
         file_root_(spec.GetArgument<string>("file_root")),
-        sequence_length_(
-            spec.GetArgument<int32_t>("sequence_length")),  // TODO(klecki) change to size_t
+        sequence_length_(spec.GetArgument<int32_t>("sequence_length")),
         step_(spec.GetArgument<int32_t>("step")),
         stride_(spec.GetArgument<int32_t>("stride")),
         streams_(filesystem::GatherExtractedStreams(file_root_)),
         sequences_(detail::GenerateSequences(streams_, sequence_length_, step_, stride_)),
         total_size_(sequences_.size()),
         current_sequence_(0) {
+    DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
+    DALI_ENFORCE(step_ > 0, "Step must be positive");
+    DALI_ENFORCE(stride_ > 0, "Stride must be positive");
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard

@@ -16,6 +16,16 @@
 
 namespace dali {
 
+bool HasKnownImageExtension(std::string image_path) {
+  std::transform(image_path.begin(), image_path.end(), image_path.begin(), ::tolower);
+  for (const auto &ext : kKnownImageExtensions) {
+    size_t pos = image_path.rfind(ext);
+    if (pos != std::string::npos && pos + strlen(ext) == image_path.size()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
         encoded_image_(encoded_buffer),

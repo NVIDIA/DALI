@@ -59,7 +59,7 @@ Example:
             R"code(Path to a directory containing streams (directories representing streams).)code",
             DALI_STRING)
     .AddArg("sequence_length",
-            R"code(Lenght of sequence to load for each sample)code", DALI_INT32)
+            R"code(Length of sequence to load for each sample)code", DALI_INT32)
     .AddOptionalArg("step",
                     R"code(Distance between first frames of consecutive sequences)code", 1, false)
     .AddOptionalArg("stride",

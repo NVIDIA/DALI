@@ -46,15 +46,8 @@ std::vector<Stream> GatherExtractedStreams(string file_root) {
   std::vector<std::string> files;
   for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
     std::string file = glob_buff.gl_pathv[i];
-    std::string file_name_lowercase = std::string{file};
-    std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
-                   file_name_lowercase.begin(), ::tolower);
-    for (const std::string &ext : RegisteredImageExtensions) {
-      size_t pos = file_name_lowercase.rfind(ext);
-      if (pos != std::string::npos && pos + ext.size() == file_name_lowercase.size()) {
-        files.push_back(std::move(file));
-        break;
-      }
+    if (HasKnownImageExtension(file)) {
+      files.push_back(std::move(file));
     }
   }
   globfree(&glob_buff);
@@ -79,19 +72,19 @@ std::vector<Stream> GatherExtractedStreams(string file_root) {
 namespace detail {
 
 std::vector<std::vector<std::string>> GenerateSequences(
-    const std::vector<filesystem::Stream> &streams, size_t sequence_lenght, size_t step,
+    const std::vector<filesystem::Stream> &streams, size_t sequence_length, size_t step,
     size_t stride) {
   std::vector<std::vector<std::string>> sequences;
   for (const auto &s : streams) {
     for (int i = 0; i < s.second.size(); i += step) {
       std::vector<std::string> sequence;
-      sequence.reserve(sequence_lenght);
+      sequence.reserve(sequence_length);
       // this sequence won't fit
-      if (i + (sequence_lenght - 1) * stride >= s.second.size()) {
+      if (i + (sequence_length - 1) * stride >= s.second.size()) {
         break;
       }
       // fill the sequence
-      for (int seq_elem = 0; seq_elem < sequence_lenght; seq_elem++) {
+      for (int seq_elem = 0; seq_elem < sequence_length; seq_elem++) {
         sequence.push_back(s.second[i + seq_elem * stride]);
       }
       sequences.push_back((sequence));
