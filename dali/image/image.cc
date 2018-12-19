@@ -12,18 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <sstream>
+
 #include "dali/image/image.h"
 
 namespace dali {
 
+std::string ListSupportedExtensions() {
+  std::stringstream ss;
+  size_t known_extensions_count = sizeof(kKnownImageExtensions) / sizeof(*kKnownImageExtensions);
+  for (size_t i = 0; i < known_extensions_count; i++) {
+    ss << kKnownImageExtensions[i];
+    if (i != known_extensions_count - 1) {
+      ss << ", ";
+    }
+  }
+  return ss.str();
+}
+
 bool HasKnownImageExtension(std::string image_path) {
-  std::transform(image_path.begin(), image_path.end(), image_path.begin(), ::tolower);
+  std::string path_low{image_path};
+  std::transform(path_low.begin(), path_low.end(), path_low.begin(), ::tolower);
   for (const auto &ext : kKnownImageExtensions) {
-    size_t pos = image_path.rfind(ext);
-    if (pos != std::string::npos && pos + strlen(ext) == image_path.size()) {
+    size_t pos = path_low.rfind(ext);
+    if (pos != std::string::npos && pos + strlen(ext) == path_low.size()) {
       return true;
     }
   }
+  std::cerr << "[Warning]: File " + image_path +
+                   " has extension that is not supproted by the decoder. " +
+                   "Supported extensions: " + ListSupportedExtensions() + "."
+            << std::endl;
   return false;
 }
 
