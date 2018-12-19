@@ -104,6 +104,10 @@ struct TensorViewBase {
   DataType *data = nullptr;
   TensorShape<ndim> shape;
 
+  ptrdiff_t num_elements() const {
+    return volume(shape);
+  }
+
  protected:
   TensorViewBase() = default;
   TensorViewBase(const TensorViewBase &) = default;
@@ -210,7 +214,7 @@ struct TensorListViewBase {
   /// @brief Number of samples
   int size() const { return shape.size(); }
   int num_samples() const { return size(); }
-  int nume_elements() const { return offsets[size()]; }
+  ptrdiff_t num_elements() const { return offsets.empty() ? 0 : offsets[size()]; }
   int sample_dim() const { return shape.sample_dim(); }
 
   template <int other_sample_ndim>
@@ -234,6 +238,7 @@ struct TensorListViewBase {
     other.data = nullptr;
     shape = std::move(other.shape);
     offsets = std::move(other.offsets);
+    return *this;
   }
   TensorListViewBase(DataType *data, const TensorListShape<sample_ndim> &shapes)
       : data(data), shape(shapes), offsets(calculate_offsets(shape)) {}
@@ -259,6 +264,10 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
       : Base(data, shapes) {}
 
+  template <int other_dim>
+  TensorListView(DataType *data, const TensorListShape<other_dim> &shape)
+      : Base(data, shape) {}
+
   TensorListView(DataType *data, const TensorListShape<DynamicDimensions> &shape,
                  const std::vector<ptrdiff_t> &offsets)
       : Base(data, shape, offsets) {}
@@ -267,12 +276,23 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
                  std::vector<ptrdiff_t> &&offsets)
       : Base(data, std::move(shape), std::move(offsets)) {}
 
-  template <int other_sample_ndim>
-  TensorListView(const TensorListView<Backend, DataType, other_sample_ndim> &other)
-      : Base(other.data, other.shape, other.offsets) {}
-  template <int other_sample_ndim>
-  TensorListView(TensorListView<Backend, DataType, other_sample_ndim> &&other)
-      : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+  template <int other_sample_ndim, typename U>
+  TensorListView(const TensorListView<Backend, U, other_sample_ndim> &other)
+  : Base(other.data, other.shape, other.offsets) {
+    static_assert(std::is_convertible<U*, DataType*>::value, "Conversion impossible");
+    static_assert(std::is_same<
+      typename std::remove_cv<U>::type,
+      typename std::remove_cv<DataType>::type>::value,
+      "Implicit conversion can only change CV qualifiers");
+  }
+  template <int other_sample_ndim, typename U>
+  TensorListView(TensorListView<Backend, U, other_sample_ndim> &&other)
+  : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+    static_assert(std::is_convertible<U*, DataType*>::value, "Conversion impossible");
+    static_assert(std::is_same<
+      typename std::remove_cv<U>::type,
+      typename std::remove_cv<DataType>::type>::value,
+      "Implicit conversion can only change CV qualifiers");
     other.data = nullptr;
   }
 };
@@ -288,6 +308,9 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes)
       : Base(data, shapes) {}
 
+  TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape)
+      : Base(data, shape) {}
+
   TensorListView(DataType *data, const TensorListShape<sample_ndim> &shape,
                  const std::vector<ptrdiff_t> &offsets)
       : Base(data, shape, offsets) {}
@@ -295,6 +318,29 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView(DataType *data, TensorListShape<sample_ndim> &&shape,
                  std::vector<ptrdiff_t> &&offsets)
       : Base(data, std::move(shape), std::move(offsets)) {}
+
+
+  template <typename U>
+  TensorListView(const TensorListView<Backend, U, sample_ndim> &other)
+  : Base(other.data, other.shape, other.offsets) {
+    static_assert(sample_ndim == sample_ndim || sample_ndim == DynamicDimensions,
+                  "Cannot change number of dimensions");
+    static_assert(std::is_convertible<U*, DataType*>::value, "Conversion impossible");
+    static_assert(std::is_same<
+      typename std::remove_cv<U>::type,
+      typename std::remove_cv<DataType>::type>::value,
+      "Implicit conversion can only change CV qualifiers");
+  }
+  template <typename U>
+  TensorListView(TensorListView<Backend, U, sample_ndim> &&other)
+  : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+    static_assert(std::is_convertible<U*, DataType*>::value, "Conversion impossible");
+    static_assert(std::is_same<
+      typename std::remove_cv<U>::type,
+      typename std::remove_cv<DataType>::type>::value,
+      "Implicit conversion can only change CV qualifiers");
+    other.data = nullptr;
+  }
 };
 
 }  // namespace kernels
