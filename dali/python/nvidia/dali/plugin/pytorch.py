@@ -69,17 +69,22 @@ class DALIGenericIterator(object):
                  Each name should be distinct
     size : int
            Epoch size.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
     """
     def __init__(self,
                  pipelines,
                  output_map,
-                 size):
+                 size,
+                 auto_reset=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self.batch_size = pipelines[0].batch_size
         self._size = int(size)
+        self._auto_reset = auto_reset
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -103,6 +108,8 @@ class DALIGenericIterator(object):
             self._first_batch = None
             return batch
         if self._counter >= self._size:
+            if self._auto_reset:
+                self.reset()
             raise StopIteration
         # Gather outputs
         outputs = []
@@ -207,9 +214,13 @@ class DALIClassificationIterator(DALIGenericIterator):
                 List of pipelines to use
     size : int
            Epoch size.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
     """
     def __init__(self,
                  pipelines,
-                 size):
+                 size,
+                 auto_reset=False):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size)
+                                                         size, auto_reset = auto_reset)
