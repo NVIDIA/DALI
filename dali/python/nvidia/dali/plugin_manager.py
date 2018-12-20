@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (BUILD_TEST)
-  add_subdirectory(plugins)
+from nvidia.dali import backend as b
+from nvidia.dali import ops as ops
 
-  # get all the test srcs
-  file(GLOB tmp *.cc *.cu)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+def load_library(library_path):
+    """Loads a DALI plugin, containing one or more operators.
+
+    Args:
+        library_path: Path to the plugin library (relative or absolute)
+    
+    Returns:
+        None.
+
+    Raises:
+        RuntimeError: when unable to load the library.
+    """
+    b.LoadLibrary(library_path)
+    ops.Reload()

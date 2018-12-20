@@ -27,6 +27,7 @@
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/copy.h"
+#include "dali/plugin/plugin_manager.h"
 
 namespace dali {
 namespace python {
@@ -434,6 +435,15 @@ static vector<string> GetRegisteredSupportOps() {
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
+
+static constexpr int GetCxx11AbiFlag() {
+#ifdef _GLIBCXX_USE_CXX11_ABI
+  return _GLIBCXX_USE_CXX11_ABI;
+#else
+  return 0;
+#endif
+}
+
 #ifdef DALI_BUILD_PROTO3
 typedef dali::TFRecordParser::FeatureType TFFeatureType;
 typedef dali::TFRecordParser::Feature TFFeature;
@@ -470,6 +480,10 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // DALI Init function
   m.def("Init", &DALIInit);
+
+  m.def("LoadLibrary", &PluginManager::LoadLibrary);
+
+  m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
   // Types
   py::module types_m = m.def_submodule("types");

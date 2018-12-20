@@ -12,10 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (BUILD_TEST)
-  add_subdirectory(plugins)
-
-  # get all the test srcs
-  file(GLOB tmp *.cc *.cu)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+add_subdirectory(dummy)

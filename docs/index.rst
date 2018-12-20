@@ -31,7 +31,6 @@ NVIDIA DALI documentation
    api
    supported_ops
 
-
 Indices and tables
 ==================
 

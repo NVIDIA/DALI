@@ -88,12 +88,12 @@ class Registerer {
 #define DALI_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)            \
   class DLL_PUBLIC RegistryName##Registry {                           \
    public:                                                            \
-    DLL_PUBLIC static dali::OperatorRegistry<OpType>& Registry();     \
+    DLL_PUBLIC static ::dali::OperatorRegistry<OpType>& Registry();     \
   };
 
 #define DALI_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
   dali::OperatorRegistry<OpType>& RegistryName##Registry::Registry() {  \
-    static dali::OperatorRegistry<OpType> registry;                     \
+    static ::dali::OperatorRegistry<OpType> registry;                     \
     return registry;                                                    \
   }
 
@@ -102,9 +102,9 @@ class Registerer {
 #define DALI_DEFINE_OPTYPE_REGISTERER(OpName, DerivedType,              \
     RegistryName, OpType, dev)                                          \
   namespace {                                                           \
-    static dali::Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(   \
+    static ::dali::Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(   \
         #OpName, &RegistryName##Registry::Registry(),                   \
-        dali::Registerer<OpType>::OperatorCreator<DerivedType>, dev);   \
+        ::dali::Registerer<OpType>::OperatorCreator<DerivedType>, dev);   \
   }
 
 }  // namespace dali

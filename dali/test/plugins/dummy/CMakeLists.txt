@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (BUILD_TEST)
-  add_subdirectory(plugins)
+file(GLOB SRCS *.cc *.cu)
 
-  # get all the test srcs
-  file(GLOB tmp *.cc *.cu)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+set(lib_name "customdummyplugin")
+cuda_add_library(${lib_name} SHARED ${SRCS})
+target_link_libraries(${lib_name} PUBLIC ${dali_lib})
+
+set_target_properties(${lib_name} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})

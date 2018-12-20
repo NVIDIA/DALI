@@ -82,9 +82,9 @@ target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
-# install libdali to build dir
+# install libdali to the wheel dir
 set_target_properties(${dali_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/
 )
 
 set_target_properties(${dali_operator_lib} PROPERTIES
@@ -100,7 +100,7 @@ add_custom_target(install_headers ALL
 add_custom_command(
     TARGET install_headers
     COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
-    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${CMAKE_BINARY_DIR}/include/dali\\2,'
+    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/include/dali\\2,'
     | xargs -n 2 install -D
   )
 
@@ -108,6 +108,8 @@ add_custom_command(
 # Build test suite
 ################################################
 if (BUILD_TEST)
+  set(TEST_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+
   # get all test srcs
   add_subdirectory(test)
 
@@ -122,7 +124,7 @@ if (BUILD_TEST)
   target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS} ${dali_lib} gtest)
 
   set_target_properties(${test_main_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 endif()
 
 
