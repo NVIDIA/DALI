@@ -18,7 +18,7 @@ def main(argv):
     doc_table += 'Below table lists all available operators and devices they can operate on.\n\n'
     doc_table += '.. |tick| image:: images/tick.gif\n'
     doc_table += formater.format('', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    doc_table += formater.format('Operator name', 'CPU', 'GPU', 'mixed', 'Support', op_name_max_len = op_name_max_len, c=' ')
+    doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Support', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops):
         is_cpu = '|tick|' if op in cpu_ops else ''
