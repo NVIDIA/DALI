@@ -27,7 +27,7 @@ def psnr(img1, img2):
         return 100
     PIXEL_MAX = 255.0
     # getting the noise in dB
-    return 20 * (torch.log(PIXEL_MAX / torch.sqrt(mse)) / log(10))
+    return 20 * torch.log(PIXEL_MAX / torch.sqrt(mse), 10)
 
 
 def rgb2ycbcr(input_tensor):

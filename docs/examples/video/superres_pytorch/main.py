@@ -130,7 +130,6 @@ def main(args):
         iter_start = time.perf_counter()
 
 
-        print("la")
         # TRAINING EPOCH LOOP
         for i, inputs in enumerate(train_loader):
 
@@ -166,7 +165,6 @@ def main(args):
 
             total_epoch_loss += loss.item()
 
-            print("HERE")
             if args.fp16:
                 optimizer.backward(loss)
             else:
