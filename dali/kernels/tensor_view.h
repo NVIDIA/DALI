@@ -137,10 +137,10 @@ struct TensorView<Backend, DataType, DynamicDimensions>
   TensorView() = default;
 
   TensorView(DataType *data, const TensorShape<DynamicDimensions> &shape)
-  : Base(data, shape) {}
+      : Base(data, shape) {}
 
   TensorView(DataType *data, TensorShape<DynamicDimensions> &&shape)
-  : Base(data, std::move(shape)) {}
+      : Base(data, std::move(shape)) {}
 
   template <int ndim>
   TensorView(DataType *data, const TensorShape<ndim> &shape) : Base(data, shape) {}
@@ -161,12 +161,12 @@ struct TensorView<Backend, DataType, DynamicDimensions>
   // Dynamic accepts anything
   template <int other_ndim, typename U>
   TensorView(const TensorView<Backend, U, other_ndim> &other)
-  : Base(other.data, other.shape) {
+      : Base(other.data, other.shape) {
     detail::check_implicit_conversion<U, DataType>();
   }
   template <int other_ndim, typename U>
   TensorView(TensorView<Backend, U, other_ndim> &&other)
-  : Base(other.data, std::move(other.shape)) {
+      : Base(other.data, std::move(other.shape)) {
     detail::check_implicit_conversion<U, DataType>();
     other.data = nullptr;
   }
@@ -199,13 +199,13 @@ struct TensorView : TensorViewBase<Backend, DataType, ndim> {
   // Pointer promotion
   template <typename U>
   TensorView(const TensorView<Backend, U, ndim> &other)
-  : Base(other.data, other.shape) {
+      : Base(other.data, other.shape) {
     detail::check_implicit_conversion<U, DataType>();
   }
   // Pointer promotion
   template <typename U>
   TensorView(TensorView<Backend, U, ndim> &&other)
-  : Base(other.data, std::move(other.shape)) {
+      : Base(other.data, std::move(other.shape)) {
     detail::check_implicit_conversion<U, DataType>();
     other.data = nullptr;
   }
@@ -318,13 +318,13 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
 
   template <int other_sample_ndim, typename U>
   TensorListView(const TensorListView<Backend, U, other_sample_ndim> &other)
-  : Base(other.data, other.shape, other.offsets) {
+      : Base(other.data, other.shape, other.offsets) {
     detail::check_implicit_conversion<U, DataType>();
   }
 
   template <int other_sample_ndim, typename U>
   TensorListView(TensorListView<Backend, U, other_sample_ndim> &&other)
-  : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+      : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
     detail::check_implicit_conversion<U, DataType>();
     other.data = nullptr;
   }
@@ -355,14 +355,14 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
 
   template <typename U>
   TensorListView(const TensorListView<Backend, U, sample_ndim> &other)
-  : Base(other.data, other.shape, other.offsets) {
+      : Base(other.data, other.shape, other.offsets) {
     static_assert(sample_ndim == sample_ndim || sample_ndim == DynamicDimensions,
                   "Cannot change number of dimensions");
     detail::check_implicit_conversion<U, DataType>();
   }
   template <typename U>
   TensorListView(TensorListView<Backend, U, sample_ndim> &&other)
-  : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
+      : Base(other.data, std::move(other.shape), std::move(other.offsets)) {
     detail::check_implicit_conversion<U, DataType>();
     other.data = nullptr;
   }
