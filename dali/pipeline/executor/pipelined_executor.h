@@ -44,7 +44,7 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
         set_affinity, max_num_stream, prefetch_queue_depth) {
   }
 
-  DLL_PUBLIC virtual ~PipelinedExecutor() = default;
+  DLL_PUBLIC ~PipelinedExecutor() override = default;
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
 

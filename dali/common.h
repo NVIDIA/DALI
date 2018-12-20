@@ -49,12 +49,12 @@ using std::unique_ptr;
 using std::vector;
 
 // Common types
-typedef uint8_t uint8;
-typedef int16_t int16;
-typedef int64_t int64;
-typedef uint64_t uint64;
-typedef int32_t int32;
-typedef uint32_t uint32_t;
+using uint8 = uint8_t;
+using int16 = int16_t;
+using int64 = int64_t;
+using uint64 = uint64_t;
+using int32 = int32_t;
+using uint32 = uint32_t;
 
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;

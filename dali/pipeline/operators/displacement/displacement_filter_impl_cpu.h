@@ -50,7 +50,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     }
   }
 
-  virtual ~DisplacementFilter() {
+  ~DisplacementFilter() override {
     for (auto &d : displace_) {
       d.Cleanup();
     }

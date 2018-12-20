@@ -56,7 +56,7 @@ class Sphere : public DisplacementFilter<Backend, SphereAugment> {
       : DisplacementFilter<Backend, SphereAugment>(spec) {}
 
 
-    virtual ~Sphere() = default;
+    ~Sphere() override = default;
 };
 
 }  // namespace dali

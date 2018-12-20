@@ -35,7 +35,7 @@ class IntArrayParser : public Parser<IntArrayWrapper> {
  public:
   explicit IntArrayParser(const OpSpec& spec)
     : Parser<IntArrayWrapper>(spec) {}
-  void Parse(const IntArrayWrapper& data, SampleWorkspace* ws) {
+  void Parse(const IntArrayWrapper& data, SampleWorkspace* ws) override {
     const int *int_data = data.data;
 
     const int H = int_data[0];

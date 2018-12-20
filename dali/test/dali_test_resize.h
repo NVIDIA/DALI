@@ -19,7 +19,7 @@ template <typename ImgType>
 class GenericResizeTest : public DALISingleOpTest<ImgType> {
  public:
   vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     const int c = this->GetNumColorComp();
     auto cv_type = (c == 3) ? CV_8UC3 : CV_8UC1;
 

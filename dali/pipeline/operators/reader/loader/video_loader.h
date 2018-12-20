@@ -149,7 +149,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
 
-  ~VideoLoader() noexcept {
+  ~VideoLoader() noexcept override {
     done_ = true;
     send_queue_.shutdown();
     if (vid_decoder_) {

@@ -31,7 +31,7 @@ namespace dali {
 template <typename ThreadCount>
 class PipelineTest : public DALITest {
  public:
-  inline void SetUp() {
+  inline void SetUp() override {
     DALITest::SetUp();
     DALITest::DecodeJPEGS(DALI_RGB);
   }

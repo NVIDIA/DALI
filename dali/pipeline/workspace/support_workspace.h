@@ -39,7 +39,7 @@ using SupportOutputType = shared_ptr<Tensor<Backend>>;
 class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, SupportOutputType> {
  public:
   DLL_PUBLIC SupportWorkspace() {}
-  DLL_PUBLIC ~SupportWorkspace() = default;
+  DLL_PUBLIC ~SupportWorkspace() override = default;
 
   /**
    * @brief Returns the input Tensor at index `idx`.

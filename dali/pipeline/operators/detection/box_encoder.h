@@ -48,7 +48,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
     anchors_ = ReadBoxesFromInput(anchors.data(), anchors.size() / BoundingBox::kSize);
   }
 
-  virtual ~BoxEncoder() = default;
+  ~BoxEncoder() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 

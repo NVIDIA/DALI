@@ -76,7 +76,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     }
   }
 
-  virtual ~RandomBBoxCrop() = default;
+  ~RandomBBoxCrop() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;

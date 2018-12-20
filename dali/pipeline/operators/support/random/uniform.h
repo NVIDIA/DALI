@@ -33,7 +33,7 @@ class Uniform : public Operator<SupportBackend> {
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
   }
 
-  virtual inline ~Uniform() = default;
+  inline ~Uniform() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Uniform);
 

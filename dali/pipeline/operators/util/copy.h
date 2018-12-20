@@ -27,7 +27,7 @@ class Copy : public Operator<Backend> {
   inline explicit Copy(const OpSpec &spec) :
     Operator<Backend>(spec) {}
 
-  virtual inline ~Copy() = default;
+  inline ~Copy() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 

@@ -39,7 +39,7 @@ template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() : meta_(DALI_NHWC) {}
-  inline ~Tensor() = default;
+  inline ~Tensor() override = default;
 
   /**
    *

@@ -33,7 +33,7 @@ class JpegImage final : public GenericImage {
  public:
   JpegImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
-  ~JpegImage();
+  ~JpegImage() override;
 
  protected:
   std::pair<std::shared_ptr<uint8_t>, ImageDims>

@@ -41,7 +41,7 @@ class SampleWorkspace;
 class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:
   DLL_PUBLIC inline HostWorkspace() {}
-  DLL_PUBLIC inline ~HostWorkspace() = default;
+  DLL_PUBLIC inline ~HostWorkspace() override = default;
 
   /**
    * @brief Returns a sample workspace for the given sample

@@ -72,7 +72,7 @@ template <template<typename> class InputType, template<typename> class OutputTyp
 class WorkspaceBase : public ArgumentWorkspace {
  public:
   WorkspaceBase() {}
-  virtual ~WorkspaceBase() = default;
+  ~WorkspaceBase() override = default;
 
   /**
    * @brief Clears the contents of the workspaces, reseting it

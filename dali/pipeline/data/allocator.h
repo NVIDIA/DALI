@@ -56,13 +56,13 @@ class AllocatorBase {
 class GPUAllocator : public AllocatorBase {
  public:
   explicit GPUAllocator(const OpSpec &spec) : AllocatorBase(spec) {}
-  virtual ~GPUAllocator() = default;
+  ~GPUAllocator() override = default;
 
-  virtual void New(void **ptr, size_t bytes) {
+  void New(void **ptr, size_t bytes) override {
     CUDA_CALL(cudaMalloc(ptr, bytes));
   }
 
-  virtual void Delete(void *ptr, size_t /* unused */) {
+  void Delete(void *ptr, size_t /* unused */) override {
     if (ptr != nullptr) {
       CUDA_CALL(cudaFree(ptr));
     }
@@ -82,7 +82,7 @@ DALI_DECLARE_OPTYPE_REGISTRY(GPUAllocator, GPUAllocator);
 class CPUAllocator : public AllocatorBase {
  public:
   explicit CPUAllocator(const OpSpec &spec) : AllocatorBase(spec) {}
-  virtual ~CPUAllocator() = default;
+  ~CPUAllocator() override = default;
 
   void New(void **ptr, size_t bytes) override {
     *ptr = ::operator new(bytes);
@@ -105,7 +105,7 @@ DALI_DECLARE_OPTYPE_REGISTRY(CPUAllocator, CPUAllocator);
 class PinnedCPUAllocator : public CPUAllocator {
  public:
   explicit PinnedCPUAllocator(const OpSpec &spec) : CPUAllocator(spec) {}
-  virtual ~PinnedCPUAllocator() = default;
+  ~PinnedCPUAllocator() override = default;
 
   void New(void **ptr, size_t bytes) override {
     CUDA_CALL(cudaMallocHost(ptr, bytes));

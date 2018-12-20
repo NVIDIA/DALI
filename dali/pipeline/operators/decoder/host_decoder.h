@@ -34,7 +34,7 @@ class HostDecoder : public Operator<CPUBackend> {
           c_(IsColor(output_type_) ? 3 : 1) {}
 
 
-  virtual inline ~HostDecoder() = default;
+  inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
  protected:
