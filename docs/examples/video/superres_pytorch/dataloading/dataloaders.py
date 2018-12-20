@@ -40,7 +40,10 @@ class DALILoader():
         self.pipeline.build()
         print("after build")
         self.epoch_size = self.pipeline.epoch_size("Reader")
-        self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline, ["data"], self.epoch_size)
+        self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline,
+                                                         ["data"],
+                                                         self.epoch_size,
+                                                         auto_reset=True)
     def __len__(self):
         return self.epoch_size
     def __iter__(self):

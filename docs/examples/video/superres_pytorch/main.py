@@ -143,7 +143,7 @@ def main(args):
                 # NFHWC to NCFHW
                 np_tmp = inputs.cpu().numpy().transpose((0, 4, 1, 2, 3))
                 print(np_tmp.shape)
-                np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 14:526, 150:1110]) # crop to 512x960
+                np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 100:612, 150:1110]) # crop to 512x960
                 inputs = torch.from_numpy(np_tmp)
 
                 # Needed? It is already gpu
