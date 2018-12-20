@@ -23,19 +23,19 @@ namespace {
 // using math from https://msdn.microsoft.com/en-us/library/windows/desktop/dd206750(v=vs.85).aspx
 
 template<typename T>
-struct yuv {
-  T y, u, v;
+struct YCbCr {
+  T y, cb, cr;
 };
 
 // https://docs.microsoft.com/en-gb/windows/desktop/medfound/recommended-8-bit-yuv-formats-for-video-rendering#converting-8-bit-yuv-to-rgb888
-__constant__ float yuv2rgb_mat_norm[9] = {
+__constant__ float ycbcr2rgb_mat_norm[9] = {
   1.164383f,  0.0f,       1.596027f,
   1.164383f, -0.391762f, -0.812968f,
   1.164383f,  2.017232f,  0.0f
 };
 
 // not normalized need *255
-__constant__ float yuv2rgb_mat[9] = {
+__constant__ float ycbcr2rgb_mat[9] = {
   1.164383f * 255.0f,  0.0f,       1.596027f * 255.0f,
   1.164383f * 255.0f, -0.391762f * 255.0f, -0.812968f * 255.0f,
   1.164383f * 255.0f,  2.017232f * 255.0f,  0.0f
@@ -62,25 +62,25 @@ __device__ uint8_t convert<uint8_t>(const float x) {
 }
 #endif
 
-template<typename YUV_T, typename RGB_T, bool Normalized = false>
-__device__ void yuv2rgb(const yuv<YUV_T>& yuv, RGB_T* rgb,
+template<typename YCbCr_T, typename RGB_T, bool Normalized = false>
+__device__ void ycbcr2rgb(const YCbCr<YCbCr_T>& ycbcr, RGB_T* rgb,
                         size_t stride) {
-  auto y = (static_cast<float>(yuv.y) - 16.0f/255.0f);
-  auto u = (static_cast<float>(yuv.u) - 128.0f/255.0f);
-  auto v = (static_cast<float>(yuv.v) - 128.0f/255.0f);
+  auto y = (static_cast<float>(ycbcr.y) - 16.0f/255.0f);
+  auto cb = (static_cast<float>(ycbcr.cb) - 128.0f/255.0f);
+  auto cr = (static_cast<float>(ycbcr.cr) - 128.0f/255.0f);
 
 
   float r, g, b;
   if (Normalized) {
-    auto& m = yuv2rgb_mat_norm;
-    r = clip(y*m[0] + u*m[1] + v*m[2], 1.0f);
-    g = clip(y*m[3] + u*m[4] + v*m[5], 1.0f);
-    b = clip(y*m[6] + u*m[7] + v*m[8], 1.0f);
+    auto& m = ycbcr2rgb_mat_norm;
+    r = clip(y*m[0] + cb*m[1] + cr*m[2], 1.0f);
+    g = clip(y*m[3] + cb*m[4] + cr*m[5], 1.0f);
+    b = clip(y*m[6] + cb*m[7] + cr*m[8], 1.0f);
   } else {
-    auto& m = yuv2rgb_mat;
-    r = clip(y*m[0] + u*m[1] + v*m[2], 255.0f);
-    g = clip(y*m[3] + u*m[4] + v*m[5], 255.0f);
-    b = clip(y*m[6] + u*m[7] + v*m[8], 255.0f);
+    auto& m = ycbcr2rgb_mat;
+    r = clip(y*m[0] + cb*m[1] + cr*m[2], 255.0f);
+    g = clip(y*m[3] + cb*m[4] + cr*m[5], 255.0f);
+    b = clip(y*m[6] + cb*m[7] + cr*m[8], 255.0f);
   }
 
   rgb[0] = convert<RGB_T>(r);
@@ -108,22 +108,22 @@ __global__ void process_frame_kernel(
   float shift = (dst_x == dst_width - 1) ? 0 : 0.5f;
 
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#tex2d-object
-  yuv<float> yuv;
-  yuv.y = tex2D<float>(luma, src_x + shift, src_y + shift);
-  auto uv = tex2D<float2>(chroma, (src_x / 2) + shift, (src_y / 2) + shift);
-  yuv.u = uv.x;
-  yuv.v = uv.y;
+  YCbCr<float> ycbcr;
+  ycbcr.y = tex2D<float>(luma, src_x + shift, src_y + shift);
+  auto cbcr = tex2D<float2>(chroma, (src_x / 2) + shift, (src_y / 2) + shift);
+  ycbcr.cb = cbcr.x;
+  ycbcr.cr = cbcr.y;
 
   auto* out = &dst[(dst_x + dst_y * dst_width) * c];
 
   constexpr size_t stride = 1;
   if (RGB) {
-    yuv2rgb<float, T, Normalized>(yuv, out, stride);
+    ycbcr2rgb<float, T, Normalized>(ycbcr, out, stride);
   } else {
     constexpr float scaling = Normalized ? 1.0f : 255.0f;
-    out[0] = yuv.y * scaling;
-    out[stride] = yuv.u * scaling;
-    out[stride*2] = yuv.v * scaling;
+    out[0] = ycbcr.y * scaling;
+    out[stride] = ycbcr.cb * scaling;
+    out[stride*2] = ycbcr.cr * scaling;
   }
 }
 
