@@ -1,0 +1,198 @@
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
+#define DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
+
+#include <dali/kernels/tensor_view.h>
+#include <dali/kernels/tensor_shape_str.h>
+#include <dali/kernels/backend_tags.h>
+#include <gtest/gtest.h>
+#include <functional>
+#include <cmath>
+#include <utility>
+
+namespace dali {
+namespace kernels {
+
+// COMPARISON
+
+template <int dim1, int dim2>
+void CheckEqual(
+    const TensorListShape<dim1> &s1,
+    const TensorListShape<dim2> &s2,
+    int &max_errors) {
+  ASSERT_EQ(s1.sample_dim(), s2.sample_dim()) << "Tensor lists must have equal sample dimension";
+  ASSERT_EQ(s1.num_samples(), s2.num_samples()) << "Tensor lists must have same number of samples";
+  int n = s1.num_samples();
+  int errors = 0;
+  for (int i = 0; i < n; i++) {
+    if (s1.tensor_shape_span(i) != s2.tensor_shape_span(i)) {
+      if (++errors < max_errors) {
+        EXPECT_EQ(s1.tensor_shape_span(i), s2.tensor_shape_span(i))
+            << "Samples #" << (--max_errors, i)
+            << " have different shapes " << s1[i] << " vs " << s2[i];
+      }
+    }
+  }
+
+  if (errors) {
+    if (errors > max_errors) {
+      FAIL() << " (" << (errors - max_errors) << " more)";
+      max_errors = 0;
+    } else {
+      FAIL();
+      max_errors -= errors;
+    }
+  }
+}
+
+template <int dim1, int dim2>
+void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2) {
+  int max_errors = 100;
+  CheckEqual(s1, s2, max_errors);
+}
+
+
+template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
+void Check(
+    const TensorView<StorageCPU, T1, dim1> &tv1,
+    const TensorView<StorageCPU, T2, dim2> &tv2,
+    ElementsOkFunc eq,
+    int &max_errors) {
+  ASSERT_EQ(tv1.shape, tv2.shape)
+      << "Tensors have different shapes "
+      << tv1.shape << " vs " << tv2.shape << "\n";
+
+  ptrdiff_t n = tv1.num_elements();
+  int dim = tv1.dim();
+  TensorShape<-1> pos;
+  pos.resize(dim);
+
+  int errors = 0;
+  for (ptrdiff_t i = 0; i < n; i++) {
+    if (!eq(tv1.data[i], tv2.data[i])) {
+      if (errors++ < max_errors) {
+        EXPECT_TRUE(eq(tv1.data[i], tv2.data[i]))
+          << "Failed at offset " << i << ", pos = " << pos
+          << "tv1[" << i << "] = " << tv1.data[i]
+          << "tv2[" << i << "] = " << tv2.data[i];
+      }
+    }
+
+    for (int j = dim-1; j >= 0; j--) {
+      if (++pos[j] < tv1.shape[j])
+        break;
+      pos[j] = 0;
+    }
+  }
+
+  if (errors) {
+    if (errors > max_errors) {
+      FAIL() << " (" << (errors - max_errors) << " more)";
+      max_errors = 0;
+    } else {
+      FAIL();
+      max_errors -= errors;
+    }
+  }
+}
+
+template <typename T1, typename T2>
+struct Equal {
+  bool operator()(const T1 &a, const T2 &b) const {
+    return a == b;
+  }
+};
+
+template <typename T1, typename T2>
+struct EqualEps {
+  EqualEps() = default;
+  explicit EqualEps(double eps) : eps(eps) {}
+  bool operator()(const T1 &a, const T2 &b) const {
+    return std::abs(b-a) < eps;
+  }
+  double eps = 1e-6;
+};
+
+template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal<T1, T2>>
+void Check(
+    const TensorView<StorageCPU, T1, dim1> &tv1,
+    const TensorView<StorageCPU, T2, dim2> &tv2,
+    ElementsOkFunc eq = {}) {
+  int max_errors = 100;
+  Check(tv1, tv2, std::move(eq), max_errors);
+}
+
+
+template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal<T1, T2>>
+void Check(
+    const TensorListView<StorageCPU, T1, dim1> &tv1,
+    const TensorListView<StorageCPU, T2, dim2> &tv2,
+    ElementsOkFunc eq = {}) {
+  int max_errors = 100;
+  CheckEqual(tv1.shape, tv2.shape, max_errors);
+  int n = tv1.num_samples();
+  for (int i = 0; i < n; i++) {
+    Check(tv1[i], tv2[i], eq, max_errors);
+  }
+}
+
+
+// FILLING
+
+template <typename T>
+typename std::enable_if<std::is_floating_point<T>::value,
+                        std::uniform_real_distribution<T>>::type
+uniform_distribution(T lo, T hi) {
+  return std::uniform_real_distribution<T>(lo, hi);
+}
+template <typename T>
+typename std::enable_if<std::is_integral<T>::value,
+                        std::uniform_int_distribution<T>>::type
+uniform_distribution(T lo, T hi) {
+  return std::uniform_int_distribution<T>(lo, hi);
+}
+
+template <typename T>
+struct same_as { using type = T; };
+template <typename T>
+using same_as_t = typename same_as<T>::type;
+
+template <typename DataType, int dim>
+void RandomFill(
+    const TensorListView<StorageCPU, DataType, dim> &tlv,
+    same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  std::mt19937_64 rng;
+  auto distrib = uniform_distribution(lo, hi);
+  int64_t n = tlv.num_elements();
+  for (int64_t i = 0; i < n; i++) {
+    tlv.data[i] = distrib(rng);
+  }
+}
+
+template <typename DataType, int dim>
+void ConstantFill(
+    const TensorListView<StorageCPU, DataType, dim> &tlv,
+    same_as_t<DataType> value = {}) {
+  int64_t n = tlv.num_elements();
+  for (int64_t i = 0; i < n; i++) {
+    tlv.data[i] = value;
+  }
+}
+
+}  // namespace kernels
+}  // namespace dali
+
+#endif  // DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_

@@ -18,14 +18,14 @@
 #include <cuda_runtime_api.h>
 #include <dali/kernels/tensor_view.h>
 #include <memory>
+#include <utility>
 
 namespace dali {
 namespace kernels {
 
-template <typename T, int dim = -1>
+template <typename T, int dim = DynamicDimensions>
 class TestTensorList {
  public:
-
   void reshape(TensorListShape<dim> shape) {
     cpumem_.reset();
     gpumem_.reset();
@@ -47,25 +47,23 @@ class TestTensorList {
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape), std::move(out_offsets) };
   }
 
-  /*template <int out_dim>
+  template <int out_dim>
   TensorListView<StorageGPU, T, out_dim> gpu(cudaStream_t stream = 0) {
-    if (gpu_.data != nullptr) {
-      return gpu;
-    }
-    TensorListView<StorageGPU, T, out_dim> ret(gpu_.get(), shape_);
+    TensorListView<StorageGPU, T, out_dim> ret;
     if (!gpumem_) {
-      void *ptr;
-      auto size = shape_.num_elements() * sizeof(T);
-      cudaMalloc(&ptr, size);
-      gpumem_.reset(reinterpret_cast<char*>(ptr), GPUDeleter);
+      auto size = any_.num_elements() * sizeof(T);
+      char *ptr = nullptr;
+      cudaMalloc(reinterpret_cast<void**>(&ptr), size);
+      gpumem_ = { ptr, GPUDeleter };
       if (cpumem_)
-        cudaMemcpy(ptr, cpu.get(), size, cudaMemcpyHostToDevice);
+        cudaMemcpy(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice);
     }
-    ret.data = gpumem_.get();
-    return ret;
-  }*/
+    auto out_shape = convert_dim<out_dim>(any_.shape);
+    auto out_offsets = any_.offsets;
+    return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape), std::move(out_offsets) };
+  }
 
-private:
+ private:
   using Deleter = void(*)(char *);
   static void CPUDeleter(char *mem) {
     delete [] mem;

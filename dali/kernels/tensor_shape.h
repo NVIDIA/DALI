@@ -769,7 +769,6 @@ TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<
   return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
 }
 
-
 }  // namespace kernels
 }  // namespace dali
 

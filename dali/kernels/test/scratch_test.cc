@@ -61,8 +61,8 @@ TEST(Scratch, Estimator) {
 
 TEST(Scratch, BumpAllocator) {
   const size_t size = 1024;
-  std::aligned_storage<size, 64> storage;
-  BumpAllocator<char> allocator((char*)&storage, size);
+  std::aligned_storage<size, 64>::type storage;
+  BumpAllocator<char> allocator(reinterpret_cast<char*>(&storage), size);
   size_t n0 = 10, n1 = 20, n2 = 33;
 
   EXPECT_EQ(allocator.total(), size);
@@ -93,8 +93,6 @@ bool is_aligned(T *ptr, size_t alignment = alignof(T)) {
   return intptr_t(ptr) % alignment == 0;
 }
 
-typedef float float32x8 __attribute__((vector_size(32)));
-
 TEST(Scratch, Scratchpad) {
   Scratchpad pad;
 
@@ -102,14 +100,15 @@ TEST(Scratch, Scratchpad) {
   const size_t num_allocs = (size_t)AllocType::Count;
   ASSERT_EQ(pad.allocs.size(), num_allocs);
 
-  const size_t alignment = 16;
+  const size_t alignment = 64;
   alignas(alignment) char storage[num_allocs][size];
   for (size_t i = 0; i < num_allocs; i++)
     pad.allocs[i] = BumpAllocator<char>(storage[i], sizeof(storage[i]));
 
   for (size_t i = 0; i < num_allocs; i++) {
     AllocType type = AllocType(i);
-    ASSERT_TRUE(is_aligned(pad.allocs[i].next(), alignment)) << "Misaligned storage #" << i << "\n";
+    ASSERT_TRUE(is_aligned(pad.allocs[i].next(), alignment))
+      << "Misaligned storage #" << i << "\n";
 
     int *p0 = pad.New<int>(type, 2);
     EXPECT_EQ(p0, reinterpret_cast<int*>(&storage[i]))
@@ -129,7 +128,6 @@ TEST(Scratch, Scratchpad) {
     EXPECT_TRUE(is_aligned(p2));
     EXPECT_EQ(pad.New<char>(type, 1), reinterpret_cast<char*>(p3) + 1*sizeof(*p3));
   }
-
 }
 
 
