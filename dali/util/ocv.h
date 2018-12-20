@@ -21,10 +21,10 @@
 
 namespace dali {
 
-int OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type);
+int DLL_PUBLIC OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type);
 
 template <typename T>
-inline cv::Mat CreateMatFromPtr(int H,
+inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H,
                          int W,
                          int type,
                          const T * ptr,
@@ -34,6 +34,12 @@ inline cv::Mat CreateMatFromPtr(int H,
   // (that I know of) without making the input argument non-const.
   return cv::Mat(H, W, type, const_cast<T*>(ptr), step);
 }
+
+int DLL_PUBLIC GetOpenCvChannelType(size_t c);
+
+void DLL_PUBLIC OpenCvColorConversion(
+  DALIImageType input_type, const cv::Mat& input_img,
+  DALIImageType output_type, cv::Mat& output_img);
 
 }  // namespace dali
 

@@ -30,9 +30,8 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
+#include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
-
-
 
 namespace dali {
 
@@ -437,9 +436,9 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       DALI_FAIL("Unsupported image type: " + file_name);
     }
 
-    // Transpose BGR -> RGB if needed
-    if (output_type_ == DALI_RGB) {
-      cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGB);
+    // Transpose BGR -> output_type_ if needed
+    if (IsColor(output_type_) && output_type_ != DALI_BGR) {
+      OpenCvColorConversion(DALI_BGR, tmp, output_type_, tmp);
     }
 
     CUDA_CALL(cudaMemcpyAsync(decoded_device_data,

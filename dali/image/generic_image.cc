@@ -15,6 +15,7 @@
 
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
+#include "dali/util/ocv.h"
 
 namespace dali {
 
@@ -34,9 +35,9 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
   if (decoded_image.data == nullptr) {
      DALI_FAIL("Unsupported image type.");
   }
-  // if RGB needed, permute from BGR
-  if (image_type == DALI_RGB) {
-    cv::cvtColor(decoded_image, decoded_image, cv::COLOR_BGR2RGB);
+  // if different image type needed (e.g. RGB), permute from BGR
+  if (IsColor(image_type) && image_type != DALI_BGR) {
+    OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
 
   const int c = IsColor(image_type) ? 3 : 1;

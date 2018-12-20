@@ -30,6 +30,7 @@
 #include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/util/image.h"
+#include "dali/util/ocv.h"
 
 namespace dali {
 
@@ -49,6 +50,9 @@ struct BGR {
 };
 struct Gray {
   static const DALIImageType type = DALI_GRAY;
+};
+struct YCbCr {
+  static const DALIImageType type = DALI_YCbCr;
 };
 
 // Main testing fixture to provide common functionality across tests
@@ -75,18 +79,18 @@ class DALITest : public ::testing::Test {
   }
 
   void DecodeImage(const unsigned char *data, int data_size, int c,
-                   int img_type, Tensor<CPUBackend> *out,
+                   DALIImageType img_type, Tensor<CPUBackend> *out,
                    unsigned char *out_dataPntr = nullptr) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
     cv::Mat tmp = cv::imdecode(
         input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
 
-    // if RGB needed, permute from BGR
-    cv::Mat out_img(tmp.rows, tmp.cols, c != 1 ? CV_8UC3 : CV_8UC1);
-    if (img_type == DALI_RGB) {
-      // Convert from BGR to RGB for verification
-      cv::cvtColor(tmp, out_img, CV_BGR2RGB);
+    // if different image_type needed, permute from BGR
+    cv::Mat out_img(tmp.rows, tmp.cols, GetOpenCvChannelType(c));
+    if (IsColor(img_type) && img_type != DALI_BGR) {
+      // Convert from BGR to img_type for verification
+      OpenCvColorConversion(DALI_BGR, tmp, img_type, out_img);
     } else {
       out_img = tmp;
     }
@@ -121,9 +125,9 @@ class DALITest : public ::testing::Test {
       const int h = (*image_dims)[i].h = img.rows;
       const int w = (*image_dims)[i].w = img.cols;
       cv::Mat out_img(h, w, cType);
-      if (type == DALI_RGB) {
-        // Convert from BGR to RGB for verification
-        cv::cvtColor(img, out_img, CV_BGR2RGB);
+      if (IsColor(type) && type != DALI_BGR) {
+        // Convert from BGR to type for verification
+        OpenCvColorConversion(DALI_BGR, img, type, out_img);
       } else {
         out_img = img;
       }

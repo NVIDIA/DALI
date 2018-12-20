@@ -163,12 +163,12 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
  * to set up input data) and run operator, using one of RunOperator overloads.
  * @tparam ImgType @see DALIImageType
  */
-template<typename ImgType>
+template<typename ImgType, typename OutputImgType = ImgType>
 class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
-    c_ = (IsColor(ImageType()) ? 3 : 1);
+    c_ = (IsColor(OutputImageType()) ? 3 : 1);
     jpegs_.clear();
 
     const auto flags = GetImageLoadingFlags();
@@ -233,11 +233,15 @@ class DALISingleOpTest : public DALITest {
     pipeline_->AddOperator(spec);
   }
 
+  virtual void AddDefaultArgs(OpSpec& spec) {
+  }
+
   void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
                              const string &pInput = "input", const string &pOutput = "outputCPU") {
     OpSpec spec(descr.opName);
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
                             .AddInput(pInput, pDevice)
@@ -348,6 +352,10 @@ class DALISingleOpTest : public DALITest {
     return img_type_;
   }
 
+  DALIImageType OutputImageType() const                 {
+    return output_img_type_;
+  }
+
   void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
     OpSpec operation = DefaultSchema(pName, pDevice);
     TstBody(operation, eps);
@@ -412,6 +420,7 @@ class DALISingleOpTest : public DALITest {
     OpSpec spec(DefaultSchema(descr.opName));
     if (descr.opAddImgType && !spec.HasArgument("image_type"))
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
@@ -477,6 +486,7 @@ class DALISingleOpTest : public DALITest {
 
     // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
+
     const int length = lenRaster / jMax;
 
     const int checkBest = shape? 1 : 0;
@@ -693,7 +703,6 @@ class DALISingleOpTest : public DALITest {
         }
 
         const int lenBuffer = shape1[0] * shape1[1] * shape1[2];
-
         if (floatType) {
           colorIdx = CheckBuffers<float>(lenBuffer,
                           (*t1).template tensor<float>(i), (*t2).template tensor<float>(i),
@@ -751,6 +760,7 @@ class DALISingleOpTest : public DALITest {
   double eps_ = 1e-4;
   uint32_t testCheckType_ = t_checkDefault;
   const DALIImageType img_type_ = ImgType::type;
+  const DALIImageType output_img_type_ = OutputImgType::type;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;
