@@ -490,7 +490,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const TensorListShape &) = default;
   TensorListShape(TensorListShape &&) = default;
 
-  TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)  // NOLINT
+  TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes)) {}
 
   TensorListShape(const std::vector<int64_t> &shapes, int ndim = sample_ndim)  // NOLINT
@@ -673,6 +673,23 @@ template <int out_dim, int in_dim>
 typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
 convert_dim(const TensorListShape<in_dim> &in) {
   return in;  // use implicit conversion
+}
+
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(TensorListShape<in_dim> &&in) {
+  static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
+                in_dim == out_dim, "Incompatible number of dimensions"
+                " - must be equal or at least one side must be dynamic");
+  TensorListShape<out_dim> out = std::move(in).template to_static<out_dim>();
+  return out;
+}
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(TensorListShape<in_dim> &&in) {
+  return std::move(in);  // use implicit conversion
 }
 
 

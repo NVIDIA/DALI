@@ -61,6 +61,37 @@ TEST(TensorViewTest, Addressing) {
   // EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000); // TODO - this is ambigous
 }
 
+TEST(TensorViewTest, TypePromotion) {
+  TensorView<EmptyBackendTag, int, 3> tv{nullptr, {1, 2, 3}};
+  TensorView<EmptyBackendTag, const int, 3> tvc = tv;
+  EXPECT_EQ(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, tv.data);
+  tvc = {};
+  EXPECT_NE(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, nullptr);
+  tvc = tv;
+  EXPECT_EQ(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, tv.data);
+
+  TensorView<EmptyBackendTag, int> tv_dyn = tv;
+  EXPECT_EQ(tv_dyn.shape, tv.shape);
+  EXPECT_EQ(tv_dyn.data, tv.data);
+
+  TensorView<EmptyBackendTag, const int> tvc_dyn = tv;
+  EXPECT_EQ(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, tv.data);
+  tvc_dyn = {};
+  EXPECT_NE(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, nullptr);
+  tvc_dyn = tv;
+  EXPECT_EQ(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, tv.data);
+
+  auto *ptr = tv_dyn.shape.shape.data();
+  tvc_dyn = std::move(tv_dyn);
+  EXPECT_EQ(tvc_dyn.shape.shape.data(), ptr) << "Move is broken - a copy appeared somewhere.";
+}
+
 TEST(TensorListViewTest, Constructor) {
   TensorListView<EmptyBackendTag, int, 3> tlv{
       static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
@@ -114,6 +145,39 @@ TEST(TensorListViewTest, ObtainingTensorViewFromDynamic) {
       "Wrong type");
   EXPECT_EQ(t2.dim(), 3);
 }
+
+TEST(TensorListViewTest, TypePromotion) {
+  TensorListShape<3> shape({ { 1, 2, 3}, {4, 5, 6 } });
+  TensorListView<EmptyBackendTag, int, 3> tv{nullptr, shape};
+  TensorListView<EmptyBackendTag, const int, 3> tvc = tv;
+  EXPECT_EQ(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, tv.data);
+  tvc = {};
+  EXPECT_NE(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, nullptr);
+  tvc = tv;
+  EXPECT_EQ(tvc.shape, tv.shape);
+  EXPECT_EQ(tvc.data, tv.data);
+
+  TensorListView<EmptyBackendTag, int> tv_dyn = tv;
+  EXPECT_EQ(tv_dyn.shape, tv.shape);
+  EXPECT_EQ(tv_dyn.data, tv.data);
+
+  TensorListView<EmptyBackendTag, const int> tvc_dyn = tv;
+  EXPECT_EQ(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, tv.data);
+  tvc_dyn = {};
+  EXPECT_NE(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, nullptr);
+  tvc_dyn = tv;
+  EXPECT_EQ(tvc_dyn.shape, tv.shape);
+  EXPECT_EQ(tvc_dyn.data, tv.data);
+
+  auto *ptr = tv_dyn.shape.shapes.data();
+  tvc_dyn = std::move(tv_dyn);
+  EXPECT_EQ(tvc_dyn.shape.shapes.data(), ptr) << "Move is broken - a copy appeared somewhere.";
+}
+
 
 }  // namespace kernels
 }  // namespace dali
