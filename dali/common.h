@@ -72,7 +72,12 @@ enum DALIInterpType {
 /**
  * @brief Supported image formats
  */
-enum DALIImageType { DALI_RGB = 0, DALI_BGR = 1, DALI_GRAY = 2, DALI_YCbCr = 3 };
+enum DALIImageType { 
+  DALI_RGB   = 0, 
+  DALI_BGR   = 1, 
+  DALI_GRAY  = 2, 
+  DALI_YCbCr = 3 
+};
 
 /**
  * @brief Supported tensor layouts

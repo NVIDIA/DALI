@@ -233,11 +233,15 @@ class DALISingleOpTest : public DALITest {
     pipeline_->AddOperator(spec);
   }
 
+  virtual void AddDefaultArgs(OpSpec& spec) {
+  }
+
   void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
                              const string &pInput = "input", const string &pOutput = "outputCPU") {
     OpSpec spec(descr.opName);
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
                             .AddInput(pInput, pDevice)
@@ -348,6 +352,10 @@ class DALISingleOpTest : public DALITest {
     return img_type_;
   }
 
+  DALIImageType OutputImageType() const                 {
+    return output_img_type_;
+  }
+
   void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
     OpSpec operation = DefaultSchema(pName, pDevice);
     TstBody(operation, eps);
@@ -412,6 +420,7 @@ class DALISingleOpTest : public DALITest {
     OpSpec spec(DefaultSchema(descr.opName));
     if (descr.opAddImgType && !spec.HasArgument("image_type"))
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
@@ -751,6 +760,7 @@ class DALISingleOpTest : public DALITest {
   double eps_ = 1e-4;
   uint32_t testCheckType_ = t_checkDefault;
   const DALIImageType img_type_ = ImgType::type;
+  DALIImageType output_img_type_ = ImgType::type;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;
