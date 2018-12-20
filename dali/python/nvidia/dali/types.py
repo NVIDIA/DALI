@@ -39,6 +39,7 @@ _known_types = {
         DALIDataType.STRING : ("str", str),
         DALIDataType._BOOL_VEC : ("bool or list of bool", _to_list(bool)),
         DALIDataType._INT32_VEC : ("int or list of int",_to_list(int)),
+        DALIDataType._INT64_VEC : ("int or list of int", _to_list(int)),
         DALIDataType._STRING_VEC : ("str or list of str", _to_list(str)),
         DALIDataType._FLOAT_VEC : ("float or list of float", _to_list(float)),
         DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),

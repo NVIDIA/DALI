@@ -503,6 +503,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("STRING", DALI_STRING)
     .value("_BOOL_VEC", DALI_BOOL_VEC)
     .value("_INT32_VEC", DALI_INT_VEC)
+    .value("_INT64_VEC", DALI_INT64_VEC)
     .value("_STRING_VEC", DALI_STRING_VEC)
     .value("_FLOAT_VEC", DALI_FLOAT_VEC)
 #ifdef DALI_BUILD_PROTO3

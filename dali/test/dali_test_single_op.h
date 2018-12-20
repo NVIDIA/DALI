@@ -132,6 +132,8 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
                             break;
       case DALI_INT_VEC:    value = strtol(pEnd, &pEnd, 10);
                             break;
+      case DALI_INT64_VEC:  value = strtoq(pEnd, &pEnd, 10);
+                            break;
       default:  DALI_FAIL("Unknown type of vector \"" + std::string(val) + "\" "
                           "used for \"" + std::string(name) + "\"");
     }
@@ -407,6 +409,9 @@ class DALISingleOpTest : public DALITest {
           break;
         case DALI_INT_VEC:
           StringToVector<int>(name, val, spec, param.type);
+          break;
+        case DALI_INT64_VEC:
+          StringToVector<int64_t>(name, val, spec, param.type);
           break;
         default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
                            "used for \"" + std::string(name) + "\"");
