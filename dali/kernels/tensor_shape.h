@@ -381,7 +381,9 @@ struct TensorListShapeBase {
   TensorShape<tensor_ndim> tensor_shape(int64_t sample) const {
     static_assert(tensor_ndim == sample_ndim || sample_ndim == DynamicDimensions
                   || tensor_ndim == DynamicDimensions, "Cannot convert to other static ndim");
-    assert(tensor_ndim == sample_dim() && "Cannot convert to other ndim");
+    if (tensor_ndim != DynamicDimensions) {
+      assert(tensor_ndim == sample_dim() && "Cannot convert to other ndim");
+    }
     TensorShape<tensor_ndim> out;
     out.resize(sample_dim());
     int64_t base = sample_dim() * sample;
@@ -488,7 +490,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const TensorListShape &) = default;
   TensorListShape(TensorListShape &&) = default;
 
-  TensorListShape(std::vector<TensorShape<sample_ndim>> sample_shapes)  // NOLINT
+  TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes)) {}
 
   TensorListShape(const std::vector<int64_t> &shapes, int ndim = sample_ndim)  // NOLINT
@@ -521,13 +523,13 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() const & {
-    static_assert(other_ndim != sample_ndim, "Cannot convert to other static ndim");
+    static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
     return {shapes};
   }
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() && {
-    static_assert(other_ndim != sample_ndim, "Cannot convert to other static ndim");
+    static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
     return {std::move(shapes)};
   }
 };
@@ -644,6 +646,52 @@ bool is_uniform(const TensorListShape<ndim> &tls) {
   }
   return true;
 }
+
+template <int out_dim, int in_dim>
+TensorShape<out_dim> convert_dim(const TensorShape<in_dim> &in) {
+  static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
+                in_dim == out_dim, "Incompatible number of dimensions"
+                " - must be equal or at least one side must be dynamic");
+  TensorShape<out_dim> out;
+  out.resize(in.size());
+  for (int i = 0; i < out.size(); i++)
+    out[i] = in[i];
+  return out;
+}
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(const TensorListShape<in_dim> &in) {
+  static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
+                in_dim == out_dim, "Incompatible number of dimensions"
+                " - must be equal or at least one side must be dynamic");
+  TensorListShape<out_dim> out = in.template to_static<out_dim>();
+  return out;
+}
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(const TensorListShape<in_dim> &in) {
+  return in;  // use implicit conversion
+}
+
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(TensorListShape<in_dim> &&in) {
+  static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
+                in_dim == out_dim, "Incompatible number of dimensions"
+                " - must be equal or at least one side must be dynamic");
+  TensorListShape<out_dim> out = std::move(in).template to_static<out_dim>();
+  return out;
+}
+
+template <int out_dim, int in_dim>
+typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
+convert_dim(TensorListShape<in_dim> &&in) {
+  return std::move(in);  // use implicit conversion
+}
+
 
 }  // namespace kernels
 }  // namespace dali

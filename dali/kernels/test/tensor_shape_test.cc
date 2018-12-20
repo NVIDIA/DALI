@@ -623,6 +623,80 @@ TEST(TensorListShapeTest, ToStatic) {
   static_assert(std::is_same<decltype(moved_static), TensorListShape<3>>::value, "Wrong type");
 }
 
+template <int out_dim, int in_dim>
+void TestConvertDim(const TensorShape<in_dim> &in) {
+  auto o = convert_dim<out_dim>(in);
+  EXPECT_EQ(o.size(), out_dim);
+  EXPECT_EQ(o, in);
+  static_assert(std::is_same<TensorShape<out_dim>, decltype(o)>::value,
+                "convert_dim<out_dim> produced unexpected type");
+
+  auto odyn = convert_dim<DynamicDimensions>(in);
+  static_assert(std::is_same<TensorShape<>, decltype(odyn)>::value,
+                "convert_dim<DynamicDimension> produced unexpected type");
+  EXPECT_EQ(odyn.size(), out_dim);
+  EXPECT_EQ(odyn, in);
+}
+
+TEST(TensorShapeTest, ConvertDim) {
+  TensorShape<> i0 = { 1, 2, 3, 4, 5 };
+  TensorShape<1> i1 = { 1 };
+  TensorShape<2> i2 = { 1, 2 };
+  TensorShape<3> i3 = { 1, 2, 3 };
+  TensorShape<4> i4 = { 1, 2, 3, 4 };
+  TestConvertDim<5>(i0);
+  TestConvertDim<1>(i1);
+  TestConvertDim<2>(i2);
+  TestConvertDim<3>(i3);
+  TestConvertDim<4>(i4);
+}
+
+template <int out_dim, int in_dim = out_dim>
+void TestConvertDim() {
+  unsigned seed = 123;
+  std::vector<TensorShape<in_dim>> shapes;
+  for (int i = 0; i < 10; i++) {
+    TensorShape<in_dim> shape;
+    shape.resize(out_dim);
+    for (int j = 0; j < out_dim; j++) {
+      shape[j] = rand_r(&seed)%10;
+    }
+    shapes.push_back(shape);
+  }
+  TensorListShape<in_dim> in(shapes);
+
+  auto o = convert_dim<out_dim>(in);
+  EXPECT_EQ(o.sample_dim(), out_dim);
+  EXPECT_EQ(o, in);
+  static_assert(std::is_same<TensorListShape<out_dim>, decltype(o)>::value,
+                "convert_dim<out_dim> produced unexpected type");
+  auto ptr = in.shapes.data();
+  auto o2 = convert_dim<out_dim>(std::move(in));
+  EXPECT_TRUE(in.shapes.empty());
+  EXPECT_EQ(o2.shapes.data(), ptr);
+
+  in = {shapes};
+
+  auto odyn = convert_dim<DynamicDimensions>(in);
+  static_assert(std::is_same<TensorListShape<>, decltype(odyn)>::value,
+                "convert_dim<DynamicDimension> produced unexpected type");
+  EXPECT_EQ(odyn.sample_dim(), out_dim);
+  EXPECT_EQ(odyn, in);
+
+  ptr = in.shapes.data();
+  auto odyn2 = convert_dim<DynamicDimensions>(std::move(in));
+  EXPECT_TRUE(in.shapes.empty());
+  EXPECT_EQ(odyn2.shapes.data(), ptr);
+}
+
+TEST(TensorListShapeTest, ConvertDim) {
+  TestConvertDim<5, -1>();
+  TestConvertDim<1>();
+  TestConvertDim<2>();
+  TestConvertDim<3>();
+  TestConvertDim<4>();
+}
+
 TEST(TensorTest, WontCompile) {
   // TensorShape<5> static_shape_less(1, 2, 3, 4);
   // TensorShape<5> static_shape_more(1, 2, 3, 4, 5, 6);
