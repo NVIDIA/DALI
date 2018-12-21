@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/kernels/kernel.h>
-#include <dali/kernels/test/test_tensors.h>
-#include <dali/kernels/tensor_shape_str.h>
 #include <gtest/gtest.h>
-#include <dali/kernels/test/tensor_test_utils.h>
 #include <random>
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/test/test_tensors.h"
+#include "dali/kernels/tensor_shape_str.h"
+#include "dali/kernels/test/tensor_test_utils.h"
 
 using std::cout;
 using std::cerr;

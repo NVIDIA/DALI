@@ -193,7 +193,7 @@ if_iterable<Collection, void> UniformRandomFill(
     Collection &&c,
     RandomGenerator &rng, element_t<Collection> lo, element_t<Collection> hi) {
   auto dist = uniform_distribution(lo, hi);
-  auto generator=[&]() { return dist(rng); };
+  auto generator = [&]() { return dist(rng); };
   Fill(std::forward<Collection>(c), generator);
 }
 
@@ -213,8 +213,8 @@ void UniformRandomFill(
   UniformRandomFill(make_span(tv.data, tv.num_elements()), generator, lo, hi);
 }
 
-template <typename Collection>
-if_iterable<Collection, void> ConstantFill(Collection &&c, const element_t<Collection> &value = {}) {
+template <typename C>
+if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
   for (auto &x : c)
     x = value;
 }

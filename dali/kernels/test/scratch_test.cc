@@ -17,6 +17,7 @@
 #include <array>
 #include <cassert>
 #include "dali/kernels/kernel_req.h"
+#include "dali/kernels/scratch.h"
 
 namespace dali {
 namespace kernels {

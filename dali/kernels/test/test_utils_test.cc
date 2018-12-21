@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <dali/kernels/test/tensor_test_utils.h>
-#include <dali/kernels/test/test_tensors.h>
+#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/test_tensors.h"
 
 using std::cout;
 
@@ -22,7 +22,6 @@ namespace dali {
 namespace kernels {
 
 TEST(TestUtilTest, RandomFillTensor) {
-
   const int W = 100;
   const int H = 100;
   const int N = W*H;
@@ -42,7 +41,6 @@ TEST(TestUtilTest, RandomFillTensor) {
 }
 
 TEST(TestUtilTest, RandomFillList) {
-
   const int D1 = 2;
   const int W1 = 20;
   const int H1 = 30;
