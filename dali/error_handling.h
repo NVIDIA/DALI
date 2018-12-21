@@ -25,7 +25,6 @@
 #endif  // DALI_USE_STACKTRACE
 
 #include <cuda_runtime_api.h>
-#include <nvml.h>
 
 #include <sstream>
 #include <stdexcept>
@@ -34,7 +33,6 @@
 
 #include "dali/common.h"
 #include "dali/util/dynlink_cuda.h"
-#include "dali/util/npp.h"
 
 namespace dali {
 
@@ -164,34 +162,10 @@ inline dali::string GetStacktrace() {
     return DALIError;                                                     \
   } while (0)
 
-// For checking npp return errors in dali library functions
-#define DALI_CHECK_NPP(code)                              \
-  do {                                                    \
-    NppStatus status = code;                              \
-    if (status != NPP_SUCCESS) {                          \
-    dali::string file = __FILE__;                         \
-      dali::string line = std::to_string(__LINE__);       \
-      dali::string error = "[" + file + ":" + line +      \
-        "]: NPP error \"" +                               \
-        nppErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                   \
-    }                                                     \
-  } while (0)
 
 //////////////////////////////////////////////////////
 /// Error checking utilities for the DALI pipeline ///
 //////////////////////////////////////////////////////
-
-// For calling NVML library functions
-#define NVML_CALL(code)                                    \
-  do {                                                     \
-    nvmlReturn_t status = code;                            \
-    if (status != NVML_SUCCESS) {                          \
-      dali::string error = dali::string("NVML error \"") + \
-        nvmlErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                    \
-    }                                                      \
-  } while (0)
 
 // For calling DALI library functions
 #define DALI_CALL(code)                                         \

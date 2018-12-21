@@ -28,6 +28,7 @@
 #include <unordered_map>
 
 #include "dali/common.h"
+#include "dali/common_cuda.h"
 #include "dali/error_handling.h"
 
 // Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.

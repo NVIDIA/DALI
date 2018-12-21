@@ -15,9 +15,7 @@
 #ifndef DALI_COMMON_H_
 #define DALI_COMMON_H_
 
-#include <cuda_fp16.h>  // for __half & related methods
-#include <cuda_profiler_api.h>
-#include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
+#include <nppdefs.h>
 
 #ifdef DALI_USE_NVTX
 #include "nvToolsExt.h"
@@ -59,8 +57,7 @@ using uint32 = uint32_t;
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
-// Only supported on the GPU
-typedef __half float16;
+typedef NppiSize DALISize;
 
 /**
  * @brief Supported interpolation types
@@ -91,20 +88,6 @@ inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
-// Compatible wrapper for CUDA 8 which does not have builtin
-// static_cast<float16>
-template <typename dst>
-__device__ inline dst StaticCastGpu(float val) {
-  return static_cast<dst>(val);
-}
-
-#if defined(__CUDACC__) && defined(CUDART_VERSION) && CUDART_VERSION < 9000
-template <>
-__device__ inline float16 StaticCastGpu(float val) {
-  return __float2half(static_cast<float>(val));
-}
-#endif  // defined(CUDART_VERSION) && CUDART_VERSION < 9000
-
 // Helper to delete copy constructor & copy-assignment operator
 #define DISABLE_COPY_MOVE_ASSIGN(name)   \
   name(const name&) = delete;            \
@@ -116,11 +99,6 @@ __device__ inline float16 StaticCastGpu(float val) {
 #define CONCAT_1(var1, var2) var1##var2
 #define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
 #define ANONYMIZE_VARIABLE(name) CONCAT_2(name, __LINE__)
-
-// Starts profiling DALI
-inline void DALIProfilerStart() { cudaProfilerStart(); }
-
-inline void DALIProfilerStop() { cudaProfilerStop(); }
 
 // Basic timerange for profiling
 struct TimeRange {

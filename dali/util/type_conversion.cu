@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/util/type_conversion.h"
+#include "dali/common_cuda.h"
 
 #include <cmath>
 

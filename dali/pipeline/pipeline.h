@@ -25,8 +25,6 @@
 
 #include "dali/common.h"
 #include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"

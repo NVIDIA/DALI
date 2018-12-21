@@ -16,6 +16,7 @@
 #include <vector>
 #include <cmath>
 
+#include "dali/util/npp.h"
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
 
 namespace dali {
