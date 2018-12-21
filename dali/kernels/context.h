@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 #define DALI_KERNELS_CONTEXT_H_
 
 #include <cuda_runtime_api.h>
-#include <dali/kernels/tensor_view.h>
-#include <dali/kernels/alloc_type.h>
 #include <vector>
+#include "dali/kernels/tensor_view.h"
+#include "dali/kernels/alloc_type.h"
 
 namespace dali {
 namespace kernels {

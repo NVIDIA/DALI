@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 #ifndef DALI_KERNELS_KERNEL_TRAITS_H_
 #define DALI_KERNELS_KERNEL_TRAITS_H_
 
-#include <dali/kernels/kernel_params.h>
-#include <dali/kernels/util.h>
-#include <dali/kernels/tuple_helpers.h>
-#include <dali/kernels/kernel_req.h>
 #include <type_traits>
 #include <tuple>
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/util.h"
+#include "dali/kernels/tuple_helpers.h"
+#include "dali/kernels/kernel_req.h"
 
 namespace dali {
 namespace kernels {

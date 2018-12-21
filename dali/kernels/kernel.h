@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
 #ifndef DALI_KERNELS_KERNEL_H_
 #define DALI_KERNELS_KERNEL_H_
 
-#include <dali/kernels/tensor_view.h>
-#include <dali/kernels/context.h>
-#include <dali/kernels/kernel_params.h>
-#include <dali/kernels/kernel_req.h>
-#include <dali/kernels/kernel_traits.h>
-#include <dali/kernels/tuple_helpers.h>
-#include <dali/kernels/util.h>
 #include <vector>
+#include "dali/kernels/context.h"
+#include "dali/kernels/tensor_view.h"
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/kernel_req.h"
+#include "dali/kernels/kernel_traits.h"
+#include "dali/kernels/tuple_helpers.h"
+#include "dali/kernels/util.h"
 
 namespace dali {
 
@@ -148,7 +148,7 @@ Requirements GetRequirements(
     return {};
 
   Requirements req = GetRequirements<Kernel>(context, input_sets[0], args);
-  for (size_t i = 1; i < input_sets; i++) {
+  for (size_t i = 1; i < input_sets.size(); i++) {
     Requirements newReq = GetRequirements<Kernel>(context, input_sets[i], args);
     req.AddInputSet(newReq, true);
   }
@@ -166,7 +166,7 @@ void Run(Context &context,
   check_kernel<Kernel>();
   assert(output_sets.size() == input_sets.size());
   for (size_t i = 0; i < input_sets.size(); i++) {
-    Run<Kernel>(context, output_sets, input_sets, args);
+    Run<Kernel>(context, output_sets[i], input_sets[i], args);
   }
 }
 

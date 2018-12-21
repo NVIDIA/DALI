@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,11 +145,11 @@ template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
   return !(l == r);
 }
 
-//@brief Helper function for pre-C++17
+// @brief Helper function for pre-C++17
 template <ptrdiff_t Extent, typename T>
 constexpr span<T, Extent> make_span(T *data) { return { data }; }
 
-//@brief Helper function for pre-C++17
+// @brief Helper function for pre-C++17
 template <ptrdiff_t Extent = dynamic_extent, typename T>
 constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) { return { data, extent }; }
 

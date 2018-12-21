@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/kernels/kernel_req.h>
 #include <gtest/gtest.h>
 #include <vector>
 #include <array>
 #include <cassert>
+#include "dali/kernels/kernel_req.h"
 
 namespace dali {
 namespace kernels {
@@ -37,15 +37,14 @@ static_assert(align_up(9, 8) == 16, "9 aligned up to 8 is 16");
 
 template <typename T>
 void test_add(ScratchpadEstimator &E, AllocType type, size_t count, size_t align = alignof(T)) {
-  size_t prev = E.sizes[(int)type];
+  size_t prev = E.sizes[static_cast<int>(type)];
   EXPECT_EQ(align&(align-1), 0) << "Alignment must be a power of 2";
   size_t base = align_up(prev, align);
   E.add<T>(type, count, align);
-  EXPECT_EQ(E.sizes[(int)type], base + count*sizeof(T));
+  EXPECT_EQ(E.sizes[static_cast<int>(type)], base + count*sizeof(T));
 }
 
-TEST(Scratch, Estimator)
-{
+TEST(Scratch, Estimator) {
   ScratchpadEstimator E;
   test_add<float>(E, AllocType::Host, 9);
   test_add<char>(E, AllocType::Host, 1);
@@ -56,8 +55,8 @@ TEST(Scratch, Estimator)
   test_add<float>(E, AllocType::GPU, 9);
   test_add<char>(E, AllocType::GPU, 1);
   test_add<double>(E, AllocType::GPU, 2);
-  EXPECT_EQ(E.sizes[(int)AllocType::Host], 56);
-  EXPECT_EQ(E.sizes[(int)AllocType::GPU], 64);
+  EXPECT_EQ(E.sizes[static_cast<int>(AllocType::Host)], 56);
+  EXPECT_EQ(E.sizes[static_cast<int>(AllocType::GPU)], 64);
 }
 
 }  // namespace kernels

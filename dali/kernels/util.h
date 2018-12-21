@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,8 @@ template <typename DependentName, typename Result>
 using if_istype = typename std::conditional<false, DependentName, Result>::type;
 
 template <typename Collection, typename T>
-using if_iterable = if_istype<decltype(*std::end(std::declval<Collection>())), if_istype<decltype(*std::begin(std::declval<Collection>())), T>>;
+using if_iterable = if_istype<decltype(*std::end(std::declval<Collection>())),
+                              if_istype<decltype(*std::begin(std::declval<Collection>())), T>>;
 
 template <typename C>
 struct element_type {
