@@ -145,6 +145,14 @@ template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
   return !(l == r);
 }
 
+//@brief Helper function for pre-C++17
+template <ptrdiff_t Extent, typename T>
+constexpr span<T, Extent> make_span(T *data) { return { data }; }
+
+//@brief Helper function for pre-C++17
+template <ptrdiff_t Extent = dynamic_extent, typename T>
+constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) { return { data, extent }; }
+
 }  // namespace kernels
 }  // namespace dali
 

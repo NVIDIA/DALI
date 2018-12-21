@@ -19,6 +19,7 @@
 #include <utility>
 
 namespace dali {
+namespace kernels {
 
 using std::size_t;
 
@@ -46,37 +47,51 @@ static_assert(align_up(17, 16) == 32, "Should align up");
 static_assert(align_up(8, 8) == 8, "Should be already aligned");
 static_assert(align_up(5, 8) == 8, "Should align");
 
-constexpr ptrdiff_t dynamic_extent = -1;
 
-template <typename T, ptrdiff_t static_extent = dynamic_extent>
-struct span {
-  span() = default;
-  span(T *p, ptrdiff_t n = static_extent) : p(p) { assert(n == static_extent); }  // NOLINT
+template <typename DependentName, typename Result>
+using if_istype = typename std::conditional<false, DependentName, Result>::type;
 
-  T * const p = nullptr;
+template <typename Collection, typename T>
+using if_iterable = if_istype<decltype(*std::end(std::declval<Collection>())), if_istype<decltype(*std::begin(std::declval<Collection>())), T>>;
 
-  constexpr T *data() const { return p; }
-  constexpr T &operator[](ptrdiff_t index) const { return p[index]; }
-  constexpr T *begin() const { return p; }
-  constexpr T *end() const { return p + size(); }
-  constexpr ptrdiff_t size() const { return static_extent; }
+template <typename C>
+struct element_type {
+  using type = typename C::value_type;
+};
+
+// collection element type
+
+template <typename C>
+struct element_type<C&> : element_type<C> {};
+template <typename C>
+struct element_type<C&&> : element_type<C> {};
+template <typename C>
+struct element_type<const C> : element_type<C> {};
+template <typename C>
+struct element_type<volatile C> : element_type<C> {};
+
+template <typename T, size_t N>
+struct element_type<T[N]> {
+  using type = T;
 };
 
 template <typename T>
-struct span<T, dynamic_extent> {
-  span() = default;
-  span(T *p, ptrdiff_t n) : p(p), n(n) {}
-
-  T *const p = nullptr;
-  const ptrdiff_t n = 0;
-
-  constexpr T *data() const { return p; }
-  constexpr T &operator[](ptrdiff_t index) const { return p[index]; }
-  constexpr T *begin() const { return p; }
-  constexpr T *end() const { return p + size(); }
-  constexpr ptrdiff_t size() const { return n; }
-};
-
+struct same_as { using type = T; };
+/// @brief Used in template functions to make some parameters more important in type inference
+///
+/// Usage:
+/// ```
+/// template <typename T>
+/// void Fill1(std::vector<T> &dest, const T &value);
+/// template <typename T>
+/// void Fill2(std::vector<T> &dest, same_as<const T &> value);
+/// ...
+/// std::vector<float> v;
+/// Fill1(v, 0);  // error: ambiguous deduction of T (float vs int)
+/// Fill2(v, 0);  // OK, value is float as inferred from v
+/// ```
+template <typename T>
+using same_as_t = typename same_as<T>::type;
 
 #define IMPL_HAS_NESTED_TYPE(type_name)\
 template <typename T>\
@@ -95,7 +110,7 @@ template <typename T>\
 struct has_unique_function_##function_name : \
   decltype(HasUniqueFunction_##function_name<T>(nullptr)) {}; \
 
-
+}  // namespace kernels
 }  // namespace dali
 
 #endif  // DALI_KERNELS_UTIL_H_
