@@ -32,6 +32,14 @@ class TestTensorList {
     any_ = { nullptr, shape };
   }
 
+  void invalidate_cpu() {
+    cpumem_.reset();
+  }
+
+  void invalidate_gpu() {
+    gpumem_.reset();
+  }
+
   template <int out_dim = dim>
   TensorListView<StorageCPU, T, out_dim> cpu(cudaStream_t stream = 0) {
     TensorListView<StorageCPU, T, out_dim> ret;

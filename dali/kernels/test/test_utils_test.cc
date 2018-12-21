@@ -21,7 +21,7 @@ using std::cout;
 namespace dali {
 namespace kernels {
 
-TEST(TestUtilTest, RandomFillTensor) {
+TEST(TestUtil, RandomFillTensor) {
   const int W = 100;
   const int H = 100;
   const int N = W*H;
@@ -40,7 +40,7 @@ TEST(TestUtilTest, RandomFillTensor) {
   EXPECT_LE(std::abs(sum - 0.5f), 0.01f) << "Mean should be close to 0.5; actual " << sum;
 }
 
-TEST(TestUtilTest, RandomFillList) {
+TEST(TestUtil, RandomFillList) {
   const int D1 = 2;
   const int W1 = 20;
   const int H1 = 30;
@@ -61,6 +61,42 @@ TEST(TestUtilTest, RandomFillList) {
   }
   sum /= n;
   EXPECT_LE(std::abs(sum - 0.5f), 0.01f) << "Mean should be close to 0.5; actual " << sum;
+}
+
+TEST(TestUtil, StatefulGenerator) {
+  int mem[1024];
+  auto view = as_tensor_cpu<2>(mem, { 32, 32 });
+  int num = 1;
+  auto seq_gen = [&]() { return num++; };
+  Fill(view, seq_gen);
+  for (int i = 0; i < 1024; i++) {
+    ASSERT_EQ(mem[i], i+1);
+  }
+}
+
+TEST(TestTensorList, Transfer) {
+  TestTensorList<int, 1> ttl;
+  ttl.reshape({{{1024}}});
+
+  int num = 1;
+  auto seq_gen = [&]() { return num++; };
+  Fill(ttl.cpu(0), seq_gen);
+
+  auto *ptr = ttl.cpu(0).data;
+
+  auto gpu = ttl.gpu(0);
+  EXPECT_NE(gpu.data, nullptr);
+
+  ttl.invalidate_cpu();
+
+  std::vector<int> dummy(1024);  // allocate 1024 ints to (hopefully) prevent
+                                 // same address from being allocated to the tensor list
+
+  auto cpu = ttl.cpu(0);
+  EXPECT_NE(cpu.data, ptr) << "It's highly unlikely that we get exactly the same pointer";
+  for (int i = 0; i < 1024; i++) {
+    ASSERT_EQ(cpu.data[i], i+1);
+  }
 }
 
 }  // namespace kernels

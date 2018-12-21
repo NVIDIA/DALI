@@ -368,6 +368,45 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   }
 };
 
+struct StorageCPU;
+struct StorageGPU;
+
+/// @brief Wraps raw memory as a tensor
+template <typename StorageBackend, int ndim, typename T>
+TensorView<StorageBackend, T, ndim> as_tensor(T *data, TensorShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps raw memory as a tensor list
+template <typename StorageBackend, int ndim, typename T>
+TensorListView<StorageBackend, T, ndim> as_tensor_list(T *data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps CPU raw memory as a tensor
+template <int ndim, typename T>
+TensorView<StorageCPU, T, ndim> as_tensor_cpu(T *data, TensorShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps CPU raw memory as a tensor list
+template <int ndim, typename T>
+TensorListView<StorageCPU, T, ndim> as_tensor_list_cpu(T *data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps GPU raw memory as a tensor
+template <int ndim, typename T>
+TensorView<StorageGPU, T, ndim> as_tensor_gpu(T *data, TensorShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps GPU raw memory as a tensor list
+template <int ndim, typename T>
+TensorListView<StorageGPU, T, ndim> as_tensor_list_gpu(T *data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
 }  // namespace kernels
 }  // namespace dali
 

@@ -174,6 +174,16 @@ if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator
     x = generator();
 }
 
+template <typename DataType, int ndim, typename Generator>
+void Fill(const TensorView<StorageCPU, DataType, ndim> &tv, Generator &generator) {
+  Fill(make_span(tv.data, tv.num_elements()), generator);
+}
+
+template <typename DataType, int ndim, typename Generator>
+void Fill(const TensorListView<StorageCPU, DataType, ndim> &tlv, Generator &generator) {
+  Fill(make_span(tlv.data, tlv.num_elements()), generator);
+}
+
 template <typename T>
 typename std::enable_if<std::is_floating_point<T>::value,
                         std::uniform_real_distribution<T>>::type
