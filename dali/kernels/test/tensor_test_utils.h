@@ -18,10 +18,12 @@
 #include <dali/kernels/tensor_view.h>
 #include <dali/kernels/tensor_shape_str.h>
 #include <dali/kernels/backend_tags.h>
+#include <dali/kernels/util.h>
 #include <gtest/gtest.h>
 #include <functional>
 #include <cmath>
 #include <utility>
+#include <random>
 
 namespace dali {
 namespace kernels {
@@ -152,6 +154,26 @@ void Check(
 
 // FILLING
 
+template <typename Backend, typename T, int ndim>
+struct element_type<TensorView<Backend, T, ndim>> {
+  using type = T;
+};
+
+template <typename Backend, typename T, int ndim>
+struct element_type<TensorListView<Backend, T, ndim>> {
+  using type = T;
+};
+
+template <typename C>
+using element_t = typename element_type<C>::type;
+
+
+template <typename Collection, typename Generator>
+if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator) {
+  for (auto &x : collection)
+    x = generator();
+}
+
 template <typename T>
 typename std::enable_if<std::is_floating_point<T>::value,
                         std::uniform_real_distribution<T>>::type
@@ -165,31 +187,50 @@ uniform_distribution(T lo, T hi) {
   return std::uniform_int_distribution<T>(lo, hi);
 }
 
-template <typename T>
-struct same_as { using type = T; };
-template <typename T>
-using same_as_t = typename same_as<T>::type;
 
-template <typename DataType, int dim>
-void RandomFill(
-    const TensorListView<StorageCPU, DataType, dim> &tlv,
+template <typename Collection, typename RandomGenerator>
+if_iterable<Collection, void> UniformRandomFill(
+    Collection &&c,
+    RandomGenerator &rng, element_t<Collection> lo, element_t<Collection> hi) {
+  auto dist = uniform_distribution(lo, hi);
+  auto generator=[&]() { return dist(rng); };
+  Fill(std::forward<Collection>(c), generator);
+}
+
+template <typename DataType, int ndim, typename RandomGenerator>
+void UniformRandomFill(
+    const TensorListView<StorageCPU, DataType, ndim> &tlv,
+    RandomGenerator &generator,
     same_as_t<DataType> lo, same_as_t<DataType> hi) {
-  std::mt19937_64 rng;
-  auto distrib = uniform_distribution(lo, hi);
-  int64_t n = tlv.num_elements();
-  for (int64_t i = 0; i < n; i++) {
-    tlv.data[i] = distrib(rng);
-  }
+  UniformRandomFill(make_span(tlv.data, tlv.num_elements()), generator, lo, hi);
+}
+
+template <typename DataType, int ndim, typename RandomGenerator>
+void UniformRandomFill(
+    const TensorView<StorageCPU, DataType, ndim> &tv,
+    RandomGenerator &generator,
+    same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  UniformRandomFill(make_span(tv.data, tv.num_elements()), generator, lo, hi);
+}
+
+template <typename Collection>
+if_iterable<Collection, void> ConstantFill(Collection &&c, const element_t<Collection> &value = {}) {
+  for (auto &x : c)
+    x = value;
 }
 
 template <typename DataType, int dim>
 void ConstantFill(
     const TensorListView<StorageCPU, DataType, dim> &tlv,
     same_as_t<DataType> value = {}) {
-  int64_t n = tlv.num_elements();
-  for (int64_t i = 0; i < n; i++) {
-    tlv.data[i] = value;
-  }
+  ConstantFill(make_span(tlv.data, tlv.num_elements()), value);
+}
+
+template <typename DataType, int dim>
+void ConstantFill(
+    const TensorView<StorageCPU, DataType, dim> &tv,
+    same_as_t<DataType> value = {}) {
+  ConstantFill(make_span(tv.data, tv.num_elements()), value);
 }
 
 }  // namespace kernels

@@ -518,7 +518,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return {shapes};
+    return { shapes, other_ndim };
   }
 
   template <int other_ndim>
@@ -526,7 +526,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return {std::move(shapes)};
+    return { std::move(shapes), other_ndim };
   }
 };
 
@@ -541,12 +541,12 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes)) {}
 
-  TensorListShape(const std::vector<int64_t> &shapes, int ndim = sample_ndim)  // NOLINT
+  TensorListShape(const std::vector<int64_t> &shapes, int ndim)
       : Base(shapes) {
     assert(ndim == sample_ndim);
   }
 
-  TensorListShape(std::vector<int64_t> &&shapes, int ndim = sample_ndim)  // NOLINT
+  TensorListShape(std::vector<int64_t> &&shapes, int ndim)
       : Base(std::move(shapes)) {
     assert(ndim == sample_ndim);
   }
@@ -575,13 +575,13 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return {shapes};
+    return { shapes, other_ndim };
   }
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return {std::move(shapes)};
+    return { std::move(shapes), other_ndim };
   }
 };
 

@@ -90,8 +90,9 @@ void RunTest() {
   tl1.reshape(list_shape);
   tl2.reshape(list_shape);
 
-  RandomFill(tl1.template cpu<3>(0), 0, 1);
-  RandomFill(tl2.template cpu<3>(0), 0, 1);
+  std::mt19937_64 rng;
+  UniformRandomFill(tl1.template cpu<3>(0), rng, 0, 1);
+  UniformRandomFill(tl2.template cpu<3>(0), rng, 0, 1);
 
   i1 = tl1.template cpu<3>();
   i2 = tl2.template cpu<3>();

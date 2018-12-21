@@ -32,7 +32,7 @@ class TestTensorList {
     any_ = { nullptr, shape };
   }
 
-  template <int out_dim>
+  template <int out_dim = dim>
   TensorListView<StorageCPU, T, out_dim> cpu(cudaStream_t stream = 0) {
     TensorListView<StorageCPU, T, out_dim> ret;
     if (!cpumem_) {
@@ -47,7 +47,7 @@ class TestTensorList {
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape), std::move(out_offsets) };
   }
 
-  template <int out_dim>
+  template <int out_dim = dim>
   TensorListView<StorageGPU, T, out_dim> gpu(cudaStream_t stream = 0) {
     TensorListView<StorageGPU, T, out_dim> ret;
     if (!gpumem_) {
