@@ -3,7 +3,8 @@
 pushd ../..
 
 DIRNAME=$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))')
-for SOFILE in $(find $DIRNAME -iname *.so)
+#skip 
+for SOFILE in $(find $DIRNAME -iname libdali*.so -not -iname *tf*)
 do
     # first line is for the debug
     echo $SOFILE":"
