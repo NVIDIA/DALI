@@ -139,9 +139,9 @@ class Pipeline(object):
         for output in outputs:
             if not isinstance(output, nt.TensorReference):
                 raise TypeError(
-                    "Expected outputs of type "
+                    ("Expected outputs of type "
                     "TensorReference. Received "
-                    "output type {}"
+                    "output type {}")
                     .format(type(output).__name__)
                 )
 
@@ -209,9 +209,9 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         if not isinstance(ref, nt.TensorReference):
             raise TypeError(
-                "Expected argument one to "
+                ("Expected argument one to "
                 "be TensorReference. "
-                "Received output type {}"
+                "Received output type {}")
                 .format(type(ref).__name__)
             )
         if isinstance(data, list):
