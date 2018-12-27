@@ -36,7 +36,7 @@ class ColorSpaceConversion : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
   // TODO(janton): move somewhere else
-  inline std::size_t NumberOfChannels(DALIImageType type) {
+  inline int NumberOfChannels(DALIImageType type) {
     return type == DALI_GRAY ? 1 : 3;
   }
 

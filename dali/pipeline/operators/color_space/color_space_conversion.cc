@@ -56,6 +56,8 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int id
   const cv::Mat cv_output_img = CreateMatFromPtr(H, W, output_channel_flag, pImgOut);
 
   cv::cvtColor(cv_input_img, cv_output_img, GetOpenCvColorConversionCode(input_type_, output_type_));
+  uint8_t* data = (uint8_t*) cv_output_img.data;
+  std::cout << (int) data[0] << " " << (int)data[1] << " " << (int)data[2] << std::endl; 
 }
 
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<CPUBackend>, CPU);

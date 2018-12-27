@@ -26,12 +26,12 @@
 namespace dali {
 
 template <typename InputImgType, typename OutputImgType>
-class GenericConversionTest : public GenericMatchingTest<BGR> {
+class GenericConversionTest : public GenericMatchingTest<InputImgType> {
  protected:
 
   void AddDefaultArgs(OpSpec& spec) override {
-    spec.AddArg("image_type", InputImgType::type)
-        .AddArg("output_type", OutputImgType::type);
+    spec.AddArg("image_type", input_type)
+        .AddArg("output_type", output_type);
   }
 
   OpSpec DefaultSchema(const string &pName, const string &pDevice = "cpu") const override {
@@ -40,6 +40,9 @@ class GenericConversionTest : public GenericMatchingTest<BGR> {
       .AddInput("input", pDevice)
       .AddOutput("output", pDevice);
   }
+
+  const DALIImageType input_type = InputImgType::type;
+  const DALIImageType output_type = OutputImgType::type;
 };
 
 }  // namespace dali

@@ -56,7 +56,28 @@ __global__ void ConvertRGBToGrayKernel(const T *input, T *output, size_t total_p
   T* pixel_out = &output[idx];
 
   // TODO(janton): make this configurable
-  const float coefs[] = { 0.333333333f, 0.333333333f, 0.333333333f };
+  const float coefs[] = { 0.299f, 0.587f, 0.114f };
+  pixel_out[0] = static_cast<T>( 
+      coefs[0] * pixel_in[0] 
+    + coefs[1] * pixel_in[1] 
+    + coefs[2] * pixel_in[2]);
+}
+
+template<typename T = uint8_t> 
+__global__ void ConvertBGRToGrayKernel(const T *input, T *output, size_t total_pixels) {
+  // TODO(janton): make this a template parameter
+  const size_t C = 3;
+
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= total_pixels) {
+    return;
+  }
+
+  const T* pixel_in = &input[idx * C];
+  T* pixel_out = &output[idx];
+
+  // TODO(janton): make this configurable
+  const float coefs[] = { 0.114f, 0.587f, 0.299f };
   pixel_out[0] = static_cast<T>( 
       coefs[0] * pixel_in[0] 
     + coefs[1] * pixel_in[1] 
@@ -64,6 +85,46 @@ __global__ void ConvertRGBToGrayKernel(const T *input, T *output, size_t total_p
 }
 
 auto ConvertRGBToGray8UKernel = ConvertRGBToGrayKernel<uint8_t>;
+auto ConvertBGRToGray8UKernel = ConvertRGBToGrayKernel<uint8_t>;
+
+template<typename T = uint8_t> 
+__global__ void ConvertGrayToRGBKernel(const T *input, T *output, size_t total_pixels) {
+  // TODO(janton): make this a template parameter
+  const size_t C = 3;
+
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= total_pixels) {
+    return;
+  }
+  
+  const T* pixel_in = &input[idx];
+  T* pixel_out = &output[idx * C];
+  pixel_out[0] = pixel_in[0];
+  pixel_out[1] = pixel_in[0];
+  pixel_out[2] = pixel_in[0];
+}
+
+auto ConvertGrayToRGB8UKernel = ConvertGrayToRGBKernel<uint8_t>;
+
+template<typename T = uint8_t> 
+__global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, size_t total_pixels) {
+  // TODO(janton): make this a template parameter
+  const size_t C = 3;
+
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= total_pixels) {
+    return;
+  }
+  
+  const T* pixel_in = &input[idx];
+  T* pixel_out = &output[idx * C];
+  pixel_out[0] = pixel_in[0];
+  pixel_out[1] = 0;
+  pixel_out[2] = 0;
+}
+
+auto ConvertGrayToYCbCr8UKernel = ConvertGrayToYCbCrKernel<uint8_t>;
+
 
 } // namespace detail
 
@@ -135,6 +196,9 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       const ImageTypePair kBGR_TO_GRAY { DALI_BGR, DALI_GRAY };
       const ImageTypePair kYCbCr_TO_BGR { DALI_YCbCr, DALI_BGR };
       const ImageTypePair kYCbCr_TO_RGB { DALI_YCbCr, DALI_RGB };
+      const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
+      const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
+      const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
 
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
@@ -171,11 +235,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       } else if (conversion == kBGR_TO_GRAY) {
         // BGR -> GRAY
 
-        // First from BGR to RGB
-        detail::ConvertBGRToRGB8UKernel<<<grid, block, 0, stream>>>(
-          input_data, output_data, total_size);
-        // Then RGB -> GRAY
-        detail::ConvertRGBToGray8UKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertBGRToGray8UKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
         
       } else if (conversion == kYCbCr_TO_BGR) {
@@ -197,9 +257,21 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
           nppiYCbCrToRGB_8u_C3R(
             input_data, nStepInput, output_data, nStepOutput, size)
         );
+
+      } else if (conversion == kGRAY_TO_BGR || conversion == kGRAY_TO_RGB) {
+        // GRAY -> RGB / BGR
+        detail::ConvertGrayToRGB8UKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
+      
+      } else if (conversion == kGRAY_TO_YCbCr) {
+
+          // GRAY -> YCbCr
+          detail::ConvertGrayToYCbCr8UKernel<<<grid, block, 0, stream>>>(
+            input_data, output_data, total_size);
+
       } else {
         
-        DALI_ENFORCE( false, "conversion not supported");
+        DALI_FAIL("conversion not supported");
       }
     } 
   }

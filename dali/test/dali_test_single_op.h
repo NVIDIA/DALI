@@ -483,9 +483,14 @@ class DALISingleOpTest : public DALITest {
 
     bool firstLine = true;
 #endif
+    
+    std::cout << (int) img1[0] << " " << (int) img1[1] << " " << (int) img1[2] << std::endl;
+    std::cout << (int) img2[0] << " " << (int) img2[1] << " " << (int) img2[2] << std::endl;
+
 
     // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
+
     const int length = lenRaster / jMax;
 
     const int checkBest = shape? 1 : 0;
@@ -702,6 +707,7 @@ class DALISingleOpTest : public DALITest {
         }
 
         const int lenBuffer = shape1[0] * shape1[1] * shape1[2];
+        std::cout << "lenBuffer" << lenBuffer << std::endl;
 
         if (floatType) {
           colorIdx = CheckBuffers<float>(lenBuffer,
