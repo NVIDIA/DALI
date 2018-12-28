@@ -16,8 +16,8 @@ typedef struct {
   double epsVal;
 } singleParamOpDescr;
 
-template <typename ImgType>
-class GenericMatchingTest : public DALISingleOpTest<ImgType> {
+template <typename ImgType, typename OutputImgType = ImgType>
+class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
  protected:
   void RunTest(const opDescr &descr) {
     const int batch_size = this->jpegs_.nImages();

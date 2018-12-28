@@ -437,8 +437,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     }
 
     // Transpose BGR -> output_type_ if needed
-    if (IsColor(output_type_) && output_type_ != DALI_BGR ) {
-      cv::cvtColor(tmp, tmp, GetOpenCvColorConversionCode(DALI_BGR, output_type_));
+    if (IsColor(output_type_) && output_type_ != DALI_BGR) {
+      OpenCvColorConversion(DALI_BGR, tmp, output_type_, tmp);
     }
 
     CUDA_CALL(cudaMemcpyAsync(decoded_device_data,

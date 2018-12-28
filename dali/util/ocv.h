@@ -37,7 +37,9 @@ inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H,
 
 int DLL_PUBLIC GetOpenCvChannelType(size_t c);
 
-cv::ColorConversionCodes DLL_PUBLIC GetOpenCvColorConversionCode(DALIImageType input_type, DALIImageType output_type);
+void DLL_PUBLIC OpenCvColorConversion(
+  DALIImageType input_type, const cv::Mat& input_img,
+  DALIImageType output_type, cv::Mat& output_img);
 
 }  // namespace dali
 

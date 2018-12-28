@@ -13,14 +13,16 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <utility>
+#include <vector>
 #include "dali/pipeline/operators/color_space/color_space_conversion.h"
 
 namespace dali {
 
 namespace detail {
 
-template<size_t C1, size_t C2, size_t C, typename T = uint8_t> 
-__global__ void swap_packed_channels_kernel(const T *input, T *output, size_t total_pixels) {
+template<size_t C1, size_t C2, size_t C, typename T = uint8_t>
+__global__ void SwapPackedChannelsKernel(const T *input, T *output, size_t total_pixels) {
   static_assert(C <= 4,           "C>4 not supported");
   static_assert(C1 < C && C2 < C, "C1 and C2 in the range 0 .. C-1");
   static_assert(C1 != C2,         "C1 and C2 cannot be the same");
@@ -39,94 +41,53 @@ __global__ void swap_packed_channels_kernel(const T *input, T *output, size_t to
   pixel_out[C1] = tmp;
 }
 
-auto ConvertRGBToBGR8UKernel = &swap_packed_channels_kernel<0, 2, 3, uint8_t>;
-auto ConvertBGRToRGB8UKernel = ConvertRGBToBGR8UKernel;
+auto ConvertRGBToBGRKernel = SwapPackedChannelsKernel<0, 2, 3>;
+auto ConvertBGRToRGBKernel = ConvertRGBToBGRKernel;
 
-template<typename T = uint8_t> 
-__global__ void ConvertRGBToGrayKernel(const T *input, T *output, size_t total_pixels) {
-  // TODO(janton): make this a template parameter
-  const size_t C = 3;
-
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_pixels) {
-    return;
-  }
-
-  const T* pixel_in = &input[idx * C];
-  T* pixel_out = &output[idx];
-
-  // TODO(janton): make this configurable
-  const float coefs[] = { 0.299f, 0.587f, 0.114f };
-  pixel_out[0] = static_cast<T>( 
-      coefs[0] * pixel_in[0] 
-    + coefs[1] * pixel_in[1] 
-    + coefs[2] * pixel_in[2]);
-}
-
-template<typename T = uint8_t> 
-__global__ void ConvertBGRToGrayKernel(const T *input, T *output, size_t total_pixels) {
-  // TODO(janton): make this a template parameter
-  const size_t C = 3;
-
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_pixels) {
-    return;
-  }
-
-  const T* pixel_in = &input[idx * C];
-  T* pixel_out = &output[idx];
-
-  // TODO(janton): make this configurable
-  const float coefs[] = { 0.114f, 0.587f, 0.299f };
-  pixel_out[0] = static_cast<T>( 
-      coefs[0] * pixel_in[0] 
-    + coefs[1] * pixel_in[1] 
-    + coefs[2] * pixel_in[2]);
-}
-
-auto ConvertRGBToGray8UKernel = ConvertRGBToGrayKernel<uint8_t>;
-auto ConvertBGRToGray8UKernel = ConvertRGBToGrayKernel<uint8_t>;
-
-template<typename T = uint8_t> 
+template<typename T = uint8_t>
 __global__ void ConvertGrayToRGBKernel(const T *input, T *output, size_t total_pixels) {
-  // TODO(janton): make this a template parameter
-  const size_t C = 3;
-
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
-  
+
   const T* pixel_in = &input[idx];
+  const size_t C = 3;
   T* pixel_out = &output[idx * C];
   pixel_out[0] = pixel_in[0];
   pixel_out[1] = pixel_in[0];
   pixel_out[2] = pixel_in[0];
 }
 
-auto ConvertGrayToRGB8UKernel = ConvertGrayToRGBKernel<uint8_t>;
-
-template<typename T = uint8_t> 
+template<typename T = uint8_t>
 __global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, size_t total_pixels) {
-  // TODO(janton): make this a template parameter
-  const size_t C = 3;
-
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
-  
+
   const T* pixel_in = &input[idx];
+  const size_t C = 3;
   T* pixel_out = &output[idx * C];
   pixel_out[0] = pixel_in[0];
   pixel_out[1] = 0;
   pixel_out[2] = 0;
 }
 
-auto ConvertGrayToYCbCr8UKernel = ConvertGrayToYCbCrKernel<uint8_t>;
+template<typename T = uint8_t>
+__global__ void ConvertYCbCrToGrayKernel(const T *input, T *output, size_t total_pixels) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= total_pixels) {
+    return;
+  }
 
+  const size_t C = 3;
+  const T* pixel_in = &input[idx * C];
+  T* pixel_out = &output[idx];
+  pixel_out[0] = pixel_in[0];
+}
 
-} // namespace detail
+}  // namespace detail
 
 template<>
 void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
@@ -136,19 +97,20 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
   auto output = ws->Output<GPUBackend>(idx);
 
   TensorList<CPUBackend> attr_output_cpu;
-  
-  auto input_C = NumberOfChannels(input_type_);
-  auto output_C = NumberOfChannels(output_type_);
+
+  int input_C = NumberOfChannels(input_type_);
+  int output_C = NumberOfChannels(output_type_);
   vector<Dims> input_shape = input.shape();
   vector<Dims> output_shape = input_shape;
   if ( input_C != output_C ) {
     for (size_t i = 0; i < input.ntensor(); ++i) {
-      DALI_ENFORCE(input_shape[i][2] == input_C, "Wrong number of channels for input");
+      DALI_ENFORCE(input_shape[i][2] == input_C,
+        "Wrong number of channels for input");
       output_shape[i][2] = output_C;
     }
   }
   output->Resize(output_shape);
-  output->set_type(input.type()); // TODO(janton): check
+  output->set_type(input.type());
 
   cudaStream_t old_stream = nppGetStream();
   auto stream = ws->stream();
@@ -157,9 +119,6 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
   // TODO(janton): Add support for NCHW ??
   DALI_ENFORCE(input.GetLayout() == DALI_NHWC,
       "Color space conversion accept only NHWC layout");
-  
-  // TODO(janton): remove this
-  // using NppiConversionFunction = std::function<NppStatus(const Npp8u*, int, Npp8u*, int, NppiSize)>;
 
   if (input.GetLayout() == DALI_NHWC) {
     // RGB -> BGR || BGR -> RGB
@@ -168,7 +127,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       DALISize size;
       size.height = input.tensor_shape(i)[0];
       size.width = input.tensor_shape(i)[1];
-      
+
       // For CUDA kernel
       const auto shape = input.tensor_shape(i);
       const unsigned int total_size = size.height * size.width;
@@ -176,10 +135,13 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       const unsigned int grid = (total_size + block - 1) / block;
 
       // For NPPI calls
-      const int input_C = input.tensor_shape(i)[2];
-      DALI_ENFORCE( input_C == NumberOfChannels(input_type_), "Incorrect number of channels for input" );
-      const int nStepInput = input_C * size.width;  // W * input_C
-      const int nStepOutput = nStepInput;
+      DALI_ENFORCE(input.tensor_shape(i)[2] == input_C,
+        "Incorrect number of channels for input");
+      const int nStepInput = input_C * size.width;
+
+      DALI_ENFORCE(output->tensor_shape(i)[2] == output_C,
+        "Incorrect number of channels for output");
+      const int nStepOutput = output_C * size.width;
 
       // input/output
       const uint8_t* input_data = input.tensor<uint8_t>(i);
@@ -187,7 +149,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 
       using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
       ImageTypePair conversion { input_type_, output_type_};
-      
+
       const ImageTypePair kRGB_TO_BGR { DALI_RGB, DALI_BGR };
       const ImageTypePair kBGR_TO_RGB { DALI_BGR, DALI_RGB };
       const ImageTypePair kRGB_TO_YCbCr { DALI_RGB, DALI_YCbCr };
@@ -196,6 +158,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       const ImageTypePair kBGR_TO_GRAY { DALI_BGR, DALI_GRAY };
       const ImageTypePair kYCbCr_TO_BGR { DALI_YCbCr, DALI_BGR };
       const ImageTypePair kYCbCr_TO_RGB { DALI_YCbCr, DALI_RGB };
+      const ImageTypePair kYCbCr_TO_GRAY { DALI_YCbCr, DALI_GRAY };
       const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
       const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
       const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
@@ -203,77 +166,62 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
         // BGR -> RGB
-      
-        detail::ConvertRGBToBGR8UKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertRGBToBGRKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
-      
       } else if (conversion == kRGB_TO_YCbCr) {
         // RGB -> YCbCr
-
         DALI_CHECK_NPP(
           nppiRGBToYCbCr_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size)
-        );
-      } else if (conversion == kBGR_TO_YCbCr ) {
+            input_data, nStepInput, output_data, nStepOutput, size));
+      } else if (conversion == kBGR_TO_YCbCr) {
         // BGR -> YCbCr
-
         // First from BGR to RGB
-        detail::ConvertBGRToRGB8UKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertBGRToRGBKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
-
         // Then from RGB to YCbCr
         DALI_CHECK_NPP(
           nppiRGBToYCbCr_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size)
-        );
-      } else if (conversion == kRGB_TO_GRAY) {        
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kRGB_TO_GRAY) {
         // RGB -> GRAY
-
-        detail::ConvertRGBToGray8UKernel<<<grid, block, 0, stream>>>(
-          input_data, output_data, total_size);
-
+        DALI_CHECK_NPP(
+          nppiRGBToGray_8u_C3C1R(
+            input_data, nStepInput, output_data, nStepOutput, size));
       } else if (conversion == kBGR_TO_GRAY) {
         // BGR -> GRAY
-
-        detail::ConvertBGRToGray8UKernel<<<grid, block, 0, stream>>>(
-          input_data, output_data, total_size);
-        
+        const Npp32f aCoefs[3] = {0.114f, 0.587f, 0.299f};
+        DALI_CHECK_NPP(
+          nppiColorToGray_8u_C3C1R(
+            input_data, nStepInput, output_data, nStepOutput, size, aCoefs));
       } else if (conversion == kYCbCr_TO_BGR) {
-
         // First from YCbCr to RGB
         DALI_CHECK_NPP(
           nppiYCbCrToRGB_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size)
-        );
-
+            input_data, nStepInput, output_data, nStepOutput, size));
         // Then from RGB to BGR
-        detail::ConvertRGBToBGR8UKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertRGBToBGRKernel<<<grid, block, 0, stream>>>(
           output_data, output_data, total_size);
-
       } else if (conversion == kYCbCr_TO_RGB) {
-         
         // First from YCbCr to RGB
         DALI_CHECK_NPP(
           nppiYCbCrToRGB_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size)
-        );
-
+            input_data, nStepInput, output_data, nStepOutput, size));
       } else if (conversion == kGRAY_TO_BGR || conversion == kGRAY_TO_RGB) {
         // GRAY -> RGB / BGR
-        detail::ConvertGrayToRGB8UKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertGrayToRGBKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
-      
       } else if (conversion == kGRAY_TO_YCbCr) {
-
-          // GRAY -> YCbCr
-          detail::ConvertGrayToYCbCr8UKernel<<<grid, block, 0, stream>>>(
-            input_data, output_data, total_size);
-
+        // GRAY -> YCbCr
+        detail::ConvertGrayToYCbCrKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
+      } else if (conversion == kYCbCr_TO_GRAY) {
+        // YCbCr -> GRAY
+        detail::ConvertYCbCrToGrayKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
       } else {
-        
         DALI_FAIL("conversion not supported");
       }
-    } 
+    }
   }
 
   nppSetStream(old_stream);
@@ -282,4 +230,3 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<GPUBackend>, GPU);
 
 }  // namespace dali
-

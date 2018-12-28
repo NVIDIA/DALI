@@ -23,8 +23,7 @@ namespace dali {
 template <typename Backend>
 class ColorSpaceConversion : public Operator<Backend> {
  public:
-
-  inline explicit ColorSpaceConversion(const OpSpec &spec) 
+  inline explicit ColorSpaceConversion(const OpSpec &spec)
     : Operator<Backend>(spec)
     , input_type_(spec.GetArgument<DALIImageType>("image_type"))
     , output_type_(spec.GetArgument<DALIImageType>("output_type")) {
@@ -34,11 +33,6 @@ class ColorSpaceConversion : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   USE_OPERATOR_MEMBERS();
-
-  // TODO(janton): move somewhere else
-  inline int NumberOfChannels(DALIImageType type) {
-    return type == DALI_GRAY ? 1 : 3;
-  }
 
   const DALIImageType input_type_;
   const DALIImageType output_type_;

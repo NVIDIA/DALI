@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <map>
 #include "dali/pipeline/operators/color_space/color_space_conversion.h"
 #include "dali/util/ocv.h"
-#include <map>
 
 namespace dali {
 
@@ -23,11 +23,11 @@ DALI_SCHEMA(ColorSpaceConversion)
     .NumInput(1)
     .NumOutput(1)
     .AddArg("image_type",
-        R"code(The color space of the input image)code", 
-        DALI_IMAGE_TYPE /* TODO(janton): uncomment this? , true */ )
+        R"code(The color space of the input image)code",
+        DALI_IMAGE_TYPE)
     .AddArg("output_type",
-        R"code(The color space of the output image)code", 
-        DALI_IMAGE_TYPE /* TODO(janton): uncomment this? , true */ );
+        R"code(The color space of the output image)code",
+        DALI_IMAGE_TYPE);
 
 template <>
 void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
@@ -38,26 +38,24 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int id
 
   const auto H = input_shape[0];
   const auto W = input_shape[1];
-  const auto input_C = input_shape[2];
+  const int input_C = NumberOfChannels(input_type_);
+  const int output_C = NumberOfChannels(output_type_);
 
-  DALI_ENFORCE( input_C == NumberOfChannels(input_type_), "Incorrect number of channels for input" );
-  auto output_C = NumberOfChannels(output_type_);
+  DALI_ENFORCE(input_shape[2] == input_C,
+    "Incorrect number of channels for input");
   output_shape[2] = output_C;
-
   output->Resize(output_shape);
 
   auto pImgInp = input.template data<uint8>();
 
   const int input_channel_flag = GetOpenCvChannelType(input_C);
   const cv::Mat cv_input_img = CreateMatFromPtr(H, W, input_channel_flag, pImgInp);
-  
+
   auto pImgOut = output->template mutable_data<uint8>();
   const int output_channel_flag = GetOpenCvChannelType(output_C);
-  const cv::Mat cv_output_img = CreateMatFromPtr(H, W, output_channel_flag, pImgOut);
+  cv::Mat cv_output_img = CreateMatFromPtr(H, W, output_channel_flag, pImgOut);
 
-  cv::cvtColor(cv_input_img, cv_output_img, GetOpenCvColorConversionCode(input_type_, output_type_));
-  uint8_t* data = (uint8_t*) cv_output_img.data;
-  std::cout << (int) data[0] << " " << (int)data[1] << " " << (int)data[2] << std::endl; 
+  OpenCvColorConversion(input_type_, cv_input_img, output_type_, cv_output_img);
 }
 
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<CPUBackend>, CPU);

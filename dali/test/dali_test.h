@@ -90,7 +90,7 @@ class DALITest : public ::testing::Test {
     cv::Mat out_img(tmp.rows, tmp.cols, GetOpenCvChannelType(c));
     if (IsColor(img_type) && img_type != DALI_BGR) {
       // Convert from BGR to img_type for verification
-      cv::cvtColor(tmp, out_img, GetOpenCvColorConversionCode(DALI_BGR, img_type));
+      OpenCvColorConversion(DALI_BGR, tmp, img_type, out_img);
     } else {
       out_img = tmp;
     }
@@ -127,7 +127,7 @@ class DALITest : public ::testing::Test {
       cv::Mat out_img(h, w, cType);
       if (IsColor(type) && type != DALI_BGR) {
         // Convert from BGR to type for verification
-        cv::cvtColor(img, out_img, GetOpenCvColorConversionCode(DALI_BGR, type));
+        OpenCvColorConversion(DALI_BGR, img, type, out_img);
       } else {
         out_img = img;
       }

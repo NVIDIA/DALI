@@ -28,32 +28,32 @@ class ColorSpaceConversionToGrayTest : public GenericConversionTest<InputImgType
 template <typename InputImgType>
 class ColorSpaceConversionToYCbCrTest : public GenericConversionTest<InputImgType, YCbCr> {};
 
-typedef ::testing::Types<RGB, Gray/*, YCbCr*/> ConvertibleToBGR;
+typedef ::testing::Types<RGB, Gray, YCbCr> ConvertibleToBGR;
 TYPED_TEST_CASE(ColorSpaceConversionToBGRTest, ConvertibleToBGR);
 
 TYPED_TEST(ColorSpaceConversionToBGRTest, test) {
-  this->RunTest("ColorSpaceConversion");
+  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
 }
 
-typedef ::testing::Types<BGR, Gray/*, YCbCr*/> ConvertibleToRGB;
+typedef ::testing::Types<BGR, Gray, YCbCr> ConvertibleToRGB;
 TYPED_TEST_CASE(ColorSpaceConversionToRGBTest, ConvertibleToRGB);
 
 TYPED_TEST(ColorSpaceConversionToRGBTest, test) {
-  this->RunTest("ColorSpaceConversion");
+  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
 }
-/*
+
 typedef ::testing::Types<RGB, BGR, YCbCr> ConvertibleToGray;
 TYPED_TEST_CASE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
 
 TYPED_TEST(ColorSpaceConversionToGrayTest, test) {
-  this->RunTest("ColorSpaceConversion");
-}*/
+  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+}
 
-typedef ::testing::Types<RGB, BGR/*, Gray*/> ConvertibleToYCbCr;
+typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
 TYPED_TEST_CASE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
 
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
-  this->RunTest("ColorSpaceConversion");
+  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
 }
 
 }  // namespace dali

@@ -94,6 +94,10 @@ inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
+inline std::size_t NumberOfChannels(DALIImageType type) {
+  return IsColor(type) ? 3 : 1;
+}
+
 // Helper to delete copy constructor & copy-assignment operator
 #define DISABLE_COPY_MOVE_ASSIGN(name)   \
   name(const name&) = delete;            \

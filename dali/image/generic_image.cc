@@ -37,7 +37,7 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
   }
   // if different image type needed (e.g. RGB), permute from BGR
   if (IsColor(image_type) && image_type != DALI_BGR) {
-    cv::cvtColor(decoded_image, decoded_image, GetOpenCvColorConversionCode(DALI_BGR, image_type));
+    OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
 
   const int c = IsColor(image_type) ? 3 : 1;

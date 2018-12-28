@@ -131,6 +131,11 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   DALI_ENFORCE(w > 0);
 
 #ifdef DALI_USE_JPEG_TURBO
+  // not supported by turbojpeg
+  if (type == DALI_YCbCr) {
+    return GenericImage::DecodeImpl(type, jpeg, length);
+  }
+
   // with tJPG
   TJPF pixel_format;
   if (type == DALI_RGB) {
