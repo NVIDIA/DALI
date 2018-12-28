@@ -71,6 +71,7 @@ extern "C" {
    * stored at position `n` in the pipeline.
    * This function may only be called after
    * calling Output function.
+   * @remarks Caller is responsible to 'free' the memory returned
    */
   DLL_PUBLIC int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n);
 
@@ -92,7 +93,7 @@ extern "C" {
   DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle* pipe_handle);
 
   /**
-   * @brief Load plugin library 
+   * @brief Load plugin library
    */
   DLL_PUBLIC void daliLoadLibrary(const char* lib_path);
 }
