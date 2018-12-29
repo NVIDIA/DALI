@@ -18,6 +18,7 @@ V100 GPUs, for example on DGX-1, use the following command
    $ mpiexec --allow-run-as-root --bind-to socket -np 8 python resnet.py \
                                                         --layers=50 \
                                                         --data_dir=/data/imagenet \
+                                                        --data_idx_dir=/data/imagenet-idx \
                                                         --precision=fp16 \
                                                         --log_dir=/output/resnet50 \
                                                         --dali_cpu
