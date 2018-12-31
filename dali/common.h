@@ -15,8 +15,6 @@
 #ifndef DALI_COMMON_H_
 #define DALI_COMMON_H_
 
-#include <nppdefs.h>
-
 #ifdef DALI_USE_NVTX
 #include "nvToolsExt.h"
 #endif
@@ -57,7 +55,10 @@ using uint32 = uint32_t;
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
-typedef NppiSize DALISize;
+struct DALISize {
+    int width;
+    int height;
+};
 
 /**
  * @brief Supported interpolation types
@@ -236,5 +237,9 @@ template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
 }  // namespace dali
+
+#define LOG_LINE \
+  if (0) \
+  std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 #endif  // DALI_COMMON_H_

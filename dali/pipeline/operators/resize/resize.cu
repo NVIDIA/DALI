@@ -85,8 +85,9 @@ DALIError_t BatchedResize(const uint8 **in_batch, int N, int C, const DALISize *
     const NppiRect out_roi = {0, 0, out_size.width, out_size.height};
 #endif
 
-    DALI_CHECK_NPP((*func)(in_batch[i], in_size.width*C, in_size, in_roi,
-                           out_batch[i], out_size.width*C, out_size, out_roi, npp_type));
+    DALI_CHECK_NPP((*func)(
+      in_batch[i], in_size.width*C, ToNppiSize(in_size), in_roi,
+      out_batch[i], out_size.width*C, ToNppiSize(out_size), out_roi, npp_type));
   }
   return DALISuccess;
 }

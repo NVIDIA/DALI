@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include "dali/util/type_conversion.h"
 #include "dali/common_cuda.h"
-
-#include <cmath>
 
 namespace dali {
 

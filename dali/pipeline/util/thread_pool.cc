@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/nvml.h"
-#include <cstdlib>
 
 namespace dali {
 

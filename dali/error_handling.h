@@ -272,10 +272,6 @@ inline void cudaResultCheck<CUresult>(CUresult status) {
     dali::cudaResultCheck<CUDA_TYPE>(status); \
   } while (0)
 
-#define LOG_LINE \
-  if (0) \
-  std::cout << __FILE__ << ":" << __LINE__ << ": "
-
 }  // namespace dali
 
 #endif  // DALI_ERROR_HANDLING_H_

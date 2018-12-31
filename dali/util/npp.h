@@ -350,4 +350,12 @@ static const char *nppErrorString(NppStatus error) {
     }                                                     \
   } while (0)
 
+template <typename T>
+NppiSize ToNppiSize(const T& size) {
+  NppiSize out;
+  out.width = size.width;
+  out.height = size.height;
+  return out;
+}
+
 #endif  // DALI_UTIL_NPP_H_

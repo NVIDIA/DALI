@@ -41,7 +41,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         augments_[j]->Prepare(i, spec_, ws);
         (*augments_[j])(m);
       }
-      DALISize size;
+      NppiSize size;
       size.height = input.tensor_shape(i)[0];
       size.width = input.tensor_shape(i)[1];
       const int nStep = C_ * size.width;  // W * C

@@ -15,7 +15,6 @@
 #ifndef DALI_PIPELINE_UTIL_THREAD_POOL_H_
 #define DALI_PIPELINE_UTIL_THREAD_POOL_H_
 
-#include "dali/common.h"
 #include <cstdlib>
 #include <condition_variable>
 #include <functional>
@@ -24,6 +23,7 @@
 #include <thread>
 #include <vector>
 #include <string>
+#include "dali/common.h"
 
 namespace dali {
 

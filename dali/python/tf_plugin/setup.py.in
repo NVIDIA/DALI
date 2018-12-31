@@ -19,12 +19,16 @@ import os
 
 class CustomInstall(install, object):
     def run(self):
+        try:
+            import tensorflow as tensorflow
+        except:
+            raise ImportError('Failed to import Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
+
         import nvidia.dali.sysconfig as dali_sc
         dali_lib_path = dali_sc.get_lib_dir()
         dali_cflags=" ".join(dali_sc.get_compile_flags())
         dali_lflags=" ".join(dali_sc.get_link_flags())
 
-        import tensorflow as tensorflow
         tf_cflags=" ".join(tensorflow.sysconfig.get_compile_flags())
         tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
 
@@ -50,8 +54,7 @@ setup(name='nvidia-dali-tf-plugin',
       include_package_data=True,
       zip_safe=False,
       install_requires = [
-          'nvidia-dali==@DALI_VERSION@',
-          'tensorflow-gpu>=1.7.0'
+          'nvidia-dali==@DALI_VERSION@'
           ],
       cmdclass = {
           'install': CustomInstall

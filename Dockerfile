@@ -54,4 +54,7 @@ RUN pip wheel -v dali/python \
         --build-option --build-number=${NVIDIA_BUILD_ID} && \
     ../dali/python/bundle-wheel.sh nvidia_dali-*.whl
 
-RUN python dali/python/tf_plugin/setup.py sdist
+RUN pushd dali/python/tf_plugin/ && \
+    python setup.py sdist && \
+    mv dist/*.tar.gz /wheelhouse && \
+    popd
