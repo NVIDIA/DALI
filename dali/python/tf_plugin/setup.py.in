@@ -1,0 +1,59 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from setuptools import setup, find_packages
+from setuptools.command.install import install
+import subprocess
+import os
+
+class CustomInstall(install, object):
+    def run(self):
+        import nvidia.dali.sysconfig as dali_sc
+        dali_lib_path = dali_sc.get_lib_dir()
+        dali_cflags=" ".join(dali_sc.get_compile_flags())
+        dali_lflags=" ".join(dali_sc.get_link_flags())
+
+        import tensorflow as tensorflow
+        tf_cflags=" ".join(tensorflow.sysconfig.get_compile_flags())
+        tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
+
+        src_path = os.path.dirname(os.path.realpath(__file__)) + '/nvidia/dali'
+        plugin_src = src_path + '/plugin/daliop.cc'
+        lib_path = dali_lib_path + '/plugin/libdali_tf_current.so'
+
+        cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' -O2'
+        subprocess.check_call(cmd, cwd=src_path, shell=True)
+        # print os.listdir(dali_lib_path+'/plugin')
+
+        super(CustomInstall, self).run()
+
+
+
+setup(name='nvidia-dali-tf-plugin',
+      description='NVIDIA DALI Tensorflow plugin',
+      url='https://github.com/NVIDIA/dali',
+      version='@DALI_VERSION@',
+      author='NVIDIA Corporation',
+      license='Apache License 2.0',
+      packages=find_packages(),
+      include_package_data=True,
+      zip_safe=False,
+      install_requires = [
+          'nvidia-dali==@DALI_VERSION@',
+          'tensorflow-gpu>=1.7.0'
+          ],
+      cmdclass = {
+          'install': CustomInstall
+      }
+     )

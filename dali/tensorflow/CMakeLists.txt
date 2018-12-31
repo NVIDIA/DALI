@@ -19,6 +19,6 @@ if (BUILD_TENSORFLOW)
 
   message( STATUS "Installing sources for dali_tf: ${tmp}")
   file(COPY        ${tmp}
-       DESTINATION ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/plugin)
+       DESTINATION ${PROJECT_BINARY_DIR}/dali/python/tf_plugin/nvidia/dali/plugin)
 
 endif()

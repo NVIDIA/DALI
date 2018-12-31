@@ -18,8 +18,10 @@ import glob
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
-# move plugin build against nightly to the end of list
-_processed_tf_plugins = list(filter(lambda x: 'nightly' not in x, _tf_plugins)) + list(filter(lambda x: 'nightly' in x, _tf_plugins))
+# Order: 'current', numbered versions, nightly build
+_processed_tf_plugins = list(filter(lambda x: 'current' in x, _tf_plugins)) 
+                      + list(filter(lambda x: 'current' not it x and 'nightly' not in x, _tf_plugins)) 
+                      + list(filter(lambda x: 'nightly' in x, _tf_plugins))
 
 for _libdali_tf in _processed_tf_plugins:
   try:
