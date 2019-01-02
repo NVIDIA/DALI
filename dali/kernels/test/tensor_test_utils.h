@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,15 +15,15 @@
 #ifndef DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
 #define DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
 
-#include <dali/kernels/tensor_view.h>
-#include <dali/kernels/tensor_shape_str.h>
-#include <dali/kernels/backend_tags.h>
-#include <dali/kernels/util.h>
 #include <gtest/gtest.h>
 #include <functional>
 #include <cmath>
 #include <utility>
 #include <random>
+#include "dali/kernels/tensor_view.h"
+#include "dali/kernels/tensor_shape_str.h"
+#include "dali/kernels/backend_tags.h"
+#include "dali/kernels/util.h"
 
 namespace dali {
 namespace kernels {

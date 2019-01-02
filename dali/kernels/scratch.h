@@ -15,10 +15,10 @@
 #ifndef DALI_KERNELS_SCRATCH_H_
 #define DALI_KERNELS_SCRATCH_H_
 
-#include <dali/kernels/context.h>
 #include <array>
 #include <utility>
 #include <type_traits>
+#include "dali/kernels/context.h"
 
 namespace dali {
 namespace kernels {

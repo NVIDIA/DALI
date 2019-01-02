@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/kernels/test/test_tensors.h"
 #include "dali/kernels/tensor_shape_str.h"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/kernel_test_utils.h"
 
 using std::cout;
 using std::cerr;
@@ -66,11 +67,26 @@ struct MADKernel {
   }
 };
 
+template <typename Kernel_>
+class KernelPoC : public ::testing::Test, public testing::SimpleKernelTestBase<Kernel_> {
+};
 
-template <typename Input1, typename Input2, typename Output>
-void RunTest() {
+using PoC_MAD = ::testing::Types<
+  MADKernel<float, float, float>,
+  MADKernel<int,   float, float>,
+  MADKernel<float, int,   float>,
+  MADKernel<int,   int,   int>
+>;
+
+TYPED_TEST_CASE(KernelPoC, PoC_MAD);
+
+TYPED_TEST(KernelPoC, All) {
+  using MyType = typename std::remove_pointer<decltype(this)>::type;
+  using Input1 = typename MyType::template InputElement<0>;
+  using Input2 = typename MyType::template InputElement<1>;
+  using Output = typename MyType::template OutputElement<0>;
   unsigned seed = 123;
-  MADKernel<Input1, Input2, Output> K;
+  typename MyType::Kernel K;
 
   InListCPU<Input1, 3> i1;
   InListCPU<Input2, 3> i2;
@@ -84,7 +100,7 @@ void RunTest() {
 
   std::vector<TensorShape<3>> shapes;
   for (int i = 0; i < 3; i++)
-    shapes.push_back({ i+1, rand_r(&seed)%256+256, rand_r(&seed)%256+256});
+    shapes.push_back({ i+1, rand_r(&seed)%128+128, rand_r(&seed)%128+128});
   TensorListShape<3> list_shape(shapes);
 
   tl1.reshape(list_shape);
@@ -133,13 +149,6 @@ void RunTest() {
 
   // native and uniform calls should yield bit-exact results
   Check(o1, o2);
-}
-
-TEST(KernelPoC, MAD) {
-  RunTest<float, float, float>();
-  RunTest<float, int,   float>();
-  RunTest<int,   float, float>();
-  RunTest<int,   int,   int>();
 }
 
 }  // namespace kernels
