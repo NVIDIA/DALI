@@ -31,8 +31,8 @@ class ExampleOperatorTestCase : public DaliOperatorTest {
         ptrcpu[0] = 666;
     });
 
-    in_ = std::unique_ptr<TensorListWrapper>(new TensorListWrapper(tlcpu.get()));
-    out_ = std::unique_ptr<TensorListWrapper>(new TensorListWrapper(tlgpu.get()));
+    in_ = TensorListWrapper(tlcpu.get());
+    out_ = TensorListWrapper(tlgpu.get());
   }
 
 
@@ -47,8 +47,8 @@ class ExampleOperatorTestCase : public DaliOperatorTest {
  protected:
   std::unique_ptr<TensorList<CPUBackend>> tlcpu;
   std::unique_ptr<TensorList<GPUBackend>> tlgpu;
-  std::unique_ptr<TensorListWrapper> in_;
-  std::unique_ptr<TensorListWrapper> out_;
+  TensorListWrapper in_;
+  TensorListWrapper out_;
   std::once_flag once_flag_;
 };
 
@@ -75,7 +75,7 @@ TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
       ASSERT_FALSE(true);
   };
 
-  this->RunTest(*in_, *out_, GetParam(), ver);
+  this->RunTest(in_, out_, GetParam(), ver);
 }
 
 
@@ -90,7 +90,7 @@ TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
       ASSERT_FALSE(true);
   };
 
-  this->RunTest({*in_, *in_}, {*out_, *out_}, GetParam(), {ver_in1, ver_in2});
+  this->RunTest({in_, in_}, {out_, out_}, GetParam(), {ver_in1, ver_in2});
 }
 
 }  // namespace testing

@@ -23,12 +23,13 @@ namespace testing {
 class TensorListWrapper {
 
  public:
+  TensorListWrapper(
+          const TensorList<CPUBackend> *tensor_list = nullptr)  // NOLINT non-explicit ctor
+          : cpu_(tensor_list) {}
+
+
   TensorListWrapper(const TensorList<GPUBackend> *tensor_list)  // NOLINT non-explicit ctor
           : gpu_(tensor_list) {}
-
-
-  TensorListWrapper(const TensorList<CPUBackend> *tensor_list)  // NOLINT non-explicit ctor
-          : cpu_(tensor_list) {}
 
 
   enum Backend {
@@ -45,7 +46,13 @@ class TensorListWrapper {
 
   /// Because no type deduction in C++11
   TensorListWrapper::Backend get_backend() {
+    DALI_ENFORCE(*this, "TensorWrapper doesn't represent any underlying data");
     return gpu_ == nullptr ? CPU : GPU;
+  }
+
+
+  explicit operator bool() const {
+    return cpu_ || gpu_;
   }
 
 
@@ -56,14 +63,14 @@ class TensorListWrapper {
 
 
 template<>
-const TensorList<CPUBackend> *TensorListWrapper::get() const noexcept {
+inline const TensorList<CPUBackend> *TensorListWrapper::get() const noexcept {
   DALI_ENFORCE(cpu_, "This wrapper doesn't contain TensorList<CPUBackend>");
   return cpu_;
 }
 
 
 template<>
-const TensorList<GPUBackend> *TensorListWrapper::get() const noexcept {
+inline const TensorList<GPUBackend> *TensorListWrapper::get() const noexcept {
   DALI_ENFORCE(gpu_, "This wrapper doesn't contain TensorList<GPUBackend>");
   return gpu_;
 }
