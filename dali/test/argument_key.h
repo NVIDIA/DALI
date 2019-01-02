@@ -15,9 +15,10 @@
 #ifndef DALI_TEST_ARGUMENT_KEY_H_
 #define DALI_TEST_ARGUMENT_KEY_H_
 
+#include <assert.h>
 #include <string>
 #include <tuple>
-#include <assert.h>
+#include <utility>
 
 
 namespace dali {
@@ -25,17 +26,16 @@ namespace testing {
 
 class ArgumentKey {
  public:
-
-  ArgumentKey(const char *arg_name) noexcept : // NOLINT (non-explicit ctor)
-          node_name_(), arg_name_(arg_name) {
-    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all
+  ArgumentKey(const char *arg_name) noexcept  // NOLINT (non-explicit ctor)
+          : node_name_(), arg_name_(arg_name) {
+    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all NOLINT
   }
 
 
-  ArgumentKey(std::string node_name, std::string arg_name) noexcept :
-          node_name_(std::move(node_name)), arg_name_(std::move(arg_name)) {
-    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all
-    assert(!node_name_.empty());  // Node name has been set either as an empty string or not set at all
+  ArgumentKey(std::string node_name, std::string arg_name) noexcept
+          : node_name_(std::move(node_name)), arg_name_(std::move(arg_name)) {
+    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all NOLINT
+    assert(!node_name_.empty());  // Node name has been set either as an empty string or not set at all NOLINT
   }
 
 

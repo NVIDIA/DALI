@@ -19,7 +19,6 @@ namespace dali {
 namespace testing {
 
 TEST(ArgumentKeyTest, ArgumentKeyTest) {
-
   ArgumentKey argk("arg");
   EXPECT_EQ("arg", argk.arg_name());
   EXPECT_EQ("", argk.node_name());
@@ -34,8 +33,16 @@ TEST(ArgumentKeyTest, ArgumentOperatorLessTest) {
   ArgumentKey a1("arg1");
   ArgumentKey a2("arg2");
 
+  ArgumentKey a3("A", "X");
+  ArgumentKey a4("A", "Y");
+  ArgumentKey a5("B", "X");
+
   EXPECT_TRUE(a1 < a2);
   EXPECT_FALSE(a2 < a1);
+  EXPECT_TRUE(a3 < a4);
+  EXPECT_FALSE(a4 < a3);
+  EXPECT_TRUE(a4 < a5);
+  EXPECT_FALSE(a5 < a4);
 }
 
 }  // namespace testing
