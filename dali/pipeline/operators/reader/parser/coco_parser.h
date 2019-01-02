@@ -52,9 +52,10 @@ using AnnotationMap = std::multimap<int, Annotation>;
 
 class COCOParser: public Parser<ImageLabelWrapper> {
  public:
-  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap)
+  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap, const bool save_img_ids)
     : Parser<ImageLabelWrapper>(spec),
-    annotations_multimap_(annotations_multimap) {}
+    annotations_multimap_(annotations_multimap),
+    save_img_ids_(save_img_ids) {}
 
   void Parse(const ImageLabelWrapper& image_label, SampleWorkspace* ws) override {
     Index image_size = image_label.image.size();
@@ -73,6 +74,16 @@ class COCOParser: public Parser<ImageLabelWrapper> {
     label_output->Resize({n_bboxes, 1});
     label_output->mutable_data<int>();
 
+
+    if (save_img_ids_) {
+      auto *image_id_output = ws->Output<CPUBackend>(3);
+      image_id_output->Resize({1});
+      image_id_output->mutable_data<int>();
+      std::memcpy(image_id_output->raw_mutable_data(),
+                &image_label.label,
+                sizeof(int));
+    }
+
     std::memcpy(image_output->raw_mutable_data(),
                 image_label.image.raw_data(),
                 image_size);
@@ -90,6 +101,7 @@ class COCOParser: public Parser<ImageLabelWrapper> {
   }
 
   const AnnotationMap& annotations_multimap_;
+  const bool& save_img_ids_;
 };
 
 }  // namespace dali

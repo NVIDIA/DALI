@@ -143,6 +143,14 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
 
     int new_H = static_cast<int>(ratio * H);
     int new_W = static_cast<int>(ratio * W);
+
+    int min_canvas_size_ = spec_.GetArgument<float>("min_canvas_size", ws, i);
+    DALI_ENFORCE(min_canvas_size_ >= 0.,
+      "min_canvas_size_ of less than 0 is not supported");
+
+    new_H = std::max(new_H, static_cast<int>(min_canvas_size_));
+    new_W = std::max(new_W, static_cast<int>(min_canvas_size_));
+
     output_shape[i] = {new_H, new_W, C_};
 
     float paste_x_ = spec_.GetArgument<float>("paste_x", ws, i);
