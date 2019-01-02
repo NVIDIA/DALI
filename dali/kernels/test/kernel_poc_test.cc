@@ -74,13 +74,13 @@ void RunTest() {
 
   InListCPU<Input1, 3> i1;
   InListCPU<Input2, 3> i2;
-  OutListCPU<Output, 3> o;
+  OutListCPU<Output, 3> o1, o2;
 
   KernelContext ctx;
 
   TestTensorList<Input1> tl1;
   TestTensorList<Input2> tl2;
-  TestTensorList<Output> tlo, tlref;
+  TestTensorList<Output> tlo1, tlo2, tlref;
 
   std::vector<TensorShape<3>> shapes;
   for (int i = 0; i < 3; i++)
@@ -101,21 +101,36 @@ void RunTest() {
 
   auto req = K.GetRequirements(ctx, i1, i2, a);
   ASSERT_EQ(req.output_shapes.size(), 1);
-  tlo.reshape(req.output_shapes[0]);
-  o = tlo.template cpu<3>();
-  K.Run(ctx, o, i1, i2, 0.5f);
+  ASSERT_NO_FATAL_FAILURE(CheckEqual(req.output_shapes[0], i1.shape));
 
-  ASSERT_NO_FATAL_FAILURE(CheckEqual(o.shape, i1.shape));
+  // Kernel's native Run
+  tlo1.reshape(req.output_shapes[0]);
+  o1 = tlo1.template cpu<3>();
+  K.Run(ctx, o1, i1, i2, 0.5f);
+
+  // use uniform call with argument tuples
+  tlo2.reshape(req.output_shapes[0]);
+  o2 = tlo2.template cpu<3>();
+  kernels::kernel::Run<decltype(K)>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(0.5f) );
+
+  // verify that shape hasn't changed
+  ASSERT_NO_FATAL_FAILURE(CheckEqual(o1.shape, i1.shape));
+  ASSERT_NO_FATAL_FAILURE(CheckEqual(o2.shape, i1.shape));
 
   tlref.reshape(list_shape);
   auto ref = tlref.template cpu<3>(0);
   ptrdiff_t total = ref.num_elements();
 
+  // calculate the reference - since it's purely elementwise,
+  // we can skip the tedious multidimensional indexing
   for (ptrdiff_t i = 0; i < total; i++) {
-    ref.data[i] = i1.data[i] * a + i2.data[i];  // trivial elementwise
+    ref.data[i] = i1.data[i] * a + i2.data[i];
   }
 
-  Check(o, ref);
+  Check(o1, ref, EqualEps(1e-6));
+
+  // native and uniform calls should yield bit-exact results
+  Check(o1, o2);
 }
 
 TEST(KernelPoC, MAD) {

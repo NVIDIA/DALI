@@ -111,24 +111,25 @@ void Check(
   }
 }
 
-template <typename T1, typename T2>
 struct Equal {
+  template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return a == b;
   }
 };
 
-template <typename T1, typename T2>
 struct EqualEps {
   EqualEps() = default;
   explicit EqualEps(double eps) : eps(eps) {}
+
+  template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return std::abs(b-a) < eps;
   }
   double eps = 1e-6;
 };
 
-template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal<T1, T2>>
+template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(
     const TensorView<StorageCPU, T1, dim1> &tv1,
     const TensorView<StorageCPU, T2, dim2> &tv2,
@@ -138,7 +139,7 @@ void Check(
 }
 
 
-template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal<T1, T2>>
+template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(
     const TensorListView<StorageCPU, T1, dim1> &tv1,
     const TensorListView<StorageCPU, T2, dim2> &tv2,
