@@ -57,12 +57,14 @@ class TensorListWrapper {
 
 template<>
 const TensorList<CPUBackend> *TensorListWrapper::get() const noexcept {
+  DALI_ENFORCE(cpu_, "This wrapper doesn't contain TensorList<CPUBackend>");
   return cpu_;
 }
 
 
 template<>
 const TensorList<GPUBackend> *TensorListWrapper::get() const noexcept {
+  DALI_ENFORCE(gpu_, "This wrapper doesn't contain TensorList<GPUBackend>");
   return gpu_;
 }
 

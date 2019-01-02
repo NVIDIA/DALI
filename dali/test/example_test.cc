@@ -65,7 +65,7 @@ TEST_F(ExampleOperatorTestCase, ExampleTest) {
 }
 
 
-std::vector<Arguments> args1 = {{{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}}};
+std::vector<Arguments> args1 = { {{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}} };
 
 
 INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
@@ -79,19 +79,19 @@ TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
 }
 
 
-//INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
-//
-//TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
-//  auto ver_in1 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-//      ASSERT_FALSE(true);
-//  };
-//
-//  auto ver_in2 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-//      ASSERT_FALSE(true);
-//  };
-//
-//  this->RunTest({*in_, *in_}, {*out_, *out_}, GetParam(), {ver_in1, ver_in2});
-//}
+INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
+
+TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
+  auto ver_in1 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
+      ASSERT_FALSE(true);
+  };
+
+  auto ver_in2 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
+      ASSERT_FALSE(true);
+  };
+
+  this->RunTest({*in_, *in_}, {*out_, *out_}, GetParam(), {ver_in1, ver_in2});
+}
 
 }  // namespace testing
 
