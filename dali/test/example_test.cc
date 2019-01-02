@@ -20,6 +20,24 @@ namespace testing {
 
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
+
+ protected:
+  ExampleOperatorTestCase() :
+          tlcpu(std::unique_ptr<TensorList<CPUBackend>>(new TensorList<CPUBackend>())),
+          tlgpu(std::unique_ptr<TensorList<GPUBackend>>(new TensorList<GPUBackend>())) {
+    std::call_once(once_flag_, [&]() {
+        tlcpu->Resize({{1}});
+        auto ptrcpu = tlcpu->mutable_data<int>();
+        ptrcpu[0] = 666;
+    });
+
+    in_ = std::unique_ptr<TensorListWrapper>(new TensorListWrapper(tlcpu.get()));
+    out_ = std::unique_ptr<TensorListWrapper>(new TensorListWrapper(tlgpu.get()));
+  }
+
+
+ private:
+
   GraphDescr GenerateOperatorsGraph() const noexcept override {
     GraphDescr graph("ExampleOp");
     return graph;
@@ -27,34 +45,37 @@ class ExampleOperatorTestCase : public DaliOperatorTest {
 
 
  protected:
-  TensorListWrapper in_;  // fill it somewhere
-  TensorListWrapper out_;  // fill it somewhere
+  std::unique_ptr<TensorList<CPUBackend>> tlcpu;
+  std::unique_ptr<TensorList<GPUBackend>> tlgpu;
+  std::unique_ptr<TensorListWrapper> in_;
+  std::unique_ptr<TensorListWrapper> out_;
+  std::once_flag once_flag_;
 };
 
 TEST_F(ExampleOperatorTestCase, ExampleTest) {
-  TensorListWrapper in;
-  TensorListWrapper out;
-  Arguments args;
+  TensorListWrapper in(tlcpu.get());
+  TensorListWrapper out(tlgpu.get());
+  Arguments args={{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}};
 
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
   this->RunTest(in, out, args, ver);
 }
 
 
-std::vector<Arguments> args1 = {{{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}}};
+std::vector<Arguments> args1 = { {{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}} };
 
 
 INSTANTIATE_TEST_CASE_P(FirstOne, ExampleOperatorTestCase, ::testing::ValuesIn(args1));
 
 TEST_P(ExampleOperatorTestCase, ExamplePTest1) {
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
-  this->RunTest(in_, out_, GetParam(), ver);
+  this->RunTest(*in_, *out_, GetParam(), ver);
 }
 
 
@@ -62,14 +83,14 @@ INSTANTIATE_TEST_CASE_P(SecondOne, ExampleOperatorTestCase, ::testing::ValuesIn(
 
 TEST_P(ExampleOperatorTestCase, ExampleMultInpTest) {
   auto ver_in1 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
   auto ver_in2 = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
-    ASSERT_FALSE(true);
+      ASSERT_FALSE(true);
   };
 
-  this->RunTest({in_, in_}, {out_, out_}, GetParam(), {ver_in1, ver_in2});
+  this->RunTest({*in_, *in_}, {*out_, *out_}, GetParam(), {ver_in1, ver_in2});
 }
 
 }  // namespace testing
