@@ -15,26 +15,49 @@
 #ifndef DALI_TEST_ARGUMENT_KEY_H_
 #define DALI_TEST_ARGUMENT_KEY_H_
 
-#include <utility>
 #include <string>
+#include <tuple>
+#include <assert.h>
 
 
 namespace dali {
 namespace testing {
 
-class ArgumentKey : public std::pair<std::string, std::string> {
+class ArgumentKey {
  public:
-  using Base = std::pair<std::string, std::string>;
 
-
-  ArgumentKey(const char *arg_name) : Base({}, arg_name) {  // NOLINT (non-explicit ctor)
+  ArgumentKey(const char *arg_name) noexcept : // NOLINT (non-explicit ctor)
+          node_name_(), arg_name_(arg_name) {
+    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all
   }
 
 
-  ArgumentKey(std::string node_name, std::string arg_name) :
-          Base(std::move(node_name), std::move(arg_name)) {
+  ArgumentKey(std::string node_name, std::string arg_name) noexcept :
+          node_name_(std::move(node_name)), arg_name_(std::move(arg_name)) {
+    assert(!arg_name_.empty());  // Arg name has been set either as an empty string or not set at all
+    assert(!node_name_.empty());  // Node name has been set either as an empty string or not set at all
   }
+
+
+  std::string node_name() const noexcept {
+    return node_name_;
+  }
+
+
+  std::string arg_name() const noexcept {
+    return arg_name_;
+  }
+
+
+  bool operator<(const ArgumentKey &rhs) const noexcept {
+    return std::tie(node_name_, arg_name_) < std::tie(rhs.node_name_, rhs.arg_name_);
+  }
+
+
+ private:
+  std::string node_name_, arg_name_;
 };
+
 
 }  // namespace testing
 }  // namespace dali
