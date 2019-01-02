@@ -84,15 +84,17 @@ void RunTest() {
 
   std::vector<TensorShape<3>> shapes;
   for (int i = 0; i < 3; i++)
-    shapes.push_back({ i+1, rand_r(&seed)%512+512, rand_r(&seed)%512+512});
+    shapes.push_back({ i+1, rand_r(&seed)%256+256, rand_r(&seed)%256+256});
   TensorListShape<3> list_shape(shapes);
 
   tl1.reshape(list_shape);
   tl2.reshape(list_shape);
 
   std::mt19937_64 rng;
-  UniformRandomFill(tl1.template cpu<3>(0), rng, 0, 1);
-  UniformRandomFill(tl2.template cpu<3>(0), rng, 0, 1);
+  Input1 max1 = std::is_integral<Input1>::value ? 100 : 1;
+  Input2 max2 = std::is_integral<Input2>::value ? 100 : 1;
+  UniformRandomFill(tl1.template cpu<3>(0), rng, 0, max1);
+  UniformRandomFill(tl2.template cpu<3>(0), rng, 0, max2);
 
   i1 = tl1.template cpu<3>();
   i2 = tl2.template cpu<3>();
@@ -106,12 +108,12 @@ void RunTest() {
   // Kernel's native Run
   tlo1.reshape(req.output_shapes[0]);
   o1 = tlo1.template cpu<3>();
-  K.Run(ctx, o1, i1, i2, 0.5f);
+  K.Run(ctx, o1, i1, i2, a);
 
   // use uniform call with argument tuples
   tlo2.reshape(req.output_shapes[0]);
   o2 = tlo2.template cpu<3>();
-  kernels::kernel::Run<decltype(K)>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(0.5f) );
+  kernels::kernel::Run<decltype(K)>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
 
   // verify that shape hasn't changed
   ASSERT_NO_FATAL_FAILURE(CheckEqual(o1.shape, i1.shape));
@@ -135,6 +137,9 @@ void RunTest() {
 
 TEST(KernelPoC, MAD) {
   RunTest<float, float, float>();
+  RunTest<float, int,   float>();
+  RunTest<int,   float, float>();
+  RunTest<int,   int,   int>();
 }
 
 }  // namespace kernels
