@@ -22,14 +22,15 @@ namespace testing {
 
 class TensorListWrapper {
  public:
-  TensorListWrapper(
-          const TensorList<CPUBackend> *tensor_list = nullptr)  // NOLINT non-explicit ctor
+  TensorListWrapper(const TensorList<CPUBackend> *tensor_list)  // NOLINT non-explicit ctor
           : cpu_(tensor_list) {}
 
 
   TensorListWrapper(const TensorList<GPUBackend> *tensor_list)  // NOLINT non-explicit ctor
           : gpu_(tensor_list) {}
 
+
+  TensorListWrapper() = default;
 
   enum Backend {
     CPU, GPU,
@@ -50,7 +51,7 @@ class TensorListWrapper {
   }
 
 
-  explicit operator bool() const {
+  explicit constexpr operator bool() const noexcept {
     return cpu_ || gpu_;
   }
 
