@@ -21,7 +21,6 @@ namespace dali {
 namespace testing {
 
 class TensorListWrapper {
-
  public:
   TensorListWrapper(
           const TensorList<CPUBackend> *tensor_list = nullptr)  // NOLINT non-explicit ctor

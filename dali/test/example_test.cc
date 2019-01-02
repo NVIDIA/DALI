@@ -20,7 +20,6 @@ namespace testing {
 
 
 class ExampleOperatorTestCase : public DaliOperatorTest {
-
  protected:
   ExampleOperatorTestCase() :
           tlcpu(std::unique_ptr<TensorList<CPUBackend>>(new TensorList<CPUBackend>())),
@@ -37,7 +36,6 @@ class ExampleOperatorTestCase : public DaliOperatorTest {
 
 
  private:
-
   GraphDescr GenerateOperatorsGraph() const noexcept override {
     GraphDescr graph("ExampleOp");
     return graph;
@@ -55,7 +53,7 @@ class ExampleOperatorTestCase : public DaliOperatorTest {
 TEST_F(ExampleOperatorTestCase, ExampleTest) {
   TensorListWrapper in(tlcpu.get());
   TensorListWrapper out(tlgpu.get());
-  Arguments args={{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}};
+  Arguments args = {{"arg1", 1.}, {"arg2", 2.}, {"arg3", 3.}};
 
   auto ver = [](TensorListWrapper, TensorListWrapper, Arguments) -> void {
       ASSERT_FALSE(true);
