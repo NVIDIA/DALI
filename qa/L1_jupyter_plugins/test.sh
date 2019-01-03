@@ -7,6 +7,10 @@ pushd ../..
 # attempt to run jupyter on all example notebooks
 mkdir -p idx_files
 
+# We need cmake to run the custom plugin notebook
+apt-get update
+apt-get install -y --no-install-recommends cmake
+
 cd docs/examples
 
 test_body() {
