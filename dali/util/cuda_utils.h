@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_COMMON_CUDA_H_
-#define DALI_COMMON_CUDA_H_
+#ifndef DALI_UTIL_CUDA_UTILS_H_
+#define DALI_UTIL_CUDA_UTILS_H_
 
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_profiler_api.h>
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
+#include "dali/util/dynlink_cuda.h"
+#include "dali/error_handling.h"
 
 namespace dali {
 
@@ -43,6 +45,41 @@ inline void DALIProfilerStart() { cudaProfilerStart(); }
 
 inline void DALIProfilerStop() { cudaProfilerStop(); }
 
+// CUDA checking
+template <typename T>
+inline void cudaResultCheck(T status);
+
+template <typename T>
+inline void cudaResultCheck(T status) {}
+
+template <>
+inline void cudaResultCheck<cudaError_t>(cudaError_t status) {
+    if (status != cudaSuccess) {
+      dali::string error = dali::string("CUDA runtime api error \"") +
+        cudaGetErrorString(status) + "\"";
+      DALI_FAIL(error);
+    }
+}
+
+template <>
+inline void cudaResultCheck<CUresult>(CUresult status) {
+    if (status != CUDA_SUCCESS) {
+      const char *cudaErrorStr;
+      cuGetErrorString(status, &cudaErrorStr);
+      dali::string error = dali::string("CUDA driver api error \"") +
+        dali::string(cudaErrorStr) + "\"";
+      DALI_FAIL(error);
+    }
+}
+
 }  // end namespace dali
 
-#endif  // DALI_COMMON_CUDA_H_
+// For calling CUDA library functions (cudaError_t from runtime API and CUresult from driver API)
+#define CUDA_CALL(code)                 \
+  do {                                  \
+    using CUDA_TYPE = decltype(code);   \
+    CUDA_TYPE status = code;            \
+    dali::cudaResultCheck<CUDA_TYPE>(status); \
+  } while (0)
+
+#endif  // DALI_UTIL_CUDA_UTILS_H_

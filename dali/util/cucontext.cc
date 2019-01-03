@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/util/cucontext.h"
 #include "dali/util/dynlink_cuda.h"
 

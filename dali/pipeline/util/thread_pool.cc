@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/nvml.h"
+#include "dali/util/cuda_utils.h"
 
 namespace dali {
 

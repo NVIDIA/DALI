@@ -38,7 +38,6 @@ class CustomInstall(install, object):
 
         cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' -O2'
         subprocess.check_call(cmd, cwd=src_path, shell=True)
-        # print os.listdir(dali_lib_path+'/plugin')
 
         super(CustomInstall, self).run()
 
