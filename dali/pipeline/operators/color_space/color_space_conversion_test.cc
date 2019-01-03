@@ -39,21 +39,21 @@ typedef ::testing::Types<BGR, Gray, YCbCr> ConvertibleToRGB;
 TYPED_TEST_CASE(ColorSpaceConversionToRGBTest, ConvertibleToRGB);
 
 TYPED_TEST(ColorSpaceConversionToRGBTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+  this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<RGB, BGR, YCbCr> ConvertibleToGray;
 TYPED_TEST_CASE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
 
 TYPED_TEST(ColorSpaceConversionToGrayTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+  this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
 TYPED_TEST_CASE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
 
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+  this->RunTest("ColorSpaceConversion");
 }
 
 }  // namespace dali

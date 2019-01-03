@@ -70,15 +70,17 @@ template <DALIImageType input_type, DALIImageType output_type>
 void custom_conversion_pixel(const uint8_t* input, uint8_t* output);
 
 inline static uint8_t Y(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>( 0.257f * r + 0.504f * g + 0.098f * b + 16.0f );
+  return static_cast<uint8_t>(0.257f * r + 0.504f * g + 0.098f * b + 16.0f);
 }
 
 inline static uint8_t Cb(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>( -0.148f * r - 0.291f * g + 0.439f * b + 128.0f );
+  return (r == g && g == b) ? 128 :
+    static_cast<uint8_t>(-0.148f * r - 0.291f * g + 0.439f * b + 128.0f);
 }
 
 inline static uint8_t Cr(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>( 0.439f * r - 0.368f * g - 0.071f * b + 128.0f );
+  return (r == g && g == b) ? 128 :
+    static_cast<uint8_t>(0.439f * r - 0.368f * g - 0.071f * b + 128.0f);
 }
 
 template <>
