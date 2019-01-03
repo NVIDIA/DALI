@@ -13,6 +13,18 @@ apt-get install -y --no-install-recommends cmake
 
 cd docs/examples
 
+
+# Prepare videos for VideoReader example
+mkdir -p videos
+container_name=prepared.mp4
+# Download video sample
+wget -q -O ${container_name} https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4
+IFS='.' read -a splitted <<< "$container_name"
+for i in {0..4};
+do
+  ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy videos/${splitted[0]}_$i.${splitted[1]}
+done
+
 test_body() {
     # test code
     find */* -name "*.ipynb" | xargs -i jupyter nbconvert \
