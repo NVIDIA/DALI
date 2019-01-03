@@ -144,7 +144,6 @@ class VSRNet(nn.Module):
 
         batchsize, channels, frames, rows, cols = inputs.size()
 
-        print(inputs.size())
         y, cb, cr = rgb2ycbcr(inputs)
         y /= 255
         target = y[:, :, self.mi, :, :]

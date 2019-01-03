@@ -4,14 +4,14 @@
 # TRAINING CONFIG #
 ###################
 
-export DATA_DIR=video_files
+export DATA_DIR=data_dir
 export RESOLUTION=720p  # options: 540p, 720p, 1080p, 4K
 export LOADER="DALI"  # options: "DALI" or "pytorch"
 export DATA_TYPE=scenes # options: "scenes" or "frames"
 #export CODEC="h264"  #
 #export CRF="18"      # set these three only if used during preprocessing
 #export KEYINT="4"    #
-export ROOT=$DATA_DIR
+export ROOT=$DATA_DIR/$RESOLUTION/scenes
 #export IS_CROPPED="--is_cropped"  # Uncomment to crop input images
 export CROP_SIZE="-1 -1"
 #export CROP_SIZE="540 960"  # Only applicable if --is_cropped uncommented
