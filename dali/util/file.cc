@@ -28,4 +28,12 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri) {
     return std::unique_ptr<FileStream>(new LocalFileStream(uri));
   }
 }
+
+bool FileStream::ReserveFileMappings(unsigned int num) {
+  return LocalFileStream::ReserveFileMappings(num);
+}
+void FileStream::FreeFileMappings(unsigned int num) {
+  LocalFileStream::FreeFileMappings(num);
+}
+
 }  // namespace dali

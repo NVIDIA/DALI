@@ -52,6 +52,9 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       image_label_pairs_(image_label_pairs),
       current_index_(0) {
     file_list_ = spec.GetArgument<string>("file_list");
+    mmap_reserver = FileStream::FileStreamMappinReserver(
+        static_cast<unsigned int>(initial_buffer_fill_));
+    copy_read_data_ = !mmap_reserver.CanShareMappedData();
 
     if (image_label_pairs_.empty()) {
       if (file_list_ == "") {
@@ -83,8 +86,8 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     current_index_ = start_index(shard_id_, num_shards_, Size());
   }
 
-  void PrepareEmpty(ImageLabelWrapper *tesor) override;
-  void ReadSample(ImageLabelWrapper* tensor) override;
+  void PrepareEmpty(ImageLabelWrapper *tensor) override;
+  void ReadSample(ImageLabelWrapper *tensor) override;
 
   Index Size() override;
 
@@ -95,6 +98,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
   Index current_index_;
+  FileStream::FileStreamMappinReserver mmap_reserver;
 };
 
 }  // namespace dali

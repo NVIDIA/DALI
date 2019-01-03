@@ -19,7 +19,6 @@
 
 #include "dali/image/image.h"
 #include "dali/pipeline/operators/reader/loader/sequence_loader.h"
-#include "dali/util/file.h"
 
 
 namespace dali {
@@ -127,9 +126,28 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
   target->SetSourceInfo(frame_filename);
   auto frame = FileStream::Open(frame_filename);
   Index frame_size = frame->Size();
+// ToDo - move to mmap version bellow when more tests are available
+#if 1
   target->Resize({frame_size});
   frame->Read(target->mutable_data<uint8_t>(), frame_size);
   frame->Close();
+#else
+  // Release and unmap memory previously obtained by Get call
+  if (copy_read_data_) {
+    target->Resize({frame_size});
+    frame->Read(target->mutable_data<uint8_t>(), frame_size);
+  } else {
+    auto p = target->Get(frame_size);
+    // Wrap the raw data in the Tensor object.
+    target->ShareData(p, frame_size, {frame_size});
+
+    TypeInfo type;
+    type.SetType<uint8_t>();
+    target->set_type(type);
+  }
+  target->SetSourceInfo(frame_filename);
+  frame->Close();
+#endif
 }
 
 }  // namespace dali

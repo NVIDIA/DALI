@@ -22,6 +22,7 @@
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
+#include "dali/util/file.h"
 
 namespace dali {
 
@@ -97,6 +98,9 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
     DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");
+    mmap_reserver = FileStream::FileStreamMappinReserver(
+        static_cast<unsigned int>(initial_buffer_fill_) * sequence_length_);
+    copy_read_data_ = !mmap_reserver.CanShareMappedData();
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
@@ -121,6 +125,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   std::vector<std::vector<std::string>> sequences_;
   Index total_size_;
   Index current_sequence_;
+  FileStream::FileStreamMappinReserver mmap_reserver;
 
   void LoadFrame(const std::vector<std::string> &s, Index frame, Tensor<CPUBackend> *target);
 };

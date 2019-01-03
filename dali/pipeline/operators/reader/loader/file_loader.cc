@@ -105,13 +105,21 @@ void FileLoader::ReadSample(ImageLabelWrapper* image_label) {
   auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first);
   Index image_size = current_image->Size();
 
-  // resize tensor to hold [image]
-  image_label->image.Resize({image_size});
+  if (copy_read_data_) {
+    image_label->image.Resize({image_size});
+    // copy the image
+    current_image->Read(image_label->image.mutable_data<uint8_t>(), image_size);
+  } else {
+    auto p = current_image->Get(image_size);
+    // Wrap the raw data in the Tensor object.
+    image_label->image.ShareData(p, image_size, {image_size});
 
-  // copy the image
-  current_image->Read(image_label->image.mutable_data<uint8_t>(), image_size);
+    TypeInfo type;
+    type.SetType<uint8_t>();
+    image_label->image.set_type(type);
+  }
+
   image_label->image.SetSourceInfo(image_pair.first);
-
   // close the file handle
   current_image->Close();
 
