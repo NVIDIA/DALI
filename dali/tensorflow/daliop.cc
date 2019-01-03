@@ -49,11 +49,19 @@ namespace tf = tensorflow;
       }                                                                            \
     } while (0)
 
-tf::TensorShape DaliToShape(int64_t* ns) {
+struct CDeleter {
+  void operator()(void *p) {
+    free(p);
+  }
+};
+
+template <typename T>
+using AutoCPtr = std::unique_ptr<T, CDeleter>;
+
+static tf::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
   tf::TensorShape ts;
-  for (int i = 0; ns[i] != 0; ++i)
-    ts.InsertDim(i, ns[i]);
-  delete ns;
+  for (int i = 0; ns.get()[i] != 0; ++i)
+    ts.InsertDim(i, ns.get()[i]);
   return ts;
 }
 
@@ -161,9 +169,10 @@ class DaliOp : public tf::OpKernel {
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
     for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
-      int64_t* data_tensor_shape;
-      TF_DALI_CALL(data_tensor_shape = daliShapeAt(&pipe_handle_, i));
-      tf::TensorShape data_output_shape = DaliToShape(data_tensor_shape);
+      tf::TensorShape data_output_shape;
+      TF_DALI_CALL(
+        data_output_shape = DaliToShape(AutoCPtr<int64_t>(
+            daliShapeAt(&pipe_handle_, i)) ));
       // If tensor has shape provided it need to match
       OP_REQUIRES(context, shapes_[i].dims() <= 0 || data_output_shape == shapes_[i],
       tf::errors::InvalidArgument("DALI pipeline output shape at " + std::to_string(i) +

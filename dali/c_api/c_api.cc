@@ -72,17 +72,19 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
     t.ShareData(ws->Output<dali::CPUBackend>(n));
 
     std::vector<dali::Index> shape = t.shape();
-    c_shape = new int64_t[shape.size() + 1];
+    c_shape = static_cast<int64_t*>(
+      malloc(sizeof(int64_t) * (shape.size() + 1)));
     c_shape[shape.size()] = 0;
-    memcpy(c_shape, &shape[0], shape.size() * sizeof (int64_t));
+    memcpy(c_shape, &shape[0], shape.size() * sizeof(int64_t));
   } else {
     dali::Tensor<dali::GPUBackend> t;
     t.ShareData(ws->Output<dali::GPUBackend>(n));
 
     std::vector<dali::Index> shape = t.shape();
-    c_shape = new int64_t[shape.size() + 1];
+    c_shape = static_cast<int64_t*>(
+      malloc(sizeof(int64_t) * (shape.size() + 1)));
     c_shape[shape.size()] = 0;
-    memcpy(c_shape, &shape[0], shape.size() * sizeof (int64_t));
+    memcpy(c_shape, &shape[0], shape.size() * sizeof(int64_t));
   }
   return c_shape;
 }
@@ -119,4 +121,3 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
 }
-
