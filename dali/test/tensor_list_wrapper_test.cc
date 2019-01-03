@@ -14,6 +14,7 @@
 
 #include <dali/test/tensor_list_wrapper.h>
 #include <gtest/gtest.h>
+#include <dali/pipeline/data/tensor.h>
 
 namespace dali {
 namespace testing {
@@ -24,9 +25,35 @@ TEST(TensorListWrapper, EmptyWrapperBoolOperator) {
 }
 
 
-TEST(TensorListWrapper, EmptyWrapperGetBackend) {
-  TensorListWrapper tw;
-  ASSERT_THROW(tw.get_backend(), std::runtime_error);
+TEST(TensorListWrapper, GetCpuTl) {
+  TensorList<CPUBackend> tl;
+  TensorListWrapper tw(&tl);
+  EXPECT_ANY_THROW(tw.get<GPUBackend>());
+  EXPECT_NO_THROW(tw.get<CPUBackend>());
+}
+
+
+TEST(TensorListWrapper, GetGpuTl) {
+  TensorList<GPUBackend> tl;
+  TensorListWrapper tw(&tl);
+  EXPECT_ANY_THROW(tw.get<CPUBackend>());
+  EXPECT_NO_THROW(tw.get<GPUBackend>());
+}
+
+
+TEST(TensorListWrapper, HasCpu) {
+  TensorList<CPUBackend> tl;
+  TensorListWrapper tw(&tl);
+  EXPECT_TRUE(tw.has_cpu());
+  EXPECT_FALSE(tw.has_gpu());
+}
+
+
+TEST(TensorListWrapper, HasGpu) {
+  TensorList<GPUBackend> tl;
+  TensorListWrapper tw(&tl);
+  EXPECT_TRUE(tw.has_gpu());
+  EXPECT_FALSE(tw.has_cpu());
 }
 
 }  // namespace testing

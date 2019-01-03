@@ -32,10 +32,6 @@ class TensorListWrapper {
 
   TensorListWrapper() = default;
 
-  enum Backend {
-    CPU, GPU,
-  };
-
 
   template<typename Backend>
   const TensorList<Backend> *get() const {
@@ -43,11 +39,12 @@ class TensorListWrapper {
                  "Backend type not supported. You may want to write your own specialization");
   }
 
+  constexpr bool has_cpu() const noexcept {
+    return cpu_ != nullptr;
+  }
 
-  /// Because no type deduction in C++11
-  TensorListWrapper::Backend get_backend() {
-    DALI_ENFORCE(*this, "TensorWrapper doesn't represent any underlying data");
-    return gpu_ == nullptr ? CPU : GPU;
+  constexpr bool has_gpu() const noexcept {
+    return gpu_ != nullptr;
   }
 
 
