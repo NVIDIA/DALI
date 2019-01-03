@@ -38,7 +38,7 @@ class TensorListWrapper {
 
 
   template<typename Backend>
-  const TensorList<Backend> *get() const noexcept {
+  const TensorList<Backend> *get() const {
     DALI_ENFORCE(false,
                  "Backend type not supported. You may want to write your own specialization");
   }
@@ -63,14 +63,14 @@ class TensorListWrapper {
 
 
 template<>
-inline const TensorList<CPUBackend> *TensorListWrapper::get() const noexcept {
+inline const TensorList<CPUBackend> *TensorListWrapper::get() const {
   DALI_ENFORCE(cpu_, "This wrapper doesn't contain TensorList<CPUBackend>");
   return cpu_;
 }
 
 
 template<>
-inline const TensorList<GPUBackend> *TensorListWrapper::get() const noexcept {
+inline const TensorList<GPUBackend> *TensorListWrapper::get() const {
   DALI_ENFORCE(gpu_, "This wrapper doesn't contain TensorList<GPUBackend>");
   return gpu_;
 }
