@@ -56,6 +56,7 @@ def get_loader(args, ds_type):
 
     if args.loader == 'pytorch':
 
+
         if ds_type == 'train':
             dataset = imageDataset(
                 args.frames,
@@ -65,11 +66,16 @@ def get_loader(args, ds_type):
                 args.batchsize,
                 args.world_size)
 
+            if args.world_size > 1:
+                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+            else:
+                sampler = torch.utils.data.RandomSampler(dataset)
+
             loader = DataLoader(
                 dataset,
                 batch_size=args.batchsize,
                 shuffle=(sampler is None),
-                num_workers=10,
+                num_workers=0,
                 pin_memory=True,
                 sampler=sampler,
                 drop_last=True)
@@ -86,6 +92,11 @@ def get_loader(args, ds_type):
                 args.batchsize,
                 args.world_size)
 
+            if args.world_size > 1:
+                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+            else:
+                sampler = torch.utils.data.RandomSampler(dataset)
+
             loader = DataLoader(
                 dataset,
                 batch_size=1,
@@ -96,8 +107,6 @@ def get_loader(args, ds_type):
                 drop_last=True)
 
             batches = math.ceil(len(dataset) / float(args.world_size))
-
-        sampler = torch.utils.data.distributed.DistributedSampler(dataset)
 
     elif args.loader == 'DALI':
 

@@ -9,7 +9,7 @@ from math import ceil, floor
 from tensorboardX import SummaryWriter
 
 import torch
-# import torch.distributed as dist
+import torch.distributed as dist
 import torch.optim as optim
 import torch.utils.data.distributed
 from torch.multiprocessing import Process
@@ -22,7 +22,10 @@ from model.clr import cyclic_learning_rate
 
 from nvidia.fp16 import FP16_Optimizer
 from nvidia.fp16util import network_to_half
-# from nvidia.distributed import DistributedDataParallel
+try:
+    from nvidia.distributed import DistributedDataParallel
+except ImportError:
+    print('ImportError: "DistributedDataParallel" from nvidia.distributed: is it installed?')
 
 
 parser = argparse.ArgumentParser()
@@ -81,16 +84,17 @@ def main(args):
     torch.cuda.manual_seed(args.seed + args.rank)
     torch.backends.cudnn.benchmark = True
 
-    #log.info('Initializing process group')
-    #dist.init_process_group(
-    #    backend='nccl',
-    #    init_method='tcp://' + args.ip + ':3567',
-    #    world_size=args.world_size,
-    #    rank=args.rank)
-   # log.info('Process group initialized')
+    if args.world_size > 1:
+        log.info('Initializing process group')
+        dist.init_process_group(
+            backend='nccl',
+            init_method='tcp://' + args.ip + ':3567',
+            world_size=args.world_size,
+            rank=args.rank)
+        log.info('Process group initialized')
 
-    log.info("Initializing dataloader...")
-    train_loader, train_batches,sampler = get_loader(args, 'train')
+    log.info('Initializing ' + args.loader + ' training dataloader...')
+    train_loader, train_batches, sampler = get_loader(args, 'train')
     samples_per_epoch = train_batches * args.batchsize
     log.info('Dataloader initialized')
 
@@ -110,14 +114,17 @@ def main(args):
     if args.fp16:
         optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
 
-    # model = DistributedDataParallel(model)
+    if args.world_size > 1:
+        model = DistributedDataParallel(model)
 
-    # BEGIN TRAINING
+    # TRAINING
     total_iter = 0
     while total_iter * args.world_size < args.max_iter:
 
         epoch = floor(total_iter / train_batches)
-        if args.loader == 'pytorch':
+
+        # only if we are using DistributedSampler
+        if args.world_size > 1 and args.loader == 'pytorch':
             sampler.set_epoch(epoch)
 
         model.train()
@@ -129,19 +136,14 @@ def main(args):
 
         iter_start = time.perf_counter()
 
-
         # TRAINING EPOCH LOOP
         for i, inputs in enumerate(train_loader):
 
             if args.loader == 'DALI':
-                print(len(inputs))
                 inputs = inputs[0]["data"]
-                print(inputs.shape)
-                print(inputs.dtype)
                 ### Temporary numpy pipeline ###
                 # NFHWC to NCFHW
                 np_tmp = inputs.cpu().numpy().transpose((0, 4, 1, 2, 3))
-                print(np_tmp.shape)
                 np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 100:612, 150:1110]) # crop to 512x960
                 inputs = torch.from_numpy(np_tmp)
 
@@ -178,7 +180,9 @@ def main(args):
                     torch.cuda.synchronize()
                     iter_end = time.perf_counter()
                     sample_timer += (iter_end - iter_start)
-                    data_timer += (data_end - iter_start)
+                    data_duration = data_end - iter_start
+                    data_timer += data_duration
+                    print("Data loaded in " + str(data_duration) + "s")
                     compute_timer += (iter_end - data_end)
                     torch.cuda.synchronize()
                     iter_start = time.perf_counter()
@@ -186,46 +190,41 @@ def main(args):
                 writer.add_scalar('train_loss', loss.item(), total_iter)
 
             log.info('Rank %d, Epoch %d, Iteration %d of %d, loss %.5f' %
-                    (0, epoch, i+1, train_batches, loss.item()))
-                    #(dist.get_rank(), epoch, i+1, train_batches, loss.item()))
+                    (args.rank, epoch, i+1, train_batches, loss.item()))
 
             total_iter += 1
+            if total_iter > args.max_iter:
+                break
 
-        #if args.rank == 0:
-        if args.timing:
-            sample_timer_avg = sample_timer / samples_per_epoch
-            writer.add_scalar('sample_time', sample_timer_avg, total_iter)
-            data_timer_avg = data_timer / samples_per_epoch
-            writer.add_scalar('sample_data_time', data_timer_avg, total_iter)
-            compute_timer_avg = compute_timer / samples_per_epoch
-            writer.add_scalar('sample_compute_time', compute_timer_avg, total_iter)
-        epoch_loss_avg = total_epoch_loss / train_batches
-        log.info('Rank %d, epoch %d: %.5f' % (0, epoch, epoch_loss_avg))
-        #log.info('Rank %d, epoch %d: %.5f' % (dist.get_rank(), epoch, epoch_loss_avg))
+        if args.rank == 0:
+            if args.timing:
+                sample_timer_avg = sample_timer / samples_per_epoch
+                writer.add_scalar('sample_time', sample_timer_avg, total_iter)
+                data_timer_avg = data_timer / samples_per_epoch
+                writer.add_scalar('sample_data_time', data_timer_avg, total_iter)
+                compute_timer_avg = compute_timer / samples_per_epoch
+                writer.add_scalar('sample_compute_time', compute_timer_avg, total_iter)
+            epoch_loss_avg = total_epoch_loss / train_batches
+            log.info('Rank %d, epoch %d: %.5f' % (args.rank, epoch, epoch_loss_avg))
 
 
-        ### Val
-        '''
+        ### VALIDATION
+        log.info('Initializing ' + args.loader + ' validation dataloader...')
         val_loader, val_batches, sampler = get_loader(args, 'val')
         model.eval()
         total_loss = 0
         total_psnr = 0
         for i, inputs in enumerate(val_loader):
-
             if args.loader == 'DALI':
-                inputs = inputs['input']
-                inputs = inputs[0]
-                # 1st output of pipeline for data category
-                inputs = inputs["data"][0]
-                print("Before", inputs.size())
-                # TODO - transformation - crop, transpose axes, return as floats
-                # NSHWC to NCSHW
-                np_tmp = np_tmp.cpu()
-                np_tmp = inputs.numpy().swapaxes(3, 4).swapaxes(2, 3).swapaxes(1, 2).astype(np.float32)
-                np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 14:526, :]) # crop to 512x960
+                inputs = inputs[0]["data"]
+                ### Temporary numpy pipeline ###
+                # NFHWC to NCFHW
+                np_tmp = inputs.cpu().numpy().transpose((0, 4, 1, 2, 3))
+                np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 100:612, 150:1110]) # crop to 512x960
                 inputs = torch.from_numpy(np_tmp)
-                #inputs = inputs.cuda(non_blocking=True)
-                print("After", inputs.size())
+
+                # Needed? It is already gpu
+                inputs = inputs.cuda(non_blocking=True)
             else:
                 inputs = inputs.cuda(non_blocking=True)
                 if args.fp16:
@@ -242,11 +241,9 @@ def main(args):
         if args.rank == 0:
             writer.add_scalar('val_loss', loss, total_iter)
             writer.add_scalar('val_psnr', psnr, total_iter)
-        log.info('Rank %d validation loss %.5f' % (0, loss))
-        log.info('Rank %d validation psnr %.5f' % (0, psnr))
-        #log.info('Rank %d validation loss %.5f' % (dist.get_rank(), loss))
-        #log.info('Rank %d validation psnr %.5f' % (dist.get_rank(), psnr))
-        '''
+        log.info('Rank %d validation loss %.5f' % (args.rank, loss))
+        log.info('Rank %d validation psnr %.5f' % (args.rank, psnr))
+
 if __name__=='__main__':
     main(parser.parse_args())
 
