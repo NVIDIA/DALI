@@ -21,38 +21,34 @@ namespace dali {
 
 namespace detail {
 
-template<size_t C1, size_t C2, size_t C, typename T = uint8_t>
-__global__ void SwapPackedChannelsKernel(const T *input, T *output, size_t total_pixels) {
-  static_assert(C <= 4,           "C>4 not supported");
-  static_assert(C1 < C && C2 < C, "C1 and C2 in the range 0 .. C-1");
-  static_assert(C1 != C2,         "C1 and C2 cannot be the same");
-
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+template<typename T = uint8_t>
+__global__ void ConvertRGBToBGRKernel(const T *input, T *output, unsigned int total_pixels) {
+  unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
 
+  const unsigned int C = 3;
   const T* pixel_in = &input[idx * C];
   T* pixel_out = &output[idx * C];
 
-  memcpy(pixel_out, pixel_in, sizeof(T)*C);
-  T tmp = pixel_out[C2];
-  pixel_out[C2] = pixel_out[C1];
-  pixel_out[C1] = tmp;
+  T c0 = pixel_in[0];
+  pixel_out[0] = pixel_in[2];
+  pixel_out[1] = pixel_in[1];
+  pixel_out[2] = c0;
 }
 
-auto ConvertRGBToBGRKernel = SwapPackedChannelsKernel<0, 2, 3>;
-auto ConvertBGRToRGBKernel = ConvertRGBToBGRKernel;
+auto ConvertBGRToRGBKernel = ConvertRGBToBGRKernel<uint8_t>;
 
 template<typename T = uint8_t>
-__global__ void ConvertGrayToRGBKernel(const T *input, T *output, size_t total_pixels) {
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void ConvertGrayToRGBKernel(const T *input, T *output, unsigned int total_pixels) {
+  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
 
   const T* pixel_in = &input[idx];
-  const size_t C = 3;
+  const unsigned int C = 3;
   T* pixel_out = &output[idx * C];
   pixel_out[0] = pixel_in[0];
   pixel_out[1] = pixel_in[0];
@@ -60,14 +56,14 @@ __global__ void ConvertGrayToRGBKernel(const T *input, T *output, size_t total_p
 }
 
 template<typename T = uint8_t>
-__global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, size_t total_pixels) {
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, unsigned int total_pixels) {
+  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
 
   const T* pixel_in = &input[idx];
-  const size_t C = 3;
+  const unsigned int C = 3;
   T* pixel_out = &output[idx * C];
   pixel_out[0] = pixel_in[0];
   pixel_out[1] = 0;
@@ -75,13 +71,13 @@ __global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, size_t total
 }
 
 template<typename T = uint8_t>
-__global__ void ConvertYCbCrToGrayKernel(const T *input, T *output, size_t total_pixels) {
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void ConvertYCbCrToGrayKernel(const T *input, T *output, unsigned int total_pixels) {
+  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
 
-  const size_t C = 3;
+  const unsigned int C = 3;
   const T* pixel_in = &input[idx * C];
   T* pixel_out = &output[idx];
   pixel_out[0] = pixel_in[0];
@@ -103,7 +99,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
   vector<Dims> input_shape = input.shape();
   vector<Dims> output_shape = input_shape;
   if ( input_C != output_C ) {
-    for (size_t i = 0; i < input.ntensor(); ++i) {
+    for (unsigned int i = 0; i < input.ntensor(); ++i) {
       DALI_ENFORCE(input_shape[i][2] == input_C,
         "Wrong number of channels for input");
       output_shape[i][2] = output_C;
@@ -122,7 +118,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 
   if (input.GetLayout() == DALI_NHWC) {
     // RGB -> BGR || BGR -> RGB
-    for (size_t i = 0; i < input.ntensor(); ++i) {
+    for (unsigned int i = 0; i < input.ntensor(); ++i) {
       // image dimensions
       DALISize size;
       size.height = input.tensor_shape(i)[0];
