@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/test/tensor_list_wrapper.h>
 #include <gtest/gtest.h>
-#include <dali/pipeline/data/tensor.h>
+#include "dali/pipeline/data/tensor.h"
+#include "dali/test/tensor_list_wrapper.h"
 
 namespace dali {
 namespace testing {
