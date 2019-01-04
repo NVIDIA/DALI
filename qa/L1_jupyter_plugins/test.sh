@@ -2,6 +2,9 @@
 # used pip packages
 pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch"
 
+apt-get update
+apt-get install -y ffmpeg
+
 pushd ../..
 
 # attempt to run jupyter on all example notebooks
