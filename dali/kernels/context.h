@@ -28,7 +28,7 @@ struct Context {};
 
 template <>
 struct Context<ComputeGPU> {
-  cudaStream_t stream;
+  cudaStream_t stream = 0;
 };
 
 class ScratchpadAllocator {

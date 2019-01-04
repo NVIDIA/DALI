@@ -51,11 +51,11 @@ void CheckEqual(
 
   if (errors) {
     if (errors > max_errors) {
-      FAIL() << " (" << (errors - max_errors) << " more)";
       max_errors = 0;
+      FAIL() << " (" << (errors - max_errors) << " more)";
     } else {
-      FAIL();
       max_errors -= errors;
+      FAIL();
     }
   }
 }
@@ -102,11 +102,11 @@ void Check(
 
   if (errors) {
     if (errors > max_errors) {
-      FAIL() << " (" << (errors - max_errors) << " more)";
       max_errors = 0;
+      FAIL() << " (" << (errors - max_errors) << " more)";
     } else {
-      FAIL();
       max_errors -= errors;
+      FAIL();
     }
   }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
+#include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/test/test_tensors.h"
 #include "dali/kernels/tensor_shape_str.h"
@@ -28,11 +29,19 @@ namespace dali {
 namespace kernels {
 
 template <typename Input1, typename Input2, typename Output>
-struct MADKernel {
+__global__ void
+ElementwiseMAD(size_t n, Output *o, const Input1 *i1, const Input2 *i2, float alpha) {
+  size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < n)
+    o[idx] = i1[idx] * alpha + i2[idx];
+}
+
+template <typename Input1, typename Input2, typename Output>
+struct MADKernelGPU {
   static KernelRequirements GetRequirements(
       KernelContext &context,
-      const InListCPU<Input1, 3> &i1,
-      const InListCPU<Input2, 3> &i2,
+      const InListGPU<Input1, 3> &i1,
+      const InListGPU<Input2, 3> &i2,
       float A) {
     KernelRequirements req;
     req.output_shapes = { i1.shape };
@@ -41,46 +50,39 @@ struct MADKernel {
 
   static void Run(
       KernelContext &context,
-      const OutListCPU<Output, 3> &o,
-      const InListCPU<Input1, 3> &i1,
-      const InListCPU<Input2, 3> &i2,
+      const OutListGPU<Output, 3> &o,
+      const InListGPU<Input1, 3> &i1,
+      const InListGPU<Input2, 3> &i2,
       float A) {
-    int samples = i1.num_samples();
-    for (int n = 0; n < samples; n++) {
-      auto tshape = i1.shape.tensor_shape_span(n);
-      int d = tshape[0];
-      int h = tshape[1];
-      int w = tshape[2];
+    auto n = i1.num_elements();
+    assert(i2.num_elements() == n);
+    assert(o.num_elements() == n);
+    size_t block = 1024;
+    size_t grid = (n + block - 1) / block;
 
-      auto t1 = i1[n];
-      auto t2 = i2[n];
-      auto to = o[n];
+    cout << o.data << " " << i1.data << " " << i2.data << " n = " << n << endl;
 
-      for (int z = 0; z < d; z++) {
-        for (int y = 0; y < h; y++) {
-          for (int x = 0; x < w; x++) {
-            *to(z, y, x) = *t1(z, y, x) * A + *t2(z, y, x);
-          }
-        }
-      }
-    }
+    ElementwiseMAD<<<grid, block, 0, context.gpu.stream>>>(n, o.data, i1.data, i2.data, A);
+
+    cout << "Kernel done" << endl;
   }
 };
 
 template <typename Kernel_>
-class KernelPoC_CPU : public ::testing::Test, public testing::SimpleKernelTestBase<Kernel_> {
+class KernelPoC_GPU : public ::testing::Test, public testing::SimpleKernelTestBase<Kernel_> {
 };
 
-using PoC_MAD = ::testing::Types<
-  MADKernel<float, float, float>,
-  MADKernel<int,   float, float>,
-  MADKernel<float, int,   float>,
-  MADKernel<int,   int,   int>
+
+using PoC_MAD_GPU = ::testing::Types<
+  MADKernelGPU<float, float, float>,
+  MADKernelGPU<int,   float, float>,
+  MADKernelGPU<float, int,   float>,
+  MADKernelGPU<int,   int,   int>
 >;
 
-TYPED_TEST_CASE(KernelPoC_CPU, PoC_MAD);
+TYPED_TEST_CASE(KernelPoC_GPU, PoC_MAD_GPU);
 
-TYPED_TEST(KernelPoC_CPU, All) {
+TYPED_TEST(KernelPoC_GPU, All) {
   using MyType = typename std::remove_pointer<decltype(this)>::type;
   using Input1 = typename MyType::template InputElement<0>;
   using Input2 = typename MyType::template InputElement<1>;
@@ -89,9 +91,9 @@ TYPED_TEST(KernelPoC_CPU, All) {
 
   std::mt19937_64 rng;
 
-  InListCPU<Input1, 3> i1;
-  InListCPU<Input2, 3> i2;
-  OutListCPU<Output, 3> o1, o2;
+  InListGPU<Input1, 3> i1;
+  InListGPU<Input2, 3> i2;
+  OutListGPU<Output, 3> o1, o2;
 
   KernelContext ctx;
 
@@ -113,23 +115,25 @@ TYPED_TEST(KernelPoC_CPU, All) {
   UniformRandomFill(tl1.template cpu<3>(0), rng, 0, max1);
   UniformRandomFill(tl2.template cpu<3>(0), rng, 0, max2);
 
-  i1 = tl1.template cpu<3>();
-  i2 = tl2.template cpu<3>();
+  i1 = tl1.template gpu<3>();
+  i2 = tl2.template gpu<3>();
+  auto i1_cpu = tl1.template cpu<3>();
+  auto i2_cpu = tl2.template cpu<3>();
 
   float a = 0.5f;
 
   auto req = K.GetRequirements(ctx, i1, i2, a);
-  ASSERT_EQ(req.output_shapes.size(), 1);
+  ASSERT_EQ((int)req.output_shapes.size(), 1);
   ASSERT_NO_FATAL_FAILURE(CheckEqual(req.output_shapes[0], i1.shape));
 
   // Kernel's native Run
   tlo1.reshape(req.output_shapes[0]);
-  o1 = tlo1.template cpu<3>();
+  o1 = tlo1.template gpu<3>();
   K.Run(ctx, o1, i1, i2, a);
 
   // use uniform call with argument tuples
   tlo2.reshape(req.output_shapes[0]);
-  o2 = tlo2.template cpu<3>();
+  o2 = tlo2.template gpu<3>();
   kernels::kernel::Run<decltype(K)>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
 
   // verify that shape hasn't changed
@@ -143,13 +147,16 @@ TYPED_TEST(KernelPoC_CPU, All) {
   // calculate the reference - since it's purely elementwise,
   // we can skip the tedious multidimensional indexing
   for (ptrdiff_t i = 0; i < total; i++) {
-    ref.data[i] = i1.data[i] * a + i2.data[i];
+    ref.data[i] = i1_cpu.data[i] * a + i2_cpu.data[i];
   }
 
-  Check(o1, ref, EqualEps(1e-6));
+  auto o1_cpu = tlo1.template cpu<3>();
+  auto o2_cpu = tlo2.template cpu<3>();
+
+  Check(o1_cpu, ref, EqualEps(1e-6));
 
   // native and uniform calls should yield bit-exact results
-  Check(o1, o2);
+  Check(o1_cpu, o2_cpu);
 }
 
 }  // namespace kernels
