@@ -18,7 +18,10 @@ import glob
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
-for _libdali_tf in _tf_plugins:
+# move plugin build against nightly to the end of list
+_processed_tf_plugins = list(filter(lambda x: 'nightly' not in x, _tf_plugins)) + list(filter(lambda x: 'nightly' in x, _tf_plugins))
+
+for _libdali_tf in _processed_tf_plugins:
   try:
     _dali_tf_module = tf.load_op_library(_libdali_tf)
     break
