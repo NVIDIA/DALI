@@ -2,6 +2,9 @@
 # used pip packages
 pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch"
 
+apt-get update
+apt-get install -y ffmpeg
+
 pushd ../..
 
 # attempt to run jupyter on all example notebooks
@@ -15,14 +18,14 @@ cd docs/examples
 
 
 # Prepare videos for VideoReader example
-mkdir -p videos
+mkdir -p video/video_files
 container_name=prepared.mp4
 # Download video sample
 wget -q -O ${container_name} https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4
 IFS='.' read -a splitted <<< "$container_name"
 for i in {0..4};
 do
-  ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy videos/${splitted[0]}_$i.${splitted[1]}
+  ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy video/video_files/${splitted[0]}_$i.${splitted[1]}
 done
 
 test_body() {

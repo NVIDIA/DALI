@@ -33,8 +33,9 @@ def YUV2RGB(yuv):
     rgb[:,:,2]-=226.8183044444304
     return rgb
 
-VIDEO_FILES=os.listdir("videos")
-VIDEO_FILES = ['videos/' + f for f in VIDEO_FILES]
+VIDEO_DIRECTORY="video_files"
+VIDEO_FILES=os.listdir(VIDEO_DIRECTORY)
+VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 
 ITER=100
 
