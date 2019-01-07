@@ -17,7 +17,7 @@ import sys
 import copy
 from itertools import count
 from nvidia.dali import backend as b
-from nvidia.dali.tensor import TensorReference
+from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
@@ -95,12 +95,12 @@ class _OperatorInstance(object):
             self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
         if inputs:
-            if isinstance(inputs[0], TensorReference):
+            if isinstance(inputs[0], EdgeReference):
                 for inp in inputs:
-                    if not isinstance(inp, TensorReference):
+                    if not isinstance(inp, EdgeReference):
                         raise TypeError(
                             ("Expected inputs of type " +
-                            "TensorReference. Received " +
+                            "EdgeReference. Received " +
                             "input type {}.")
                             .format(type(inp).__name__))
                     self._spec.AddInput(inp.name, inp.device)
@@ -111,7 +111,7 @@ class _OperatorInstance(object):
                         if not isinstance(inp, list):
                             raise TypeError(
                                 ("Expected inputs of type list of " +
-                                "TensorReference. Received " +
+                                "EdgeReference. Received " +
                                 "input type {}.")
                                 .format(type(inp).__name__))
                         if len(inp) != length:
@@ -121,26 +121,26 @@ class _OperatorInstance(object):
                                     "({}). Received list of " +
                                     "length {}.")
                                     .format(length, len(inp)))
-                        if not isinstance(inp[i], TensorReference):
+                        if not isinstance(inp[i], EdgeReference):
                             raise TypeError(
                                 ("Expected inputs of type " +
-                                "TensorReference. Received " +
+                                "EdgeReference. Received " +
                                 "input type {}.")
                                 .format(type(inp[i]).__name__))
                         self._spec.AddInput(inp[i].name, inp[i].device)
                 self._spec.AddArg("num_input_sets", length)
             else:
                 raise TypeError(
-                    ("Expected inputs of type TensorReference or list of " +
-                    "TensorReference. Received input type {}")
+                    ("Expected inputs of type EdgeReference or list of " +
+                    "EdgeReference. Received input type {}")
                     .format(type(inputs[0]).__name__))
         # Argument inputs
         for k in sorted(kwargs.keys()):
             if k not in ["name"]:
-                if not isinstance(kwargs[k], TensorReference):
+                if not isinstance(kwargs[k], EdgeReference):
                     raise TypeError(
                             ("Expected inputs of type " +
-                            "TensorReference. Received " +
+                            "EdgeReference. Received " +
                             "input type {}")
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
@@ -160,7 +160,7 @@ class _OperatorInstance(object):
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = TensorReference(t_name, output_device, self)
+            t = EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             self.append_output(t)
 
@@ -322,7 +322,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         features = []
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
-            t = TensorReference(t_name, self._device, op_instance)
+            t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             outputs[feature_name] = t
