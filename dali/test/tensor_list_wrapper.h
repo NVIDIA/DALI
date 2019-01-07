@@ -39,12 +39,25 @@ class TensorListWrapper {
                  "Backend type not supported. You may want to write your own specialization");
   }
 
+
   constexpr bool has_cpu() const noexcept {
     return cpu_ != nullptr;
   }
 
+
   constexpr bool has_gpu() const noexcept {
     return gpu_ != nullptr;
+  }
+
+
+  std::string backend() const noexcept {
+    if (cpu_) {
+      return "cpu";
+    } else if (gpu_) {
+      return "gpu";
+    } else {
+      DALI_FAIL("Unknown backend. If you are here, something went terribly wrong");
+    }
   }
 
 

@@ -36,7 +36,7 @@ constexpr float kEpsilon = 0.001f;
  * Both of them have coordinates in image coordinate system
  * (i.e. 0.0-1.0)
  */
-using Roi = std::vector<float>;
+using Roi = std::array<float, kBbStructSize>;
 
 
 constexpr int kTestDataSize = 10;
@@ -91,9 +91,10 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<typename Backend>
 std::unique_ptr<TensorList<Backend>> ToTensorList(Roi roi) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({{kBbStructSize}});
+  tl->Resize({{1,kBbStructSize}});
+//  tl->Resize({{kBbStructSize}});
   auto ptr = tl->template mutable_data<float>();
-  assert(roi.size() == kBbStructSize);
+  static_assert(roi.size() == kBbStructSize, "");
   for (size_t i = 0; i < kBbStructSize; i++) {
     ptr[i] = roi[i];
   }
@@ -105,7 +106,10 @@ template<typename Backend>
 Roi FromTensorWrapper(TensorListWrapper tw) {
   auto tl = tw.get<Backend>();
   auto ptr = tl->template data<float>();
-  Roi roi{ptr, ptr + kBbStructSize};
+  Roi roi;
+  for (size_t i = 0; i < kBbStructSize; i++) {
+    roi[i] = *ptr++;
+  }
   return roi;
 }
 
@@ -133,13 +137,14 @@ void Verify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
 }  // namespace
 
 class BbFlipTest : public testing::DaliOperatorTest {
-  GraphDescr GenerateOperatorsGraph() const noexcept override {
+  GraphDescr GenerateOperatorGraph() const noexcept override {
     GraphDescr graph("BbFlip");
     return graph;
   }
+
+
  public:
-  BbFlipTest():DaliOperatorTest(1,1){}
-//  virtual ~BbFlipTest()= default;
+  BbFlipTest() : DaliOperatorTest(1, 1) {}
 };
 
 std::vector<Arguments> arguments = {
@@ -153,7 +158,7 @@ TEST_P(BbFlipTest, WhRoisTest) {
   for (auto test_sample : rois_wh) {
     auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
     TensorListWrapper tlout;
-    this->RunTest(tlin.get(), tlout, GetParam(), testing::Verify<false>);
+    this->RunTest<CPUBackend>(tlin.get(), tlout, GetParam(), testing::Verify<false>);
   }
 }
 

@@ -48,11 +48,6 @@ inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
-
-//std::unique_ptr<Pipeline> BuildPipeline(GraphDescr graph, Arguments arguments) {
-//
-//}
-
 }  // namespace detail
 
 
@@ -62,29 +57,28 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   DaliOperatorTest(size_t batch_size, size_t num_thread) :
           batch_size_(batch_size), num_threads_(num_thread) {}
 
-//          virtual ~DaliOperatorTest()= default;
-
 
   using Verify = std::function<void(const TensorListWrapper /* single input */,
                                     const TensorListWrapper /* single output */, const Arguments)>;
 
  protected:
-  template<typename InputBackend = CPUBackend, typename OutputBackend = CPUBackend>
+  // TODO(mszolucha): documentation
+  template<typename OutputBackend>
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
                const Arguments &operator_arguments, const Verify &verify) {
+    std::string output_backend = detail::BackendStringName<OutputBackend>();
     ResetPipeline(batch_size_, num_threads_);
     if (input) {
-      AddInputToPipeline<InputBackend>(pipeline_.get(), input);
+      AddInputToPipeline(pipeline_.get(), input);
     }
-    auto outputs = RunTestImpl<InputBackend, OutputBackend>(operator_arguments, verify,
-                                                            input ? true : false);
+    auto outputs = RunTestImpl<OutputBackend>(operator_arguments, verify, input ? true : false,
+                                              input.backend(), output_backend);
     assert(outputs.size() == 1); // one input, one output
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
   }
 
 
-  template<typename InputBackend = CPUBackend, typename OutputBackend = CPUBackend>
   void
   RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
           const Arguments &operator_arguments, const std::vector<Verify> &verify) {
@@ -93,7 +87,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
 
  private:
-  virtual GraphDescr GenerateOperatorsGraph() const noexcept = 0;
+  virtual GraphDescr GenerateOperatorGraph() const noexcept = 0;
 
 
   void SetUp() final {
@@ -104,15 +98,16 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
 
-  template<typename InputBackend, typename OutputBackend>
+  template<typename OutputBackend>
   std::vector<TensorListWrapper>
-  RunTestImpl(const Arguments &operator_arguments, const Verify &verify, bool has_inputs) {
-    const auto op_spec = CreateOpSpec<InputBackend, OutputBackend>(
-            GenerateOperatorsGraph().get_op_name(), operator_arguments, has_inputs);
+  RunTestImpl(const Arguments &operator_arguments, const Verify &verify, bool has_inputs,
+              const std::string &input_backend, const std::string &output_backend) {
+    const auto op_spec = CreateOpSpec(GenerateOperatorGraph().get_op_name(), operator_arguments,
+                                      has_inputs, input_backend, output_backend);
     AddOperatorToPipeline(pipeline_.get(), op_spec);
     BuildPipeline(pipeline_.get(), op_spec);
     RunPipeline(pipeline_.get());
-    return GetOutputsFromPipeline<OutputBackend>(pipeline_.get());
+    return GetOutputsFromPipeline<OutputBackend>(pipeline_.get(), output_backend);
   }
 
 
@@ -121,12 +116,11 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
 
-  template<typename Backend>
   void AddInputToPipeline(Pipeline *pipeline, const TensorListWrapper &input) {
+    assert(input && input.has_cpu());  // External input works only for CPUBackend
     const std::string input_name = "input";
     pipeline->AddExternalInput(input_name);
-    auto tl = input.get<Backend>();
-    pipeline->SetExternalInput(input_name, *input.get<Backend>());
+    pipeline->SetExternalInput(input_name, *input.get<CPUBackend>());
   }
 
 
@@ -147,20 +141,21 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
 
-  template<typename Backend>
-  std::vector<TensorListWrapper> GetOutputsFromPipeline(Pipeline *pipeline) {
+  template<typename OutputBackend>
+  std::vector<TensorListWrapper>
+  GetOutputsFromPipeline(Pipeline *pipeline, const std::string &output_backend) {
     std::vector<TensorListWrapper> ret;
     auto workspace = CreateWorkspace();
     pipeline->Outputs(&workspace);
     for (int output_idx = 0; output_idx < workspace.NumOutput(); output_idx++) {
-      ret.emplace_back(workspace.template Output<Backend>(output_idx));
+      ret.emplace_back(workspace.template Output<OutputBackend>(output_idx));
     }
     return ret;
   }
 
 
   void BuildPipeline(Pipeline *pipeline, const OpSpec &spec) {
-    std::vector<std::pair<string, string>> vecoutputs_;
+    std::vector<std::pair<std::string, std::string>> vecoutputs_;
     for (int i = 0; i < spec.NumOutput(); ++i) {
       vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
     }
@@ -169,17 +164,20 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
 
   // TODO(mszolucha): graph of operators
-  template<typename InputBackend, typename OutputBackend>
-  OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_arguments,
-                      bool has_input) const {
+  OpSpec
+  CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, bool has_input,
+               const std::string &input_backend, const std::string &output_backend) const {
+    assert(input_backend == "cpu" || input_backend == "gpu");
+    assert(output_backend == "cpu" || output_backend == "gpu");
+
     OpSpec opspec = OpSpec(operator_name);
     for (const auto &arg : operator_arguments) {
       opspec.AddArg(arg.first.arg_name(), arg.second);
     }
     if (has_input) {
-      opspec.AddInput("input", detail::BackendStringName<InputBackend>());
+      opspec.AddInput("input", input_backend);
     }
-    opspec.AddOutput("output", detail::BackendStringName<OutputBackend>());
+    opspec.AddOutput("output", output_backend);
     return opspec;
   }
 
