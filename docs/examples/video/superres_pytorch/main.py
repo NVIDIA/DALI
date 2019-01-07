@@ -22,11 +22,7 @@ from model.clr import cyclic_learning_rate
 
 from nvidia.fp16 import FP16_Optimizer
 from nvidia.fp16util import network_to_half
-try:
-    from nvidia.distributed import DistributedDataParallel
-except ImportError:
-    print('ImportError: "DistributedDataParallel" from nvidia.distributed: is it installed?')
-
+from nvidia.distributed import DistributedDataParallel
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=1, metavar='S',
