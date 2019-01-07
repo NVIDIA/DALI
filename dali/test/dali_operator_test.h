@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@
 namespace dali {
 namespace testing {
 
+using Arguments = std::map<ArgumentKey, int>;  // TODO(mszolucha) some generalization boost::any?
+
 namespace detail {
 
 template<typename Backend>
@@ -46,20 +48,31 @@ inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
+
+//std::unique_ptr<Pipeline> BuildPipeline(GraphDescr graph, Arguments arguments) {
+//
+//}
+
 }  // namespace detail
 
-using Arguments = std::map<ArgumentKey, int>;  // TODO(mszolucha) some generalization boost::any?
 
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
  public:
-  using Verify = std::function<void(TensorListWrapper /* single input */,
-                                    TensorListWrapper /* single output */, Arguments)>;
+
+  DaliOperatorTest(size_t batch_size, size_t num_thread) :
+          batch_size_(batch_size), num_threads_(num_thread) {}
+
+//          virtual ~DaliOperatorTest()= default;
+
+
+  using Verify = std::function<void(const TensorListWrapper /* single input */,
+                                    const TensorListWrapper /* single output */, const Arguments)>;
 
  protected:
   template<typename InputBackend = CPUBackend, typename OutputBackend = CPUBackend>
-  void RunTest(const TensorListWrapper &input, const Arguments &operator_arguments,
-               const Verify &verify) {
-    InitPipeline(batch_size_, num_threads_);
+  void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
+               const Arguments &operator_arguments, const Verify &verify) {
+    ResetPipeline(batch_size_, num_threads_);
     if (input) {
       AddInputToPipeline<InputBackend>(pipeline_.get(), input);
     }
@@ -67,12 +80,14 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
                                                             input ? true : false);
     assert(outputs.size() == 1); // one input, one output
     verify(input, outputs[0], operator_arguments);
+    output = outputs[0];
   }
 
 
   template<typename InputBackend = CPUBackend, typename OutputBackend = CPUBackend>
-  void RunTest(const std::vector<TensorListWrapper> &inputs, const Arguments &operator_arguments,
-               const std::vector<Verify> &verify) {
+  void
+  RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
+          const Arguments &operator_arguments, const std::vector<Verify> &verify) {
     //TODO(mszolucha) implement
   }
 
@@ -101,10 +116,8 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
 
-  void InitPipeline(size_t batch_size, size_t num_threads) {
-    if (!pipeline_) {
-      pipeline_.reset(new Pipeline(static_cast<int>(batch_size), static_cast<int>(num_threads), 0));
-    }
+  void ResetPipeline(size_t batch_size, size_t num_threads) {
+    pipeline_.reset(new Pipeline(static_cast<int>(batch_size), static_cast<int>(num_threads), 0));
   }
 
 
@@ -172,8 +185,8 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
 
   std::unique_ptr<Pipeline> pipeline_;
-  size_t batch_size_ = 1;
-  const size_t num_threads_ = 1;
+  size_t batch_size_;
+  const size_t num_threads_;
 };
 
 }  // namespace testing

@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@ namespace dali {
 namespace testing {
 
 namespace {
-
-std::mutex mutex_;
 
 constexpr int kBbStructSize = 4;
 constexpr float kEpsilon = 0.001f;
@@ -49,55 +47,45 @@ constexpr int kTestDataSize = 10;
  * 1 -> reference data horizontally flipped
  * 2 -> reference data vertically flipped
  */
-using TestData = std::array<std::array<Roi, 3>, kTestDataSize>;
-
-const TestData rois_wh = {{
-         {{{.2, .2, .4, .3}, {.4, .2, .4, .3}, {.2, .5, .4, .3}}},
-         {{{.0, .0, .5, .5}, {.5, .0, .5, .5}, {.0, .5, .5, .5}}},
-         {{{.3, .2, .1, .1}, {.6, .2, .1, .1}, {.3, .7, .1, .1}}},
-         {{{.0, .0, .2, .3}, {.8, .0, .2, .3}, {.0, .7, .2, .3}}},
-         {{{.0, .0, .1, .1}, {.9, .0, .1, .1}, {.0, .9, .1, .1}}},
-         {{{.5, .5, .1, .1}, {.4, .5, .1, .1}, {.5, .4, .1, .1}}},
-         {{{.0, .6, .7, .4}, {.3, .6, .7, .4}, {.0, .0, .7, .4}}},
-         {{{.6, .2, .3, .3}, {.1, .2, .3, .3}, {.6, .5, .3, .3}}},
-         {{{.4, .3, .5, .5}, {.1, .3, .5, .5}, {.4, .2, .5, .5}}},
-         {{{.25, .25, .5, .5}, {.25, .25, .5, .5}, {.25, .25, .5, .5}}},
- }};
-
- const TestData rois_ltrb = {{
-         {{{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5},  {.2,  .5,  .6,  .8}}},
-         {{{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5},  {.0,  .5,  .5,  1.}}},
-         {{{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3},  {.3,  .7,  .4,  .8}}},
-         {{{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3},  {.0,  .7,  .2,  1.}}},
-         {{{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1},  {.0,  .9,  .1,  1.}}},
-         {{{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6},  {.5,  .4,  .6,  .5}}},
-         {{{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9},  {.0,  .1,  .7,  .4}}},
-         {{{.6,  .2,  .9,  .5},  {.1,  .2,  .4,  .5},  {.6,  .5,  .9,  .8}}},
-         {{{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8},  {.4,  .2,  .9,  .7}}},
-         {{{.25, .25, .75, .75}, {.25, .25, .75, .75}, {.25, .25, .75, .75}}},
- }};
-
-class TestDataWrapper {
- public:
-  explicit TestDataWrapper(TestData data) : data_(data) {}
+//using TestSample = std::array<std::array<Roi, 3>, kTestDataSize>;
+using TestSample = Roi[3];
 
 
-  Roi get(const Roi &roi, int return_idx) const {
-    assert(0 <= return_idx && return_idx <= 2);
-    for (const auto &sample : data_) {
-      if (sample[0] == roi) {
-        return sample[return_idx];
-      }
-    }
-    DALI_FAIL("Provided `roi` has not been found");
-  }
-
-
- private:
-  TestData data_;
+const TestSample rois_wh[] = {
+        {{.2,  .2,  .4, .3}, {.4,  .2,  .4, .3}, {.2,  .5,  .4, .3}},
+        {{.0,  .0,  .5, .5}, {.5,  .0,  .5, .5}, {.0,  .5,  .5, .5}},
+        {{.3,  .2,  .1, .1}, {.6,  .2,  .1, .1}, {.3,  .7,  .1, .1}},
+        {{.0,  .0,  .2, .3}, {.8,  .0,  .2, .3}, {.0,  .7,  .2, .3}},
+        {{.0,  .0,  .1, .1}, {.9,  .0,  .1, .1}, {.0,  .9,  .1, .1}},
+        {{.5,  .5,  .1, .1}, {.4,  .5,  .1, .1}, {.5,  .4,  .1, .1}},
+        {{.0,  .6,  .7, .4}, {.3,  .6,  .7, .4}, {.0,  .0,  .7, .4}},
+        {{.6,  .2,  .3, .3}, {.1,  .2,  .3, .3}, {.6,  .5,  .3, .3}},
+        {{.4,  .3,  .5, .5}, {.1,  .3,  .5, .5}, {.4,  .2,  .5, .5}},
+        {{.25, .25, .5, .5}, {.25, .25, .5, .5}, {.25, .25, .5, .5}},
+};
+const TestSample rois_ltrb[] = {
+        {{.2,  .2,  .6,  .5},  {.4,  .2,  .8,  .5},  {.2,  .5,  .6,  .8}},
+        {{.0,  .0,  .5,  .5},  {.5,  .0,  1.,  .5},  {.0,  .5,  .5,  1.}},
+        {{.3,  .2,  .4,  .3},  {.6,  .2,  .7,  .3},  {.3,  .7,  .4,  .8}},
+        {{.0,  .0,  .2,  .3},  {.8,  .0,  1.,  .3},  {.0,  .7,  .2,  1.}},
+        {{.0,  .0,  .1,  .1},  {.9,  .0,  1.,  .1},  {.0,  .9,  .1,  1.}},
+        {{.5,  .5,  .6,  .6},  {.4,  .5,  .5,  .6},  {.5,  .4,  .6,  .5}},
+        {{.0,  .6,  .7,  .9},  {.3,  .6,  1.,  .9},  {.0,  .1,  .7,  .4}},
+        {{.6,  .2,  .9,  .5},  {.1,  .2,  .4,  .5},  {.6,  .5,  .9,  .8}},
+        {{.4,  .3,  .9,  .8},  {.1,  .3,  .6,  .8},  {.4,  .2,  .9,  .7}},
+        {{.25, .25, .75, .75}, {.25, .25, .75, .75}, {.25, .25, .75, .75}},
 };
 
-TestDataWrapper wh_wrapper(rois_wh), ltrb_wrapper(rois_ltrb);
+
+template<size_t N>
+const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
+  for (auto &sample : dataset) {
+    if (sample[0] == roi) {
+      return sample;
+    }
+  }
+  DALI_FAIL("TestSample for provided `roi` has not been found");
+}
 
 
 template<typename Backend>
@@ -128,11 +116,11 @@ void Verify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   auto output_roi = FromTensorWrapper<CPUBackend>(output);
   DALI_ENFORCE(!(args["horizontal"] && args["vertical"]), "No test data for given arguments");
 
-  // Index of corresponding reference data in TestData arrays
+  // Index of corresponding reference data in TestSample arrays
   int reference_data_idx = args["horizontal"] * 1 + args["vertical"] * 2;
 
-  Roi anticipated_output_roi = Ltrb ? ltrb_wrapper.get(input_roi, reference_data_idx)
-                                    : wh_wrapper.get(input_roi, reference_data_idx);
+  Roi anticipated_output_roi = Ltrb ? FindSample(rois_ltrb, input_roi)[reference_data_idx]
+                                    : FindSample(rois_wh, input_roi)[reference_data_idx];
 
   ASSERT_EQ(anticipated_output_roi.size(), output_roi.size())
                         << "Inconsistent sizes (input vs output)";
@@ -149,6 +137,9 @@ class BbFlipTest : public testing::DaliOperatorTest {
     GraphDescr graph("BbFlip");
     return graph;
   }
+ public:
+  BbFlipTest():DaliOperatorTest(1,1){}
+//  virtual ~BbFlipTest()= default;
 };
 
 std::vector<Arguments> arguments = {
@@ -159,8 +150,11 @@ std::vector<Arguments> arguments = {
 
 
 TEST_P(BbFlipTest, WhRoisTest) {
-  auto tlin = ToTensorList<CPUBackend>(rois_wh[0][0]);
-  this->RunTest(tlin.get(), GetParam(), testing::Verify<false>);
+  for (auto test_sample : rois_wh) {
+    auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
+    TensorListWrapper tlout;
+    this->RunTest(tlin.get(), tlout, GetParam(), testing::Verify<false>);
+  }
 }
 
 
