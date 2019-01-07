@@ -20,6 +20,7 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 
 
 namespace dali {

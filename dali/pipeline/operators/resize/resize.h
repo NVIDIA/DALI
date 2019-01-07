@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_RESIZE_RESIZE_H_
 #define DALI_PIPELINE_OPERATORS_RESIZE_RESIZE_H_
 
+#include <nppdefs.h>
 #include <random>
 #include <utility>
 #include <vector>

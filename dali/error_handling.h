@@ -24,17 +24,12 @@
 #include <execinfo.h>
 #endif  // DALI_USE_STACKTRACE
 
-#include <cuda_runtime_api.h>
-#include <nvml.h>
-
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <algorithm>
 
 #include "dali/common.h"
-#include "dali/util/dynlink_cuda.h"
-#include "dali/util/npp.h"
 
 namespace dali {
 
@@ -164,34 +159,10 @@ inline dali::string GetStacktrace() {
     return DALIError;                                                     \
   } while (0)
 
-// For checking npp return errors in dali library functions
-#define DALI_CHECK_NPP(code)                              \
-  do {                                                    \
-    NppStatus status = code;                              \
-    if (status != NPP_SUCCESS) {                          \
-    dali::string file = __FILE__;                         \
-      dali::string line = std::to_string(__LINE__);       \
-      dali::string error = "[" + file + ":" + line +      \
-        "]: NPP error \"" +                               \
-        nppErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                   \
-    }                                                     \
-  } while (0)
 
 //////////////////////////////////////////////////////
 /// Error checking utilities for the DALI pipeline ///
 //////////////////////////////////////////////////////
-
-// For calling NVML library functions
-#define NVML_CALL(code)                                    \
-  do {                                                     \
-    nvmlReturn_t status = code;                            \
-    if (status != NVML_SUCCESS) {                          \
-      dali::string error = dali::string("NVML error \"") + \
-        nvmlErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                    \
-    }                                                      \
-  } while (0)
 
 // For calling DALI library functions
 #define DALI_CALL(code)                                         \
@@ -261,46 +232,6 @@ inline dali::string GetStacktrace() {
 
 void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 #define REPORT_FATAL_PROBLEM(comment) DALIReportFatalProblem(__FILE__, __LINE__, comment)
-
-
-// CUDA checking
-template <typename T>
-inline void cudaResultCheck(T status);
-
-template <typename T>
-inline void cudaResultCheck(T status) {}
-
-template <>
-inline void cudaResultCheck<cudaError_t>(cudaError_t status) {
-    if (status != cudaSuccess) {
-      dali::string error = dali::string("CUDA runtime api error \"") +
-        cudaGetErrorString(status) + "\"";
-      DALI_FAIL(error);
-    }
-}
-
-template <>
-inline void cudaResultCheck<CUresult>(CUresult status) {
-    if (status != CUDA_SUCCESS) {
-      const char *cudaErrorStr;
-      cuGetErrorString(status, &cudaErrorStr);
-      dali::string error = dali::string("CUDA driver api error \"") +
-        dali::string(cudaErrorStr) + "\"";
-      DALI_FAIL(error);
-    }
-}
-
-// For calling CUDA library functions (cudaError_t from runtime API and CUresult from driver API)
-#define CUDA_CALL(code)                 \
-  do {                                  \
-    using CUDA_TYPE = decltype(code);   \
-    CUDA_TYPE status = code;            \
-    dali::cudaResultCheck<CUDA_TYPE>(status); \
-  } while (0)
-
-#define LOG_LINE \
-  if (0) \
-  std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 }  // namespace dali
 

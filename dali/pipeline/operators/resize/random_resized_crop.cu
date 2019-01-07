@@ -16,6 +16,7 @@
 #include <vector>
 #include <cmath>
 
+#include "dali/util/npp.h"
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
 
 namespace dali {
@@ -80,7 +81,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
     const int W = input.tensor_shape(i)[1];  // HWC
     const int C = input.tensor_shape(i)[2];  // HWC
 
-    DALISize input_size, output_size;
+    NppiSize input_size, output_size;
 
     input_size.width = W;
     input_size.height = H;

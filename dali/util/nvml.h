@@ -20,6 +20,7 @@
 #include <mutex>
 
 #include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
 
 namespace dali {
@@ -62,5 +63,15 @@ inline void Shutdown() {
 
 }  // namespace nvml
 }  // namespace dali
+
+#define NVML_CALL(code)                                    \
+  do {                                                     \
+    nvmlReturn_t status = code;                            \
+    if (status != NVML_SUCCESS) {                          \
+      dali::string error = dali::string("NVML error \"") + \
+        nvmlErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                    \
+    }                                                      \
+  } while (0)
 
 #endif  // DALI_UTIL_NVML_H_

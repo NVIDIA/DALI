@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (BUILD_TENSORFLOW)
+import unittest
 
-  file(GLOB tmp *.cc)
-  set(DALI_TF_SRCS ${DALI_TF_SRCS} ${tmp} PARENT_SCOPE)
+class TestDaliTfPluginLoadOk(unittest.TestCase):
+    def test_import_dali_tf_ok(self):
+        import nvidia.dali.plugin.tf as dali_tf
+        assert True
 
-  message( STATUS "Installing sources for dali_tf: ${tmp}")
-  file(COPY        ${tmp}
-       DESTINATION ${PROJECT_BINARY_DIR}/dali/python/tf_plugin/nvidia/dali/plugin)
+class TestDaliTfPluginLoadFail(unittest.TestCase):
+    def test_import_dali_tf_load_fail(self):
+        with self.assertRaises(Exception):
+            import nvidia.dali.plugin.tf as dali_tf
 
-endif()
+if __name__ == '__main__':
+    unittest.main()

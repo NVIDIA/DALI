@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/operators/util/cast.h"
 #include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 
 namespace dali {
 
