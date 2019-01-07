@@ -59,6 +59,19 @@ Installation
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali
 
+.. note::
+   nvidia-dali package contains prebuilt versions of the dali tensorflow plugin for several versions of tensorflow.
+   Since release 0.6.1 there is also a possibility to install dali tensorflow plugin for the currently installed version of tensorflow, thus allowing forward compatibility:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin
+
+.. note::
+Installing this package will install nvidia-dali and its dependencies if not already installed. The package tensorflow-gpu must be installed before attempting to install nvidia-dali-tf-plugin.
+
+
+
 Compiling DALI from source
 --------------------------
 
@@ -184,11 +197,11 @@ To build DALI using Clang (experimental):
 .. note::
 
    This build is experimental and it is not maintained and tested
-   like the default configuration. It is not guaranteed to work. 
+   like the default configuration. It is not guaranteed to work.
    We recommend using GCC for production builds.
 
 .. code-block:: bash
-   
+
    cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
    make -j"$(nproc)"
 
@@ -250,5 +263,3 @@ DALI was built with major contributions from Trevor Gale, Przemek Tredak, Simon 
 
 .. |Documentation| image:: https://img.shields.io/badge/Nvidia%20DALI-documentation-brightgreen.svg?longCache=true
    :target: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/
-   
-   
