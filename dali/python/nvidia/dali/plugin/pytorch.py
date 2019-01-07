@@ -193,10 +193,8 @@ class DALIGenericIterator(object):
             # 2) Grab the right data from the last GPU.
             # 3) Append data together correctly and return.
             output = [db[copy_db_index] for db in self._data_batches[0:numGPUs_tograb]]
-            last_to_mod_data = output[-1][0][0][0:data_fromlastGPU]
-            last_to_mod_labels = output[-1][1][0][0:data_fromlastGPU]
-            output = output[:-1]
-            output.append(([last_to_mod_data], [last_to_mod_labels]))
+            for category in self._output_categories:
+                output[-1][category] = output[-1][category][0:data_fromlastGPU]
             return output
         
         return [db[copy_db_index] for db in self._data_batches]
