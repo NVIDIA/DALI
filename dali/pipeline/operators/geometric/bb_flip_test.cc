@@ -91,7 +91,7 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<typename Backend>
 std::unique_ptr<TensorList<Backend>> ToTensorList(Roi roi) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({{1, kBbStructSize}});
+  tl->Resize({{kBbStructSize}});
   auto ptr = tl->template mutable_data<float>();
   static_assert(roi.size() == kBbStructSize, "");
   for (size_t i = 0; i < kBbStructSize; i++) {
