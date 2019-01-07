@@ -41,7 +41,7 @@ class ExternalInputIterator(object):
         labels = []
         for _ in range(self.batch_size):
             batch.append( np.array( np.random.rand(H, W, C) * 255, dtype = np.uint8 ) )
-            batch.append( np.array( np.random.rand(1) * 10, dtype = np.uint8))
+            labels.append( np.array( np.random.rand(1) * 10, dtype = np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
 

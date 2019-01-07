@@ -28,8 +28,8 @@ class TensorListTest : public DALITest {
   vector<Dims> GetRandShape() {
     int num_tensor = this->RandInt(1, 64);
     vector<Dims> shape(num_tensor);
+    int dims = this->RandInt(2, 3);
     for (int i = 0; i < num_tensor; ++i) {
-      int dims = this->RandInt(1, 3);
       vector<Index> tensor_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
         tensor_shape[j] = this->RandInt(1, 200);
@@ -42,8 +42,8 @@ class TensorListTest : public DALITest {
   vector<Dims> GetSmallRandShape() {
     int num_tensor = this->RandInt(1, 32);
     vector<Dims> shape(num_tensor);
+    int dims = this->RandInt(2, 3);
     for (int i = 0; i < num_tensor; ++i) {
-      int dims = this->RandInt(0, 3);
       vector<Index> tensor_shape(dims, 0);
       for (int j = 0; j < dims; ++j) {
         tensor_shape[j] = this->RandInt(1, 64);
