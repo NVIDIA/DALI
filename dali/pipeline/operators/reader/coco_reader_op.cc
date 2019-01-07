@@ -313,7 +313,7 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
       R"code(If true, image IDs will also be returned. Default: False)code",
       false)
   .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("img_ids"));
+    return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
   .AddParent("LoaderBase");
 

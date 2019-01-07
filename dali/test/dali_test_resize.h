@@ -41,14 +41,15 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       resize_a = spec.GetArgument<float>("resize_x");
       warp_resize = resize_a != 0;
-      if (warp_resize)
+      if (warp_resize) {
         resize_b = spec.GetArgument<float>("resize_y");
-      else
+      } else {
         resize_a = spec.GetArgument<float>("resize_shorter");
         if (resize_a == 0) {
           resize_a = spec.GetArgument<float>("resize_longer");
           resize_shorter = false;
         }
+      }
     }
 
     int crop_h = 0, crop_w = 0;

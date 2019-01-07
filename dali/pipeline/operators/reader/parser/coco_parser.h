@@ -101,7 +101,7 @@ class COCOParser: public Parser<ImageLabelWrapper> {
   }
 
   const AnnotationMap& annotations_multimap_;
-  const bool& save_img_ids_;
+  const bool save_img_ids_;
 };
 
 }  // namespace dali
