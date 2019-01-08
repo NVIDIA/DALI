@@ -61,6 +61,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     auto* tl_sequence_output = ws->Output<GPUBackend>(0);
     tl_sequence_output->set_type(TypeInfo::Create<float>());
     tl_sequence_output->Resize(tl_shape_);
+    tl_sequence_output->SetLayout(DALI_NFHWC);
   }
 
   void RunImpl(DeviceWorkspace *ws, const int idx) override {
