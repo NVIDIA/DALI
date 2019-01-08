@@ -544,7 +544,9 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   constexpr int sample_dim() const { return sample_ndim; }
   int size() const { return shapes.size() / sample_dim(); }
-  void set_sample_dim(int dim) { assert(dim == sample_ndim && "Cannot change number of dimensions"); }
+  void set_sample_dim(int dim) {
+    assert(dim == sample_ndim && "Cannot change number of dimensions");
+  }
 
   using Base::shapes;
 
@@ -693,7 +695,8 @@ TensorShape<out_dim> convert_dim(TensorShape<in_dim> &&in) {
 }
 
 template <>  // provide a trivial move when not actually converting
-inline TensorShape<DynamicDimensions> convert_dim<DynamicDimensions, DynamicDimensions>(TensorShape<DynamicDimensions> &&in) {
+inline TensorShape<DynamicDimensions>
+convert_dim<DynamicDimensions, DynamicDimensions>(TensorShape<DynamicDimensions> &&in) {
   return std::move(in);
 }
 
