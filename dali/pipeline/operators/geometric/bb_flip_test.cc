@@ -38,16 +38,12 @@ constexpr float kEpsilon = 0.001f;
  */
 using Roi = std::array<float, kBbStructSize>;
 
-
-constexpr int kTestDataSize = 10;
-
 /**
  * Test data for BbFlip operator. Data consists of:
  * 0 -> reference data input
  * 1 -> reference data horizontally flipped
  * 2 -> reference data vertically flipped
  */
-//using TestSample = std::array<std::array<Roi, 3>, kTestDataSize>;
 using TestSample = Roi[3];
 
 
@@ -117,10 +113,12 @@ template<bool Ltrb>
 void Verify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   auto input_roi = FromTensorWrapper<CPUBackend>(input);
   auto output_roi = FromTensorWrapper<CPUBackend>(output);
-  DALI_ENFORCE(!(args["horizontal"] && args["vertical"]), "No test data for given arguments");
+  DALI_ENFORCE(!(args["horizontal"].GetValue<int>() && args["vertical"].GetValue<int>()),
+               "No test data for given arguments");
 
   // Index of corresponding reference data in TestSample arrays
-  int reference_data_idx = args["horizontal"] * 1 + args["vertical"] * 2;
+  int reference_data_idx =
+          args["horizontal"].GetValue<int>() * 1 + args["vertical"].GetValue<int>() * 2;
 
   Roi anticipated_output_roi = Ltrb ? FindSample(rois_ltrb, input_roi)[reference_data_idx]
                                     : FindSample(rois_wh, input_roi)[reference_data_idx];
@@ -152,19 +150,31 @@ std::vector<Arguments> arguments = {
         {{"horizontal", 0}, {"vertical", 0}},
 };
 
-
 TEST_P(BbFlipTest, WhRoisTest) {
+  constexpr bool ltrb = false;
+  auto args = GetParam();
+  args.emplace("ltrb", ltrb);
   for (auto test_sample : rois_wh) {
     auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
     TensorListWrapper tlout;
-    this->RunTest<CPUBackend>(tlin.get(), tlout, GetParam(), testing::Verify<false>);
+    this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
   }
 }
 
 
-INSTANTIATE_TEST_CASE_P(WhRoisTest, BbFlipTest, ::testing::ValuesIn(arguments));
+TEST_P(BbFlipTest, LtrbRoisTest) {
+  constexpr bool ltrb = true;
+  auto args = GetParam();
+  args.emplace("ltrb", ltrb);
+  for (auto test_sample : rois_ltrb) {
+    auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
+    TensorListWrapper tlout;
+    this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
+  }
+}
 
-//TODO(mszolucha): add Ltrb
+
+INSTANTIATE_TEST_CASE_P(RoisTest, BbFlipTest, ::testing::ValuesIn(arguments));
 
 }  // namespace testing
 }  // namespace dali

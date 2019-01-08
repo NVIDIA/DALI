@@ -23,11 +23,13 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include "operator_argument.h"
+
 
 namespace dali {
 namespace testing {
 
-using Arguments = std::map<ArgumentKey, int>;  // TODO(mszolucha) some generalization boost::any?
+using Arguments = std::map<ArgumentKey, TestOpArg>;
 
 namespace detail {
 
@@ -109,8 +111,8 @@ OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_argumen
   assert(output_backend == "cpu" || output_backend == "gpu");
 
   OpSpec opspec = OpSpec(operator_name);
-  for (const auto &arg : operator_arguments) {
-    opspec.AddArg(arg.first.arg_name(), arg.second);
+  for (auto &arg : operator_arguments) {
+    arg.second.SetArg(arg.first.arg_name(), opspec, nullptr);
   }
   if (has_input) {
     opspec.AddInput("input", input_backend);
