@@ -33,7 +33,7 @@ SOFTWARE.
 #include "dali/pipeline/operators/transpose/cutt/cutt.h"
 
 // Hash table to store the plans
-static std::unordered_map< cuttHandle, cuttPlan_t* > planStorage;
+static std::unordered_map<cuttHandle, cuttPlan_t*> planStorage;
 
 // Current handle
 static cuttHandle curHandle = 0;

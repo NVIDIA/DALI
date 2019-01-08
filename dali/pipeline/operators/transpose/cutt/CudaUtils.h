@@ -30,6 +30,9 @@ SOFTWARE.
 
 #include "dali/util/dynlink_cuda.h"
 
+// Need by warp-level primitives
+#define FULL_MASK 0xffffffff
+
 void set_device_array_async_T(void *data, int value, const size_t ndata, cudaStream_t stream, const size_t sizeofT);
 void set_device_array_T(void *data, int value, const size_t ndata, const size_t sizeofT);
 
