@@ -15,7 +15,7 @@
 #pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
-from nvidia.dali import edge
+from nvidia.dali import edge as Edge
 
 class Pipeline(object):
     """Pipeline class encapsulates all data required to define and run
@@ -137,7 +137,7 @@ class Pipeline(object):
             outputs = (outputs,)
 
         for output in outputs:
-            if not isinstance(output, edge.EdgeReference):
+            if not isinstance(output, Edge.EdgeReference):
                 raise TypeError(
                     ("Expected outputs of type "
                     "EdgeReference. Received "
@@ -175,7 +175,7 @@ class Pipeline(object):
                 ops.append(source_op)
             for edge in source_op.inputs:
                 if isinstance(edge, list):
-                    for edge in edge:
+                    for e in edge:
                         edges.append(e)
                 else:
                     edges.append(edge)
@@ -207,7 +207,7 @@ class Pipeline(object):
         operator."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if not isinstance(ref, edge.EdgeReference):
+        if not isinstance(ref, Edge.EdgeReference):
             raise TypeError(
                 ("Expected argument one to "
                 "be EdgeReference. "
@@ -217,10 +217,10 @@ class Pipeline(object):
         if isinstance(data, list):
             inputs = []
             for datum in data:
-                inputs.append(edge.TensorCPU(datum))
+                inputs.append(Edge.TensorCPU(datum))
             self._pipe.SetExternalTensorInput(ref.name, inputs)
         else:
-            inp = edge.TensorListCPU(data)
+            inp = Edge.TensorListCPU(data)
             self._pipe.SetExternalTLInput(ref.name, inp)
 
     def _run_cpu(self):
