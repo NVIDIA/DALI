@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/transpose/cutt/cutt.h"
 
 namespace dali {
 
@@ -29,7 +30,7 @@ class Transpose : public Operator<Backend> {
     perm_(spec.GetRepeatedArgument<Index>("perm"))
     {}
 
-  inline ~Transpose() override = default;
+  ~Transpose() override;
 
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
@@ -38,7 +39,13 @@ class Transpose : public Operator<Backend> {
 
  private:
 
+  void NaiveTransposeKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output);
+
+  void cuTTKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output, cudaStream_t stream);
+
   std::vector<Index> perm_;
+
+  cuttHandle cutt_handle_ = -1;
 
   USE_OPERATOR_MEMBERS();
 
