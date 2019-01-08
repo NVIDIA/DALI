@@ -22,10 +22,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+#include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
+
 #include "dali/util/dynlink_cuda.h"
-#include "CudaUtils.h"
-#include "LRUCache.h"
-#include "cuttkernel.h"
+#include "dali/error_handling.h"
+
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
+#include "dali/pipeline/operators/transpose/cutt/LRUCache.h"
 
 #define RESTRICT __restrict__
 
@@ -431,27 +434,27 @@ __global__ void transposeTiledCopy(
 // Sets shared memory bank configuration for all kernels. Needs to be called once per device.
 //
 void cuttKernelSetSharedMemConfig() {  
-#define CALL(NREG) cudaCheck(cudaFuncSetSharedMemConfig(transposePacked<float, NREG>, cudaSharedMemBankSizeFourByte ))
+#define CALL(NREG) CUDA_CALL(cudaFuncSetSharedMemConfig(transposePacked<float, NREG>, cudaSharedMemBankSizeFourByte ))
 #include "calls.h"
 #undef CALL
 
-#define CALL(NREG) cudaCheck(cudaFuncSetSharedMemConfig(transposePacked<double, NREG>, cudaSharedMemBankSizeEightByte ))
+#define CALL(NREG) CUDA_CALL(cudaFuncSetSharedMemConfig(transposePacked<double, NREG>, cudaSharedMemBankSizeEightByte ))
 #include "calls.h"
 #undef CALL
 
-#define CALL(NREG) cudaCheck(cudaFuncSetSharedMemConfig(transposePackedSplit<float, NREG>, cudaSharedMemBankSizeFourByte ))
+#define CALL(NREG) CUDA_CALL(cudaFuncSetSharedMemConfig(transposePackedSplit<float, NREG>, cudaSharedMemBankSizeFourByte ))
 #include "calls.h"
 #undef CALL
 
-#define CALL(NREG) cudaCheck(cudaFuncSetSharedMemConfig(transposePackedSplit<double, NREG>, cudaSharedMemBankSizeEightByte ))
+#define CALL(NREG) CUDA_CALL(cudaFuncSetSharedMemConfig(transposePackedSplit<double, NREG>, cudaSharedMemBankSizeEightByte ))
 #include "calls.h"
 #undef CALL
 
-  cudaCheck(cudaFuncSetSharedMemConfig(transposeTiled<float>, cudaSharedMemBankSizeFourByte));
-  cudaCheck(cudaFuncSetSharedMemConfig(transposeTiledCopy<float>, cudaSharedMemBankSizeFourByte));
+  CUDA_CALL(cudaFuncSetSharedMemConfig(transposeTiled<float>, cudaSharedMemBankSizeFourByte));
+  CUDA_CALL(cudaFuncSetSharedMemConfig(transposeTiledCopy<float>, cudaSharedMemBankSizeFourByte));
 
-  cudaCheck(cudaFuncSetSharedMemConfig(transposeTiled<double>, cudaSharedMemBankSizeEightByte));
-  cudaCheck(cudaFuncSetSharedMemConfig(transposeTiledCopy<double>, cudaSharedMemBankSizeEightByte));
+  CUDA_CALL(cudaFuncSetSharedMemConfig(transposeTiled<double>, cudaSharedMemBankSizeEightByte));
+  CUDA_CALL(cudaFuncSetSharedMemConfig(transposeTiledCopy<double>, cudaSharedMemBankSizeEightByte));
 
 }
 
@@ -497,7 +500,7 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
     {
       // Allocate cache structure if needed
       if (numDevices == -1) {
-        cudaCheck(cudaGetDeviceCount(&numDevices));
+        CUDA_CALL(cudaGetDeviceCount(&numDevices));
       }
       // Build unique key for cache
       int key_warp = (numthread/prop.warpSize - 1);
@@ -754,7 +757,7 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
   switch(ts.method) {
     case Trivial:
     {
-      cudaCheck(cudaMemcpyAsync(dataOut, dataIn, ts.volMmk*ts.volMbar*plan.sizeofType,
+      CUDA_CALL(cudaMemcpyAsync(dataOut, dataIn, ts.volMmk*ts.volMbar*plan.sizeofType,
         cudaMemcpyDeviceToDevice, plan.stream));
     }
     break;
@@ -823,6 +826,6 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
 
   }
 
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
   return true;
 }

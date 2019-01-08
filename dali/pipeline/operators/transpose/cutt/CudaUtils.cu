@@ -27,16 +27,19 @@ SOFTWARE.
 #ifdef ENABLE_NVTOOLS
 #include <nvToolsExtCuda.h>
 #endif
-#include "CudaUtils.h"
+
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
+
+#include "dali/error_handling.h"
 
 //----------------------------------------------------------------------------------------
 
 void set_device_array_async_T(void *data, int value, const size_t ndata, cudaStream_t stream, const size_t sizeofT) {
-  cudaCheck(cudaMemsetAsync(data, value, sizeofT*ndata, stream));
+  CUDA_CALL(cudaMemsetAsync(data, value, sizeofT*ndata, stream));
 }
 
 void set_device_array_T(void *data, int value, const size_t ndata, const size_t sizeofT) {
-  cudaCheck(cudaMemset(data, value, sizeofT*ndata));
+  CUDA_CALL(cudaMemset(data, value, sizeofT*ndata));
 }
 
 //----------------------------------------------------------------------------------------
@@ -46,7 +49,7 @@ void set_device_array_T(void *data, int value, const size_t ndata, const size_t 
 // len = length of the array
 //
 void allocate_device_T(void **pp, const size_t len, const size_t sizeofT) {
-  cudaCheck(cudaMalloc(pp, sizeofT*len));
+  CUDA_CALL(cudaMalloc(pp, sizeofT*len));
 }
 
 //----------------------------------------------------------------------------------------
@@ -57,7 +60,7 @@ void allocate_device_T(void **pp, const size_t len, const size_t sizeofT) {
 void deallocate_device_T(void **pp) {
   
   if (*pp != NULL) {
-    cudaCheck(cudaFree((void *)(*pp)));
+    CUDA_CALL(cudaFree((void *)(*pp)));
     *pp = NULL;
   }
 
@@ -69,12 +72,12 @@ void deallocate_device_T(void **pp) {
 //
 void copy_HtoD_async_T(const void *h_array, void *d_array, size_t array_len, cudaStream_t stream,
            const size_t sizeofT) {
-  cudaCheck(cudaMemcpyAsync(d_array, h_array, sizeofT*array_len, cudaMemcpyHostToDevice, stream));
+  CUDA_CALL(cudaMemcpyAsync(d_array, h_array, sizeofT*array_len, cudaMemcpyHostToDevice, stream));
 }
 
 void copy_HtoD_T(const void *h_array, void *d_array, size_t array_len,
      const size_t sizeofT) {
-  cudaCheck(cudaMemcpy(d_array, h_array, sizeofT*array_len, cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(d_array, h_array, sizeofT*array_len, cudaMemcpyHostToDevice));
 }
 
 //----------------------------------------------------------------------------------------
@@ -83,11 +86,11 @@ void copy_HtoD_T(const void *h_array, void *d_array, size_t array_len,
 //
 void copy_DtoH_async_T(const void *d_array, void *h_array, const size_t array_len, cudaStream_t stream,
            const size_t sizeofT) {
-  cudaCheck(cudaMemcpyAsync(h_array, d_array, sizeofT*array_len, cudaMemcpyDeviceToHost, stream));
+  CUDA_CALL(cudaMemcpyAsync(h_array, d_array, sizeofT*array_len, cudaMemcpyDeviceToHost, stream));
 }
 
 void copy_DtoH_T(const void *d_array, void *h_array, const size_t array_len, const size_t sizeofT) {
-  cudaCheck(cudaMemcpy(h_array, d_array, sizeofT*array_len, cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaMemcpy(h_array, d_array, sizeofT*array_len, cudaMemcpyDeviceToHost));
 }
 
 //----------------------------------------------------------------------------------------

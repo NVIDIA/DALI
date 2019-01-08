@@ -26,10 +26,11 @@ SOFTWARE.
 #include <list>
 #include <unordered_map>
 #include "dali/util/dynlink_cuda.h"
-#include "CudaUtils.h"
-#include "cuttplan.h"
-#include "cuttkernel.h"
-#include "cutt.h"
+#include "dali/error_handling.h"
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
+#include "dali/pipeline/operators/transpose/cutt/cutt.h"
 
 // Hash table to store the plans
 static std::unordered_map< cuttHandle, cuttPlan_t* > planStorage;
@@ -43,11 +44,11 @@ static std::unordered_map<int, cudaDeviceProp> deviceProps;
 // Checks prepares device if it's not ready yet and returns device properties
 // Also sets shared memory configuration
 void getDeviceProp(int& deviceID, cudaDeviceProp &prop) {
-  cudaCheck(cudaGetDevice(&deviceID));
+  CUDA_CALL(cudaGetDevice(&deviceID));
   auto it = deviceProps.find(deviceID);
   if (it == deviceProps.end()) {
     // Get device properties and store it for later use
-    cudaCheck(cudaGetDeviceProperties(&prop, deviceID));
+    CUDA_CALL(cudaGetDeviceProperties(&prop, deviceID));
     cuttKernelSetSharedMemConfig();
     deviceProps.insert({deviceID, prop});
   } else {
@@ -232,7 +233,7 @@ cuttResult cuttPlanMeasure(cuttHandle* handle, int rank, int* dim, int* permutat
     it->activate();
     // Clear output data to invalidate caches
     set_device_array<char>((char *)odata, -1, numBytes);
-    cudaCheck(cudaDeviceSynchronize());
+    CUDA_CALL(cudaDeviceSynchronize());
     timer.start();
     // Execute plan
     if (!cuttKernel(*it, idata, odata)) return CUTT_INTERNAL_ERROR;
@@ -293,7 +294,7 @@ cuttResult cuttExecute(cuttHandle handle, void* idata, void* odata) {
   cuttPlan_t& plan = *(it->second);
 
   int deviceID;
-  cudaCheck(cudaGetDevice(&deviceID));
+  CUDA_CALL(cudaGetDevice(&deviceID));
   if (deviceID != plan.deviceID) return CUTT_INVALID_DEVICE;
 
   if (!cuttKernel(plan, idata, odata)) return CUTT_INTERNAL_ERROR;

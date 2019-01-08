@@ -24,7 +24,8 @@ SOFTWARE.
 *******************************************************************************/
 #ifndef CUTTKERNEL_H
 #define CUTTKERNEL_H
-#include "cuttplan.h"
+
+#include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
 
 void cuttKernelSetSharedMemConfig();
 
