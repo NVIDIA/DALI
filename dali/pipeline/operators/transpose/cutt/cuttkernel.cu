@@ -67,8 +67,8 @@ __global__ void transposeTiled(
   const int xout = bx + threadIdx.y;
   const int yout = by + threadIdx.x;
 
-  const unsigned int maskIny = __ballot((yin + warpLane < tiledVol.y))*(xin < tiledVol.x);
-  const unsigned int maskOutx = __ballot((xout + warpLane < tiledVol.x))*(yout < tiledVol.y);
+  const unsigned int maskIny = __ballot_sync(FULL_MASK, (yin + warpLane < tiledVol.y))*(xin < tiledVol.x);
+  const unsigned int maskOutx = __ballot_sync(FULL_MASK, (xout + warpLane < tiledVol.x))*(yout < tiledVol.y);
 
   const int posMinorIn = xin + yin*cuDimMk;
   const int posMinorOut = yout + xout*cuDimMm;
@@ -83,8 +83,8 @@ __global__ void transposeTiled(
     int posMajorOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMajorIn += __shfl_xor(posMajorIn, i);
-      posMajorOut += __shfl_xor(posMajorOut, i);
+      posMajorIn += __shfl_xor_sync(FULL_MASK, posMajorIn, i);
+      posMajorOut += __shfl_xor_sync(FULL_MASK, posMajorOut, i);
     }
     int posIn = posMajorIn + posMinorIn;
     int posOut = posMajorOut + posMinorOut;
@@ -168,9 +168,9 @@ __global__ void transposePacked(
 #pragma unroll
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
-      posMmkIn[j]  += ((posMmk / __shfl(Mmk.c_in,i)) % __shfl(Mmk.d_in,i))*__shfl(Mmk.ct_in,i);
-      posMmkOut[j] += ((posMmk / __shfl(Mmk.c_out,i)) % __shfl(Mmk.d_out,i))*__shfl(Mmk.ct_out,i);
-      posSh[j]     += ((posMmk / __shfl(Msh.c,i)) % __shfl(Msh.d,i))*__shfl(Msh.ct,i);
+      posMmkIn[j]  += ((posMmk / __shfl_sync(FULL_MASK, Mmk.c_in,i)) % __shfl_sync(FULL_MASK, Mmk.d_in,i))*__shfl_sync(FULL_MASK, Mmk.ct_in,i);
+      posMmkOut[j] += ((posMmk / __shfl_sync(FULL_MASK, Mmk.c_out,i)) % __shfl_sync(FULL_MASK, Mmk.d_out,i))*__shfl_sync(FULL_MASK, Mmk.ct_out,i);
+      posSh[j]     += ((posMmk / __shfl_sync(FULL_MASK, Msh.c,i)) % __shfl_sync(FULL_MASK, Msh.d,i))*__shfl_sync(FULL_MASK, Msh.ct,i);
     }
   }
 
@@ -190,13 +190,13 @@ __global__ void transposePacked(
     int posMbarOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarOut += __shfl_xor(posMbarOut, i);
+      posMbarOut += __shfl_xor_sync(FULL_MASK, posMbarOut, i);
     }
 
     int posMbarIn = ((posMbar/Mbar.c_in) % Mbar.d_in)*Mbar.ct_in;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarIn += __shfl_xor(posMbarIn, i);
+      posMbarIn += __shfl_xor_sync(FULL_MASK, posMbarIn, i);
     }
 
     __syncthreads();
@@ -292,9 +292,9 @@ __global__ void transposePackedSplit(
 #pragma unroll
     for (int j=0;j < numRegStorage;j++) {
       int t = threadIdx.x + j*blockDim.x;
-      posMmkIn[j]  += ((t/__shfl(Mmk.c_in,i)) % __shfl(Mmk.d_in,i))*__shfl(Mmk.ct_in,i);
-      posMmkOut[j] += ((t/__shfl(Mmk.c_out,i)) % __shfl(Mmk.d_out,i))*__shfl(Mmk.ct_out,i);
-      posSh[j]     += ((t/__shfl(Msh.c,i)) % __shfl(Msh.d,i))*__shfl(Msh.ct,i);
+      posMmkIn[j]  += ((t/__shfl_sync(FULL_MASK, Mmk.c_in,i)) % __shfl_sync(FULL_MASK, Mmk.d_in,i))*__shfl_sync(FULL_MASK, Mmk.ct_in,i);
+      posMmkOut[j] += ((t/__shfl_sync(FULL_MASK, Mmk.c_out,i)) % __shfl_sync(FULL_MASK, Mmk.d_out,i))*__shfl_sync(FULL_MASK, Mmk.ct_out,i);
+      posSh[j]     += ((t/__shfl_sync(FULL_MASK, Msh.c,i)) % __shfl_sync(FULL_MASK, Msh.d,i))*__shfl_sync(FULL_MASK, Msh.ct,i);
     }
   }
 
@@ -316,13 +316,13 @@ __global__ void transposePackedSplit(
     int posMbarOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarOut += __shfl_xor(posMbarOut, i);
+      posMbarOut += __shfl_xor_sync(FULL_MASK, posMbarOut, i);
     }
 
     int posMbarIn = ((posMbar/Mbar.c_in) % Mbar.d_in)*Mbar.ct_in;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarIn += __shfl_xor(posMbarIn, i);
+      posMbarIn += __shfl_xor_sync(FULL_MASK, posMbarIn, i);
     }
 
     // Read from global memory
@@ -379,7 +379,7 @@ __global__ void transposeTiledCopy(
   const int x = bx + threadIdx.x;
   const int y = by + threadIdx.y;
 
-  const unsigned int mask = __ballot((y + warpLane < tiledVol.y))*(x < tiledVol.x);
+  const unsigned int mask = __ballot_sync(FULL_MASK, (y + warpLane < tiledVol.y))*(x < tiledVol.x);
 
   const int posMinorIn = x + y*cuDimMk;
   const int posMinorOut = x + y*cuDimMm;
@@ -394,8 +394,8 @@ __global__ void transposeTiledCopy(
     int posMajorOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMajorIn += __shfl_xor(posMajorIn, i);
-      posMajorOut += __shfl_xor(posMajorOut, i);
+      posMajorIn += __shfl_xor_sync(FULL_MASK, posMajorIn, i);
+      posMajorOut += __shfl_xor_sync(FULL_MASK, posMajorOut, i);
     }
     int posIn = posMajorIn + posMinorIn;
     int posOut = posMajorOut + posMinorOut;
@@ -472,7 +472,7 @@ LRUCache<unsigned long long int, int> nabCache(CACHE_SIZE, -1);
 int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig& lc,
   const int deviceID, const cudaDeviceProp& prop) {
 
-  int numActiveBlock;
+  int numActiveBlock = -1; // default init to silent warnings
   int numthread = lc.numthread.x * lc.numthread.y * lc.numthread.z;
   switch(method) {
     case Trivial:
@@ -737,9 +737,9 @@ int cuttKernelLaunchConfiguration(const int sizeofType, const TensorSplit& ts,
     break;
   }
 
-  if (lc.numblock.x > prop.maxGridSize[0] ||
-    lc.numblock.y > prop.maxGridSize[1] ||
-    lc.numblock.z > prop.maxGridSize[2]) return 0;
+  if (lc.numblock.x > static_cast<unsigned int>(prop.maxGridSize[0]) ||
+    lc.numblock.y > static_cast<unsigned int>(prop.maxGridSize[1]) ||
+    lc.numblock.z > static_cast<unsigned int>(prop.maxGridSize[2])) return 0;
 
   // Return the number of active blocks with these settings
   if (numActiveBlockReturn == -1) {

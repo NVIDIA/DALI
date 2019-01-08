@@ -69,7 +69,7 @@ int tensorPos(
   int r = ((p/c) % d)*ct;
 #pragma unroll
   for (int i=numLane/2;i >= 1;i/=2) {
-    r += __shfl_xor(r, i);
+    r += __shfl_xor_sync(FULL_MASK, r, i);
   }
   return r;
 
@@ -83,8 +83,8 @@ __device__ __forceinline__
 int countGlTransactions(const int pos, const int n, const int accWidth, const int warpLane) {
   int seg0 = pos/accWidth;
   int srcLane = (warpLane == 0 || warpLane >= n) ? (warpLane) : (warpLane - 1);
-  int seg1 = __shfl(seg0, srcLane);
-  int count = __popc(__ballot(seg0 != seg1)) + 1;
+  int seg1 = __shfl_sync(FULL_MASK, seg0, srcLane);
+  int count = __popc(__ballot_sync(FULL_MASK, seg0 != seg1)) + 1;
   count = (n == 0) ? 0 : count;
   return count;
 }
@@ -115,7 +115,7 @@ void countCacheLines(const int pos, const int n, const int cacheWidth, const int
   int seg = pos/cacheWidth;
   // Lane is at the beginning of a full cache line, if seg0 matches seg0 cacheWidth - 1 away
   int readLane = warpLane + (cacheWidth - 1);
-  int val = (seg == __shfl(seg, readLane));
+  int val = (seg == __shfl_sync(FULL_MASK, seg, readLane));
   val = (readLane < n) ? val : 0;
   cl_full += val;
 
@@ -123,14 +123,14 @@ void countCacheLines(const int pos, const int n, const int cacheWidth, const int
   // Perform warpSize-way bitwise or
 #pragma unroll
   for (int i=warpSize/2;i >= 1;i/=2) {
-    valbit |= __shfl_xor(valbit, i);
+    valbit |= __shfl_xor_sync(FULL_MASK, valbit, i);
   }
   // Now: lanes with valbit set are part of a full cache line,
   //      lanes with valbit unset are part of a partial cache line
   int full = (valbit >> warpLane) & 1;
 
   seg = (warpLane < n) ? seg : -1;
-  int segP1 = __shfl_down(seg, 1);
+  int segP1 = __shfl_down_sync(FULL_MASK, seg, 1);
   segP1 = (warpLane + 1 < warpSize) ? segP1 : -1;
   int val2 = ((!full) && seg != segP1);
   cl_part += val2;
@@ -190,16 +190,16 @@ __global__ void runCountersKernel(const int* posData, const int numPosData,
   for (int i=threadIdx.x + blockIdx.x*blockDim.x;i < numPosData;i+=blockDim.x*gridDim.x) {
     int pos = posData[i];
     int flag = (pos == -1);
-    int ffsval = __ffs(__ballot(flag)) - 1;
-    int n = (__any(flag)) ? ffsval : warpSize;
+    int ffsval = __ffs(__ballot_sync(FULL_MASK, flag)) - 1;
+    int n = (__any_sync(FULL_MASK, flag)) ? ffsval : warpSize;
     int tran = countGlTransactions(pos, n, accWidth, warpLane);
     int cl_full = 0;
     int cl_part = 0;
     countCacheLines(pos, n, cacheWidth, warpLane, cl_full, cl_part);
 #pragma unroll
     for (int k=warpSize/2;k >= 1;k/=2) {
-      cl_full += __shfl_xor(cl_full, k);
-      cl_part += __shfl_xor(cl_part, k);
+      cl_full += __shfl_xor_sync(FULL_MASK, cl_full, k);
+      cl_part += __shfl_xor_sync(FULL_MASK, cl_part, k);
     }
     int j = i / warpSize;
     tranData[j] = tran;
@@ -216,15 +216,15 @@ __global__ void runCountersKernel(const int* posData, const int numPosData,
 __device__ __forceinline__
 void writeMemStat(const int warpLane, MemStat memStat, MemStat* RESTRICT glMemStat) {
   for (int i=16;i >= 1;i/=2) {
-    // memStat.gld_tran += __shfl_xor(memStat.gld_tran, i);
-    // memStat.gst_tran += __shfl_xor(memStat.gst_tran, i);
-    // memStat.gld_req  += __shfl_xor(memStat.gld_req, i);
-    // memStat.gst_req  += __shfl_xor(memStat.gst_req, i);
-    memStat.cl_full_l2  += __shfl_xor(memStat.cl_full_l2, i);
-    memStat.cl_part_l2  += __shfl_xor(memStat.cl_part_l2, i);
-    memStat.cl_full_l1  += __shfl_xor(memStat.cl_full_l1, i);
-    memStat.cl_part_l1  += __shfl_xor(memStat.cl_part_l1, i);
-    // memStat.l1_tran     += __shfl_xor(memStat.l1_tran, i);
+    // memStat.gld_tran += __shfl_xor_sync(FULL_MASK, memStat.gld_tran, i);
+    // memStat.gst_tran += __shfl_xor_sync(FULL_MASK, memStat.gst_tran, i);
+    // memStat.gld_req  += __shfl_xor_sync(FULL_MASK, memStat.gld_req, i);
+    // memStat.gst_req  += __shfl_xor_sync(FULL_MASK, memStat.gst_req, i);
+    memStat.cl_full_l2  += __shfl_xor_sync(FULL_MASK, memStat.cl_full_l2, i);
+    memStat.cl_part_l2  += __shfl_xor_sync(FULL_MASK, memStat.cl_part_l2, i);
+    memStat.cl_full_l1  += __shfl_xor_sync(FULL_MASK, memStat.cl_full_l1, i);
+    memStat.cl_part_l1  += __shfl_xor_sync(FULL_MASK, memStat.cl_part_l1, i);
+    // memStat.l1_tran     += __shfl_xor_sync(FULL_MASK, memStat.l1_tran, i);
   }
   if (warpLane == 0) {
     atomicAdd(&(glMemStat->gld_tran), memStat.gld_tran);
@@ -273,8 +273,8 @@ countTiled(
   const int xout = bx + threadIdx.y;
   const int yout = by + threadIdx.x;
 
-  const unsigned int maskIny = __ballot((yin + warpLane < tiledVol.y))*(xin < tiledVol.x);
-  const unsigned int maskOutx = __ballot((xout + warpLane < tiledVol.x))*(yout < tiledVol.y);
+  const unsigned int maskIny = __ballot_sync(FULL_MASK, (yin + warpLane < tiledVol.y))*(xin < tiledVol.x);
+  const unsigned int maskOutx = __ballot_sync(FULL_MASK, (xout + warpLane < tiledVol.x))*(yout < tiledVol.y);
 
   const int posMinorIn = xin + yin*cuDimMk;
   const int posMinorOut = yout + xout*cuDimMm;
@@ -292,8 +292,8 @@ countTiled(
     int posMajorOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMajorIn += __shfl_xor(posMajorIn, i);
-      posMajorOut += __shfl_xor(posMajorOut, i);
+      posMajorIn += __shfl_xor_sync(FULL_MASK, posMajorIn, i);
+      posMajorOut += __shfl_xor_sync(FULL_MASK, posMajorOut, i);
     }
     int posIn = posMajorIn + posMinorIn;
     int posOut = posMajorOut + posMinorOut;
@@ -301,17 +301,17 @@ countTiled(
     // Read data into shared memory tile
 #pragma unroll
     for (int j=0;j < TILEDIM;j += TILEROWS) {
-      int n = __popc(__ballot(maskIny & (1 << j)));
+      int n = __popc(__ballot_sync(FULL_MASK, maskIny & (1 << j)));
       memStat.gld_tran += countGlTransactions(posIn, n, accWidth, warpLane);
-      memStat.gld_req += __any(n > 0);
+      memStat.gld_req += __any_sync(FULL_MASK, n > 0);
       posIn += posInAdd;
     }
 
 #pragma unroll
     for (int j=0;j < TILEDIM;j += TILEROWS) {
-      int n = __popc(__ballot(maskOutx & (1 << j)));
+      int n = __popc(__ballot_sync(FULL_MASK, maskOutx & (1 << j)));
       memStat.gst_tran += countGlTransactions(posOut, n, accWidth, warpLane);
-      memStat.gst_req += __any(n > 0);
+      memStat.gst_req += __any_sync(FULL_MASK, n > 0);
       countCacheLines(posOut, n, cacheWidth, warpLane, memStat.cl_full_l2, memStat.cl_part_l2);
       posOut += posOutAdd;
     }
@@ -363,8 +363,8 @@ countPacked(
 #pragma unroll
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
-      posMmkIn[j]  += ((posMmk / __shfl(Mmk.c_in,i)) % __shfl(Mmk.d_in,i))*__shfl(Mmk.ct_in,i);
-      posMmkOut[j] += ((posMmk / __shfl(Mmk.c_out,i)) % __shfl(Mmk.d_out,i))*__shfl(Mmk.ct_out,i);
+      posMmkIn[j]  += ((posMmk / __shfl_sync(FULL_MASK, Mmk.c_in,i)) % __shfl_sync(FULL_MASK, Mmk.d_in,i))*__shfl_sync(FULL_MASK, Mmk.ct_in,i);
+      posMmkOut[j] += ((posMmk / __shfl_sync(FULL_MASK, Mmk.c_out,i)) % __shfl_sync(FULL_MASK, Mmk.d_out,i))*__shfl_sync(FULL_MASK, Mmk.ct_out,i);
     }
   }
 
@@ -387,13 +387,13 @@ countPacked(
     int posMbarOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarOut += __shfl_xor(posMbarOut, i);
+      posMbarOut += __shfl_xor_sync(FULL_MASK, posMbarOut, i);
     }
 
     int posMbarIn = ((posMbar/Mbar.c_in) % Mbar.d_in)*Mbar.ct_in;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarIn += __shfl_xor(posMbarIn, i);
+      posMbarIn += __shfl_xor_sync(FULL_MASK, posMbarIn, i);
     }
 
     // Read from global memory
@@ -401,9 +401,9 @@ countPacked(
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
       int posIn = posMbarIn + posMmkIn[j];
-      int n = __popc(__ballot(posMmk < volMmk));
+      int n = __popc(__ballot_sync(FULL_MASK, posMmk < volMmk));
       memStat.gld_tran += countGlTransactions(posIn, n, accWidth, warpLane);
-      memStat.gld_req += __any(n > 0);
+      memStat.gld_req += __any_sync(FULL_MASK, n > 0);
     }
 
     // Write to global memory
@@ -411,9 +411,9 @@ countPacked(
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
       int posOut = posMbarOut + posMmkOut[j];
-      int n = __popc(__ballot(posMmk < volMmk));
+      int n = __popc(__ballot_sync(FULL_MASK, posMmk < volMmk));
       memStat.gst_tran += countGlTransactions(posOut, n, accWidth, warpLane);
-      memStat.gst_req += __any(n > 0);
+      memStat.gst_req += __any_sync(FULL_MASK, n > 0);
       if (posMmk < volMmk) shSegOut[posMmk] = posOut/cacheWidth;
     }
 
@@ -498,8 +498,8 @@ countPackedSplit(
 #pragma unroll
     for (int j=0;j < numRegStorage;j++) {
       int t = threadIdx.x + j*blockDim.x;
-      posMmkIn[j]  += ((t/__shfl(Mmk.c_in,i)) % __shfl(Mmk.d_in,i))*__shfl(Mmk.ct_in,i);
-      posMmkOut[j] += ((t/__shfl(Mmk.c_out,i)) % __shfl(Mmk.d_out,i))*__shfl(Mmk.ct_out,i);
+      posMmkIn[j]  += ((t/__shfl_sync(FULL_MASK, Mmk.c_in,i)) % __shfl_sync(FULL_MASK, Mmk.d_in,i))*__shfl_sync(FULL_MASK, Mmk.ct_in,i);
+      posMmkOut[j] += ((t/__shfl_sync(FULL_MASK, Mmk.c_out,i)) % __shfl_sync(FULL_MASK, Mmk.d_out,i))*__shfl_sync(FULL_MASK, Mmk.ct_out,i);
     }
   }
 
@@ -521,13 +521,13 @@ countPackedSplit(
     int posMbarOut = ((posMbar/Mbar.c_out) % Mbar.d_out)*Mbar.ct_out;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarOut += __shfl_xor(posMbarOut, i);
+      posMbarOut += __shfl_xor_sync(FULL_MASK, posMbarOut, i);
     }
 
     int posMbarIn = ((posMbar/Mbar.c_in) % Mbar.d_in)*Mbar.ct_in;
 #pragma unroll
     for (int i=16;i >= 1;i/=2) {
-      posMbarIn += __shfl_xor(posMbarIn, i);
+      posMbarIn += __shfl_xor_sync(FULL_MASK, posMbarIn, i);
     }
 
     // Read from global memory
@@ -535,9 +535,9 @@ countPackedSplit(
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
       int posIn = posMbarIn + posMmkIn[j];
-      int n = __popc(__ballot(posMmk < volMmkSplit));
+      int n = __popc(__ballot_sync(FULL_MASK, posMmk < volMmkSplit));
       memStat.gld_tran += countGlTransactions(posIn, n, accWidth, warpLane);
-      memStat.gld_req += __any(n > 0);
+      memStat.gld_req += __any_sync(FULL_MASK, n > 0);
     }
 
     // Write to global memory
@@ -545,9 +545,9 @@ countPackedSplit(
     for (int j=0;j < numRegStorage;j++) {
       int posMmk = threadIdx.x + j*blockDim.x;
       int posOut = posMbarOut + posMmkOut[j];
-      int n = __popc(__ballot(posMmk < volMmkSplit));
+      int n = __popc(__ballot_sync(FULL_MASK, posMmk < volMmkSplit));
       memStat.gst_tran += countGlTransactions(posOut, n, accWidth, warpLane);
-      memStat.gst_req += __any(n > 0);
+      memStat.gst_req += __any_sync(FULL_MASK, n > 0);
       if (posMmk < volMmkSplit) shSegOut[posMmk] = posOut / cacheWidth;
       // countCacheLines(posOut, n, cacheWidth, warpLane, memStat.cl_full, memStat.cl_part);
     }
@@ -619,9 +619,9 @@ countTiledCopy(
 #pragma unroll
       for (int j=0;j < TILEDIM;j += TILEROWS) {
         int pos  = pos0  + j*cuDimMk;
-        int n = __popc(__ballot((x < tiledVol.x) && (y + j < tiledVol.y)));
+        int n = __popc(__ballot_sync(FULL_MASK, (x < tiledVol.x) && (y + j < tiledVol.y)));
         memStat.gld_tran += countGlTransactions(pos, n, accWidth, warpLane);
-        memStat.gld_req += __any(n > 0);
+        memStat.gld_req += __any_sync(FULL_MASK, n > 0);
       }
     }
 
@@ -633,9 +633,9 @@ countTiledCopy(
 #pragma unroll
       for (int j=0;j < TILEDIM;j += TILEROWS) {
         int pos = pos0 + j*cuDimMm;
-        int n = __popc(__ballot((x < tiledVol.x) && (y + j < tiledVol.y)));
+        int n = __popc(__ballot_sync(FULL_MASK, (x < tiledVol.x) && (y + j < tiledVol.y)));
         memStat.gst_tran += countGlTransactions(pos, n, accWidth, warpLane);
-        memStat.gst_req += __any(n > 0);
+        memStat.gst_req += __any_sync(FULL_MASK, n > 0);
         countCacheLines(pos, n, cacheWidth, warpLane, memStat.cl_full_l2, memStat.cl_part_l2);
       }
     }

@@ -24,7 +24,7 @@ SOFTWARE.
 *******************************************************************************/
 #ifndef CUTTGPUMODELKERNEL_H
 #define CUTTGPUMODELKERNEL_H
-#include "cuttplan.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
 
 void runCounters(const int warpSize, const int* hostPosData, const int numPosData,
   const int accWidth, const int cacheWidth, int* host_tran, int* host_cl_full, int* host_cl_part);
