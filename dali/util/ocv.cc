@@ -149,8 +149,8 @@ template <>
 inline void custom_conversion_pixel<DALI_GRAY, DALI_YCbCr>(const uint8_t* input, uint8_t* output) {
   const auto y   = *(input);
   *(output)      = y;
-  *(output + 1)  = 0;
-  *(output + 2)  = 0;
+  *(output + 1)  = 128;
+  *(output + 2)  = 128;
 }
 
 template <>

@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operators/color_space/color_space_conversion.h"
+#include "dali/util/npp.h"
 
 namespace dali {
 
@@ -32,13 +33,15 @@ __global__ void ConvertRGBToBGRKernel(const T *input, T *output, unsigned int to
   const T* pixel_in = &input[idx * C];
   T* pixel_out = &output[idx * C];
 
-  T c0 = pixel_in[0];
-  pixel_out[0] = pixel_in[2];
-  pixel_out[1] = pixel_in[1];
-  pixel_out[2] = c0;
+  T tmp[3] = { pixel_in[0], pixel_in[1], pixel_in[2] };
+  pixel_out[0] = tmp[2];
+  pixel_out[1] = tmp[1];
+  pixel_out[2] = tmp[0];
 }
 
-auto ConvertBGRToRGBKernel = ConvertRGBToBGRKernel<uint8_t>;
+auto ConvertBGRToRGB8uKernel = ConvertRGBToBGRKernel<uint8_t>;
+auto ConvertRGBToBGR8uKernel = ConvertRGBToBGRKernel<uint8_t>;
+
 
 template<typename T = uint8_t>
 __global__ void ConvertGrayToRGBKernel(const T *input, T *output, unsigned int total_pixels) {
@@ -47,27 +50,29 @@ __global__ void ConvertGrayToRGBKernel(const T *input, T *output, unsigned int t
     return;
   }
 
-  const T* pixel_in = &input[idx];
+  const T pixel_in = input[idx];
   const unsigned int C = 3;
   T* pixel_out = &output[idx * C];
-  pixel_out[0] = pixel_in[0];
-  pixel_out[1] = pixel_in[0];
-  pixel_out[2] = pixel_in[0];
+  pixel_out[0] = pixel_in;
+  pixel_out[1] = pixel_in;
+  pixel_out[2] = pixel_in;
 }
 
-template<typename T = uint8_t>
-__global__ void ConvertGrayToYCbCrKernel(const T *input, T *output, unsigned int total_pixels) {
+auto ConvertGrayToRGB8uKernel = ConvertGrayToRGBKernel<uint8_t>;
+
+__global__ void ConvertGrayToYCbCr8uKernel(const uint8_t *input, uint8_t *output,
+                                           unsigned int total_pixels) {
   unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_pixels) {
     return;
   }
 
-  const T* pixel_in = &input[idx];
+  const uint8_t pixel_in = input[idx];
   const unsigned int C = 3;
-  T* pixel_out = &output[idx * C];
-  pixel_out[0] = pixel_in[0];
-  pixel_out[1] = 0;
-  pixel_out[2] = 0;
+  uint8_t* pixel_out = &output[idx * C];
+  pixel_out[0] = pixel_in;
+  pixel_out[1] = 128;
+  pixel_out[2] = 128;
 }
 
 template<typename T = uint8_t>
@@ -78,10 +83,10 @@ __global__ void ConvertYCbCrToGrayKernel(const T *input, T *output, unsigned int
   }
 
   const unsigned int C = 3;
-  const T* pixel_in = &input[idx * C];
-  T* pixel_out = &output[idx];
-  pixel_out[0] = pixel_in[0];
+  output[idx] = input[idx * C];
 }
+
+auto ConvertYCbCrToGray8uKernel = ConvertYCbCrToGrayKernel<uint8_t>;
 
 }  // namespace detail
 
@@ -120,7 +125,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
     // RGB -> BGR || BGR -> RGB
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
       // image dimensions
-      DALISize size;
+      NppiSize size;
       size.height = input.tensor_shape(i)[0];
       size.width = input.tensor_shape(i)[1];
 
@@ -162,7 +167,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
         // BGR -> RGB
-        detail::ConvertRGBToBGRKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
       } else if (conversion == kRGB_TO_YCbCr) {
         // RGB -> YCbCr
@@ -172,7 +177,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       } else if (conversion == kBGR_TO_YCbCr) {
         // BGR -> YCbCr
         // First from BGR to RGB
-        detail::ConvertBGRToRGBKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertBGRToRGB8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
         // Then from RGB to YCbCr
         DALI_CHECK_NPP(
@@ -195,7 +200,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
           nppiYCbCrToRGB_8u_C3R(
             input_data, nStepInput, output_data, nStepOutput, size));
         // Then from RGB to BGR
-        detail::ConvertRGBToBGRKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
           output_data, output_data, total_size);
       } else if (conversion == kYCbCr_TO_RGB) {
         // First from YCbCr to RGB
@@ -204,15 +209,15 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
             input_data, nStepInput, output_data, nStepOutput, size));
       } else if (conversion == kGRAY_TO_BGR || conversion == kGRAY_TO_RGB) {
         // GRAY -> RGB / BGR
-        detail::ConvertGrayToRGBKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertGrayToRGB8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
       } else if (conversion == kGRAY_TO_YCbCr) {
         // GRAY -> YCbCr
-        detail::ConvertGrayToYCbCrKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertGrayToYCbCr8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
       } else if (conversion == kYCbCr_TO_GRAY) {
         // YCbCr -> GRAY
-        detail::ConvertYCbCrToGrayKernel<<<grid, block, 0, stream>>>(
+        detail::ConvertYCbCrToGray8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
       } else {
         DALI_FAIL("conversion not supported");
