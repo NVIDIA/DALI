@@ -22,9 +22,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+#include "dali/pipeline/operators/transpose/cutt/CudaMemcpy.h"
+
 #include "dali/util/dynlink_cuda.h"
-#include "CudaUtils.h"
-#include "CudaMemcpy.h"
+#include "dali/error_handling.h"
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 
 const int numthread = 64;
 
@@ -50,7 +52,7 @@ void scalarCopy(const int n, const T* data_in, T* data_out, cudaStream_t stream)
   scalarCopyKernel<T> <<< numblock, numthread, 0, stream >>>
   (n, data_in, data_out);
 
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
 }
 // -----------------------------------------------------------------------------------
 
@@ -90,7 +92,7 @@ void vectorCopy(const int n, T* data_in, T* data_out, cudaStream_t stream) {
   vectorCopyKernel<T> <<< numblock, numthread, shmemsize, stream >>>
   (n, data_in, data_out);
 
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
 }
 // -----------------------------------------------------------------------------------
 
@@ -141,7 +143,7 @@ void memcpyFloat(const int n, float* data_in, float* data_out, cudaStream_t stre
   // memcpyFloatLoopKernel<NUM_ELEM> <<< numblock, numthread, shmemsize, stream >>>
   // (n/4, (float4 *)data_in, (float4 *)data_out);
 
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
 }
 // -----------------------------------------------------------------------------------
 

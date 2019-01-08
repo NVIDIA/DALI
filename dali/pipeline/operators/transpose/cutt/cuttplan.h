@@ -29,7 +29,7 @@ SOFTWARE.
 #include <vector>
 
 #include "dali/util/dynlink_cuda.h"
-#include "cuttTypes.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttTypes.h"
 
 const int TILEDIM = 32;
 const int TILEROWS = 8;

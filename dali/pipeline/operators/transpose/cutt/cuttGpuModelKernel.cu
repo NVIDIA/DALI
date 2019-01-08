@@ -22,9 +22,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+#include "dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h"
+
 #include "dali/util/dynlink_cuda.h"
-#include "CudaUtils.h"
-#include "cuttGpuModelKernel.h"
+#include "dali/error_handling.h"
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 
 #define RESTRICT //__restrict__
 
@@ -669,12 +671,12 @@ void runCounters(const int warpSize, const int* hostPosData, const int numPosDat
   int nblock = (numPosData - 1)/nthread + 1;
   runCountersKernel<<< nblock, nthread >>>(devPosData, numPosData,
     accWidth, cacheWidth, dev_tran, dev_cl_full, dev_cl_part);
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
 
   copy_DtoH<int>(dev_tran,    host_tran,    numWarp);
   copy_DtoH<int>(dev_cl_full, host_cl_full, numWarp);
   copy_DtoH<int>(dev_cl_part, host_cl_part, numWarp);
-  cudaCheck(cudaDeviceSynchronize());
+  CUDA_CALL(cudaDeviceSynchronize());
 
   deallocate_device<int>(&dev_tran);
   deallocate_device<int>(&dev_cl_full);
@@ -761,11 +763,11 @@ bool cuttGpuModelKernel(cuttPlan_t& plan, const int accWidth, const int cacheWid
 
   }
 
-  cudaCheck(cudaGetLastError());
+  CUDA_CALL(cudaGetLastError());
 
   MemStat hostMemStat;
   copy_DtoH<MemStat>(devMemStat, &hostMemStat, 1, plan.stream);
-  cudaCheck(cudaDeviceSynchronize());
+  CUDA_CALL(cudaDeviceSynchronize());
   deallocate_device<MemStat>(&devMemStat);
 
   gld_tran   = hostMemStat.gld_tran;

@@ -26,20 +26,9 @@ SOFTWARE.
 #define CUDAUTILS_H
 
 #include <stdio.h>
-#include <cuda.h>
 #include <cuda_runtime.h>
 
-//
-// Error checking wrapper for CUDA
-//
-#define cudaCheck(stmt) do {                                 \
-	cudaError_t err = stmt;                            \
-  if (err != cudaSuccess) {                          \
-	  fprintf(stderr, "%s in file %s, function %s\n", #stmt,__FILE__,__FUNCTION__); \
-    fprintf(stderr, "Error String: %s\n", cudaGetErrorString(err)); \
-	  exit(1); \
-  }                                                  \
-} while(0)
+#include "dali/util/dynlink_cuda.h"
 
 void set_device_array_async_T(void *data, int value, const size_t ndata, cudaStream_t stream, const size_t sizeofT);
 void set_device_array_T(void *data, int value, const size_t ndata, const size_t sizeofT);

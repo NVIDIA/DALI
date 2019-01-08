@@ -27,11 +27,14 @@ SOFTWARE.
 #include <unordered_set>
 #include <cmath>
 #include <random>
-#include "CudaUtils.h"
-#include "cuttplan.h"
-#include "cuttkernel.h"
-#include "cuttGpuModel.h"
-#include "cuttGpuModelKernel.h"
+
+#include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
+
+#include "dali/error_handling.h"
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttGpuModel.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h"
 
 void printMethod(int method) {
   switch(method) {
@@ -1646,7 +1649,7 @@ void cuttPlan_t::nullDevicePointers() {
 }
 
 cuttPlan_t::cuttPlan_t() {
-  cudaCheck(cudaGetDevice(&deviceID));
+  CUDA_CALL(cudaGetDevice(&deviceID));
   stream = 0;
   numActiveBlock = 0;
   nullDevicePointers();

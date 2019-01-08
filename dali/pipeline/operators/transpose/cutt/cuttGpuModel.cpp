@@ -27,10 +27,12 @@ SOFTWARE.
 #include <random>
 #include <cuda_runtime.h>
 #include <cstring>               // memcpy
-#include "cuttGpuModel.h"
-#include "cuttGpuModelKernel.h"
+
+#include "dali/pipeline/operators/transpose/cutt/cuttGpuModel.h"
+
+#include "dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h"
 #ifdef ENABLE_NVTOOLS
-#include "CudaUtils.h"
+#include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 #endif
 
 // #define CALC_L1_CACHELINES

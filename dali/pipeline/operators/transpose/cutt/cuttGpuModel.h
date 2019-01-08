@@ -26,9 +26,9 @@ SOFTWARE.
 #define CUTTGPUMODEL_H
 
 #include <vector>
-#include "cuttTypes.h"
-#include "cuttplan.h"
-#include "int_vector.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttTypes.h"
+#include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
+#include "dali/pipeline/operators/transpose/cutt/int_vector.h"
 
 void computePos(const int vol0, const int vol1,
   const TensorConvInOut* conv, const int numConv,
