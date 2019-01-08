@@ -33,7 +33,10 @@ DALI_SCHEMA(ResizeAttr)
       "If the `resize_x` is left at 0, then the op will keep "
       "the aspect ratio of the original image.", 0.f, true)
   .AddOptionalArg("resize_shorter", "The length of the shorter dimension of the resized image. "
-      "This option is mutually exclusive with `resize_x` and `resize_y`. "
+      "This option is mutually exclusive with `resize_longer`, `resize_x` and `resize_y`. "
+      "The op will keep the aspect ratio of the original image.", 0.f, true)
+  .AddOptionalArg("resize_longer", "The length of the longer dimension of the resized image. "
+      "This option is mutually exclusive with `resize_shorter`,`resize_x` and `resize_y`. "
       "The op will keep the aspect ratio of the original image.", 0.f, true);
 
 DALI_SCHEMA(Resize)
@@ -119,8 +122,8 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
       attr_output->Resize(Dims{2});
       int *t = attr_output->mutable_data<int>();
-      t[0] = meta.rsz_h;
-      t[1] = meta.rsz_w;
+      t[0] = meta.H;
+      t[1] = meta.W;
     }
 }
 

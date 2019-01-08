@@ -31,7 +31,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     const uint resizeOptions = getResizeOptions();
 
     int resize_a = 0, resize_b = 0;
-    bool warp_resize = true;
+    bool warp_resize = true, resize_shorter = true;
     const OpSpec &spec = this->GetOperationSpec();
     const bool useExternSizes = (resizeOptions & t_externSizes) &&
                                 spec.GetArgument<bool>("save_attrs");
@@ -41,10 +41,15 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       resize_a = spec.GetArgument<float>("resize_x");
       warp_resize = resize_a != 0;
-      if (warp_resize)
+      if (warp_resize) {
         resize_b = spec.GetArgument<float>("resize_y");
-      else
+      } else {
         resize_a = spec.GetArgument<float>("resize_shorter");
+        if (resize_a == 0) {
+          resize_a = spec.GetArgument<float>("resize_longer");
+          resize_shorter = false;
+        }
+      }
     }
 
     int crop_h = 0, crop_w = 0;
@@ -71,11 +76,21 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
           rsz_h = resize_b;
         } else {
           if (H >= W) {
-            rsz_w = resize_a;
-            rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            if (resize_shorter) {
+              rsz_w = resize_a;
+              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            } else {
+              rsz_h = resize_a;
+              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            }
           } else {  // W > H
-            rsz_h = resize_a;
-            rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            if (resize_shorter) {
+              rsz_h = resize_a;
+              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            } else {
+              rsz_w = resize_a;
+              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            }
           }
         }
       }
@@ -84,6 +99,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       // perform the resize
       cv::Mat rsz_img;
+
       cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
 
       cv::Mat crop_img;

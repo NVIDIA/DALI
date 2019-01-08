@@ -42,10 +42,14 @@ class ResizeCropMirrorAttr : protected CropAttr {
   explicit inline ResizeCropMirrorAttr(const OpSpec &spec) : CropAttr(spec),
     interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     resize_shorter_ = spec.ArgumentDefined("resize_shorter");
+    resize_longer_ = spec.ArgumentDefined("resize_longer");
     resize_x_ = spec.ArgumentDefined("resize_x");
     resize_y_ = spec.ArgumentDefined("resize_y");
-    DALI_ENFORCE(resize_shorter_ != (resize_x_ || resize_y_),
-                 "Options `resize_shorter` and `resize_x` or `resize_y` "
+    DALI_ENFORCE(!(resize_shorter_ && resize_longer_),
+                 "Options `resize_longer` and `resize_shorter` are mutually"
+                 " exclusive for schema \"" + spec.name() + "\"");
+    DALI_ENFORCE((resize_shorter_ || resize_longer_) != (resize_x_ || resize_y_),
+                 "Options `resize_{shorter,longer}` and `resize_x` or `resize_y` "
                  "are mutually exclusive for schema \"" + spec.name() + "\"");
   }
 
@@ -75,6 +79,20 @@ class ResizeCropMirrorAttr : protected CropAttr {
         const float scale = shorter_side_size/static_cast<float>(meta.W);
         meta.rsz_h = scale * meta.H;
         meta.rsz_w = shorter_side_size;
+      }
+    } else if (resize_longer_) {
+        // resize_longer set
+        const int longer_side_size = spec.GetArgument<float>("resize_longer", ws, index);
+
+        if (meta.H > meta.W) {
+          const float scale = longer_side_size/static_cast<float>(meta.H);
+          meta.rsz_h = longer_side_size;
+          meta.rsz_w = scale * meta.W;
+
+        } else {
+          const float scale = longer_side_size/static_cast<float>(meta.W);
+          meta.rsz_h = scale * meta.H;
+          meta.rsz_w = longer_side_size;
       }
     } else {
       if (resize_x_) {
@@ -119,7 +137,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
 
  private:
   // Resize meta-data
-  bool resize_shorter_, resize_x_, resize_y_;
+  bool resize_shorter_, resize_longer_, resize_x_, resize_y_;
 };
 
 typedef DALIError_t (*resizeCropMirroHost)(const uint8 *img, int H, int W, int C,

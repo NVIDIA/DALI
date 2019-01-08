@@ -41,10 +41,11 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   : DataReader<CPUBackend, ImageLabelWrapper>(spec),
     annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
     ltrb_(spec.GetArgument<bool>("ltrb")),
-    ratio_(spec.GetArgument<bool>("ratio")) {
+    ratio_(spec.GetArgument<bool>("ratio")),
+    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ParseAnnotationFiles();
     loader_.reset(new FileLoader(spec, image_id_pairs_));
-    parser_.reset(new COCOParser(spec, annotations_multimap_));
+    parser_.reset(new COCOParser(spec, annotations_multimap_, save_img_ids_));
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -68,6 +69,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<std::pair<std::string, int>> image_id_pairs_;
   bool ltrb_;
   bool ratio_;
+  bool save_img_ids_;
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };
 

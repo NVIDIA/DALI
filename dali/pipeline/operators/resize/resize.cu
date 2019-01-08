@@ -156,8 +156,8 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
       for (size_t i = 0; i < input.ntensor(); ++i) {
         int *t = attr_output_cpu.mutable_tensor<int>(i);
-        t[0] = sizes(output_t).data()[i].height;
-        t[1] = sizes(output_t).data()[i].width;
+        t[0] = sizes(input_t).data()[i].height;
+        t[1] = sizes(input_t).data()[i].width;
       }
       ws->Output<GPUBackend>(outputs_per_idx_ * idx + 1)->Copy(attr_output_cpu, ws->stream());
     }

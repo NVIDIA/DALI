@@ -309,6 +309,12 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
   .AddOptionalArg("ratio",
       R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height. Default: False)code",
       false)
+  .AddOptionalArg("save_img_ids",
+      R"code(If true, image IDs will also be returned. Default: False)code",
+      false)
+  .AdditionalOutputsFn([](const OpSpec& spec) {
+    return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
+  })
   .AddParent("LoaderBase");
 
 
