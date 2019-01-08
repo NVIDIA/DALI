@@ -101,7 +101,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 
   int input_C = NumberOfChannels(input_type_);
   int output_C = NumberOfChannels(output_type_);
-  vector<Dims> input_shape = input.shape();
+  const vector<Dims> input_shape = input.shape();
   vector<Dims> output_shape = input_shape;
   if ( input_C != output_C ) {
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
@@ -116,10 +116,6 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
   cudaStream_t old_stream = nppGetStream();
   auto stream = ws->stream();
   nppSetStream(stream);
-
-  // TODO(janton): Add support for NCHW ??
-  DALI_ENFORCE(input.GetLayout() == DALI_NHWC,
-      "Color space conversion accept only NHWC layout");
 
   if (input.GetLayout() == DALI_NHWC) {
     // RGB -> BGR || BGR -> RGB
@@ -136,12 +132,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       const unsigned int grid = (total_size + block - 1) / block;
 
       // For NPPI calls
-      DALI_ENFORCE(input.tensor_shape(i)[2] == input_C,
-        "Incorrect number of channels for input");
       const int nStepInput = input_C * size.width;
-
-      DALI_ENFORCE(output->tensor_shape(i)[2] == output_C,
-        "Incorrect number of channels for output");
       const int nStepOutput = output_C * size.width;
 
       // input/output
