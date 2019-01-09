@@ -32,6 +32,6 @@ void cuttKernelSetSharedMemConfig();
 int cuttKernelLaunchConfiguration(const int sizeofType, const TensorSplit& ts,
 	const int deviceID, const cudaDeviceProp& prop, LaunchConfig& lc);
 
-bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut);
+bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut);
 
 #endif // CUTTKERNEL_H

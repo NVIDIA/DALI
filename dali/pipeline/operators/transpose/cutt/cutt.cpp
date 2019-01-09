@@ -36,7 +36,7 @@ SOFTWARE.
 static std::unordered_map<cuttHandle, cuttPlan_t*> planStorage;
 
 // Current handle
-static cuttHandle curHandle = 0;
+static cuttHandle curHandle = 1;
 
 // Table of devices that have been initialized
 static std::unordered_map<int, cudaDeviceProp> deviceProps;
@@ -285,7 +285,7 @@ cuttResult cuttDestroy(cuttHandle handle) {
   return CUTT_SUCCESS;
 }
 
-cuttResult cuttExecute(cuttHandle handle, void* idata, void* odata) {
+cuttResult cuttExecute(cuttHandle handle, const void* idata, void* odata) {
   auto it = planStorage.find(handle);
   if (it == planStorage.end()) return CUTT_INVALID_PLAN;
 

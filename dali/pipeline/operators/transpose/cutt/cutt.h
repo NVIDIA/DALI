@@ -98,6 +98,6 @@ cuttResult cuttDestroy(cuttHandle handle);
 // Returns
 // Success/unsuccess code
 //
-cuttResult cuttExecute(cuttHandle handle, void* idata, void* odata);
+cuttResult cuttExecute(cuttHandle handle, const void* idata, void* odata);
 
 #endif // CUTT_H

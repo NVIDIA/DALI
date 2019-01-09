@@ -27,25 +27,38 @@ class Transpose : public Operator<Backend> {
  public:
   explicit inline Transpose(const OpSpec &spec) :
     Operator<Backend>(spec),
-    perm_(spec.GetRepeatedArgument<Index>("perm"))
-    {}
+    perm_(spec.GetRepeatedArgument<int>("perm"))
+    {
+      DALI_ENFORCE([](std::vector<int> perm) {
+          std::sort(perm.begin(), perm.begin());
+          for (int i = 0; i < static_cast<int>(perm.size()); ++i) {
+            if (perm[i] != i) {
+              return false;
+            }
+          }
+          return true;
+        }(perm_), "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
+    }
 
   ~Transpose() override;
 
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+
   void RunImpl(Workspace<Backend> *ws, int idx) override;
 
  private:
 
   void NaiveTransposeKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output);
 
+  template <typename T = float>
   void cuTTKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output, cudaStream_t stream);
 
-  std::vector<Index> perm_;
+  std::vector<int> perm_;
 
-  cuttHandle cutt_handle_ = -1;
+  cuttHandle cutt_handle_ = 0;
 
   USE_OPERATOR_MEMBERS();
 
