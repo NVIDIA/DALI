@@ -123,7 +123,20 @@ OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_argumen
 
 }  // namespace detail
 
-
+/**
+ * Defines and conducts test for given graph of operators.
+ * Note: whenever "graph of operators" is used, in particular it can mean,
+ *       that the graph consists of one operator.
+ *
+ * In order to set up a test, please define custom subclass of this class.
+ *
+ * Along with custom class, a verification function should be defined (Verify, VerifySiso)
+ *
+ * GenerateOperatorGraph is a template method, where you can define,
+ * what precisely should be tested.
+ *
+ * Lastly, to actually run a test, please call RunTest within GTest's testing macro
+ */
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
  public:
 
@@ -131,36 +144,74 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
           batch_size_(batch_size), num_threads_(num_thread) {}
 
 
-  using Verify = std::function<void(const TensorListWrapper /* single input */,
-                                    const TensorListWrapper /* single output */, const Arguments)>;
+  /**
+   * Type of the function used for verification, whether graph test passed or failed.
+   * Within this function, please use GTest's ASSERTs and EXPECTs, for test validation.
+   *
+   * First argument of function contains all inputs, that has been provided;
+   * Second argument are all outputs from pipeline;
+   * Third argument contains Arguments, with which the pipeline was called
+   *
+   * This is some sort or template method pattern.
+   */
+  using Verify = std::function<void(const std::vector<TensorListWrapper> /* inputs */,
+                                    const std::vector<TensorListWrapper> /* outputs */,
+                                    const Arguments)>;
+
+  /**
+   * Convenient variation of Verify, which is applied for single-input/single-output (Siso) graph
+   */
+  using VerifySiso = std::function<void(const TensorListWrapper /* single input */,
+                                        const TensorListWrapper /* single output */,
+                                        const Arguments)>;
 
  protected:
-  // TODO(mszolucha): documentation
+  /**
+   * Runs defined test.
+   *
+   * Call this method within GTest's testing macro (TEST_F, TEST_P, etc...).
+   * The method will set up a testing pipeline, push data through it and call output verification routines.
+   * Every call of RunTest will set up its own pipeline
+   *
+   * @tparam OutputBackend
+   * @param inputs all inputs to the pipeline
+   * @param outputs placeholder for outputs from pipeline
+   * @param operator_arguments arguments, with which the pipeline will be called
+   * @param verify function, that will be used for test verification
+   */
+  template<typename OutputBackend>
+  void
+  RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
+          const Arguments &operator_arguments, const Verify &verify) {
+    //TODO(mszolucha) implement
+  }
+
+
+  /**
+   * Convenient overload, for specific, single-input/single-output (Siso) graph
+   */
   template<typename OutputBackend>
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
-               const Arguments &operator_arguments, const Verify &verify) {
+               const Arguments &operator_arguments, const VerifySiso &verify) {
     std::string output_backend = detail::BackendStringName<OutputBackend>();
     auto pipeline = detail::CreatePipeline(batch_size_, num_threads_);
     if (input) {
       detail::AddInputToPipeline(*pipeline, input);
     }
-    auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, verify,
-                                              input ? true : false, input.backend(),
-                                              output_backend);
+    auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, input ? true : false,
+                                              input.backend(), output_backend);
     assert(outputs.size() == 1); // one input, one output
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
   }
 
 
-  void
-  RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
-          const Arguments &operator_arguments, const std::vector<Verify> &verify) {
-    //TODO(mszolucha) implement
-  }
-
-
  private:
+  /**
+   * Template method. This function serves as a place of definition of
+   * operator graph, that will be tested within this fixture.
+   * @return tested operator graph
+   */
   virtual GraphDescr GenerateOperatorGraph() const noexcept = 0;
 
 
@@ -174,9 +225,8 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
   template<typename OutputBackend>
   std::vector<TensorListWrapper>
-  RunTestImpl(Pipeline &pipeline, const Arguments &operator_arguments, const Verify &verify,
-              bool has_inputs, const std::string &input_backend,
-              const std::string &output_backend) {
+  RunTestImpl(Pipeline &pipeline, const Arguments &operator_arguments, bool has_inputs,
+              const std::string &input_backend, const std::string &output_backend) {
     const auto op_spec = detail::CreateOpSpec(GenerateOperatorGraph().get_op_name(),
                                               operator_arguments, has_inputs, input_backend,
                                               output_backend);
