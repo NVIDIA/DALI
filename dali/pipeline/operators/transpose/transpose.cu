@@ -24,49 +24,79 @@ namespace dali {
   }                                                            \
 } while(0)
 
-void Transpose::~Transpose() {
-  if (cutt_handle_ > -1) {
-    cuttCheck(cuttDestroy(plan));
+template <>
+Transpose<GPUBackend>::~Transpose() {
+  if (cutt_handle_ > 0) {
+    cuttCheck(cuttDestroy(cutt_handle_));
   }
 }
 
 
-void Transpose::NaiveTransposeKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output) {
+template <>
+void Transpose<GPUBackend>::NaiveTransposeKernel(const TensorList<GPUBackend>& input,
+                                     TensorList<GPUBackend>* output) {
 
 }
 
-template <typename T = int>
-void Transpose::cuTTKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output) {
-  std::vector<Index> input_shape = input.tensor_shape(0);
-  // TODO copy and cast here vv
-  const int *dim = input_shape.data();
-  const int *permutation = perm_.data();
+template <>
+template <typename T>
+void Transpose<GPUBackend>::cuTTKernel(const TensorList<GPUBackend>& input,
+                           TensorList<GPUBackend>* output,
+                           cudaStream_t stream) {
+  Dims tmp = input.tensor_shape(0);
+  std::vector<int> input_shape(tmp.begin(), tmp.end());
 
-  if (cutt_handle_ == -1) {
-    cuttCheck(cuttPlan(&cutt_handle_, perm_.size(), dim, permutation, sizeof(T), 0));
+  int *dim = const_cast<int*>(input_shape.data());
+  int *permutation = const_cast<int*>(perm_.data());
+
+  if (cutt_handle_ == 0) {
+    cuttCheck(cuttPlan(&cutt_handle_, perm_.size(), dim, permutation, sizeof(T), stream));
   }
 
-  for (int i = 0; i < batch_size; ++i) {
-    const T* in = input.tensor<T>(i);
-    T* out = input.mutable_tensor<T>(i);
+  for (int i = 0; i < batch_size_; ++i) {
+    const void* in = input.raw_tensor(i);
+    void* out = output->raw_mutable_tensor(i);
     cuttCheck(cuttExecute(cutt_handle_, in, out));
   }
 }
 
 
+template<>
+void Transpose<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  auto* tl_sequence_output = ws->Output<GPUBackend>(0);
+  tl_sequence_output->set_type(TypeInfo::Create<float>());
+}
+
+
+inline Dims GetPermutedDims(const Dims& dims, const std::vector<int>& permutation) {
+  Dims permuted_dims;
+  for (auto idx : permutation) {
+    permuted_dims.push_back(dims[idx]);
+  }
+  return permuted_dims;
+}
 
 template<>
-void Transpose<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
-  const auto &input = ws->Input<GPUBackend>(idx);
-  auto *output = ws->Output<GPUBackend>(idx);
+void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
+  const auto& input = ws->Input<GPUBackend>(idx);
+  auto* output = ws->Output<GPUBackend>(idx);
 
-  std::vector<Index> input_shape = input.tensor_shape(0);
-  DALI_ENFORCE(input_shape.size() == perm_.size(), "Transposed tensors rank should be equal to the permutation index list.");
-  // TODO enforce perm indices to be [0, n]
+  Dims input_shape = input.tensor_shape(0);
+  DALI_ENFORCE(input_shape.size() == perm_.size(),
+               "Transposed tensors rank should be equal to the permutation index list.");
 
   if (input.IsDenseTensor()) {
-    cuTTKernel(input, output);
+    Dims permuted_dims = GetPermutedDims(input_shape, perm_);
+    output->Resize(std::vector<Dims>(batch_size_, permuted_dims));
+    cuTTKernel(input, output, ws->stream());
   } else {
+    std::vector<Dims> tl_shape;
+    for (int i = 0; i < batch_size_; ++i) {
+      Dims in_shape = input.tensor_shape(i);
+      tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
+    }
+    output->Resize(tl_shape);
     NaiveTransposeKernel(input, output);
   }
 }
@@ -74,4 +104,3 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
 DALI_REGISTER_OPERATOR(Transpose, Transpose<GPUBackend>, GPU);
 
 }  // namespace dali
-

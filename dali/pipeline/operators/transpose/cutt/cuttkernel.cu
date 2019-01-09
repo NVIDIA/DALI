@@ -749,7 +749,7 @@ int cuttKernelLaunchConfiguration(const int sizeofType, const TensorSplit& ts,
   return numActiveBlockReturn;
 }
 
-bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
+bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
 
   LaunchConfig& lc = plan.launchConfig;
   TensorSplit& ts = plan.tensorSplit;
@@ -768,7 +768,7 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
 #define CALL0(TYPE, NREG) \
     transposePacked<TYPE, NREG> <<< lc.numblock, lc.numthread, lc.shmemsize, plan.stream >>> \
       (ts.volMmk, ts.volMbar, ts.sizeMmk, ts.sizeMbar, \
-      plan.Mmk, plan.Mbar, plan.Msh, (TYPE *)dataIn, (TYPE *)dataOut)
+      plan.Mmk, plan.Mbar, plan.Msh, (const TYPE *)dataIn, (TYPE *)dataOut)
 #define CALL(ICASE) case ICASE: if (plan.sizeofType == 4) CALL0(float,  ICASE); if (plan.sizeofType == 8) CALL0(double, ICASE); break
 #include "calls.h"
         default:
@@ -787,7 +787,7 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
 #define CALL0(TYPE, NREG) \
     transposePackedSplit<TYPE, NREG> <<< lc.numblock, lc.numthread, lc.shmemsize, plan.stream >>> \
       (ts.splitDim, ts.volMmkUnsplit, ts. volMbar, ts.sizeMmk, ts.sizeMbar, \
-        plan.cuDimMm, plan.cuDimMk, plan.Mmk, plan.Mbar, plan.Msh, (TYPE *)dataIn, (TYPE *)dataOut)
+        plan.cuDimMm, plan.cuDimMk, plan.Mmk, plan.Mbar, plan.Msh, (const TYPE *)dataIn, (TYPE *)dataOut)
 #define CALL(ICASE) case ICASE: if (plan.sizeofType == 4) CALL0(float,  ICASE); if (plan.sizeofType == 8) CALL0(double, ICASE); break
 #include "calls.h"
         default:
@@ -805,7 +805,7 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
 #define CALL(TYPE) \
       transposeTiled<TYPE> <<< lc.numblock, lc.numthread, 0, plan.stream >>> \
       (((ts.volMm - 1)/TILEDIM + 1), ts.volMbar, ts.sizeMbar, plan.tiledVol, plan.cuDimMk, plan.cuDimMm, \
-        plan.Mbar, (TYPE *)dataIn, (TYPE *)dataOut)
+        plan.Mbar, (const TYPE *)dataIn, (TYPE *)dataOut)
       if (plan.sizeofType == 4) CALL(float);
       if (plan.sizeofType == 8) CALL(double);
 #undef CALL
@@ -817,7 +817,7 @@ bool cuttKernel(cuttPlan_t& plan, void* dataIn, void* dataOut) {
 #define CALL(TYPE) \
       transposeTiledCopy<TYPE> <<< lc.numblock, lc.numthread, 0, plan.stream >>> \
       (((ts.volMm - 1)/TILEDIM + 1), ts.volMbar, ts.sizeMbar, plan.cuDimMk, plan.cuDimMm, plan.tiledVol, \
-        plan.Mbar, (TYPE *)dataIn, (TYPE *)dataOut)
+        plan.Mbar, (const TYPE *)dataIn, (TYPE *)dataOut)
       if (plan.sizeofType == 4) CALL(float);
       if (plan.sizeofType == 8) CALL(double);
 #undef CALL
