@@ -17,7 +17,7 @@ import nvidia.dali.backend
 from nvidia.dali.backend import TensorCPU
 from nvidia.dali.backend import TensorListCPU
 
-class TensorReference(object):
+class EdgeReference(object):
     def __init__(self, name, device="cpu", source=None):
         self.name = name
         self.device = device
@@ -27,7 +27,7 @@ class TensorReference(object):
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
     def cpu(self):
-        return TensorReference(self.name, "cpu", self.source)
+        return EdgeReference(self.name, "cpu", self.source)
 
     def gpu(self):
-        return TensorReference(self.name, "gpu", self.source)
+        return EdgeReference(self.name, "gpu", self.source)

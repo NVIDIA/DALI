@@ -17,7 +17,7 @@ from pkg_resources import get_distribution, DistributionNotFound
 
 from . import ops
 from . import pipeline
-from . import tensor
+from . import edge
 from . import tfrecord
 from . import types
 from . import plugin_manager
