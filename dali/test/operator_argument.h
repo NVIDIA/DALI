@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATOR_ARGUMENT_H
-#define DALI_OPERATOR_ARGUMENT_H
+#ifndef DALI_TEST_OPERATOR_ARGUMENT_H_
+#define DALI_TEST_OPERATOR_ARGUMENT_H_
 
 #include <string>
-#include <dali/pipeline/operators/op_spec.h>
+#include <memory>
+#include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
 namespace testing {
@@ -134,4 +135,4 @@ class TestOpArg {
 }  // namespace testing
 }  // namespace dali
 
-#endif  // DALI_OPERATOR_ARGUMENT_H
+#endif  //  DALI_TEST_OPERATOR_ARGUMENT_H_

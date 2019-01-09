@@ -15,6 +15,7 @@
 #ifndef DALI_TEST_TENSOR_LIST_WRAPPER_H_
 #define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
+#include <string>
 #include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {

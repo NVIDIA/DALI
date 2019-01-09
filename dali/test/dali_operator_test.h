@@ -23,7 +23,9 @@
 #include <vector>
 #include <memory>
 #include <map>
-#include "operator_argument.h"
+#include <string>
+#include <utility>
+#include "dali/test/operator_argument.h"
 
 
 namespace dali {
@@ -139,7 +141,6 @@ OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_argumen
  */
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
  public:
-
   DaliOperatorTest(size_t batch_size, size_t num_thread) :
           batch_size_(batch_size), num_threads_(num_thread) {}
 
@@ -184,7 +185,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   void
   RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
           const Arguments &operator_arguments, const Verify &verify) {
-    //TODO(mszolucha) implement
+    // TODO(mszolucha) implement
   }
 
 
@@ -201,7 +202,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
     }
     auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, input ? true : false,
                                               input.backend(), output_backend);
-    assert(outputs.size() == 1); // one input, one output
+    assert(outputs.size() == 1);  // one input, one output
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
   }
