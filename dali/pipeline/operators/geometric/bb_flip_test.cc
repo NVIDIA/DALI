@@ -87,10 +87,9 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<typename Backend>
 std::unique_ptr<TensorList<Backend>> ToTensorList(Roi roi) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({{kBbStructSize}});
+  tl->Resize({{roi.size()}});
   auto ptr = tl->template mutable_data<float>();
-  static_assert(roi.size() == kBbStructSize, "");
-  for (size_t i = 0; i < kBbStructSize; i++) {
+  for (size_t i = 0; i < roi.size(); i++) {
     ptr[i] = roi[i];
   }
   return tl;
@@ -102,8 +101,8 @@ Roi FromTensorWrapper(TensorListWrapper tw) {
   auto tl = tw.get<Backend>();
   auto ptr = tl->template data<float>();
   Roi roi;
-  for (size_t i = 0; i < kBbStructSize; i++) {
-    roi[i] = *ptr++;
+  for (float &val : roi) {
+    val = *ptr++;
   }
   return roi;
 }
