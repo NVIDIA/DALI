@@ -88,7 +88,9 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
   std::sort(entry_name_list.begin(), entry_name_list.end());
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
       assemble_file_list(file_root, entry_name_list[dir_count], dir_count, &file_label_pairs);
-  }
+  } 
+  // sort file names as well
+  std::sort(file_label_pairs.begin(), file_label_pairs.end());
   printf("read %lu files from %lu directories\n", file_label_pairs.size(), entry_name_list.size());
 
   closedir(dir);
