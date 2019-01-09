@@ -56,5 +56,6 @@ RUN pip wheel -v dali/python \
 
 RUN pushd dali/python/tf_plugin/ && \
     python setup.py sdist && \
-    mv dist/*.tar.gz /wheelhouse && \
+    version_str=$(basename dist/nvidia-dali-tf-plugin-*.tar.gz | sed -n "s/nvidia-dali-tf-plugin-\(\S*\).tar.gz$/\1/p") && \
+    mv dist/nvidia-dali-tf-plugin-${version_str}.tar.gz /wheelhouse/nvidia-dali-tf-plugin-${version_str}-${NVIDIA_BUILD_ID}.tar.gz && \
     popd
