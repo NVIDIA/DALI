@@ -170,8 +170,9 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
    * Runs defined test.
    *
    * Call this method within GTest's testing macro (TEST_F, TEST_P, etc...).
-   * The method will set up a testing pipeline, push data through it and call output verification routines.
-   * Every call of RunTest will set up its own pipeline
+   * The method will set up a testing pipeline,
+   * push data through it and call output verification routines.
+   * Every RunTest call will set up its own pipeline.
    *
    * @tparam OutputBackend
    * @param inputs all inputs to the pipeline
