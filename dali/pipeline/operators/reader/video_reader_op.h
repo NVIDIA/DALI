@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/video_loader.h"

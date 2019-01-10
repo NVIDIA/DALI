@@ -53,6 +53,28 @@ list(REMOVE_ITEM LINT_FILES
     ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.cc
 )
 
+# cuTT
+list(REMOVE_ITEM LINT_FILES
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cutt.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cutt.cc
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttplan.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttplan.cc
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttkernel.cu
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttkernel.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/calls.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttGpuModel.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttGpuModel.cc
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.cu
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/CudaMemcpy.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/CudaMemcpy.cu
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/CudaUtils.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/CudaUtils.cu
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/cuttTypes.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/int_vector.h
+    ${CMAKE_SOURCE_DIR}/dali/pipeline/operators/transpose/cutt/LRUCache.h
+)
+
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_FILES}
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
