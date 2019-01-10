@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_UTIL_TRANSPOSE_H_
-#define DALI_PIPELINE_OPERATORS_UTIL_TRANSPOSE_H_
+#ifndef DALI_PIPELINE_OPERATORS_TRANSPOSE_TRANSPOSE_H_
+#define DALI_PIPELINE_OPERATORS_TRANSPOSE_TRANSPOSE_H_
 
+#include <algorithm>
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
@@ -27,10 +28,9 @@ class Transpose : public Operator<Backend> {
  public:
   explicit inline Transpose(const OpSpec &spec) :
     Operator<Backend>(spec),
-    perm_(spec.GetRepeatedArgument<int>("perm"))
-    {
+    perm_(spec.GetRepeatedArgument<int>("perm")) {
       DALI_ENFORCE([](std::vector<int> perm) {
-          std::sort(perm.begin(), perm.begin());
+          std::sort(perm.begin(), perm.end());
           for (int i = 0; i < static_cast<int>(perm.size()); ++i) {
             if (perm[i] != i) {
               return false;
@@ -50,21 +50,25 @@ class Transpose : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, int idx) override;
 
  private:
-
   void NaiveTransposeKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output);
 
   template <typename T = float>
-  void cuTTKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output, cudaStream_t stream);
+  void cuTTKernel(const TensorList<GPUBackend>& input,
+                  TensorList<GPUBackend>* output,
+                  cudaStream_t stream);
+
+  template <typename T = float>
+  void cuTTKernelBatched(const TensorList<GPUBackend>& input,
+                         TensorList<GPUBackend>* output,
+                         cudaStream_t stream);
 
   std::vector<int> perm_;
 
   cuttHandle cutt_handle_ = 0;
 
   USE_OPERATOR_MEMBERS();
-
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_UTIL_TRANSPOSE_H_
-
+#endif  // DALI_PIPELINE_OPERATORS_TRANSPOSE_TRANSPOSE_H_

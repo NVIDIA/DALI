@@ -22,7 +22,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+
 #include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
+
+#include <iostream>
 
 #include "dali/util/dynlink_cuda.h"
 #include "dali/error_handling.h"
@@ -753,6 +756,7 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
 
   LaunchConfig& lc = plan.launchConfig;
   TensorSplit& ts = plan.tensorSplit;
+  std::cout << "ts.method " << ts.method << std::endl;
 
   switch(ts.method) {
     case Trivial:

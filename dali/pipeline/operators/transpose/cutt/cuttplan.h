@@ -27,6 +27,7 @@ SOFTWARE.
 
 #include <list>
 #include <vector>
+#include <cuda_runtime_api.h>
 
 #include "dali/util/dynlink_cuda.h"
 #include "dali/pipeline/operators/transpose/cutt/cuttTypes.h"
