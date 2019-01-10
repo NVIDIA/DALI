@@ -32,16 +32,21 @@ TEST(ShapeDimTest, Value) {
 TEST(CompileTimeSize, DimInference) {
   std::array<int, 3> a;
   const auto *pa = &a;
-  static_assert(compile_time_size<decltype(a)>::value == static_cast<int>(a.size()), "Compile-time size of an std-array should match its size argument");
-  static_assert(compile_time_size<decltype(*pa)>::value == static_cast<int>(a.size()), "Compile-time size of an std-array should match its size argument");
+  static_assert(compile_time_size<decltype(a)>::value == static_cast<int>(a.size()),
+    "Compile-time size of an std-array should match its size argument");
+  static_assert(compile_time_size<decltype(*pa)>::value == static_cast<int>(a.size()),
+    "Compile-time size of an std-array should match its size argument");
 
   int x[4];
-  static_assert(compile_time_size<decltype(x)>::value == 4, "Compile-time size of an array should");
+  static_assert(compile_time_size<decltype(x)>::value == 4,
+    "Compile-time size of an array should");
   const int y[5] = { 9, 8, 7, 6, 5 };
-  static_assert(compile_time_size<decltype(y)>::value == 5, "Compile-time size of an array should");
+  static_assert(compile_time_size<decltype(y)>::value == 5,
+    "Compile-time size of an array should");
 
   volatile TensorShape<6> t;
-  static_assert(compile_time_size<decltype(t)>::value == 6, "Compile-time of a static-ndim TensorShape should match its ndim");
+  static_assert(compile_time_size<decltype(t)>::value == 6,
+    "Compile-time of a static-ndim TensorShape should match its ndim");
 }
 
 TEST(TensorViewTest, StaticConstructors) {
