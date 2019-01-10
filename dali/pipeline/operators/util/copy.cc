@@ -21,6 +21,7 @@ void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
   output.set_type(input.type());
+  output.SetLayout(input.GetLayout());
   output.ResizeLike(input);
 
   TypeInfo type = input.type();

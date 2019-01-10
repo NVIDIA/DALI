@@ -43,8 +43,9 @@ class MakeContiguous : public Operator<MixedBackend> {
   using Operator<MixedBackend>::Run;
   void Run(MixedWorkspace *ws) override {
     vector<Dims> output_shape(batch_size_);
-    TypeInfo type = ws->Input<CPUBackend>(0, 0).type();
-
+    const auto& input = ws->Input<CPUBackend>(0, 0);
+    DALITensorLayout layout = input.GetLayout();
+    TypeInfo type = input.type();
     size_t total_bytes = 0;
     for (int i = 0; i < batch_size_; ++i) {
       auto &sample = ws->Input<CPUBackend>(0, i);
@@ -60,6 +61,7 @@ class MakeContiguous : public Operator<MixedBackend> {
     if (ws->OutputIsType<CPUBackend>(0)) {
       auto &output = ws->Output<CPUBackend>(0);
       output.Resize(output_shape);
+      output.SetLayout(layout);
       output.set_type(type);
 
       for (int i = 0; i < batch_size_; ++i) {
@@ -74,6 +76,7 @@ class MakeContiguous : public Operator<MixedBackend> {
     } else {
       auto &output = ws->Output<GPUBackend>(0);
       output.Resize(output_shape);
+      output.SetLayout(layout);
       output.set_type(type);
 
       if (coalesced) {
@@ -85,6 +88,7 @@ class MakeContiguous : public Operator<MixedBackend> {
         }
 
         cpu_output_buff.ResizeLike(output);
+        cpu_output_buff.SetLayout(layout);
         cpu_output_buff.set_type(type);
 
         for (int i = 0; i < batch_size_; ++i) {
