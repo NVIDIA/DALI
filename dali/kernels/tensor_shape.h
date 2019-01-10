@@ -20,6 +20,7 @@
 #include <iostream>
 #include <utility>
 #include <vector>
+#include <initializer_list>
 #include "dali/kernels/span.h"
 #include "dali/kernels/util.h"
 
@@ -45,23 +46,19 @@ constexpr int DynamicDimensions = -1;
 constexpr int InferDimensions = -2;
 
 template <typename T>
-struct compile_time_size : std::integral_constant<int, DynamicDimensions> {};
-
-template <typename T, size_t N>
-struct compile_time_size<T[N]> : std::integral_constant<int, N> {};
-
-template <typename T, size_t N>
-struct compile_time_size<std::array<T, N>> : std::integral_constant<int, N> {};
+struct compile_time_size_impl : std::integral_constant<int, DynamicDimensions> {};
 
 template <typename T>
-constexpr int CompileTimeSize(T &&t) {
-  return
-    compile_time_size<
-      typename std::remove_cv<
-        typename std::remove_reference<T>::type
-      >::type
-    >::value;
-}
+using compile_time_size = compile_time_size_impl<
+  typename std::remove_cv<
+    typename std::remove_reference<T>::type
+  >::type>;
+
+template <typename T, size_t N>
+struct compile_time_size_impl<T[N]> : std::integral_constant<int, N> {};
+
+template <typename T, size_t N>
+struct compile_time_size_impl<std::array<T, N>> : std::integral_constant<int, N> {};
 
 /// @brief Class representing shape of a Tensor
 ///
@@ -72,7 +69,7 @@ template <int ndim = DynamicDimensions>
 struct TensorShape;
 
 template <int N>
-struct compile_time_size<TensorShape<N>> : std::integral_constant<int, N> {};
+struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {};
 
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
