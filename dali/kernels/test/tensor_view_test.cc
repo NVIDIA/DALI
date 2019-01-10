@@ -178,6 +178,25 @@ TEST(TensorListViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.shape.shapes.data(), ptr) << "Move is broken - a copy appeared somewhere.";
 }
 
+TEST(TensorListView, uniform_list_shape) {
+  int N = 11;
+  TensorListShape<> dyn =  uniform_list_shape(N, { 640, 480, 3 });
+  TensorListShape<3> stat = uniform_list_shape<3>(N, { 640, 480, 3 });
+
+  int size_c[] = { 640, 480, 3 };
+  std::array<int64_t, 3> size_a = { 640, 480, 3 };
+  TensorShape<3> ref(640, 480, 3);
+
+  TensorListShape<3> infer1 = uniform_list_shape<3>(N, size_c);
+  TensorListShape<3> infer2 = uniform_list_shape<3>(N, size_a);
+  EXPECT_EQ(dyn.num_samples(), N);
+  for (int i = 0; i < dyn.num_samples(); i++) {
+    EXPECT_EQ(dyn.tensor_shape(i), ref);
+  }
+  EXPECT_EQ(stat, dyn);
+  EXPECT_EQ(infer1, dyn);
+  EXPECT_EQ(infer2, dyn);
+}
 
 }  // namespace kernels
 }  // namespace dali

@@ -42,6 +42,26 @@ inline int64_t volume(const T &shape) {
 }
 
 constexpr int DynamicDimensions = -1;
+constexpr int InferDimensions = -2;
+
+template <typename T>
+struct compile_time_size : std::integral_constant<int, DynamicDimensions> {};
+
+template <typename T, size_t N>
+struct compile_time_size<T[N]> : std::integral_constant<int, N> {};
+
+template <typename T, size_t N>
+struct compile_time_size<std::array<T, N>> : std::integral_constant<int, N> {};
+
+template <typename T>
+constexpr int CompileTimeSize(T &&t) {
+  return
+    compile_time_size<
+      typename std::remove_cv<
+        typename std::remove_reference<T>::type
+      >::type
+    >::value;
+}
 
 /// @brief Class representing shape of a Tensor
 ///
@@ -50,6 +70,10 @@ constexpr int DynamicDimensions = -1;
 ///         or DynamicDimensions.
 template <int ndim = DynamicDimensions>
 struct TensorShape;
+
+template <int N>
+struct compile_time_size<TensorShape<N>> : std::integral_constant<int, N> {};
+
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
 template <typename Container, int ndim>
@@ -406,18 +430,19 @@ struct TensorListShapeBase {
       return {};
 
     Derived ret;
-    int dim = size(ss);
+    int dim = dali::kernels::size(ss);
     ret.set_sample_dim(dim);
     ret.shapes.resize(dim * num_samples);
 
     // copy the sample shape to the first entry
+    auto it = std::begin(ss);
     for (int j = 0; j < dim; j++)
-      ret.shapes[j] = ss[j];
+      ret.shapes[j] = *it++;
 
     // repeat first sample shape over the entire array
     int n = ret.shapes.size();
     for (int k = dim; k < n; k++) {
-      ret.shape[k] = ret.shape[k - dim];  // this will perdiodically repeat items 0..dim-1
+      ret.shapes[k] = ret.shapes[k - dim];  // this will perdiodically repeat items 0..dim-1
     }
 
     return ret;
@@ -733,10 +758,20 @@ convert_dim(TensorListShape<in_dim> &&in) {
   return std::move(in);  // use implicit conversion
 }
 
-template <int ndim, typename SampleShape>
-TensorListShape<ndim> uniform_list_shape(int num_samples, const SampleShape &sample_shape) {
+template <int ndim = InferDimensions,
+  typename SampleShape,
+  int inferred = compile_time_size<SampleShape>::value,
+  int ret_dim = (ndim == InferDimensions) ? inferred : ndim
+> TensorListShape<ret_dim> uniform_list_shape(int num_samples, const SampleShape &sample_shape) {
+  return TensorListShape<ret_dim>::make_uniform(num_samples, sample_shape);
+}
+
+
+template <int ndim = DynamicDimensions, typename T>
+TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<T> sample_shape) {
   return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
 }
+
 
 }  // namespace kernels
 }  // namespace dali
