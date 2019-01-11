@@ -177,26 +177,27 @@ class DALIGenericIterator(object):
         # Change index for double buffering
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
-        
+
         if (self._stop_at_epoch) and (self._counter > self._size):
-            # First calculate how much data is required to return exactly self._size entries. 
+            # First calculate how much data is required to return exactly self._size entries.
             diff = self._num_gpus * self.batch_size - (self._counter - self._size)
-            # Figure out how many GPUs to grab from. 
+            # Figure out how many GPUs to grab from.
             numGPUs_tograb = int(np.ceil(diff/self.batch_size))
-            # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to 
+            # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
             # bring us right up to self._size).
             mod_diff = diff % self.batch_size
             data_fromlastGPU = mod_diff if mod_diff else self.batch_size
-            
+
             # Grab the relevant data.
             # 1) Grab everything from the relevant GPUs.
             # 2) Grab the right data from the last GPU.
             # 3) Append data together correctly and return.
             output = [db[copy_db_index] for db in self._data_batches[0:numGPUs_tograb]]
+            output[-1] = output[-1].copy();
             for category in self._output_categories:
                 output[-1][category] = output[-1][category][0:data_fromlastGPU]
             return output
-        
+
         return [db[copy_db_index] for db in self._data_batches]
 
     def next(self):
