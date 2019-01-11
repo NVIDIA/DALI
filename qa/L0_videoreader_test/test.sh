@@ -3,7 +3,7 @@
 pip_packages="numpy"
 
 apt-get update
-apt-get install -y ffmpeg
+apt-get install -y wget ffmpeg
 
 pushd ../..
 
