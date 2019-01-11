@@ -87,24 +87,24 @@ void reduceRanks(const int rank, const int* dim, const int* permutation,
 
   // Re-number redPermutation
   std::vector<int> tmp(rank, -1);
-  for (int i=0;i < redPermutation.size();i++) {
+  for (int i=0;i < static_cast<int>(redPermutation.size()); i++) {
     tmp[redPermutation[i]] = i;
   }
   int j = 0;
-  for (int i=0;i < rank;i++) {
+  for (int i=0; i < rank; i++) {
     if (tmp[i] != -1) {
       tmp[j++] = tmp[i];
     }
   }
-  for (int i=0;i < redPermutation.size();i++) {
+  for (int i=0 ;i < static_cast<int>(redPermutation.size());i++) {
     redPermutation[tmp[i]] = i;
   }
 
   // Re-order redDim
-  for (int i=0;i < redDim.size();i++) {
+  for (int i=0;i < static_cast<int>(redDim.size());i++) {
     tmp[redPermutation[i]] = redDim[i];
   }  
-  for (int i=0;i < redDim.size();i++) {
+  for (int i=0;i < static_cast<int>(redDim.size());i++) {
     redDim[i] = tmp[i];
   }
 
@@ -332,6 +332,7 @@ bool operator==(const TensorSplit& lhs, const TensorSplit& rhs) {
   //   // (lhs.numActiveBlock == rhs.numActiveBlock) &&
   //   (lhs.numSplit == rhs.numSplit);    
   // }
+  return false;
 }
 
 //
@@ -612,7 +613,7 @@ bool cuttPlan_t::createPackedSplitPlans(const int rank, const int* dim, const in
         int numActiveBlock = 0;
         // Store number of active blocks and launch configs here so they
         // can be reused in plan.setup()
-        int numActiveBlock0, numActiveBlock1, numActiveBlock2;
+        int numActiveBlock0 = -1, numActiveBlock1 = -1, numActiveBlock2 = -1;
         LaunchConfig lc0, lc1, lc2;
         for (ts.numSplit=minNumSplit;ts.numSplit <= maxNumSplit;ts.numSplit++) {
           numActiveBlock = cuttKernelLaunchConfiguration(sizeofType, ts, deviceID, prop, lc);
