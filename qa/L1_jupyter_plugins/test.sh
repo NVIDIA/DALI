@@ -4,8 +4,7 @@ pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvi
 
 # We need cmake to run the custom plugin notebook + ffmpeg and wget for video example
 apt-get update
-apt-get install -y wget ffmpeg
-apt-get install -y --no-install-recommends cmake
+apt-get install -y --no-install-recommends wget ffmpeg cmake
 
 pushd ../..
 
