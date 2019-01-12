@@ -13,7 +13,7 @@ def main(argv):
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
     op_name_max_len = len(max(all_ops, key=len))
     name_bar = op_name_max_len * '='
-    formater = '{:{c}>{op_name_max_len}}  {:{c}>6}  {:{c}>6}  {:{c}>6}  {:{c}>7}\n'
+    formater = ':ref:`{0:{c}>{op_name_max_len}}<{0}>`  {1:{c}>6}  {2:{c}>6}  {3:{c}>6}  {4:{c}>7}\n'
     doc_table = ''
     doc_table += 'Below table lists all available operators and devices they can operate on.\n\n'
     doc_table += '.. |tick| image:: images/tick.gif\n'

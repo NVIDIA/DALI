@@ -43,6 +43,7 @@ def _docstring_generator(cls):
 
     schema = b.GetSchema(op_name)
     ret = pre_doc
+    ret += '.. _' + op_name + ':\n'
     ret += schema.Dox()
     ret += '\n'
     ret += """
