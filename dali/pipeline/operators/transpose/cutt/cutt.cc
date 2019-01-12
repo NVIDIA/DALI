@@ -23,8 +23,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
+#include <atomic>
 #include <list>
+#include <mutex>
 #include <unordered_map>
+
 #include "dali/util/dynlink_cuda.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
@@ -34,17 +37,20 @@ SOFTWARE.
 
 // Hash table to store the plans
 static std::unordered_map<cuttHandle, cuttPlan_t*> planStorage;
+static std::mutex planStorageMutex;
 
 // Current handle
-static cuttHandle curHandle = 1;
+static std::atomic<cuttHandle> curHandle(1);
 
 // Table of devices that have been initialized
 static std::unordered_map<int, cudaDeviceProp> deviceProps;
+static std::mutex devicePropsMutex;
 
 // Checks prepares device if it's not ready yet and returns device properties
 // Also sets shared memory configuration
 void getDeviceProp(int& deviceID, cudaDeviceProp &prop) {
   CUDA_CALL(cudaGetDevice(&deviceID));
+  std::lock_guard<std::mutex> lock(devicePropsMutex);
   auto it = deviceProps.find(deviceID);
   if (it == deviceProps.end()) {
     // Get device properties and store it for later use
@@ -96,9 +102,11 @@ cuttResult cuttPlan(cuttHandle* handle, int rank, int* dim, int* permutation, si
   *handle = curHandle;
   curHandle++;
 
-  // Check that the current handle is available (it better be!)
-  if (planStorage.count(*handle) != 0) return CUTT_INTERNAL_ERROR;
-
+  {
+    std::lock_guard<std::mutex> lock(planStorageMutex);
+    // Check that the current handle is available (it better be!)
+    if (planStorage.count(*handle) != 0) return CUTT_INTERNAL_ERROR;
+  }
   // Prepare device
   int deviceID;
   cudaDeviceProp prop;
@@ -163,9 +171,11 @@ cuttResult cuttPlan(cuttHandle* handle, int rank, int* dim, int* permutation, si
   // Activate plan
   plan->activate();
 
-  // Insert plan into storage
-  planStorage.insert( {*handle, plan} );
-
+  {
+    std::lock_guard<std::mutex> lock(planStorageMutex);
+    // Insert plan into storage
+    planStorage.insert( {*handle, plan} );
+  }
 #ifdef ENABLE_NVTOOLS
   gpuRangeStop();
 #endif
@@ -276,6 +286,7 @@ cuttResult cuttPlanMeasure(cuttHandle* handle, int rank, int* dim, int* permutat
 */
 
 cuttResult cuttDestroy(cuttHandle handle) {
+  std::lock_guard<std::mutex> lock(planStorageMutex);
   auto it = planStorage.find(handle);
   if (it == planStorage.end()) return CUTT_INVALID_PLAN;
   // Delete instance of cuttPlan_t
@@ -286,12 +297,14 @@ cuttResult cuttDestroy(cuttHandle handle) {
 }
 
 cuttResult cuttExecute(cuttHandle handle, const void* idata, void* odata) {
+  std::unique_lock<std::mutex> lock(planStorageMutex);
   auto it = planStorage.find(handle);
   if (it == planStorage.end()) return CUTT_INVALID_PLAN;
 
   if (idata == odata) return CUTT_INVALID_PARAMETER;
 
   cuttPlan_t& plan = *(it->second);
+  lock.unlock();
 
   int deviceID;
   CUDA_CALL(cudaGetDevice(&deviceID));
