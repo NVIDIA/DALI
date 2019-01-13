@@ -19,11 +19,14 @@ import os
 import sys
 
 def get_module_path(module_name):
-    tensorflow_path = ''
+    module_path = ''
     for d in sys.path:
-        if os.path.isdir(d + '/' + module_name):
-            tensorflow_path = d + '/' + module_name
-    return tensorflow_path
+        possible_path = os.path.join(d, module_name)
+        # skip current dir as this is plugin dir
+        if os.path.isdir(possible_path) and len(d) != 0:
+            module_path = possible_path
+            break
+    return module_path
 
 def get_tf_build_flags():
     tf_cflags = ''
@@ -61,9 +64,9 @@ def get_dali_build_flags():
 
 class CustomInstall(install, object):
     def run(self):
-        tf_cflags, tf_lflags = get_tf_build_flags()
         dali_cflags, dali_lflags = get_dali_build_flags()
         dali_lib_path = get_module_path('nvidia/dali')
+        tf_cflags, tf_lflags = get_tf_build_flags()
 
         src_path = os.path.dirname(os.path.realpath(__file__)) + '/nvidia/dali'
         plugin_src = src_path + '/plugin/daliop.cc'
