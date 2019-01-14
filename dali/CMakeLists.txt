@@ -28,6 +28,7 @@ add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
+add_subdirectory(aux)
 
 set(dali_lib "dali")
 set(dali_operator_lib "dali_operators")
