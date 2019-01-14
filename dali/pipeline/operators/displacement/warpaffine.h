@@ -35,20 +35,20 @@ class WarpAffineAugment {
   template <typename T>
   DISPLACEMENT_IMPL
   Point<T> operator()(int h, int w, int c, int H, int W, int C) {
-    T hp = h;
-    T wp = w;
+    float hp = h + 0.5f;
+    float wp = w + 0.5f;
     if (use_image_center) {
       hp -= H/2.0f;
       wp -= W/2.0f;
     }
-    T newX = param.matrix[0] * wp + param.matrix[1] * hp + param.matrix[2];
-    T newY = param.matrix[3] * wp + param.matrix[4] * hp + param.matrix[5];
+    float newX = param.matrix[0] * wp + param.matrix[1] * hp + param.matrix[2];
+    float newY = param.matrix[3] * wp + param.matrix[4] * hp + param.matrix[5];
     if (use_image_center) {
       newX += W/2.0f;
       newY += H/2.0f;
     }
 
-    return CreatePointLimited(newX, newY, W, H);
+    return CreatePointLimited<T>(newX, newY, W, H);
   }
 
   void Cleanup() {}
@@ -64,6 +64,10 @@ class WarpAffineAugment {
     GetSingleOrRepeatedArg(spec, &tmp, "matrix", size);
     for (int i = 0; i < size; ++i) {
       p->matrix[i] = tmp[i];
+    }
+    if (spec.GetArgument<DALIInterpType>("interp_type") != DALI_INTERP_NN) {
+      p->matrix[2] -= 0.5f;
+      p->matrix[5] -= 0.5f;
     }
   }
 

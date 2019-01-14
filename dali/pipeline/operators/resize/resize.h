@@ -94,7 +94,7 @@ class Resize : public Operator<Backend>, protected ResizeAttr {
 
   vector<NppiPoint> *resizeParam_ = nullptr;
   USE_OPERATOR_MEMBERS();
-  bool save_attrs_;
+  bool save_attrs_, align_corners_;
   int outputs_per_idx_;
 };
 

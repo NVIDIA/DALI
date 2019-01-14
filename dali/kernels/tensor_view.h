@@ -107,7 +107,8 @@ struct TensorViewBase {
 
   /// @brief Utility to calculate pointer to element at given coordinates
   template <typename Offset>
-  DataType *operator()(const Offset &pos) const {
+  typename std::enable_if<!std::is_integral<Offset>::value, DataType *>::type
+  operator()(const Offset &pos) const {
     return data + CalcOffset(shape, pos);
   }
 
