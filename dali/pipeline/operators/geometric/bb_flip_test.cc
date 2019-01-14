@@ -99,6 +99,7 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(Roi roi) {
 template<typename Backend>
 Roi FromTensorWrapper(TensorListWrapper tw) {
   auto tl = tw.get<Backend>();
+  assert(tl->size() >= kBbStructSize);
   auto ptr = tl->template data<float>();
   Roi roi;
   for (float &val : roi) {
