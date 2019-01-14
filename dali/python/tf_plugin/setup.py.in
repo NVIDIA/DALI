@@ -16,21 +16,57 @@ from setuptools import setup, find_packages
 from setuptools.command.install import install
 import subprocess
 import os
+import sys
 
-class CustomInstall(install, object):
-    def run(self):
-        try:
-            import tensorflow as tensorflow
-        except:
-            raise ImportError('Failed to import Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
+def get_module_path(module_name):
+    module_path = ''
+    for d in sys.path:
+        possible_path = os.path.join(d, module_name)
+        # skip current dir as this is plugin dir
+        if os.path.isdir(possible_path) and len(d) != 0:
+            module_path = possible_path
+            break
+    return module_path
 
+def get_tf_build_flags():
+    tf_cflags = ''
+    tf_lflags = ''
+    try:
+        import tensorflow as tensorflow
+        tf_cflags=" ".join(tensorflow.sysconfig.get_compile_flags())
+        tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
+    except:
+        tensorflow_path = get_module_path('tensorflow')
+        if tensorflow_path is not '':
+            tf_cflags=" ".join(["-I" + tensorflow_path + "/include",  "-I" + tensorflow_path + "/include/external/nsync/public", "-D_GLIBCXX_USE_CXX11_ABI=0"])
+            tf_lflags=" ".join(["-L" + tensorflow_path, "-ltensorflow_framework"])
+
+    if tf_cflags is '' and tf_lflags is '':
+        raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
+    return (tf_cflags, tf_lflags)
+
+def get_dali_build_flags():
+    dali_cflags = ''
+    dali_lflags = ''
+    try:
         import nvidia.dali.sysconfig as dali_sc
         dali_lib_path = dali_sc.get_lib_dir()
         dali_cflags=" ".join(dali_sc.get_compile_flags())
         dali_lflags=" ".join(dali_sc.get_link_flags())
+    except:
+        dali_path = get_module_path('nvidia/dali')
+        if dali_path is not '':
+            dali_cflags=" ".join(["-I" + dali_path + "/include", "-D_GLIBCXX_USE_CXX11_ABI=0"])
+            dali_lflags=" ".join(["-L" + dali_path, "-ldali"])
+    if dali_cflags is '' and dali_lflags is '':
+        raise ImportError('Could not find DALI.')
+    return (dali_cflags, dali_lflags)
 
-        tf_cflags=" ".join(tensorflow.sysconfig.get_compile_flags())
-        tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
+class CustomInstall(install, object):
+    def run(self):
+        dali_cflags, dali_lflags = get_dali_build_flags()
+        dali_lib_path = get_module_path('nvidia/dali')
+        tf_cflags, tf_lflags = get_tf_build_flags()
 
         src_path = os.path.dirname(os.path.realpath(__file__)) + '/nvidia/dali'
         plugin_src = src_path + '/plugin/daliop.cc'
@@ -40,8 +76,6 @@ class CustomInstall(install, object):
         subprocess.check_call(cmd, cwd=src_path, shell=True)
 
         super(CustomInstall, self).run()
-
-
 
 setup(name='nvidia-dali-tf-plugin',
       description='NVIDIA DALI Tensorflow plugin',
