@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="opencv-python"
+pip_packages=""
 
 pushd ../..
 
