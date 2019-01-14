@@ -262,7 +262,7 @@ def main():
         if args.prof:
             break
         # evaluate on validation set
-        prec1 = validate(val_loader, model, criterion)
+        [prec1, prec5] = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
         if args.local_rank == 0:
@@ -279,6 +279,9 @@ def main():
         # reset DALI iterators
         train_loader.reset()
         val_loader.reset()
+        if args.epochs == args.start_epoch - 1:
+            print('##Top-1 {0}\n'
+                  '##Top-5 {1}').format(prec1, prec5)
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
@@ -413,7 +416,7 @@ def validate(val_loader, model, criterion):
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
-    return top1.avg
+    return [top1.avg, top5.avg]
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
