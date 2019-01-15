@@ -373,37 +373,37 @@ struct StorageGPU;
 
 /// @brief Wraps raw memory as a tensor
 template <typename StorageBackend, int ndim, typename T>
-TensorView<StorageBackend, T, ndim> as_tensor(T *data, TensorShape<ndim> shape) {
+TensorView<StorageBackend, T, ndim> make_tensor(T *data, TensorShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
 /// @brief Wraps raw memory as a tensor list
 template <typename StorageBackend, int ndim, typename T>
-TensorListView<StorageBackend, T, ndim> as_tensor_list(T *data, TensorListShape<ndim> shape) {
+TensorListView<StorageBackend, T, ndim> make_tensor_list(T *data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
 /// @brief Wraps CPU raw memory as a tensor
 template <int ndim, typename T>
-TensorView<StorageCPU, T, ndim> as_tensor_cpu(T *data, TensorShape<ndim> shape) {
+TensorView<StorageCPU, T, ndim> make_tensor_cpu(T *data, TensorShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
 /// @brief Wraps CPU raw memory as a tensor list
 template <int ndim, typename T>
-TensorListView<StorageCPU, T, ndim> as_tensor_list_cpu(T *data, TensorListShape<ndim> shape) {
+TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T *data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
 /// @brief Wraps GPU raw memory as a tensor
 template <int ndim, typename T>
-TensorView<StorageGPU, T, ndim> as_tensor_gpu(T *data, TensorShape<ndim> shape) {
+TensorView<StorageGPU, T, ndim> make_tensor_gpu(T *data, TensorShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
 /// @brief Wraps GPU raw memory as a tensor list
 template <int ndim, typename T>
-TensorListView<StorageGPU, T, ndim> as_tensor_list_gpu(T *data, TensorListShape<ndim> shape) {
+TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 

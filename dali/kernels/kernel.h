@@ -61,13 +61,13 @@ struct Kernel {
   ///                  At the time of call to GetRequirements, its scratch area is undefined.
   ///
   /// @param in1 - example input, consisting of a list of 3D tensors with element type Input1
-  /// @param in2 - example input, consisting of a list of 4D tensors with element type Input2
+  /// @param in2 - example input, consisting of a 4D tensor with element type Input2
   /// @param aux - some extra parameters (e.g. convolution kernel, mask)
   static KernelRequirements GetRequirements(
     KernelContext &context,
     const InListGPU<Input1, 3> &in1,
-    const InListGPU<Input2, 4> &in2,
-    const InTensorCPU<float, 3> &aux);
+    const InTensorGPU<Input2, 4> &in2,
+    const std::vector<float> &aux);
 
   /// @brief Runs the kernel
   ///
@@ -77,14 +77,14 @@ struct Kernel {
   /// @param context - environment; provides scratch memory, cuda stream, batch info, etc.
   ///                  Scratch area must satisfy requirements returned by GetRequirements.
   /// @param in1 - example input, consisting of a list of 3D tensors with element type Input1
-  /// @param in2 - example input, consisting of a list of 4D tensors with element type Input2
-  /// @param aux - some extra parameters (e.g. convolution kernel, mask)
+/// @param in2 - example input, consisting of a 4D tensor with element type Input2
+    /// @param aux - some extra parameters (e.g. convolution kernel, mask)
   static void Run(
     KernelContext &context,
     const OutListGPU<OutputType, 3> &out,
     const InListGPU<Input1, 3> &in1,
-    const InListGPU<Input2, 4> &in2,
-    const InTensorCPU<float, 3> &aux);
+    const InTensorGPU<Input2, 4> &in2,
+    const std::vector<float> &aux);
 };
 
 }  // namespace examples

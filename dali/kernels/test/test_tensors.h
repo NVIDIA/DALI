@@ -16,9 +16,9 @@
 #define DALI_KERNELS_TEST_TEST_TENSORS_H_
 
 #include <cuda_runtime_api.h>
-#include <dali/kernels/tensor_view.h>
 #include <memory>
 #include <utility>
+#include "dali/kernels/tensor_view.h"
 
 namespace dali {
 namespace kernels {
@@ -69,6 +69,23 @@ class TestTensorList {
     auto out_shape = convert_dim<out_dim>(any_.shape);
     auto out_offsets = any_.offsets;
     return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape), std::move(out_offsets) };
+  }
+
+  // workaround for lack of partial specialization for functions
+  template <int out_dim = dim>
+  TensorListView<StorageGPU, T, out_dim> get(StorageGPU, cudaStream_t stream = 0) {
+    return gpu<out_dim>(stream);
+  }
+
+  // workaround for lack of partial specialization for functions
+  template <int out_dim = dim>
+  TensorListView<StorageCPU, T, out_dim> get(StorageCPU, cudaStream_t stream = 0) {
+    return cpu<out_dim>(stream);
+  }
+
+  template <typename Backend, int out_dim = dim>
+  TensorListView<Backend, T, out_dim> get(cudaStream_t stream = 0) {
+    return get<out_dim>(Backend(), stream);
   }
 
  private:

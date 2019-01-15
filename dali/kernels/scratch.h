@@ -43,15 +43,16 @@ class BumpAllocator {
   }
 
   inline BumpAllocator &operator=(BumpAllocator &&a) {
-    std::swap(memory_, a.memory_);
-    std::swap(total_, a.total_);
-    std::swap(used_, a.used_);
+    memory_ = a.memory_;
+    total_ = a.total_;
+    used_ = a.used_;
+    a = {};
     return *this;
   }
 
   inline T *New(size_t elements) {
     AssertAvail(elements);
-    T *p = memory_ + used_;
+    T *p = next();
     used_ += elements;
     return p;
   }
@@ -79,10 +80,10 @@ struct Scratchpad : ScratchpadAllocator {
 
   void *Alloc(AllocType alloc, size_t bytes, size_t alignment) override {
     auto &A = allocs[(size_t)alloc];
-    size_t ptr = (size_t)A.next();
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(A.next());
     // Calculate the padding needed to satisfy alignmnent requirements
-    size_t padding = (alignment-1) & -ptr;
-    A.New(padding);
+    uintptr_t padding = (alignment-1) & (-ptr);
+    (void)A.New(padding);
     return A.New(bytes);
   }
 

@@ -62,7 +62,7 @@ struct RunBadParamsType {
 TEST(KernelAPI, InferIOArgs) {
   static_assert(std::is_same<
     kernel_inputs<ExampleKernel<float, float, float>>,
-    std::tuple<const InListGPU<float, 3>&, const InListGPU<float, 4>&>
+    std::tuple<const InListGPU<float, 3>&, const InTensorGPU<float, 4>&>
   >::value, "Wrong set of inputs detected");
 
   static_assert(std::is_same<
@@ -72,7 +72,7 @@ TEST(KernelAPI, InferIOArgs) {
 
   static_assert(std::is_same<
     kernel_args<ExampleKernel<float, int, float>>,
-    std::tuple<const InTensorCPU<float, 3>&>
+    std::tuple<const std::vector<float>&>
   >::value, "Wrong set of arguments detected");
 }
 
@@ -98,8 +98,8 @@ template <typename I1, typename I2, typename O>
 KernelRequirements dali::kernels::examples::Kernel<I1, I2, O>::GetRequirements(
   KernelContext &context,
   const InListGPU<I1, 3> &in1,
-  const InListGPU<I2, 4> &in2,
-  const InTensorCPU<float, 3> &aux) {
+  const InTensorGPU<I2, 4> &in2,
+  const std::vector<float> &aux) {
   return {};
 }
 
@@ -107,15 +107,15 @@ template <typename I1, typename I2, typename O>
 void dali::kernels::examples::Kernel<I1, I2, O>::Run(KernelContext &context,
   const OutListGPU<O, 3> &out,
   const InListGPU<I1, 3> &in1,
-  const InListGPU<I2, 4> &in2,
-  const InTensorCPU<float, 3> &aux) {}
+  const InTensorGPU<I2, 4> &in2,
+  const std::vector<float> &aux) {}
 
 
 TEST(KernelAPI, CallWithTuples) {
   InListGPU<float, 3> in1;
-  InListGPU<int, 4> in2;
+  InTensorGPU<int, 4> in2;
   OutListGPU<float, 3> out;
-  InTensorCPU<float, 3> aux;
+  std::vector<float> aux;
 
   examples::Kernel<float, int, float> K;
   KernelContext context;

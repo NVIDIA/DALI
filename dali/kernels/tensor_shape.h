@@ -73,6 +73,8 @@ struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {
 
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
+/// @tparam Container - the data structure in which the sizes are stored
+/// @tparam ndim - number of dimensions
 template <typename Container, int ndim>
 struct TensorShapeBase {
   using container_type = Container;
@@ -366,6 +368,8 @@ flatten_shapes(const std::vector<T> &shapes) {
 template <int sample_ndim = DynamicDimensions>
 struct TensorListShape;
 
+/// @tparam Derived - actual class of an object (CRPR)
+/// @tparam sample_dim - number of dimensions of each sample in the list
 template <typename Derived, int sample_ndim>
 struct TensorListShapeBase {
   /// @brief Returns a static subshape list consisting of first other_ndim dimensions

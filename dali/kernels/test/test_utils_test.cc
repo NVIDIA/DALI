@@ -65,7 +65,7 @@ TEST(TestUtil, RandomFillList) {
 
 TEST(TestUtil, StatefulGenerator) {
   int mem[1024];
-  auto view = as_tensor_cpu<2>(mem, { 32, 32 });
+  auto view = make_tensor_cpu<2>(mem, { 32, 32 });
   int num = 1;
   auto seq_gen = [&]() { return num++; };
   Fill(view, seq_gen);

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TENSOR_SHAPE_STR_H_
-#define DALI_KERNELS_TENSOR_SHAPE_STR_H_
+#ifndef DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
+#define DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
 
 #include <dali/kernels/tensor_shape.h>
 #include <sstream>
@@ -65,4 +65,4 @@ inline string to_string(const dali::kernels::TensorListShape<ndim> &shape) {
 
 }  // namespace std
 
-#endif  // DALI_KERNELS_TENSOR_SHAPE_STR_H_
+#endif  // DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
