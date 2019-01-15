@@ -60,6 +60,9 @@ struct element_type {
   using type = typename C::value_type;
 };
 
+template <typename C>
+using element_t = typename element_type<C>::type;
+
 // collection element type
 
 template <typename C>

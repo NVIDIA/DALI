@@ -96,6 +96,7 @@ struct TensorView;
 
 template <typename Backend, typename DataType, int ndim>
 struct TensorViewBase {
+  using element_type = DataType;
   int dim() const { return shape.size(); }
 
   /// @brief Utility to calculate pointer to element at given coordinates
@@ -231,7 +232,8 @@ struct TensorListView;
 
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListViewBase {
-  DataType *data = nullptr;
+  using element_type = DataType;
+  element_type *data = nullptr;
   TensorListShape<sample_ndim> shape;
   std::vector<ptrdiff_t> offsets;
 
@@ -406,6 +408,18 @@ template <int ndim, typename T>
 TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
+
+
+template <typename Backend, typename T, int ndim>
+struct element_type<TensorView<Backend, T, ndim>> {
+  using type = T;
+};
+
+template <typename Backend, typename T, int ndim>
+struct element_type<TensorListView<Backend, T, ndim>> {
+  using type = T;
+};
+
 
 }  // namespace kernels
 }  // namespace dali

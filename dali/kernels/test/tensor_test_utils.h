@@ -28,6 +28,10 @@
 namespace dali {
 namespace kernels {
 
+namespace detail {
+  static constexpr int DefaultMaxErrors = 100;
+}  // namespace detail
+
 // COMPARISON
 
 template <int dim1, int dim2>
@@ -43,7 +47,7 @@ void CheckEqual(
     if (s1.tensor_shape_span(i) != s2.tensor_shape_span(i)) {
       if (++errors < max_errors) {
         EXPECT_EQ(s1.tensor_shape_span(i), s2.tensor_shape_span(i))
-            << "Samples #" << (--max_errors, i)
+            << "Samples #" << i
             << " have different shapes " << s1[i] << " vs " << s2[i];
       }
     }
@@ -62,7 +66,7 @@ void CheckEqual(
 
 template <int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2) {
-  int max_errors = 100;
+  int max_errors = detail::DefaultMaxErrors;
   CheckEqual(s1, s2, max_errors);
 }
 
@@ -79,7 +83,7 @@ void Check(
 
   ptrdiff_t n = tv1.num_elements();
   int dim = tv1.dim();
-  TensorShape<-1> pos;
+  TensorShape<DynamicDimensions> pos;
   pos.resize(dim);
 
   int errors = 0;
@@ -134,7 +138,7 @@ void Check(
     const TensorView<StorageCPU, T1, dim1> &tv1,
     const TensorView<StorageCPU, T2, dim2> &tv2,
     ElementsOkFunc eq = {}) {
-  int max_errors = 100;
+  int max_errors = detail::DefaultMaxErrors;
   Check(tv1, tv2, std::move(eq), max_errors);
 }
 
@@ -144,7 +148,7 @@ void Check(
     const TensorListView<StorageCPU, T1, dim1> &tv1,
     const TensorListView<StorageCPU, T2, dim2> &tv2,
     ElementsOkFunc eq = {}) {
-  int max_errors = 100;
+  int max_errors = detail::DefaultMaxErrors;
   CheckEqual(tv1.shape, tv2.shape, max_errors);
   int n = tv1.num_samples();
   for (int i = 0; i < n; i++) {
@@ -154,20 +158,6 @@ void Check(
 
 
 // FILLING
-
-template <typename Backend, typename T, int ndim>
-struct element_type<TensorView<Backend, T, ndim>> {
-  using type = T;
-};
-
-template <typename Backend, typename T, int ndim>
-struct element_type<TensorListView<Backend, T, ndim>> {
-  using type = T;
-};
-
-template <typename C>
-using element_t = typename element_type<C>::type;
-
 
 template <typename Collection, typename Generator>
 if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator) {

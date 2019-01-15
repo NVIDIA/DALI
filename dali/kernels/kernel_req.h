@@ -27,7 +27,7 @@ namespace kernels {
 
 /// @brief Represents requirements for kernel to do its job for given inputs and arguments.
 struct KernelRequirements {
-  std::vector<TensorListShape<-1>> output_shapes;
+  std::vector<TensorListShape<DynamicDimensions>> output_shapes;
 
   std::array<size_t, (size_t)AllocType::Count> scratch_sizes;
 
