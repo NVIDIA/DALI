@@ -33,6 +33,8 @@ TEST(OpticalFlowAdapter, StubApi) {
   TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
   TensorView<GPUBackend, float, 1> tvout;
   std::unique_ptr<OpticalFlowAdapter> of(new StubOpticalFlow());
+  OpticalFlowParams params;
+  of->Initialize(params);
   of->CalcOpticalFlow(tvref, tvin, tvout);
 }
 

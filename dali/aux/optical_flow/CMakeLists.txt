@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Get all the source files
-set(DALI_SRCS
-        ${DALI_SRCS}
-        optical_flow_adapter.h
-)
-
+file(GLOB tmp *.cc)
+set(DALI_SRCS ${DALI_SRCS} ${tmp})
+file(GLOB tmp *_test.cc)
+remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)

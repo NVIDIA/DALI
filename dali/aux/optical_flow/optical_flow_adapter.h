@@ -34,10 +34,9 @@ struct OpticalFlowParams {
 };
 
 
-class OpticalFlowAdapter {
+class DLL_PUBLIC OpticalFlowAdapter {
  public:
-  virtual void Initialize(OpticalFlowParams params) {}
-
+  DLL_PUBLIC virtual void Initialize(OpticalFlowParams params);
 
   virtual void CalcOpticalFlow(kernels::TensorView<GPUBackend, uint8_t, 3> reference_image,
                                kernels::TensorView<GPUBackend, uint8_t, 3> input_image,

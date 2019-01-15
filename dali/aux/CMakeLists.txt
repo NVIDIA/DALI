@@ -14,8 +14,8 @@
 
 add_subdirectory(optical_flow)
 
+set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
+
 if (BUILD_TEST)
-    # get all the test srcs
-    file(GLOB tmp *_test.cc)
     set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
