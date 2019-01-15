@@ -16,4 +16,5 @@ compile
 compile_debug
 .idea
 cmake-build-*
-data
+./data
+

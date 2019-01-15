@@ -15,12 +15,14 @@
 #ifndef DALI_KERNELS_TENSOR_SHAPE_H_
 #define DALI_KERNELS_TENSOR_SHAPE_H_
 
-#include <dali/kernels/span.h>
 #include <array>
 #include <cassert>
+#include <initializer_list>
 #include <iostream>
 #include <utility>
 #include <vector>
+#include "dali/kernels/span.h"
+#include "dali/kernels/util.h"
 
 namespace dali {
 namespace kernels {
@@ -41,6 +43,22 @@ inline int64_t volume(const T &shape) {
 }
 
 constexpr int DynamicDimensions = -1;
+constexpr int InferDimensions = -2;
+
+template <typename T>
+struct compile_time_size_impl : std::integral_constant<int, DynamicDimensions> {};
+
+template <typename T>
+using compile_time_size = compile_time_size_impl<
+  typename std::remove_cv<
+    typename std::remove_reference<T>::type
+  >::type>;
+
+template <typename T, size_t N>
+struct compile_time_size_impl<T[N]> : std::integral_constant<int, N> {};
+
+template <typename T, size_t N>
+struct compile_time_size_impl<std::array<T, N>> : std::integral_constant<int, N> {};
 
 /// @brief Class representing shape of a Tensor
 ///
@@ -49,6 +67,10 @@ constexpr int DynamicDimensions = -1;
 ///         or DynamicDimensions.
 template <int ndim = DynamicDimensions>
 struct TensorShape;
+
+template <int N>
+struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {};
+
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
 template <typename Container, int ndim>
@@ -399,9 +421,34 @@ struct TensorListShapeBase {
   constexpr bool empty() const { return size() == 0; }
   int num_samples() const { return size(); }
 
+  template <typename SampleShape>
+  static Derived make_uniform(int num_samples, const SampleShape &ss) {
+    if (num_samples < 1)
+      return {};
+
+    Derived ret;
+    int dim = dali::kernels::size(ss);
+    ret.set_sample_dim(dim);
+    ret.shapes.resize(dim * num_samples);
+
+    // copy the sample shape to the first entry
+    auto it = std::begin(ss);
+    for (int j = 0; j < dim; j++)
+      ret.shapes[j] = *it++;
+
+    // repeat first sample shape over the entire array
+    int n = ret.shapes.size();
+    for (int k = dim; k < n; k++) {
+      ret.shapes[k] = ret.shapes[k - dim];  // this will periodically repeat items 0..dim-1
+    }
+
+    return ret;
+  }
+
  protected:
   int size() const { return static_cast<const Derived *>(this)->size(); }
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
+  void set_sample_dim(int dim) { static_cast<const Derived *>(this)->set_sample_dim(dim); }
   TensorListShapeBase() = default;
   TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}        // NOLINT
   TensorListShapeBase(std::vector<int64_t> &&shapes) : shapes(std::move(shapes)) {}  // NOLINT
@@ -457,6 +504,7 @@ struct TensorListShape<DynamicDimensions>
   }
   int sample_dim() const { return dim; }
   int size() const { return shapes.size() / sample_dim(); }
+  void set_sample_dim(int dim) { this->dim = dim; }
 
   int dim;
   using Base::shapes;
@@ -518,6 +566,9 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   constexpr int sample_dim() const { return sample_ndim; }
   int size() const { return shapes.size() / sample_dim(); }
+  void set_sample_dim(int dim) {
+    assert(dim == sample_ndim && "Cannot change number of dimensions");
+  }
 
   using Base::shapes;
 
@@ -533,6 +584,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
     return {std::move(shapes)};
   }
 };
+
 
 template <typename Derived, int sample_ndim>
 template <int other_ndim>
@@ -660,6 +712,17 @@ TensorShape<out_dim> convert_dim(const TensorShape<in_dim> &in) {
 }
 
 template <int out_dim, int in_dim>
+TensorShape<out_dim> convert_dim(TensorShape<in_dim> &&in) {
+  return convert_dim<out_dim>(in);
+}
+
+template <>  // provide a trivial move when not actually converting
+inline TensorShape<DynamicDimensions>
+convert_dim<DynamicDimensions, DynamicDimensions>(TensorShape<DynamicDimensions> &&in) {
+  return std::move(in);
+}
+
+template <int out_dim, int in_dim>
 typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
 convert_dim(const TensorListShape<in_dim> &in) {
   static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
@@ -690,6 +753,20 @@ template <int out_dim, int in_dim>
 typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
 convert_dim(TensorListShape<in_dim> &&in) {
   return std::move(in);  // use implicit conversion
+}
+
+template <int ndim = InferDimensions,
+  typename SampleShape,
+  int inferred = compile_time_size<SampleShape>::value,
+  int ret_dim = (ndim == InferDimensions) ? inferred : ndim
+> TensorListShape<ret_dim> uniform_list_shape(int num_samples, const SampleShape &sample_shape) {
+  return TensorListShape<ret_dim>::make_uniform(num_samples, sample_shape);
+}
+
+
+template <int ndim = DynamicDimensions, typename T>
+TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<T> sample_shape) {
+  return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
 }
 
 

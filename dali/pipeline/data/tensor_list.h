@@ -101,6 +101,12 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);
+    if (!new_shape.empty()) {
+      size_t dim = new_shape[0].size();
+      for (auto &s : new_shape) {
+        DALI_ENFORCE(s.size() == dim, "All items should have same number of dimensions");
+      }
+    }
     for (Index i = 0; i < num_tensor; ++i) {
       auto tensor_size = Product(new_shape[i]);
 
@@ -246,7 +252,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Return the shape of the tensor with the given index.
    */
-  inline vector<Index> tensor_shape(int idx) const {
+  inline const vector<Index> &tensor_shape(int idx) const {
 #ifndef NDEBUG
     DALI_ENFORCE(idx >= 0, "Negative index not supported");
     DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range");
@@ -257,7 +263,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the entire TensorList.
    */
-  inline vector<Dims> shape() const {
+  inline const vector<Dims> &shape() const {
     return shape_;
   }
 

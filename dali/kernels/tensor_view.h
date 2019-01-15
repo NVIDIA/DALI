@@ -15,10 +15,10 @@
 #ifndef DALI_KERNELS_TENSOR_VIEW_H_
 #define DALI_KERNELS_TENSOR_VIEW_H_
 
-#include <dali/kernels/tensor_shape.h>
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 namespace kernels {

@@ -29,6 +29,26 @@ TEST(ShapeDimTest, Value) {
   EXPECT_EQ(ShapeDim(x3), 4);
 }
 
+TEST(CompileTimeSize, DimInference) {
+  std::array<int, 3> a;
+  const auto *pa = &a;
+  static_assert(compile_time_size<decltype(a)>::value == static_cast<int>(a.size()),
+    "Compile-time size of an std-array should match its size argument");
+  static_assert(compile_time_size<decltype(*pa)>::value == static_cast<int>(a.size()),
+    "Compile-time size of an std-array should match its size argument");
+
+  int x[4];
+  static_assert(compile_time_size<decltype(x)>::value == 4,
+    "Compile-time size of an array should should match its ndim");
+  const int y[5] = { 9, 8, 7, 6, 5 };  // check that the  trait can strip const qualifier
+  static_assert(compile_time_size<decltype(y)>::value == 5,
+    "Compile-time size of an array should should match its ndim");
+
+  volatile TensorShape<6> t;  // to check that the trait can strip volatile qualifier
+  static_assert(compile_time_size<decltype(t)>::value == 6,
+    "Compile-time of a static-ndim TensorShape should match its ndim");
+}
+
 TEST(TensorViewTest, StaticConstructors) {
   TensorView<EmptyBackendTag, int, 4> empty_static_dim{};
   EXPECT_EQ(empty_static_dim.data, nullptr);
@@ -178,6 +198,25 @@ TEST(TensorListViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.shape.shapes.data(), ptr) << "Move is broken - a copy appeared somewhere.";
 }
 
+TEST(TensorListView, uniform_list_shape) {
+  int N = 11;
+  TensorListShape<> dyn =  uniform_list_shape(N, { 640, 480, 3 });
+  TensorListShape<3> stat = uniform_list_shape<3>(N, { 640, 480, 3 });
+
+  int size_c[] = { 640, 480, 3 };
+  std::array<int64_t, 3> size_a = { 640, 480, 3 };
+  TensorShape<3> ref(640, 480, 3);
+
+  TensorListShape<3> infer1 = uniform_list_shape<3>(N, size_c);
+  TensorListShape<3> infer2 = uniform_list_shape<3>(N, size_a);
+  EXPECT_EQ(dyn.num_samples(), N);
+  for (int i = 0; i < dyn.num_samples(); i++) {
+    EXPECT_EQ(dyn.tensor_shape(i), ref);
+  }
+  EXPECT_EQ(stat, dyn);
+  EXPECT_EQ(infer1, dyn);
+  EXPECT_EQ(infer2, dyn);
+}
 
 }  // namespace kernels
 }  // namespace dali
