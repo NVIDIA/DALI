@@ -65,10 +65,10 @@ class DLL_PUBLIC OpSchema {
     v = Value::construct(1234);
     internal_arguments_["seed"] = std::make_pair("Random seed", v.get());
     internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(1);
-    internal_arguments_["bytes_per_sample_hint"] = std::make_pair("Output size hint (bytes), "
-      "per sample. The memory will be preallocated if it uses GPU or page-locked memory", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
+
+    std::vector<int> hint;
+    AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
+      "per sample. The memory will be preallocated if it uses GPU or page-locked memory", hint);
   }
 
   DLL_PUBLIC inline ~OpSchema() = default;

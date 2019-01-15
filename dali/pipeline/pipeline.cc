@@ -24,6 +24,7 @@
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 
 #include "dali/pipeline/operators/argument.h"
+#include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
@@ -235,6 +236,29 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_to_serialize_.push_back(true);
 }
 
+inline int GetMemoryHint(OpSpec &spec, int index) {
+  std::vector<int> hints;
+  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+
+  if (index < (int)hints.size())
+    return hints[index];
+  else
+    return 0;
+}
+
+inline void SetMemoryHint(OpSpec &spec, int index, int value) {
+  std::vector<int> hints;
+  int no = spec.NumOutput();
+
+  DALI_ENFORCE(index < no, "Output index out of range: " +
+    std::to_string(index) + " >= " + std::to_string(no));
+
+  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", no);
+  hints.resize(no, 0);
+  hints[index] = value;
+  spec.SetArg("bytes_per_sample_hint", hints);
+}
+
 void Pipeline::PropagateMemoryHint(OpNode &node) {
   assert(node.parents.size() == 1);
   for (int inp_idx = 0; inp_idx < node.spec.NumRegularInput(); inp_idx++) {
@@ -242,8 +266,10 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
     NodeID parent_node_id = graph_.TensorSourceID(input_name);
     int idx = graph_.TensorIdxInSource(input_name);
     auto &src = graph_.node(parent_node_id);
-    cout << "Propagate memory hints from " << src.instance_name << "(" << idx << ") to "
-         << node.instance_name << "(" << inp_idx << ")\n";
+    int hint = GetMemoryHint(src.spec, idx);
+    if (hint) {
+      SetMemoryHint(node.spec, inp_idx, hint);  // input and output indices match for MakeContiguous
+    }
   }
 }
 
@@ -451,7 +477,6 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
-    .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_)
     .AddArg("seed", seed_[current_seed_])
     .AddArg("device_id", device_id_);
   current_seed_ = (current_seed_+1) % MAX_SEEDS;

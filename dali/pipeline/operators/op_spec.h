@@ -77,7 +77,18 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
-    return AddInitializedArg(name, Argument::Store(name, val));
+    DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
+        "AddArg failed. Argument with name \"" + name +
+        "\" already exists. ");
+    return SetArg(name, val);
+  }
+
+  /**
+   * @brief Sets or adds an argument with the given name and value.
+   */
+  template <typename T>
+  DLL_PUBLIC inline OpSpec& SetArg(const string &name, const T &val) {
+    return SetInitializedArg(name, Argument::Store(name, val));
   }
 
   /**
@@ -91,10 +102,17 @@ class DLL_PUBLIC OpSpec {
     return *this;
   }
 
+  /**
+   * @brief Sets or adds an argument with given name
+   */
+  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& name, Argument* arg) {
+    arguments_[name].reset(arg);
+    return *this;
+  }
   // Forward to string implementation
   template <unsigned N>
-  DLL_PUBLIC inline OpSpec& AddArg(const string &name, const char (&c_str)[N]) {
-    return this->AddArg<std::string>(name, c_str);
+  DLL_PUBLIC inline OpSpec& SetArg(const string &name, const char (&c_str)[N]) {
+    return this->SetArg<std::string>(name, c_str);
   }
 
   /**
@@ -340,19 +358,16 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
 
 #define INSTANTIATE_ARGUMENT_AS_INT64(T)                                                        \
   template<>                                                                                    \
-  inline OpSpec& OpSpec::AddArg(const string& name, const T& val) {                             \
-    return this->AddArg<int64>(name, static_cast<int64>(val));                                  \
+  inline OpSpec& OpSpec::SetArg(const string& name, const T& val) {                             \
+    return this->SetArg<int64>(name, static_cast<int64>(val));                                  \
   }                                                                                             \
   template<>                                                                                    \
-  inline OpSpec& OpSpec::AddArg(const string& name, const std::vector<T>& val) {                \
+  inline OpSpec& OpSpec::SetArg(const string& name, const std::vector<T>& val) {                \
     vector<int64> tmp;                                                                          \
     for (auto t : val) {                                                                        \
       tmp.push_back(static_cast<int64>(t));                                                     \
     }                                                                                           \
     Argument * arg = Argument::Store(name, tmp);                                                \
-    DALI_ENFORCE(arguments_.find(name) == arguments_.end(),                                     \
-        "AddArg failed. Argument with name \"" + name +                                         \
-        "\" already exists. ");                                                                 \
     arguments_[name].reset(arg);                                                                \
     return *this;                                                                               \
   }                                                                                             \
