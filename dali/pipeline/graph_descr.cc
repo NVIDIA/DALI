@@ -84,24 +84,15 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     DALI_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
     DALI_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
 
-    // Create the operator
-    OpPtr tmp(
-        CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));
-
     cpu_nodes_.resize(cpu_nodes_.size()+1);
     OpNode &cpu_node = cpu_nodes_.back();
-    cpu_node.op = std::move(tmp);
     id_to_node_map_.push_back({DALI_CPU, cpu_nodes_.size()-1});
 
     new_node = &cpu_node;
   } else if (device == "gpu") {
-    // Create the operator
-    OpPtr tmp(
-        GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device));
 
     gpu_nodes_.resize(gpu_nodes_.size()+1);
     OpNode &gpu_node = gpu_nodes_.back();
-    gpu_node.op = std::move(tmp);
     id_to_node_map_.push_back({DALI_GPU, gpu_nodes_.size()-1});
 
     new_node = &gpu_node;
@@ -109,13 +100,8 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     // Enforce graph constraints
     DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
 
-    // Create the operator
-    OpPtr tmp(
-        MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device));
-
     mixed_nodes_.resize(mixed_nodes_.size()+1);
     OpNode &mixed_node = mixed_nodes_.back();
-    mixed_node.op = std::move(tmp);
     id_to_node_map_.push_back({DALI_MIXED, mixed_nodes_.size()-1});
 
     new_node = &mixed_node;
@@ -123,13 +109,8 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     // Enforce graph constraints
     DALI_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
 
-    // Create the operator
-    OpPtr tmp(
-        SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device));
-
     support_nodes_.resize(support_nodes_.size()+1);
     OpNode &support_node = support_nodes_.back();
-    support_node.op = std::move(tmp);
     id_to_node_map_.push_back({DALI_SUPPORT, support_nodes_.size() - 1});
 
     new_node = &support_node;
@@ -188,6 +169,31 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
         "with this name already exists as output of op '" +
         this->node(TensorSourceID(name)).spec.name() + "'");
   }
+}
+
+
+void OpGraph::InstantiateOperators() {
+  for (auto &node : support_nodes_) {
+    auto &spec = node.spec;
+    string device = spec.GetArgument<string>("device");
+    node.op = SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  }
+  for (auto &node : cpu_nodes_) {
+    auto &spec = node.spec;
+    string device = spec.GetArgument<string>("device");
+    node.op = CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  }
+  for (auto &node : mixed_nodes_) {
+    auto &spec = node.spec;
+    string device = spec.GetArgument<string>("device");
+    node.op = MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  }
+  for (auto &node : gpu_nodes_) {
+    auto &spec = node.spec;
+    string device = spec.GetArgument<string>("device");
+    node.op = GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  }
+
 }
 
 // Op Removal Process:

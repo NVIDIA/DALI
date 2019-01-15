@@ -372,6 +372,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     }
   }
 
+  graph_.InstantiateOperators();
+
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
   built_ = true;

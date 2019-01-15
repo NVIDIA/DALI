@@ -294,6 +294,8 @@ class DLL_PUBLIC OpGraph {
     DALI_FAIL(str_error);
   }
 
+
+
   /**
    * @brief Helper function for saving graph to DOT file
    */
@@ -311,6 +313,11 @@ class DLL_PUBLIC OpGraph {
         GenerateDOTFromGraph(child_node, ofs);
     }
   }
+
+  /**
+   * @brief Instantiates the operators based on OpSpecs in nodes
+   */
+  DLL_PUBLIC void InstantiateOperators();
 
   /**
    * @brief Save graph in DOT directed graph format
