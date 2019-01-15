@@ -44,7 +44,7 @@ class VideoPipe(Pipeline):
         super(VideoPipe, self).__init__(batch_size, num_threads, device_id, seed=12)
         self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=COUNT,
                                      shard_id=0, num_shards=1, random_shuffle=False,
-                                     normalized=True, image_type=types.YCbCr)
+                                     normalized=True, image_type=types.YCbCr, dtype=types.FLOAT)
 
     def define_graph(self):
         output = self.input(name="Reader")

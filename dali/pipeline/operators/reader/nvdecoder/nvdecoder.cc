@@ -83,15 +83,15 @@ NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
                      AVRational time_base,
                      DALIImageType image_type,
+                     DALIDataType dtype,
                      bool normalized)
-    : device_id_{device_id}, stream_{device_id, false}, codecpar_{codecpar},
-      rgb_(image_type == DALI_RGB), normalized_(normalized),
-      device_{}, context_{}, parser_{}, decoder_{},
+    : device_id_(device_id), stream_(device_id, false), codecpar_(codecpar),
+      rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
+      device_(), context_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
-      recv_queue_{}, frame_queue_{}, output_queue_{},
-      current_recv_{}, textures_{}, done_{false}
-{
+      recv_queue_(), frame_queue_(), output_queue_(),
+      current_recv_(), textures_(), done_(false) {
   if (!codecpar) {
     // TODO(spanev) explicit handling
     return;
@@ -473,11 +473,19 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                       input_width,
                                       input_height,
                                       ScaleMethod_Nearest);
+  if (dtype_ == DALI_UINT8) {
+    process_frame<uint8>(textures.chroma, textures.luma,
+                  sequence,
+                  output_idx, stream_,
+                  input_width, input_height,
+                  rgb_, normalized_);
+  } else {
     process_frame<float>(textures.chroma, textures.luma,
                   sequence,
                   output_idx, stream_,
                   input_width, input_height,
                   rgb_, normalized_);
+  }
 
   frame_in_use_[frame.disp_info->picture_index] = false;
 }

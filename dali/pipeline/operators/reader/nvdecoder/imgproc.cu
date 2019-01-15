@@ -121,9 +121,9 @@ __global__ void process_frame_kernel(
     ycbcr2rgb<float, T, Normalized>(ycbcr, out, stride);
   } else {
     constexpr float scaling = Normalized ? 1.0f : 255.0f;
-    out[0] = ycbcr.y * scaling;
-    out[stride] = ycbcr.cb * scaling;
-    out[stride*2] = ycbcr.cr * scaling;
+    out[0] = convert<T>(ycbcr.y * scaling);
+    out[stride] = convert<T>(ycbcr.cb * scaling);
+    out[stride*2] = convert<T>(ycbcr.cr * scaling);
   }
 }
 
@@ -181,13 +181,6 @@ void process_frame<float>(
 
 template
 void process_frame<uint8_t>(
-  cudaTextureObject_t chroma, cudaTextureObject_t luma,
-  SequenceWrapper& output, int index, cudaStream_t stream,
-  uint16_t input_width, uint16_t input_height,
-  bool rgb, bool normalized);
-
-template
-void process_frame<half>(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
   SequenceWrapper& output, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,

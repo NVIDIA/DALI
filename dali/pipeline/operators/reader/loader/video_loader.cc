@@ -103,6 +103,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
                         codecpar(stream),
                         stream->time_base,
                         image_type_,
+                        dtype_,
                         normalized_)};
     } else {  // already opened a file
       if (!vid_decoder_) {

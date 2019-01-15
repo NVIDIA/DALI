@@ -108,6 +108,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       height_(0),
       width_(0),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
+      dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
       codec_id_(0),
@@ -184,6 +185,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int height_;
   int width_;
   DALIImageType image_type_;
+  DALIDataType dtype_;
   bool normalized_;
 
   std::vector<std::string> filenames_;
