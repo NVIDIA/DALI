@@ -37,6 +37,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     DALI_ENFORCE(image_type == DALI_RGB || image_type == DALI_YCbCr,
                  "Image type must be RGB or YCbCr.");
 
+    DALI_ENFORCE(dtype_ == DALI_FLOAT || dtype_ == DALI_UINT8,
+                 "Data type must be FLOAT or UINT8.");
+
+
     // TODO(spanev): support rescale
       try {
         loader_.reset(new VideoLoader(spec, filenames_));
@@ -65,11 +69,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     auto* tl_sequence_output = ws->Output<GPUBackend>(idx);
     if (dtype_ == DALI_FLOAT) {
       tl_sequence_output->set_type(TypeInfo::Create<float>());
-    } else if (dtype_ == DALI_UINT8) {
+    } else {  // dtype_ == DALI_UINT8
       tl_sequence_output->set_type(TypeInfo::Create<uint8>());
-    } else {
-      DALI_FAIL("VideoReader supports only uint8 and float output.");
     }
+
     tl_sequence_output->Resize(tl_shape_);
     tl_sequence_output->SetLayout(DALI_NFHWC);
 

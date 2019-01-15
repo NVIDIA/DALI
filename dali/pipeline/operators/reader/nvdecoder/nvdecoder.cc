@@ -479,7 +479,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                   output_idx, stream_,
                   input_width, input_height,
                   rgb_, normalized_);
-  } else {
+  } else {  // dtype_ == DALI_FLOAT
     process_frame<float>(textures.chroma, textures.luma,
                   sequence,
                   output_idx, stream_,
