@@ -27,6 +27,7 @@ DALI_SCHEMA(Crop)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
+    .AllowSequences()
     .AddOptionalArg(
         "crop_pos_x",
         R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",

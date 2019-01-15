@@ -77,10 +77,9 @@ template <>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   auto &output = ws->Output<GPUBackend>(idx);
-
   DALI_CALL((BatchedCrop<Out>(
       input_ptrs_gpu_.data<const uint8 *>(),
-      input_strides_gpu_.data<int>(), batch_size_,
+      input_strides_gpu_.data<int>(), batch_size_ * SequenceSize(idx),
       crop_height_gpu_.data<int>(),
       crop_width_gpu_.data<int>(), C_, output_layout_,
       output.mutable_data<Out>(),
@@ -90,11 +89,12 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
 template <>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   const auto &input = ws->Input<GPUBackend>(0);
+  Init(batch_size_ * SequenceSize(0));
 
   if (output_type_ == DALI_NO_TYPE) output_type_ = input.type().id();
 
-  for (int i = 0; i < batch_size_; ++i)
-    SetupSharedSampleParams(ws, input.tensor_shape(i), i, i);
+  for (int i = 0; i < batch_size_ * SequenceSize(0); ++i)
+    SetupSharedSampleParams(ws, input.tensor_shape(i), i, i / SequenceSize(0));
 }
 
 template <>
@@ -105,8 +105,17 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
   DALITensorLayout outLayout = DALI_UNKNOWN;
 
-  std::vector<Dims> output_shape(batch_size_);
-  for (int i = 0; i < batch_size_; ++i) {
+  int total_batch = batch_size_;
+  if (SequenceSize(idx) > 1) {
+    total_batch = SequenceSize(idx) * batch_size_;
+    crop_offsets_.resize(total_batch);
+    input_ptrs_.Resize({total_batch});
+    input_strides_.Resize({total_batch});
+    output_offsets_.Resize({total_batch});
+  }
+
+  std::vector<Dims> output_shape(total_batch);
+  for (int i = 0; i < total_batch; ++i) {
     const auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
@@ -145,7 +154,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   output.SetLayout(outLayout);
 
   // Calculate input pointers and copy to gpu
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < total_batch; ++i) {
     input_ptrs_.mutable_data<const uint8 *>()[i] =
         input.tensor<uint8>(i) + crop_offsets_[i];
   }

@@ -43,7 +43,8 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC explicit inline OpSchema(const std::string &name)
     : name_(name),
       allow_multiple_input_sets_(false),
-      enforce_layout_(false) {
+      enforce_layout_(false),
+      allow_sequences_(false) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
@@ -154,6 +155,14 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Notes that multiple input sets can be used with this op
+   */
+  DLL_PUBLIC inline OpSchema& AllowSequences() {
+    allow_sequences_ = true;
+    return *this;
+  }
+
+  /**
    * @brief Adds a required argument to op with its type
    */
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
@@ -255,6 +264,11 @@ class DLL_PUBLIC OpSchema {
     return allow_multiple_input_sets_;
   }
 
+  DLL_PUBLIC inline bool AllowsSequences() const {
+    std::cout << "{" << allow_sequences_ << "}\n";
+    return allow_sequences_;
+  }
+
   DLL_PUBLIC inline bool EnforceInputLayout() const {
     return enforce_layout_;
   }
@@ -325,6 +339,8 @@ class DLL_PUBLIC OpSchema {
 
   bool enforce_layout_;
   DALITensorLayout layout_;
+
+  bool allow_sequences_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
