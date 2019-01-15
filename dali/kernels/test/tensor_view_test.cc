@@ -39,12 +39,12 @@ TEST(CompileTimeSize, DimInference) {
 
   int x[4];
   static_assert(compile_time_size<decltype(x)>::value == 4,
-    "Compile-time size of an array should");
-  const int y[5] = { 9, 8, 7, 6, 5 };
+    "Compile-time size of an array should should match its ndim");
+  const int y[5] = { 9, 8, 7, 6, 5 };  // check that the  trait can strip const qualifier
   static_assert(compile_time_size<decltype(y)>::value == 5,
-    "Compile-time size of an array should");
+    "Compile-time size of an array should should match its ndim");
 
-  volatile TensorShape<6> t;
+  volatile TensorShape<6> t;  // to check that the trait can strip volatile qualifier
   static_assert(compile_time_size<decltype(t)>::value == 6,
     "Compile-time of a static-ndim TensorShape should match its ndim");
 }

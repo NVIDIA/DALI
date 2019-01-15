@@ -23,6 +23,7 @@
 namespace dali {
 namespace detail {
 
+/// @brief Maps DALI Backend to dali::kernels storage backend.
 template <typename Backend>
 struct storage_tag_map;
 
@@ -43,15 +44,18 @@ using storage_tag_map_t = typename storage_tag_map<Backend>::type;
 
 template <int ndim, typename Backend>
 kernels::TensorListShape<ndim> list_shape(const TensorList<Backend> &tl) {
-  auto &tshape = tl.tensor_shape(0);
+  const auto &tshape = tl.tensor_shape(0);
   if (ndim != kernels::DynamicDimensions)
     DALI_ENFORCE((int)tshape.size() == ndim, "Input has a wrong number of dimensions");
   return kernels::convert_dim<ndim>(kernels::TensorListShape<>(tl.shape()));
 }
 
+/// @brief Returns an equivalent tensor shape for a dense, uniform tensor list.
+/// @return Tensor shape with outermost dimension corresponding to samples.
+/// @remarks If the argument is not a dense tensor, an error is raised.
 template <int ndim, typename Backend>
 kernels::TensorShape<ndim> tensor_shape(const TensorList<Backend> &tl) {
-  auto &tshape = tl.tensor_shape(0);
+  const auto &tshape = tl.tensor_shape(0);
   DALI_ENFORCE(tl.IsDenseTensor(), "Uniform, dense tensor expected");
   if (ndim != kernels::DynamicDimensions) {
     DALI_ENFORCE((int)tshape.size()+1 == ndim,
@@ -68,9 +72,11 @@ kernels::TensorShape<ndim> tensor_shape(const TensorList<Backend> &tl) {
   return out;
 }
 
+/// @brief Returns an equivalent tensor list shape for a tensor.
+///        Outermost dimension is converted into sample index.
 template <int ndim, typename Backend>
 kernels::TensorShape<ndim> tensor_shape(const Tensor<Backend> &tl) {
-  auto &tshape = tl.shape();
+  const auto &tshape = tl.shape();
   kernels::TensorShape<ndim> out;
   int dim = tshape.size();
   if (ndim != kernels::DynamicDimensions) {

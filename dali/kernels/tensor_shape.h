@@ -17,10 +17,10 @@
 
 #include <array>
 #include <cassert>
+#include <initializer_list>
 #include <iostream>
 #include <utility>
 #include <vector>
-#include <initializer_list>
 #include "dali/kernels/span.h"
 #include "dali/kernels/util.h"
 
@@ -439,7 +439,7 @@ struct TensorListShapeBase {
     // repeat first sample shape over the entire array
     int n = ret.shapes.size();
     for (int k = dim; k < n; k++) {
-      ret.shapes[k] = ret.shapes[k - dim];  // this will perdiodically repeat items 0..dim-1
+      ret.shapes[k] = ret.shapes[k - dim];  // this will periodically repeat items 0..dim-1
     }
 
     return ret;
@@ -448,7 +448,7 @@ struct TensorListShapeBase {
  protected:
   int size() const { return static_cast<const Derived *>(this)->size(); }
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
-  void set_sample_dim(int dim) { return static_cast<const Derived *>(this)->sample_dim(); }
+  void set_sample_dim(int dim) { static_cast<const Derived *>(this)->sample_dim(); }
   TensorListShapeBase() = default;
   TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}        // NOLINT
   TensorListShapeBase(std::vector<int64_t> &&shapes) : shapes(std::move(shapes)) {}  // NOLINT
