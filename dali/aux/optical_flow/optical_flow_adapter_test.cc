@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <memory>
 #include "dali/aux/optical_flow/optical_flow_adapter.h"
 
 namespace dali {
 namespace optical_flow {
-using namespace kernels;
+using kernels::TensorView;
 
 class StubOpticalFlow : public OpticalFlowAdapter {
  public:
@@ -25,7 +26,6 @@ class StubOpticalFlow : public OpticalFlowAdapter {
                        const TensorView<GPUBackend, uint8_t, 3> input_image,
                        TensorView<GPUBackend, float, 1> output_image,
                        const TensorView<GPUBackend, float, 1> external_hints) override {
-
   }
 };
 

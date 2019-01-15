@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPTICAL_FLOW_ADAPTER_H
-#define DALI_OPTICAL_FLOW_ADAPTER_H
+#ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
+#define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 
 #include <dali/pipeline/data/backend.h>
 #include "dali/kernels/tensor_view.h"
@@ -50,4 +50,4 @@ class DLL_PUBLIC OpticalFlowAdapter {
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_OPTICAL_FLOW_ADAPTER_H
+#endif  // DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
