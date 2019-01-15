@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_KERNELS_TEST_KERNEL_POC_TEST_H_
+#define DALI_KERNELS_TEST_KERNEL_POC_TEST_H_
+
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
@@ -24,11 +27,14 @@
 namespace dali {
 namespace kernels {
 
-template <typename StorageBackend, typename Input1, typename Input2, typename Output, typename Kernel>
-struct KernelPoCFixture {
-
+template <typename StorageBackend, typename Kernel,
+          typename Base = dali::testing::SimpleKernelTestBase<Kernel>>
+struct KernelPoCFixture : Base {
  public:
-  void Run() {
+  using Input1 = typename Base::template InputElement<0>;
+  using Input2 = typename Base::template InputElement<1>;
+  using Output = typename Base::template OutputElement<0>;
+  void RunImpl() {
     ASSERT_NO_FATAL_FAILURE(Initialize());
     ASSERT_NO_FATAL_FAILURE(CalcReference());
     ASSERT_NO_FATAL_FAILURE(Launch());
@@ -116,8 +122,9 @@ struct KernelPoCFixture {
     // native and uniform calls should yield bit-exact results
     Check(o1_cpu, o2_cpu);
   }
-
 };
 
 }  // namespace kernels
 }  // namespace dali
+
+#endif  // DALI_KERNELS_TEST_KERNEL_POC_TEST_H_

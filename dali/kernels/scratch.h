@@ -36,17 +36,15 @@ class BumpAllocator {
     *this = std::move(a);
   }
 
-  ~BumpAllocator() {
-    for (size_t i = 0; i < used_; i++) {
-      memory_[i].~T();
-    }
-  }
+  ~BumpAllocator() = default;
 
   inline BumpAllocator &operator=(BumpAllocator &&a) {
     memory_ = a.memory_;
     total_ = a.total_;
     used_ = a.used_;
-    a = {};
+    a.memory_ = nullptr;
+    a.total_ = 0;
+    a.used_ = 0;
     return *this;
   }
 

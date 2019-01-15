@@ -57,7 +57,7 @@ struct MADKernelGPU {
 };
 
 template <typename Kernel_>
-class KernelPoC_GPU : public ::testing::Test, public testing::SimpleKernelTestBase<Kernel_> {
+class KernelPoC_GPU : public ::testing::Test, public KernelPoCFixture<StorageGPU, Kernel_> {
 };
 
 
@@ -71,15 +71,7 @@ using PoC_MAD_GPU = ::testing::Types<
 TYPED_TEST_CASE(KernelPoC_GPU, PoC_MAD_GPU);
 
 TYPED_TEST(KernelPoC_GPU, All) {
-  using MyType = typename std::remove_pointer<decltype(this)>::type;
-  using Input1 = typename MyType::template InputElement<0>;
-  using Input2 = typename MyType::template InputElement<1>;
-  using Output = typename MyType::template OutputElement<0>;
-  using Kernel = typename MyType::Kernel;
-
-  KernelPoCFixture<StorageGPU, Input1, Input2, Output, Kernel> F;
-  F.Run();
-
+  this->RunImpl();
 }
 
 }  // namespace kernels
