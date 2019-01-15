@@ -235,6 +235,18 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_to_serialize_.push_back(true);
 }
 
+void Pipeline::PropagateMemoryHint(OpNode &node) {
+  assert(node.parents.size() == 1);
+  for (int inp_idx = 0; inp_idx < node.spec.NumRegularInput(); inp_idx++) {
+    auto input_name = node.spec.Input(inp_idx);
+    NodeID parent_node_id = graph_.TensorSourceID(input_name);
+    int idx = graph_.TensorIdxInSource(input_name);
+    auto &src = graph_.node(parent_node_id);
+    cout << "Propagate memory hints from " << src.instance_name << "(" << idx << ") to "
+         << node.instance_name << "(" << inp_idx << ")\n";
+  }
+}
+
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DeviceGuard d(device_id_);
   output_names_ = output_names;
@@ -300,6 +312,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec);
+
         graph_.AddOp(spec, "__MakeContiguous_" + name);
 
         outputs.push_back("contiguous_" + name + "_" + device);
@@ -323,6 +336,13 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     } else {
       DALI_FAIL("Invalid device argument \"" + device +
           "\". Valid options are \"cpu\" or \"gpu\"");
+    }
+  }
+
+  for (int i = 0; i < graph_.NumMixedOp(); i++) {
+    OpNode &node = graph_.mixed_node(i);
+    if (node.spec.name() == "MakeContiguous") {
+      PropagateMemoryHint(node);
     }
   }
 

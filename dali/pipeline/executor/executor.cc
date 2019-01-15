@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/executor/executor.h"
-
 #include <algorithm>
 #include <iterator>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -583,7 +583,22 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
   // represents all the unique buffers in our graph.
-  for (auto &ws : wsb->cpu_op_data) {
+  for (int i = 0; i < graph_->NumCPUOp(); i++) {
+    auto &ws = wsb->cpu_op_data[i];
+    OpSpec &spec = graph_->cpu_node(i).spec;
+
+    std::vector<int> hints;
+    GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", ws.NumOutput());
+    DALI_ENFORCE(hints.size() <= ws.NumOutput(), "Specified more size hints than outputs");
+
+    for (auto &h : hints) {
+      if (h == 0)
+        h = this->bytes_per_sample_hint_;
+    }
+
+    for (int i = hints.size(); i < ws.NumOutput(); i++)
+      hints.push_back(bytes_per_sample_hint_);
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
       DALI_ENFORCE(ws.NumOutputAtIdx(i) == batch_size_, "Executor "
           "encountered cpu op workspace where the number of tensors "
@@ -591,10 +606,12 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       DALI_ENFORCE(ws.OutputIsType<CPUBackend>(i), "Executor "
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
-        Tensor<CPUBackend> &tensor = ws.Output<CPUBackend>(i, j);
-        // We set the type of the tensor to uint8 temporarily
-        tensor.mutable_data<uint8>();
-        tensor.Resize({(Index)bytes_per_sample_hint_});
+        Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
+        if (tensor->is_pinned()) {
+          // We set the type of the tensor to uint8 temporarily
+          tensor->mutable_data<uint8>();
+          tensor->Resize({(Index)bytes_per_sample_hint_});
+        }
       }
     }
   }

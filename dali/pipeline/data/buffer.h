@@ -181,6 +181,10 @@ class Buffer {
     pinned_ = pinned;
   }
 
+  inline bool is_pinned() const {
+    return pinned_;
+  }
+
   /**
    * @brief Returns a device this buffer was allocated on
    * If the backend is CPUBackend, return -1

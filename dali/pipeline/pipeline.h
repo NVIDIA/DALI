@@ -357,6 +357,8 @@ class DLL_PUBLIC Pipeline {
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);
 
+  void PropagateMemoryHint(OpNode &node);
+
   const int MAX_SEEDS = 1024;
 
   bool built_;
