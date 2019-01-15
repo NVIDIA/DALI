@@ -30,8 +30,7 @@ DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
-  .AddOptionalArg("align_corners", "If true, then the image corners are aligned"
-      " and corner pixel centers are resampled", false)
+  .AddOptionalArg("antialias", "If true, then a filtering is applied when downscaling", false)
   .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
       "This option is mutually exclusive with `resize_shorter`. "
       "If the `resize_y` is left at 0, then the op will keep "
@@ -84,7 +83,7 @@ Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), Res
   per_sample_meta_.resize(num_threads_);
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
-  align_corners_ = spec_.GetArgument<bool>("align_corners");
+  antialias_ = spec_.GetArgument<bool>("antialias");
 
   // Checking the value of interp_type_
   int ocv_interp_type;
@@ -260,15 +259,32 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto W = input_shape[1];
   const auto C = input_shape[2];
 
-  if (align_corners_) {
-    InTensorCPU<uint8_t, 3> in(pImgInp, { H, W, C });
-    OutTensorCPU<uint8_t, 3> out(pImgOut, { meta.rsz_h, meta.rsz_w, meta.C });
+  InTensorCPU<uint8_t, 3> in(pImgInp, { H, W, C });
+  OutTensorCPU<uint8_t, 3> out(pImgOut, { meta.rsz_h, meta.rsz_w, meta.C });
+
+  if (interp_type_ == DALI_INTERP_NN) {
     VALUE_SWITCH(C, channels, (1, 2, 3, 4),
-      (ResizeAlignCorners<channels>(out, in, interp_type_);)
+      (ResizeAlignCornersNearest<channels>(out, in);)
     , DALI_FAIL("Unsupported number of channels: " + std::to_string(C)));
-  } else {
+  } else  {
     const auto cvImgType = C == 3? CV_8UC3 : CV_8UC1;
     cv::Mat inputMat(H, W, cvImgType, const_cast<unsigned char*>(pImgInp));
+
+    const float threshold = 0.8f;
+    if ((meta.rsz_w < threshold*W || meta.rsz_h < threshold*H) && antialias_) {
+      cv::Mat tmp(H, W, cvImgType);
+      auto sigma=[](float src, float dst)->std::pair<int, float> {
+        float s = 0.6f * src / dst - 0.25f;
+        if (s <= 1e-3)
+          return { 1, 1e-3 };
+        int n = 2*ceil(s)+1;
+        return { n, s };
+      };
+      auto fx = sigma(W, meta.rsz_w);
+      auto fy = sigma(H, meta.rsz_h);
+      cv::GaussianBlur(inputMat, tmp, {fx.first, fy.first}, fx.second, fy.second, CV_HAL_BORDER_REFLECT_101);
+      inputMat = std::move(tmp);
+    }
 
     // perform the resize
     cv::Mat rsz_img(meta.rsz_h, meta.rsz_w, cvImgType, const_cast<unsigned char*>(pImgOut));
