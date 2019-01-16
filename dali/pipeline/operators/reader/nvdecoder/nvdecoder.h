@@ -90,6 +90,7 @@ class NvDecoder {
             const CodecParameters* codecpar,
             AVRational time_base,
             DALIImageType image_type,
+            DALIDataType dtype,
             bool normalized);
 
   NvDecoder(const NvDecoder&) = default;
@@ -180,6 +181,7 @@ class NvDecoder {
   const CodecParameters* codecpar_;
 
   bool rgb_;
+  DALIDataType dtype_;
   bool normalized_;
 
   CUdevice device_;

@@ -54,6 +54,9 @@ number of frames).)code")
   .AddOptionalArg("image_type",
       R"code(The color space of the output frames (supports RGB and YCbCr).)code",
       DALI_RGB)
+  .AddOptionalArg("dtype",
+      R"code(The data type of the output frames (supports FLOAT and UINT8).)code",
+      DALI_UINT8)
   .AddParent("LoaderBase");
   // TODO(spanev) Args to add: normalized bool
 }  // namespace dali
