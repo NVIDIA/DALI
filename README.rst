@@ -219,6 +219,7 @@ Optional CMake build parameters:
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
+-  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with libjpeg-turbo (default: ON)
 -  *(Unofficial)* ``BUILD_NVJPEG`` - build with nvJPEG (default: ON)
 
