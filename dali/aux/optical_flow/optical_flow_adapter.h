@@ -29,19 +29,20 @@ enum VectorGridSize {
 
 struct OpticalFlowParams {
   float perf_quality_factor = .0f;  /// 0..1, where 0 is best quality, lowest performance
-  VectorGridSize grid_size = MAX;
+  VectorGridSize grid_size = UNDEF;
   bool enable_hints = false;
 };
 
 
 class DLL_PUBLIC OpticalFlowAdapter {
  public:
-  DLL_PUBLIC virtual void Initialize(OpticalFlowParams params);
+  explicit OpticalFlowAdapter(OpticalFlowParams params) {}
 
-  virtual void CalcOpticalFlow(kernels::TensorView<GPUBackend, uint8_t, 3> reference_image,
-                               kernels::TensorView<GPUBackend, uint8_t, 3> input_image,
+
+  virtual void CalcOpticalFlow(kernels::TensorView<GPUBackend, const uint8_t, 3> reference_image,
+                               kernels::TensorView<GPUBackend, const uint8_t, 3> input_image,
                                kernels::TensorView<GPUBackend, float, 1> output_image,
-                               kernels::TensorView<GPUBackend, float, 1> external_hints = kernels::TensorView<GPUBackend, float, 1>()) = 0;  // NOLINT
+                               kernels::TensorView<GPUBackend, const float, 1> external_hints = kernels::TensorView<GPUBackend, const float, 1>()) = 0;  // NOLINT
 
 
   virtual ~OpticalFlowAdapter() = default;

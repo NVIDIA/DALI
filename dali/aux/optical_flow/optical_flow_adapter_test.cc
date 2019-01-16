@@ -20,22 +20,32 @@ namespace dali {
 namespace optical_flow {
 using kernels::TensorView;
 
+static float kTestValue = 666;
+
 class StubOpticalFlow : public OpticalFlowAdapter {
  public:
-  void CalcOpticalFlow(const TensorView<GPUBackend, uint8_t, 3> reference_image,
-                       const TensorView<GPUBackend, uint8_t, 3> input_image,
+  explicit StubOpticalFlow(OpticalFlowParams params) :
+          OpticalFlowAdapter(params) {
+  }
+
+
+  void CalcOpticalFlow(TensorView<GPUBackend, const uint8_t, 3> reference_image,
+                       TensorView<GPUBackend, const uint8_t, 3> input_image,
                        TensorView<GPUBackend, float, 1> output_image,
-                       const TensorView<GPUBackend, float, 1> external_hints) override {
+                       TensorView<GPUBackend, const float, 1> external_hints) override {
+    auto ptr = output_image.data;
+    *ptr = kTestValue;
   }
 };
 
 TEST(OpticalFlowAdapter, StubApi) {
+  std::unique_ptr<float> data(new float[1]);
   TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
-  TensorView<GPUBackend, float, 1> tvout;
-  std::unique_ptr<OpticalFlowAdapter> of(new StubOpticalFlow());
+  TensorView<GPUBackend, float, 1> tvout(data.get(), {1});
   OpticalFlowParams params;
-  of->Initialize(params);
+  std::unique_ptr<OpticalFlowAdapter> of(new StubOpticalFlow(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
+  ASSERT_EQ(kTestValue, *tvout.data);
 }
 
 }  // namespace optical_flow
