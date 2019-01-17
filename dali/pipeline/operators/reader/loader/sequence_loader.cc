@@ -124,6 +124,7 @@ Index SequenceLoader::Size() {
 void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_idx,
                                Tensor<CPUBackend> *target) {
   const auto frame_filename = s[frame_idx];
+  target->SetSourceInfo(frame_filename);
   auto frame = FileStream::Open(frame_filename);
   Index frame_size = frame->Size();
   target->Resize({frame_size});
