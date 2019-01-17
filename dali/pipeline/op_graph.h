@@ -34,6 +34,8 @@ using OpPtr = unique_ptr<OperatorBase>;
 
 typedef int64 NodeID;
 
+DLL_PUBLIC OpPtr InstantiateOperator(const OpSpec &spec);
+
 struct OpNode {
   inline OpNode() {}
   virtual ~OpNode() = default;
@@ -41,6 +43,11 @@ struct OpNode {
 
   OpNode(OpNode &&) = default;
   OpNode& operator=(OpNode &&) = default;
+
+  inline OperatorBase &InstantiateOperator() {
+    if (!op) op = dali::InstantiateOperator(spec);
+    return *op;
+  }
 
   OpPtr op;
   NodeID id;

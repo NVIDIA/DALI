@@ -211,17 +211,6 @@ class Buffer {
   inline void set_type(const TypeInfo &new_type) {
     DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
     if (new_type == type_) return;
-
-    if (!IsValidType(type_)) {
-      // If the buffer has no type, set the type to the
-      // calling type and allocate the buffer
-      DALI_ENFORCE((data_ == nullptr) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "data_ should be nullptr.");
-      DALI_ENFORCE((num_bytes_ == 0) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "num_bytes_ should be 0.");
-    }
     type_ = new_type;
 
     size_t new_num_bytes = size_ * type_.size();
@@ -248,6 +237,13 @@ class Buffer {
 
     // If we were sharing data, we aren't anymore
     shares_data_ = false;
+  }
+
+  inline void free() {
+    if (!shares_data_) {
+      data_.reset();
+      num_bytes_ = 0;
+    }
   }
 
   /**
@@ -279,16 +275,6 @@ class Buffer {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
 
     if (!IsValidType(type_)) {
-      // If the type has not been set yet, we just set the size of the
-      // buffer and do not allocate any memory. Any previous size is
-      // overwritten.
-      DALI_ENFORCE((data_ == nullptr) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "data_ should be nullptr.");
-      DALI_ENFORCE((num_bytes_ == 0) || shares_data_,
-          "Buffer has no type and does not share data, "
-          "num_bytes_ should be 0.");
-
       size_ = new_size;
       return;
     }

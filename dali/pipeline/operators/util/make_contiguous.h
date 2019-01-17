@@ -15,9 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_UTIL_MAKE_CONTIGUOUS_H_
 #define DALI_PIPELINE_OPERATORS_UTIL_MAKE_CONTIGUOUS_H_
 
+#include <algorithm>
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/common.h"
 #include "dali/common.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
@@ -30,7 +32,10 @@ class MakeContiguous : public Operator<MixedBackend> {
   inline explicit MakeContiguous(const OpSpec &spec) :
       Operator<MixedBackend>(spec),
       coalesced(true) {
-    bytes_per_sample_hint = spec.GetArgument<int>("bytes_per_sample_hint");
+    std::vector<int> hints;
+    GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+    if (!hints.empty())
+      bytes_per_sample_hint = hints[0];
   }
 
   virtual inline ~MakeContiguous() = default;

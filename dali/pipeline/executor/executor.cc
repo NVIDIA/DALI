@@ -30,6 +30,8 @@ void Executor::SetCompletionCallback(ExecutorCallback cb) {
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
+  graph->InstantiateOperators();  // ..if not done already
+
   output_names_ = output_names;
   graph_ = graph;
 
@@ -608,11 +610,9 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
         Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
-        auto hint = hints[i];
+        Index hint = hints[i];
         if (tensor->is_pinned() && hint) {
-          // We set the type of the tensor to uint8 temporarily
-          tensor->mutable_data<uint8>();
-          tensor->Resize({(Index)hint});
+          tensor->reserve(hint);
         }
       }
     }
@@ -623,17 +623,15 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     std::vector<int> hints = mem_hints(graph_->mixed_node(op_idx));
 
     for (int i = 0; i < ws.NumOutput(); ++i) {
-      auto hint = hints[i];
+      Index hint = hints[i];
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
         if (tl->is_pinned()) {
-          tl->mutable_data<uint8>();
-          tl->Resize({{(Index)hint*batch_size_}});
+          tl->reserve(hint*batch_size_);
         }
       } else {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)hint*batch_size_}});
+        tl->reserve(hint*batch_size_);
       }
     }
   }
@@ -643,16 +641,14 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     std::vector<int> hints = mem_hints(graph_->gpu_node(op_idx));
 
     for (int i = 0; i < ws.NumOutput(); ++i) {
-      auto hint = hints[i];
+      Index hint = hints[i];
       if (ws.OutputIsType<GPUBackend>(i)) {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)hint*batch_size_}});
+        tl->reserve(hint*batch_size_);
       } else {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
         if (tl->is_pinned()) {
-          tl->mutable_data<uint8>();
-          tl->Resize({{(Index)hint*batch_size_}});
+          tl->reserve(hint*batch_size_);
         }
       }
     }

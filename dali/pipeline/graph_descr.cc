@@ -171,23 +171,48 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 }
 
 
+OpPtr InstantiateOperator(const OpSpec &spec) {
+  string device = spec.GetArgument<string>("device");
+  // traverse devices by likelihood (gpu, cpu, mixed, support)
+  if (device == "gpu") {
+    return GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  } else if (device == "cpu") {
+    return CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  } else if (device == "mixed") {
+    return MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  } else if (device == "support") {
+    return SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device);
+  } else {
+    DALI_FAIL("Unknown device: " + device);
+  }
+}
+
 void OpGraph::InstantiateOperators() {
+  // traverse devices by topological order (support, cpu, mixed, gpu)
   for (auto &node : support_nodes_) {
+    if (node.op)
+      continue;
     auto &spec = node.spec;
     string device = spec.GetArgument<string>("device");
     node.op = SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   }
   for (auto &node : cpu_nodes_) {
+    if (node.op)
+      continue;
     auto &spec = node.spec;
     string device = spec.GetArgument<string>("device");
     node.op = CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   }
   for (auto &node : mixed_nodes_) {
+    if (node.op)
+      continue;
     auto &spec = node.spec;
     string device = spec.GetArgument<string>("device");
     node.op = MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   }
   for (auto &node : gpu_nodes_) {
+    if (node.op)
+      continue;
     auto &spec = node.spec;
     string device = spec.GetArgument<string>("device");
     node.op = GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
