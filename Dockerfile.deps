@@ -53,7 +53,7 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # OpenCV
-RUN OPENCV_VERSION=3.4.3 && \
+RUN OPENCV_VERSION=2.4.13.6 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
