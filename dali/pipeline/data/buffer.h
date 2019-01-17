@@ -15,12 +15,13 @@
 #ifndef DALI_PIPELINE_DATA_BUFFER_H_
 #define DALI_PIPELINE_DATA_BUFFER_H_
 
-#include <limits>
-#include <numeric>
 #include <functional>
-#include <vector>
-#include <string>
+#include <limits>
 #include <memory>
+#include <numeric>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -64,6 +65,9 @@ inline string ShapeString(vector<Index> shape) {
  * current type, but only re-allocates memory if it does not have enough bytes
  * of allocated storage to store the number of elements in the buffer with the
  * new data type size.
+ *
+ * Buffers should be used to store POD types only. No construction or
+ * destruction is provided, only raw memory allocation.
  */
 template <typename Backend>
 class Buffer {
@@ -223,20 +227,27 @@ class Buffer {
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
+      reserve(new_num_bytes);
+    }
+  }
 
-      // re-allocating: get the device
-      if (std::is_same<Backend, GPUBackend>::value) {
-        CUDA_CALL(cudaGetDevice(&device_));
-      }
-      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, size_, device_, pinned_));
-      num_bytes_ = new_num_bytes;
-      shares_data_ = false;
+  inline void reserve(size_t new_num_bytes) {
+    if (new_num_bytes <= num_bytes_)
+      return;
+
+    // re-allocating: get the device
+    if (std::is_same<Backend, GPUBackend>::value) {
+      CUDA_CALL(cudaGetDevice(&device_));
     }
 
-    type_.template Construct<Backend>(data_.get(), size_);
+    data_.reset(
+      Backend::New(new_num_bytes, pinned_),
+      std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
+
+    num_bytes_ = new_num_bytes;
+
+    // If we were sharing data, we aren't anymore
+    shares_data_ = false;
   }
 
   /**
@@ -244,10 +255,10 @@ class Buffer {
    */
   inline bool shares_data() const { return shares_data_; }
 
-  // Helper function for cleaning up data storage. This unfortunately
-  // has to be public so that we can bind it into the deleter of our
-  // shared pointers
-  void DeleterHelper(void *ptr, TypeInfo type, Index size, int device, bool pinned) {
+  DISABLE_COPY_MOVE_ASSIGN(Buffer);
+
+ protected:
+  static void FreeMemory(void *ptr, size_t bytes, int device, bool pinned) {
     // change to correct device for deletion
     // Note: Can't use device guard due to potentially not GPUBackend.
     int current_device = 0;
@@ -255,8 +266,7 @@ class Buffer {
       CUDA_CALL(cudaGetDevice(&current_device));
       CUDA_CALL(cudaSetDevice(device));
     }
-    type.template Destruct<Backend>(ptr, size);
-    Backend::Delete(ptr, size*type.size(), pinned);
+    Backend::Delete(ptr, bytes, pinned);
 
     // reset to original calling device for consistency
     if (std::is_same<Backend, GPUBackend>::value) {
@@ -264,9 +274,6 @@ class Buffer {
     }
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
-
- protected:
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
@@ -286,28 +293,13 @@ class Buffer {
       return;
     }
 
+    size_ = new_size;
+
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       new_num_bytes *= alloc_mult;
-      // re-allocating: get the device
-      if (std::is_same<Backend, GPUBackend>::value) {
-        CUDA_CALL(cudaGetDevice(&device_));
-      }
-      data_.reset(Backend::New(new_num_bytes, pinned_), std::bind(
-              &Buffer<Backend>::DeleterHelper,
-              this, std::placeholders::_1,
-              type_, new_size, device_, pinned_));
-
-      num_bytes_ = new_num_bytes;
-
-      // Call the constructor for the underlying datatype
-      type_.template Construct<Backend>(data_.get(), new_size);
-
-      // If we were sharing data, we aren't anymore
-      shares_data_ = false;
+      reserve(new_num_bytes);
     }
-
-    size_ = new_size;
   }
 
   const double alloc_mult = 1.0;

@@ -240,7 +240,7 @@ inline int GetMemoryHint(OpSpec &spec, int index) {
   std::vector<int> hints;
   GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
 
-  if (index < (int)hints.size())
+  if (index < static_cast<int>(hints.size()))
     return hints[index];
   else
     return 0;
@@ -278,7 +278,6 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   output_names_ = output_names;
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
-
 
   // Creating the executor
   if (pipelined_execution_ && async_execution_) {

@@ -119,6 +119,7 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC inline OperatorBase& cpu_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
+    DALI_ENFORCE(cpu_nodes_[idx].op != nullptr, "Operator instance is empty");
     return *cpu_nodes_[idx].op;
   }
 
@@ -137,6 +138,7 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC inline OperatorBase& gpu_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
+    DALI_ENFORCE(gpu_nodes_[idx].op != nullptr, "Operator instance is empty");
     return *gpu_nodes_[idx].op;
   }
 
@@ -155,6 +157,7 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC inline OperatorBase& mixed_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
+    DALI_ENFORCE(mixed_nodes_[idx].op != nullptr, "Operator instance is empty");
     return *mixed_nodes_[idx].op;
   }
 
@@ -173,6 +176,7 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC inline OperatorBase& support_op(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
+    DALI_ENFORCE(support_nodes_[idx].op != nullptr, "Operator instance is empty");
     return *support_nodes_[idx].op;
   }
 

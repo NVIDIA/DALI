@@ -610,8 +610,6 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
         Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
         auto hint = hints[i];
         if (tensor->is_pinned() && hint) {
-          cout << "Node " << graph_->cpu_node(op_idx).instance_name << "\n";
-          cout << "Presizing pinned tensor to " << hint << " bytes\n";
           // We set the type of the tensor to uint8 temporarily
           tensor->mutable_data<uint8>();
           tensor->Resize({(Index)hint});
@@ -620,7 +618,6 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     }
   }
 
-  //for (auto &ws : wsb->mixed_op_data) {
   for (int op_idx = 0; op_idx < graph_->NumMixedOp(); op_idx++) {
     auto &ws = wsb->mixed_op_data[op_idx];
     std::vector<int> hints = mem_hints(graph_->mixed_node(op_idx));
@@ -630,39 +627,30 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
         if (tl->is_pinned()) {
-          cout << "Node " << graph_->mixed_node(op_idx).instance_name << "\n";
-          cout << "Presizing pinned tensor list to " << hint << " bytes\n";
           tl->mutable_data<uint8>();
           tl->Resize({{(Index)hint*batch_size_}});
         }
       } else {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        cout << "Node " << graph_->mixed_node(op_idx).instance_name << "\n";
-        cout << "Presizing gpu tensor list to " << hint << " bytes\n";
         tl->mutable_data<uint8>();
         tl->Resize({{(Index)hint*batch_size_}});
       }
     }
   }
 
-  //for (auto &ws : wsb->gpu_op_data) {
   for (int op_idx = 0; op_idx < graph_->NumGPUOp(); op_idx++) {
-    auto &ws = wsb->mixed_op_data[op_idx];
+    auto &ws = wsb->gpu_op_data[op_idx];
     std::vector<int> hints = mem_hints(graph_->gpu_node(op_idx));
 
     for (int i = 0; i < ws.NumOutput(); ++i) {
       auto hint = hints[i];
       if (ws.OutputIsType<GPUBackend>(i)) {
         TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        cout << "Node " << graph_->gpu_node(op_idx).instance_name << "\n";
-        cout << "Presizing gpu tensor list to " << hint << " bytes\n";
         tl->mutable_data<uint8>();
         tl->Resize({{(Index)hint*batch_size_}});
       } else {
         TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
         if (tl->is_pinned()) {
-          cout << "Node " << graph_->gpu_node(op_idx).instance_name << "\n";
-          cout << "Presizing pinned tensor list to " << hint << " bytes\n";
           tl->mutable_data<uint8>();
           tl->Resize({{(Index)hint*batch_size_}});
         }

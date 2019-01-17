@@ -90,7 +90,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
     new_node = &cpu_node;
   } else if (device == "gpu") {
-
     gpu_nodes_.resize(gpu_nodes_.size()+1);
     OpNode &gpu_node = gpu_nodes_.back();
     id_to_node_map_.push_back({DALI_GPU, gpu_nodes_.size()-1});
@@ -193,7 +192,6 @@ void OpGraph::InstantiateOperators() {
     string device = spec.GetArgument<string>("device");
     node.op = GPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   }
-
 }
 
 // Op Removal Process:
