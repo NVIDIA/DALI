@@ -25,8 +25,8 @@ RUN BOOST_VERSION=1.66.0 && \
     ln -s ../boost_${BOOST_VERSION//./_}/boost include/boost
 
 # CMake
-RUN CMAKE_VERSION=3.5 && \
-    CMAKE_BUILD=3.5.0 && \
+RUN CMAKE_VERSION=3.12 && \
+    CMAKE_BUILD=3.12.4 && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
     cd /cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
@@ -53,7 +53,7 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # OpenCV
-RUN OPENCV_VERSION=3.4.3 && \
+RUN OPENCV_VERSION=4.0.1 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
