@@ -21,6 +21,7 @@ namespace optical_flow {
 using kernels::TensorView;
 
 static float kTestValue = 666;
+static int kTestDataSize = 2;
 
 class StubOpticalFlow : public OpticalFlowAdapter {
  public:
@@ -40,7 +41,7 @@ class StubOpticalFlow : public OpticalFlowAdapter {
 };
 
 TEST(OpticalFlowAdapter, StubApi) {
-  std::unique_ptr<float> data(new float[1]);
+  std::unique_ptr<float> data(new float[kTestDataSize]);
   TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
   TensorView<GPUBackend, float, 3> tvout(data.get(), {1, 1, 2});
   OpticalFlowParams params;
