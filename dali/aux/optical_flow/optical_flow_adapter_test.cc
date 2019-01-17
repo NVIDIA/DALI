@@ -31,21 +31,23 @@ class StubOpticalFlow : public OpticalFlowAdapter {
 
   void CalcOpticalFlow(TensorView<GPUBackend, const uint8_t, 3> reference_image,
                        TensorView<GPUBackend, const uint8_t, 3> input_image,
-                       TensorView<GPUBackend, float, 1> output_image,
-                       TensorView<GPUBackend, const float, 1> external_hints) override {
+                       TensorView<GPUBackend, float, 3> output_image,
+                       TensorView<GPUBackend, const float, 3> external_hints) override {
     auto ptr = output_image.data;
-    *ptr = kTestValue;
+    ptr[0] = kTestValue;
+    ptr[1] = kTestValue / 2;
   }
 };
 
 TEST(OpticalFlowAdapter, StubApi) {
   std::unique_ptr<float> data(new float[1]);
   TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
-  TensorView<GPUBackend, float, 1> tvout(data.get(), {1});
+  TensorView<GPUBackend, float, 3> tvout(data.get(), {1, 1, 2});
   OpticalFlowParams params;
   std::unique_ptr<OpticalFlowAdapter> of(new StubOpticalFlow(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
-  ASSERT_EQ(kTestValue, *tvout.data);
+  EXPECT_FLOAT_EQ(kTestValue, *tvout(0, 0, 0));
+  EXPECT_FLOAT_EQ(kTestValue / 2, *tvout(0, 0, 1));
 }
 
 }  // namespace optical_flow

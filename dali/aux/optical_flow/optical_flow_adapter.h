@@ -41,8 +41,8 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
   virtual void CalcOpticalFlow(kernels::TensorView<GPUBackend, const uint8_t, 3> reference_image,
                                kernels::TensorView<GPUBackend, const uint8_t, 3> input_image,
-                               kernels::TensorView<GPUBackend, float, 1> output_image,
-                               kernels::TensorView<GPUBackend, const float, 1> external_hints = kernels::TensorView<GPUBackend, const float, 1>()) = 0;  // NOLINT
+                               kernels::TensorView<GPUBackend, float, 3> output_image,
+                               kernels::TensorView<GPUBackend, const float, 3> external_hints = kernels::TensorView<GPUBackend, const float, 3>()) = 0;  // NOLINT
 
 
   virtual ~OpticalFlowAdapter() = default;
