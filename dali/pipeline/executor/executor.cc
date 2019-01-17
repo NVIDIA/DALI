@@ -590,7 +590,6 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       if (h == 0)
         h = this->bytes_per_sample_hint_;
     }
-    hints.resize(noutputs, bytes_per_sample_hint_);
     return hints;
   };
 

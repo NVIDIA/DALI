@@ -237,13 +237,14 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
 }
 
 inline int GetMemoryHint(OpSpec &spec, int index) {
+  if (!spec.HasArgument("bytes_per_sample_hint"))
+    return 0;
   std::vector<int> hints;
   GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
 
-  if (index < static_cast<int>(hints.size()))
-    return hints[index];
-  else
-    return 0;
+  DALI_ENFORCE(index < static_cast<int>(hints.size()),
+               "Output index out of range: " + std::to_string(index));
+  return hints[index];
 }
 
 inline void SetMemoryHint(OpSpec &spec, int index, int value) {
@@ -268,7 +269,8 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
     auto &src = graph_.node(parent_node_id);
     int hint = GetMemoryHint(src.spec, idx);
     if (hint) {
-      SetMemoryHint(node.spec, inp_idx, hint);  // input and output indices match for MakeContiguous
+      // inp_idx == out_idx for MakeContiguous
+      SetMemoryHint(node.spec, inp_idx, hint);
     }
   }
 }
