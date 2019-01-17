@@ -18,6 +18,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -52,7 +53,8 @@ class DataReader : public Operator<Backend> {
   prefetch_ready_workers_(false),
   finished_(false),
   samples_processed_(0),
-  batch_stop_(false) {
+  batch_stop_(false),
+  prefetch_error_(nullptr) {
   }
 
   ~DataReader() noexcept override {
@@ -87,9 +89,10 @@ class DataReader : public Operator<Backend> {
       try {
         Prefetch();
       } catch (const std::exception& e) {
-        std::stringstream ss;
-        ss << "Prefetch Failed: " << e.what();
-        DALI_FAIL(ss.str());
+        prefetch_error_.reset(new std::string(e.what()));
+        prefetched_batch_ready_ = true;
+        consumer_.notify_all();
+        return;
       }
       // mark as ready
       prefetched_batch_ready_ = true;
@@ -152,6 +155,11 @@ class DataReader : public Operator<Backend> {
 
         // Wait until prefetch is ready
         consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
+
+        if (prefetch_error_) {
+          DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
+        }
+
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
 
@@ -206,6 +214,11 @@ class DataReader : public Operator<Backend> {
 
         // Wait until prefetch is ready
         consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
+
+        if (prefetch_error_) {
+          DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
+        }
+
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
 
@@ -272,6 +285,9 @@ class DataReader : public Operator<Backend> {
 
   // notify threads to stop processing
   std::atomic<bool> batch_stop_;
+
+  // set to error string when prefetch worker fails
+  std::unique_ptr<std::string> prefetch_error_;
 
   // Loader
   std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
