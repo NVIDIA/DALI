@@ -73,6 +73,8 @@ struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {
 
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
+/// @tparam Container - the data structure in which the sizes are stored
+/// @tparam ndim - number of dimensions
 template <typename Container, int ndim>
 struct TensorShapeBase {
   using container_type = Container;
@@ -366,6 +368,8 @@ flatten_shapes(const std::vector<T> &shapes) {
 template <int sample_ndim = DynamicDimensions>
 struct TensorListShape;
 
+/// @tparam Derived - actual class of an object (CRPR)
+/// @tparam sample_dim - number of dimensions of each sample in the list
 template <typename Derived, int sample_ndim>
 struct TensorListShapeBase {
   /// @brief Returns a static subshape list consisting of first other_ndim dimensions
@@ -518,7 +522,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return {shapes};
+    return { shapes, other_ndim };
   }
 
   template <int other_ndim>
@@ -526,7 +530,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return {std::move(shapes)};
+    return { std::move(shapes), other_ndim };
   }
 };
 
@@ -541,12 +545,12 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes)) {}
 
-  TensorListShape(const std::vector<int64_t> &shapes, int ndim = sample_ndim)  // NOLINT
+  TensorListShape(const std::vector<int64_t> &shapes, int ndim)
       : Base(shapes) {
     assert(ndim == sample_ndim);
   }
 
-  TensorListShape(std::vector<int64_t> &&shapes, int ndim = sample_ndim)  // NOLINT
+  TensorListShape(std::vector<int64_t> &&shapes, int ndim)
       : Base(std::move(shapes)) {
     assert(ndim == sample_ndim);
   }
@@ -575,13 +579,13 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return {shapes};
+    return { shapes, other_ndim };
   }
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return {std::move(shapes)};
+    return { std::move(shapes), other_ndim };
   }
 };
 
@@ -768,7 +772,6 @@ template <int ndim = DynamicDimensions, typename T>
 TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<T> sample_shape) {
   return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
 }
-
 
 }  // namespace kernels
 }  // namespace dali

@@ -28,16 +28,23 @@ namespace kernels {
 namespace detail {
 
 template <typename T>
-struct is_input_list : std::false_type {};
+struct is_input : std::false_type {};
 
 template <typename StorageBackend, typename T, int dim>
-struct is_input_list<InList<StorageBackend, T, dim>> : std::true_type {};
+struct is_input<InList<StorageBackend, T, dim>> : std::true_type {};
+
+template <typename StorageBackend, typename T, int dim>
+struct is_input<InTensor<StorageBackend, T, dim>> : std::true_type {};
 
 template <typename T>
-struct is_output_list : std::false_type {};
+struct is_output : std::false_type {};
 
 template <typename StorageBackend, typename T, int dim>
-struct is_output_list<TensorListView<StorageBackend, T, dim>>
+struct is_output<TensorListView<StorageBackend, T, dim>>
+: std::integral_constant<bool, !std::is_const<T>::value> {};
+
+template <typename StorageBackend, typename T, int dim>
+struct is_output<TensorView<StorageBackend, T, dim>>
 : std::integral_constant<bool, !std::is_const<T>::value> {};
 
 template <typename T>
@@ -45,6 +52,9 @@ struct is_kernel_arg : std::true_type {};
 
 template <typename StorageBackend, typename T, int dim>
 struct is_kernel_arg<TensorListView<StorageBackend, T, dim>> : std::false_type {};
+
+template <typename StorageBackend, typename T, int dim>
+struct is_kernel_arg<TensorView<StorageBackend, T, dim>> : std::false_type {};
 
 template <>
 struct is_kernel_arg<KernelContext> : std::false_type {};
@@ -68,7 +78,7 @@ struct input_lists;
 template <typename... Args>
 struct input_lists<void(Args...)> {
   using type = dali::detail::tuple_cat_t<
-    typename filter<Args, is_input_list>::type...
+    typename filter<Args, is_input>::type...
   >;
 };
 
@@ -78,7 +88,7 @@ struct output_lists;
 template <typename... Args>
 struct output_lists<void(Args...)> {
   using type = dali::detail::tuple_cat_t<
-    typename filter<Args, is_output_list>::type...
+    typename filter<Args, is_output>::type...
   >;
 };
 
