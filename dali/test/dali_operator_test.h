@@ -149,7 +149,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
    * Type of the function used for verification, whether graph test passed or failed.
    * Within this function, please use GTest's ASSERTs and EXPECTs, for test validation.
    *
-   * First argument of function contains all inputs, that has been provided;
+   * First argument of function contains all inputs, that have been provided;
    * Second argument are all outputs from pipeline;
    * Third argument contains Arguments, with which the pipeline was called
    *
