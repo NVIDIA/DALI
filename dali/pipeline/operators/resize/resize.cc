@@ -92,7 +92,7 @@ template <>
 void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-  auto output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
+  auto &output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
   const auto &input_shape = input.shape();
 
   CheckParam(input, "Resize<CPUBackend>");
@@ -100,10 +100,10 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const TransformMeta &meta = per_sample_meta_[ws->thread_idx()];
 
   // Resize the output & run
-  output->Resize({meta.rsz_h, meta.rsz_w, meta.C});
+  output.Resize({meta.rsz_h, meta.rsz_w, meta.C});
 
   auto pImgInp = input.template data<uint8>();
-  auto pImgOut = output->template mutable_data<uint8>();
+  auto pImgOut = output.template mutable_data<uint8>();
 
   const auto H = input_shape[0];
   const auto W = input_shape[1];
@@ -118,10 +118,10 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   OCVInterpForDALIInterp(interp_type_, &ocv_interp_type);
   cv::resize(inputMat, rsz_img, cv::Size(meta.rsz_w, meta.rsz_h), 0, 0, ocv_interp_type);
   if (save_attrs_) {
-      auto *attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
+      auto &attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
 
-      attr_output->Resize(Dims{2});
-      int *t = attr_output->mutable_data<int>();
+      attr_output.Resize(Dims{2});
+      int *t = attr_output.mutable_data<int>();
       t[0] = meta.H;
       t[1] = meta.W;
     }

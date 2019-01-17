@@ -59,10 +59,10 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
                                       "Got: " + std::to_string(input.size()));
 
-  auto *output = ws->Output<CPUBackend>(idx);
-  output->set_type(TypeInfo::Create<float>());
-  output->ResizeLike(input);
-  auto *output_data = output->mutable_data<float>();
+  auto &output = ws->Output<CPUBackend>(idx);
+  output.set_type(TypeInfo::Create<float>());
+  output.ResizeLike(input);
+  auto *output_data = output.mutable_data<float>();
 
   const auto data_idx = ws->data_idx();
   // pasting onto a larger canvas scales bounding boxes down by scale ratio

@@ -40,7 +40,7 @@ class HostDecoder : public Operator<CPUBackend> {
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) override {
     auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
     auto file_name = input.GetSourceInfo();
 
     // Verify input
@@ -62,8 +62,8 @@ class HostDecoder : public Operator<CPUBackend> {
     const auto w = std::get<1>(hwc);
     const auto c = std::get<2>(hwc);
 
-    output->Resize({static_cast<int>(h), static_cast<int>(w), static_cast<int>(c)});
-    unsigned char *out_data = output->mutable_data<unsigned char>();
+    output.Resize({static_cast<int>(h), static_cast<int>(w), static_cast<int>(c)});
+    unsigned char *out_data = output.mutable_data<unsigned char>();
     std::memcpy(out_data, decoded.get(), h * w * c);
   }
 

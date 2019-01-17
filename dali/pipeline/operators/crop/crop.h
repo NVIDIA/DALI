@@ -113,30 +113,30 @@ class Crop : public Operator<Backend>, protected CropAttr {
   // Invoke CalcOutputSize from CropKernel
   template <typename Kernel>
   void AllocateOutput(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
-                      Tensor<CPUBackend> *output) {
+                      Tensor<CPUBackend> &output) {
     auto in_shape = detail::ToStaticShape<Kernel::input_dim>(input.shape());
     auto out_shape = Kernel::CalcOutputSize(in_shape, args);
-    output->Resize(detail::ToDynamicShape(out_shape));
+    output.Resize(detail::ToDynamicShape(out_shape));
   }
 
   // Invoke Run from CropKernel
   template <typename Kernel>
   void RunKernel(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
-                 Tensor<CPUBackend> *output) {
+                 Tensor<CPUBackend> &output) {
     // ValidateHelper not needed - TensorWrapper ensures that ptr != nullptr.
     // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
 
     const auto *in = input.template data<typename Kernel::InputType>();
     auto in_shape = detail::ToStaticShape<Kernel::input_dim>(input.shape());
-    auto *out = output->template mutable_data<typename Kernel::OutputType>();
-    auto out_shape = detail::ToStaticShape<Kernel::output_dim>(output->shape());
+    auto *out = output.template mutable_data<typename Kernel::OutputType>();
+    auto out_shape = detail::ToStaticShape<Kernel::output_dim>(output.shape());
     Kernel::Run(in, in_shape, args, out, out_shape);
   }
 
   template <typename Kernel>
   void AllocateAndRunKernel(Workspace<CPUBackend> *ws, const int idx) {
     const auto &input = ws->Input<CPUBackend>(idx);
-    auto *output = ws->Output<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
     const int dataIdx = ws->data_idx();
     const int threadIdx = ws->thread_idx();
     const int h_start = per_sample_crop_[threadIdx].first;
@@ -170,7 +170,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
  private:
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
   template <typename Out>
-  void ValidateHelper(TensorList<Backend> *output);
+  void ValidateHelper(TensorList<Backend> &output);
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
                                const vector<Index> &inputShape, int threadIdx,

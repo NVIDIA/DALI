@@ -67,7 +67,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       // determine resize parameters
       if (useExternSizes) {
-        const auto *t = ws->Output<CPUBackend>(1)->tensor<int>(i);
+        const auto *t = ws->Output<CPUBackend>(1).tensor<int>(i);
         rsz_h = t[0];
         rsz_w = t[1];
       } else {

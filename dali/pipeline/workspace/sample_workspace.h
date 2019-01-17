@@ -70,7 +70,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
    * TensorList at index = `idx`.
    */
   template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>* Output(int idx);
+  DLL_PUBLIC Tensor<Backend>& Output(int idx);
 
   /**
    * @brief Returns the index of the sample that this workspace stores

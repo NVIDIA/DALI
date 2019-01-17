@@ -591,10 +591,10 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       DALI_ENFORCE(ws.OutputIsType<CPUBackend>(i), "Executor "
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
-        Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
+        Tensor<CPUBackend> &tensor = ws.Output<CPUBackend>(i, j);
         // We set the type of the tensor to uint8 temporarily
-        tensor->mutable_data<uint8>();
-        tensor->Resize({(Index)bytes_per_sample_hint_});
+        tensor.mutable_data<uint8>();
+        tensor.Resize({(Index)bytes_per_sample_hint_});
       }
     }
   }
@@ -602,13 +602,13 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
   for (auto &ws : wsb->mixed_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       if (ws.OutputIsType<CPUBackend>(i)) {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        tl.mutable_data<uint8>();
+        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
       } else {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.mutable_data<uint8>();
+        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
       }
     }
   }
@@ -616,13 +616,13 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
   for (auto &ws : wsb->gpu_op_data) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       if (ws.OutputIsType<GPUBackend>(i)) {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.mutable_data<uint8>();
+        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
       } else {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        tl.mutable_data<uint8>();
+        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
       }
     }
   }

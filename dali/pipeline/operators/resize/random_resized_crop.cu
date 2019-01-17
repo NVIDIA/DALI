@@ -52,15 +52,15 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   const int newH = size_[0];
   const int newW = size_[1];
 
-  auto *output = ws->Output<GPUBackend>(idx);
-  output->set_type(input.type());
+  auto &output = ws->Output<GPUBackend>(idx);
+  output.set_type(input.type());
 
   std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
     const int C = input.tensor_shape(i)[2];
     output_shape[i] = {newH, newW, C};
   }
-  output->Resize(output_shape);
+  output.Resize(output_shape);
 
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws->stream());
@@ -99,7 +99,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
                                          W*C,
                                          input_size,
                                          in_roi,
-                                         output->mutable_tensor<uint8_t>(i),
+                                         output.mutable_tensor<uint8_t>(i),
                                          newW*C,
                                          output_size,
                                          out_roi,
@@ -110,7 +110,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
                                          W*C,
                                          input_size,
                                          in_roi,
-                                         output->mutable_tensor<uint8_t>(i),
+                                         output.mutable_tensor<uint8_t>(i),
                                          newW*C,
                                          output_size,
                                          out_roi,

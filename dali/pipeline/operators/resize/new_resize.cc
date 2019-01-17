@@ -20,7 +20,7 @@ namespace dali {
 template <>
 void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  const auto &output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
   const auto &input_shape = input.shape();
@@ -46,7 +46,7 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto pPixMapping = PIX_MAPPING_CPU(resizeTbl.pixMappingCPU);
 
   ResizeFunc(W0, H0, input.template data<uint8>(),
-             W1, H1, static_cast<uint8 *>(output->raw_mutable_data()), C,
+             W1, H1, static_cast<uint8 *>(output.raw_mutable_data()), C,
              resizeParam, &mirrorInfo, 0, 0, 1, 0, 1,
              pMapping, pResizeMapping, pPixMapping);
 }

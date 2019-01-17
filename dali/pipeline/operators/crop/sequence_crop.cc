@@ -30,10 +30,10 @@ DALI_SCHEMA(SequenceCrop)
 
 void SequenceCrop::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   // Ensure the layout
-  auto *output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   DALITensorLayout out_layout =
       output_layout_ == DALI_SAME ? ws->Input<CPUBackend>(idx).GetLayout() : output_layout_;
-  output->SetLayout(out_layout);
+  output.SetLayout(out_layout);
 
   // Check if we use u8, RGB or Greyscale
   // CheckParam(input, "CropCPUBackend");

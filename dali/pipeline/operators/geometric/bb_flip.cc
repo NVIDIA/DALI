@@ -65,14 +65,14 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
           ? spec_.GetArgument<int>(kHorizontalArgName, ws, ws->data_idx())
           : spec_.GetArgument<int>(kHorizontalArgName);
 
-  auto *output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
   //      explicitly is required for further processing
   //      It can also be achieved with mutable_data<>()
   //      function.
-  output->set_type(TypeInfo::Create<float>());
-  output->ResizeLike(input);
-  auto output_data = output->mutable_data<float>();
+  output.set_type(TypeInfo::Create<float>());
+  output.ResizeLike(input);
+  auto output_data = output.mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
     auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i])

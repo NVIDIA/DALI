@@ -286,23 +286,23 @@ class DALISingleOpTest : public DALITest {
     // outputs_ contains map of idx -> (name, device)
     vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
 
-    TensorList<CPUBackend> calc_host, *calc_output = &calc_host;
+    std::unique_ptr<TensorList<CPUBackend>> calc_output(new TensorList<CPUBackend>());
     // get outputs from pipeline, copy to host if necessary
     for (size_t i = 0; i < output_indices.size(); ++i) {
       auto output_device = outputs_[i].second;
 
       if (output_device == "gpu") {
         // copy to host
-        calc_output->Copy(*ws->Output<GPUBackend>(output_indices[i]), nullptr);
+        calc_output->Copy(ws->Output<GPUBackend>(output_indices[i]), nullptr);
       } else {
-        calc_output = ws->Output<CPUBackend>(output_indices[i]);
+        calc_output.reset(&ws->Output<CPUBackend>(output_indices[i]));
       }
 
       auto ref_output = res[i];
       calc_output->SetLayout(ref_output->GetLayout());
 
       // check calculated vs. reference answers
-      CheckTensorLists(calc_output, ref_output);
+      CheckTensorLists(calc_output.get(), ref_output);
     }
 
     for (auto *ref_output : res) {
@@ -448,9 +448,9 @@ class DALISingleOpTest : public DALITest {
   }
 
   template <typename T>
-  std::unique_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> *calcOutput) {
+  std::unique_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
     std::unique_ptr<TensorList<CPUBackend>> output(new TensorList<CPUBackend>());
-    output->Copy(*calcOutput, 0);
+    output->Copy(calcOutput, 0);
 
     return output;
   }

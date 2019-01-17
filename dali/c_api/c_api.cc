@@ -69,7 +69,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
   int64_t* c_shape = nullptr;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
     dali::Tensor<dali::CPUBackend> t;
-    t.ShareData(ws->Output<dali::CPUBackend>(n));
+    t.ShareData(&(ws->Output<dali::CPUBackend>(n)));
 
     std::vector<dali::Index> shape = t.shape();
     c_shape = static_cast<int64_t*>(
@@ -78,7 +78,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
     memcpy(c_shape, &shape[0], shape.size() * sizeof(int64_t));
   } else {
     dali::Tensor<dali::GPUBackend> t;
-    t.ShareData(ws->Output<dali::GPUBackend>(n));
+    t.ShareData(&(ws->Output<dali::GPUBackend>(n)));
 
     std::vector<dali::Index> shape = t.shape();
     c_shape = static_cast<int64_t*>(
@@ -99,11 +99,11 @@ void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
     dali::Tensor<dali::CPUBackend> t;
-    t.ShareData(ws->Output<dali::CPUBackend>(n));
+    t.ShareData(&(ws->Output<dali::CPUBackend>(n)));
     dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type);
   } else {
     dali::Tensor<dali::GPUBackend> t;
-    t.ShareData(ws->Output<dali::GPUBackend>(n));
+    t.ShareData(&(ws->Output<dali::GPUBackend>(n)));
     dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type);
   }
 }

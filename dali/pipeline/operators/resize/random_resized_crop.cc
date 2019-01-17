@@ -91,10 +91,10 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
   const int newH = size_[0];
   const int newW = size_[1];
 
-  auto *output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
-  output->set_type(input.type());
-  output->Resize({newH, newW, C});
+  output.set_type(input.type());
+  output.Resize({newH, newW, C});
 
   const CropInfo &crop = params_->crops[ws->data_idx()];
   int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
@@ -108,7 +108,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
 
   cv::Mat cv_output = CreateMatFromPtr(newH, newW,
                                        channel_flag,
-                                       output->mutable_data<uint8_t>());
+                                       output.mutable_data<uint8_t>());
 
   int ocv_interp_type;
   DALI_ENFORCE(OCVInterpForDALIInterp(interp_type_, &ocv_interp_type) == DALISuccess,

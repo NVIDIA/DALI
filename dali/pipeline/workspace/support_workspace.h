@@ -51,7 +51,7 @@ class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, Suppo
    * @brief Returns the output Tensor at index `idx`.
    */
   template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>* Output(int idx);
+  DLL_PUBLIC Tensor<Backend>& Output(int idx);
 };
 
 }  // namespace dali

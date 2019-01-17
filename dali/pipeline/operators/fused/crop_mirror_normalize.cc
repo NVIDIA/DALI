@@ -111,9 +111,9 @@ template <typename Out>
 void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
                                                 const int idx) {
   const auto &input = ws->Input<CPUBackend>(0);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
-  Out *output_ptr = output->template mutable_data<Out>();
+  Out *output_ptr = output.template mutable_data<Out>();
   const int stride = input.dim(1) * C_;
   const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
 
@@ -144,11 +144,11 @@ template <>
 void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
                                                          const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
   DALITensorLayout outLayout;
-  output->Resize(GetOutShape(input.GetLayout(), &outLayout));
-  output->SetLayout(outLayout);
+  output.Resize(GetOutShape(input.GetLayout(), &outLayout));
+  output.SetLayout(outLayout);
 }
 
 template <>

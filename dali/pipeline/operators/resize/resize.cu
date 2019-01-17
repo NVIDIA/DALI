@@ -127,7 +127,7 @@ template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     const auto &input = ws->Input<GPUBackend>(idx);
 
-    auto output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
+    auto &output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
 
     ResizeParamDescr resizeDescr(this, resizeParam_->data());
     DataDependentSetupGPU(input, output, batch_size_, false,
@@ -159,7 +159,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         t[0] = sizes(input_t).data()[i].height;
         t[1] = sizes(input_t).data()[i].width;
       }
-      ws->Output<GPUBackend>(outputs_per_idx_ * idx + 1)->Copy(attr_output_cpu, ws->stream());
+      ws->Output<GPUBackend>(outputs_per_idx_ * idx + 1).Copy(attr_output_cpu, ws->stream());
     }
 }
 

@@ -102,7 +102,7 @@ DALIError_t ValidateBatchedCrop(const uint8 *const *in_batch,
 template <>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
-  const auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
   ValidateHelper<Out>(output);
 
   DALI_CALL((BatchedCrop<Out>(
@@ -110,18 +110,18 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
       input_strides_gpu_.template data<int>(), batch_size_,
       crop_height_gpu_.template data<int>(),
       crop_width_gpu_.template data<int>(), C_, output_layout_,
-      output->template mutable_data<Out>(),
+      output.template mutable_data<Out>(),
       output_offsets_gpu_.template data<int>(), ws->stream())));
 }
 
 template <>
 template <typename Out>
-void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
+void Crop<GPUBackend>::ValidateHelper(TensorList<GPUBackend> &output) {
   // Validate parameters
   DALI_CALL(ValidateBatchedCrop(
       input_ptrs_.template mutable_data<const uint8 *>(),
       input_strides_.template data<int>(), batch_size_, crop_height_.data(),
-      crop_width_.data(), C_, output->template mutable_data<Out>(),
+      crop_width_.data(), C_, output.template mutable_data<Out>(),
       output_offsets_.template data<int>()));
 }
 
@@ -138,7 +138,7 @@ void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
 template <>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
   DALITensorLayout outLayout = DALI_UNKNOWN;
@@ -179,8 +179,8 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     }
   }
 
-  output->Resize(output_shape);
-  output->SetLayout(outLayout);
+  output.Resize(output_shape);
+  output.SetLayout(outLayout);
 
   // Calculate input pointers and copy to gpu
   for (int i = 0; i < batch_size_; ++i) {

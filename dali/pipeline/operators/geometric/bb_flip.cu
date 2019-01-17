@@ -68,7 +68,7 @@ __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes
 
 void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto&output = ws->Output<GPUBackend>(idx);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
                " got " + input.type().name());
@@ -122,20 +122,20 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, int idx) {
     sample_idx = sample_idx_tensor.data<int>();
   }
 
-  output->ResizeLike(input);
+  output.ResizeLike(input);
 
   const unsigned block = num_boxes < 1024 ? num_boxes : 1024;
   const unsigned grid = (num_boxes + block - 1) / block;
 
   if (ltrb) {
     BbFlipKernel<true><<<grid, block, 0, stream>>>(
-      output->mutable_data<float>(), input.data<float>(), num_boxes,
+      output.mutable_data<float>(), input.data<float>(), num_boxes,
       !per_sample_horz && horz[0], per_sample_horz,
       !per_sample_vert && vert[0], per_sample_vert,
       sample_idx);
   } else {
     BbFlipKernel<false><<<grid, block, 0, stream>>>(
-      output->mutable_data<float>(), input.data<float>(), num_boxes,
+      output.mutable_data<float>(), input.data<float>(), num_boxes,
       !per_sample_horz && horz[0], per_sample_horz,
       !per_sample_vert && vert[0], per_sample_vert,
       sample_idx);

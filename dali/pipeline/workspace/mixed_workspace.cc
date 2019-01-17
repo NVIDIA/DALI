@@ -54,21 +54,21 @@ const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
 }
 
 template <>
-TensorList<CPUBackend>* MixedWorkspace::Output(int idx) {
+TensorList<CPUBackend>& MixedWorkspace::Output(int idx) {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
   DALI_ENFORCE(tensor_meta.first, "Output TensorList with given "
       "index does not have the calling backend type (CPUBackend)");
-  return cpu_outputs_[tensor_meta.second].get();
+  return *cpu_outputs_[tensor_meta.second].get();
 }
 
 template <>
-TensorList<GPUBackend>* MixedWorkspace::Output(int idx) {
+TensorList<GPUBackend>& MixedWorkspace::Output(int idx) {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
   DALI_ENFORCE(!tensor_meta.first, "Output TensorList with given "
       "index does not have the calling backend type (GPUBackend)");
-  return gpu_outputs_[tensor_meta.second].get();
+  return *gpu_outputs_[tensor_meta.second].get();
 }
 
 }  // namespace dali

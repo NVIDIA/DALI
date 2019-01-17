@@ -71,7 +71,7 @@ template<>
 template <typename OUT>
 void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
 
   // Validate input shape and type
   DALI_ENFORCE(IsType<uint8>(input.type()));
@@ -93,13 +93,13 @@ void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws, const int i
   }
 
   // Resize the output & run
-  output->Resize(output_shape_);
+  output.Resize(output_shape_);
   DALI_CALL(BatchedNormalizePermute(
           input.template data<uint8>(),
           batch_size_, H_, W_, C_,
           mean_.template mutable_data<float>(),
           inv_std_.template mutable_data<float>(),
-          output->template mutable_data<OUT>(),
+          output.template mutable_data<OUT>(),
           ws->stream()));
 }
 

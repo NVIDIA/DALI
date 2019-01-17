@@ -57,18 +57,18 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
   const auto coordinates = crop.AsXywh();
 
   // Copy the anchor to output
-  auto *anchor_out = ws->Output<CPUBackend>(0);
-  anchor_out->Resize({2});
+  auto &anchor_out = ws->Output<CPUBackend>(0);
+  anchor_out.Resize({2});
 
-  auto *anchor_out_data = anchor_out->mutable_data<float>();
+  auto *anchor_out_data = anchor_out.mutable_data<float>();
   anchor_out_data[0] = coordinates[0];
   anchor_out_data[1] = coordinates[1];
 
   // Copy the offsets to output 1
-  auto *offsets_out = ws->Output<CPUBackend>(1);
-  offsets_out->Resize({2});
+  auto &offsets_out = ws->Output<CPUBackend>(1);
+  offsets_out.Resize({2});
 
-  auto *offsets_out_data = offsets_out->mutable_data<float>();
+  auto *offsets_out_data = offsets_out.mutable_data<float>();
   offsets_out_data[0] = coordinates[2];
   offsets_out_data[1] = coordinates[3];
 }
@@ -76,11 +76,11 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
     SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) {
-  auto *bbox_out = ws->Output<CPUBackend>(2);
-  bbox_out->Resize(
+  auto &bbox_out = ws->Output<CPUBackend>(2);
+  bbox_out.Resize(
       {static_cast<Index>(bounding_boxes.size()), BoundingBox::kSize});
 
-  auto *bbox_out_data = bbox_out->mutable_data<float>();
+  auto *bbox_out_data = bbox_out.mutable_data<float>();
   for (size_t i = 0; i < bounding_boxes.size(); ++i) {
     auto *output = bbox_out_data + i * BoundingBox::kSize;
     auto coordinates =
@@ -95,10 +95,10 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
     SampleWorkspace *ws, const std::vector<int> &labels) {
-  auto *labels_out = ws->Output<CPUBackend>(3);
-  labels_out->Resize({static_cast<Index>(labels.size()), 1});
+  auto &labels_out = ws->Output<CPUBackend>(3);
+  labels_out.Resize({static_cast<Index>(labels.size()), 1});
 
-  auto *labels_out_data = labels_out->mutable_data<int>();
+  auto *labels_out_data = labels_out.mutable_data<int>();
   for (size_t i = 0; i < labels.size(); ++i) {
     labels_out_data[i] = labels[i];
   }

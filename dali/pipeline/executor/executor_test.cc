@@ -523,12 +523,12 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-  TensorList<GPUBackend> *res1 = ws.Output<GPUBackend>(0);
+  TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyDecode(
-        res1->template tensor<uint8>(i),
-        res1->tensor_shape(i)[0],
-        res1->tensor_shape(i)[1], i);
+        res1.template tensor<uint8>(i),
+        res1.tensor_shape(i)[0],
+        res1.tensor_shape(i)[1], i);
   }
 
   exe.Outputs(&ws);
@@ -536,12 +536,12 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
   ASSERT_EQ(cb_counter, 2);
-  TensorList<GPUBackend> *res2 = ws.Output<GPUBackend>(0);
+  TensorList<GPUBackend> &res2 = ws.Output<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyDecode(
-        res2->template tensor<uint8>(i),
-        res2->tensor_shape(i)[0],
-        res2->tensor_shape(i)[1],
+        res2.template tensor<uint8>(i),
+        res2.tensor_shape(i)[0],
+        res2.tensor_shape(i)[1],
         i+batch_size);
   }
 }

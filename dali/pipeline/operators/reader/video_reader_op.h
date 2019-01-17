@@ -66,18 +66,18 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
   void RunImpl(DeviceWorkspace *ws, const int idx) override {
-    auto* tl_sequence_output = ws->Output<GPUBackend>(idx);
+    auto& tl_sequence_output = ws->Output<GPUBackend>(idx);
     if (dtype_ == DALI_FLOAT) {
-      tl_sequence_output->set_type(TypeInfo::Create<float>());
+      tl_sequence_output.set_type(TypeInfo::Create<float>());
     } else {  // dtype_ == DALI_UINT8
-      tl_sequence_output->set_type(TypeInfo::Create<uint8>());
+      tl_sequence_output.set_type(TypeInfo::Create<uint8>());
     }
 
-    tl_sequence_output->Resize(tl_shape_);
-    tl_sequence_output->SetLayout(DALI_NFHWC);
+    tl_sequence_output.Resize(tl_shape_);
+    tl_sequence_output.SetLayout(DALI_NFHWC);
 
     const int data_idx = samples_processed_.load();
-    auto* sequence_output = tl_sequence_output->raw_mutable_tensor(data_idx);
+    auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
 
     auto* prefetched_sequence = prefetched_batch_[data_idx];
     CUDA_CALL(cudaMemcpy(sequence_output,
