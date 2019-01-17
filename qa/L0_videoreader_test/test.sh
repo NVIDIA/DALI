@@ -20,7 +20,7 @@ IFS='.' read -a splitted <<< "$container_name"
 
 for i in {0..4};
 do
-    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy video_files/${splitted[0]}_$i.${splitted[1]}
+    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_name -vcodec copy -acodec copy -y video_files/${splitted[0]}_$i.${splitted[1]}
 done
 
 test_body() {
