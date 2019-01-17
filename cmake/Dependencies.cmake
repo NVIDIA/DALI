@@ -100,8 +100,11 @@ endif()
 ##################################################################
 # OpenCV
 ##################################################################
-# For OpenCV 3.x, 'imdecode()' is in the imgcodecs library
-find_package(OpenCV 3.0 QUIET COMPONENTS core imgproc imgcodecs)
+# For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
+find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
+if(NOT OpenCV_FOUND)
+  find_package(OpenCV 3.0 QUIET COMPONENTS core imgproc imgcodecs)
+endif()
 if(NOT OpenCV_FOUND)
   # Note: OpenCV 2 support is unofficial
   # For OpenCV 2.x, image encode/decode functions are in highgui

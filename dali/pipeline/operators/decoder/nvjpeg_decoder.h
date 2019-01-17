@@ -424,8 +424,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   void OCVFallback(const uint8_t* data, int size,
                    uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
     const int c = (output_type_ == DALI_GRAY) ? 1 : 3;
-    auto decode_type = (output_type_ == DALI_GRAY) ? CV_LOAD_IMAGE_GRAYSCALE \
-                                                   : CV_LOAD_IMAGE_COLOR;
+    auto decode_type = (output_type_ == DALI_GRAY) ? cv::IMREAD_GRAYSCALE
+                                                   : cv::IMREAD_COLOR;
     cv::Mat input(1,
                   size,
                   CV_8UC1,

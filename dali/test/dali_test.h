@@ -84,7 +84,7 @@ class DALITest : public ::testing::Test {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
     cv::Mat tmp = cv::imdecode(
-        input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
+        input, c == 1 ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
 
     // if different image_type needed, permute from BGR
     cv::Mat out_img(tmp.rows, tmp.cols, GetOpenCvChannelType(c));
@@ -109,7 +109,7 @@ class DALITest : public ::testing::Test {
                            vector<DimPair> *image_dims) {
     c_ = IsColor(type) ? 3 : 1;
     const int flag =
-        IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+        IsColor(type) ? cv::IMREAD_COLOR: cv::IMREAD_GRAYSCALE;
     const auto cType = IsColor(type) ? CV_8UC3 : CV_8UC1;
     const auto &encoded = imgs.data_;
     const auto &encoded_sizes = imgs.sizes_;
