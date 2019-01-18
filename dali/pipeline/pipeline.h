@@ -127,11 +127,15 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Sets the external input with the input name to the
-   * input data.
+   * @brief Helper function for the SetExternalInput.
    */
-  DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const TensorList<CPUBackend> &tl) {
+  template <typename T>
+  inline void SetExternalInputHelper(const string &name,
+      const T &tl) {
+    if (!graph_.TensorExists(name + "_cpu")) {
+      // Trying to set data for non existing node is a noop
+      return;
+    }
     NodeID node_id = graph_.TensorSourceID(name + "_cpu");
     DALI_ENFORCE(graph_.NodeType(node_id) == DALI_CPU,
         "Internal error setting external input data.");
@@ -150,18 +154,17 @@ class DLL_PUBLIC Pipeline {
    * input data.
    */
   DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const vector<Tensor<CPUBackend>> &tl) {
-    NodeID node_id = graph_.TensorSourceID(name + "_cpu");
-    DALI_ENFORCE(graph_.NodeType(node_id) == DALI_CPU,
-        "Internal error setting external input data.");
+      const TensorList<CPUBackend> &tl) {
+    SetExternalInputHelper(name, tl);
+  }
 
-    int op_idx = graph_.NodeIdx(node_id);
-    auto *op_ptr = &graph_.cpu_op(op_idx);
-    ExternalSource<CPUBackend> *source =
-      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
-    DALI_ENFORCE(source != nullptr, "Input name '" +
-        name + "' is not marked as an external input.");
-    source->SetDataSource(tl);
+  /**
+   * @brief Sets the external input with the input name to the
+   * input data.
+   */
+  DLL_PUBLIC inline void SetExternalInput(const string &name,
+      const vector<Tensor<CPUBackend>> &tl) {
+    SetExternalInputHelper(name, tl);
   }
 
   /**
