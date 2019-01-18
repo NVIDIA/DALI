@@ -215,10 +215,13 @@ class DALIGenericIterator(object):
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
-        if (self._stop_at_epoch) and (self._counter >= self._size):
-            self._counter = 0
-        elif (not self._stop_at_epoch) and (self._counter >= self._size):
-            self._counter = self._counter % self._size
+        if self._counter >= self._size:
+            if self._stop_at_epoch:
+                self._counter = 0
+            else:
+               self._counter = self._counter % self._size
+            for p in self._pipes:
+                p.reset()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 

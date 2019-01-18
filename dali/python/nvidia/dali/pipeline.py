@@ -78,6 +78,8 @@ class Pipeline(object):
         self._prefetch_queue_depth = prefetch_queue_depth
         self._built = False
         self._first_iter = True
+        self._last_iter = False
+        self._batches_to_consume = 0
         self._prepared = False
         self._names_and_devices = None
         self._exec_async = exec_async
@@ -239,8 +241,12 @@ class Pipeline(object):
         """Returns the outputs of the pipeline and releases previous buffer.
 
         If the pipeline is executed asynchronously, this function blocks
-        until the results become available."""
+        until the results become available. It rises StopIteration if data set
+        reached its end - usually when iter_setup cannot produce any more data"""
+        if self._batches_to_consume == 0:
+            raise StopIteration
         self._release_outputs()
+        self._batches_to_consume -= 1
         return self._share_outputs()
 
     def _share_outputs(self):
@@ -273,6 +279,15 @@ class Pipeline(object):
             self._start_run()
         return self.outputs()
 
+    def reset(self):
+        """Resets pipeline iterator
+
+        If pipeline iterator reached the end then reset its state to the beggining.
+        """
+        if self._last_iter:
+            self._first_iter = True
+            self._last_iter = False
+
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
@@ -287,9 +302,14 @@ class Pipeline(object):
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
-        self.iter_setup()
-        self._run_cpu()
-        self._run_gpu()
+        try:
+            if not self._last_iter:
+                self.iter_setup()
+                self._run_cpu()
+                self._run_gpu()
+                self._batches_to_consume += 1
+        except StopIteration:
+            self._last_iter = True
 
     def serialize(self):
         """Serialize the pipeline to a Protobuf string."""

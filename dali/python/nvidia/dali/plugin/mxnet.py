@@ -245,6 +245,8 @@ class DALIGenericIterator(object):
                 self._counter = self._counter % self._size
             else:
                 self._counter = 0
+            for p in self._pipes:
+                p.reset()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 

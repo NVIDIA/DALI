@@ -496,3 +496,124 @@ def test_crop():
             img_cmn = cmn_img_batch_cpu.at(b)
             img_crop = crop_img_batch_cpu.at(b)
             assert(np.array_equal(img_cmn, img_crop))
+
+def test_iter_setup():
+    class TestIterator():
+        def __init__(self, n):
+            self.n = n
+
+        def __iter__(self):
+            self.i = 0
+            return self
+
+        def __next__(self):
+            batch = []
+            if self.i < self.n:
+                batch.append(np.arange(0, 1, dtype=np.float))
+                self.i += 1
+                return batch
+            else:
+                self.i = 0
+                raise StopIteration
+        next = __next__
+
+    class IterSetupPipeline(Pipeline):
+        def __init__(self, iterator, num_threads, device_id):
+            super(IterSetupPipeline, self).__init__(1, num_threads, device_id)
+            self.input = ops.ExternalSource()
+            self.iterator = iterator
+
+        def define_graph(self):
+            self.batch = self.input()
+            return self.batch
+
+        def iter_setup(self):
+            batch = next(self.iterator)
+            self.feed_input(self.batch, batch)
+
+    iter_num = 5
+    iterator = iter(TestIterator(iter_num))
+    i = 0
+    while True:
+        try:
+            batch = next(iterator)
+            i += 1
+        except StopIteration:
+            break
+    assert(iter_num == i)
+
+    iterator = iter(TestIterator(iter_num))
+    pipe = IterSetupPipeline(iterator, 3, 0)
+    pipe.build()
+
+    i = 0
+    while True:
+        try:
+            pipe_out = pipe.run()
+            i += 1
+        except StopIteration:
+            break
+    assert(iter_num == i)
+
+    pipe.reset()
+    i = 0
+    while True:
+        try:
+            pipe_out = pipe.run()
+            i += 1
+        except StopIteration:
+            break
+    assert(iter_num == i)
+
+def test_external_source():
+    class TestIterator():
+        def __init__(self, n):
+            self.n = n
+
+        def __iter__(self):
+            self.i = 0
+            return self
+
+        def __next__(self):
+            batch_1 = []
+            batch_2 = []
+            if self.i < self.n:
+                batch_1.append(np.arange(0, 1, dtype=np.float))
+                batch_2.append(np.arange(0, 1, dtype=np.float))
+                self.i += 1
+                return batch_1, batch_2
+            else:
+                self.i = 0
+                raise StopIteration
+        next = __next__
+
+    class IterSetupPipeline(Pipeline):
+        def __init__(self, iterator, num_threads, device_id):
+            super(IterSetupPipeline, self).__init__(1, num_threads, device_id)
+            self.input_1 = ops.ExternalSource()
+            self.input_2 = ops.ExternalSource()
+            self.iterator = iterator
+
+        def define_graph(self):
+            self.batch_1 = self.input_1()
+            self.batch_2 = self.input_2()
+            return [self.batch_1 ]
+
+        def iter_setup(self):
+            batch_1, batch_2 = next(self.iterator)
+            self.feed_input(self.batch_1, batch_1)
+            self.feed_input(self.batch_2, batch_2)
+
+    iter_num = 5
+    iterator = iter(TestIterator(iter_num))
+    pipe = IterSetupPipeline(iterator, 3, 0)
+    pipe.build()
+
+    i = 0
+    while True:
+        try:
+            pipe_out = pipe.run()
+            i += 1
+        except StopIteration:
+            break
+    assert(iter_num == i)
