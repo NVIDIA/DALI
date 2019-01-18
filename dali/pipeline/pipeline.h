@@ -21,7 +21,7 @@
 #include <vector>
 #include <string>
 #include <random>
-#include <ctime>
+#include <chrono>
 
 #include "dali/common.h"
 #include "dali/pipeline/executor/executor.h"
@@ -30,6 +30,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operators/util/external_source.h"
 #include "dali/pipeline/op_graph.h"
+
 
 namespace dali {
 
@@ -302,7 +303,9 @@ class DLL_PUBLIC Pipeline {
       std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
     } else {
-      std::seed_seq ss{time(0)};
+      using Clock = std::chrono::high_resolution_clock;
+      auto init_value = Clock::now().time_since_epoch().count();
+      std::seed_seq ss{init_value};
       ss.generate(seed_.begin(), seed_.end());
     }
   }
