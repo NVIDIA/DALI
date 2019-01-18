@@ -626,7 +626,7 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return list;
-        }, py::return_value_policy::take_ownership)
+        }, py::return_value_policy::reference_internal)
     .def("ShareOutputs",
         [](Pipeline *p) {
           DeviceWorkspace ws;
@@ -641,7 +641,7 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return list;
-        }, py::return_value_policy::take_ownership)
+        }, py::return_value_policy::reference_internal)
     .def("ReleaseOutputs",
         [](Pipeline *p) {
           p->ReleaseOutputs();
