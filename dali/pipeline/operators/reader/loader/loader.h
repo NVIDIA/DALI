@@ -189,6 +189,9 @@ class Loader {
   // sharding
   const int shard_id_;
   const int num_shards_;
+
+  // if read data need to be copied or can be just shared with tensor
+  bool copy_read_data_;
 };
 
 };  // namespace dali

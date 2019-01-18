@@ -191,6 +191,56 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Wraps the raw allocation. The input pointer must not be nullptr.
    * if the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   *
+   * After wrapping the allocation, the Tensors size is set to dot product
+   * of shape vector, and its type is reset to NoType. Future calls to
+   * Resize or setting of the Tensor type will evaluate whether or not the
+   * current allocation is large enough to be used and proceed appropriately.
+   *
+   * The Tensor object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the Tensor.
+   */
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const vector<Index> &shape) {
+    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+
+    // Save our new pointer and bytes. Reset our type, shape, and size
+    data_ = ptr;
+    num_bytes_ = bytes;
+    type_ = TypeInfo::Create<NoType>();
+    Index new_size = Product(shape);
+    shape_ = shape;
+    size_ = new_size;
+
+    // If the input pointer stores a non-zero size allocation, mark
+    // that we are sharing our underlying data
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   *
+   * After wrapping the allocation, the Tensors size is set to dot product
+   * of shape vector, and its type is reset to NoType. Future calls to
+   * Resize or setting of the Tensor type will evaluate whether or not the
+   * current allocation is large enough to be used and proceed appropriately.
+   *
+   * The Tensor object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the Tensor.
+   */
+  inline void ShareData(void *ptr, size_t bytes, const vector<Index> &shape) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the Tensor is reset to a default
    * state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the Tensors size is set to 0, and its
@@ -204,18 +254,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
-
-    // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.reset(ptr, [](void *) {});
-    num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
-    shape_.clear();
-    size_ = 0;
-
-    // If the input pointer stores a non-zero size allocation, mark
-    // that we are sharing our underlying data
-    shares_data_ = num_bytes_ > 0 ? true : false;
+    ShareData(ptr, bytes, vector<Index>());
   }
 
   /**

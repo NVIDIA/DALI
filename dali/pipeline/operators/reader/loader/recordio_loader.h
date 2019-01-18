@@ -77,6 +77,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
     if (current_index_ == static_cast<size_t>(Size())) {
+      // Release previously opened file
       current_index_ = 0;
       current_file_index_ = 0;
       current_file_ = FileStream::Open(uris_[current_file_index_]);
@@ -86,19 +87,43 @@ class RecordIOLoader : public IndexedFileLoader {
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
 
-    tensor->Resize({size});
-
+    shared_ptr<void> p = nullptr;
     int64 n_read = 0;
-    tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
-    while (n_read < size) {
-      n_read += current_file_->Read(tensor->mutable_data<uint8_t>() + n_read,
-                     size - n_read);
-      if (n_read < size) {
-        DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
-            "Incomplete or corrupted record files");
-        current_file_ = FileStream::Open(uris_[++current_file_index_]);
-      }
+    bool use_read = copy_read_data_;
+    if (use_read) {
+      tensor->Resize({size});
     }
+    while (p == nullptr && n_read < size) {
+      if (!use_read) {
+        p = current_file_->Get(size);
+        // file is divided between two files, we need to fallback to read here
+        if (p == nullptr) {
+          tensor->Resize({size});
+          use_read = true;
+        } else {
+          n_read = size;
+          // Wrap the raw data in the Tensor object.
+          tensor->ShareData(p, size, {size});
+
+          TypeInfo type;
+          type.SetType<uint8_t>();
+          tensor->set_type(type);
+        }
+      }
+      if (use_read) {
+        n_read += current_file_->Read(tensor->mutable_data<uint8_t>() + n_read,
+                                      size - n_read);
+      }
+      if (p == nullptr && n_read < size) {
+        DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
+          "Incomplete or corrupted record files");
+        // Release previously opened file
+        current_file_ = FileStream::Open(uris_[++current_file_index_]);
+        continue;
+      }
+     tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
+    }
+
     ++current_index_;
   }
 };
