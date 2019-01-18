@@ -15,9 +15,14 @@
 #ifndef DALI_IMAGE_IMAGE_H_
 #define DALI_IMAGE_IMAGE_H_
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
+
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
@@ -25,6 +30,10 @@
 
 namespace dali {
 
+static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
+                                              ".bmp", ".tif",  ".tiff"};
+
+DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
 
 class Image {
  public:

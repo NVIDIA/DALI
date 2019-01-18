@@ -17,8 +17,10 @@
 #include <map>
 #include <memory>
 
+#include "dali/image/image.h"
 #include "dali/pipeline/operators/reader/loader/sequence_loader.h"
 #include "dali/util/file.h"
+
 
 namespace dali {
 
@@ -32,37 +34,9 @@ std::string parent_dir(std::string path) {
 
 }  // namespace
 
-void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
-  sequence->tensors.resize(sequence_length_);
-  for (auto &t : sequence->tensors) {
-    PrepareEmptyTensor(&t);
-  }
-}
+namespace filesystem {
 
-void SequenceLoader::ReadSample(TensorSequence *sequence) {
-  // TODO(klecki) this is written as a prototype for video handling
-  const auto &stream = streams_[current_stream_];
-  // TODO(klecki) we probably should buffer the "stream", or recently used
-  // frames
-  for (int i = 0; i < sequence_length_; i++) {
-    LoadFrame(stream, current_frame_ + i, &sequence->tensors[i]);
-  }
-  current_frame_++;
-  // wrap-around
-  if (current_frame_ == stream_sizes_[current_stream_]) {
-    current_stream_++;
-    current_frame_ = 0;
-  }
-  if (current_stream_ == streams_.size()) {
-    current_stream_ = 0;
-  }
-}
-
-Index SequenceLoader::Size() {
-  return total_size_;
-}
-
-std::vector<SequenceLoader::Stream> SequenceLoader::ParseStreams(string file_root) {
+std::vector<Stream> GatherExtractedStreams(string file_root) {
   glob_t glob_buff;
   std::string glob_pattern = file_root + "/*/*";
   const int glob_flags = 0;
@@ -71,8 +45,12 @@ std::vector<SequenceLoader::Stream> SequenceLoader::ParseStreams(string file_roo
                "Glob for pattern: \"" + glob_pattern + "\" failed. Verify the file_root argument");
   std::vector<std::string> files;
   for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
-    files.emplace_back(glob_buff.gl_pathv[i]);
+    std::string file = glob_buff.gl_pathv[i];
+    if (HasKnownImageExtension(file)) {
+      files.push_back(std::move(file));
+    }
   }
+  globfree(&glob_buff);
   std::sort(files.begin(), files.end());
   std::map<std::string, size_t> streamName_bucket_map;
   std::vector<Stream> streams;
@@ -89,18 +67,65 @@ std::vector<SequenceLoader::Stream> SequenceLoader::ParseStreams(string file_roo
   return streams;
 }
 
-std::vector<size_t> SequenceLoader::CalculateStreamSizes(const std::vector<Stream> &streams,
-                                                         size_t sample_lenght) {
-  std::vector<size_t> result;
+}  // namespace filesystem
+
+namespace detail {
+
+std::vector<std::vector<std::string>> GenerateSequences(
+    const std::vector<filesystem::Stream> &streams, size_t sequence_length, size_t step,
+    size_t stride) {
+  std::vector<std::vector<std::string>> sequences;
   for (const auto &s : streams) {
-    result.push_back(s.second.size() - (sample_lenght - 1));
+    for (size_t i = 0; i < s.second.size(); i += step) {
+      std::vector<std::string> sequence;
+      sequence.reserve(sequence_length);
+      // this sequence won't fit
+      if (i + (sequence_length - 1) * stride >= s.second.size()) {
+        break;
+      }
+      // fill the sequence
+      for (size_t seq_elem = 0; seq_elem < sequence_length; seq_elem++) {
+        sequence.push_back(s.second[i + seq_elem * stride]);
+      }
+      sequences.push_back((sequence));
+    }
   }
-  return result;
+  return sequences;
 }
 
-void SequenceLoader::LoadFrame(const Stream &s, Index frame_idx, Tensor<CPUBackend> *target) {
-  const auto frame_filename = s.second[frame_idx];
-  std::unique_ptr<FileStream> frame(FileStream::Open(frame_filename));
+}  // namespace detail
+
+void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
+  sequence->tensors.resize(sequence_length_);
+  for (auto &t : sequence->tensors) {
+    PrepareEmptyTensor(&t);
+  }
+}
+
+void SequenceLoader::ReadSample(TensorSequence *sequence) {
+  // TODO(klecki) this is written as a prototype for video handling
+  const auto &sequence_paths = sequences_[current_sequence_];
+  // TODO(klecki) we probably should buffer the "stream", or recently used
+  // frames
+  for (int i = 0; i < sequence_length_; i++) {
+    LoadFrame(sequence_paths, i, &sequence->tensors[i]);
+  }
+  current_sequence_++;
+  // wrap-around
+  if (current_sequence_ == total_size_) {
+    current_sequence_ = 0;
+  }
+}
+
+Index SequenceLoader::Size() {
+  return total_size_;
+}
+
+void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_idx,
+                               Tensor<CPUBackend> *target) {
+  const auto frame_filename = s[frame_idx];
+  target->SetSourceInfo(frame_filename);
+  auto frame = FileStream::Open(frame_filename);
   Index frame_size = frame->Size();
   target->Resize({frame_size});
   frame->Read(target->mutable_data<uint8_t>(), frame_size);
