@@ -43,4 +43,13 @@ void DLL_PUBLIC OpenCvColorConversion(
 
 }  // namespace dali
 
+// OpenCV 2.0 Compatibility
+#if CV_MAJOR_VERSION == 2
+namespace cv {
+using InterpolationFlags = int;
+using ColorConversionCodes = int;
+}  // namespace cv
+
+#endif
+
 #endif  // DALI_UTIL_OCV_H_

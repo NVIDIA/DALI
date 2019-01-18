@@ -29,8 +29,8 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
                          size_t length) const {
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),          //NOLINT
-          IsColor(image_type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
+          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
+          IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
 
   if (decoded_image.data == nullptr) {
      DALI_FAIL("Unsupported image type.");
