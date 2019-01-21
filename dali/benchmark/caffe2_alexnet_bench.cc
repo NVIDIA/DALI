@@ -261,7 +261,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
