@@ -19,32 +19,21 @@ namespace dali {
 // TODO(klecki) ingnoring idx and all stuff from MIS - check if this is the right idx to ignore
 template <>
 void SequenceRarrange<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  auto &input = ws->Input<CPUBackend>(0);
+  const auto &input = ws->Input<CPUBackend>(0);
   DALI_ENFORCE(input.ndim() > 1, "Sequence elements must have at least 1 dim");
-  const auto input_shape = input.shape();
-  const int in_seq_lenght = input_shape[0];
-  for (const auto &idx : new_order_) {
-    DALI_ENFORCE(0 <= idx && idx < in_seq_lenght,
-                 "Source element idx must be in [0, input_sequence_lenght) for new_order argument");
-  }
-  const int out_seq_lenght = new_order_.size();
-  std::vector<Index> element_shape;
-  element_shape.insert(element_shape.end(), input_shape.begin() + 1, input_shape.end());
 
   std::vector<Index> new_sample_shape;
-  new_sample_shape.push_back(out_seq_lenght);
-  new_sample_shape.insert(new_sample_shape.end(), element_shape.begin(), element_shape.end());
-
-  auto *output = ws->Output<CPUBackend>(0);
-  output->set_type(input.type());
-  output->Resize(new_sample_shape);
-
-  Index element_size = Product(element_shape);
+  Index element_size;
+  std::tie(new_sample_shape, element_size) = GetNewShapeAndElementSize(input.shape(), new_order_);
   Index element_bytes = element_size * input.type().size();
 
-  for (int i = 0; i < out_seq_lenght; i++) {
+  auto &output = ws->Output<CPUBackend>(0);
+  output.set_type(input.type());
+  output.Resize(new_sample_shape);
+
+  for (int i = 0; i < GetSeqLength(new_sample_shape); i++) {
     TypeInfo type = input.type();
-    type.Copy<CPUBackend, CPUBackend>(output->mutable_data<char>() + i * element_bytes,
+    type.Copy<CPUBackend, CPUBackend>(output.mutable_data<char>() + i * element_bytes,
                                       input.data<char>() + new_order_[i] * element_bytes,
                                       element_size, 0);
   }
