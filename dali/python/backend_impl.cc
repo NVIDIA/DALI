@@ -620,13 +620,13 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;
-        }, py::return_value_policy::reference_internal)
+        }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
           DeviceWorkspace ws;
@@ -635,13 +635,13 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;
-        }, py::return_value_policy::reference_internal)
+        }, py::return_value_policy::take_ownership)
     .def("ReleaseOutputs",
         [](Pipeline *p) {
           p->ReleaseOutputs();

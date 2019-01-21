@@ -295,7 +295,7 @@ class DALISingleOpTest : public DALITest {
         // copy to host
         calc_output->Copy(ws->Output<GPUBackend>(output_indices[i]), nullptr);
       } else {
-        calc_output.reset(&ws->Output<CPUBackend>(output_indices[i]));
+        calc_output->Copy(ws->Output<CPUBackend>(output_indices[i]), nullptr);
       }
 
       auto ref_output = res[i];
