@@ -18,17 +18,16 @@ set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75")
 # Find if passing `flags` to nvcc producess success or failure
 # Unix only
 #
-# Equivalent to running preprocessing on /dev/null as .cu file
+# Equivalent to dry-running preprocessing on /dev/null as .cu file
 # and checking the exit code
-# $ nvcc ${flags} -E -x cu /dev/null
+# $ nvcc ${flags} --dryrun -E -x cu /dev/null
 #
 # @param out_status   TRUE iff exit code is 0, FALSE otherwise
 # @param nvcc_bin     nvcc binary to use in shell invocation
 # @param flags        flags to check
 # @return out_status
 function(CUDA_check_nvcc_flag out_status nvcc_bin flags)
-
-  set(preprocess_empty_cu_file "-E" "-x" "cu" "/dev/null")
+  set(preprocess_empty_cu_file "--dryrun" "-E" "-x" "cu" "/dev/null")
   set(nvcc_command ${flags} ${preprocess_empty_cu_file})
   # Run nvcc and check the exit status
   execute_process(COMMAND ${nvcc_bin} ${nvcc_command}
