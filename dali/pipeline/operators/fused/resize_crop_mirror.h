@@ -172,13 +172,13 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
 
   inline void RunResizeImpl(SampleWorkspace *ws, const int idx, resizeCropMirroHost func) {
     auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
     CheckParam(input, "ResizeCropMirror");
 
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
-    output->Resize({crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
+    output.Resize({crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
 
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(
@@ -188,7 +188,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
         meta.crop,
         crop_height_[idx], crop_width_[idx],
         meta.mirror,
-        output->template mutable_data<uint8>(),
+        output.template mutable_data<uint8>(),
         interp_type_,
         tl_workspace_[ws->thread_idx()].data()));
   }

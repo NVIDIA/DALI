@@ -19,13 +19,13 @@ namespace other_ns {
 template<>
 void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace *ws, const int idx) {
   auto &input = ws->Input<::dali::CPUBackend>(idx);
-  auto output = ws->Output<::dali::CPUBackend>(idx);
-  output->set_type(input.type());
-  output->ResizeLike(input);
+  auto &output = ws->Output<::dali::CPUBackend>(idx);
+  output.set_type(input.type());
+  output.ResizeLike(input);
 
   ::dali::TypeInfo type = input.type();
   type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(
-      output->raw_mutable_data(),
+      output.raw_mutable_data(),
       input.raw_data(), input.size(), 0);
 }
 

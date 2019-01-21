@@ -33,21 +33,21 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     auto* image_label = prefetched_batch_[idx];
 
     // copy from raw_data -> outputs directly
-    auto *image_output = ws->Output<CPUBackend>(0);
-    auto *label_output = ws->Output<CPUBackend>(1);
+    auto &image_output = ws->Output<CPUBackend>(0);
+    auto &label_output = ws->Output<CPUBackend>(1);
 
     Index image_size = image_label->image.size();
 
-    image_output->Resize({image_size});
-    image_output->mutable_data<uint8_t>();
-    label_output->Resize({1});
+    image_output.Resize({image_size});
+    image_output.mutable_data<uint8_t>();
+    label_output.Resize({1});
 
-    std::memcpy(image_output->raw_mutable_data(),
+    std::memcpy(image_output.raw_mutable_data(),
                 image_label->image.raw_data(),
                 image_size);
-    image_output->SetSourceInfo(image_label->image.GetSourceInfo());
+    image_output.SetSourceInfo(image_label->image.GetSourceInfo());
 
-    label_output->mutable_data<int>()[0] = image_label->label;
+    label_output.mutable_data<int>()[0] = image_label->label;
     return;
   }
 

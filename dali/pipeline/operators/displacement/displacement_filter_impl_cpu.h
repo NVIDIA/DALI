@@ -107,8 +107,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
    */
   virtual void DataDependentSetup(SampleWorkspace *ws, const int idx) {
     auto &input = ws->Input<CPUBackend>(idx);
-    auto *output = ws->Output<CPUBackend>(idx);
-    output->ResizeLike(input);
+    auto &output = ws->Output<CPUBackend>(idx);
+    output.ResizeLike(input);
   }
 
   void SetupSharedSampleParams(SampleWorkspace *ws) override {
@@ -186,7 +186,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   template <typename T, DALIInterpType interp_type>
   bool PerSampleCPULoop(SampleWorkspace *ws, const int idx) {
     auto &input = ws->Input<CPUBackend>(idx);
-    auto *output = ws->Output<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
 
     DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
@@ -195,7 +195,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     const auto C = input.shape()[2];
 
     auto *in = input.data<T>();
-    auto *out = output->template mutable_data<T>();
+    auto *out = output.template mutable_data<T>();
 
     if (!has_mask_ || mask_->template data<bool>()[ws->data_idx()]) {
       for (Index h = 0; h < H; ++h) {

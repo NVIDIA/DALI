@@ -48,9 +48,9 @@ class MakeContiguous : public Operator<MixedBackend> {
     }
 
     if (ws->OutputIsType<CPUBackend>(0)) {
-      auto output = ws->Output<CPUBackend>(0);
-      output->Resize(output_shape);
-      output->set_type(type);
+      auto &output = ws->Output<CPUBackend>(0);
+      output.Resize(output_shape);
+      output.set_type(type);
 
       for (int i = 0; i < batch_size_; ++i) {
         auto &input = ws->Input<CPUBackend>(0, i);
@@ -58,24 +58,24 @@ class MakeContiguous : public Operator<MixedBackend> {
         // Note: We know that this will translate into
         // a std::memcpy, so it is safe to pass stream 0
         type.Copy<CPUBackend, CPUBackend>(
-            output->raw_mutable_tensor(i),
+            output.raw_mutable_tensor(i),
             input.raw_data(), input.size(), 0);
       }
     } else {
-      auto output = ws->Output<GPUBackend>(0);
-      output->Resize(output_shape);
-      output->set_type(type);
+      auto &output = ws->Output<GPUBackend>(0);
+      output.Resize(output_shape);
+      output.set_type(type);
 
       if (coalesced) {
         TimeRange tm("coalesced", TimeRange::kBlue);
-        cpu_output_buff.ResizeLike(*output);
+        cpu_output_buff.ResizeLike(output);
         cpu_output_buff.set_type(type);
         for (int i = 0; i < batch_size_; ++i) {
           auto &input = ws->Input<CPUBackend>(0, i);
           memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());
         }
         CUDA_CALL(cudaMemcpyAsync(
-              output->raw_mutable_data(),
+              output.raw_mutable_data(),
               cpu_output_buff.raw_mutable_data(),
               cpu_output_buff.nbytes(),
               cudaMemcpyHostToDevice,
@@ -85,7 +85,7 @@ class MakeContiguous : public Operator<MixedBackend> {
         for (int i = 0; i < batch_size_; ++i) {
           auto &input = ws->Input<CPUBackend>(0, i);
           CUDA_CALL(cudaMemcpyAsync(
-                  output->raw_mutable_tensor(i),
+                  output.raw_mutable_tensor(i),
                   input.raw_data(),
                   input.nbytes(),
                   cudaMemcpyHostToDevice,

@@ -154,7 +154,7 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
 
 // img is [H, W, C], bounds [l, t, r, b]
 // output [r-l, b-t, C]
-void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>* out) {
+void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>& out) {
   // output dimensions
   const int width = bounds[2] - bounds[0];
   const int height = bounds[3] - bounds[1];
@@ -163,8 +163,8 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>*
   const int W = img.dim(1);
   const int C = img.dim(2);
 
-  out->Resize({height, width, C});
-  uint8_t *out_data = out->mutable_data<uint8_t>();
+  out.Resize({height, width, C});
+  uint8_t *out_data = out.mutable_data<uint8_t>();
 
   int out_idx = 0;
   for (int h = bounds[1]; h < bounds[3]; ++h) {
@@ -202,9 +202,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
     if (option.no_crop()) {
       // copy directly to output without modification
-      ws->Output<CPUBackend>(0)->Copy(img, 0);
-      ws->Output<CPUBackend>(1)->Copy(bboxes, 0);
-      ws->Output<CPUBackend>(2)->Copy(labels, 0);
+      ws->Output<CPUBackend>(0).Copy(img, 0);
+      ws->Output<CPUBackend>(1).Copy(bboxes, 0);
+      ws->Output<CPUBackend>(2).Copy(labels, 0);
       return;
     }
 
@@ -274,15 +274,15 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
       // now we know how many output bboxes there will be, we can allocate
       // the output.
-      auto *img_out = ws->Output<CPUBackend>(0);
-      auto *bbox_out = ws->Output<CPUBackend>(1);
-      auto *label_out = ws->Output<CPUBackend>(2);
+      auto &img_out = ws->Output<CPUBackend>(0);
+      auto &bbox_out = ws->Output<CPUBackend>(1);
+      auto &label_out = ws->Output<CPUBackend>(2);
 
-      bbox_out->Resize({valid_bboxes, 4});
-      auto *bbox_out_data = bbox_out->mutable_data<float>();
+      bbox_out.Resize({valid_bboxes, 4});
+      auto *bbox_out_data = bbox_out.mutable_data<float>();
 
-      label_out->Resize({valid_bboxes, 1});
-      auto *label_out_data = label_out->mutable_data<int>();
+      label_out.Resize({valid_bboxes, 1});
+      auto *label_out_data = label_out.mutable_data<int>();
 
       // copy valid bboxes to output and transform them
       for (int j = 0; j < valid_bboxes; ++j) {

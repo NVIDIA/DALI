@@ -35,8 +35,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
-    auto* image = ws->Output<CPUBackend>(0);
-    auto* label = ws->Output<CPUBackend>(1);
+    auto& image = ws->Output<CPUBackend>(0);
+    auto& label = ws->Output<CPUBackend>(1);
     ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
   }
 
@@ -55,8 +55,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     *in += sizeof(T);
   }
 
-  inline void ReadSingleImageRecordIO(Tensor<CPUBackend>* o_image,
-                Tensor<CPUBackend> *o_label,
+  inline void ReadSingleImageRecordIO(Tensor<CPUBackend>& o_image,
+                Tensor<CPUBackend>& o_label,
                 const uint8_t* input) {
     uint32_t magic;
     const uint32_t kMagic = 0xced7230a;
@@ -71,22 +71,22 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     ReadSingle(&input, &hdr);
 
     if (hdr.flag == 0) {
-      o_label->Resize({1});
-      o_label->mutable_data<float>()[0] = hdr.label;
+      o_label.Resize({1});
+      o_label.mutable_data<float>()[0] = hdr.label;
     } else {
-      o_label->Resize({hdr.flag});
-      o_label->mutable_data<float>();
+      o_label.Resize({hdr.flag});
+      o_label.mutable_data<float>();
     }
 
     int64_t data_size = clength - sizeof(ImageRecordIOHeader);
     int64_t label_size = hdr.flag * sizeof(float);
     int64_t image_size = data_size - label_size;
     if (cflag == 0) {
-      o_image->Resize({image_size});
-      uint8_t* data = o_image->mutable_data<uint8_t>();
+      o_image.Resize({image_size});
+      uint8_t* data = o_image.mutable_data<uint8_t>();
       memcpy(data, input + label_size, image_size);
       if (hdr.flag > 0) {
-        float * label = o_label->mutable_data<float>();
+        float * label = o_label.mutable_data<float>();
         memcpy(label, input, label_size);
       }
     } else {
@@ -114,11 +114,11 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
         memcpy(&temp_vec[s], input, clength);
         input += clength;
       }
-      o_image->Resize({static_cast<Index>(temp_vec.size() - label_size)});
-      uint8_t* data = o_image->mutable_data<uint8_t>();
+      o_image.Resize({static_cast<Index>(temp_vec.size() - label_size)});
+      uint8_t* data = o_image.mutable_data<uint8_t>();
       memcpy(data, (&temp_vec[0]) + label_size, temp_vec.size() - label_size);
       if (hdr.flag > 0) {
-        float * label = o_label->mutable_data<float>();
+        float * label = o_label.mutable_data<float>();
         memcpy(label, &temp_vec[0], label_size);
       }
     }

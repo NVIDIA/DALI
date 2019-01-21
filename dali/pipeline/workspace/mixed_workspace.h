@@ -67,7 +67,7 @@ class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutp
    * the output at the given index.
    */
   template <typename Backend>
-  DLL_PUBLIC TensorList<Backend>* Output(int idx);
+  DLL_PUBLIC TensorList<Backend>& Output(int idx);
 
   /**
    * @brief Sets the stream for this workspace.

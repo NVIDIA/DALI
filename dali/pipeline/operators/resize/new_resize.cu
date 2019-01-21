@@ -52,7 +52,7 @@ int lcm(int a, int b) {
 }
 
 void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
-                           Tensor<CPUBackend> *output, const char *pOpName,
+                           Tensor<CPUBackend> &output, const char *pOpName,
                            const uint8 **ppInRaster, uint8 **ppOutRaster,
                            vector<DALISize> *pSizes, const DALISize *out_size) {
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
@@ -65,18 +65,18 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
                " supports only hwc rgb & grayscale inputs.");
 
   if (out_size)
-    output->Resize({out_size->height, out_size->width, C});
+    output.Resize({out_size->height, out_size->width, C});
   else
-    output->Resize(shape);
+    output.Resize(shape);
 
-  output->set_type(input.type());
+  output.set_type(input.type());
 
   if (!ppInRaster)
     return;
 
   *ppInRaster = input.template data<uint8>();
   if (ppOutRaster)
-    *ppOutRaster = static_cast<uint8 *>(output->raw_mutable_data());
+    *ppOutRaster = static_cast<uint8 *>(output.raw_mutable_data());
 
   if (pSizes) {
     (*pSizes)[0].height = shape[0];
@@ -84,7 +84,7 @@ void DataDependentSetupCPU(const Tensor<CPUBackend> &input,
   }
 }
 
-bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
+bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> &output,
                            size_t batch_size, bool reshapeBatch, vector<const uint8 *> *inPtrs,
                            vector<uint8 *> *outPtrs, vector<DALISize> *pSizes,
                            ResizeParamDescr *pResizeDescr) {
@@ -186,8 +186,8 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
   }
 
   // Resize the output
-  output->Resize(output_shape);
-  output->set_type(input.type());
+  output.Resize(output_shape);
+  output.set_type(input.type());
 
   CollectPointersForExecution(reshapeBatch ? 1 : batch_size, input, inPtrs, output, outPtrs);
   return newResize;
@@ -195,14 +195,14 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
 
 void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-                                 TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs) {
+                                 TensorList<GPUBackend> &output, vector<uint8 *> *outPtrs) {
   if (!inPtrs || !outPtrs)
     return;
 
   // Collect the pointers for execution
   for (size_t i = 0; i < batch_size; ++i) {
     (*inPtrs)[i] = input.template tensor<uint8>(i);
-    (*outPtrs)[i] = output->template mutable_tensor<uint8>(i);
+    (*outPtrs)[i] = output.template mutable_tensor<uint8>(i);
   }
 }
 
@@ -669,7 +669,7 @@ void ResizeFunc(int W0, int H0, const uint8 *img_in, int W, int H, uint8 *img_ou
 template <>
 void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
-  const auto &output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
   const bool use_NN = interp_type_ == DALI_INTERP_NN;
 
   size_t resizeMemory[BATCH_SLICE_NUMB];
@@ -728,7 +728,7 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
   BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
                 *sizeIn, input.template data<uint8>(),
-                *sizeOut, static_cast<uint8 *>(output->raw_mutable_data()),
+                *sizeOut, static_cast<uint8 *>(output.raw_mutable_data()),
                 RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
                 mapPntr, pResizeMapping, pPixMapping, newMapping);
   } else {

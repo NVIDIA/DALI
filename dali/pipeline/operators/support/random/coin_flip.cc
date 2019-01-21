@@ -19,10 +19,10 @@ namespace dali {
 
 void CoinFlip::RunImpl(SupportWorkspace * ws, const int idx) {
   DALI_ENFORCE(idx == 0, "CoinFlip does not support multiple input sets.");
-  auto *output = ws->Output<CPUBackend>(idx);
-  output->Resize({batch_size_});
+  auto &output = ws->Output<CPUBackend>(idx);
+  output.Resize({batch_size_});
 
-  int * out_data = output->template mutable_data<int>();
+  int * out_data = output.template mutable_data<int>();
 
   for (int i = 0; i < batch_size_; ++i) {
     out_data[i] = dis_(rng_) ? 1 : 0;

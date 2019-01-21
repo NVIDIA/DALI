@@ -34,7 +34,7 @@ DALI_SCHEMA(ColorSpaceConversion)
 template <>
 void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   const auto &input_shape = input.shape();
   auto output_shape = input_shape;
 
@@ -46,14 +46,14 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int id
   DALI_ENFORCE(input_shape[2] == input_C,
     "Incorrect number of channels for input");
   output_shape[2] = output_C;
-  output->Resize(output_shape);
+  output.Resize(output_shape);
 
   auto pImgInp = input.template data<uint8>();
 
   const int input_channel_flag = GetOpenCvChannelType(input_C);
   const cv::Mat cv_input_img = CreateMatFromPtr(H, W, input_channel_flag, pImgInp);
 
-  auto pImgOut = output->template mutable_data<uint8>();
+  auto pImgOut = output.template mutable_data<uint8>();
   const int output_channel_flag = GetOpenCvChannelType(output_C);
   cv::Mat cv_output_img = CreateMatFromPtr(H, W, output_channel_flag, pImgOut);
 

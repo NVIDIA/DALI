@@ -124,7 +124,7 @@ void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
 template<>
 void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
 
   std::vector<Dims> output_shape(batch_size_);
 
@@ -171,15 +171,15 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
     std::copy(sample_dims_paste_yx, sample_dims_paste_yx + NUM_INDICES, sample_data);
   }
 
-  output->set_type(input.type());
-  output->Resize(output_shape);
-  output->SetLayout(DALI_NHWC);
+  output.set_type(input.type());
+  output.Resize(output_shape);
+  output.SetLayout(DALI_NHWC);
 
   for (int i = 0; i < batch_size_; ++i) {
       input_ptrs_.template mutable_data<const uint8*>()[i] =
             input.template tensor<uint8>(i);
       output_ptrs_.template mutable_data<uint8*>()[i] =
-            output->template mutable_tensor<uint8>(i);
+            output.template mutable_tensor<uint8>(i);
   }
 
   // Copy pointers on the GPU for fast access

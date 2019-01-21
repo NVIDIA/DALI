@@ -79,7 +79,7 @@ class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputT
    * type of the tensor at the given index
    */
   template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>* Output(int idx, int data_idx);
+  DLL_PUBLIC Tensor<Backend>& Output(int idx, int data_idx);
 };
 
 }  // namespace dali

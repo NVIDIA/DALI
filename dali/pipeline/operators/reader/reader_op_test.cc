@@ -71,7 +71,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   void RunImpl(SampleWorkspace* ws, int idx) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    ws->Output<CPUBackend>(0)->Copy(*prefetched_batch_[ws->data_idx()], 0);
+    ws->Output<CPUBackend>(0).Copy(*prefetched_batch_[ws->data_idx()], 0);
   }
 
  private:
@@ -139,7 +139,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    auto shape = ws.Output<CPUBackend>(0)->AsTensor()->shape();
+    auto shape = ws.Output<CPUBackend>(0).AsTensor()->shape();
     // We have NFHWC format
     const auto batch_size = shape[0];
     const auto frame_count = shape[1];
@@ -155,7 +155,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
       auto start_frame = (i * batch_size + sample) % (16 - 3 + 1);
       for (int frame = 0; frame < frame_count; frame++) {
         auto off = sample * seq_size + frame * frame_size;
-        auto val = ws.Output<CPUBackend>(0)->AsTensor()->data<uint8_t>()[off];
+        auto val = ws.Output<CPUBackend>(0).AsTensor()->data<uint8_t>()[off];
         decltype(val) expected = start_frame + frame;
         ASSERT_EQ(val, expected);
       }

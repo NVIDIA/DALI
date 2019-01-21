@@ -66,23 +66,23 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
     }
 
     for (size_t i = 0; i < features_.size(); ++i) {
-      auto* output = ws->Output<CPUBackend>(i);
+      auto& output = ws->Output<CPUBackend>(i);
       Feature& f = features_[i];
       std::string& name = feature_names_[i];
       auto& encoded_feature = example.features().feature().at(name);
       if (f.HasShape() && f.GetType() != FeatureType::string) {
         if (f.Shape().empty()) {
-        output->Resize({1});
+        output.Resize({1});
         } else {
-          output->Resize(f.Shape());
+          output.Resize(f.Shape());
         }
       }
       switch (f.GetType()) {
         case FeatureType::int64:
           if (!f.HasShape()) {
-            output->Resize({encoded_feature.int64_list().value().size()});
+            output.Resize({encoded_feature.int64_list().value().size()});
           }
-          std::memcpy(output->mutable_data<int64_t>(),
+          std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
           break;
@@ -90,16 +90,16 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           if (!f.HasShape() || Product(f.Shape()) > 1) {
             DALI_FAIL("Tensors of strings are not supported.");
           }
-          output->Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
-          std::memcpy(output->mutable_data<uint8_t>(),
+          output.Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
+          std::memcpy(output.mutable_data<uint8_t>(),
               encoded_feature.bytes_list().value(0).c_str(),
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
           break;
         case FeatureType::float32:
           if (!f.HasShape()) {
-            output->Resize({encoded_feature.float_list().value().size()});
+            output.Resize({encoded_feature.float_list().value().size()});
           }
-          std::memcpy(output->mutable_data<float>(),
+          std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
               encoded_feature.float_list().value().size()*sizeof(float));
           break;

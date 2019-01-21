@@ -57,7 +57,7 @@ class NormalizePermute : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   template <typename OUT>
-  void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output);
+  void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output);
 
   template <typename OUT>
   void GPURunHelper(DeviceWorkspace *ws, const int idx);

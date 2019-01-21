@@ -327,8 +327,8 @@ class DisplacementFilter<GPUBackend, Displacement,
   virtual void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     // check input is valid, resize output
     auto &input = ws->Input<GPUBackend>(idx);
-    auto *output = ws->Output<GPUBackend>(idx);
-    output->ResizeLike(input);
+    auto &output = ws->Output<GPUBackend>(idx);
+    output.ResizeLike(input);
   }
 
   template <typename U = Displacement>
@@ -365,7 +365,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace *ws, const int idx) {
     auto &input = ws->Input<GPUBackend>(idx);
-    auto *output = ws->Output<GPUBackend>(idx);
+    auto &output = ws->Output<GPUBackend>(idx);
 
     const auto N = input.ntensor();
     const int pitch = nDims + 1;  // shape and offset
@@ -389,7 +389,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       offset += current_size;
     }
 
-    output->ResizeLike(input);
+    output.ResizeLike(input);
 
     DALI_ENFORCE(pitch == 4,
             "DisplacementKernel requires pitch to be 4.");
@@ -415,12 +415,12 @@ class DisplacementFilter<GPUBackend, Displacement,
     switch (interp_type_) {
       case DALI_INTERP_NN:
         DisplacementKernelLauncher<T, DALI_INTERP_NN>(ws, input.template data<T>(),
-            output->template mutable_data<T>(),
+            output.template mutable_data<T>(),
             input.ntensor(), pitch, C, maxPower2);
         break;
       case DALI_INTERP_LINEAR:
         DisplacementKernelLauncher<T, DALI_INTERP_LINEAR>(ws, input.template data<T>(),
-            output->template mutable_data<T>(),
+            output.template mutable_data<T>(),
             input.ntensor(), pitch, C, maxPower2);
         break;
       default:

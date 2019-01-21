@@ -83,10 +83,10 @@ Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAtt
 template <>
 void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto *output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
   DALITensorLayout out_layout = output_layout_ == DALI_SAME ? input.GetLayout() : output_layout_;
-  output->SetLayout(out_layout);
+  output.SetLayout(out_layout);
 
   // Check if we use u8, RGB or Greyscale
   CheckParam(input, "CropCPUBackend");

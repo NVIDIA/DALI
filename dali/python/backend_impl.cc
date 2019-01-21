@@ -620,9 +620,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;
@@ -635,9 +635,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;

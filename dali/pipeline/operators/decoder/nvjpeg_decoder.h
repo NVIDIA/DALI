@@ -226,10 +226,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     }
 
     // Resize the output (contiguous)
-    auto *output = ws->Output<GPUBackend>(0);
-    output->Resize(output_shape_);
+    auto &output = ws->Output<GPUBackend>(0);
+    output.Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
-    output->set_type(type);
+    output.set_type(type);
 
     if (use_batched_decode_ && idx_in_batch) {
       int images_in_batch = idx_in_batch;
@@ -248,14 +248,14 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
-        auto *output_data = output->mutable_tensor<uint8_t>(i);
+        auto *output_data = output.mutable_tensor<uint8_t>(i);
 
         auto &info = output_info_[i];
 
         // Setup outputs for images that will be processed via nvjpeg-batched
         if (info.nvjpeg_support) {
           batched_output_[batched_image_idx_[i]].channel[0] =
-            output->mutable_tensor<uint8_t>(i);
+            output.mutable_tensor<uint8_t>(i);
           batched_output_[batched_image_idx_[i]].pitch[0] =
             GetOutputPitch(output_type_) * info.widths[0];
         }
@@ -299,7 +299,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
-        auto *output_data = output->mutable_tensor<uint8_t>(j);
+        auto *output_data = output.mutable_tensor<uint8_t>(j);
 
         auto info = output_info_[j];
 

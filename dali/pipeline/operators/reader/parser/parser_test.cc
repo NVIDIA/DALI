@@ -44,10 +44,10 @@ class IntArrayParser : public Parser<IntArrayWrapper> {
 
     printf("H: %d, W: %d, C: %d\n", H, W, C);
 
-    Tensor<Backend>* output = ws->template Output<Backend>(0);
-    output->Resize({H, W, C});
+    Tensor<Backend>& output = ws->template Output<Backend>(0);
+    output.Resize({H, W, C});
 
-    int *output_data = output->template mutable_data<int>();
+    int *output_data = output.template mutable_data<int>();
 
     std::memcpy(output_data, &int_data[3], H*W*C);
   }

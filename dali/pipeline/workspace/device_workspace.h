@@ -72,7 +72,7 @@ class DLL_PUBLIC DeviceWorkspace : public WorkspaceBase<DeviceInputType, DeviceO
    * the output at the given index.
    */
   template <typename Backend>
-  DLL_PUBLIC TensorList<Backend>* Output(int idx);
+  DLL_PUBLIC TensorList<Backend>& Output(int idx);
 
   /**
    * @brief Sets the stream for this workspace.

@@ -95,7 +95,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
   const auto &input = ws->Input<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color space conversion accept only uint8 tensors");
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
 
   TensorList<CPUBackend> attr_output_cpu;
 
@@ -110,8 +110,8 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
       output_shape[i][2] = output_C;
     }
   }
-  output->Resize(output_shape);
-  output->set_type(input.type());
+  output.Resize(output_shape);
+  output.set_type(input.type());
 
   cudaStream_t old_stream = nppGetStream();
   auto stream = ws->stream();
@@ -137,7 +137,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 
       // input/output
       const uint8_t* input_data = input.tensor<uint8_t>(i);
-      uint8_t* output_data = output->mutable_tensor<uint8_t>(i);
+      uint8_t* output_data = output.mutable_tensor<uint8_t>(i);
 
       using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
       ImageTypePair conversion { input_type_, output_type_};
