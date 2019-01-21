@@ -113,7 +113,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   }
 
 #if DALI_DEBUG
-  WriteHWCBatch(*ws.Output<GPUBackend>(0), "img");
+  WriteHWCBatch(ws.Output<GPUBackend>(0), "img");
 #endif
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,

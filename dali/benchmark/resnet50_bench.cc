@@ -131,7 +131,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
@@ -264,7 +264,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
@@ -375,7 +375,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
     }
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + static_cast<int>(pipelined);
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);

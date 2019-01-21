@@ -77,7 +77,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
     }
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations() + 1;
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
@@ -140,7 +140,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
     pipe.Outputs(&ws);
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations();
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
@@ -203,7 +203,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { /
     pipe.Outputs(&ws);
   }
 
-  // WriteCHWBatch<float16>(*ws.Output<GPUBackend>(0), 128, 1, "img");
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
   int num_batches = st.iterations();
   st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
       benchmark::Counter::kIsRate);
