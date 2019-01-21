@@ -25,10 +25,7 @@ class ElementExtractTest : public GenericMatchingTest<ImgType> {
                     int H = 720,
                     int W = 1280,
                     int C = 3) {
-    std::vector<Dims> shape;
-    for (int i = 0; i < ntensors; i++) {
-        shape.push_back({F, W, H, C});
-    }
+    std::vector<Dims> shape(ntensors, {F, W, H, C});
     data.set_type(TypeInfo::Create<T>());
     data.SetLayout(DALITensorLayout::DALI_NFHWC);
     data.Resize(shape);

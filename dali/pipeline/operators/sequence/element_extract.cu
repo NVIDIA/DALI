@@ -22,11 +22,11 @@ namespace detail {
 
 template <typename T>
 void ElementExtractImpl(const TensorList<GPUBackend> &input,
-                        TensorList<GPUBackend> *output,
+                        TensorList<GPUBackend> &output,
                         const std::vector<int> &indexes,
                         cudaStream_t cuda_stream) {
     for (unsigned int i = 0; i < input.ntensor(); i++) {
-        auto* output_data = output->mutable_tensor<T>(i);
+        auto* output_data = output.mutable_tensor<T>(i);
         const auto* input_data = input.tensor<T>(i);
         const auto& tensor_shape = input.tensor_shape(i);
         const auto element_size = tensor_shape[1] * tensor_shape[2] * tensor_shape[3];
@@ -50,8 +50,9 @@ void ElementExtractImpl(const TensorList<GPUBackend> &input,
 template <>
 void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
     auto &input = ws->Input<GPUBackend>(idx);
-    auto output = ws->Output<GPUBackend>(idx);
-    output->set_type(input.type());
+    auto &output = ws->Output<GPUBackend>(idx);
+    output.set_type(input.type());
+    output.SetLayout(input.GetLayout());
 
     std::vector<Dims> output_shape;
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
@@ -61,7 +62,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
         shape[0] = N_output;
         output_shape.push_back(shape);
     }
-    output->Resize(output_shape);
+    output.Resize(output_shape);
 
     auto data_type = input.type().id();
     DALI_TYPE_SWITCH(data_type, Type,

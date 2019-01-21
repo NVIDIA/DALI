@@ -30,9 +30,9 @@ namespace detail {
 
 template <typename T>
 void ElementExtractImpl(const Tensor<CPUBackend> &input,
-                        Tensor<CPUBackend> *output,
+                        Tensor<CPUBackend> &output,
                         const std::vector<int> &indexes) {
-    auto* output_data = output->mutable_data<T>();
+    auto* output_data = output.mutable_data<T>();
     const auto* input_data = input.data<T>();
     const auto& tensor_shape = input.shape();
     const auto element_size = tensor_shape[1] * tensor_shape[2] * tensor_shape[3];
@@ -52,16 +52,16 @@ void ElementExtractImpl(const Tensor<CPUBackend> &input,
 template <>
 void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     const auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
-    output->set_type(input.type());
-    output->SetLayout(input.GetLayout());
+    auto &output = ws->Output<CPUBackend>(idx);
+    output.set_type(input.type());
+    output.SetLayout(input.GetLayout());
 
     std::vector<Dims> output_shape;
     auto shape = input.shape();
     CheckInputShape(shape);
     int N_output = element_map_.size();
     shape[0] = N_output;
-    output->Resize(shape);
+    output.Resize(shape);
 
     auto data_type = input.type().id();
     DALI_TYPE_SWITCH(data_type, Type,
