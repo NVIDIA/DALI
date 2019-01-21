@@ -77,19 +77,15 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 endif()
 
+# Discover what architectures does nvcc support
+include(cmake/CUDA_utils.cmake)
+CUDA_find_supported_arch_values(CUDA_supported_archs ${CUDA_known_archs})
+message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
+CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_supported_archs})
+message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
-  -gencode arch=compute_35,code=sm_35 \
-  -gencode arch=compute_50,code=sm_50 \
-  -gencode arch=compute_52,code=sm_52 \
-  -gencode arch=compute_60,code=sm_60 \
-  -gencode arch=compute_61,code=sm_61 ")
-if (${CUDA_VERSION_MAJOR} GREATER 8)
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
-      -gencode arch=compute_70,code=sm_70 \
-      -gencode arch=compute_70,code=compute_70")
-endif()
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
 
 # Project dir
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})
