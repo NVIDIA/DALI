@@ -90,6 +90,7 @@ GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
   std::vector<TensorListWrapper> ret;
   auto workspace = CreateWorkspace();
   pipeline.Outputs(&workspace);
+  std::cout<<"\nDUPADEBUG\n;";
   for (int output_idx = 0; output_idx < workspace.NumOutput(); output_idx++) {
     ret.emplace_back(workspace.template Output<OutputBackend>(output_idx));
   }
@@ -202,7 +203,6 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
     }
     auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, input ? true : false,
                                               input.backend(), output_backend);
-    assert(outputs.size() == 1);  // one input, one output
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
   }

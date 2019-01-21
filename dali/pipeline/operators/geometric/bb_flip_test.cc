@@ -84,13 +84,25 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 }
 
 
-template<typename Backend>
-std::unique_ptr<TensorList<Backend>> ToTensorList(Roi roi) {
+/**
+ * Create TensorList from TestSample data
+ *
+ * @tparam Idx index of data @see TestSample
+ * @tparam Backend
+ * @tparam N size of TestSample data
+ * @param sample
+ * @return
+ */
+template<size_t Idx, typename Backend, size_t N>
+std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({{roi.size()}});
+  tl->Resize({{N, kBbStructSize}});
+
   auto ptr = tl->template mutable_data<float>();
-  for (size_t i = 0; i < roi.size(); i++) {
-    ptr[i] = roi[i];
+  for (size_t j = 0; j < N; j++) {
+    for (size_t i = 0; i < kBbStructSize; i++) {
+      *ptr++ = sample[j][Idx][i];
+    }
   }
   return tl;
 }
@@ -141,7 +153,7 @@ class BbFlipTest : public testing::DaliOperatorTest {
 
 
  public:
-  BbFlipTest() : DaliOperatorTest(1, 1) {}
+  BbFlipTest() : DaliOperatorTest(10, 1) {}
 };
 
 std::vector<Arguments> arguments = {
@@ -154,11 +166,9 @@ TEST_P(BbFlipTest, WhRoisTest) {
   constexpr bool ltrb = false;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  for (auto test_sample : rois_wh) {
-    auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
-    TensorListWrapper tlout;
-    this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
-  }
+  auto tlin = ToTensorList<0, CPUBackend>(rois_wh);
+  TensorListWrapper tlout;
+  this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
 }
 
 
@@ -166,11 +176,9 @@ TEST_P(BbFlipTest, LtrbRoisTest) {
   constexpr bool ltrb = true;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  for (auto test_sample : rois_ltrb) {
-    auto tlin = ToTensorList<CPUBackend>(test_sample[0]);
-    TensorListWrapper tlout;
-    this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
-  }
+  auto tlin = ToTensorList<0, CPUBackend>(rois_ltrb);
+  TensorListWrapper tlout;
+  this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
 }
 
 
