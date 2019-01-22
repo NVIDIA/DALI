@@ -28,6 +28,55 @@ namespace dali {
   }                                                            \
 } while (0)
 
+std::pair<IntArr, IntArr>
+RowToColumnMajor(const int *dims, const int *perm, int rank) {
+  IntArr new_dims(new int[rank]);
+  IntArr new_perm(new int[rank]);
+
+  for (int i = 0; i < rank; ++i) {
+    new_dims[i] = dims[rank - 1 - i];
+    new_perm[i] = rank - 1 - perm[rank - 1 - i];
+  }
+  return {std::move(new_dims), std::move(new_perm)};
+}
+
+template <typename T = double>
+void cuttSanityCheck(int *dims, int *perm, int rank) {
+  int vol = 1;
+  for (int i = 0; i < rank; ++i) {
+    vol *= dims[i];
+  }
+  T *datain = new T[vol];
+  for (int i = 0; i < vol; ++i) datain[i] = static_cast<T>(i);
+
+  T *dataout = new T[vol];
+
+  T *datagpuin;
+  T *datagpuout;
+
+  cudaMalloc(&datagpuin, vol * sizeof(T));
+  cudaMalloc(&datagpuout, vol * sizeof(T));
+
+  cudaMemcpy(datagpuin, datain, vol * sizeof(T), cudaMemcpyHostToDevice);
+
+  IntArr c_dims, c_perm;
+  std::tie(c_dims, c_perm) = RowToColumnMajor(dims, perm, rank);
+
+  cuttHandle plan;
+  cuttCheck(cuttPlan(&plan, rank, c_dims.get(), c_perm.get(), sizeof(T), 0));
+  cuttCheck(cuttExecute(plan, datagpuin, datagpuout));
+
+  CUDA_CALL(cudaStreamSynchronize(0));
+  cudaMemcpy(dataout, datagpuout, vol * sizeof(T), cudaMemcpyDeviceToHost);
+
+  for (int i = 0; i < vol; ++i)
+    std::cout << dataout[i] << " ";
+  std::cout << std::endl;
+  cuttCheck(cuttDestroy(plan));
+  cudaFree(datagpuin);
+  cudaFree(datagpuout);
+}
+
 template <>
 Transpose<GPUBackend>::~Transpose() {
   if (cutt_handle_ > 0) {
@@ -35,53 +84,61 @@ Transpose<GPUBackend>::~Transpose() {
   }
 }
 
-
-template <>
-void Transpose<GPUBackend>::NaiveTransposeKernel(const TensorList<GPUBackend>& input,
-                                     TensorList<GPUBackend>* output) {
-  DALI_FAIL("NaiveTransposeKernel not implemented yet.");
-}
-
 template <>
 template <typename T>
 void Transpose<GPUBackend>::cuTTKernel(const TensorList<GPUBackend>& input,
-                           TensorList<GPUBackend>* output,
-                           cudaStream_t stream) {
-  Dims tmp = input.tensor_shape(0);
-  std::vector<int> input_shape(tmp.begin(), tmp.end());
-
-  int *dim = const_cast<int*>(input_shape.data());
-  int *permutation = const_cast<int*>(perm_.data());
-
-  if (cutt_handle_ == 0) {
-    cuttCheck(cuttPlan(&cutt_handle_, perm_.size(), dim, permutation, sizeof(T), stream));
-  }
+                                       TensorList<GPUBackend>* output,
+                                       cudaStream_t stream) {
 
   for (int i = 0; i < batch_size_; ++i) {
-    const void* in = input.raw_tensor(i);
-    void* out = output->raw_mutable_tensor(i);
-    cuttCheck(cuttExecute(cutt_handle_, in, out));
+    Dims tmp = input.tensor_shape(i);
+    std::vector<int> input_shape(tmp.begin(), tmp.end());
+
+    IntArr c_dims, c_perm;
+    std::tie(c_dims, c_perm) = RowToColumnMajor(input_shape.data(),
+                                                perm_.data(),
+                                                input_shape.size());
+    const void* in = input.raw_tensor(0);
+    void* out = output->raw_mutable_tensor(0);
+    cuttHandle plan;
+    cuttCheck(cuttPlan(&plan, input_shape.size(), c_dims.get(), c_perm.get(), sizeof(T), stream));
+    cuttCheck(cuttExecute(plan, in, out));
+    CUDA_CALL(cudaStreamSynchronize(stream));
+    cuttCheck(cuttDestroy(plan));
   }
 }
 
+/* We insert an additional dim iff batch_size_ > 1 because cuTT require dim0 to be > 1 */
 template <>
 template <typename T>
 void Transpose<GPUBackend>::cuTTKernelBatched(const TensorList<GPUBackend>& input,
-                           TensorList<GPUBackend>* output,
-                           cudaStream_t stream) {
+                                              TensorList<GPUBackend>* output,
+                                              cudaStream_t stream) {
   Dims tmp = input.tensor_shape(0);
   std::vector<int> input_shape(tmp.begin(), tmp.end());
-  input_shape.insert(input_shape.begin(), batch_size_);
+
+  if (batch_size_ > 1) {
+    input_shape.insert(input_shape.begin(), batch_size_);
+  }
 
   std::vector<int> batched_perm(perm_.begin(), perm_.end());
-  std::for_each(batched_perm.begin(), batched_perm.end(), [](int& i) { i++; });
-  batched_perm.insert(batched_perm.begin(), 0);
+  if (batch_size_ > 1) {
+    std::for_each(batched_perm.begin(), batched_perm.end(), [](int& i) { i++; });
+    batched_perm.insert(batched_perm.begin(), 0);
+  }
 
-  int *dim = const_cast<int*>(input_shape.data());
-  int *permutation = const_cast<int*>(batched_perm.data());
+  IntArr c_dims, c_permutation;
+  std::tie(c_dims, c_permutation) = RowToColumnMajor(input_shape.data(),
+                                                     batched_perm.data(),
+                                                     input_shape.size());
 
   if (cutt_handle_ == 0) {
-    cuttCheck(cuttPlan(&cutt_handle_, batched_perm.size(), dim, permutation, sizeof(T), stream));
+    cuttCheck(cuttPlan(&cutt_handle_,
+                       batched_perm.size(),
+                       c_dims.get(),
+                       c_permutation.get(),
+                       sizeof(T),
+                       stream));
   }
 
   const void* in = input.raw_tensor(0);
@@ -106,6 +163,7 @@ inline Dims GetPermutedDims(const Dims& dims, const std::vector<int>& permutatio
   return permuted_dims;
 }
 
+
 template<>
 void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
   std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
@@ -118,13 +176,9 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
                "Transposed tensors rank should be equal to the permutation index list.");
 
   if (input.IsDenseTensor()) {
-    // Actually we can work directly on the TL here
     Dims permuted_dims = GetPermutedDims(input_shape, perm_);
     output->Resize(std::vector<Dims>(batch_size_, permuted_dims));
-    if (batch_size_ > 1)
-      cuTTKernelBatched(input, output, ws->stream());
-    else
-      cuTTKernel(input, output, ws->stream());
+    cuTTKernelBatched<float>(input, output, ws->stream());
   } else {
     std::vector<Dims> tl_shape;
     for (int i = 0; i < batch_size_; ++i) {
@@ -132,13 +186,13 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
     }
     output->Resize(tl_shape);
-    NaiveTransposeKernel(input, output);
+    cuTTKernel<float>(input, output, ws->stream());
   }
 
   std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
   double duration = std::chrono::duration_cast< std::chrono::duration<double> >
                     (end - start).count();
-  std::cout << "Transpose duration: " << (duration*1000.0) << " ms" << std::endl;
+  std::cout << "Transpose duration: " << (duration * 1000.0) << " ms" << std::endl;
 }
 
 DALI_REGISTER_OPERATOR(Transpose, Transpose<GPUBackend>, GPU);
