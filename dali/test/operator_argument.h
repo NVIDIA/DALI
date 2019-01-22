@@ -24,7 +24,7 @@ namespace testing {
 
 template<typename T>
 struct InputArg {
-  // TODO(mszolucha): For dali::ArgumentInput
+  // TODO(mszolucha): For Dali's argument input
 };
 
 template<typename T>
