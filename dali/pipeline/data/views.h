@@ -95,7 +95,8 @@ kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  return { data.template mutable_data<T>(), list_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template mutable_data<U>(), list_shape<ndim>(data) };
 }
 
 
@@ -104,7 +105,8 @@ kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  return { data.template data<T>(), list_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template data<U>(), list_shape<ndim>(data) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -112,13 +114,14 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
-  return { data.template mutable_data<T>(), tensor_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(Tensor<Backend> &data) {
-  return view(data);
+  return view<T, ndim>(data);
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -126,7 +129,8 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  return { data.template mutable_data<T>(), tensor_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -134,13 +138,14 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
-  return { data.template data<T>(), tensor_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template data<U>(), tensor_shape<ndim>(data) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const Tensor<Backend> &data) {
-  return view(data);
+  return view<T, ndim>(data);
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -148,7 +153,8 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  return { data.template data<T>(), tensor_shape<ndim>(data) };
+  using U = typename std::remove_const<T>::type;
+  return { data.template data<U>(), tensor_shape<ndim>(data) };
 }
 
 }  // namespace dali
