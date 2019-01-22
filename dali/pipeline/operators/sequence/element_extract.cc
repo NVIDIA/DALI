@@ -17,11 +17,10 @@
 namespace dali {
 
 DALI_SCHEMA(ElementExtract)
-    .DocStr(R"code(Extracts one or more elements (frames) from input)code")
+    .DocStr(R"code(Extracts one or more elements from input)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .EnforceInputLayout(DALI_NFHWC)
     .AddArg("element_map",
         R"code(Indices of extracted elements)code",
         DALI_INT_VEC);
@@ -35,7 +34,7 @@ void ElementExtractImpl(const Tensor<CPUBackend> &input,
     auto* output_data = output.mutable_data<T>();
     const auto* input_data = input.data<T>();
     const auto& tensor_shape = input.shape();
-    const auto element_size = tensor_shape[1] * tensor_shape[2] * tensor_shape[3];
+    const auto element_size = Product(tensor_shape) / tensor_shape[0];
 
     for (unsigned int k = 0; k < indexes.size(); k++) {
         const auto output_offset = k * element_size;

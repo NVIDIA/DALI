@@ -39,8 +39,7 @@ class ElementExtract : public Operator<Backend> {
 
  private:
   void CheckInputShape(const Dims& tensor_shape) {
-    DALI_ENFORCE(tensor_shape.size() == 4,
-        "Expected a 4-D array");
+    DALI_ENFORCE(tensor_shape.size() > 0);
     auto N_input = tensor_shape[0];
 
     int N_output = element_map_.size();

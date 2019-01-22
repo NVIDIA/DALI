@@ -29,7 +29,7 @@ void ElementExtractImpl(const TensorList<GPUBackend> &input,
         auto* output_data = output.mutable_tensor<T>(i);
         const auto* input_data = input.tensor<T>(i);
         const auto& tensor_shape = input.tensor_shape(i);
-        const auto element_size = tensor_shape[1] * tensor_shape[2] * tensor_shape[3];
+        const auto element_size = Product(tensor_shape) / tensor_shape[0];
 
         for (unsigned int k = 0; k < indexes.size(); k++) {
             const auto output_offset = k * element_size;
