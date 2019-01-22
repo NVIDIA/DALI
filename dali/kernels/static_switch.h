@@ -15,6 +15,13 @@
 #ifndef DALI_KERNELS_STATIC_SWITCH_H_
 #define DALI_KERNELS_STATIC_SWITCH_H_
 
+#ifdef __CUDACC__
+#ifdef BOOST_PP_VARIADICS
+#undef BOOST_PP_VARIADICS
+#endif
+#define BOOST_PP_VARIADICS 1
+#endif
+
 /** @file
  *
  * This file defines two compile-time "switches" that are suitable for
