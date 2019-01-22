@@ -19,11 +19,19 @@ ENV PATH=${PYBIN}:${PATH} \
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 RUN pip install future numpy setuptools wheel && \
-    pip install tensorflow-gpu==1.7 && \
-    pip install tensorflow-gpu==1.11 --target /tensorflow/1_11 && \
-    pip install tensorflow-gpu==1.12rc2 --target /tensorflow/1_12 && \
-    pip install tf-nightly-gpu --target /tensorflow/nightly && \
     rm -rf /root/.cache/pip/
+
+RUN if [ ${PYV} != "37" ] ; then \
+        pip install tensorflow-gpu==1.7 && \
+        pip install tensorflow-gpu==1.11 --target /tensorflow/1_11 && \
+        pip install tensorflow-gpu==1.12rc2 --target /tensorflow/1_12 && \
+        pip install tf-nightly-gpu --target /tensorflow/nightly && \
+        rm -rf /root/.cache/pip/; \
+    else \
+        # only nightly buidl of TF supports python 3.7 at that time
+        pip install tf-nightly-gpu && \
+        rm -rf /root/.cache/pip/; \
+    fi
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig
