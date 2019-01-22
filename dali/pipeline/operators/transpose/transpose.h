@@ -47,22 +47,9 @@ class Transpose : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
-
   void RunImpl(Workspace<Backend> *ws, int idx) override;
 
  private:
-
-  template <typename T>
-  void cuTTKernel(const TensorList<Backend>& input,
-                  TensorList<Backend>* output,
-                  cudaStream_t stream);
-
-  template <typename T>
-  void cuTTKernelBatched(const TensorList<Backend>& input,
-                         TensorList<Backend>* output,
-                         cudaStream_t stream);
-
   std::vector<int> perm_;
 
   cuttHandle cutt_handle_ = 0;
