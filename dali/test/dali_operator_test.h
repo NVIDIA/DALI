@@ -52,14 +52,15 @@ inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
+}  // namespace detail
 
-std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_threads) {
+inline std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_threads) {
   return std::unique_ptr<Pipeline>(
           new Pipeline(static_cast<int>(batch_size), static_cast<int>(num_threads), 0));
 }
 
 
-void AddInputToPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
+inline void AddInputToPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
   assert(input && input.has_cpu());  // External input works only for CPUBackend
   const std::string input_name = "input";
   pipeline.AddExternalInput(input_name);
@@ -67,25 +68,25 @@ void AddInputToPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
 }
 
 
-void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
+inline void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
   pipeline.AddOperator(op_spec);
 }
 
 
-DeviceWorkspace CreateWorkspace() {
+inline DeviceWorkspace CreateWorkspace() {
   DeviceWorkspace ws;
   return ws;
 }
 
 
-void RunPipeline(Pipeline &pipeline) {
+inline void RunPipeline(Pipeline &pipeline) {
   pipeline.RunCPU();
   pipeline.RunGPU();
 }
 
 
 template<typename OutputBackend>
-std::vector<TensorListWrapper>
+inline std::vector<TensorListWrapper>
 GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
   std::vector<TensorListWrapper> ret;
   auto workspace = CreateWorkspace();
@@ -97,7 +98,7 @@ GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
 }
 
 
-void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
+inline void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
   std::vector<std::pair<std::string, std::string>> vecoutputs_;
   for (int i = 0; i < spec.NumOutput(); ++i) {
     vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
@@ -107,8 +108,9 @@ void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
 
 
 // TODO(mszolucha): graph of operators
-OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, bool has_input,
-                    const std::string &input_backend, const std::string &output_backend) {
+inline OpSpec
+CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, bool has_input,
+             const std::string &input_backend, const std::string &output_backend) {
   assert(input_backend == "cpu" || input_backend == "gpu");
   assert(output_backend == "cpu" || output_backend == "gpu");
 
@@ -123,7 +125,6 @@ OpSpec CreateOpSpec(const std::string &operator_name, Arguments operator_argumen
   return opspec;
 }
 
-}  // namespace detail
 
 /**
  * Defines and conducts test for given graph of operators.
@@ -155,16 +156,15 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
    *
    * This is some sort or template method pattern.
    */
-  using Verify = std::function<void(const std::vector<TensorListWrapper> /* inputs */,
-                                    const std::vector<TensorListWrapper> /* outputs */,
-                                    const Arguments)>;
+  using Verify = std::function<void(const std::vector<TensorListWrapper> & /* inputs */,
+                                    const std::vector<TensorListWrapper> & /* outputs */,
+                                    const Arguments &)>;
 
-  /**
-   * Convenient variation of Verify, which is applied for single-input/single-output (Siso) graph
-   */
-  using VerifySiso = std::function<void(const TensorListWrapper /* single input */,
-                                        const TensorListWrapper /* single output */,
-                                        const Arguments)>;
+
+  using VerifySingleIo = std::function<void(const TensorListWrapper & /* single input */,
+                                            const TensorListWrapper & /* single output */,
+                                            const Arguments &)>;
+
 
  protected:
   /**
@@ -190,15 +190,15 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
 
 
   /**
-   * Convenient overload, for specific, single-input/single-output (Siso) graph
+   * Convenient overload, for specific, single-input/single-output graph
    */
   template<typename OutputBackend>
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
-               const Arguments &operator_arguments, const VerifySiso &verify) {
+               const Arguments &operator_arguments, const VerifySingleIo &verify) {
     std::string output_backend = detail::BackendStringName<OutputBackend>();
-    auto pipeline = detail::CreatePipeline(batch_size_, num_threads_);
+    auto pipeline = CreatePipeline(batch_size_, num_threads_);
     if (input) {
-      detail::AddInputToPipeline(*pipeline, input);
+      AddInputToPipeline(*pipeline, input);
     }
     auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, input ? true : false,
                                               input.backend(), output_backend);
@@ -228,13 +228,13 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   std::vector<TensorListWrapper>
   RunTestImpl(Pipeline &pipeline, const Arguments &operator_arguments, bool has_inputs,
               const std::string &input_backend, const std::string &output_backend) {
-    const auto op_spec = detail::CreateOpSpec(GenerateOperatorGraph().get_op_name(),
-                                              operator_arguments, has_inputs, input_backend,
-                                              output_backend);
-    detail::AddOperatorToPipeline(pipeline, op_spec);
-    detail::BuildPipeline(pipeline, op_spec);
-    detail::RunPipeline(pipeline);
-    return detail::GetOutputsFromPipeline<OutputBackend>(pipeline, output_backend);
+    const auto op_spec = CreateOpSpec(GenerateOperatorGraph().get_op_name(),
+                                      operator_arguments, has_inputs, input_backend,
+                                      output_backend);
+    AddOperatorToPipeline(pipeline, op_spec);
+    BuildPipeline(pipeline, op_spec);
+    RunPipeline(pipeline);
+    return GetOutputsFromPipeline<OutputBackend>(pipeline, output_backend);
   }
 
 
