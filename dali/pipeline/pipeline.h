@@ -158,13 +158,13 @@ class DLL_PUBLIC Pipeline {
     SetExternalInputHelper(name, tl);
   }
 
-    auto &node = graph_.node(node_id);
-    auto *op_ptr = &node.InstantiateOperator();
-    ExternalSource<CPUBackend> *source =
-      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
-    DALI_ENFORCE(source != nullptr, "Input name '" +
-        name + "' is not marked as an external input.");
-    source->SetDataSource(tl);
+  /**
+   * @brief Sets the external input with the input name to the
+   * input data.
+   */
+  DLL_PUBLIC inline void SetExternalInput(const string &name,
+      const vector<Tensor<CPUBackend>> &tl) {
+    SetExternalInputHelper(name, tl);
   }
 
   /**

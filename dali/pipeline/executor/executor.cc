@@ -608,10 +608,10 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       DALI_ENFORCE(ws.OutputIsType<CPUBackend>(i), "Executor "
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
-        Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
+        Tensor<CPUBackend> &tensor = ws.Output<CPUBackend>(i, j);
         Index hint = hints[i];
-        if (tensor->is_pinned() && hint) {
-          tensor->reserve(hint);
+        if (tensor.is_pinned() && hint) {
+          tensor.reserve(hint);
         }
       }
     }
@@ -624,13 +624,13 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       Index hint = hints[i];
       if (ws.OutputIsType<CPUBackend>(i)) {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        if (tl->is_pinned()) {
-          tl->reserve(hint*batch_size_);
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
         }
       } else {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->reserve(hint*batch_size_);
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.reserve(hint*batch_size_);
       }
     }
   }
@@ -642,12 +642,12 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
     for (int i = 0; i < ws.NumOutput(); ++i) {
       Index hint = hints[i];
       if (ws.OutputIsType<GPUBackend>(i)) {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->reserve(hint*batch_size_);
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.reserve(hint*batch_size_);
       } else {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        if (tl->is_pinned()) {
-          tl->reserve(hint*batch_size_);
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
         }
       }
     }

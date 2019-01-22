@@ -84,7 +84,7 @@ class MakeContiguous : public Operator<MixedBackend> {
           cpu_output_buff.reserve(total_bytes);
         }
 
-        cpu_output_buff.ResizeLike(*output);
+        cpu_output_buff.ResizeLike(output);
         cpu_output_buff.set_type(type);
 
         for (int i = 0; i < batch_size_; ++i) {

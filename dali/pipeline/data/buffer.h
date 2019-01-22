@@ -240,10 +240,8 @@ class Buffer {
   }
 
   inline void free() {
-    if (!shares_data_) {
-      data_.reset();
-      num_bytes_ = 0;
-    }
+    data_.reset();
+    num_bytes_ = 0;
   }
 
   /**

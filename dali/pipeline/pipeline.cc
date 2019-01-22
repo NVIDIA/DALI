@@ -255,7 +255,6 @@ inline void SetMemoryHint(OpSpec &spec, int index, int value) {
     std::to_string(index) + " >= " + std::to_string(no));
 
   GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", no);
-  hints.resize(no, 0);
   hints[index] = value;
   spec.SetArg("bytes_per_sample_hint", hints);
 }
