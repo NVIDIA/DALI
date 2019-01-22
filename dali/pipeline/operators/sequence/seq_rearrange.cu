@@ -17,11 +17,11 @@
 namespace dali {
 
 template <>
-void SequenceRarrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
   std::vector<std::vector<Index>> new_list_shape;
-  std::vector<Index> element_bytes;
+  std::vector<Index> list_elements_bytes;
   for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     // TODO(klecki) not sure if we should allow for different length of sequence
     // and different element sizes in one batch
@@ -30,25 +30,26 @@ void SequenceRarrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     std::vector<Index> new_sample_shape;
 
     Index element_size;
-    std::tie(new_sample_shape, element_size) = GetNewShapeAndElementSize(input.shape(), new_order_);
+    std::tie(new_sample_shape, element_size) = GetNewShapeAndElementSize(input.tensor_shape(tensor_idx), new_order_);
     Index element_bytes = element_size * input.type().size();
     new_list_shape.push_back(new_sample_shape);
-    element_size(element_bytes);
+    list_elements_bytes.push_back(element_bytes);
   }
 
   output.set_type(input.type());
   output.Resize(new_list_shape);
   for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     TypeInfo type = input.type();
-    for (int elem = 0; elem < GetSGetSeqLength(new_list_shape[tensor_idx]); elem++) {
+    for (int elem = 0; elem < GetSeqLength(new_list_shape[tensor_idx]); elem++) {
+      Index element_bytes = list_elements_bytes[tensor_idx];
       type.Copy<GPUBackend, GPUBackend>(
           output.mutable_tensor<char>(tensor_idx) + elem * element_bytes,
           input.tensor<char>(tensor_idx) + new_order_[elem] * element_bytes,
-          element_size[tensor_idx], 0);
+          element_bytes, 0);
     }
   }
 }
 
-DALI_REGISTER_OPERATOR(SequenceRarrange, SequenceRarrange<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<GPUBackend>, GPU);
 
 }  // namespace dali

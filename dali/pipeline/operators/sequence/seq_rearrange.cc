@@ -18,7 +18,7 @@ namespace dali {
 
 // TODO(klecki) ingnoring idx and all stuff from MIS - check if this is the right idx to ignore
 template <>
-void SequenceRarrange<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void SequenceRearrange<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(0);
   DALI_ENFORCE(input.ndim() > 1, "Sequence elements must have at least 1 dim");
 
@@ -39,9 +39,9 @@ void SequenceRarrange<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   }
 }
 
-DALI_REGISTER_OPERATOR(SequenceRarrange, SequenceRarrange<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<CPUBackend>, CPU);
 
-DALI_SCHEMA(SequenceRarrange)
+DALI_SCHEMA(SequenceRearrange)
     .DocStr("Rearrange the sequence stored as tensor.")
     .NumInput(1)
     .NumOutput(1)

@@ -23,7 +23,7 @@ namespace dali {
 
 static std::vector<Index> GetElementShape(const std::vector<Index>& in_sample_shape) {
   std::vector<Index> element_shape;
-  element_shape.insert(element_shape.end(), input_shape.begin() + 1, input_shape.end());
+  element_shape.insert(element_shape.end(), in_sample_shape.begin() + 1, in_sample_shape.end());
   return element_shape;
 }
 
@@ -46,7 +46,7 @@ static std::tuple<std::vector<Index>, Index> GetNewShapeAndElementSize(
   std::vector<Index> new_sample_shape;
   new_sample_shape.push_back(out_seq_length);
   new_sample_shape.insert(new_sample_shape.end(), element_shape.begin(), element_shape.end());
-  return {new_sampe_shape, element_size};
+  return std::tuple<std::vector<Index>, Index>{new_sample_shape, element_size};
 }
 
 template <typename Backend>
