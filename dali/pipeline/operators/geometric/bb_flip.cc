@@ -55,11 +55,6 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  std::cout<<"\nInput data:\n";
-  for (int i=0;i<4;i++) {
-    std::cout<<input_data[i]<<" ";
-  }
-
   const auto vertical =
       vflip_is_tensor_
           ? spec_.GetArgument<int>(kVerticalArgName, ws, ws->data_idx())

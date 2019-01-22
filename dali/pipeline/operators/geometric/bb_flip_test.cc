@@ -96,7 +96,7 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<size_t Idx, typename Backend, size_t N>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({{N, kBbStructSize}});
+  tl->Resize({N, {kBbStructSize}});
 
   auto ptr = tl->template mutable_data<float>();
   for (size_t j = 0; j < N; j++) {
@@ -153,7 +153,7 @@ class BbFlipTest : public testing::DaliOperatorTest {
 
 
  public:
-  BbFlipTest() : DaliOperatorTest(10, 1) {}
+  BbFlipTest() : DaliOperatorTest(5, 1) {}
 };
 
 std::vector<Arguments> arguments = {
