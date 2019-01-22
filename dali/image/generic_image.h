@@ -28,7 +28,8 @@ class GenericImage : public Image {
 
  protected:
   std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
+             size_t length, BoundingBox crop_window) const override;
 
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
 };

@@ -27,11 +27,15 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 
+// TODO(janton): move this header outside of pipeline?
+#include "dali/pipeline/util/bounding_box.h"
 
 namespace dali {
 
 static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
                                               ".bmp", ".tif",  ".tiff"};
+
+static const BoundingBox kWholeImage = BoundingBox::FromXywh(0.0f, 0.0f, 1.0f, 1.0f);
 
 DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
 
@@ -68,6 +72,12 @@ class Image {
    */
   DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims() const;
 
+ /**
+  * Sets crop window for decoder
+  * @remarks 0.0 <= x, y, x+w, y+h <= 1.0
+  */
+  void SetCropWindow(float x, float y, float w, float h);
+
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 
@@ -79,10 +89,12 @@ class Image {
    * @param image_type
    * @param encoded_buffer encoded image data
    * @param length length of the encoded buffer
+   * @param crop_window region of the image to be decoded
    * @return [ptr to decoded image, ImageDims]
    */
   virtual std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const = 0;
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
+             size_t length, BoundingBox crop_window) const = 0;
 
   /**
    * Template method. Reads image dimensions, without decoding the image
@@ -106,6 +118,7 @@ class Image {
   const DALIImageType image_type_;
   bool decoded_ = false;
   ImageDims dims_;
+  BoundingBox crop_window_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 };
 

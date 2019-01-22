@@ -43,7 +43,7 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
   void TiffTestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_tiffImgType, .7);
+    this->RunTestDecode(t_tiffImgType , 0.7);
   }
 
  private:
@@ -150,4 +150,3 @@ TYPED_TEST(nvjpegDecodeTest, TestBatchedTiffDecode4T) {
 }
 
 }  // namespace dali
-

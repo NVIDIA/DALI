@@ -16,7 +16,7 @@
 
 namespace dali {
 
-using BoundingBox = std::array<float, 4>;
+using BBox = std::array<float, 4>;
 
 template <typename ltrb_t>
 class BBoxPasteTest;
@@ -30,7 +30,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
   }
 
   static void ToTensorList(TensorList<CPUBackend> *out,
-                           const std::vector<std::vector<BoundingBox>> &boxes) {
+                           const std::vector<std::vector<BBox>> &boxes) {
     vector<Dims> dims(boxes.size());
     for (size_t i = 0; i < dims.size(); i++)
       dims[i] = { (Index)boxes[i].size(), 4 };
@@ -47,7 +47,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
   }
 
   static std::unique_ptr<TensorList<CPUBackend>>
-  ToTensorList(const std::vector<std::vector<BoundingBox>> &boxes) {
+  ToTensorList(const std::vector<std::vector<BBox>> &boxes) {
     std::unique_ptr<TensorList<CPUBackend>> out(new TensorList<CPUBackend>());
     ToTensorList(out.get(), boxes);
     return out;
@@ -62,7 +62,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     return { ref.release() };
   }
 
-  std::vector<std::vector<BoundingBox>> input_, output_;
+  std::vector<std::vector<BBox>> input_, output_;
 
   void Run(float ratio, float paste_x, float paste_y) {
     OpSpec spec("BBoxPaste");
@@ -79,8 +79,8 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     RunOperator(spec, 1e-7f);
   }
 
-  std::vector<std::vector<BoundingBox>> RandomBoxes(int num_sets, int max_per_set) {
-    std::vector<std::vector<BoundingBox>> out(num_sets);
+  std::vector<std::vector<BBox>> RandomBoxes(int num_sets, int max_per_set) {
+    std::vector<std::vector<BBox>> out(num_sets);
     std::uniform_int_distribution<> num_box_dist(1, max_per_set);
     for (auto &boxes : out) {
       boxes.resize(num_box_dist(rand_gen_));
@@ -96,8 +96,8 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     return out;
   }
 
-  static std::vector<std::vector<BoundingBox>> CalculateReferenceOutput(
-    const std::vector<std::vector<BoundingBox>> &input,
+  static std::vector<std::vector<BBox>> CalculateReferenceOutput(
+    const std::vector<std::vector<BBox>> &input,
     float ratio, float paste_x, float paste_y) {
 
     auto out = input;

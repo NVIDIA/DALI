@@ -50,13 +50,21 @@ bool HasKnownImageExtension(std::string image_path) {
 Image::Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
         encoded_image_(encoded_buffer),
         length_(length),
-        image_type_(image_type) {
+        image_type_(image_type),
+        crop_window_(kWholeImage) {
 }
 
+void Image::SetCropWindow(float x, float y, float w, float h) {
+  DALI_ENFORCE(x >= 0.0f && x <= 1.0f);
+  DALI_ENFORCE(y >= 0.0f && y <= 1.0f);
+  DALI_ENFORCE(x + w >= 0.0f && x + w <= 1.0f);
+  DALI_ENFORCE(y + h >= 0.0f && y + h <= 1.0f);
+  crop_window_ = BoundingBox::FromXywh(x, y, w, h);
+}
 
 void Image::Decode() {
   DALI_ENFORCE(!decoded_, "Called decode for already decoded image");
-  auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
+  auto decoded = DecodeImpl(image_type_, encoded_image_, length_, crop_window_);
   decoded_image_ = decoded.first;
   dims_ = decoded.second;
   decoded_ = true;

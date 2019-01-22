@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_decoder.h"
+#ifndef DALI_IMAGE_JPEG_UTILS_H_
+#define DALI_IMAGE_JPEG_UTILS_H_
 
-namespace dali {
-
-// Fixture for jpeg decode testing. Templated
-// to make googletest run our tests grayscale & rgb
-template <typename ImgType>
-class JpegDecodeTest : public GenericDecoderTest<ImgType> {
-};
-
-// Run RGB & grayscale tests
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(JpegDecodeTest, Types);
-
-TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
-  this->RunTestDecode(this->jpegs_);
+extern "C" {
+#include <jerror.h>
+#include <jpeglib.h>
 }
 
-}  // namespace dali
+#endif  // DALI_IMAGE_JPEG_UTILS_H_
