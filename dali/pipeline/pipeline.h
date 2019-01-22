@@ -140,8 +140,8 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(graph_.NodeType(node_id) == DALI_CPU,
         "Internal error setting external input data.");
 
-    int op_idx = graph_.NodeIdx(node_id);
-    auto *op_ptr = &graph_.cpu_op(op_idx);
+    auto &node = graph_.node(node_id);
+    auto *op_ptr = &node.InstantiateOperator();
     ExternalSource<CPUBackend> *source =
       dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
     DALI_ENFORCE(source != nullptr, "Input name '" +
@@ -356,6 +356,8 @@ class DLL_PUBLIC Pipeline {
 
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);
+
+  void PropagateMemoryHint(OpNode &node);
 
   const int MAX_SEEDS = 1024;
 

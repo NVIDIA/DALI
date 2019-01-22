@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/executor/executor.h"
-
 #include <algorithm>
 #include <iterator>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -30,6 +30,8 @@ void Executor::SetCompletionCallback(ExecutorCallback cb) {
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
+  graph->InstantiateOperators();  // ..if not done already
+
   output_names_ = output_names;
   graph_ = graph;
 
@@ -579,11 +581,26 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 void Executor::PresizeData(WorkspaceBlob *wsb) {
   TimeRange tr("[Executor] PresizeData");
   DeviceGuard g(device_id_);
+
+  auto mem_hints = [&](OpNode &node) {
+    std::vector<int> hints;
+    int noutputs = node.spec.NumOutput();
+    GetSingleOrRepeatedArg(node.spec, &hints, "bytes_per_sample_hint", noutputs);
+    for (auto &h : hints) {
+      if (h == 0)
+        h = this->bytes_per_sample_hint_;
+    }
+    return hints;
+  };
+
   // Note: At some point our graph has source nodes that
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
   // represents all the unique buffers in our graph.
-  for (auto &ws : wsb->cpu_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumCPUOp(); op_idx++) {
+    auto &ws = wsb->cpu_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->cpu_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
       DALI_ENFORCE(ws.NumOutputAtIdx(i) == batch_size_, "Executor "
           "encountered cpu op workspace where the number of tensors "
@@ -592,37 +609,46 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
         Tensor<CPUBackend> &tensor = ws.Output<CPUBackend>(i, j);
-        // We set the type of the tensor to uint8 temporarily
-        tensor.mutable_data<uint8>();
-        tensor.Resize({(Index)bytes_per_sample_hint_});
+        Index hint = hints[i];
+        if (tensor.is_pinned() && hint) {
+          tensor.reserve(hint);
+        }
       }
     }
   }
 
-  for (auto &ws : wsb->mixed_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumMixedOp(); op_idx++) {
+    auto &ws = wsb->mixed_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->mixed_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
+      Index hint = hints[i];
       if (ws.OutputIsType<CPUBackend>(i)) {
         TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
-        tl.mutable_data<uint8>();
-        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
+        }
       } else {
         TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
-        tl.mutable_data<uint8>();
-        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        tl.reserve(hint*batch_size_);
       }
     }
   }
 
-  for (auto &ws : wsb->gpu_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumGPUOp(); op_idx++) {
+    auto &ws = wsb->gpu_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->gpu_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
+      Index hint = hints[i];
       if (ws.OutputIsType<GPUBackend>(i)) {
         TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
-        tl.mutable_data<uint8>();
-        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        tl.reserve(hint*batch_size_);
       } else {
         TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
-        tl.mutable_data<uint8>();
-        tl.Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
+        }
       }
     }
   }

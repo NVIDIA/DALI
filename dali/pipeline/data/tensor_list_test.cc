@@ -84,35 +84,6 @@ typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
 TYPED_TEST_CASE(TensorListTest, Backends);
 
-class TestType {
- public:
-  explicit TestType(int size = 2) : ptr_(nullptr), size_(size) {
-    ptr_ = new float[size];
-  }
-
-  ~TestType() {
-    delete[] ptr_;
-  }
-
-  float *ptr_;
-  int size_;
-};
-
-class TestType2 {
- public:
-  explicit TestType2(int size = 1) : ptr_(nullptr), size_(size), id_(5) {
-    ptr_ = new float[size];
-  }
-
-  ~TestType2() {
-    delete[] ptr_;
-  }
-
-  float *ptr_;
-  int size_;
-  int id_;
-};
-
 // Note: A TensorList in a valid state has a type. To get to a valid state, we
 // can aquire our type relative to the allocation and the size of the buffer
 // in the following orders:
@@ -332,34 +303,6 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), vector<Index>{1});
     ASSERT_EQ(tensor_list.tensor_offset(i), i);
-  }
-}
-
-TYPED_TEST(TensorListTest, TestDataTypeConstructor) {
-  if (std::is_same<TypeParam, GPUBackend>::value) return;
-  TensorList<TypeParam> tensor_list;
-
-  // Setup shape & resize the buffer
-  vector<Dims> shape = this->GetSmallRandShape();
-  tensor_list.Resize(shape);
-
-  tensor_list.template mutable_data<TestType>();
-
-  for (int i = 0; i < tensor_list.size(); ++i) {
-    // verify that the internal data has been constructed
-    TestType &obj = tensor_list.template mutable_data<TestType>()[i];
-    ASSERT_EQ(obj.size_, 2);
-    ASSERT_NE(obj.ptr_, nullptr);
-  }
-
-  // Switch the type to TestType2
-  tensor_list.template mutable_data<TestType2>();
-  for (int i = 0; i < tensor_list.size(); ++i) {
-    // verify that the internal data has been constructed
-    TestType2 &obj = tensor_list.template mutable_data<TestType2>()[i];
-    ASSERT_EQ(obj.size_, 1);
-    ASSERT_EQ(obj.id_, 5);
-    ASSERT_NE(obj.ptr_, nullptr);
   }
 }
 
