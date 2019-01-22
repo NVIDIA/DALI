@@ -18,6 +18,7 @@
 
 #include "dali/pipeline/operators/transpose/transpose.h"
 #include "dali/error_handling.h"
+#include "dali/kernels/static_switch.h"
 
 namespace dali {
 
@@ -77,29 +78,24 @@ void cuttSanityCheck(int *dims, int *perm, int rank) {
   cudaFree(datagpuout);
 }
 
-template <>
-Transpose<GPUBackend>::~Transpose() {
-  if (cutt_handle_ > 0) {
-    cuttCheck(cuttDestroy(cutt_handle_));
-  }
-}
+namespace kernel {
 
-template <>
 template <typename T>
-void Transpose<GPUBackend>::cuTTKernel(const TensorList<GPUBackend>& input,
-                                       TensorList<GPUBackend>* output,
-                                       cudaStream_t stream) {
-
-  for (int i = 0; i < batch_size_; ++i) {
+void cuTTKernel(const TensorList<GPUBackend>& input,
+                TensorList<GPUBackend>& output,
+                const std::vector<int>& permutation,
+                cudaStream_t stream) {
+  int batch_size = static_cast<int>(input.ntensor());
+  for (int i = 0; i < batch_size; ++i) {
     Dims tmp = input.tensor_shape(i);
     std::vector<int> input_shape(tmp.begin(), tmp.end());
 
     IntArr c_dims, c_perm;
     std::tie(c_dims, c_perm) = RowToColumnMajor(input_shape.data(),
-                                                perm_.data(),
+                                                permutation.data(),
                                                 input_shape.size());
     const void* in = input.raw_tensor(0);
-    void* out = output->raw_mutable_tensor(0);
+    void* out = output.raw_mutable_tensor(0);
     cuttHandle plan;
     cuttCheck(cuttPlan(&plan, input_shape.size(), c_dims.get(), c_perm.get(), sizeof(T), stream));
     cuttCheck(cuttExecute(plan, in, out));
@@ -108,21 +104,23 @@ void Transpose<GPUBackend>::cuTTKernel(const TensorList<GPUBackend>& input,
   }
 }
 
-/* We insert an additional dim iff batch_size_ > 1 because cuTT require dim0 to be > 1 */
-template <>
+/* We insert an additional dim iff batch_size > 1 because cuTT require dim0 to be > 1 */
 template <typename T>
-void Transpose<GPUBackend>::cuTTKernelBatched(const TensorList<GPUBackend>& input,
-                                              TensorList<GPUBackend>* output,
-                                              cudaStream_t stream) {
+void cuTTKernelBatched(const TensorList<GPUBackend>& input,
+                       TensorList<GPUBackend>& output,
+                       const std::vector<int>& permutation,
+                       cuttHandle* plan,
+                       cudaStream_t stream) {
+  int batch_size = static_cast<int>(input.ntensor());
   Dims tmp = input.tensor_shape(0);
   std::vector<int> input_shape(tmp.begin(), tmp.end());
 
-  if (batch_size_ > 1) {
-    input_shape.insert(input_shape.begin(), batch_size_);
+  if (batch_size > 1) {
+    input_shape.insert(input_shape.begin(), batch_size);
   }
 
-  std::vector<int> batched_perm(perm_.begin(), perm_.end());
-  if (batch_size_ > 1) {
+  std::vector<int> batched_perm(permutation.begin(), permutation.end());
+  if (batch_size > 1) {
     std::for_each(batched_perm.begin(), batched_perm.end(), [](int& i) { i++; });
     batched_perm.insert(batched_perm.begin(), 0);
   }
@@ -132,8 +130,8 @@ void Transpose<GPUBackend>::cuTTKernelBatched(const TensorList<GPUBackend>& inpu
                                                      batched_perm.data(),
                                                      input_shape.size());
 
-  if (cutt_handle_ == 0) {
-    cuttCheck(cuttPlan(&cutt_handle_,
+  if (*plan == 0) {
+    cuttCheck(cuttPlan(plan,
                        batched_perm.size(),
                        c_dims.get(),
                        c_permutation.get(),
@@ -142,18 +140,17 @@ void Transpose<GPUBackend>::cuTTKernelBatched(const TensorList<GPUBackend>& inpu
   }
 
   const void* in = input.raw_tensor(0);
-  void* out = output->raw_mutable_tensor(0);
-  cuttCheck(cuttExecute(cutt_handle_, in, out));
+  void* out = output.raw_mutable_tensor(0);
+  cuttCheck(cuttExecute(*plan, in, out));
 }
+}  // namespace kernel
 
-template<>
-void Transpose<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
-  auto &input = ws->Input<GPUBackend>(0);
-  auto* tl_sequence_output = ws->Output<GPUBackend>(0);
-  tl_sequence_output->set_type(TypeInfo::Create<float>());
-  // tl_sequence_output->SetLayout(DALI_UNKNOWN);
+template <>
+Transpose<GPUBackend>::~Transpose() {
+  if (cutt_handle_ > 0) {
+    cuttCheck(cuttDestroy(cutt_handle_));
+  }
 }
-
 
 inline Dims GetPermutedDims(const Dims& dims, const std::vector<int>& permutation) {
   Dims permuted_dims;
@@ -163,13 +160,18 @@ inline Dims GetPermutedDims(const Dims& dims, const std::vector<int>& permutatio
   return permuted_dims;
 }
 
-
 template<>
 void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
   std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
   const auto& input = ws->Input<GPUBackend>(idx);
-  auto* output = ws->Output<GPUBackend>(idx);
+  auto& output = ws->Output<GPUBackend>(idx);
+
+  DALI_ENFORCE((input.type().size() % 4) == 0,
+      "cuTT transpose currently supports only 4-bytes aligned types.");
+
+  output.set_type(input.type());
+  // output.SetLayout(DALI_UNKNOWN);
 
   Dims input_shape = input.tensor_shape(0);
   DALI_ENFORCE(input_shape.size() == perm_.size(),
@@ -177,16 +179,24 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
 
   if (input.IsDenseTensor()) {
     Dims permuted_dims = GetPermutedDims(input_shape, perm_);
-    output->Resize(std::vector<Dims>(batch_size_, permuted_dims));
-    cuTTKernelBatched<float>(input, output, ws->stream());
+    output.Resize(std::vector<Dims>(batch_size_, permuted_dims));
+    if (input.type().size() == 4) {
+      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws->stream());
+    } else {  // == 8
+      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws->stream());
+    }
   } else {
     std::vector<Dims> tl_shape;
     for (int i = 0; i < batch_size_; ++i) {
       Dims in_shape = input.tensor_shape(i);
       tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
     }
-    output->Resize(tl_shape);
-    cuTTKernel<float>(input, output, ws->stream());
+    output.Resize(tl_shape);
+    if (input.type().size() == 4) {
+      kernel::cuTTKernel<int32_t>(input, output, perm_, ws->stream());
+    } else {  // == 8
+      kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());
+    }
   }
 
   std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
