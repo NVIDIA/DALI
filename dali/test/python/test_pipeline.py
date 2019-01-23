@@ -500,7 +500,7 @@ def test_crop():
 def test_transpose():
     class TransposePipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
-            super(VideoPipe, self).__init__(batch_size, num_threads, device_id, seed=12)
+            super(TransposePipe, self).__init__(batch_size, num_threads, device_id, seed=12)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.crop = ops.Crop(device = "gpu",
@@ -511,12 +511,12 @@ def test_transpose():
             self.transpose = ops.Transpose(device="gpu", perm=[2, 0, 1])
 
         def define_graph(self):
-            output = self.input(name="Reader")
+            output = self.input()
             output = self.decode(output)
             cropped = crop(output)
             casted = cast(cropped)
             transposed = self.transpose(casted)
-            return casted, cropped
+            return casted, transposed
 
     batch_size = 8
     iterations = 8
