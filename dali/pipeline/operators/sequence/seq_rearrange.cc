@@ -33,8 +33,8 @@ void SequenceRearrange<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) 
 
   for (int i = 0; i < GetSeqLength(new_sample_shape); i++) {
     TypeInfo type = input.type();
-    type.Copy<CPUBackend, CPUBackend>(output.mutable_data<char>() + i * element_bytes,
-                                      input.data<char>() + new_order_[i] * element_bytes,
+    type.Copy<CPUBackend, CPUBackend>(static_cast<uint8*>(output.raw_mutable_data()) + i * element_bytes,
+                                      static_cast<const uint8*>(input.raw_data()) + new_order_[i] * element_bytes,
                                       element_size, 0);
   }
 }

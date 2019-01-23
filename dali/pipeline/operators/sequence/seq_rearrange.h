@@ -15,8 +15,6 @@
 #ifndef DALI_PIPELINE_OPERATORS_SEQUENCE_SEQ_REARRANGE_H_
 #define DALI_PIPELINE_OPERATORS_SEQUENCE_SEQ_REARRANGE_H_
 
-#include <cstring>
-
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {

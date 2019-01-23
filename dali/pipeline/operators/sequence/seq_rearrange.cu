@@ -47,8 +47,8 @@ void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) 
     for (int elem = 0; elem < GetSeqLength(new_list_shape[tensor_idx]); elem++) {
       Index element_bytes = list_elements_bytes[tensor_idx];
       type.Copy<GPUBackend, GPUBackend>(
-          output.mutable_tensor<char>(tensor_idx) + elem * element_bytes,
-          input.tensor<char>(tensor_idx) + new_order_[elem] * element_bytes,
+          static_cast<uint8*>(output.raw_mutable_tensor(tensor_idx)) + elem * element_bytes,
+          static_cast<const uint8*>(input.raw_tensor(tensor_idx)) + new_order_[elem] * element_bytes,
           element_bytes, 0);
     }
   }
