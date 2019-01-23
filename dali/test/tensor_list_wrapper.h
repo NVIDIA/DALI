@@ -36,8 +36,7 @@ class TensorListWrapper {
 
   template<typename Backend>
   const TensorList<Backend> *get() const {
-    DALI_ENFORCE(false,
-                 "Backend type not supported. You may want to write your own specialization");
+    DALI_FAIL("Backend type not supported. You may want to write your own specialization");
   }
 
 
