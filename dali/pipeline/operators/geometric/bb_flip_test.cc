@@ -109,8 +109,9 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
 
 template<typename Backend>
 std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
-  auto tl = tw.get<Backend>();
-  assert(tl->size() >= kBbStructSize);
+  auto *tl = tw.get<Backend>();
+  ASSERT_NE(nullptr, tl), std::vector<Roi>();
+  ASSERT_LE(kBbStructSize, tl->size()), std::vector<Roi>();
   auto ptr = tl->template data<float>();
   std::vector<Roi> ret;
   for (size_t i = 0; i < tl->ntensor(); i++) {
@@ -129,7 +130,7 @@ void BbVerify(TensorListWrapper input, TensorListWrapper output, Arguments args)
   auto input_rois = FromTensorWrapper<CPUBackend>(input);
   auto output_rois = FromTensorWrapper<CPUBackend>(output);
 
-  assert(output_rois.size() == input_rois.size());
+  ASSERT_EQ(output_rois.size(), input_rois.size());
   for (size_t sample_idx = 0; sample_idx < output_rois.size(); sample_idx++) {
     auto input_roi = input_rois[sample_idx];
     auto output_roi = output_rois[sample_idx];
