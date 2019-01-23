@@ -169,10 +169,11 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
   const auto& input = ws->Input<GPUBackend>(idx);
   auto& output = ws->Output<GPUBackend>(idx);
 
-  DALI_ENFORCE((input.type().size() % 4) == 0,
-      "cuTT transpose currently supports only 4-bytes aligned types.");
+  TypeInfo itype = input.type();
+  DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),
+      "cuTT transpose supports only [1-2-4-8] bytes types.");
 
-  output.set_type(input.type());
+  output.set_type(itype);
   // output.SetLayout(DALI_UNKNOWN);
 
   Dims input_shape = input.tensor_shape(0);
@@ -191,7 +192,11 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
     }
     Dims permuted_dims = GetPermutedDims(input_shape, perm_);
     output.Resize(std::vector<Dims>(batch_size_, permuted_dims));
-    if (input.type().size() == 4) {
+    if (itype.size() == 1) {
+      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws->stream());
+    } else if (itype.size() == 2) {
+      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws->stream());
+    } else if (itype.size() == 4) {
       kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws->stream());
     } else {  // == 8
       kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws->stream());
@@ -203,7 +208,11 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
     }
     output.Resize(tl_shape);
-    if (input.type().size() == 4) {
+    if (itype.size() == 1) {
+      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws->stream());
+    } else if (itype.size() == 2) {
+      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws->stream());
+    } else if (itype.size() == 4) {
       kernel::cuTTKernel<int32_t>(input, output, perm_, ws->stream());
     } else {  // == 8
       kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());

@@ -22,6 +22,19 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
 
@@ -491,7 +504,11 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock, \
     transposePacked<TYPE, NREG>, numthread, lc.shmemsize)
       switch(lc.numRegStorage) {
-#define CALL(ICASE) case ICASE: if (sizeofType == 4) CALL0(float,  ICASE); if (sizeofType == 8) CALL0(double, ICASE); break
+#define CALL(ICASE) case ICASE: if (sizeofType == 1) CALL0(char, ICASE);   \
+                                if (sizeofType == 2) CALL0(short, ICASE);  \
+                                if (sizeofType == 4) CALL0(float,  ICASE); \
+                                if (sizeofType == 8) CALL0(double, ICASE); \
+                                break
 #include "calls.h"
       }
 #undef CALL
@@ -527,7 +544,11 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock, \
     transposePackedSplit<TYPE, NREG>, numthread, lc.shmemsize)
       switch(lc.numRegStorage) {
-#define CALL(ICASE) case ICASE: if (sizeofType == 4) CALL0(float,  ICASE); if (sizeofType == 8) CALL0(double, ICASE); break
+#define CALL(ICASE) case ICASE: if (sizeofType == 1) CALL0(char, ICASE);   \
+                                if (sizeofType == 2) CALL0(short, ICASE);  \
+                                if (sizeofType == 4) CALL0(float,  ICASE); \
+                                if (sizeofType == 8) CALL0(double, ICASE); \
+                                break
 #include "calls.h"
       }
 #undef CALL
@@ -539,7 +560,13 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
 
     case Tiled:
     {
-      if (sizeofType == 4) {
+      if (sizeofType == 1) {
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
+          transposeTiled<char>, numthread, lc.shmemsize);
+      } else if (sizeofType == 2) {
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
+          transposeTiled<short>, numthread, lc.shmemsize);
+      } else if (sizeofType == 4) {
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
           transposeTiled<float>, numthread, lc.shmemsize);
       } else {
@@ -551,7 +578,13 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
 
     case TiledCopy:
     {
-      if (sizeofType == 4) {
+      if (sizeofType == 1) {
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
+          transposeTiledCopy<char>, numthread, lc.shmemsize);
+      } else if (sizeofType == 2) {
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
+          transposeTiledCopy<short>, numthread, lc.shmemsize);
+      } else if (sizeofType == 4) {
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numActiveBlock,
           transposeTiledCopy<float>, numthread, lc.shmemsize);
       } else {
@@ -756,7 +789,6 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
 
   LaunchConfig& lc = plan.launchConfig;
   TensorSplit& ts = plan.tensorSplit;
-  std::cout << "ts.method " << ts.method << std::endl;
 
   switch(ts.method) {
     case Trivial:
@@ -773,7 +805,11 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
     transposePacked<TYPE, NREG> <<< lc.numblock, lc.numthread, lc.shmemsize, plan.stream >>> \
       (ts.volMmk, ts.volMbar, ts.sizeMmk, ts.sizeMbar, \
       plan.Mmk, plan.Mbar, plan.Msh, (const TYPE *)dataIn, (TYPE *)dataOut)
-#define CALL(ICASE) case ICASE: if (plan.sizeofType == 4) CALL0(float,  ICASE); if (plan.sizeofType == 8) CALL0(double, ICASE); break
+#define CALL(ICASE) case ICASE: if (plan.sizeofType == 1) CALL0(char, ICASE);   \
+                                if (plan.sizeofType == 2) CALL0(short, ICASE);  \
+                                if (plan.sizeofType == 4) CALL0(float,  ICASE); \
+                                if (plan.sizeofType == 8) CALL0(double, ICASE); \
+                                break
 #include "calls.h"
         default:
         printf("cuttKernel no template implemented for numRegStorage %d\n", lc.numRegStorage);
@@ -792,7 +828,11 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
     transposePackedSplit<TYPE, NREG> <<< lc.numblock, lc.numthread, lc.shmemsize, plan.stream >>> \
       (ts.splitDim, ts.volMmkUnsplit, ts. volMbar, ts.sizeMmk, ts.sizeMbar, \
         plan.cuDimMm, plan.cuDimMk, plan.Mmk, plan.Mbar, plan.Msh, (const TYPE *)dataIn, (TYPE *)dataOut)
-#define CALL(ICASE) case ICASE: if (plan.sizeofType == 4) CALL0(float,  ICASE); if (plan.sizeofType == 8) CALL0(double, ICASE); break
+#define CALL(ICASE) case ICASE: if (plan.sizeofType == 1) CALL0(char, ICASE);   \
+                                if (plan.sizeofType == 2) CALL0(short, ICASE);  \
+                                if (plan.sizeofType == 4) CALL0(float,  ICASE); \
+                                if (plan.sizeofType == 8) CALL0(double, ICASE); \
+                                break
 #include "calls.h"
         default:
         printf("cuttKernel no template implemented for numRegStorage %d\n", lc.numRegStorage);
@@ -810,6 +850,8 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
       transposeTiled<TYPE> <<< lc.numblock, lc.numthread, 0, plan.stream >>> \
       (((ts.volMm - 1)/TILEDIM + 1), ts.volMbar, ts.sizeMbar, plan.tiledVol, plan.cuDimMk, plan.cuDimMm, \
         plan.Mbar, (const TYPE *)dataIn, (TYPE *)dataOut)
+      if (plan.sizeofType == 1) CALL(char);
+      if (plan.sizeofType == 2) CALL(short);
       if (plan.sizeofType == 4) CALL(float);
       if (plan.sizeofType == 8) CALL(double);
 #undef CALL
@@ -822,6 +864,8 @@ bool cuttKernel(cuttPlan_t& plan, const void* dataIn, void* dataOut) {
       transposeTiledCopy<TYPE> <<< lc.numblock, lc.numthread, 0, plan.stream >>> \
       (((ts.volMm - 1)/TILEDIM + 1), ts.volMbar, ts.sizeMbar, plan.cuDimMk, plan.cuDimMm, plan.tiledVol, \
         plan.Mbar, (const TYPE *)dataIn, (TYPE *)dataOut)
+      if (plan.sizeofType == 1) CALL(char);
+      if (plan.sizeofType == 2) CALL(short);
       if (plan.sizeofType == 4) CALL(float);
       if (plan.sizeofType == 8) CALL(double);
 #undef CALL
