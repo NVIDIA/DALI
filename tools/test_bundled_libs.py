@@ -27,10 +27,7 @@ def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
         if k in lib:
             allowed_libs_to_check += allowed_libs[k]
 
-    if linked_lib in bundled_lib_names or linked_lib in allowed_libs_to_check:
-        return True
-    else:
-        return False
+    return linked_lib in bundled_lib_names or linked_lib in allowed_libs_to_check:
 
 def main():
     allowed_libs = {"": ["linux-vdso.so.1",
