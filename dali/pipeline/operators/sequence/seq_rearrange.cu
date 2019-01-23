@@ -20,24 +20,28 @@ template <>
 void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
+
   std::vector<std::vector<Index>> new_list_shape;
   std::vector<Index> list_elements_bytes;
+
   for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     // TODO(klecki) not sure if we should allow for different length of sequence
     // and different element sizes in one batch
     auto ith_shape = input.tensor_shape(tensor_idx);
     DALI_ENFORCE(ith_shape.size() > 1, "Sequence elements must have at least 1 dim");
-    std::vector<Index> new_sample_shape;
 
+    std::vector<Index> new_sample_shape;
     Index element_size;
     std::tie(new_sample_shape, element_size) = GetNewShapeAndElementSize(input.tensor_shape(tensor_idx), new_order_);
+
     Index element_bytes = element_size * input.type().size();
-    new_list_shape.push_back(new_sample_shape);
+    new_list_shape.push_back(std::move(new_sample_shape));
     list_elements_bytes.push_back(element_bytes);
   }
 
   output.set_type(input.type());
   output.Resize(new_list_shape);
+
   for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     TypeInfo type = input.type();
     for (int elem = 0; elem < GetSeqLength(new_list_shape[tensor_idx]); elem++) {

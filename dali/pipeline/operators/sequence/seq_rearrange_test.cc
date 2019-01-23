@@ -16,20 +16,29 @@
 #include "dali/pipeline/operators/sequence/seq_rearrange.h"
 
 namespace dali {
-class SeqRearrangeTest : public testing::DaliOperatorTest {
-  testing::GraphDescr GenerateOperatorsGraph() const noexcept override {
+class SequenceRearrangeTest : public testing::DaliOperatorTest {
+  testing::GraphDescr GenerateOperatorGraph() const noexcept override {
     return {"SequenceRearrange"};
   }
 
  public:
-  // SeqRearrangeTest() : DaliOperatorTest(1, 1) {}
-  // TensorList<CPUBackend> getInput() = 0;
+  SequenceRearrangeTest() : DaliOperatorTest(1, 1) {}
+  TensorList<CPUBackend> getInput() {
+    return {};
+    std::vector<Index> seq_shape{20, 4, 2, 2};
+    // repeat seq_shape for whole batch
+    TensorList<CPUBackend> tl;
+    //set type to int
+    //Resize to shape
+    //fil with consecutive numbers for each frame
+  }
+
 };
 
-/*
-std::vector<Arguments> reorders = {
-      {{"new_order", std::vector<Index>{120}}},
+std::vector<testing::Arguments> reorders = {
+      {{"new_order", std::vector<int>{0, 1, 2, 3, 4}}},
 };
+/*
 
 std::vector<Arguments> input_reshape = {
       {{"new_shape", std::vector<Index>{-1}}},
@@ -44,31 +53,27 @@ std::vector<Arguments> wrong_reshape = {
       {{"new_shape", std::vector<Index>{2, -3, -4, 5}}},
 };
 
-// TODO unify Verify
-void Verify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
-  auto in = ToTensorListView(input);
-  auto out = ToTensorListView(output);
-  // for each element:
-  ASSERT_EQ(Product(in.shape()), Product(out.shape()));
-  EXPECT_EQ(out.shape(), args[new_shape]);
-  // compare in.data() and out.data() elementwise
-}
-
-void Verify_2arg(std::vector<TensorListWrapper> inputs, TensorListWrapper output, Arguments args) {
-  auto in = ToTensorListView(inputs[0]);
-  auto shape = ToTensorListView(inputs[1]);
-  auto out = ToTensorListView(output);
-  // for each element:
-  ASSERT_EQ(Product(in.shape()), Product(out.shape()));
-  EXPECT_EQ(out.shape(), shape);
-  // compare in.data() and out.data() elementwise
-}
-
-TEST_P(ReshapeTest, ContigousInTest) {
-  auto args = GetParam();
-  TensorListWrapper tlout; // todo, whats with that out?
-  this->RunTest<CPUBackend>(getInputContigous(), tlout, args, Verify);
-}
 */
+// TODO unify Verify
+void Verify(const testing::TensorListWrapper& input, const testing::TensorListWrapper& output, const testing::Arguments& args) {
+  auto in = input.get<CPUBackend>();
+  auto out = output.get<CPUBackend>();
+  // for each element:
+  // ASSERT_EQ(Product(in.shape()), Product(out.shape()));
+  // EXPECT_EQ(out.shape(), args[new_shape]);
+  // compare in.data() and out.data() elementwise
+  EXPECT_TRUE(true);
+}
+
+
+TEST_P(SequenceRearrangeTest, GoodRearranges) {
+  auto args = GetParam();
+  testing::TensorListWrapper tlout;
+  testing::TensorListWrapper tlin(getInput()); // TODO(klecki) this is not fun, it was supposed to happend automatically
+  this->RunTest<CPUBackend>(tlin, tlout, args, Verify());
+}
+
+
+INSTANTIATE_TEST_CASE_P(GoodRearranges, SequenceRearrangeTest, ::testing::ValuesIn(reorders));
 
 }  // namespace dali
