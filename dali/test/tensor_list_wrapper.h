@@ -62,6 +62,16 @@ class TensorListWrapper {
   }
 
 
+  const TensorList<CPUBackend>& cpu() const noexcept {
+    return *cpu_;
+  }
+
+
+  const TensorList<GPUBackend>& gpu() const noexcept {
+    return *gpu_;
+  }
+
+
   explicit constexpr operator bool() const noexcept {
     return cpu_ || gpu_;
   }

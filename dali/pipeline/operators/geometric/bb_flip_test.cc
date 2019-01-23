@@ -94,14 +94,13 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
  * @return
  */
 template<size_t Idx, typename Backend, size_t N>
-std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
+std::unique_ptr<TensorList<Backend>> ToTensorLists(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
   tl->Resize({N, {kBbStructSize}});
-
-  auto ptr = tl->template mutable_data<float>();
-  for (size_t j = 0; j < N; j++) {
+  auto ptr = tl->template mutable_data<float>();  // TensorList type initialization
+  for (size_t n = 0; n < N; n++) {
     for (size_t i = 0; i < kBbStructSize; i++) {
-      *ptr++ = sample[j][Idx][i];
+      *ptr++ = sample[n][Idx][i];
     }
   }
   return tl;
@@ -109,37 +108,48 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
 
 
 template<typename Backend>
-Roi FromTensorWrapper(TensorListWrapper tw) {
+std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
   auto tl = tw.get<Backend>();
   assert(tl->size() >= kBbStructSize);
   auto ptr = tl->template data<float>();
-  Roi roi;
-  for (float &val : roi) {
-    val = *ptr++;
+  std::vector<Roi> ret;
+  for (size_t i = 0; i < tl->ntensor(); i++) {
+    Roi roi;
+    for (float &val : roi) {
+      val = *ptr++;
+    }
+    ret.emplace_back(roi);
   }
-  return roi;
+  return ret;
 }
 
 
 template<bool Ltrb>
-void Verify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
-  auto input_roi = FromTensorWrapper<CPUBackend>(input);
-  auto output_roi = FromTensorWrapper<CPUBackend>(output);
-  DALI_ENFORCE(!(args["horizontal"].GetValue<int>() && args["vertical"].GetValue<int>()),
-               "No test data for given arguments");
+void BbVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
+  auto input_rois = FromTensorWrapper<CPUBackend>(input);
+  auto output_rois = FromTensorWrapper<CPUBackend>(output);
 
-  // Index of corresponding reference data in TestSample arrays
-  int reference_data_idx =
-          args["horizontal"].GetValue<int>() * 1 + args["vertical"].GetValue<int>() * 2;
+  assert(output_rois.size() == input_rois.size());
+  for (size_t sample_idx = 0; sample_idx < output_rois.size(); sample_idx++) {
+    auto input_roi = input_rois[sample_idx];
+    auto output_roi = output_rois[sample_idx];
 
-  Roi anticipated_output_roi = Ltrb ? FindSample(rois_ltrb, input_roi)[reference_data_idx]
-                                    : FindSample(rois_wh, input_roi)[reference_data_idx];
+    DALI_ENFORCE(!(args["horizontal"].GetValue<int>() && args["vertical"].GetValue<int>()),
+                 "No test data for given arguments");
 
-  ASSERT_EQ(anticipated_output_roi.size(), output_roi.size())
-                        << "Inconsistent sizes (input vs output)";
-  for (size_t i = 0; i < output_roi.size(); i++) {
-    EXPECT_GT(kEpsilon, std::fabs(output_roi[i] - anticipated_output_roi[i]))
-                  << "Error exceeds allowed value";
+    // Index of corresponding reference data in TestSample arrays
+    int reference_data_idx =
+            args["horizontal"].GetValue<int>() * 1 + args["vertical"].GetValue<int>() * 2;
+
+    Roi anticipated_output_roi = Ltrb ? FindSample(rois_ltrb, input_roi)[reference_data_idx]
+                                      : FindSample(rois_wh, input_roi)[reference_data_idx];
+
+    ASSERT_EQ(anticipated_output_roi.size(), output_roi.size())
+                          << "Inconsistent sizes (input vs output)";
+    for (size_t i = 0; i < output_roi.size(); i++) {
+      EXPECT_GT(kEpsilon, std::fabs(output_roi[i] - anticipated_output_roi[i]))
+                    << "Error exceeds allowed value";
+    }
   }
 }
 
@@ -150,10 +160,6 @@ class BbFlipTest : public testing::DaliOperatorTest {
     GraphDescr graph("BbFlip");
     return graph;
   }
-
-
- public:
-  BbFlipTest() : DaliOperatorTest(5, 1) {}
 };
 
 std::vector<Arguments> arguments = {
@@ -166,9 +172,9 @@ TEST_P(BbFlipTest, WhRoisTest) {
   constexpr bool ltrb = false;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  auto tlin = ToTensorList<0, CPUBackend>(rois_wh);
+  auto tlin = ToTensorLists<0, CPUBackend>(rois_wh);
   TensorListWrapper tlout;
-  this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
+  this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
 
 
@@ -176,9 +182,9 @@ TEST_P(BbFlipTest, LtrbRoisTest) {
   constexpr bool ltrb = true;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  auto tlin = ToTensorList<0, CPUBackend>(rois_ltrb);
+  auto tlin = ToTensorLists<0, CPUBackend>(rois_ltrb);
   TensorListWrapper tlout;
-  this->RunTest<CPUBackend>(tlin.get(), tlout, args, testing::Verify<ltrb>);
+  this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
 
 

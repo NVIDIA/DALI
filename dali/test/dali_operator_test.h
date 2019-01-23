@@ -52,6 +52,7 @@ inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
+
 }  // namespace detail
 
 inline std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_threads) {
@@ -142,8 +143,7 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
  */
 class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInterface<Arguments> {
  public:
-  DaliOperatorTest(size_t batch_size, size_t num_thread) :
-          batch_size_(batch_size), num_threads_(num_thread) {}
+  DaliOperatorTest() = default;
 
 
   /**
@@ -196,7 +196,8 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
                const Arguments &operator_arguments, const VerifySingleIo &verify) {
     std::string output_backend = detail::BackendStringName<OutputBackend>();
-    auto pipeline = CreatePipeline(batch_size_, num_threads_);
+    const auto batch_size = input.has_cpu() ? input.cpu().ntensor() : input.gpu().ntensor();
+    auto pipeline = CreatePipeline(batch_size, num_threads_);
     if (input) {
       AddInputToPipeline(*pipeline, input);
     }
@@ -238,7 +239,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
 
-  const size_t batch_size_, num_threads_;
+  size_t num_threads_ = 1;
 };
 
 }  // namespace testing
