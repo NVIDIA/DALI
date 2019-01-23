@@ -214,7 +214,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
    * operator graph, that will be tested within this fixture.
    * @return tested operator graph
    */
-  virtual GraphDescr GenerateOperatorGraph() const noexcept = 0;
+  virtual GraphDescr GenerateOperatorGraph() const = 0;
 
 
   void SetUp() final {

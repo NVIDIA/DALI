@@ -157,7 +157,7 @@ void BbVerify(TensorListWrapper input, TensorListWrapper output, Arguments args)
 }  // namespace
 
 class BbFlipTest : public testing::DaliOperatorTest {
-  GraphDescr GenerateOperatorGraph() const noexcept override {
+  GraphDescr GenerateOperatorGraph() const override {
     GraphDescr graph("BbFlip");
     return graph;
   }
