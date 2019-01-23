@@ -506,17 +506,14 @@ def test_transpose():
             self.crop = ops.Crop(device = "gpu",
                                  crop = (224, 224),
                                  image_type = types.RGB)
-            self.cast = ops.Cast(device = "gpu",
-                                 dtype = types.FLOAT)
             self.transpose = ops.Transpose(device="gpu", perm=[2, 0, 1])
 
         def define_graph(self):
-            output = self.input()
-            output = self.decode(output)
-            cropped = crop(output)
-            casted = cast(cropped)
-            transposed = self.transpose(casted)
-            return casted, transposed
+            imgs, labels = self.input()
+            output = self.decode(imgs)
+            cropped = self.crop(output)
+            transposed = self.transpose(cropped)
+            return (cropped, transposed, labels.gpu())
 
     batch_size = 8
     iterations = 8
@@ -531,7 +528,7 @@ def test_transpose():
 
         for b in range(batch_size):
             np_transposed = images[b].transpose((2, 0, 1))
-            np_transposed = np.ascontiguousarray(original_transposed)
+            np_transposed = np.ascontiguousarray(np_transposed)
             assert(np.array_equal(np_transposed, images_transposed[b]))
 
 def test_iter_setup():
