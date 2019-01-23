@@ -41,7 +41,6 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
   }
 
  public:
-
   std::unique_ptr<TensorList<CPUBackend>> getInput() {
     constexpr int  batch_size = 10;
     std::vector<Index> seq_shape{8, 4, 2, 2};
