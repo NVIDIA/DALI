@@ -499,7 +499,7 @@ def test_crop():
 
 def test_transpose():
     class TransposePipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, data):
+        def __init__(self, batch_size, num_threads, device_id):
             super(VideoPipe, self).__init__(batch_size, num_threads, device_id, seed=12)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
@@ -521,7 +521,7 @@ def test_transpose():
     batch_size = 8
     iterations = 8
 
-    pipe = TransposedPipe(batch_size=BATCH_SIZE, num_threads=2, data=VIDEO_FILES)
+    pipe = TransposePipe(batch_size=batch_size, num_threads=2, device_id = 0)
     pipe.build()
 
     for _ in range(iterations):
