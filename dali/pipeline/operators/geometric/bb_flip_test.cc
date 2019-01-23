@@ -94,10 +94,10 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
  * @return
  */
 template<size_t Idx, typename Backend, size_t N>
-std::unique_ptr<TensorList<Backend>> ToTensorLists(const TestSample (&sample)[N]) {
+std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
   tl->Resize({N, {kBbStructSize}});
-  auto ptr = tl->template mutable_data<float>();  // TensorList type initialization
+  auto ptr = tl->template mutable_data<float>();
   for (size_t n = 0; n < N; n++) {
     for (size_t i = 0; i < kBbStructSize; i++) {
       *ptr++ = sample[n][Idx][i];
@@ -172,7 +172,7 @@ TEST_P(BbFlipTest, WhRoisTest) {
   constexpr bool ltrb = false;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  auto tlin = ToTensorLists<0, CPUBackend>(rois_wh);
+  auto tlin = ToTensorList<0, CPUBackend>(rois_wh);
   TensorListWrapper tlout;
   this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
@@ -182,7 +182,7 @@ TEST_P(BbFlipTest, LtrbRoisTest) {
   constexpr bool ltrb = true;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
-  auto tlin = ToTensorLists<0, CPUBackend>(rois_ltrb);
+  auto tlin = ToTensorList<0, CPUBackend>(rois_ltrb);
   TensorListWrapper tlout;
   this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
