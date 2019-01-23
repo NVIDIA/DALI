@@ -119,7 +119,7 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   } else if (out_layout == DALI_NCHW) {
     using nchw_t = detail::dali_index_sequence<2, 0, 1>;
     if (output_type_ == DALI_FLOAT16) {
-      using Kernel = detail::CropKernel<uint8_t, half_float::half, nchw_t>;
+      using Kernel = detail::CropKernel<uint8_t, float16_cpu, nchw_t>;
       AllocateAndRunKernel<Kernel>(ws, idx);
     } else if (output_type_ == DALI_FLOAT) {
       using Kernel = detail::CropKernel<uint8_t, float, nchw_t>;

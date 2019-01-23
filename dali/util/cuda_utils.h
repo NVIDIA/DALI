@@ -21,10 +21,19 @@
 #include "dali/util/dynlink_cuda.h"
 #include "dali/error_handling.h"
 
+// For the CPU we use half_float lib and float16_cpu type
+namespace half_float {
+
+class half;
+
+}
+
 namespace dali {
 
-// Only supported on the GPU
+// For the GPU
 typedef __half float16;
+// For the CPU
+typedef half_float::half float16_cpu;
 
 // Compatible wrapper for CUDA 8 which does not have builtin
 // static_cast<float16>

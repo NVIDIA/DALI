@@ -27,6 +27,7 @@
 
 
 #include "dali/pipeline/data/types.h"
+#include "dali/util/half.hpp"
 
 #include "dali/pipeline/data/backend.h"
 
