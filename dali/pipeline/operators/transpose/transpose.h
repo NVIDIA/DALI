@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_TRANSPOSE_TRANSPOSE_H_
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"

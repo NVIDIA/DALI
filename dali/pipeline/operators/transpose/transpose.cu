@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <chrono>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dali/pipeline/operators/transpose/transpose.h"
@@ -25,7 +27,7 @@ namespace dali {
 #define cuttCheck(stmt) do {                                   \
   cuttResult err = stmt;                                       \
   if (err != CUTT_SUCCESS) {                                   \
-    DALI_FAIL("Error while transposing" + std::string(#stmt)); \
+    DALI_FAIL("Error while transposing " + std::string(#stmt)); \
   }                                                            \
 } while (0)
 
