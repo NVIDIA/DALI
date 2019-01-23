@@ -25,6 +25,7 @@
 #include <string>
 #include "dali/common.h"
 
+
 namespace dali {
 
 class DLL_PUBLIC ThreadPool {

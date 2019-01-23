@@ -35,11 +35,14 @@ DLL_PUBLIC DALIError_t wrapSymbols(void);
 DLL_PUBLIC DALIError_t wrapNvmlInit(void);
 DLL_PUBLIC DALIError_t wrapNvmlShutdown(void);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId,
-                                                            nvmlDevice_t* device);
+                                                         nvmlDevice_t* device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id,
-                                                            nvmlDevice_t* device);
+                                                      nvmlDevice_t* device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
+                                                    unsigned int cpuSetSize,
+                                                    unsigned long* cpuSet);  // NOLINT(runtime/int)
 DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
 
 }  // namespace nvml
