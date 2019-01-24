@@ -57,6 +57,9 @@ std::pair<int, int> CropAttr::SetCropXY(const OpSpec &spec, const ArgumentWorksp
     DALI_ENFORCE(crop_x_norm >= 0.f && crop_x_norm <= 1.f,
                  "Crop coordinates need to be in range [0.0, 1.0]");
 
+    DALI_ENFORCE(crop_height_[dataIdx] <= H, "Crop height needs to be smaller or equal to input height.");
+    DALI_ENFORCE(crop_width_[dataIdx] <= W, "Crop width needs to be smaller or equal to input width.");
+
     const int crop_y = crop_y_norm * (H - crop_height_[dataIdx]);
     const int crop_x = crop_x_norm * (W - crop_width_[dataIdx]);
 
