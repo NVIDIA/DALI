@@ -26,7 +26,7 @@
 namespace dali {
 
 /**
- * @brief In addition to the functionality provided by Executor, 
+ * @brief In addition to the functionality provided by Executor,
  * the PipelinedExecutor enables pipelined execution by queueing
  * the outputs of each stage (that aren't pipeline outputs - these
  * are already queued by the Executor), and increasing the queue
@@ -54,6 +54,9 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
   void SetupStageOutputsForGraph();
 
   void SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb);
+
+  std::vector<int> GetMemoryHints(const OpSpec &spec);
+
 
   template <typename Backend>
   class TensorVectorPool {
