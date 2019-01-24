@@ -43,7 +43,7 @@ class SSDRandomCrop : public Operator<Backend> {
     sample_options_.push_back(SampleOption{false, 0.5});
     sample_options_.push_back(SampleOption{false, 0.7});
     sample_options_.push_back(SampleOption{false, 0.9});
-    sample_options_.push_back(SampleOption{false, FLT_MAX});
+    sample_options_.push_back(SampleOption{false, -1.f});
   }
 
   inline ~SSDRandomCrop() override = default;
