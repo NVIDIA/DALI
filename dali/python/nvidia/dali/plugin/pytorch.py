@@ -72,7 +72,7 @@ class DALIGenericIterator(object):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = True
+    stop_at_epoch : bool, optional, default = False
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
@@ -84,7 +84,7 @@ class DALIGenericIterator(object):
                  output_map,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=True):
+                 stop_at_epoch=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
