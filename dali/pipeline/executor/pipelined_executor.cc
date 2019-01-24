@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/executor/pipelined_executor.h"
-
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
+#include "dali/pipeline/executor/pipelined_executor.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -34,6 +34,13 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
   }
 }
 
+std::vector<int> PipelinedExecutor::GetMemoryHints(const OpSpec &spec) {
+  std::vector<int> hints;
+  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+  std::replace(hints.begin(), hints.end(), 0, static_cast<int>(bytes_per_sample_hint_));
+  return hints;
+}
+
 void PipelinedExecutor::SetupStageOutputsForGraph() {
   DeviceGuard g(device_id_);
   // Make a set of the outputs names for quick lookup
@@ -45,6 +52,8 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Do not include CPU ops inputs, since those are run
     // synchronously with support ops
     OpNode &node = graph_->support_node(i);
+    std::vector<int> hints = GetMemoryHints(node.spec);
+
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
@@ -70,7 +79,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         support_stage_output_info_.push_back(info);
         support_stage_outputs_.push_back(
             TensorPool<CPUBackend>(
-                queue_depth_, batch_size_, bytes_per_sample_hint_));
+                queue_depth_, batch_size_, hints[j]));
         for (auto &meta : consumer_meta) {
           OutputInfo &info = support_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
@@ -84,6 +93,8 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
     OpNode &node = graph_->cpu_node(i);
+    std::vector<int> hints = GetMemoryHints(node.spec);
+
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
@@ -107,7 +118,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         cpu_stage_output_info_.push_back(info);
         cpu_stage_outputs_.push_back(
             TensorVectorPool<CPUBackend>(
-                queue_depth_, batch_size_, bytes_per_sample_hint_));
+                queue_depth_, batch_size_, hints[j]));
         for (auto &meta : consumer_meta) {
           OutputInfo &info = cpu_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
@@ -121,6 +132,8 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Find all outputs of the mixed stage. An output
     // is a tensor that is used by an op in a later stage.
     OpNode &node = graph_->mixed_node(i);
+    std::vector<int> hints = GetMemoryHints(node.spec);
+
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
       // queueing will be handled by the Executor base
@@ -140,7 +153,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
               mixed_stage_cpu_output_info_.push_back(info);
               mixed_stage_cpu_outputs_.push_back(
                   TensorListPool<CPUBackend>(
-                      queue_depth_, batch_size_, bytes_per_sample_hint_));
+                      queue_depth_, batch_size_, hints[j]));
               has_info_object = true;
             }
 
@@ -159,7 +172,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
               mixed_stage_gpu_output_info_.push_back(info);
               mixed_stage_gpu_outputs_.push_back(
                   TensorListPool<GPUBackend>(
-                      queue_depth_, batch_size_, bytes_per_sample_hint_));
+                      queue_depth_, batch_size_, hints[j]));
               has_info_object = true;
             }
 
