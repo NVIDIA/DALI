@@ -33,7 +33,7 @@ namespace dali {
 void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
                                 AnnotationMap &annotations_multimap,
                                 std::vector<std::pair<std::string, int>> &image_id_pairs,
-                                bool ltrb, bool ratio);
+                                bool ltrb, bool ratio, float size_threshold, bool skip_empty);
 
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
@@ -42,6 +42,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
     ltrb_(spec.GetArgument<bool>("ltrb")),
     ratio_(spec.GetArgument<bool>("ratio")),
+    size_threshold_(spec.GetArgument<float>("size_threshold")),
+    skip_empty_(spec.GetArgument<bool>("skip_empty")),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ParseAnnotationFiles();
     loader_.reset(new FileLoader(spec, image_id_pairs_));
@@ -61,7 +63,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  protected:
   void ParseAnnotationFiles() {
     ParseAnnotationFilesHelper(annotations_filename_, annotations_multimap_,
-                                image_id_pairs_, ltrb_, ratio_);
+                                image_id_pairs_, ltrb_, ratio_, size_threshold_, skip_empty_);
   }
 
   std::vector<std::string> annotations_filename_;
@@ -69,6 +71,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<std::pair<std::string, int>> image_id_pairs_;
   bool ltrb_;
   bool ratio_;
+  float size_threshold_;
+  bool skip_empty_;
   bool save_img_ids_;
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };

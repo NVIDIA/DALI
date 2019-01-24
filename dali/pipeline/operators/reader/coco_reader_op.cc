@@ -309,6 +309,13 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
   .AddOptionalArg("ratio",
       R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height. Default: False)code",
       false)
+  .AddOptionalArg("size_threshold",
+      R"code(If width or height of a bounding box representing an instance of an object is under this value, object will be skipped during reading. It is represented as absolute value. Default value is 0.1)code",
+      0.1f,
+      false)
+  .AddOptionalArg("skip_empty",
+      R"code(If true, reader will skip samples with no object instances in them)code",
+      false)
   .AddOptionalArg("save_img_ids",
       R"code(If true, image IDs will also be returned. Default: False)code",
       false)
@@ -321,7 +328,7 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
 void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
                                 AnnotationMap &annotations_multimap,
                                 std::vector<std::pair<std::string, int>> &image_id_pairs,
-                                bool ltrb, bool ratio) {
+                                bool ltrb, bool ratio, float size_threshold, bool skip_empty) {
   for (auto& file_name : annotations_filename) {
     // Loading raw json into the RAM
     std::ifstream f(file_name);
@@ -411,7 +418,7 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
               r.SkipValue();
             }
           }
-          if (bbox[2] < 0.1 || bbox[3] < 0.1) {
+          if (bbox[2] < size_threshold || bbox[3] < size_threshold) {
             continue;
           }
 
@@ -427,6 +434,13 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
       } else {
         r.SkipValue();
       }
+    }
+    if (skip_empty) {
+      std::vector<std::pair<std::string, int>> non_empty_ids;
+      for (const auto &id_pair : image_id_pairs)
+        if (annotations_multimap.count(id_pair.second) > 0)
+          non_empty_ids.push_back(id_pair);
+      image_id_pairs = non_empty_ids;
     }
     if (ratio) {
       for (auto& elm : annotations_multimap) {
