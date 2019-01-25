@@ -100,6 +100,8 @@ Prerequisites
 .. _lmdb link: https://github.com/LMDB/lmdb
 .. |gcc link| replace:: **GCC 4.9.2**
 .. _gcc link: https://www.gnu.org/software/gcc/
+.. |boost link| replace:: **Boost 1.57**
+.. _boost link: https://www.boost.org/
 
 .. table::
    :align: center
@@ -109,6 +111,9 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |gcc link|_ or later                   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |boost link|_ or later                 | Modules: *preprocessor*                                                                     |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |gcc link|_ or later                   |                                                                                             |
    | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially*                                           |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |nvjpeg link|_                         | *This can be unofficially disabled. See below*                                              |
