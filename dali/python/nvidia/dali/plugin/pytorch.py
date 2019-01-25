@@ -251,7 +251,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = True
+    stop_at_epoch : bool, optional, default = False
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
@@ -262,7 +262,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  pipelines,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=True):
+                 stop_at_epoch=False):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size, auto_reset = auto_reset,
                                                          stop_at_epoch = stop_at_epoch)

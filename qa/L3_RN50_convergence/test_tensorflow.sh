@@ -23,7 +23,7 @@ OUT=${LOG%.log}.dir
 
 SECONDS=0
 mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-    python -u resnet.py --layers=18 \
+    python -u resnet.py --layers=50 \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16   --num_iter=90  --iter_unit=epoch --display_every=50 \
     --batch=256 --use_dali=GPU --log_dir=$OUT \
