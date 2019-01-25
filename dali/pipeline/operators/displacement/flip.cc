@@ -26,9 +26,9 @@ DALI_SCHEMA(Flip)
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AddOptionalArg("horizontal",
-        R"code(Perform a horizontal flip. Default value is 1.)code", 1, true)
+        R"code(Perform a horizontal flip.)code", 1, true)
     .AddOptionalArg("vertical",
-        R"code(Perform a vertical flip. Default value is 0.)code", 0, true)
+        R"code(Perform a vertical flip.)code", 0, true)
     .AddParent("DisplacementFilter");
 
 }  // namespace dali
