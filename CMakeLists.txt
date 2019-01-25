@@ -26,8 +26,6 @@ option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
 
-option(WERROR "Threat all warnings as errors" OFF)
-
 include(cmake/Utils.cmake)
 
 get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
@@ -50,23 +48,19 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DDALI_DEBUG=1")
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -DDALI_DEBUG=0")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDALI_DEBUG=0")
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
 endif()
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
-
-if (WERROR)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
-endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wno-inconsistent-missing-override")
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths
-  if (${CUDA_HOST_COMPILER} MATCHES "clang")
+  if (${CUDA_HOST_COMPILER} MATCHES "clang") 
     message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CUDA_HOST_COMPILER to gcc")
     execute_process(COMMAND which gcc OUTPUT_VARIABLE PATH_TO_GCC OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT PATH_TO_GCC)
@@ -77,15 +71,19 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 endif()
 
-# Discover what architectures does nvcc support
-include(cmake/CUDA_utils.cmake)
-CUDA_find_supported_arch_values(CUDA_supported_archs ${CUDA_known_archs})
-message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
-CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_supported_archs})
-message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
+  -gencode arch=compute_35,code=sm_35 \
+  -gencode arch=compute_50,code=sm_50 \
+  -gencode arch=compute_52,code=sm_52 \
+  -gencode arch=compute_60,code=sm_60 \
+  -gencode arch=compute_61,code=sm_61 ")
+if (${CUDA_VERSION_MAJOR} GREATER 8)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
+      -gencode arch=compute_70,code=sm_70 \
+      -gencode arch=compute_70,code=compute_70")
+endif()
 
 # Project dir
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})
