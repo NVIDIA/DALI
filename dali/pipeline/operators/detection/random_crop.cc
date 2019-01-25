@@ -255,7 +255,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
       // discard any bboxes whose center is not in the cropped image
       int valid_bboxes = 0;
-      std::vector<bool> mask;
+      std::vector<int> mask;
       for (int j = 0; j < N; ++j) {
         const auto* bbox = bbox_data + j * 4;
         auto xc = 0.5*(bbox[0] + bbox[2]);
