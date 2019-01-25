@@ -61,18 +61,19 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
   template <typename Backend>
   class TensorVectorPool {
    public:
-    inline TensorVectorPool(int size, int batch_size, size_t bytes_hint) {
+    inline TensorVectorPool(int size, int batch_size, size_t bytes_hint, bool pinned = false) {
       tvs_.resize(size);
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < batch_size; ++j) {
           tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
-          tvs_[i].back()->Resize({(Index)bytes_hint});
-          tvs_[i].back()->set_pinned(false);
+          tvs_[i].back()->set_pinned(pinned);
+          if (pinned || std::is_same<Backend, GPUBackend>::value)
+            tvs_[i].back()->reserve(bytes_hint);
         }
       }
     }
 
-    inline vector<shared_ptr<Tensor<Backend>>> Get(int idx) {
+    inline const vector<shared_ptr<Tensor<Backend>>> &Get(int idx) {
       return tvs_[idx];
     }
    private:
@@ -82,10 +83,12 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
   template <typename Backend>
   class TensorPool {
    public:
-    inline TensorPool(int size, int, size_t bytes_hint) {
+    inline TensorPool(int size, int, size_t bytes_hint, bool pinned = false) {
       for (int i = 0; i < size; ++i) {
         ts_.push_back(std::make_shared<Tensor<Backend>>());
-        ts_.back()->Resize({(Index)bytes_hint});
+        ts_.back()->set_pinned(pinned);
+        if (pinned || std::is_same<Backend, GPUBackend>::value)
+          ts_.back()->reserve(bytes_hint);
       }
     }
 

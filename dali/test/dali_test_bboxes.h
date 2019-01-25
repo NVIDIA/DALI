@@ -66,6 +66,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
+                          .AddArg("bytes_per_sample_hint", vector<int>{ 8, 8, 256, 128 })
                           .AddInput("boxes", "cpu")
                           .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
