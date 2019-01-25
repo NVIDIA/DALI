@@ -41,7 +41,7 @@ Paste coordinates are normalized so that (0,0) aligns the image to top-left of t
       DALI_FLOAT, true)
   .AddOptionalArg("ltrb",
               R"code(True, for two-point (ltrb).
-False for for width-height representation. Default: False)code",
+False for for width-height representation.)code",
               false, false)
   .AddOptionalArg("paste_x",
       R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0))code",

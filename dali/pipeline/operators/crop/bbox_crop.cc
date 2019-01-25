@@ -29,21 +29,20 @@ labels match the boxes that remain, after being discarded with respect to the mi
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-Selected at random for every sample from provided values. Default value is `[0.0]`, leaving the input image as-is in the new crop.)code",
+Selected at random for every sample from provided values. Default leaves the input image as-is in the new crop.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
         R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.
-Default values are `[1.0, 1.0]`, disallowing changes in aspect ratio.)code",
+Default values disallow changes in aspect ratio.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
-        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`
-Default values are `[1.0, 1.0]`.)code",
+        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "ltrb",
-        R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. By default is set to `true`.)code",
+        R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
         true)
     .AddOptionalArg(
         "num_attempts",

@@ -33,13 +33,13 @@ in the image coordinate system (i.e. 0.0-1.0))code")
     .NumOutput(1)
     .AddOptionalArg(kCoordinatesTypeArgName,
                     R"code(True, for two-point (ltrb).
-False for for width-height representation. Default: False)code",
+False for for width-height representation.)code",
                     false, false)
     .AddOptionalArg(kHorizontalArgName,
-                    R"code(Perform flip along horizontal axis. Default: 1)code",
+                    R"code(Perform flip along horizontal axis.)code",
                     1, true)
     .AddOptionalArg(kVerticalArgName,
-                    R"code(Perform flip along vertical axis. Default: 0)code",
+                    R"code(Perform flip along vertical axis.)code",
                     0, true);
 
 BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
