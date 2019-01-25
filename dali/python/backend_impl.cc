@@ -28,6 +28,7 @@
 #include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
+#include "dali/util/half.hpp"
 
 namespace dali {
 namespace python {
