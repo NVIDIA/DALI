@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <string>
 #include <algorithm>
+#include <iostream>
 
 #include "dali/common.h"
 
@@ -228,6 +229,14 @@ inline dali::string GetStacktrace() {
     dali::string error_str = "[" + file + ":" + line + "] " + str;  \
     error_str += dali::GetStacktrace();                             \
     throw std::runtime_error(error_str);                            \
+  } while (0)
+
+#define DALI_WARN(str)                                              \
+  do {                                                              \
+    dali::string file = __FILE__;                                   \
+    dali::string line = std::to_string(__LINE__);                   \
+    dali::string warn_str = "[" + file + ":" + line + "] " + str;   \
+    std::cerr << warn_str << std::endl;                             \
   } while (0)
 
 void DALIReportFatalProblem(const char *file, int line, const char *pComment);

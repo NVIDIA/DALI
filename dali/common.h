@@ -245,6 +245,8 @@ struct is_std_array : std::false_type {};
 template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
+std::vector<std::string> string_split(const std::string &s, const char delim);
+
 }  // namespace dali
 
 #define LOG_LINE \
