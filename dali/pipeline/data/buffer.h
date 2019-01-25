@@ -215,7 +215,6 @@ class Buffer {
 
     size_t new_num_bytes = size_ * type_.size();
     if (new_num_bytes > num_bytes_) {
-      new_num_bytes *= alloc_mult;
       reserve(new_num_bytes);
     }
   }
@@ -281,7 +280,9 @@ class Buffer {
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
-      new_num_bytes *= alloc_mult;
+      size_t grow = num_bytes_*alloc_mult;
+      if (grow > new_num_bytes)
+        new_num_bytes = grow;
       reserve(new_num_bytes);
     }
   }

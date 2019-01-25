@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <set>
 #include <string>
 #include <utility>
@@ -105,10 +106,18 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       vector<TensorMeta> consumer_meta =
         graph_->TensorConsumerMeta(tensor_name);
       bool found_stage_boundary = false;
+      bool has_gpu_consumer = false;
       for (auto &meta : consumer_meta) {
-        if (graph_->NodeType(meta.node) != DALI_CPU) {
+        auto type = graph_->NodeType(meta.node);
+        if (type != DALI_CPU) {
           // We've located a tensor that is an output of
           // the stage.
+          auto &consumer = graph_->node(meta.node);
+          has_gpu_consumer =
+              has_gpu_consumer ||
+              type == DALI_GPU ||
+              (consumer.spec.name() == "MakeContiguous" &&
+              consumer.spec.OutputDevice(0) == "gpu");
           found_stage_boundary = true;
         }
       }
@@ -118,7 +127,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         cpu_stage_output_info_.push_back(info);
         cpu_stage_outputs_.push_back(
             TensorVectorPool<CPUBackend>(
-                queue_depth_, batch_size_, hints[j]));
+                queue_depth_, batch_size_, hints[j], has_gpu_consumer));
         for (auto &meta : consumer_meta) {
           OutputInfo &info = cpu_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
@@ -150,13 +159,15 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
             if (!has_info_object) {
               OutputInfo info;
               info.prod_and_idx = std::make_pair(node.id, j);
+
+              bool pinned = graph_->NodeType(meta.node) == DALI_GPU;
+
               mixed_stage_cpu_output_info_.push_back(info);
               mixed_stage_cpu_outputs_.push_back(
                   TensorListPool<CPUBackend>(
-                      queue_depth_, batch_size_, hints[j]));
+                      queue_depth_, batch_size_, hints[j], pinned));
               has_info_object = true;
             }
-
 
             OutputInfo &info = mixed_stage_cpu_output_info_.back();
             auto tmp = std::make_pair(meta.node, meta.index);
@@ -175,7 +186,6 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
                       queue_depth_, batch_size_, hints[j]));
               has_info_object = true;
             }
-
 
             OutputInfo &info = mixed_stage_gpu_output_info_.back();
             auto tmp = std::make_pair(meta.node, meta.index);
@@ -240,12 +250,18 @@ void PipelinedExecutor::SetStageOutputsForIter(
         wsb->mixed_op_data[mixed_op_id].SetInput(
           input_idx, tvp.Get(queue_idx));
         const OpNode &node = graph_->mixed_node(mixed_op_id);
+        std::vector<int> hints = GetMemoryHints(node.spec);
         // Use pinned memory only when it is useful
         if (node.spec.name() == "MakeContiguous" &&
             node.spec.NumOutput() == 1 &&
             node.spec.OutputDevice(0) == "gpu") {
           for (auto& v : tvp.Get(queue_idx)) {
-            v->set_pinned(true);
+            if (!v->is_pinned()) {
+              auto capacity = std::max<size_t>(v->capacity(), hints[0]);
+              v->free();
+              v->set_pinned(true);
+              v->reserve(capacity);
+            }
           }
         }
       } else if (graph_->NodeType(node_id) == DALI_CPU) {
