@@ -92,7 +92,9 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
 template <>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   const auto &input = ws->Input<GPUBackend>(0);
-  Init(batch_size_ * SequenceSize(0));
+  if (SequenceSize(0) > 1) {
+    Init(batch_size_ * SequenceSize(0));
+  }
 
   if (output_type_ == DALI_NO_TYPE) output_type_ = input.type().id();
 
@@ -108,9 +110,8 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
   DALITensorLayout outLayout = DALI_UNKNOWN;
 
-  int total_batch = batch_size_;
+  int total_batch = batch_size_ * SequenceSize(idx);
   if (SequenceSize(idx) > 1) {
-    total_batch = SequenceSize(idx) * batch_size_;
     crop_offsets_.resize(total_batch);
     input_ptrs_.Resize({total_batch});
     input_strides_.Resize({total_batch});
@@ -143,7 +144,6 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     int seq_pos = i / SequenceSize(idx);
 
     input_strides_.mutable_data<int>()[i] = W * C;
-
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
     output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, seq_pos);
 
@@ -155,14 +155,6 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
           output_offsets_.mutable_data<int>()[i - 1];
       output_offsets_.mutable_data<int>()[i] = cumulative_offset;
     }
-  }
-
-  std::cout << "printing\n";
-  for (int i = 0; i < output_shape.size(); ++i) {
-    for (Index index : output_shape[i]) {
-      std::cout << index << " ";
-    }
-    std::cout << std::endl;
   }
 
   output.Resize(output_shape);

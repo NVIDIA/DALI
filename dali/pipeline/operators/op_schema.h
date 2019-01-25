@@ -265,7 +265,6 @@ class DLL_PUBLIC OpSchema {
   }
 
   DLL_PUBLIC inline bool AllowsSequences() const {
-    std::cout << "{" << allow_sequences_ << "}\n";
     return allow_sequences_;
   }
 

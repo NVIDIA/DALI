@@ -173,7 +173,6 @@ class Operator : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
-    //sequences_allowed_ = SchemaRegistry::GetSchema(spec.name()).AllowsSequences();
     std::vector<std::vector<int>> seq_sizes;
     if (std::is_same<Backend, GPUBackend>::value) {
         if (sequences_allowed_) {
@@ -237,13 +236,13 @@ class Operator : public OperatorBase {
   template <typename B = Backend>
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
   Flatten(Workspace<Backend> *ws) {
+    seq_sizes_.clear();
     seq_sizes_.resize(input_sets_, 1);
     for (int i = 0; i < input_sets_; ++i) {
       auto &input = ws->template MutableInput<Backend>(i);
 
-      const std::vector<Dims> old_shapes = input.shape();
-      // only if Tensors are 4-d
-      if (old_shapes[0].size() == 4) {
+      const std::vector<Dims>& old_shapes = input.shape();
+      if (input.GetLayout() == DALI_NFHWC) {
         // size of seq is the first dim in each tensor
         seq_sizes_[i] = old_shapes[0][0];
 
@@ -269,6 +268,7 @@ class Operator : public OperatorBase {
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
   Unflatten(Workspace<Backend> *ws) {
     // TODO(spanev): Handle ops where OpSchema::NumInput != OpSchema::NumOuput?
+    // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     for (int idx = 0; idx < input_sets_; ++idx) {
       if (seq_sizes_[idx] > 1) {
         auto &input = ws->template MutableInput<Backend>(idx);
@@ -277,44 +277,25 @@ class Operator : public OperatorBase {
         const std::vector<Dims>& old_shapes_output = output.shape();
         std::vector<Dims> new_shapes_input;
         std::vector<Dims> new_shapes_output;
-        std::cout << "old in shapes size " << old_shapes_input.size() << std::endl;
-        std::cout << "old out shapes size " << old_shapes_output.size() << std::endl;
         for (unsigned int i = 0; i < old_shapes_input.size(); i += seq_sizes_[idx]) {
-          Dims shape_input(old_shapes_input[i]);
-          shape_input.insert(shape_input.begin(), static_cast<Index>(seq_sizes_[idx]));
-          new_shapes_input.emplace_back(shape_input);
-
-          Dims shape_output(old_shapes_output[i]);
-          shape_output.insert(shape_output.begin(), static_cast<Index>(seq_sizes_[idx]));
-          new_shapes_output.emplace_back(shape_output);
+          {
+            Dims shape_input;
+            shape_input.reserve(old_shapes_input[i].size() + 1);
+            shape_input.push_back(static_cast<Index>(seq_sizes_[idx]));
+            shape_input.insert(shape_input.end(), old_shapes_input[i].begin(), old_shapes_input[i].end());
+            new_shapes_input.push_back(std::move(shape_input));
+          }
+          {
+            Dims shape_output;
+            shape_output.reserve(old_shapes_output[i].size() + 1);
+            shape_output.push_back(static_cast<Index>(seq_sizes_[idx]));
+            shape_output.insert(shape_output.end(), old_shapes_output[i].begin(), old_shapes_output[i].end());
+            new_shapes_output.push_back(std::move(shape_output));
+          }
         }
-
-        int vol_out_old = 0;
-        for (auto& dims : old_shapes_output) {
-          vol_out_old += (Product(dims));
-        }
-
-        int vol_out_new = 0;
-        for (auto& dims : new_shapes_output) {
-          vol_out_new += (Product(dims));
-        }
-
-        int vol_in_old = 0;
-        for (auto& dims : old_shapes_input) {
-          vol_in_old += (Product(dims));
-        }
-
-        int vol_in_new = 0;
-        for (auto& dims : new_shapes_input) {
-          vol_in_new += (Product(dims));
-        }
-
-        std::cout << "IN old vol " << vol_in_old << " - new vol " << vol_in_new << std::endl;
-        std::cout << "OUT old vol " << vol_out_old << " - new vol " << vol_out_new << std::endl;
-
-        std::cout << "before in rsize\n";
         input.Resize(new_shapes_input);
         output.Resize(new_shapes_output);
+        // TODO(spanev): Handle NFCHW
         input.SetLayout(DALI_NFHWC);
         output.SetLayout(DALI_NFHWC);
       }
