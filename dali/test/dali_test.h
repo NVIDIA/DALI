@@ -80,11 +80,24 @@ class DALITest : public ::testing::Test {
 
   void DecodeImage(const unsigned char *data, int data_size, int c,
                    DALIImageType img_type, Tensor<CPUBackend> *out,
-                   unsigned char *out_dataPntr = nullptr) const {
+                   unsigned char *out_dataPntr = nullptr,
+                   RandomCropGenerator *random_crop_generator = nullptr) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
     cv::Mat tmp = cv::imdecode(
         input, c == 1 ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
+
+    if (random_crop_generator) {
+      cv::Mat cropped;
+      auto crop = random_crop_generator->GenerateCropWindow(tmp.rows, tmp.cols);
+      // TODO(janton): remove
+      // std::cout << std::this_thread::get_id()
+      //           << " TEST IMAGE ( " << tmp.rows << ", " << tmp.cols << " ): " << " x " << crop.x
+      //           << " y " << crop.y << " W " << crop.w << " newH " << crop.h << std::endl;
+      cv::Rect roi(crop.x, crop.y, crop.w, crop.h);
+      tmp(roi).copyTo(cropped);
+      tmp = cropped;
+    }
 
     // if different image_type needed, permute from BGR
     cv::Mat out_img(tmp.rows, tmp.cols, GetOpenCvChannelType(c));

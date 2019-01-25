@@ -28,8 +28,7 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer,
 
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg,
-                      size_t length, BoundingBox crop_window) const {
+JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
   const int c = IsColor(type) ? 3 : 1;
   const auto dims = PeekDims(jpeg, length);
   const auto h = std::get<0>(dims);
@@ -43,26 +42,25 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg,
 #ifdef DALI_USE_JPEG_TURBO
 // not supported by turbojpeg
   if (type == DALI_YCbCr) {
-    return GenericImage::DecodeImpl(type, jpeg, length, crop_window);
+    return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
   jpeg::UncompressFlags flags;
   flags.components = c;
 
   flags.crop = false;
-  if ( crop_window != kWholeImage ) {
+  auto random_crop_generator = GetRandomCropGenerator();
+  if (random_crop_generator) {
     flags.crop = true;
-    auto xywh = crop_window.AsXywh();
-    flags.crop_x = std::roundf(xywh[0] * w);
-    DALI_ENFORCE(flags.crop_x >= 0 && flags.crop_x < (int) w);
-    flags.crop_y = std::roundf(xywh[1] * h);
-    DALI_ENFORCE(flags.crop_y >= 0 && flags.crop_y < (int) h);
-    flags.crop_width = std::roundf(xywh[2] * w);
-    DALI_ENFORCE(flags.crop_width > 0);
-    DALI_ENFORCE(flags.crop_x + flags.crop_width <= (int) w);
-    flags.crop_height = std::roundf(xywh[3] * h);
-    DALI_ENFORCE(flags.crop_height > 0);
-    DALI_ENFORCE(flags.crop_y + flags.crop_height <= (int) h);
+    auto crop = random_crop_generator->GenerateCropWindow(h, w);
+    DALI_ENFORCE(crop.IsInRange(h, w));
+    flags.crop_x = crop.x;
+    flags.crop_y = crop.y;
+    flags.crop_width = crop.w;
+    flags.crop_height = crop.h;
+    // std::cout << std::this_thread::get_id()
+    //          << " JPEG IMAGE ( " << h << ", " << w << " ): " << " x " << crop.x
+    //          << " y " << crop.y << " W " << crop.w << " newH " << crop.h << std::endl;
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
@@ -85,12 +83,12 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg,
 
   if (result == nullptr) {
     // Failed to decode, fallback
-    return GenericImage::DecodeImpl(type, jpeg, length, crop_window);
+    return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
   return std::make_pair(decoded_image, std::make_tuple(cropped_h, cropped_w, c));
 #else  // DALI_USE_JPEG_TURBO
-  return GenericImage::DecodeImpl(type, jpeg, length, crop_window);
+  return GenericImage::DecodeImpl(type, jpeg, length);
 #endif  // DALI_USE_JPEG_TURBO
 }
 

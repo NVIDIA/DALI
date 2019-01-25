@@ -25,12 +25,37 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
 
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
-                         size_t length, BoundingBox crop_window) const {
+GenericImage::DecodeImpl(DALIImageType image_type,
+                         const uint8_t *encoded_buffer,
+                         size_t length) const {
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
-          IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
+    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
+    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
+
+  int W = decoded_image.cols;
+  int H = decoded_image.rows;
+  // If required, crop the image
+  auto random_crop_generator = GetRandomCropGenerator();
+  if (random_crop_generator) {
+      cv::Mat decoded_image_roi;
+      auto crop = random_crop_generator->GenerateCropWindow(H, W);
+      const int x = crop.x;
+      const int y = crop.y;
+      const int newW = crop.w;
+      const int newH = crop.h;
+      // std::cout << "GENERIC IMAGE: x " << x << " y "
+      //           << y << " W " << newW << " newH " << newH << std::endl;
+      DALI_ENFORCE(newW > 0 && newW <= W);
+      DALI_ENFORCE(newH > 0 && newH <= H);
+      cv::Rect roi(x, y, newW, newH);
+      decoded_image(roi).copyTo(decoded_image_roi);
+      decoded_image = decoded_image_roi;
+      W = decoded_image.cols;
+      H = decoded_image.rows;
+      DALI_ENFORCE(W == newW);
+      DALI_ENFORCE(H == newH);
+  }
 
   if (decoded_image.data == nullptr) {
      DALI_FAIL("Unsupported image type.");
@@ -41,8 +66,6 @@ GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer
   }
 
   const int c = IsColor(image_type) ? 3 : 1;
-  const int W = decoded_image.cols;
-  const int H = decoded_image.rows;
 
   std::shared_ptr<uint8_t> decoded_img_ptr(
           decoded_image.ptr(),

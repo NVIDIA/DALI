@@ -479,8 +479,8 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
-    .AddArg("seed", seed_[current_seed_])
-    .AddArg("device_id", device_id_);
+    .AddArg("device_id", device_id_)
+    .AddArgIfNotExisting("seed", seed_[current_seed_]);
   current_seed_ = (current_seed_+1) % MAX_SEEDS;
 }
 
