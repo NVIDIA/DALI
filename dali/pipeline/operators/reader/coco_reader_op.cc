@@ -437,10 +437,11 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
     }
     if (skip_empty) {
       std::vector<std::pair<std::string, int>> non_empty_ids;
+      non_empty_ids.reserve(image_id_pairs.size());
       for (const auto &id_pair : image_id_pairs)
         if (annotations_multimap.count(id_pair.second) > 0)
           non_empty_ids.push_back(id_pair);
-      image_id_pairs = non_empty_ids;
+      image_id_pairs = std::move(non_empty_ids);
     }
     if (ratio) {
       for (auto& elm : annotations_multimap) {
