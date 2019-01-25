@@ -100,7 +100,7 @@ Prerequisites
 .. _lmdb link: https://github.com/LMDB/lmdb
 .. |gcc link| replace:: **GCC 4.9.2**
 .. _gcc link: https://www.gnu.org/software/gcc/
-.. |boost link| replace:: **Boost 1.57**
+.. |boost link| replace:: **Boost 1.66**
 .. _boost link: https://www.boost.org/
 
 .. table::
