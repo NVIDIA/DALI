@@ -29,12 +29,12 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .AddOptionalArg("use_batched_decode",
       R"code(Use nvJPEG's batched decoding API.)code", false)
   .AddOptionalArg("device_memory_padding",
-      R"code(Padding for nvJPEG's device memory allocations.
+      R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
       16*1024*1024)
   .AddOptionalArg("host_memory_padding",
-      R"code(Padding for nvJPEG's host memory allocations.
+      R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
       16*1024*1024);
