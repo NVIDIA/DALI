@@ -304,20 +304,20 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddOptionalArg("ltrb",
-      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height]. Default: False)code",
+      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
       false)
   .AddOptionalArg("ratio",
-      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height. Default: False)code",
+      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
       false)
   .AddOptionalArg("size_threshold",
-      R"code(If width or height of a bounding box representing an instance of an object is under this value, object will be skipped during reading. It is represented as absolute value. Default value is 0.1)code",
+      R"code(If width or height of a bounding box representing an instance of an object is under this value, object will be skipped during reading. It is represented as absolute value.)code",
       0.1f,
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
   .AddOptionalArg("save_img_ids",
-      R"code(If true, image IDs will also be returned. Default: False)code",
+      R"code(If true, image IDs will also be returned.)code",
       false)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
