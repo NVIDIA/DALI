@@ -17,5 +17,19 @@
 namespace dali {
 namespace optical_flow {
 
+OpticalFlowStub::OpticalFlowStub(dali::optical_flow::OpticalFlowParams params) :
+        OpticalFlowAdapter(params) {
+}
+
+
+void OpticalFlowStub::CalcOpticalFlow(dali::kernels::TensorView<dali::GPUBackend, const uint8_t, 3> reference_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, const uint8_t, 3> input_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, float, 3> output_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, const float, 3> external_hints) {
+  auto ptr = output_image.data;
+  ptr[0] = kStubValue;
+  ptr[1] = kStubValue / 2;
+}
+
 }  // namespace optical_flow
 }  // namespace dali
