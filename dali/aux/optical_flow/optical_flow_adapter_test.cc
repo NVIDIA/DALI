@@ -14,7 +14,6 @@
 
 #include <gtest/gtest.h>
 #include <memory>
-#include "dali/aux/optical_flow/optical_flow_adapter.h"
 #include "dali/aux/optical_flow/optical_flow_stub.h"
 
 namespace dali {
