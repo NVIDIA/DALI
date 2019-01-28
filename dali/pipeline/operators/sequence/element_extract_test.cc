@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_operator_test.h"
 #include <functional>
+#include "dali/test/dali_operator_test.h"
 #include "dali/pipeline/data/tensor.h"
 
 namespace dali {
@@ -25,6 +25,7 @@ class ElementExtractTest : public DaliOperatorTest {
     GraphDescr GenerateOperatorGraph() const noexcept override {
         return {"ElementExtract"};
     }
+
  public:
     ElementExtractTest(
         int ntensors = 2,
@@ -39,10 +40,6 @@ class ElementExtractTest : public DaliOperatorTest {
         , W_(W)
         , C_(C)
         , element_map_(element_map) {
-    }
-
-    void SetElementMap(const std::vector<int>& element_map) {
-        element_map_ = element_map;
     }
 
     std::unique_ptr<TensorList<CPUBackend>>
@@ -71,13 +68,7 @@ class ElementExtractTest : public DaliOperatorTest {
     void Verify(const TensorListWrapper& input,
                 const TensorListWrapper& output,
                 const Arguments& args) {
-        std::unique_ptr<TensorList<CPUBackend>> output_tl(
-            new TensorList<CPUBackend>);
-        if (output.has_cpu())
-            output_tl->Copy(*output.get<CPUBackend>(), 0);
-        else
-            output_tl->Copy(*output.get<GPUBackend>(), 0);
-
+        auto output_tl = output.CopyTo<CPUBackend>();
         ASSERT_NE(nullptr, output_tl);
         auto nouttensors = output_tl->ntensor();
         int element_map_size = element_map_.size();
@@ -91,16 +82,18 @@ class ElementExtractTest : public DaliOperatorTest {
                 ASSERT_NE(nullptr, data);
                 Dims expected_shape{W_, H_, C_};
                 EXPECT_EQ(expected_shape, shape);
-                for (int i=0; i<H_; i++)
-                    for (int j=0; j<W_; j++)
+                for (int i = 0; i < H_; i++)
+                    for (int j = 0; j < W_; j++)
                         EXPECT_EQ(element_idx, data[i*W_+j]);
             }
         }
     }
 
-    void Run() {
+    void Run(const std::vector<int>& element_map) {
+        element_map_ = element_map;
         Arguments args;
         args.emplace("element_map", element_map_);
+        args.emplace("device", detail::BackendStringName<Backend>());
         TensorListWrapper tlout;
         auto tlin = GetSequenceData();
         this->RunTest<Backend>(
@@ -122,40 +115,44 @@ typedef ::testing::Types<uint8_t, float> Types;
 TYPED_TEST_CASE(ElementExtractCPUTest, Types);
 
 TYPED_TEST(ElementExtractCPUTest, ExtractFirstElement) {
-    this->SetElementMap({0});
-    this->Run();
+    this->Run({0});
 }
 
 TYPED_TEST(ElementExtractCPUTest, ExtractLastElement) {
-    this->SetElementMap({this->F_-1});
-    this->Run();
+    this->Run({this->F_-1});
+}
+
+std::vector<int> EvenNumbersTill(int N) {
+    std::vector<int> numbers;
+    for (int n = 0; n < N; n += 2)
+        numbers.push_back(n);
+    return numbers;
 }
 
 // TODO(janton): Enable multiple output tests once it is supported by DaliOperatorTest
 TYPED_TEST(ElementExtractCPUTest, DISABLED_ExtractEvenElement) {
-    std::vector<int> elements;
-    for (int f=0; f<this->F_; f+=2)
-        elements.push_back(f);
-    this->SetElementMap(elements);
-    this->Run();
+    this->Run(EvenNumbersTill(this->F_));
 }
 
-// TODO(janton): Enable GPU tests when it is supported by DaliOperatorTest
 template <typename T>
 class ElementExtractGPUTest : public ElementExtractTest<GPUBackend, T> {};
 
 typedef ::testing::Types<uint8_t, float> Types;
 TYPED_TEST_CASE(ElementExtractGPUTest, Types);
 
-TYPED_TEST(ElementExtractGPUTest, DISABLED_ExtractFirstElement) {
-    this->SetElementMap({0});
-    this->Run();
+TYPED_TEST(ElementExtractGPUTest, ExtractFirstElement) {
+    this->Run({0});
 }
 
-TYPED_TEST(ElementExtractGPUTest, DISABLED_ExtractLastElement) {
-    this->SetElementMap({this->F_-1});
-    this->Run();
+TYPED_TEST(ElementExtractGPUTest, ExtractLastElement) {
+    this->Run({this->F_-1});
 }
+
+// TODO(janton): Enable multiple output tests once it is supported by DaliOperatorTest
+TYPED_TEST(ElementExtractGPUTest, DISABLED_ExtractEvenElement) {
+    this->Run(EvenNumbersTill(this->F_));
+}
+
 
 }  // namespace testing
 }  // namespace dali

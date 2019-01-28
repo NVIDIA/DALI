@@ -37,10 +37,10 @@ namespace detail {
   }
 
   static DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
-    switch(sequence_layout) {
+    switch (sequence_layout) {
         case DALI_NFHWC:
             return DALI_NHWC;
-        default: // if cannot produce anything meaningful, keep the same layout
+        default:  // if cannot produce anything meaningful, keep the same layout
             return sequence_layout;
     }
   }
