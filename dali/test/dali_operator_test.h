@@ -15,10 +15,6 @@
 #ifndef DALI_TEST_DALI_OPERATOR_TEST_H_
 #define DALI_TEST_DALI_OPERATOR_TEST_H_
 
-#include <dali/pipeline/pipeline.h>
-#include <dali/test/graph_descr.h>
-#include <dali/test/tensor_list_wrapper.h>
-#include <dali/test/argument_key.h>
 #include <gtest/gtest.h>
 #include <vector>
 #include <memory>
@@ -26,6 +22,10 @@
 #include <string>
 #include <utility>
 #include "dali/test/operator_argument.h"
+#include "dali/pipeline/pipeline.h"
+#include "dali/test/graph_descr.h"
+#include "dali/test/tensor_list_wrapper.h"
+#include "dali/test/argument_key.h"
 
 
 namespace dali {

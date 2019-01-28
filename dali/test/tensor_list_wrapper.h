@@ -15,8 +15,8 @@
 #ifndef DALI_TEST_TENSOR_LIST_WRAPPER_H_
 #define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
+#include <gtest/gtest.h>
 #include <string>
-#include <third_party/googletest/googletest/include/gtest/gtest.h>
 #include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
@@ -63,11 +63,13 @@ class TensorListWrapper {
 
 
   const TensorList<CPUBackend>& cpu() const noexcept {
+    ASSERT_TRUE(cpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", *cpu_;
     return *cpu_;
   }
 
 
   const TensorList<GPUBackend>& gpu() const noexcept {
+    ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", *gpu_;
     return *gpu_;
   }
 
