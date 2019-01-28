@@ -20,7 +20,6 @@
 
 namespace dali {
 namespace optical_flow {
-using kernels::TensorView;
 
 /**
  * Stub implementation for OpticalFlow.
@@ -30,10 +29,10 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter {
  public:
   explicit OpticalFlowStub(OpticalFlowParams params);
 
-  void CalcOpticalFlow(TensorView<GPUBackend, const uint8_t, 3> reference_image,
-                       TensorView<GPUBackend, const uint8_t, 3> input_image,
-                       TensorView<GPUBackend, float, 3> output_image,
-                       TensorView<GPUBackend, const float, 3> external_hints) override;
+  void CalcOpticalFlow(TV<GPUBackend, const uint8_t, 3> reference_image,
+                       TV<GPUBackend, const uint8_t, 3> input_image,
+                       TV<GPUBackend, float, 3> output_image,
+                       TV<GPUBackend, const float, 3> external_hints) override;
 
   static constexpr float kStubValue = 666.f;
 };
