@@ -33,16 +33,19 @@ struct OpticalFlowParams {
   bool enable_hints = false;
 };
 
+template <typename Backend, typename DataType, int ndim>
+using TV = dali::kernels::TensorView<Backend, DataType, ndim>;
 
 class DLL_PUBLIC OpticalFlowAdapter {
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) {}
 
 
-  virtual void CalcOpticalFlow(kernels::TensorView<GPUBackend, const uint8_t, 3> reference_image,
-                               kernels::TensorView<GPUBackend, const uint8_t, 3> input_image,
-                               kernels::TensorView<GPUBackend, float, 3> output_image,
-                               kernels::TensorView<GPUBackend, const float, 3> external_hints = kernels::TensorView<GPUBackend, const float, 3>()) = 0;  // NOLINT
+  virtual void CalcOpticalFlow(TV<GPUBackend, const uint8_t, 3> reference_image,
+                               TV<GPUBackend, const uint8_t, 3> input_image,
+                               TV<GPUBackend, float, 3> output_image,
+                               TV<GPUBackend, const float, 3> external_hints
+                                  = TV<GPUBackend, const float, 3>()) = 0;
 
 
   virtual ~OpticalFlowAdapter() = default;
