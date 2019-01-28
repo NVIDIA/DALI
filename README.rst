@@ -237,7 +237,7 @@ Install Python bindings
 
 .. installation-end-marker-do-not-remove
 
-Compiling DALI from source (docker)
+Compiling DALI from source (Docker)
 ---------------------------------------
 
 Prerequisites
@@ -251,7 +251,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | **Linux x64**                          |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |docker link|_                         | Please follow instalation guide and manual there                                            |
+   | |docker link|_                         | Please follow installation guide and manual there                                            |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
 
 Build Docker image
