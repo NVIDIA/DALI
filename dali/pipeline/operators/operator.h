@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_OPERATOR_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <memory>
 
@@ -242,7 +243,8 @@ class Operator : public OperatorBase {
       auto &input = ws->template MutableInput<Backend>(i);
 
       const std::vector<Dims>& old_shapes = input.shape();
-      if (input.GetLayout() == DALI_NFHWC) {
+      DALITensorLayout layout = input.GetLayout();
+      if (layout == DALI_NFHWC || layout == DALI_NFCHW) {
         // size of seq is the first dim in each tensor
         seq_sizes_[i] = old_shapes[0][0];
 
@@ -255,7 +257,11 @@ class Operator : public OperatorBase {
           }
         }
         input.Resize(new_shapes);
-        input.SetLayout(DALI_NHWC); 
+        if (layout == DALI_NFHWC) {
+          input.SetLayout(DALI_NHWC);
+        } else {
+          input.SetLayout(DALI_NCHW);
+        }
       }
     }
   }
@@ -282,22 +288,33 @@ class Operator : public OperatorBase {
             Dims shape_input;
             shape_input.reserve(old_shapes_input[i].size() + 1);
             shape_input.push_back(static_cast<Index>(seq_sizes_[idx]));
-            shape_input.insert(shape_input.end(), old_shapes_input[i].begin(), old_shapes_input[i].end());
+            shape_input.insert(shape_input.end(),
+                               old_shapes_input[i].begin(),
+                               old_shapes_input[i].end());
             new_shapes_input.push_back(std::move(shape_input));
           }
           {
             Dims shape_output;
             shape_output.reserve(old_shapes_output[i].size() + 1);
             shape_output.push_back(static_cast<Index>(seq_sizes_[idx]));
-            shape_output.insert(shape_output.end(), old_shapes_output[i].begin(), old_shapes_output[i].end());
+            shape_output.insert(shape_output.end(),
+                                old_shapes_output[i].begin(),
+                                old_shapes_output[i].end());
             new_shapes_output.push_back(std::move(shape_output));
           }
         }
         input.Resize(new_shapes_input);
         output.Resize(new_shapes_output);
-        // TODO(spanev): Handle NFCHW
-        input.SetLayout(DALI_NFHWC);
-        output.SetLayout(DALI_NFHWC);
+        if (input.GetLayout() == DALI_NHWC) {
+          input.SetLayout(DALI_NFHWC);
+        } else {
+          input.SetLayout(DALI_NFCHW);
+        }
+        if (output.GetLayout() == DALI_NHWC) {
+          output.SetLayout(DALI_NFHWC);
+        } else {
+          output.SetLayout(DALI_NFCHW);
+        }
       }
     }
   }

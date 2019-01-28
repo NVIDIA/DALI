@@ -130,7 +130,7 @@ TYPED_TEST(CropMirrorNormalizePermuteTest, Layout_DALI_SAME) {
   static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_layout", "3", DALI_INT32}};
+                                 {"output_layout", "4", DALI_INT32}};
 
   this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
                 addImageType, eps);
