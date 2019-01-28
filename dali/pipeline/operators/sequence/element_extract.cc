@@ -33,22 +33,6 @@ DALI_SCHEMA(ElementExtract)
             return additional_outputs;
         });
 
-namespace detail {
-
-template <typename T>
-void ElementExtractImpl(const Tensor<CPUBackend> &input,
-                        Tensor<CPUBackend> &output,
-                        int input_offset,
-                        int element_size) {
-    const auto* input_data = input.data<T>();
-    memcpy(
-        output.mutable_data<T>(),
-        &input_data[input_offset],
-        element_size * sizeof(T));
-}
-
-}  // namespace detail
-
 template <>
 void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     const auto &input = ws->Input<CPUBackend>(idx);
@@ -74,8 +58,10 @@ void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
             auto element_idx = element_map_[k];
             auto element_offset = element_idx * element_size;
 
-            detail::ElementExtractImpl<Type>(
-                input, output, element_offset, element_size);
+            memcpy(
+                output.mutable_data<Type>(),
+                &input.data<Type>()[element_offset],
+                element_size * sizeof(Type));
         }
     )
 }
