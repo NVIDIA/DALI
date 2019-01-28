@@ -78,8 +78,8 @@ The package nvidia-dali-tf-plugin has a strict requirement with nvidia-dali as i
    OLDER_VERSION=0.6.1
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
-Compiling DALI from source
---------------------------
+Compiling DALI from source (bare metal)
+---------------------------------------
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -237,6 +237,34 @@ Install Python bindings
 
 .. installation-end-marker-do-not-remove
 
+Compiling DALI from source (docker)
+---------------------------------------
+
+Prerequisites
+^^^^^^^^^^^^^
+.. |docker link| replace:: **Docker**
+.. _docker link: https://docs.docker.com/install/
+
+.. table::
+   :align: center
+
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | **Linux x64**                          |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |docker link|_                         | Please follow instalation guide and manual there                                            |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+
+Build docker image
+^^^^^^^^^^^^^^^^^^
+Enter docker directory and issue ./build.sh. If needed set folowing envarionment variables:
+
+- PYVER - python version, default is `2.7`
+- CUDA_VERSION - version of the CUDA toolkit, default is `10`
+- NVIDIA_BUILD_ID - custom ID of the build,. default is `1234`
+- CREATE_RUNNER - if create docker image with the cudnn, cuda and DALI installed inside. It will create `Docker_run_cuda` image which needs to be run using Nvidia-docker and DALI whl in the `wheelhouse` directory under `DALI/`. the default is `NO`
+- CREATE_WHL - if create whl binary as well, the default is `YES`
+
+
 Getting started
 ---------------
 
@@ -258,12 +286,13 @@ Contributing to DALI
 Contributions to DALI are more than welcome. To contribute to DALI and make pull requests, follow the guidelines outlined in the `Contributing <CONTRIBUTING.md>`_ document.
 
 Reporting problems, asking questions
------------------------------------
+------------------------------------
 
 We appreciate any feedback, questions or bug reporting regarding this project. When help with code is needed, follow the process outlined in the Stack Overflow (https://stackoverflow.com/help/mcve) document. Ensure posted examples are:
-- minimal – use as little code as possible that still produces the same problem
-- complete – provide all parts needed to reproduce the problem. Check if you can strip external dependency and still show the problem. The less time we spend on reproducing problems the more time we have to fix it
-- verifiable – test the code you're about to provide to make sure it reproduces the problem. Remove all other problems that are not related to your request/question.
+
+-  minimal – use as little code as possible that still produces the same problem
+-  complete – provide all parts needed to reproduce the problem. Check if you can strip external dependency and still show the problem. The less time we spend on reproducing problems the more time we have to fix it
+-  verifiable – test the code you're about to provide to make sure it reproduces the problem. Remove all other problems that are not related to your request/question.
 
 Contributors
 ------------

@@ -7,3 +7,6 @@
 [submodule "third_party/pybind11"]
 	path = third_party/pybind11
 	url = https://github.com/pybind/pybind11.git
+[submodule "third_party/manylinux"]
+	path = third_party/manylinux
+	url = https://github.com/pypa/manylinux

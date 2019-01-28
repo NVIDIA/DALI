@@ -1,0 +1,188 @@
+From 92407fb3f440cace918ea610eae164acecb6456f Mon Sep 17 00:00:00 2001
+From: jwoolley <jwoolley@nvidia.com>
+Date: Tue, 26 Jun 2018 10:10:00 -0700
+Subject: [PATCH] An approximate 'manylinux3'
+
+---
+ build.sh                          |  4 +-
+ docker/Dockerfile-x86_64          |  8 ++--
+ docker/build_scripts/build.sh     | 65 ++++++++-----------------------
+ docker/build_scripts/build_env.sh |  3 +-
+ 4 files changed, 25 insertions(+), 55 deletions(-)
+
+diff --git a/build.sh b/build.sh
+index 56b42ff..73950b8 100755
+--- a/build.sh
++++ b/build.sh
+@@ -1,8 +1,8 @@
+ #!/bin/bash
++# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ 
+ # Stop at any error, show all commands
+ set -ex
+ 
+-docker/build_scripts/prefetch.sh openssl curl
+-docker build --rm -t quay.io/pypa/manylinux1_$PLATFORM:$TRAVIS_COMMIT -f docker/Dockerfile-$PLATFORM docker/
++docker build --rm -t manylinux3_x86_64 -f docker/Dockerfile-$PLATFORM docker/
+ docker system prune -f
+diff --git a/docker/Dockerfile-x86_64 b/docker/Dockerfile-x86_64
+index 0c2f4b1..6715697 100644
+--- a/docker/Dockerfile-x86_64
++++ b/docker/Dockerfile-x86_64
+@@ -1,15 +1,15 @@
+-FROM centos:5.11
++# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
++FROM centos:7
+ MAINTAINER The ManyLinux project
+ 
+ ENV LC_ALL en_US.UTF-8
+ ENV LANG en_US.UTF-8
+ ENV LANGUAGE en_US.UTF-8
+-ENV PATH /opt/rh/devtoolset-2/root/usr/bin:$PATH
+-ENV LD_LIBRARY_PATH /opt/rh/devtoolset-2/root/usr/lib64:/opt/rh/devtoolset-2/root/usr/lib:/usr/local/lib64:/usr/local/lib
++ENV PATH /opt/rh/devtoolset-3/root/usr/bin:$PATH
++ENV LD_LIBRARY_PATH /opt/rh/devtoolset-3/root/usr/lib64:/opt/rh/devtoolset-3/root/usr/lib:/usr/local/lib64:/usr/local/lib
+ ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+ 
+ COPY build_scripts /build_scripts
+-COPY sources /
+ RUN bash build_scripts/build.sh && rm -r build_scripts
+ 
+ ENV SSL_CERT_FILE=/opt/_internal/certs.pem
+diff --git a/docker/build_scripts/build.sh b/docker/build_scripts/build.sh
+index 219703a..504e72c 100755
+--- a/docker/build_scripts/build.sh
++++ b/docker/build_scripts/build.sh
+@@ -1,4 +1,5 @@
+ #!/bin/bash
++# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ # Top-level build script called from Dockerfile
+ 
+ # Stop at any error, show all commands
+@@ -16,15 +17,6 @@ PYTHON_COMPILE_DEPS="zlib-devel bzip2-devel ncurses-devel sqlite-devel readline-
+ # Libraries that are allowed as part of the manylinux1 profile
+ MANYLINUX1_DEPS="glibc-devel libstdc++-devel glib2-devel libX11-devel libXext-devel libXrender-devel  mesa-libGL-devel libICE-devel libSM-devel ncurses-devel"
+ 
+-# Centos 5 is EOL and is no longer available from the usual mirrors, so switch
+-# to http://vault.centos.org
+-# From: https://github.com/rust-lang/rust/pull/41045
+-# The location for version 5 was also removed, so now only the specific release
+-# (5.11) can be referenced.
+-sed -i 's/enabled=1/enabled=0/' /etc/yum/pluginconf.d/fastestmirror.conf
+-sed -i 's/mirrorlist/#mirrorlist/' /etc/yum.repos.d/*.repo
+-sed -i 's/#\(baseurl.*\)mirror.centos.org\/centos\/$releasever/\1vault.centos.org\/5.11/' /etc/yum.repos.d/*.repo
+-
+ # Get build utilities
+ source $MY_DIR/build_utils.sh
+ 
+@@ -48,59 +40,39 @@ cp $MY_DIR/epel-release-5-4.noarch.rpm .
+ check_sha256sum epel-release-5-4.noarch.rpm $EPEL_RPM_HASH
+ 
+ # Dev toolset (for LLVM and other projects requiring C++11 support)
+-wget -q http://people.centos.org/tru/devtools-2/devtools-2.repo
+-check_sha256sum devtools-2.repo $DEVTOOLS_HASH
+-mv devtools-2.repo /etc/yum.repos.d/devtools-2.repo
+-rpm -Uvh --replacepkgs epel-release-5*.rpm
+-rm -f epel-release-5*.rpm
++yum -y install centos-release-scl
++yum-config-manager --enable rhel-server-rhscl-7-rpms
++yum -y install devtoolset-3
++sed -i 's| \. scl_source.*$| echo|' /opt/rh/devtoolset-3/enable
++source /opt/rh/devtoolset-3/enable
+ 
+ # Development tools and libraries
+ yum -y install \
+-    automake \
++    autotools-latest \
+     bison \
+     bzip2 \
+     cmake28 \
+-    devtoolset-2-binutils \
+-    devtoolset-2-gcc \
+-    devtoolset-2-gcc-c++ \
+-    devtoolset-2-gcc-gfortran \
++    curl \
++    devtoolset-3-binutils \
++    devtoolset-3-gcc \
++    devtoolset-3-gcc-c++ \
++    devtoolset-3-gcc-gfortran \
+     diffutils \
+     expat-devel \
+     gettext \
++    git \
+     kernel-devel-`uname -r` \
+     file \
+     make \
++    nasm \
++    openssl \
++    openssl-devel \
+     patch \
+     unzip \
+     which \
+     yasm \
+     ${PYTHON_COMPILE_DEPS}
+ 
+-# Build an OpenSSL for both curl and the Pythons. We'll delete this at the end.
+-build_openssl $OPENSSL_ROOT $OPENSSL_HASH
+-
+-# Install curl so we can have TLS 1.2 in this ancient container.
+-build_curl $CURL_ROOT $CURL_HASH
+-hash -r
+-curl --version
+-curl-config --features
+-
+-# Install a git we link against OpenSSL so that we can use TLS 1.2
+-build_git $GIT_ROOT $GIT_HASH
+-git version
+-
+-# Install newest autoconf
+-build_autoconf $AUTOCONF_ROOT $AUTOCONF_HASH
+-autoconf --version
+-
+-# Install newest automake
+-build_automake $AUTOMAKE_ROOT $AUTOMAKE_HASH
+-automake --version
+-
+-# Install newest libtool
+-build_libtool $LIBTOOL_ROOT $LIBTOOL_HASH
+-libtool --version
+-
+ # Install a more recent SQLite3
+ curl -fsSLO $SQLITE_AUTOCONF_DOWNLOAD_URL/$SQLITE_AUTOCONF_VERSION.tar.gz
+ check_sha256sum $SQLITE_AUTOCONF_VERSION.tar.gz $SQLITE_AUTOCONF_HASH
+@@ -132,9 +104,6 @@ ln -s $($PY36_BIN/python -c 'import certifi; print(certifi.where())') \
+ # Dockerfiles:
+ export SSL_CERT_FILE=/opt/_internal/certs.pem
+ 
+-# Now we can delete our built OpenSSL headers/static libs since we've linked everything we need
+-rm -rf /usr/local/ssl
+-
+ # Install patchelf (latest with unreleased bug fixes)
+ curl -fsSL -o patchelf.tar.gz https://github.com/NixOS/patchelf/archive/$PATCHELF_VERSION.tar.gz
+ check_sha256sum patchelf.tar.gz $PATCHELF_HASH
+@@ -154,7 +123,7 @@ yum -y erase \
+     hicolor-icon-theme \
+     libX11 \
+     wireless-tools \
+-    ${PYTHON_COMPILE_DEPS}  > /dev/null 2>&1
++    ${PYTHON_COMPILE_DEPS}  > /dev/null 2>&1 || true
+ yum -y install ${MANYLINUX1_DEPS}
+ yum -y clean all > /dev/null 2>&1
+ yum list installed
+diff --git a/docker/build_scripts/build_env.sh b/docker/build_scripts/build_env.sh
+index 4cc15b9..c64f4b4 100644
+--- a/docker/build_scripts/build_env.sh
++++ b/docker/build_scripts/build_env.sh
+@@ -1,7 +1,8 @@
++# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ # source me
+ 
+ PYTHON_DOWNLOAD_URL=https://www.python.org/ftp/python
+-CPYTHON_VERSIONS="2.7.15 3.4.8 3.5.5 3.6.5 3.7.0rc1"
++CPYTHON_VERSIONS="2.7.15 3.4.8 3.5.5 3.6.5 3.7.0"
+ 
+ # openssl version to build, with expected sha256 hash of .tar.gz
+ # archive.
+-- 
+2.17.1
+
