@@ -16,6 +16,7 @@
 #define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
 #include <string>
+#include <third_party/googletest/googletest/include/gtest/gtest.h>
 #include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
@@ -36,7 +37,7 @@ class TensorListWrapper {
 
   template<typename Backend>
   const TensorList<Backend> *get() const {
-    DALI_FAIL("Backend type not supported. You may want to write your own specialization");
+    FAIL() << "Backend type not supported. You may want to write your own specialization", nullptr;
   }
 
 
@@ -56,7 +57,7 @@ class TensorListWrapper {
     } else if (gpu_) {
       return "gpu";
     } else {
-      DALI_FAIL("Unknown backend. If you are here, something went terribly wrong");
+      FAIL() << "Unknown backend. If you are here, something went terribly wrong", std::string();
     }
   }
 
@@ -84,14 +85,14 @@ class TensorListWrapper {
 
 template<>
 inline const TensorList<CPUBackend> *TensorListWrapper::get() const {
-  DALI_ENFORCE(cpu_, "This wrapper doesn't contain TensorList<CPUBackend>");
+  ASSERT_TRUE(cpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", nullptr;
   return cpu_;
 }
 
 
 template<>
 inline const TensorList<GPUBackend> *TensorListWrapper::get() const {
-  DALI_ENFORCE(gpu_, "This wrapper doesn't contain TensorList<GPUBackend>");
+  ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", nullptr;
   return gpu_;
 }
 

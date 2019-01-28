@@ -37,7 +37,7 @@ namespace detail {
 
 template<typename Backend>
 std::string BackendStringName() {
-  DALI_ENFORCE(false, "Backend not supported. You may want to write your own specialization");
+  FAIL() << "Backend not supported. You may want to write your own specialization", std::string();
 }
 
 
@@ -62,7 +62,7 @@ inline std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_th
 
 
 inline void AddInputToPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
-  assert(input && input.has_cpu());  // External input works only for CPUBackend
+  ASSERT_TRUE(input && input.has_cpu()) << "External input works only for CPUBackend";
   const std::string input_name = "input";
   pipeline.AddExternalInput(input_name);
   pipeline.SetExternalInput(input_name, *input.get<CPUBackend>());
@@ -112,8 +112,8 @@ inline void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
 inline OpSpec
 CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, bool has_input,
              const std::string &input_backend, const std::string &output_backend) {
-  assert(input_backend == "cpu" || input_backend == "gpu");
-  assert(output_backend == "cpu" || output_backend == "gpu");
+  ASSERT_TRUE(input_backend == "cpu" || input_backend == "gpu"), OpSpec();
+  ASSERT_TRUE(output_backend == "cpu" || output_backend == "gpu"), OpSpec();
 
   OpSpec opspec = OpSpec(operator_name);
   for (auto &arg : operator_arguments) {
