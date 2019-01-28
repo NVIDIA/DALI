@@ -25,22 +25,6 @@ TEST(TensorListWrapper, EmptyWrapperBoolOperator) {
 }
 
 
-TEST(TensorListWrapper, GetCpuTl) {
-  TensorList<CPUBackend> tl;
-  TensorListWrapper tw(&tl);
-  EXPECT_ANY_THROW(tw.get<GPUBackend>());
-  EXPECT_NO_THROW(tw.get<CPUBackend>());
-}
-
-
-TEST(TensorListWrapper, GetGpuTl) {
-  TensorList<GPUBackend> tl;
-  TensorListWrapper tw(&tl);
-  EXPECT_ANY_THROW(tw.get<CPUBackend>());
-  EXPECT_NO_THROW(tw.get<GPUBackend>());
-}
-
-
 TEST(TensorListWrapper, HasCpu) {
   TensorList<CPUBackend> tl;
   TensorListWrapper tw(&tl);
