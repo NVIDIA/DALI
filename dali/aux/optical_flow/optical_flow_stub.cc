@@ -12,26 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
-#include <memory>
 #include "dali/aux/optical_flow/optical_flow_stub.h"
 
 namespace dali {
 namespace optical_flow {
 
-using kernels::TensorView;
+OpticalFlowStub::OpticalFlowStub(dali::optical_flow::OpticalFlowParams params) :
+        OpticalFlowAdapter(params) {
+}
 
-static int kTestDataSize = 2;
 
-TEST(OpticalFlowAdapter, StubApi) {
-  std::unique_ptr<float> data(new float[kTestDataSize]);
-  TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
-  TensorView<GPUBackend, float, 3> tvout(data.get(), {1, 1, 2});
-  OpticalFlowParams params;
-  std::unique_ptr<OpticalFlowAdapter> of(new OpticalFlowStub(params));
-  of->CalcOpticalFlow(tvref, tvin, tvout);
-  EXPECT_FLOAT_EQ(OpticalFlowStub::kStubValue, *tvout(0, 0, 0));
-  EXPECT_FLOAT_EQ(OpticalFlowStub::kStubValue / 2, *tvout(0, 0, 1));
+void OpticalFlowStub::CalcOpticalFlow(dali::kernels::TensorView<dali::GPUBackend, const uint8_t, 3> reference_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, const uint8_t, 3> input_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, float, 3> output_image,
+                                      dali::kernels::TensorView<dali::GPUBackend, const float, 3> external_hints) {
+  auto ptr = output_image.data;
+  ptr[0] = kStubValue;
+  ptr[1] = kStubValue / 2;
 }
 
 }  // namespace optical_flow
