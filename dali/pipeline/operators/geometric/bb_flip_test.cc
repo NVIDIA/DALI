@@ -15,6 +15,7 @@
 #include <cmath>
 
 #include "dali/test/dali_operator_test.h"
+#include "dali/test/dali_operator_test_utils.h"
 #include "dali/pipeline/data/tensor.h"
 
 namespace dali {
@@ -106,12 +107,8 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
   return tl;
 }
 
-
-template<typename Backend>
-std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
-  auto *tl = tw.get<Backend>();
-  ASSERT_NE(nullptr, tl), std::vector<Roi>();
-  ASSERT_LE(kBbStructSize, tl->size()), std::vector<Roi>();
+template <typename Backend>
+std::vector<Roi> FromTensorListPtr(const TensorList<Backend> *tl) {
   auto ptr = tl->template data<float>();
   std::vector<Roi> ret;
   for (size_t i = 0; i < tl->ntensor(); i++) {
@@ -122,6 +119,18 @@ std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
     ret.emplace_back(roi);
   }
   return ret;
+}
+
+template<typename Backend>
+std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
+  if (tw.has<Backend>()) {
+    auto *tl =  tw.get<Backend>();
+    ASSERT_NE(nullptr, tl), std::vector<Roi>();
+    ASSERT_LE(kBbStructSize, tl->size()), std::vector<Roi>();
+    return FromTensorListPtr(tl);
+  } else {
+    return FromTensorListPtr(tw.CopyTo<Backend>().get());
+  }
 }
 
 
@@ -169,13 +178,18 @@ std::vector<Arguments> arguments = {
         {{"horizontal", 0}, {"vertical", 0}},
 };
 
+std::vector<Arguments> devices = {
+    {{"device", std::string{"cpu"}}},
+    {{"device", std::string{"gpu"}}},
+};
+
 TEST_P(BbFlipTest, WhRoisTest) {
   constexpr bool ltrb = false;
   auto args = GetParam();
   args.emplace("ltrb", ltrb);
   auto tlin = ToTensorList<0, CPUBackend>(rois_wh);
   TensorListWrapper tlout;
-  this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
+  this->RunTest(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
 
 
@@ -185,11 +199,11 @@ TEST_P(BbFlipTest, LtrbRoisTest) {
   args.emplace("ltrb", ltrb);
   auto tlin = ToTensorList<0, CPUBackend>(rois_ltrb);
   TensorListWrapper tlout;
-  this->RunTest<CPUBackend>(tlin.get(), tlout, args, BbVerify<ltrb>);
+  this->RunTest(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
 
-
-INSTANTIATE_TEST_CASE_P(RoisTest, BbFlipTest, ::testing::ValuesIn(arguments));
+INSTANTIATE_TEST_CASE_P(RoisTest, BbFlipTest,
+                        ::testing::ValuesIn(testing::cartesian(devices, arguments)));
 
 }  // namespace testing
 }  // namespace dali
