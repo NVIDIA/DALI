@@ -254,15 +254,15 @@ Prerequisites
    | |docker link|_                         | Please follow instalation guide and manual there                                            |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
 
-Build docker image
+Build Docker image
 ^^^^^^^^^^^^^^^^^^
-Enter docker directory and issue ./build.sh. If needed set folowing envarionment variables:
+Enter Docker directory and run ./build.sh. If needed, set the following environment variables:
 
-- PYVER - python version, default is `2.7`
+- PYVER - Python version, default is `2.7`
 - CUDA_VERSION - version of the CUDA toolkit, default is `10`
-- NVIDIA_BUILD_ID - custom ID of the build,. default is `1234`
-- CREATE_RUNNER - if create docker image with the cudnn, cuda and DALI installed inside. It will create `Docker_run_cuda` image which needs to be run using Nvidia-docker and DALI whl in the `wheelhouse` directory under `DALI/`. the default is `NO`
-- CREATE_WHL - if create whl binary as well, the default is `YES`
+- NVIDIA_BUILD_ID - custom ID of the build, default is `1234`
+- CREATE_RUNNER - create Docker image with cuDNN, CUDA and DALI installed inside. It will create the `Docker_run_cuda` image, which needs to be run using `nvidia-docker` and DALI wheel in the `wheelhouse` directory under `DALI/`, default is `NO`
+- CREATE_WHL - create a wheel as well, default is `YES`
 
 
 Getting started
