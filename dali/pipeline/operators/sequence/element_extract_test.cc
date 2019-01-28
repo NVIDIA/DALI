@@ -12,73 +12,125 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_matching.h"
+#include "dali/test/dali_operator_test.h"
+#include <functional>
+#include "dali/pipeline/data/tensor.h"
 
 namespace dali {
+namespace testing {
 
-template <typename ImgType, typename T>
-class ElementExtractTest : public GenericMatchingTest<ImgType> {
+template <typename T>
+class ElementExtractTest : public DaliOperatorTest {
  protected:
-  void PrepareInput(TensorList<CPUBackend>& data,
-                    int ntensors = 2,
-                    int F = 10,
-                    int H = 720,
-                    int W = 1280,
-                    int C = 3) {
-    std::vector<Dims> shape(ntensors, {F, W, H, C});
-    data.set_type(TypeInfo::Create<T>());
-    data.SetLayout(DALITensorLayout::DALI_NFHWC);
-    data.Resize(shape);
+    GraphDescr GenerateOperatorGraph() const noexcept override {
+        return {"ElementExtract"};
+    }
+ public:
+    ElementExtractTest(
+        int ntensors = 2,
+        int F = 10,
+        int H = 720,
+        int W = 1280,
+        int C = 3,
+        std::vector<int> element_map = {0})
+        : ntensors_(ntensors)
+        , F_(F)
+        , H_(H)
+        , W_(W)
+        , C_(C)
+        , element_map_(element_map) {
+    }
 
-    const auto frame_size = W*H*C;
-    for (int i = 0; i < ntensors; i++) {
-        T *raw_data = static_cast<T*>(
-            data.raw_mutable_tensor(i));
-        for (int f = 0; f < F; f++) {
-            T *frame_data = &raw_data[f*frame_size];
-            T value = f % 256;
-            for (int k = 0; k < frame_size; k++)
-                frame_data[k] = value;
+    void SetElementMap(const std::vector<int>& element_map) {
+        element_map_ = element_map;
+    }
+
+    std::unique_ptr<TensorList<CPUBackend>>
+    GetSequenceData() {
+        std::unique_ptr<TensorList<CPUBackend>> data(
+            new TensorList<CPUBackend>);
+        std::vector<Dims> shape(ntensors_, {F_, W_, H_, C_});
+        data->set_type(TypeInfo::Create<T>());
+        data->SetLayout(DALITensorLayout::DALI_NFHWC);
+        data->Resize(shape);
+
+        const auto frame_size = W_*H_*C_;
+        for (int i = 0; i < ntensors_; i++) {
+            T *raw_data = static_cast<T*>(
+                data->raw_mutable_tensor(i));
+            for (int f = 0; f < F_; f++) {
+                T *frame_data = &raw_data[f*frame_size];
+                T value = f % 256;
+                for (int k = 0; k < frame_size; k++)
+                    frame_data[k] = value;
+            }
+        }
+        return data;
+    }
+
+    void Verify(const TensorListWrapper& input,
+                const TensorListWrapper& output,
+                const Arguments& args) {
+        const TensorList<CPUBackend>* tlout =
+            output.get<CPUBackend>();
+        ASSERT_NE(nullptr, tlout);
+        auto nouttensors = tlout->ntensor();
+        int element_map_size = element_map_.size();
+        EXPECT_EQ(ntensors_ * element_map_size, nouttensors);
+        for (int in_idx = 0; in_idx < ntensors_; in_idx++) {
+            for (int k = 0; k < element_map_size; k++) {
+                auto idx = in_idx * element_map_size + k;
+                auto element_idx = element_map_[k];
+                const Dims shape = tlout->tensor_shape(idx);
+                const auto *data = tlout->tensor<T>(idx);
+                ASSERT_NE(nullptr, data);
+                Dims expected_shape{W_, H_, C_};
+                EXPECT_EQ(expected_shape, shape);
+                for (int i=0; i<H_; i++)
+                    for (int j=0; j<W_; j++)
+                        EXPECT_EQ(element_idx, data[i*W_+j]);
+            }
         }
     }
-  }
 
-  uint32_t GetTestCheckType() const override {
-    return t_checkColorComp;  // + t_checkAll + t_checkNoAssert;
-  }
+    void Run() {
+        Arguments args;
+        args.emplace("element_map", element_map_);
+        TensorListWrapper tlout;
+        auto seq_data = this->GetSequenceData();
+        this->RunTest<::dali::CPUBackend>(
+            seq_data.get(), tlout, args,
+            std::bind(&ElementExtractTest::Verify, this,
+                std::placeholders::_1,
+                std::placeholders::_2,
+                std::placeholders::_3));
+    }
 
-  void RunTestImpl(const opDescr &descr) override {
-    const int batch_size = 2;
-    this->SetBatchSize(batch_size);
-    this->SetNumThreads(1);
-
-    TensorList<CPUBackend> data;
-    PrepareInput(data);
-    this->SetExternalInputs({{"input", &data}});
-
-    // Launching the same transformation on CPU (outputIdx 0) and GPU (outputIdx 1)
-    this->AddOperatorWithOutput(descr);
-    this->RunOperator(descr);
-  }
+    int ntensors_, F_, H_, W_, C_;
+    std::vector<int> element_map_;
 };
 
-typedef ::testing::Types<RGB, BGR, Gray, YCbCr> Types;
+typedef ::testing::Types<uint8_t, float> Types;
+TYPED_TEST_CASE(ElementExtractTest, Types);
 
-template <typename ImgType>
-class ElementExtractTestFloat : public ElementExtractTest<ImgType, float> {};
-
-TYPED_TEST_CASE(ElementExtractTestFloat, Types);
-TYPED_TEST(ElementExtractTestFloat, Test1) {
-    this->RunTest({"ElementExtract", {"element_map", "1,2,3", DALI_INT_VEC}, 0.0});
+TYPED_TEST(ElementExtractTest, ExtractFirstElement) {
+    this->SetElementMap({0});
+    this->Run();
 }
 
-template <typename ImgType>
-class ElementExtractTestUint8 : public ElementExtractTest<ImgType, uint8_t> {};
-
-TYPED_TEST_CASE(ElementExtractTestUint8, Types);
-TYPED_TEST(ElementExtractTestUint8, Test1) {
-    this->RunTest({"ElementExtract", {"element_map", "1,2,3", DALI_INT_VEC}, 0.0});
+TYPED_TEST(ElementExtractTest, ExtractLastElement) {
+    this->SetElementMap({this->F_-1});
+    this->Run();
 }
 
+// TODO(janton): Enable multiple output tests once it is supported by DaliOperatorTest
+TYPED_TEST(ElementExtractTest, DISABLED_ExtractEvenElement) {
+    std::vector<int> elements;
+    for (int f=0; f<this->F_; f+=2)
+        elements.push_back(f);
+    this->SetElementMap(elements);
+    this->Run();
+}
 
+}  // namespace testing
 }  // namespace dali

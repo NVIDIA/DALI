@@ -21,6 +21,31 @@
 
 namespace dali {
 
+namespace detail {
+  static void CheckInputShape(const Dims& tensor_shape,
+                              const std::vector<int>& element_map) {
+    DALI_ENFORCE(tensor_shape.size() > 0);
+    auto N_input = tensor_shape[0];
+
+    int N_output = element_map.size();
+    DALI_ENFORCE(N_input >= N_output,
+        "Requested more elements than available");
+
+    for (auto elem : element_map)
+        DALI_ENFORCE(elem < N_input,
+            "index " + std::to_string(elem) + " out of bounds");
+  }
+
+  static DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
+    switch(sequence_layout) {
+        case DALI_NFHWC:
+            return DALI_NHWC;
+        default: // if cannot produce anything meaningful, keep the same layout
+            return sequence_layout;
+    }
+  }
+}  // namespace detail
+
 template <typename Backend>
 class ElementExtract : public Operator<Backend> {
  public:
@@ -38,19 +63,6 @@ class ElementExtract : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  private:
-  void CheckInputShape(const Dims& tensor_shape) {
-    DALI_ENFORCE(tensor_shape.size() > 0);
-    auto N_input = tensor_shape[0];
-
-    int N_output = element_map_.size();
-    DALI_ENFORCE(N_input >= N_output,
-        "Requested more elements than available");
-
-    for (auto elem : element_map_)
-        DALI_ENFORCE(elem < N_input,
-            "index " + std::to_string(elem) + " out of bounds");
-  }
-
   std::vector<int> element_map_;
 };
 
