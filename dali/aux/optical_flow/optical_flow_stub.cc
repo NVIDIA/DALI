@@ -17,8 +17,6 @@
 namespace dali {
 namespace optical_flow {
 
-using TV = dali::kernels::TensorView;
-
 OpticalFlowStub::OpticalFlowStub(dali::optical_flow::OpticalFlowParams params) :
         OpticalFlowAdapter(params) {
 }
