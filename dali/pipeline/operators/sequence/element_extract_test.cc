@@ -19,7 +19,7 @@
 namespace dali {
 namespace testing {
 
-template <typename T>
+template <typename Backend, typename T>
 class ElementExtractTest : public DaliOperatorTest {
  protected:
     GraphDescr GenerateOperatorGraph() const noexcept override {
@@ -71,18 +71,23 @@ class ElementExtractTest : public DaliOperatorTest {
     void Verify(const TensorListWrapper& input,
                 const TensorListWrapper& output,
                 const Arguments& args) {
-        const TensorList<CPUBackend>* tlout =
-            output.get<CPUBackend>();
-        ASSERT_NE(nullptr, tlout);
-        auto nouttensors = tlout->ntensor();
+        std::unique_ptr<TensorList<CPUBackend>> output_tl(
+            new TensorList<CPUBackend>);
+        if (output.has_cpu())
+            output_tl->Copy(*output.get<CPUBackend>(), 0);
+        else
+            output_tl->Copy(*output.get<GPUBackend>(), 0);
+
+        ASSERT_NE(nullptr, output_tl);
+        auto nouttensors = output_tl->ntensor();
         int element_map_size = element_map_.size();
         EXPECT_EQ(ntensors_ * element_map_size, nouttensors);
         for (int in_idx = 0; in_idx < ntensors_; in_idx++) {
             for (int k = 0; k < element_map_size; k++) {
                 auto idx = in_idx * element_map_size + k;
                 auto element_idx = element_map_[k];
-                const Dims shape = tlout->tensor_shape(idx);
-                const auto *data = tlout->tensor<T>(idx);
+                const Dims shape = output_tl->tensor_shape(idx);
+                const auto *data = output_tl->tensor<T>(idx);
                 ASSERT_NE(nullptr, data);
                 Dims expected_shape{W_, H_, C_};
                 EXPECT_EQ(expected_shape, shape);
@@ -97,9 +102,9 @@ class ElementExtractTest : public DaliOperatorTest {
         Arguments args;
         args.emplace("element_map", element_map_);
         TensorListWrapper tlout;
-        auto seq_data = this->GetSequenceData();
-        this->RunTest<::dali::CPUBackend>(
-            seq_data.get(), tlout, args,
+        auto tlin = GetSequenceData();
+        this->RunTest<Backend>(
+            tlin.get(), tlout, args,
             std::bind(&ElementExtractTest::Verify, this,
                 std::placeholders::_1,
                 std::placeholders::_2,
@@ -110,25 +115,45 @@ class ElementExtractTest : public DaliOperatorTest {
     std::vector<int> element_map_;
 };
 
-typedef ::testing::Types<uint8_t, float> Types;
-TYPED_TEST_CASE(ElementExtractTest, Types);
+template <typename T>
+class ElementExtractCPUTest : public ElementExtractTest<CPUBackend, T> {};
 
-TYPED_TEST(ElementExtractTest, ExtractFirstElement) {
+typedef ::testing::Types<uint8_t, float> Types;
+TYPED_TEST_CASE(ElementExtractCPUTest, Types);
+
+TYPED_TEST(ElementExtractCPUTest, ExtractFirstElement) {
     this->SetElementMap({0});
     this->Run();
 }
 
-TYPED_TEST(ElementExtractTest, ExtractLastElement) {
+TYPED_TEST(ElementExtractCPUTest, ExtractLastElement) {
     this->SetElementMap({this->F_-1});
     this->Run();
 }
 
 // TODO(janton): Enable multiple output tests once it is supported by DaliOperatorTest
-TYPED_TEST(ElementExtractTest, DISABLED_ExtractEvenElement) {
+TYPED_TEST(ElementExtractCPUTest, DISABLED_ExtractEvenElement) {
     std::vector<int> elements;
     for (int f=0; f<this->F_; f+=2)
         elements.push_back(f);
     this->SetElementMap(elements);
+    this->Run();
+}
+
+// TODO(janton): Enable GPU tests when it is supported by DaliOperatorTest
+template <typename T>
+class ElementExtractGPUTest : public ElementExtractTest<GPUBackend, T> {};
+
+typedef ::testing::Types<uint8_t, float> Types;
+TYPED_TEST_CASE(ElementExtractGPUTest, Types);
+
+TYPED_TEST(ElementExtractGPUTest, DISABLED_ExtractFirstElement) {
+    this->SetElementMap({0});
+    this->Run();
+}
+
+TYPED_TEST(ElementExtractGPUTest, DISABLED_ExtractLastElement) {
+    this->SetElementMap({this->F_-1});
     this->Run();
 }
 
