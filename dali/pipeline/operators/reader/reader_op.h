@@ -154,7 +154,7 @@ class DataReader : public Operator<Backend> {
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
+        consumer_.wait(prefetch_lock, [this]() { return prefetched_batch_ready_; });
 
         if (prefetch_error_) {
           DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
@@ -203,7 +203,7 @@ class DataReader : public Operator<Backend> {
     std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
     // Wait until prefetch is ready
-    consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
+    consumer_.wait(prefetch_lock, [this]() { return prefetched_batch_ready_; });
 
     if (prefetch_error_) {
       DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
