@@ -76,7 +76,7 @@ class TensorListWrapper {
 
 
   const TensorList<GPUBackend>& gpu() const noexcept {
-    ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", *gpu_;
+    ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<GPUBackend>", *gpu_;
     return *gpu_;
   }
 
@@ -114,7 +114,7 @@ inline const TensorList<CPUBackend> *TensorListWrapper::get() const {
 
 template<>
 inline const TensorList<GPUBackend> *TensorListWrapper::get() const {
-  ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", nullptr;
+  ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<GPUBackend>", nullptr;
   return gpu_;
 }
 

@@ -26,8 +26,19 @@ class OpticalFlowTest : public DaliOperatorTest {
   }
 };
 
-TEST_F(OpticalFlowTest, Olololo) {
-  ASSERT_TRUE(false);
+Arguments argums = {};
+
+void verify(const TensorListWrapper & /* single input */,
+            const TensorListWrapper & /* single output */,
+            const Arguments &) {
+
+}
+
+TEST_F(OpticalFlowTest, StubImplementationTest) {
+  std::unique_ptr<TensorList<CPUBackend>>tl(new TensorList<CPUBackend>());
+  TensorListWrapper  tlout;
+  this->RunTest<CPUBackend>(tl.get(), tlout, argums, verify);
+
 }
 
 }  // namespace testing

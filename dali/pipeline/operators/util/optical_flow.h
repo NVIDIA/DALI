@@ -20,9 +20,14 @@
 
 namespace dali {
 
-class OpticalFlow : public Operator<CPUBackend> {
+template<typename Backend>
+class OpticalFlow : public Operator<Backend> {
  public:
-  explicit OpticalFlow(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  explicit OpticalFlow(const OpSpec &spec) :
+          Operator<Backend>(spec),
+          quality_factor_(spec.GetArgument<float>("preset")),
+          grid_size_(spec.GetArgument<int>("output_format")),
+          enable_hints_(spec.GetArgument<bool>("enable_hints")) {
 
   }
 
@@ -32,8 +37,14 @@ class OpticalFlow : public Operator<CPUBackend> {
 
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) override {
-
+    cout << quality_factor_ << endl << grid_size_ << endl << enable_hints_ << endl;
   }
+
+
+ private:
+  const float quality_factor_;
+  const int grid_size_;
+  const bool enable_hints_;
 };
 
 }  // namespace dali
