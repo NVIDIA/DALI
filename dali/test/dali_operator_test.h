@@ -134,7 +134,7 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
  *
  * In order to set up a test, please define custom subclass of this class.
  *
- * Along with custom class, a verification function should be defined (Verify, VerifySiso)
+ * Along with custom class, a verification function should be defined (Verify, VerifySingleIo)
  *
  * GenerateOperatorGraph is a template method, where you can define,
  * what precisely should be tested.
