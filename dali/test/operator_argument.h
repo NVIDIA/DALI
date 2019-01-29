@@ -19,6 +19,7 @@
 #include <memory>
 #include <vector>
 
+#include "dali/kernels/util.h"
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
@@ -43,33 +44,38 @@ struct TestOpArgToStringImpl<T, typename std::enable_if<std::is_arithmetic<T>::v
   }
 };
 
-template <typename T>
-struct TestOpArgToStringImpl<std::vector<T>,
-                             typename std::enable_if<std::is_arithmetic<T>::value>::type> {
-  static std::string to_string(const std::vector<T>& val) {
-    std::stringstream ss;
-    if (val.size() == 0) {
-      return "[]";
-    } else {
-      ss << "[ ";
-    }
-    for (size_t i = 0; i < val.size(); i++) {
-      ss << val[i];
-      if (i != val.size() - 1) {
-        ss << ", ";
-      }
-    }
-    ss << " ]";
-    return ss.str();
-  }
-};
-
 template <>
 struct TestOpArgToStringImpl<std::string> {
   static std::string to_string(const std::string& val) {
     return "\"" + val + "\"";
   }
 };
+
+template <typename T>
+struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
+  static std::string to_string(const T& val) {
+    std::stringstream ss;
+    if (val.size() == 0) {
+      return "[]";
+    } else {
+      ss << "[ ";
+    }
+    using element_t =
+        typename std::remove_cv<typename std::remove_reference<decltype(*begin(val))>::type>::type;
+    bool first = true;
+    for (const auto& e : val) {
+      if (!first) {
+        ss << ", ";
+      } else {
+        first = false;
+      }
+      ss << TestOpArgToStringImpl<element_t>::to_string(e);
+    }
+    ss << " ]";
+    return ss.str();
+  }
+};
+
 
 template<typename T>
 class TestOpArgValue;
