@@ -60,10 +60,14 @@ static int get_max_vm_cnt() {
   return vm_cnt;
 }
 
-static void *file_map(const char *path, size_t *length) {
+static void *file_map(const char *path, size_t *length, bool read_ahead) {
   int fd = -1;
   struct stat s;
   void *p = nullptr;
+  int flags = MAP_PRIVATE;
+  if (read_ahead) {
+    flags |= MAP_POPULATE;
+  }
 
   if ((fd = open(path, O_RDONLY)) < 0) {
     goto fail;
@@ -74,7 +78,8 @@ static void *file_map(const char *path, size_t *length) {
   }
 
   *length = (size_t)s.st_size;
-  if ((p = mmap(nullptr, *length, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+
+  if ((p = mmap(nullptr, *length, PROT_READ, flags, fd, 0)) == MAP_FAILED) {
     p = nullptr;
     goto fail;
   }
@@ -104,14 +109,14 @@ static unsigned int dali_reserved_mv_cnt = 0;
 std::mutex mapped_files_mutex;
 std::map<std::string, MappedFile> mapped_files;
 
-LocalFileStream::LocalFileStream(const std::string& path) :
-  FileStream(path), length_(0), pos_(0) {
+LocalFileStream::LocalFileStream(const std::string& path, bool read_ahead) :
+  FileStream(path), length_(0), pos_(0), read_ahead_whole_file_(read_ahead) {
   std::lock_guard<std::mutex> lock(mapped_files_mutex);
   std::weak_ptr<void> mapped_memory;
   std::tie(mapped_memory, length_) = mapped_files[path];
 
   if (!(p_ = mapped_memory.lock())) {
-    void *p = file_map(path.c_str(), &length_);
+    void *p = file_map(path.c_str(), &length_, read_ahead_whole_file_);
     size_t length_tmp = length_;
     p_ = shared_ptr<void>(p, [=](void*) {
       // we are not touching mapped_files, weak_ptr is enough to check if
@@ -136,6 +141,17 @@ void LocalFileStream::Close() {
   pos_ = 0;
 }
 
+inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
+                                 size_t &n_bytes, bool read_ahead) {
+  auto tmp = static_cast<uint8_t*>(p.get()) + pos;
+  // Ask OS to load memory content to RAM to avoid sluggish page fault during actual access to
+  // mmaped memory
+  if (read_ahead) {
+    madvise(tmp, n_bytes, MADV_WILLNEED);
+  }
+  return tmp;
+}
+
 void LocalFileStream::Seek(int64 pos) {
   DALI_ENFORCE(pos >= 0 && pos < (int64)length_, "Invalid seek");
   pos_ = pos;
@@ -147,7 +163,7 @@ shared_ptr<void> LocalFileStream::Get(size_t n_bytes) {
     return nullptr;
   }
   auto tmp = p_;
-  shared_ptr<void> p(static_cast<uint8_t*>(p_.get()) + pos_,
+  shared_ptr<void> p(ReadAheadHelper(p_, pos_, n_bytes, !read_ahead_whole_file_),
     [tmp](void*) {
     // This is an empty lambda, which is a custom deleter for
     // std::shared_ptr.
@@ -164,7 +180,7 @@ shared_ptr<void> LocalFileStream::Get(size_t n_bytes) {
 
 size_t LocalFileStream::Read(uint8_t * buffer, size_t n_bytes) {
   n_bytes = std::min(n_bytes, length_ - pos_);
-  memcpy(buffer, static_cast<uint8_t*>(p_.get()) + pos_, n_bytes);
+  memcpy(buffer, ReadAheadHelper(p_, pos_, n_bytes, !read_ahead_whole_file_), n_bytes);
   pos_ += n_bytes;
   return n_bytes;
 }

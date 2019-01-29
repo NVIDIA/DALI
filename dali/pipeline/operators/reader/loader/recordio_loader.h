@@ -38,7 +38,7 @@ class RecordIOLoader : public IndexedFileLoader {
     std::vector<size_t> file_offsets;
     file_offsets.push_back(0);
     for (std::string& path : uris_) {
-      auto tmp = FileStream::Open(path);
+      auto tmp = FileStream::Open(path, read_ahead_);
       file_offsets.push_back(tmp->Size() + file_offsets.back());
       tmp->Close();
     }
@@ -80,7 +80,7 @@ class RecordIOLoader : public IndexedFileLoader {
       // Release previously opened file
       current_index_ = 0;
       current_file_index_ = 0;
-      current_file_ = FileStream::Open(uris_[current_file_index_]);
+      current_file_ = FileStream::Open(uris_[current_file_index_], read_ahead_);
     }
 
     int64 seek_pos, size;
@@ -118,7 +118,7 @@ class RecordIOLoader : public IndexedFileLoader {
         DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
           "Incomplete or corrupted record files");
         // Release previously opened file
-        current_file_ = FileStream::Open(uris_[++current_file_index_]);
+        current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_);
         continue;
       }
      tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
