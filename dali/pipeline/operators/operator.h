@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -73,9 +74,9 @@ inline void CheckInputLayouts(const DeviceWorkspace *ws, const OpSpec &spec) {
  *
  * OperatorBase defines the API used by the pipeline to execute operations.
  */
-class OperatorBase {
+class DLL_PUBLIC OperatorBase {
  public:
-  inline explicit OperatorBase(const OpSpec &spec) :
+  DLL_PUBLIC inline explicit OperatorBase(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads")),
     batch_size_(spec.GetArgument<int>("batch_size")),
     input_sets_(spec.GetArgument<int>("num_input_sets")) {
@@ -83,34 +84,34 @@ class OperatorBase {
     DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
 
-  virtual inline ~OperatorBase() noexcept(false)
+  DLL_PUBLIC virtual inline ~OperatorBase() noexcept(false)
   {}
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
    */
-  virtual void Run(SampleWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(SampleWorkspace *ws) {
     DALI_FAIL("CPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  virtual void Run(DeviceWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(DeviceWorkspace *ws) {
     DALI_FAIL("GPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by operators interfacing with both CPU and GPU.
    */
-  virtual void Run(MixedWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(MixedWorkspace *ws) {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by support operators (RNG etc.).
    */
-  virtual void Run(SupportWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(SupportWorkspace *ws) {
     DALI_FAIL(name() + " is not a support operator!");
   }
 
@@ -119,7 +120,7 @@ class OperatorBase {
    * the name of the op as specified by the OpSpec it was constructed
    * from.
    */
-  virtual string name() const {
+  DLL_PUBLIC virtual string name() const {
     return spec_.name();
   }
 
@@ -127,11 +128,11 @@ class OperatorBase {
    * @brief For reader Ops, returns the size of the dataset
    * For all other Ops, returns -1
    */
-  virtual Index epoch_size() const {
+  DLL_PUBLIC virtual Index epoch_size() const {
     return -1;
   }
 
-  int GetNumInputSets() const {
+  DLL_PUBLIC int GetNumInputSets() const {
     return input_sets_;
   }
 
@@ -255,6 +256,8 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
 void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
                                  TensorList<GPUBackend> &output, vector<uint8 *> *outPtrs);
+
+DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);
 
 }  // namespace dali
 
