@@ -275,13 +275,13 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
+            if epoch == args.epochs - 1:
+                print('##Top-1 {0}\n'
+                      '##Top-5 {1}'.format(prec1, prec5))
 
         # reset DALI iterators
         train_loader.reset()
         val_loader.reset()
-        if args.epochs == args.start_epoch - 1:
-            print('##Top-1 {0}\n'
-                  '##Top-5 {1}').format(prec1, prec5)
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
