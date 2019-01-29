@@ -16,7 +16,9 @@
 #define DALI_TEST_TENSOR_LIST_WRAPPER_H_
 
 #include <gtest/gtest.h>
+#include <memory>
 #include <string>
+
 #include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
@@ -38,6 +40,11 @@ class TensorListWrapper {
   template<typename Backend>
   const TensorList<Backend> *get() const {
     FAIL() << "Backend type not supported. You may want to write your own specialization", nullptr;
+  }
+
+  template<typename Backend>
+  constexpr bool has() const {
+    FAIL() << "Backend type not supported. You may want to write your own specialization", false;
   }
 
 
@@ -73,6 +80,19 @@ class TensorListWrapper {
     return *gpu_;
   }
 
+  template <typename Backend>
+  std::unique_ptr<TensorList<Backend>> CopyTo() const {
+    std::unique_ptr<TensorList<Backend>> result(new TensorList<Backend>());
+    ASSERT_NE(has_cpu(), has_gpu())
+        << "Should contain TensorList from exactly one backend", nullptr;
+    if (has_cpu()) {
+      result->Copy(*cpu_, 0);
+    } else {
+      result->Copy(*gpu_, 0);
+    }
+    CUDA_CALL(cudaStreamSynchronize(0));
+    return result;
+  }
 
   explicit constexpr operator bool() const noexcept {
     return cpu_ || gpu_;
@@ -98,6 +118,15 @@ inline const TensorList<GPUBackend> *TensorListWrapper::get() const {
   return gpu_;
 }
 
+template <>
+inline bool TensorListWrapper::has<CPUBackend>() const {
+  return has_cpu();
+}
+
+template <>
+inline bool TensorListWrapper::has<GPUBackend>() const {
+  return has_gpu();
+}
 
 }  // namespace testing
 }  // namespace dali

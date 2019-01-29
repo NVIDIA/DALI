@@ -17,6 +17,9 @@
 
 #include <string>
 #include <memory>
+#include <vector>
+
+#include "dali/kernels/util.h"
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
@@ -26,6 +29,52 @@ template<typename T>
 struct InputArg {
   // TODO(mszolucha): For Dali's argument input
 };
+
+template <typename T, typename Enable = void>
+struct TestOpArgToStringImpl {
+  static std::string to_string(const T&) {
+    return {};
+  }
+};
+
+template <typename T>
+struct TestOpArgToStringImpl<T, typename std::enable_if<std::is_arithmetic<T>::value>::type> {
+  static std::string to_string(const T& val) {
+    return std::to_string(val);
+  }
+};
+
+template <>
+struct TestOpArgToStringImpl<std::string> {
+  static std::string to_string(const std::string& val) {
+    return "\"" + val + "\"";
+  }
+};
+
+template <typename T>
+struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
+  static std::string to_string(const T& val) {
+    std::stringstream ss;
+    if (val.size() == 0) {
+      return "[]";
+    } else {
+      ss << "[ ";
+    }
+    using element_type = kernels::element_t<T>;
+    bool first = true;
+    for (const auto& e : val) {
+      if (!first) {
+        ss << ", ";
+      } else {
+        first = false;
+      }
+      ss << TestOpArgToStringImpl<element_type>::to_string(e);
+    }
+    ss << " ]";
+    return ss.str();
+  }
+};
+
 
 template<typename T>
 class TestOpArgValue;
@@ -44,6 +93,7 @@ class TestOpArgBase {
     return reinterpret_cast<const TestOpArgValue<T> *>(this)->value;
   }
 
+  virtual std::string to_string() const = 0;
 
  protected:
   TestOpArgBase() = default;
@@ -73,6 +123,9 @@ class TestOpArgValueImpl : public TestOpArgBase {
     opspec.AddArg(argument_name, value);
   }
 
+  std::string to_string() const override {
+    return TestOpArgToStringImpl<T>::to_string(value);
+  }
 
   bool IsArgumentInput() const override { return isArgInput; }
 
@@ -121,6 +174,10 @@ class TestOpArg {
     val->SetArg(argument_name, spec, ws);
   }
 
+  std::string to_string() const {
+    return val->to_string();
+  }
+
 
   template<typename T>
   T GetValue() const {
@@ -131,6 +188,11 @@ class TestOpArg {
 
   std::shared_ptr<TestOpArgBase> val;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const TestOpArg& op_arg) {
+  os << op_arg.to_string();
+  return os;
+}
 
 }  // namespace testing
 }  // namespace dali

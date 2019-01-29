@@ -52,8 +52,51 @@ inline std::string BackendStringName<GPUBackend>() {
   return "gpu";
 }
 
+// TODO(klecki): mixed, inputs on different devices
+inline std::string GetOpDevice(const Arguments &op_args) {
+  auto op_device_it = op_args.find(ArgumentKey("device"));
+  if (op_device_it != op_args.end()) {
+    return op_device_it->second.GetValue<std::string>();
+  } else {
+    return "cpu";
+  }
+}
 
 }  // namespace detail
+
+// JSON-like output
+inline std::ostream& operator<<(std::ostream& os, const Arguments& args) {
+  std::string separator("");
+  std::string indent("");
+  if (args.size() == 0) {
+    os << "{";
+  } else if (args.size() == 1) {
+    os << "{ ";
+  } else {
+    os << "{\n";
+    separator = ",\n";
+    indent = "    ";
+  }
+
+  for (const auto arg : args) {
+    os << indent << "\"" << arg.first << "\" : " << arg.second << separator;
+  }
+
+  if (args.size() == 0) {
+    os << "}";
+  } else if (args.size() == 1) {
+    os << " }";
+  } else {
+    os << "}\n";
+  }
+
+  return os;
+}
+
+// Force GTest to write our way
+inline void PrintTo(const Arguments& args, std::ostream* os) {
+  *os << args;
+}
 
 inline std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_threads) {
   return std::unique_ptr<Pipeline>(
@@ -85,15 +128,17 @@ inline void RunPipeline(Pipeline &pipeline) {
   pipeline.RunGPU();
 }
 
-
-template<typename OutputBackend>
 inline std::vector<TensorListWrapper>
 GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
   std::vector<TensorListWrapper> ret;
   auto workspace = CreateWorkspace();
   pipeline.Outputs(&workspace);
   for (int output_idx = 0; output_idx < workspace.NumOutput(); output_idx++) {
-    ret.emplace_back(&workspace.template Output<OutputBackend>(output_idx));
+    if (workspace.OutputIsType<CPUBackend>(output_idx)) {
+      ret.emplace_back(&workspace.template Output<CPUBackend>(output_idx));
+    } else {
+      ret.emplace_back(&workspace.template Output<GPUBackend>(output_idx));
+    }
   }
   return ret;
 }
@@ -175,34 +220,30 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
    * push data through it and call output verification routines.
    * Every RunTest call will set up its own pipeline.
    *
-   * @tparam OutputBackend
    * @param inputs all inputs to the pipeline
    * @param outputs placeholder for outputs from pipeline
    * @param operator_arguments arguments, with which the pipeline will be called
    * @param verify function, that will be used for test verification
    */
-  template<typename OutputBackend>
-  void
-  RunTest(const std::vector<TensorListWrapper> &inputs, std::vector<TensorListWrapper> &outputs,
-          const Arguments &operator_arguments, const Verify &verify) {
+  void RunTest(const std::vector<TensorListWrapper> &inputs,
+               std::vector<TensorListWrapper> &outputs, const Arguments &operator_arguments,
+               const Verify &verify) {
     // TODO(mszolucha) implement
   }
-
 
   /**
    * Convenient overload, for specific, single-input/single-output graph
    */
-  template<typename OutputBackend>
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
                const Arguments &operator_arguments, const VerifySingleIo &verify) {
-    std::string output_backend = detail::BackendStringName<OutputBackend>();
+    std::string op_backend = detail::GetOpDevice(operator_arguments);
     const auto batch_size = input.has_cpu() ? input.cpu().ntensor() : input.gpu().ntensor();
     auto pipeline = CreatePipeline(batch_size, num_threads_);
     if (input) {
       AddInputToPipeline(*pipeline, input);
     }
-    auto outputs = RunTestImpl<OutputBackend>(*pipeline, operator_arguments, input ? true : false,
-                                              input.backend(), output_backend);
+    auto outputs = RunTestImpl(*pipeline, operator_arguments, input ? true : false,
+                                              op_backend, op_backend);
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
   }
@@ -224,20 +265,17 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   void TearDown() final {
   }
 
-
-  template<typename OutputBackend>
-  std::vector<TensorListWrapper>
-  RunTestImpl(Pipeline &pipeline, const Arguments &operator_arguments, bool has_inputs,
-              const std::string &input_backend, const std::string &output_backend) {
-    const auto op_spec = CreateOpSpec(GenerateOperatorGraph().get_op_name(),
-                                      operator_arguments, has_inputs, input_backend,
-                                      output_backend);
+  std::vector<TensorListWrapper> RunTestImpl(Pipeline &pipeline,
+                                             const Arguments &operator_arguments, bool has_inputs,
+                                             const std::string &input_backend,
+                                             const std::string &output_backend) {
+    const auto op_spec = CreateOpSpec(GenerateOperatorGraph().get_op_name(), operator_arguments,
+                                      has_inputs, input_backend, output_backend);
     AddOperatorToPipeline(pipeline, op_spec);
     BuildPipeline(pipeline, op_spec);
     RunPipeline(pipeline);
-    return GetOutputsFromPipeline<OutputBackend>(pipeline, output_backend);
+    return GetOutputsFromPipeline(pipeline, output_backend);
   }
-
 
   size_t num_threads_ = 1;
 };
