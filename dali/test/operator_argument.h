@@ -60,8 +60,7 @@ struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
     } else {
       ss << "[ ";
     }
-    using element_t =
-        typename std::remove_cv<typename std::remove_reference<decltype(*begin(val))>::type>::type;
+    using element_type = kernels::element_t<T>;
     bool first = true;
     for (const auto& e : val) {
       if (!first) {
@@ -69,7 +68,7 @@ struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
       } else {
         first = false;
       }
-      ss << TestOpArgToStringImpl<element_t>::to_string(e);
+      ss << TestOpArgToStringImpl<element_type>::to_string(e);
     }
     ss << " ]";
     return ss.str();
