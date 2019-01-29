@@ -74,6 +74,9 @@ class RandomBBoxCrop : public Operator<Backend> {
       DALI_ENFORCE(num_attempts_ > 0,
                    "Minimum number of attempts must be greater than zero");
     }
+
+    if(spec.GetArgument<bool>("allow_no_crop"))
+      thresholds_.push_back(2.0f);
   }
 
   ~RandomBBoxCrop() override = default;
@@ -89,13 +92,13 @@ class RandomBBoxCrop : public Operator<Backend> {
   void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels);
 
   float SelectMinimumOverlap() {
-    static std::uniform_int_distribution<> sampler(
+    std::uniform_int_distribution<> sampler(
         0, static_cast<int>(thresholds_.size() - 1));
     return thresholds_[sampler(rd_)];
   }
 
   float SampleCandidateDimension() {
-    static std::uniform_real_distribution<> sampler(scaling_bounds_.min,
+    std::uniform_real_distribution<> sampler(scaling_bounds_.min,
                                                     scaling_bounds_.max);
     return static_cast<float>(sampler(rd_));
   }
@@ -167,7 +170,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   std::tuple<Crop, BoundingBoxes, std::vector<int>> FindProspectiveCrop(
       const BoundingBoxes &bounding_boxes, const std::vector<int> &labels,
       float minimum_overlap) {
-    if (minimum_overlap > 0) {
+    if (minimum_overlap <= 1.0f) {
       for (int i = 0; i < num_attempts_; ++i) {
         // Image is HWC
         const auto candidate_height = SampleCandidateDimension();
@@ -184,7 +187,8 @@ class RandomBBoxCrop : public Operator<Backend> {
               DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes,
                                              labels);
 
-          if (ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
+          if (candidate_boxes.begin() != candidate_boxes.end() && 
+                ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
             const auto remapped_boxes =
                 RemapBoxes(candidate_crop, candidate_boxes, candidate_height,
                            candidate_width);
@@ -199,7 +203,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
   }
 
-  const std::vector<float> thresholds_;
+  std::vector<float> thresholds_;
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
   const bool ltrb_;

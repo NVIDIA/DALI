@@ -29,7 +29,7 @@ labels match the boxes that remain, after being discarded with respect to the mi
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-Selected at random for every sample from provided values. Default leaves the input image as-is in the new crop.)code",
+Selected at random for every sample from provided values. Default imposes no restrictions on IOU.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
@@ -48,6 +48,10 @@ Default values disallow changes in aspect ratio.)code",
         "num_attempts",
         R"code(Number of attempts to retrieve a patch with the desired parameters.)code",
         1)
+    .AddOptionalArg(
+        "allow_no_crop",
+        R"code(It true, includes no cropping as one of the random options.)code",
+        true)
     .EnforceInputLayout(DALI_NHWC);
 
 template <>
