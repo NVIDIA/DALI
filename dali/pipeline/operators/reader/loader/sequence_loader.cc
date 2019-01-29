@@ -124,7 +124,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
                                Tensor<CPUBackend> *target) {
   const auto frame_filename = s[frame_idx];
   target->SetSourceInfo(frame_filename);
-  auto frame = FileStream::Open(frame_filename);
+  auto frame = FileStream::Open(frame_filename, read_ahead_);
   Index frame_size = frame->Size();
 // ToDo - move to mmap version bellow when more tests are available
 #if 1

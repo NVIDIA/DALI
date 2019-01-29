@@ -27,7 +27,11 @@ DALI_SCHEMA(LoaderBase)
   .AddOptionalArg("shard_id",
       R"code(Id of the part to read.)code", 0)
   .AddOptionalArg("tensor_init_bytes",
-      R"code(Hint for how much memory to allocate per image.)code", 1048576);
+      R"code(Hint for how much memory to allocate per image.)code", 1048576)
+  .AddOptionalArg("read_ahead",
+      R"code(Whether accessed data should be read ahead. In case of big files like LMDB,
+RecordIO or TFRecord it will slow down first access but will decrease the time of all following
+accesses.)code", false);
 
 
 size_t start_index(const size_t shard_id,
