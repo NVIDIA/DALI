@@ -36,7 +36,6 @@ DALI_SCHEMA(ElementExtract)
 template <>
 void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     const auto &input = ws->Input<CPUBackend>(idx);
-    auto data_type = input.type().id();
     auto element_layout = detail::GetElementLayout(input.GetLayout());
 
     auto shape = input.shape();
@@ -47,23 +46,23 @@ void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto elements_per_sample = element_map_.size();
     auto output_offset = idx * elements_per_sample;
 
-    DALI_TYPE_SWITCH(data_type, Type,
-        for (std::size_t k = 0; k < elements_per_sample; k++) {
-            auto output_idx = output_offset + k;
-            auto &output = ws->Output<CPUBackend>(output_idx);
-            output.set_type(input.type());
-            output.SetLayout(element_layout);
-            output.Resize(output_shape);
+    TypeInfo type = input.type();
+    for (std::size_t k = 0; k < elements_per_sample; k++) {
+        auto output_idx = output_offset + k;
+        auto &output = ws->Output<CPUBackend>(output_idx);
+        output.set_type(input.type());
+        output.SetLayout(element_layout);
+        output.Resize(output_shape);
 
-            auto element_idx = element_map_[k];
-            auto element_offset = element_idx * element_size;
+        auto element_idx = element_map_[k];
+        auto element_offset = element_idx * element_size;
 
-            memcpy(
-                output.mutable_data<Type>(),
-                &input.data<Type>()[element_offset],
-                element_size * sizeof(Type));
-        }
-    )
+        type.Copy<CPUBackend, CPUBackend>(
+            output.raw_mutable_data(),
+            static_cast<const uint8_t*>(input.raw_data()) + element_offset * type.size(),
+            element_size,
+            0);
+    }
 }
 
 DALI_REGISTER_OPERATOR(ElementExtract, ElementExtract<CPUBackend>, CPU);
