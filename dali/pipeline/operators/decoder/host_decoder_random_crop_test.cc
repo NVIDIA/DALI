@@ -40,7 +40,7 @@ class CroppedDecoderTest : public GenericDecoderTest<ImgType> {
       auto data_size = Product(encoded_data.tensor_shape(i));
 
       this->DecodeImage(data, data_size, c, this->ImageType(), &out[i],
-        nullptr, &random_crop_generator);
+        &random_crop_generator);
     }
 
     vector<TensorList<CPUBackend> *> outputs(1);
@@ -65,7 +65,7 @@ class HostDecodeRandomCropTest : public CroppedDecoderTest<ImgType> {
     return OpSpec("HostDecoderRandomCrop")
       .AddArg("device", "cpu")
       .AddArg("output_type", this->img_type_)
-      .AddArg("seed", 1212334)
+      .AddArg("seed", this->seed)
       .AddInput("encoded", "cpu")
       .AddOutput("decoded", "cpu");
   }
@@ -77,7 +77,6 @@ class HostDecodeRandomCropTest : public CroppedDecoderTest<ImgType> {
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(HostDecodeRandomCropTest, Types);
-
 
 template<typename ImageType>
 class HostDecodeRandomCropTestJpeg : public HostDecodeRandomCropTest<ImageType> {
@@ -93,7 +92,6 @@ TYPED_TEST(HostDecodeRandomCropTestJpeg, TestJpegDecode) {
   this->RunTestDecode(t_jpegImgType, 0.7);
 }
 
-
 template<typename ImageType>
 class HostDecodeRandomCropTestPng : public HostDecodeRandomCropTest<ImageType> {
  protected:
@@ -107,7 +105,6 @@ TYPED_TEST_CASE(HostDecodeRandomCropTestPng, Types);
 TYPED_TEST(HostDecodeRandomCropTestPng, TestPngDecode) {
   this->RunTestDecode(t_pngImgType, 0.75);
 }
-
 
 template<typename ImageType>
 class HostDecodeRandomCropTestTiff : public HostDecodeRandomCropTest<ImageType> {

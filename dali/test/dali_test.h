@@ -80,7 +80,6 @@ class DALITest : public ::testing::Test {
 
   void DecodeImage(const unsigned char *data, int data_size, int c,
                    DALIImageType img_type, Tensor<CPUBackend> *out,
-                   unsigned char *out_dataPntr = nullptr,
                    RandomCropGenerator *random_crop_generator = nullptr) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
@@ -110,10 +109,10 @@ class DALITest : public ::testing::Test {
 
     if (out) {
       out->Resize({tmp.rows, tmp.cols, c});
-      out_dataPntr = out->mutable_data<unsigned char>();
     }
 
-    std::memcpy(out_dataPntr, out_img.ptr(),
+    std::memcpy(out->mutable_data<unsigned char>(),
+                out_img.ptr(),
                 static_cast<size_t>(out_img.rows) * out_img.cols * c);
   }
 
