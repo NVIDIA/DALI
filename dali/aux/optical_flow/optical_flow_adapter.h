@@ -21,6 +21,12 @@
 namespace dali {
 namespace optical_flow {
 
+namespace detail {
+
+using Backend = kernels::StorageGPU;
+
+}  // namespace detail
+
 enum VectorGridSize {
   UNDEF,
   SIZE_4,  /// 4x4 grid
@@ -33,19 +39,19 @@ struct OpticalFlowParams {
   bool enable_hints = false;
 };
 
-template <typename Backend, typename DataType, int ndim>
+template<typename Backend, typename DataType, int ndim>
 using TV = dali::kernels::TensorView<Backend, DataType, ndim>;
+
 
 class DLL_PUBLIC OpticalFlowAdapter {
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) {}
 
 
-  virtual void CalcOpticalFlow(TV<GPUBackend, const uint8_t, 3> reference_image,
-                               TV<GPUBackend, const uint8_t, 3> input_image,
-                               TV<GPUBackend, float, 3> output_image,
-                               TV<GPUBackend, const float, 3> external_hints
-                                  = TV<GPUBackend, const float, 3>()) = 0;
+  virtual void CalcOpticalFlow(TV<detail::Backend, const uint8_t, 3> reference_image,
+                               TV<detail::Backend, const uint8_t, 3> input_image,
+                               TV<detail::Backend, float, 3> output_image,
+                               TV<detail::Backend, const float, 3> external_hints = TV<detail::Backend, const float, 3>()) = 0;  // NOLINT
 
 
   virtual ~OpticalFlowAdapter() = default;
