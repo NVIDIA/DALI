@@ -30,11 +30,7 @@
 
 namespace dali {
 
-using OpPtr = unique_ptr<OperatorBase>;
-
 typedef int64 NodeID;
-
-DLL_PUBLIC OpPtr InstantiateOperator(const OpSpec &spec);
 
 struct OpNode {
   inline OpNode() {}
@@ -49,7 +45,7 @@ struct OpNode {
     return *op;
   }
 
-  OpPtr op;
+  std::unique_ptr<OperatorBase> op;
   NodeID id;
   OpSpec spec;
   std::set<NodeID> parents, children;
