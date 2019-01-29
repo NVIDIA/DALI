@@ -35,6 +35,9 @@ GenericImage::DecodeImpl(DALIImageType image_type,
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;
+
+  DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
+
   // If required, crop the image
   auto random_crop_generator = GetRandomCropGenerator();
   if (random_crop_generator) {
@@ -57,9 +60,6 @@ GenericImage::DecodeImpl(DALIImageType image_type,
       DALI_ENFORCE(H == newH);
   }
 
-  if (decoded_image.data == nullptr) {
-     DALI_FAIL("Unsupported image type.");
-  }
   // if different image type needed (e.g. RGB), permute from BGR
   if (IsColor(image_type) && image_type != DALI_BGR) {
     OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);

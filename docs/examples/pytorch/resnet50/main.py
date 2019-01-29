@@ -80,20 +80,19 @@ cudnn.benchmark = True
 class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop, dali_cpu=False):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
-        self.dali_cpu = dali_cpu
         self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
         #let user decide which pipeline works him bets for RN version he runs
-        if self.dali_cpu:
+        if dali_cpu:
             dali_device = "cpu"
             # self.decode = ops.HostDecoder(device=dali_device, output_type=types.RGB)
             self.decode = ops.HostDecoderRandomCrop(device=dali_device, output_type=types.RGB)
-            self.resize = ops.Resize(resize_shorter=crop)
+            self.res = ops.Resize(resize_x=crop, resize_y=crop)
         else:
             dali_device = "gpu"
             # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
             # without additional reallocations
             self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512)
-            self.rrc = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
+            self.res = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,
@@ -109,10 +108,7 @@ class HybridTrainPipe(Pipeline):
         rng = self.coin()
         self.jpegs, self.labels = self.input(name="Reader")
         images = self.decode(self.jpegs)
-        if self.dali_cpu:
-            images = self.resize(images)
-        else:
-            images = self.rrc(images)
+        images = self.res(images)
         output = self.cmnp(images.gpu(), mirror=rng)
         return [output, self.labels]
 
