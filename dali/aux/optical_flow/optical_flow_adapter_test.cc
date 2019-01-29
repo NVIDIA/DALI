@@ -25,8 +25,8 @@ static int kTestDataSize = 2;
 
 TEST(OpticalFlowAdapter, StubApi) {
   std::unique_ptr<float> data(new float[kTestDataSize]);
-  TensorView<GPUBackend, uint8_t, 3> tvref, tvin;
-  TensorView<GPUBackend, float, 3> tvout(data.get(), {1, 1, 2});
+  TensorView<detail::Backend, uint8_t, 3> tvref, tvin;
+  TensorView<detail::Backend, float, 3> tvout(data.get(), {1, 1, 2});
   OpticalFlowParams params;
   std::unique_ptr<OpticalFlowAdapter> of(new OpticalFlowStub(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);

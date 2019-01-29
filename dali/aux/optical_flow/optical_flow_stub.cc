@@ -21,10 +21,10 @@ OpticalFlowStub::OpticalFlowStub(dali::optical_flow::OpticalFlowParams params) :
         OpticalFlowAdapter(params) {
 }
 
-void OpticalFlowStub::CalcOpticalFlow(TV<dali::GPUBackend, const uint8_t, 3> reference_image,
-                                      TV<dali::GPUBackend, const uint8_t, 3> input_image,
-                                      TV<dali::GPUBackend, float, 3> output_image,
-                                      TV<dali::GPUBackend, const float, 3> external_hints) {
+void OpticalFlowStub::CalcOpticalFlow(TV<detail::Backend, const uint8_t, 3> reference_image,
+                                      TV<detail::Backend, const uint8_t, 3> input_image,
+                                      TV<detail::Backend, float, 3> output_image,
+                                      TV<detail::Backend, const float, 3> external_hints) {
   auto ptr = output_image.data;
   ptr[0] = kStubValue;
   ptr[1] = kStubValue / 2;

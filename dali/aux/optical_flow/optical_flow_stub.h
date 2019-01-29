@@ -29,10 +29,10 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter {
  public:
   explicit OpticalFlowStub(OpticalFlowParams params);
 
-  void CalcOpticalFlow(TV<GPUBackend, const uint8_t, 3> reference_image,
-                       TV<GPUBackend, const uint8_t, 3> input_image,
-                       TV<GPUBackend, float, 3> output_image,
-                       TV<GPUBackend, const float, 3> external_hints) override;
+  void CalcOpticalFlow(TV<detail::Backend, const uint8_t, 3> reference_image,
+                       TV<detail::Backend, const uint8_t, 3> input_image,
+                       TV<detail::Backend, float, 3> output_image,
+                       TV<detail::Backend, const float, 3> external_hints) override;
 
   static constexpr float kStubValue = 666.f;
 };
