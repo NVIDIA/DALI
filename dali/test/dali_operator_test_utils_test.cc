@@ -22,15 +22,16 @@ namespace testing {
 
 TEST(ArgumentsCartesianTest, NoOp) {
   std::vector<testing::Arguments> args = {
-      {{"arg0", 42}, {"arg1", std::string{"What is the answer"}}},
-      {}
-  };
+      {{"arg0", std::string{"What is the answer to the ultimate question of life,"
+                            " the universe and everything?"}},
+       {"arg1", 42}},
+      {}};
   auto c = cartesian(args);
   ASSERT_EQ(c.size(), args.size());
   ASSERT_EQ(c[0].size(), args[0].size());
   ASSERT_EQ(c[1].size(), args[1].size());
-  ASSERT_EQ(c[0].at("arg0").GetValue<int>(), args[0].at("arg0").GetValue<int>());
-  ASSERT_EQ(c[0].at("arg1").GetValue<std::string>(), args[0].at("arg1").GetValue<std::string>());
+  ASSERT_EQ(c[0].at("arg0").GetValue<std::string>(), args[0].at("arg0").GetValue<std::string>());
+  ASSERT_EQ(c[0].at("arg1").GetValue<int>(), args[0].at("arg1").GetValue<int>());
 }
 
 TEST(ArgumentsCartesianTest, Merge) {

@@ -83,7 +83,8 @@ class TensorListWrapper {
   template <typename Backend>
   std::unique_ptr<TensorList<Backend>> CopyTo() const {
     std::unique_ptr<TensorList<Backend>> result(new TensorList<Backend>());
-    DALI_ENFORCE(has_cpu() != has_gpu(), "Should contain TensorList from exactly one backend");
+    ASSERT_NE(has_cpu(), has_gpu())
+        << "Should contain TensorList from exactly one backend", nullptr;
     if (has_cpu()) {
       result->Copy(*cpu_, 0);
     } else {
@@ -92,7 +93,6 @@ class TensorListWrapper {
     CUDA_CALL(cudaStreamSynchronize(0));
     return result;
   }
-
 
   explicit constexpr operator bool() const noexcept {
     return cpu_ || gpu_;
