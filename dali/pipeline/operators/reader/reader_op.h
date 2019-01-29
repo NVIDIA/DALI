@@ -213,8 +213,8 @@ class DataReader : public Operator<Backend> {
 
     Operator<Backend>::Run(ws);
 
-    for (size_t i = 0; i < prefetched_batch_.size(); ++i) {
-        loader_->ReturnTensor(prefetched_batch_[i]);
+    for (auto &sample : prefetched_batch_) {
+        loader_->ReturnTensor(sample);
     }
 
     prefetched_batch_ready_ = false;
