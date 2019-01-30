@@ -96,7 +96,7 @@ class ElementExtractTest : public DaliOperatorTest {
         args.emplace("device", detail::BackendStringName<Backend>());
         TensorListWrapper tlout;
         auto tlin = GetSequenceData();
-        this->RunTest<Backend>(
+        this->RunTest(
             tlin.get(), tlout, args,
             std::bind(&ElementExtractTest::Verify, this,
                 std::placeholders::_1,
