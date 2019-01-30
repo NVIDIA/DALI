@@ -90,7 +90,7 @@ class TestOpArgBase {
 
   template<typename T>
   T GetValue() const {
-    return reinterpret_cast<const TestOpArgValue<T> *>(this)->value;
+    return dynamic_cast<const TestOpArgValue<T> &>(*this).value;
   }
 
   virtual std::string to_string() const = 0;
@@ -163,6 +163,10 @@ class TestOpArg {
  public:
   TestOpArg() = default;
 
+  template<size_t N>
+  TestOpArg(const char (&text)[N]) : TestOpArg(std::string(text)) {}  // NOLINT
+
+  TestOpArg(const char *text) : TestOpArg(std::string(text)) {}  // NOLINT
 
   template<typename T>
   TestOpArg(const T &value) :  // NOLINT non-explicit ctor
