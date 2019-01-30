@@ -20,40 +20,16 @@ namespace dali {
 
 namespace detail {
 
-template <typename T>
-void ElementExtractImpl(const TensorList<GPUBackend> &input,
-                        TensorList<GPUBackend> &output,
-                        int index,
-                        cudaStream_t cuda_stream) {
-    for (unsigned int i = 0; i < input.ntensor(); i++) {
-        auto* output_data = output.mutable_tensor<T>(i);
-        const auto* input_data = input.tensor<T>(i);
-        const auto& tensor_shape = input.tensor_shape(i);
-        const auto element_size = Product(tensor_shape) / tensor_shape[0];
-
-        const auto input_offset = index * element_size;
-
-        CUDA_CALL(cudaMemcpyAsync(
-            output_data,
-            &input_data[input_offset],
-            element_size * sizeof(T),
-            cudaMemcpyDeviceToDevice,
-            cuda_stream));
-    }
-}
-
 std::vector<Dims> GetOutputShape(const TensorList<GPUBackend> &input,
                                  const std::vector<int>& element_map) {
     std::vector<Dims> output_shape;
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
         auto shape = input.tensor_shape(i);
         CheckInputShape(shape, element_map);
-        Dims element_shape(shape.begin() + 1, shape.end());
-        output_shape.push_back(element_shape);
+        output_shape.emplace_back(shape.begin() + 1, shape.end());
     }
     return output_shape;
 }
-
 
 }  // namespace detail
 
@@ -64,18 +40,27 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
     auto element_layout = detail::GetElementLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
     int output_offset = idx * elements_per_sample;
-    auto data_type = input.type().id();
-    DALI_TYPE_SWITCH(data_type, Type,
-        for (int k = 0; k < elements_per_sample; k++) {
-            int element = element_map_[k];
-            auto &output = ws->Output<GPUBackend>(output_offset + k);
-            output.set_type(input.type());
-            output.SetLayout(element_layout);
-            output.Resize(output_shape);
-            detail::ElementExtractImpl<Type>(
-                input, output, element, ws->stream());
+    auto data_type_size = input.type().size();
+    for (int k = 0; k < elements_per_sample; k++) {
+        int element = element_map_[k];
+        auto &output = ws->Output<GPUBackend>(output_offset + k);
+        output.set_type(input.type());
+        output.SetLayout(element_layout);
+        output.Resize(output_shape);
+
+        for (unsigned int i = 0; i < input.ntensor(); i++) {
+            const auto& tensor_shape = input.tensor_shape(i);
+            auto element_size_bytes = data_type_size * Product(tensor_shape) / tensor_shape[0];
+            auto input_offset_bytes = element * element_size_bytes;
+
+            CUDA_CALL(cudaMemcpyAsync(
+                output.raw_mutable_tensor(i),
+                static_cast<const uint8_t*>(input.raw_tensor(i)) + input_offset_bytes,
+                element_size_bytes,
+                cudaMemcpyDeviceToDevice,
+                ws->stream()));
         }
-    )
+    }
 }
 
 DALI_REGISTER_OPERATOR(ElementExtract, ElementExtract<GPUBackend>, GPU);
