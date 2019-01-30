@@ -56,7 +56,7 @@ if __name__ == "__main__":
     for i in range(ITER):
         print("Iteration " + str(i))
         pipe_out = pipe.run()
-        sequences_out = pipe_out[0].asCPU().as_array()
+        sequences_out = pipe_out[0].as_cpu().as_array()
         print(sequences_out.shape)
         print("Got sequence " + str(i*COUNT) + " " + str((i + 1)*COUNT - 1))
         for b in range(BATCH_SIZE):
