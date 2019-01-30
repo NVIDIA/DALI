@@ -21,9 +21,9 @@ packages = {"numpy" : ["1.11.1"],
             "opencv-python" : ["3.1.0"],
             "mxnet-cu90" : ["1.3.0"],
             "tensorflow-gpu" : ["1.7", "1.11", "1.12.0rc2"],
-            "torch" : ["http://download.pytorch.org/whl/cu90/torch-0.4.0-{0}.whl"]
-             }
-
+            "torch" : ["http://download.pytorch.org/whl/cu90/torch-0.4.0-{0}.whl"],
+            "keras-preprocessing" : ["1.0.5"] # TODO(janton): remove when keras-preprocessing is fixed
+            }
 parser = argparse.ArgumentParser(description='Env setup helper')
 parser.add_argument('--list', '-l', help='list configs', action='store_true', default=False)
 parser.add_argument('--num', '-n', help='return number of all configurations possible', action='store_true', default=False)
@@ -100,7 +100,7 @@ def main():
     elif args.remove:
         print (print_remove(args.use))
     elif args.install >= 0:
-        if args.install > cal_num_of_configs(args.use): 
+        if args.install > cal_num_of_configs(args.use):
             args.install = 1
         print (print_install(args.install, args.use))
 

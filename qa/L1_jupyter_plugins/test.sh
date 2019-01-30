@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch"
+pip_packages="jupyter matplotlib opencv-python mxnet-cu90 tensorflow-gpu torchvision torch keras-preprocessing"  # TODO(janton): remove explicit keras-preprocessing dependency when it is fixed
 
 # We need cmake to run the custom plugin notebook + ffmpeg and wget for video example
 apt-get update
