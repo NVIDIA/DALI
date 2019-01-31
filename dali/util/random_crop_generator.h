@@ -19,37 +19,12 @@
 #include <random>
 #include <utility>
 #include "dali/common.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
 using AspectRatioRange = std::pair<float, float>;
 using AreaRange = std::pair<float, float>;
-
-struct CropWindow {
-    int x, y, w, h;
-
-    inline bool operator==(const CropWindow& oth) const {
-      return x == oth.x
-          && y == oth.y
-          && h == oth.h
-          && w == oth.w;
-    }
-
-    inline bool operator!=(const CropWindow& oth) const {
-      return !operator==(oth);
-    }
-
-    inline bool IsInRange(int H, int W) const {
-      return x >= 0
-          && x < W
-          && y >= 0
-          && y < H
-          && x+w >= 0
-          && x+w <= W
-          && y+h >= 0
-          && y+h <= H;
-    }
-};
 
 class DLL_PUBLIC RandomCropGenerator {
  public:

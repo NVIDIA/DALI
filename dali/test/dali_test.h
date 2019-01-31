@@ -80,15 +80,15 @@ class DALITest : public ::testing::Test {
 
   void DecodeImage(const unsigned char *data, int data_size, int c,
                    DALIImageType img_type, Tensor<CPUBackend> *out,
-                   RandomCropGenerator *random_crop_generator = nullptr) const {
+                   CropWindowGenerator crop_window_generator = {}) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
     cv::Mat tmp = cv::imdecode(
         input, c == 1 ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
 
-    if (random_crop_generator) {
+    if (crop_window_generator) {
       cv::Mat cropped;
-      auto crop = random_crop_generator->GenerateCropWindow(tmp.rows, tmp.cols);
+      auto crop = crop_window_generator(tmp.rows, tmp.cols);
       cv::Rect roi(crop.x, crop.y, crop.w, crop.h);
       tmp(roi).copyTo(cropped);
       tmp = cropped;

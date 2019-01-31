@@ -56,7 +56,11 @@ void HostDecoderRandomCrop::RunImpl(SampleWorkspace *ws, const int idx) {
   std::unique_ptr<Image> img;
   try {
     img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
-    img->SetRandomCropGenerator(random_crop_generator_);
+    img->SetCropWindowGenerator(
+      std::bind(
+        &RandomCropGenerator::GenerateCropWindow,
+        random_crop_generator_,
+        std::placeholders::_1, std::placeholders::_2));
     img->Decode();
   } catch (std::runtime_error &e) {
     DALI_FAIL(e.what() + "File: " + file_name);

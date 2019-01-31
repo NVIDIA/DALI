@@ -49,10 +49,10 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   flags.components = c;
 
   flags.crop = false;
-  auto random_crop_generator = GetRandomCropGenerator();
-  if (random_crop_generator) {
+  auto crop_window_generator = GetCropWindowGenerator();
+  if (crop_window_generator) {
     flags.crop = true;
-    auto crop = random_crop_generator->GenerateCropWindow(h, w);
+    auto crop = crop_window_generator(h, w);
     DALI_ENFORCE(crop.IsInRange(h, w));
     flags.crop_x = crop.x;
     flags.crop_y = crop.y;

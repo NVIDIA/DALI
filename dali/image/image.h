@@ -22,11 +22,11 @@
 #include <string>
 #include <tuple>
 #include <utility>
-
+#include <functional>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
-#include "dali/util/random_crop_generator.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -34,6 +34,8 @@ static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
                                               ".bmp", ".tif",  ".tiff"};
 
 DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
+
+using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
 
 class Image {
  public:
@@ -69,11 +71,11 @@ class Image {
   DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims() const;
 
  /**
-  * Sets random crop generator
+  * Sets crop window generator
   */
-  inline void SetRandomCropGenerator(
-    const std::shared_ptr<RandomCropGenerator>& random_crop_generator) {
-    random_crop_generator_ = random_crop_generator;
+  inline void SetCropWindowGenerator(
+    const CropWindowGenerator& crop_window_generator) {
+    crop_window_generator_ = crop_window_generator;
   }
 
   virtual ~Image() = default;
@@ -105,8 +107,8 @@ class Image {
   /**
    * Gets random crop generator
    */
-  inline const std::shared_ptr<RandomCropGenerator>& GetRandomCropGenerator() const {
-    return random_crop_generator_;
+  inline CropWindowGenerator GetCropWindowGenerator() const {
+    return crop_window_generator_;
   }
 
  private:
@@ -121,7 +123,7 @@ class Image {
   const DALIImageType image_type_;
   bool decoded_ = false;
   ImageDims dims_;
-  std::shared_ptr<RandomCropGenerator> random_crop_generator_;
+  CropWindowGenerator crop_window_generator_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 };
 

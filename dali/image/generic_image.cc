@@ -39,10 +39,10 @@ GenericImage::DecodeImpl(DALIImageType image_type,
   DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
 
   // If required, crop the image
-  auto random_crop_generator = GetRandomCropGenerator();
-  if (random_crop_generator) {
+  auto crop_generator = GetCropWindowGenerator();
+  if (crop_generator) {
       cv::Mat decoded_image_roi;
-      auto crop = random_crop_generator->GenerateCropWindow(H, W);
+      auto crop = crop_generator(H, W);
       const int x = crop.x;
       const int y = crop.y;
       const int newW = crop.w;

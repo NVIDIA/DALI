@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include "dali/test/dali_test_decoder.h"
+#include "dali/util/random_crop_generator.h"  // for AspectRatioRange and AreaRange
 
 namespace dali {
 
 template <typename ImgType>
-class CroppedDecoderTest : public GenericDecoderTest<ImgType> {
+class RandomCroppedDecoderTest : public GenericDecoderTest<ImgType> {
  public:
   void SetUp() override {
     GenericDecoderTest<ImgType>::SetUp();
@@ -35,12 +36,14 @@ class CroppedDecoderTest : public GenericDecoderTest<ImgType> {
 
     const int c = this->GetNumColorComp();
     RandomCropGenerator random_crop_generator(aspect_ratio_range, area_range, seed);
+    auto crop_window_generator = std::bind(
+        &RandomCropGenerator::GenerateCropWindow,
+          &random_crop_generator,
+          std::placeholders::_1, std::placeholders::_2);
     for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = Product(encoded_data.tensor_shape(i));
-
-      this->DecodeImage(data, data_size, c, this->ImageType(), &out[i],
-        &random_crop_generator);
+      this->DecodeImage(data, data_size, c, this->ImageType(), &out[i], crop_window_generator);
     }
 
     vector<TensorList<CPUBackend> *> outputs(1);
@@ -55,7 +58,7 @@ class CroppedDecoderTest : public GenericDecoderTest<ImgType> {
 };
 
 template <typename ImgType>
-class HostDecodeRandomCropTest : public CroppedDecoderTest<ImgType> {
+class HostDecodeRandomCropTest : public RandomCroppedDecoderTest<ImgType> {
  protected:
   uint32_t GetImageLoadingFlags() const override {
     return t_loadJPEGs + t_loadPNGs;
