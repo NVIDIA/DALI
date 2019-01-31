@@ -15,6 +15,8 @@
 #ifndef DALI_OPTICAL_FLOW_H
 #define DALI_OPTICAL_FLOW_H
 
+#include <dali/aux/optical_flow/optical_flow_adapter.h>
+#include <dali/pipeline/data/views.h>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/data/backend.h"
 
@@ -23,28 +25,22 @@ namespace dali {
 template<typename Backend>
 class OpticalFlow : public Operator<Backend> {
  public:
-  explicit OpticalFlow(const OpSpec &spec) :
-          Operator<Backend>(spec),
-          quality_factor_(spec.GetArgument<float>("preset")),
-          grid_size_(spec.GetArgument<int>("output_format")),
-          enable_hints_(spec.GetArgument<bool>("enable_hints")) {
-
-  }
+  explicit OpticalFlow(const OpSpec &spec);
 
 
   ~OpticalFlow() = default;
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) override {
-    cout << quality_factor_ << endl << grid_size_ << endl << enable_hints_ << endl;
-  }
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
 
  private:
   const float quality_factor_;
   const int grid_size_;
   const bool enable_hints_;
+  const optical_flow::OpticalFlowParams of_params_;
+  std::unique_ptr<optical_flow::OpticalFlowAdapter> optical_flow_;
 };
 
 }  // namespace dali
