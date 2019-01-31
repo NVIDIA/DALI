@@ -40,7 +40,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
     auto element_layout = detail::GetElementLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
     int output_offset = idx * elements_per_sample;
-    auto data_type_size = input.type().size();
+    auto data_type = input.type();
     for (int k = 0; k < elements_per_sample; k++) {
         int element = element_map_[k];
         auto &output = ws->Output<GPUBackend>(output_offset + k);
@@ -50,15 +50,14 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
 
         for (unsigned int i = 0; i < input.ntensor(); i++) {
             const auto& tensor_shape = input.tensor_shape(i);
-            auto element_size_bytes = data_type_size * Product(tensor_shape) / tensor_shape[0];
-            auto input_offset_bytes = element * element_size_bytes;
+            auto element_size = Product(tensor_shape.begin()+1, tensor_shape.end());
+            auto input_offset_bytes = element * element_size * data_type.size();
 
-            CUDA_CALL(cudaMemcpyAsync(
+            data_type.Copy<GPUBackend, GPUBackend>(
                 output.raw_mutable_tensor(i),
                 static_cast<const uint8_t*>(input.raw_tensor(i)) + input_offset_bytes,
-                element_size_bytes,
-                cudaMemcpyDeviceToDevice,
-                ws->stream()));
+                element_size,
+                ws->stream());
         }
     }
 }
