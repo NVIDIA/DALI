@@ -103,6 +103,8 @@ view(TensorList<Backend> &data) {
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const TensorList<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const TensorList<>`. Missing `const` in T?");  // NOLINT
   if (data.ntensor() == 0)
     return {};
   using U = typename std::remove_const<T>::type;
@@ -136,6 +138,8 @@ view_as_tensor(TensorList<Backend> &data) {
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const Tensor<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const Tensor<>`. Missing `const` in T?");  // NOLINT
   if (data.shape().empty())
     return {};
   using U = typename std::remove_const<T>::type;
@@ -145,12 +149,16 @@ view(const Tensor<Backend> &data) {
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const Tensor<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const Tensor<>`. Missing `const` in T?");  // NOLINT
   return view<T, ndim>(data);
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const TensorList<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const TensorList<>`. Missing `const` in T?");  // NOLINT
   if (data.ntensor() == 0)
     return {};
   using U = typename std::remove_const<T>::type;
