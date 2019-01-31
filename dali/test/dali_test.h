@@ -89,10 +89,6 @@ class DALITest : public ::testing::Test {
     if (random_crop_generator) {
       cv::Mat cropped;
       auto crop = random_crop_generator->GenerateCropWindow(tmp.rows, tmp.cols);
-      // TODO(janton): remove
-      // std::cout << std::this_thread::get_id()
-      //           << " TEST IMAGE ( " << tmp.rows << ", " << tmp.cols << " ): " << " x " << crop.x
-      //           << " y " << crop.y << " W " << crop.w << " newH " << crop.h << std::endl;
       cv::Rect roi(crop.x, crop.y, crop.w, crop.h);
       tmp(roi).copyTo(cropped);
       tmp = cropped;

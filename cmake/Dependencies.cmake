@@ -87,10 +87,10 @@ endif()
 # libjpeg-turbo
 ##################################################################
 if (BUILD_JPEG_TURBO)
-  find_package(JpegTurbo 1.5 REQUIRED)
-  include_directories(SYSTEM ${JpegTurbo_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${JpegTurbo_LIBRARY})
-  list(APPEND DALI_EXCLUDES libturbojpeg.a)
+  find_package(JPEG REQUIRED)
+  include_directories(SYSTEM ${JPEG_INCLUDE_DIR})
+  message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
+  list(APPEND DALI_LIBS ${JPEG_LIBRARY})
   add_definitions(-DDALI_USE_JPEG_TURBO)
 else()
   # Note: Support for disabling libjpeg-turbo is unofficial
@@ -113,6 +113,7 @@ endif()
 message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"2.0\")")
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
+message("OpenCV libraries: ${OpenCV_LIBRARIES}")
 list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;
                           liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;
                           liblibjpeg-turbo.a)

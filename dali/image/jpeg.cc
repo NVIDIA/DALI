@@ -40,7 +40,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   DALI_ENFORCE(w > 0);
 
 #ifdef DALI_USE_JPEG_TURBO
-// not supported by turbojpeg
+  // not supported by libjpeg-turbo
   if (type == DALI_YCbCr) {
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
@@ -58,13 +58,10 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     flags.crop_y = crop.y;
     flags.crop_width = crop.w;
     flags.crop_height = crop.h;
-    // std::cout << std::this_thread::get_id()
-    //          << " JPEG IMAGE ( " << h << ", " << w << " ): " << " x " << crop.x
-    //          << " y " << crop.y << " W " << crop.w << " newH " << crop.h << std::endl;
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
-               "Color space not supported by turbojpeg");
+               "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
   std::shared_ptr<uint8_t> decoded_image;

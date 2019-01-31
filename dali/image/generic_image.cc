@@ -47,8 +47,6 @@ GenericImage::DecodeImpl(DALIImageType image_type,
       const int y = crop.y;
       const int newW = crop.w;
       const int newH = crop.h;
-      // std::cout << "GENERIC IMAGE: x " << x << " y "
-      //           << y << " W " << newW << " newH " << newH << std::endl;
       DALI_ENFORCE(newW > 0 && newW <= W);
       DALI_ENFORCE(newH > 0 && newH <= H);
       cv::Rect roi(x, y, newW, newH);
