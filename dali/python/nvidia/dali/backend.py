@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.backend_impl import *
+import warnings
 
 # Note: If we every need to add more complex functionality
 # for importing the dali c++ extensions, we can do it here
@@ -21,3 +22,9 @@ initialized = False
 if not initialized:
     Init(OpSpec("CPUAllocator"), OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
     initialized = True
+
+    # pybind11 deprecations
+    def asCPU(self):
+        warnings.warn("asCPU is deprecated since v0.7, please use as_cpu", DeprecationWarning, stacklevel=2)
+        return self.as_cpu()
+    TensorListGPU.asCPU = asCPU
