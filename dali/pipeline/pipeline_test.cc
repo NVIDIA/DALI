@@ -165,21 +165,21 @@ class PipelineTest : public DALITest {
     OpGraph &graph = this->GetGraph(&pipe);
 
       // Validate the graph
-    ASSERT_EQ(graph.NumCPUOp(), 1);
-    ASSERT_EQ(graph.NumMixedOp(), 1);
-    ASSERT_EQ(graph.NumGPUOp(), 1);
+    ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+    ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
+    ASSERT_EQ(graph.NumOp(OpType::GPU), 1);
 
-    ASSERT_EQ(graph.mixed_node(0).op->name(), "MakeContiguous");
+    ASSERT_EQ(graph.Node(OpType::MIXED, 0).op->name(), "MakeContiguous");
 
     // Validate the source op
-    auto &node = graph.node(0);
+    auto &node = graph.Node(0);
     ASSERT_EQ(node.id, 0);
     ASSERT_EQ(node.children.size(), 1);
     ASSERT_EQ(node.parents.size(), 0);
     ASSERT_EQ(node.children.count(1), 1);
 
     // Validate the MakeContiguous op
-    auto &node2 = graph.node(1);
+    auto &node2 = graph.Node(1);
     ASSERT_EQ(node2.id, 1);
     ASSERT_EQ(node2.children.size(), 1);
     ASSERT_EQ(node2.parents.size(), 1);
@@ -187,7 +187,7 @@ class PipelineTest : public DALITest {
     ASSERT_EQ(node2.children.count(2), 1);
 
     // Validate the copy op
-    auto &node3 = graph.node(2);
+    auto &node3 = graph.Node(2);
     ASSERT_EQ(node3.id, 2);
     ASSERT_EQ(node3.children.size(), 0);
     ASSERT_EQ(node3.parents.size(), 1);
@@ -252,12 +252,12 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   OpGraph &graph = this->GetGraph(&pipe);
 
   // Validate the graph
-  ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumMixedOp(), 0);
-  ASSERT_EQ(graph.NumGPUOp(), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the gpu source op
-  auto& node = graph.node(0);
+  auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 0);
   ASSERT_EQ(node.parents.size(), 0);
@@ -302,9 +302,12 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   OpGraph &loaded_graph = this->GetGraph(&loaded_pipe);
 
   // Validate the graph contains the same ops
-  ASSERT_EQ(loaded_graph.NumCPUOp(), original_graph.NumCPUOp());
-  ASSERT_EQ(loaded_graph.NumMixedOp(), original_graph.NumMixedOp());
-  ASSERT_EQ(loaded_graph.NumGPUOp(), original_graph.NumGPUOp());
+  ASSERT_EQ(loaded_graph.NumOp(OpType::CPU),
+            original_graph.NumOp(OpType::CPU));
+  ASSERT_EQ(loaded_graph.NumOp(OpType::MIXED),
+            original_graph.NumOp(OpType::MIXED));
+  ASSERT_EQ(loaded_graph.NumOp(OpType::GPU),
+            original_graph.NumOp(OpType::GPU));
 }
 
 /*
@@ -449,8 +452,8 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   OpGraph &original_graph = this->GetGraph(&pipe);
 
   // Check if seed can be manually set to the reader
-  ASSERT_EQ(original_graph.node(3).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
-  ASSERT_NE(original_graph.node(0).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
+  ASSERT_EQ(original_graph.Node(3).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
+  ASSERT_NE(original_graph.Node(0).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
 }
 
 }  // namespace dali

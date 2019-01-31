@@ -103,12 +103,12 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   // Validate the graph - op 3 should
   // have been pruned as its outputs
   // are unused.
-  ASSERT_EQ(graph.NumCPUOp(), 2);
-  ASSERT_EQ(graph.NumMixedOp(), 1);
-  ASSERT_EQ(graph.NumGPUOp(), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
-  auto& node = graph.node(0);
+  auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -117,7 +117,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
 
-  auto& node2 = graph.node(1);
+  auto& node2 = graph.Node(1);
   ASSERT_EQ(node2.id, 1);
   ASSERT_EQ(node2.children.size(), 1);
   ASSERT_EQ(node2.parents.size(), 1);
@@ -127,7 +127,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
   ASSERT_EQ(node2.spec.Output(0), "data3_cpu");
 
-  auto& node3 = graph.node(2);
+  auto& node3 = graph.Node(2);
   ASSERT_EQ(node3.id, 2);
   ASSERT_EQ(node3.children.size(), 0);
   ASSERT_EQ(node3.parents.size(), 1);
@@ -174,12 +174,12 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 
   // Validate the graph - op 2&3 should
   // have been pruned
-  ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumMixedOp(), 1);
-  ASSERT_EQ(graph.NumGPUOp(), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
-  auto& node = graph.node(0);
+  auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -190,7 +190,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
   ASSERT_EQ(node.spec.Output(1), "data2_cpu");
 
-  auto& node2 = graph.node(1);
+  auto& node2 = graph.Node(1);
   ASSERT_EQ(node2.id, 1);
   ASSERT_EQ(node2.children.size(), 0);
   ASSERT_EQ(node2.parents.size(), 1);
@@ -237,12 +237,12 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 
   // Validate the graph - op 2&3 should
   // have been pruned
-  ASSERT_EQ(graph.NumCPUOp(), 1);
-  ASSERT_EQ(graph.NumMixedOp(), 1);
-  ASSERT_EQ(graph.NumGPUOp(), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
-  auto& node = graph.node(0);
+  auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
   ASSERT_EQ(node.children.size(), 1);
   ASSERT_EQ(node.parents.size(), 0);
@@ -252,7 +252,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   ASSERT_EQ(node.spec.NumOutput(), 1);
   ASSERT_EQ(node.spec.Output(0), "data1_cpu");
 
-  auto& node2 = graph.node(1);
+  auto& node2 = graph.Node(1);
   ASSERT_EQ(node2.id, 1);
   ASSERT_EQ(node2.children.size(), 0);
   ASSERT_EQ(node2.parents.size(), 1);
@@ -374,7 +374,8 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
+  auto *src_op =
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -421,7 +422,8 @@ TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
+  auto *src_op =
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -479,7 +481,8 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
+  auto *src_op =
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_*2);

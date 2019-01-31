@@ -136,11 +136,11 @@ class DLL_PUBLIC Pipeline {
       // Trying to set data for non existing node is a noop
       return;
     }
-    NodeID node_id = graph_.TensorSourceID(name + "_cpu");
+    OpNodeId node_id = graph_.TensorSourceID(name + "_cpu");
     DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
         "Internal error setting external input data.");
 
-    auto &node = graph_.node(node_id);
+    auto &node = graph_.Node(node_id);
     auto *op_ptr = &node.InstantiateOperator();
     ExternalSource<CPUBackend> *source =
       dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
