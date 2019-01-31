@@ -75,7 +75,7 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
 }
 
 TEST_F(OpGraphTest, TestGPUOnly) {
@@ -121,7 +121,7 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, false);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::GPU);
 }
 
 TEST_F(OpGraphTest, TestCPUToGPU) {
@@ -174,7 +174,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
 
   // Validate copy op
   auto& node3 = graph.node(2);
@@ -190,7 +190,7 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 2);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, false);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::GPU);
 }
 
 TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
@@ -247,7 +247,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, false);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::GPU);
 
   // Validate cpu source op
   auto& node3 = graph.node(2);
@@ -273,7 +273,7 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 3);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
 }
 
 TEST_F(OpGraphTest, TestOpRemoval) {
@@ -331,7 +331,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
 
   // Validate dummy op 2
   auto& node3 = graph.node(2);
@@ -348,10 +348,10 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(meta.size(), 2);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 1);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
   ASSERT_EQ(meta[1].node, 2);
   ASSERT_EQ(meta[1].index, 0);
-  ASSERT_EQ(meta[1].is_cpu, true);
+  ASSERT_EQ(meta[1].storage_device, StorageDevice::CPU);
 
   // Remove op 1
   graph.RemoveOp(1);
@@ -387,7 +387,7 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   ASSERT_EQ(meta.size(), 1);
   ASSERT_EQ(meta[0].node, 1);
   ASSERT_EQ(meta[0].index, 0);
-  ASSERT_EQ(meta[0].is_cpu, true);
+  ASSERT_EQ(meta[0].storage_device, StorageDevice::CPU);
 }
 
 TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
