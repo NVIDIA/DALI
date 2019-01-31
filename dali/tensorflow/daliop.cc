@@ -175,7 +175,7 @@ class DaliOp : public tf::OpKernel {
       OP_REQUIRES(context, shapes_[i].dims() <= 0 || data_output_shape == shapes_[i],
       tf::errors::InvalidArgument("DALI pipeline output shape at " + std::to_string(i) +
                                   " " + data_output_shape.DebugString() + " != "
-                                  + shapes_[i].DebugString() + " plugin `shape` argument"));
+                                  + shapes_[i].DebugString() + " plugin `shapes` argument"));
       OP_REQUIRES_OK(context, outputs.allocate(i, data_output_shape, &data_output_tensors[i]));
     }
 
