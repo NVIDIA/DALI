@@ -498,11 +498,11 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
     std::memcpy(
         tl1.template mutable_tensor<uint8>(i),
         tl.template tensor<uint8>(i),
-        Product(tl.tensor_shape(i)));
+        Volume(tl.tensor_shape(i)));
     std::memcpy(
         tl2.template mutable_tensor<uint8>(i),
         tl.template tensor<uint8>(i+batch_size),
-        Product(tl.tensor_shape(i+batch_size)));
+        Volume(tl.tensor_shape(i+batch_size)));
   }
 
   // Run twice without getting the results

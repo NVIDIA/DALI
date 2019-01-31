@@ -42,7 +42,7 @@ class RandomCroppedDecoderTest : public GenericDecoderTest<ImgType> {
           std::placeholders::_1, std::placeholders::_2);
     for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
-      auto data_size = Product(encoded_data.tensor_shape(i));
+      auto data_size = Volume(encoded_data.tensor_shape(i));
       this->DecodeImage(data, data_size, c, this->ImageType(), &out[i], crop_window_generator);
     }
 

@@ -32,14 +32,14 @@ namespace dali {
 class GPUBackend;
 
 // Helper function to get product of dims
-inline Index Product(vector<Index>::const_iterator it_begin,
+inline Index Volume(vector<Index>::const_iterator it_begin,
                      vector<Index>::const_iterator it_end) {
   if (it_begin == it_end) return 0;
   return std::accumulate(it_begin, it_end, 1, std::multiplies<Index>());
 }
 
-inline Index Product(const vector<Index> &shape) {
-  return Product(shape.begin(), shape.end());
+inline Index Volume(const vector<Index> &shape) {
+  return Volume(shape.begin(), shape.end());
 }
 
 // Helper function to get a string of the data shape

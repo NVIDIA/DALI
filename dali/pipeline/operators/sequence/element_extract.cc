@@ -41,7 +41,7 @@ void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto shape = input.shape();
     detail::CheckInputShape(shape, element_map_);
     Dims output_shape(shape.begin()+1, shape.end());
-    auto element_size = Product(output_shape);
+    auto element_size = Volume(output_shape);
 
     auto elements_per_sample = element_map_.size();
     auto output_offset = idx * elements_per_sample;
