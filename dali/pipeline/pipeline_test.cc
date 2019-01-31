@@ -169,7 +169,7 @@ class PipelineTest : public DALITest {
     ASSERT_EQ(graph.NumMixedOp(), 1);
     ASSERT_EQ(graph.NumGPUOp(), 1);
 
-    ASSERT_EQ(graph.mixed_op(0).name(), "MakeContiguous");
+    ASSERT_EQ(graph.mixed_node(0).op->name(), "MakeContiguous");
 
     // Validate the source op
     auto &node = graph.node(0);

@@ -33,13 +33,6 @@
 
 namespace dali {
 
-enum DALIOpType {
-  DALI_GPU = 0,
-  DALI_CPU = 1,
-  DALI_MIXED = 2,
-  DALI_SUPPORT = 3
-};
-
 template <typename InputType>
 inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
   auto &schema = SchemaRegistry::GetSchema(spec.name());

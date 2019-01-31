@@ -30,7 +30,7 @@
 
 namespace dali {
 
-typedef int64 NodeID;
+using NodeID = int64_t;
 
 struct OpNode {
   inline OpNode() {}
@@ -117,32 +117,12 @@ class DLL_PUBLIC OpGraph {
   DLL_PUBLIC inline Index NumSupportOp() const { return support_nodes_.size(); }
 
   /**
-   * @brief Returns a reference to the `idx`-th cpu op that was
-   * added to the graph.
-   */
-  DLL_PUBLIC inline OperatorBase& cpu_op(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
-    DALI_ENFORCE(cpu_nodes_[idx].op != nullptr, "Operator instance is empty");
-    return *cpu_nodes_[idx].op;
-  }
-
-  /**
    * @brief Returns the node object for the `idx`-th cpu op that
    * was added to the graph.
    */
   DLL_PUBLIC inline OpNode& cpu_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
     return cpu_nodes_[idx];
-  }
-
-  /**
-   * @brief Returns a reference to the `idx`-th gpu op that
-   * was added to the graph.
-   */
-  DLL_PUBLIC inline OperatorBase& gpu_op(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
-    DALI_ENFORCE(gpu_nodes_[idx].op != nullptr, "Operator instance is empty");
-    return *gpu_nodes_[idx].op;
   }
 
   /**
@@ -155,32 +135,12 @@ class DLL_PUBLIC OpGraph {
   }
 
   /**
-   * @brief Returns a reference to the `idx`-th mixed op
-   * that was added to the graph.
-   */
-  DLL_PUBLIC inline OperatorBase& mixed_op(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
-    DALI_ENFORCE(mixed_nodes_[idx].op != nullptr, "Operator instance is empty");
-    return *mixed_nodes_[idx].op;
-  }
-
-  /**
    * @brief Returns the node object for the `idx`-th mixed op that
    * was added to the graph.
    */
   DLL_PUBLIC inline OpNode& mixed_node(Index idx) {
     DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
     return mixed_nodes_[idx];
-  }
-
-  /**
-   * @brief Returns a reference to the `idx`-th support op
-   * that was added to the graph.
-   */
-  DLL_PUBLIC inline OperatorBase& support_op(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
-    DALI_ENFORCE(support_nodes_[idx].op != nullptr, "Operator instance is empty");
-    return *support_nodes_[idx].op;
   }
 
   /**
@@ -209,7 +169,7 @@ class DLL_PUBLIC OpGraph {
    * @brief Returns the type (cpu, gpu, mixed) of the node
    * at the given index.
    */
-  DLL_PUBLIC inline DALIOpType NodeType(NodeID id) const {
+  DLL_PUBLIC inline OpType NodeType(NodeID id) const {
     DALI_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
     return id_to_node_map_[id].first;
   }
@@ -285,20 +245,21 @@ class DLL_PUBLIC OpGraph {
    * map.
    */
   DLL_PUBLIC const OpNode& GetNodeForIdx(int idx) const {
-    DALIOpType type = id_to_node_map_[idx].first;
+    OpType type = id_to_node_map_[idx].first;
     Index index = id_to_node_map_[idx].second;
     switch (type) {
-    case DALI_CPU:
+    case OpType::CPU:
       return cpu_nodes_[index];
-    case DALI_GPU:
+    case OpType::GPU:
       return gpu_nodes_[index];
-    case DALI_MIXED:
+    case OpType::MIXED:
       return mixed_nodes_[index];
-    case DALI_SUPPORT:
+    case OpType::SUPPORT:
       return support_nodes_[index];
+    default:
+      string str_error = "No Node for index " + to_string(idx);
+      DALI_FAIL(str_error);
     }
-    string str_error = "No Node for index " + to_string(idx);
-    DALI_FAIL(str_error);
   }
 
 
@@ -350,7 +311,7 @@ class DLL_PUBLIC OpGraph {
   // Stores a mapping from NodeIDs to a pair where the first
   // element indicates what type of node it is,  and the second
   // is the index of the op within the specified vector.
-  vector<std::pair<DALIOpType, Index>> id_to_node_map_;
+  vector<std::pair<OpType, Index>> id_to_node_map_;
 
   std::map<string, TensorMeta> tensor_producers_;
   std::map<string, vector<TensorMeta>> tensor_consumers_;
