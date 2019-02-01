@@ -87,7 +87,7 @@ endif()
 # libjpeg-turbo
 ##################################################################
 if (BUILD_JPEG_TURBO)
-  find_package(JPEG REQUIRED)
+  find_package(JPEG 62 REQUIRED) # 1.5.3 version
   include_directories(SYSTEM ${JPEG_INCLUDE_DIR})
   message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
   list(APPEND DALI_LIBS ${JPEG_LIBRARY})
