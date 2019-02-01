@@ -40,20 +40,6 @@ std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const cv::Mat &image) {
   return tl;
 }
 
-//template<>
-//std::unique_ptr<TensorList<GPUBackend>> ToTensorList(const cv::Mat &image) {
-//  std::unique_ptr<TensorList<GPUBackend>> tl(new TensorList<GPUBackend>);
-//  tl->Resize({{image.rows, image.cols, image.channels()}});
-//  auto img_ptr = image.data;
-//  auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img_ptr)>::type>();
-//
-//  for (decltype(image.rows) i = 0; i < image.rows * image.cols * image.channels(); i++) {
-//    tl_ptr[i] = img_ptr[i];
-//  }
-//  return tl;
-//}
-
-
 }  // namespace
 
 class OpticalFlowTest : public DaliOperatorTest {
@@ -68,12 +54,12 @@ Arguments argums = {{"device",       std::string{"cpu"}},
                     {"enable_hints", true}};
 
 
-void verify(const TensorListWrapper & input,
-            const TensorListWrapper & output,
+void verify(const TensorListWrapper &input,
+            const TensorListWrapper &output,
             const Arguments &) {
-  auto ptr = output.has_cpu() ? output.cpu().data<float>() : output.gpu().data<float>();
-  cout<<"OF\n"<<ptr[0]<<endl<<ptr[1]<<endl;
-
+//  auto ptr = input.CopyTo<CPUBackend>()->data<float>();
+auto ptr = input.get<CPUBackend>()->data<float>();
+  cout << "OF\n" << ptr[0] << endl << ptr[1] << endl;
 }
 
 
@@ -93,7 +79,7 @@ TEST(OpticalFlowUtilsTest, ImageToTensorList) {
   auto tl = ToTensorList<CPUBackend>(img);
   auto img_ptr = img.data;
   auto tl_ptr = tl->template data<uint8_t>();
-  for (decltype(img.rows) i = 0; i < img.cols * img.rows * img.channels(); i++) {
+  for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
     ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
   }
 }

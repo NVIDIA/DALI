@@ -22,6 +22,20 @@
 
 namespace dali {
 
+namespace detail {
+
+template<typename Backend>
+struct Backend2ComputeBackend {
+  using type = kernels::ComputeCPU;
+};
+
+template<>
+struct Backend2ComputeBackend<GPUBackend> {
+  using type = kernels::ComputeCPU;
+};
+
+}  // namespace detail
+
 template<typename Backend>
 class OpticalFlow : public Operator<Backend> {
  public:
@@ -36,11 +50,12 @@ class OpticalFlow : public Operator<Backend> {
 
 
  private:
+  using ComputeBackend = typename detail::Backend2ComputeBackend<Backend>::type;
   const float quality_factor_;
   const int grid_size_;
   const bool enable_hints_;
   const optical_flow::OpticalFlowParams of_params_;
-  std::unique_ptr<optical_flow::OpticalFlowAdapter> optical_flow_;
+  std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
 };
 
 }  // namespace dali
