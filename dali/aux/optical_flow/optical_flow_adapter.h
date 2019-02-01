@@ -65,7 +65,6 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   virtual ~OpticalFlowAdapter() = default;
-
 };
 
 }  // namespace optical_flow

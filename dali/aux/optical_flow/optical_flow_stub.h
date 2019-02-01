@@ -17,6 +17,7 @@
 
 #include <dali/kernels/tensor_view.h>
 #include <dali/aux/optical_flow/optical_flow_adapter.h>
+#include <vector>
 
 namespace dali {
 namespace optical_flow {
@@ -42,6 +43,7 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
   static constexpr float kStubValue = 666.f;
 };
 
+
 template<>
 inline void OpticalFlowStub<kernels::ComputeCPU>::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageCPU, const uint8_t, 3> reference_image,
@@ -53,6 +55,7 @@ inline void OpticalFlowStub<kernels::ComputeCPU>::CalcOpticalFlow(
   ptr[1] = kStubValue / 2;
 }
 
+
 template<>
 inline void OpticalFlowStub<kernels::ComputeGPU>::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> reference_image,
@@ -60,8 +63,8 @@ inline void OpticalFlowStub<kernels::ComputeGPU>::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
         dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
   auto ptr = output_image.data;
-  std::vector<float> data = {kStubValue, kStubValue/2};
-  CUDA_CALL(cudaMemcpy(ptr, data.data(), data.size()*sizeof(float),cudaMemcpyHostToDevice));
+  std::vector<float> data = {kStubValue, kStubValue / 2};
+  CUDA_CALL(cudaMemcpy(ptr, data.data(), data.size() * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 
