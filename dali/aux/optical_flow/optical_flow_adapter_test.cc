@@ -14,7 +14,9 @@
 
 #include <gtest/gtest.h>
 #include <memory>
-#include "dali/aux/optical_flow/optical_flow_stub.h"
+#include <dali/kernels/backend_tags.h>
+#include <dali/aux/optical_flow/optical_flow_stub.h>
+#include <dali/util/cuda_utils.h>
 
 namespace dali {
 namespace optical_flow {
@@ -23,15 +25,38 @@ using kernels::TensorView;
 
 static int kTestDataSize = 2;
 
-TEST(OpticalFlowAdapter, StubApi) {
+TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   std::unique_ptr<float> data(new float[kTestDataSize]);
-  TensorView<detail::Backend, uint8_t, 3> tvref, tvin;
-  TensorView<detail::Backend, float, 3> tvout(data.get(), {1, 1, 2});
+  TensorView<kernels::StorageCPU, uint8_t, 3> tvref, tvin;
+  TensorView<kernels::StorageCPU, float, 3> tvout(data.get(), {1, 1, 2});
   OpticalFlowParams params;
-  std::unique_ptr<OpticalFlowAdapter> of(new OpticalFlowStub(params));
+  std::unique_ptr<OpticalFlowAdapter<kernels::ComputeCPU>> of(
+          new OpticalFlowStub<kernels::ComputeCPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
-  EXPECT_FLOAT_EQ(OpticalFlowStub::kStubValue, *tvout(0, 0, 0));
-  EXPECT_FLOAT_EQ(OpticalFlowStub::kStubValue / 2, *tvout(0, 0, 1));
+  EXPECT_FLOAT_EQ(OpticalFlowStub<kernels::ComputeCPU>::kStubValue, *tvout(0, 0, 0));
+  EXPECT_FLOAT_EQ(OpticalFlowStub<kernels::ComputeCPU>::kStubValue / 2, *tvout(0, 0, 1));
+}
+
+
+TEST(OpticalFlowAdapter, StubApiGpuBackend) {
+  using StubValueType = std::remove_const<decltype(OpticalFlowStub<kernels::ComputeGPU>::kStubValue)>::type;  // NOLINT
+  StubValueType *tvout_data;
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&tvout_data), kTestDataSize * sizeof(StubValueType)));
+
+  TensorView<kernels::StorageGPU, uint8_t, 3> tvref, tvin;
+  TensorView<kernels::StorageGPU, float, 3> tvout(tvout_data, {1, 1, 2});
+  OpticalFlowParams params;
+  std::unique_ptr<OpticalFlowAdapter<kernels::ComputeGPU>> of(
+          new OpticalFlowStub<kernels::ComputeGPU>(params));
+  of->CalcOpticalFlow(tvref, tvin, tvout);
+
+  std::unique_ptr<float> host(new float[kTestDataSize]);
+  CUDA_CALL(cudaMemcpy(host.get(), tvout.data, kTestDataSize * sizeof(StubValueType),
+                       cudaMemcpyDeviceToHost));
+  EXPECT_FLOAT_EQ(OpticalFlowStub<kernels::ComputeGPU>::kStubValue, host.get()[0]);
+  EXPECT_FLOAT_EQ(OpticalFlowStub<kernels::ComputeGPU>::kStubValue / 2, host.get()[1]);
+
+  CUDA_CALL(cudaFree(tvout_data));
 }
 
 }  // namespace optical_flow
