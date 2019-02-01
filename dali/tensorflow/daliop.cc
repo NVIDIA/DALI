@@ -122,7 +122,12 @@ class DaliOp : public tf::OpKernel {
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
     this->device_type_ = (context->device_type() == "CPU") ?
                           device_type_t::CPU : device_type_t::GPU;
+<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
     if (std::any_of(sparse_.begin(), sparse_.end(), [] (const bool &v) {return v;}) &&
+=======
+    if (sparse_.size() &&
+        std::any_of(sparse_.begin(), sparse_.end(), [] (const bool &v) {return v;}) &&
+>>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
         this->device_type_ == device_type_t::GPU) {
       OP_REQUIRES_OK(context, tf::errors::Internal("Cannot output sparse tensors on the GPU"));
     }
@@ -215,7 +220,11 @@ class DaliOp : public tf::OpKernel {
         auto p_out_indices = out_indices;
         for (unsigned n = 0; n < elms; ++n) {
           TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
+<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                        daliShapeAtSample(&pipe_handle_, i, n))));
+=======
+                       daliShapeAtAt(&pipe_handle_, i, n))));
+>>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
           // squeze
           if (data_output_shape.dim_size(data_output_shape.dims() - 1) == 1) {
             data_output_shape.RemoveLastDims(1);

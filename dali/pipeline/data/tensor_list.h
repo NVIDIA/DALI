@@ -301,11 +301,19 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * @brief Returns the number of elements
    *  in the TensorList
    */
+<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
   inline size_t GetElementsNumber() const {
     size_t elms = 0;
 
     for (auto &shape : shape_) {
       elms += Volume(shape);
+=======
+  inline size_t GetElmsNumber() const {
+    size_t elms = 0;
+
+    for (auto &shape : shape_) {
+      elms += Product(shape);
+>>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
     }
     return elms;
   }

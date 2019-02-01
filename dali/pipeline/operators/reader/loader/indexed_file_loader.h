@@ -104,7 +104,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     std::vector<std::string> index_uris = options.GetRepeatedArgument<std::string>("index_path");
     ReadIndexFile(index_uris);
     size_t num_indices = indices_.size();
+<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
+=======
+    DALI_ENFORCE(num_indices != 0, "Content of index files should not be empty");
+>>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
     current_index_ = start_index(shard_id_, num_shards_, num_indices);
     int64 seek_pos, size;
     std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];

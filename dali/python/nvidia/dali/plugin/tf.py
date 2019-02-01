@@ -37,8 +37,12 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
+<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, **kwargs):
+=======
+def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [], shapes = [], dtypes = [], batch_size = -1, **kwargs):
+>>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   """
 TF Plugin Wrapper
 
