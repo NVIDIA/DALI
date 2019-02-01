@@ -19,7 +19,7 @@ typedef struct {
 template <typename ImgType, typename OutputImgType = ImgType>
 class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
  protected:
-  void RunTest(const opDescr &descr) {
+  virtual void RunTestImpl(const opDescr &descr) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -49,7 +49,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
       return this->CopyToHost(ws->Output<CPUBackend>(1));
   }
 
-  uint32_t GetTestCheckType() const  override {
+  uint32_t GetTestCheckType() const override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
@@ -57,16 +57,16 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
-    RunTest(finalDesc);
+    RunTestImpl(finalDesc);
   }
 
   void RunTest(const char *opName, const OpArg params[] = nullptr,
                 int nParam = 0, bool addImgType = false, double eps = 0.001) {
     if (params && nParam > 0) {
       vector<OpArg> args(params, params + nParam);
-      RunTest(opDescr(opName, eps, addImgType, &args));
+      RunTestImpl(opDescr(opName, eps, addImgType, &args));
     } else {
-      RunTest(opDescr(opName, eps, addImgType, nullptr));
+      RunTestImpl(opDescr(opName, eps, addImgType, nullptr));
     }
   }
 
