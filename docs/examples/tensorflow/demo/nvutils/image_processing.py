@@ -60,7 +60,12 @@ class HybridPipe(dali.pipeline.Pipeline):
                 'image/object/bbox/xmax':dali.tfrecord.VarLenFeature(dali.tfrecord.float32, 0.0),
                 'image/object/bbox/ymax':dali.tfrecord.VarLenFeature(dali.tfrecord.float32, 0.0)})
         if dali_cpu:
-            self.decode = dali.ops.HostDecoderRandomCrop(device="cpu", output_type=dali.types.RGB)
+            self.decode = dali.ops.HostDecoderRandomCrop(
+                device="cpu",
+                output_type=dali.types.RGB,
+                random_aspect_ratio=[0.8, 1.25],
+                random_area=[0.1, 1.0],
+                num_attempts=100)
         else:
             self.decode = dali.ops.nvJPEGDecoder(
                 device="mixed",

@@ -28,7 +28,8 @@ HostDecoderRandomCrop::HostDecoderRandomCrop(const OpSpec &spec)
   : Operator<CPUBackend>(spec)
   , output_type_(spec.GetArgument<DALIImageType>("output_type"))
   , c_(IsColor(output_type_) ? 3 : 1)
-  , seed_(spec.GetArgument<int64_t>("seed")) {
+  , seed_(spec.GetArgument<int64_t>("seed"))
+  , num_attempts_(spec.GetArgument<int>("num_attempts")) {
   std::vector<float> aspect_ratio;
   GetSingleOrRepeatedArg(spec, &aspect_ratio, "random_aspect_ratio", 2);
 
@@ -39,7 +40,8 @@ HostDecoderRandomCrop::HostDecoderRandomCrop(const OpSpec &spec)
     new RandomCropGenerator(
       {aspect_ratio[0], aspect_ratio[1]},
       {area[0], area[1]},
-      seed_));
+      seed_,
+      num_attempts_));
 }
 
 void HostDecoderRandomCrop::RunImpl(SampleWorkspace *ws, const int idx) {
@@ -94,6 +96,9 @@ Output of the decoder is in `HWC` ordering.)code")
   .AddOptionalArg("random_area",
       R"code(Range from which to choose random area factor `A`.
 The cropped image's area will be equal to `A` * original image's area.)code",
-      std::vector<float>{0.08, 1.0});
+      std::vector<float>{0.08, 1.0})
+  .AddOptionalArg("num_attempts",
+      R"code(Maximum number of attempts used to choose random area and aspect ratio.)code",
+      10);
 
 }  // namespace dali

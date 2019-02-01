@@ -21,20 +21,21 @@ namespace dali {
 RandomCropGenerator::RandomCropGenerator(
     AspectRatioRange aspect_ratio_range,
     AreaRange area_range,
-    int64_t seed)
+    int64_t seed,
+    int num_attempts)
   : aspect_ratio_dis_(aspect_ratio_range.first, aspect_ratio_range.second)
   , area_dis_(area_range.first, area_range.second)
   , uniform_(0.0f, 1.0f)
   , rand_gen_(seed)
-  , seed_(seed) {
-  }
+  , seed_(seed)
+  , num_attempts_(num_attempts) {
+}
 
 CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
     DALI_ENFORCE(H > 0);
     DALI_ENFORCE(W > 0);
 
-    constexpr std::size_t kMaxAttempts = 10;
-    for (std::size_t attempt = 0; attempt < kMaxAttempts; attempt++) {
+    for (int attempt = 0; attempt < num_attempts_; attempt++) {
         float scale = area_dis_(rand_gen_);
         float ratio = aspect_ratio_dis_(rand_gen_);
         float swap  = uniform_(rand_gen_);

@@ -37,6 +37,7 @@ class HostDecoderRandomCrop : public Operator<CPUBackend> {
   int c_;
 
   int64_t seed_;
+  int num_attempts_;
   std::shared_ptr<RandomCropGenerator> random_crop_generator_;
 };
 

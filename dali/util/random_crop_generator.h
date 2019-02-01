@@ -30,7 +30,8 @@ class DLL_PUBLIC RandomCropGenerator {
  public:
   RandomCropGenerator(AspectRatioRange aspect_ratio_range,
                       AreaRange area_range,
-                      int64_t seed = time(0));
+                      int64_t seed = time(0),
+                      int num_attempts_ = 10);
 
   DLL_PUBLIC CropWindow GenerateCropWindow(int H, int W);
   DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(int H, int W, std::size_t N);
@@ -43,6 +44,7 @@ class DLL_PUBLIC RandomCropGenerator {
   std::uniform_real_distribution<float> uniform_;
   std::mt19937 rand_gen_;
   int64_t seed_;
+  int num_attempts_;
 };
 
 }  // namespace dali
