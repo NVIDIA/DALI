@@ -84,7 +84,6 @@ class HybridTrainPipe(Pipeline):
         #let user decide which pipeline works him bets for RN version he runs
         if dali_cpu:
             dali_device = "cpu"
-            # self.decode = ops.HostDecoder(device=dali_device, output_type=types.RGB)
             self.decode = ops.HostDecoderRandomCrop(device=dali_device, output_type=types.RGB)
             self.res = ops.Resize(resize_x=crop, resize_y=crop)
         else:
