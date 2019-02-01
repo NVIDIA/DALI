@@ -84,6 +84,18 @@ class DLL_PUBLIC OpSpec {
   }
 
   /**
+   * @brief Add an argument with the given name and value if there is no present
+   */
+  template <typename T>
+  DLL_PUBLIC inline OpSpec& AddArgIfNotSet(const string &name, const T &val) {
+    if (arguments_.find(name) == arguments_.end()) {
+      return SetArg(name, val);
+    } else {
+      return *this;
+    }
+  }
+
+  /**
    * @brief Sets or adds an argument with the given name and value.
    */
   template <typename T>
@@ -98,8 +110,7 @@ class DLL_PUBLIC OpSpec {
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
-    arguments_[name].reset(arg);
-    return *this;
+    return SetInitializedArg(name, arg);
   }
 
   /**
