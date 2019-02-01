@@ -240,6 +240,7 @@ class Operator : public OperatorBase {
     seq_sizes_.clear();
     seq_sizes_.resize(input_sets_, 1);
     for (int i = 0; i < input_sets_; ++i) {
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
       auto &input = ws->template MutableInput<Backend>(i);
 
       const std::vector<Dims>& old_shapes = input.shape();
@@ -274,8 +275,8 @@ class Operator : public OperatorBase {
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
   Unflatten(Workspace<Backend> *ws) {
     // TODO(spanev): Handle ops where OpSchema::NumInput != OpSchema::NumOuput?
-    // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     for (int idx = 0; idx < input_sets_; ++idx) {
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
       if (seq_sizes_[idx] > 1) {
         auto &input = ws->template MutableInput<Backend>(idx);
         auto &output = ws->template Output<Backend>(idx);
