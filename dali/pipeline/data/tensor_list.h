@@ -298,6 +298,19 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   /**
+   * @brief Returns the number of elements
+   *  in the TensorList
+   */
+  inline size_t GetElmsNumber() const {
+    size_t elms = 0;
+
+    for (auto &shape : shape_) {
+      elms += Product(shape);
+    }
+    return elms;
+  }
+
+  /**
    * @brief Returns a Tensor which shares the data
    * with this TensorList. The tensor obtained
    * through this function stays valid for the lifetime

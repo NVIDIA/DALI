@@ -15,6 +15,7 @@
 import tensorflow as tf
 import os
 import glob
+from collections import Iterable
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
@@ -36,7 +37,7 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
-def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, **kwargs):
+def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [], shapes = [], dtypes = [], batch_size = -1, **kwargs):
   """
 TF Plugin Wrapper
 
@@ -44,8 +45,51 @@ This operator works in the same way as DALI TensorFlow plugin, with the exceptio
   """
   if serialized_pipeline is None:
     serialized_pipeline = pipeline.serialize()
-  return _dali_tf(serialized_pipeline=serialized_pipeline, **kwargs)
 
+  # if batch_size is not provided we need to extract if from the shape arg
+  if (not isinstance(shapes, Iterable) or len(shapes) == 0) and batch_size == -1:
+    raise Exception('shapes and batch_size arguments cannot be empty, '
+                    'please provide at leas one shape argument element with the BATCH size or set batch_size')
+
+  if len(sparse) > 0 and sparse[0] and batch_size == -1:
+    if isinstance(shapes[0], Iterable) and len(shapes[0]) == 1:
+      shapes[0] = (shapes[0][0], 1)
+    else:
+      shapes[0] = (shapes[0], 1)
+
+  # shapes and dtypes need to take into account that sparse tensor will produce 3 output tensors
+  new_dtypes = []
+  new_shapes = []
+  for i in range(len(dtypes)):
+    if i < len(sparse) and sparse[i]:
+      # indices type of sparse tensor is tf.int64
+      new_dtypes.append(tf.int64)
+      new_dtypes.append(dtypes[i])
+      # dense shape type of sparse tensor is tf.int64
+      new_dtypes.append(tf.int64)
+      if len(shapes) > i and len(shapes[i]) > 0:
+        new_shapes.append((shapes[i][0], 1))
+        new_shapes.append((shapes[i][0]))
+      else:
+        new_shapes.append(())
+        new_shapes.append(())
+      new_shapes.append(())
+    else:
+      new_dtypes.append(dtypes[i])
+      if len(shapes) > i:
+        new_shapes.append(shapes[i])
+
+  out = _dali_tf(serialized_pipeline=serialized_pipeline, shapes=new_shapes, dtypes=new_dtypes, sparse=sparse, batch_size=batch_size, **kwargs)
+  new_out = []
+  j = 0
+  for i in range(len(dtypes)):
+    if i < len(sparse) and sparse[i]:
+      new_out.append(tf.SparseTensor(indices=out[j], values=out[j + 1], dense_shape=out[j + 2]))
+      j += 3
+    else:
+      new_out.append(out[j])
+      j += 1
+  return new_out
 
 def DALIIterator():
     return DALIIteratorWrapper
