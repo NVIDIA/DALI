@@ -21,17 +21,17 @@
 # Copyright (c) 2016, Hugh Perkins
 # Copyright (c) 2016, Soumith Chintala
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # * Redistributions of source code must retain the above copyright notice, this
 #   list of conditions and the following disclaimer.
-# 
+#
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -89,6 +89,7 @@ make_wheel_record() {
 
 DEPS_LIST=(
     "/usr/local/lib/libturbojpeg.so.0"
+    "/usr/local/lib/libjpeg.so.62"
     "/usr/local/lib/libavformat.so.57"
     "/usr/local/lib/libavcodec.so.57"
     "/usr/local/lib/libavfilter.so.6"
@@ -97,6 +98,7 @@ DEPS_LIST=(
 
 DEPS_SONAME=(
     "libturbojpeg.so.0"
+    "libjpeg.so.62"
     "libavformat.so.57"
     "libavcodec.so.57"
     "libavfilter.so.6"
@@ -180,7 +182,7 @@ done
 #Tag: cp27-cp27mu-none-manylinux1_x86_64
 sed -i 's/\(Tag:.*\)-none-/\1-/;s/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
 
-# regenerate the RECORD file with new hashes 
+# regenerate the RECORD file with new hashes
 RECORD_FILE=$(ls $PKGNAME-*.dist-info/RECORD)
 echo "Generating new record file $RECORD_FILE"
 rm -f $RECORD_FILE
@@ -198,4 +200,3 @@ zip -rq $OUTDIR/$OUTWHLNAME *
 # clean up
 popd
 rm -rf $TMPDIR
-

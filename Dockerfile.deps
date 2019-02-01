@@ -52,26 +52,7 @@ RUN LMDB_VERSION=0.9.22 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /lmdb
 
-# OpenCV
-RUN OPENCV_VERSION=3.4.3 && \
-    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
-          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
-          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF .. && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /opencv-${OPENCV_VERSION}
-
 # libjpeg-turbo
-#
-# Note: the preceding OpenCV installation intentionally does NOT use libjpeg-turbo.
-# DALI will directly call libjpeg-turbo first, and if it fails, DALI will fall back
-# to OpenCV, which in turn will call its bundled (built-from-source) libjpeg.
-# To be extra sure OpenCV doesn't pick up libjpeg-turbo (in which case we'd have no
-# fallback), libjpeg-turbo is built and installed _after_ OpenCV.
-#
 RUN JPEG_TURBO_VERSION=1.5.3 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
@@ -80,6 +61,18 @@ RUN JPEG_TURBO_VERSION=1.5.3 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# OpenCV
+RUN OPENCV_VERSION=3.4.3 && \
+    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
+    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
+          -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
+          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
+          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF .. && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang
 RUN CLANG_VERSION=6.0.1 && \
