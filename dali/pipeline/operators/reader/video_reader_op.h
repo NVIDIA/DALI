@@ -80,11 +80,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
 
       auto* prefetched_sequence = prefetched_batch_[data_idx];
-      CUDA_CALL(cudaMemcpyAsync(sequence_output,
-                          prefetched_sequence->sequence.raw_data(),
-                          prefetched_sequence->sequence.nbytes(),
-                          cudaMemcpyDeviceToDevice,
-                          ws->stream()));
+      tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
+                                  prefetched_sequence->sequence.raw_data(),
+                                  prefetched_sequence->sequence.size(),
+                                  ws->stream());
     }
   }
 
