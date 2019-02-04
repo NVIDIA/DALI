@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,34 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
 
+#include <memory>
 #include "dali/common.h"
-#include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
-
 
 namespace dali {
 
-class HostDecoder : public Operator<CPUBackend> {
+class RandomCropGenerator;
+
+class HostDecoderRandomCrop : public Operator<CPUBackend> {
  public:
-  explicit inline HostDecoder(const OpSpec &spec) :
-          Operator<CPUBackend>(spec),
-          output_type_(spec.GetArgument<DALIImageType>("output_type")),
-          c_(IsColor(output_type_) ? 3 : 1) {}
+  explicit HostDecoderRandomCrop(const OpSpec &spec);
 
-
-  inline ~HostDecoder() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
+  inline ~HostDecoderRandomCrop() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) override;
 
   DALIImageType output_type_;
   int c_;
+
+  int64_t seed_;
+  int num_attempts_;
+  std::shared_ptr<RandomCropGenerator> random_crop_generator_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_

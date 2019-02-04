@@ -39,8 +39,6 @@ class HostDecodeTest : public GenericDecoderTest<ImgType> {
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(HostDecodeTest, Types);
 
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-
 
 template<typename ImageType>
 class HostDecodeTestJpeg : public HostDecodeTest<ImageType> {
@@ -53,7 +51,7 @@ class HostDecodeTestJpeg : public HostDecodeTest<ImageType> {
 TYPED_TEST_CASE(HostDecodeTestJpeg, Types);
 
 TYPED_TEST(HostDecodeTestJpeg, TestJpegDecode) {
-  this->RunTestDecode(t_jpegImgType, 0.65);
+  this->RunTestDecode(t_jpegImgType, 0.7);
 }
 
 
@@ -68,7 +66,7 @@ class HostDecodeTestPng : public HostDecodeTest<ImageType> {
 TYPED_TEST_CASE(HostDecodeTestPng, Types);
 
 TYPED_TEST(HostDecodeTestPng, TestPngDecode) {
-  this->RunTestDecode(t_pngImgType);
+  this->RunTestDecode(t_pngImgType, 0.7);
 }
 
 
@@ -83,6 +81,6 @@ class HostDecodeTestTiff : public HostDecodeTest<ImageType> {
 TYPED_TEST_CASE(HostDecodeTestTiff, Types);
 
 TYPED_TEST(HostDecodeTestTiff, TestTiffDecode) {
-  this->RunTestDecode(t_tiffImgType);
+  this->RunTestDecode(t_tiffImgType, 0.7);
 }
 }  // namespace dali

@@ -253,4 +253,8 @@ std::vector<std::string> string_split(const std::string &s, const char delim);
   if (0) \
   std::cout << __FILE__ << ":" << __LINE__ << ": "
 
+#define ERROR_LOG \
+  if (1) \
+  std::cerr << __FILE__ << ":" << __LINE__ << ": "
+
 #endif  // DALI_COMMON_H_
