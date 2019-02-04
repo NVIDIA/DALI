@@ -22,6 +22,7 @@ endif()
 
 list(APPEND DALI_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop.cc"
   )
 
@@ -30,6 +31,7 @@ set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 if (BUILD_TEST)
   list(APPEND DALI_TEST_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_test.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop_test.cc")
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 endif()

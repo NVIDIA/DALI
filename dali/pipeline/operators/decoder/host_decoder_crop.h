@@ -12,32 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_CROP_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_CROP_H_
 
+#include <vector>
 #include "dali/common.h"
 #include "dali/pipeline/operators/decoder/host_decoder.h"
+#include "dali/pipeline/operators/crop/crop_attr.h"
 
 namespace dali {
 
-class RandomCropGenerator;
-
-class HostDecoderRandomCrop : public HostDecoder {
+class HostDecoderCrop : public HostDecoder, protected CropAttr {
  public:
-  explicit HostDecoderRandomCrop(const OpSpec &spec);
+  explicit HostDecoderCrop(const OpSpec &spec);
 
-  inline ~HostDecoderRandomCrop() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
+  inline ~HostDecoderCrop() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
+
+  void SetupSharedSampleParams(SampleWorkspace *ws) override;
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return crop_window_generator_;
+    return per_sample_crop_window_generators_[data_idx];
   }
 
  private:
-  CropWindowGenerator crop_window_generator_;
+  std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_CROP_H_

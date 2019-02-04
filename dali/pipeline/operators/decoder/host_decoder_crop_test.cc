@@ -17,25 +17,39 @@
 namespace dali {
 
 template <typename ImgType>
-class HostDecodeTest : public HostDecodeTestBase<ImgType> {
+class HostDecoderCropTest : public HostDecodeTestBase<ImgType> {
  protected:
   const OpSpec DecodingOp() const override {
-    return this->GetOpSpec("HostDecoder");
+    return this->GetOpSpec("HostDecoderCrop")
+      .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W});
   }
+
+  CropWindowGenerator GetCropWindowGenerator() const override {
+    return [this] (int H, int W) {
+      CropWindow crop_window;
+      crop_window.h = crop_H;
+      crop_window.w = crop_W;
+      crop_window.y = 0.5f * (H - crop_window.h);
+      crop_window.x = 0.5f * (W - crop_window.w);
+      return crop_window;
+    };
+  }
+
+  int crop_H = 224, crop_W = 200;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecodeTest, Types);
+TYPED_TEST_CASE(HostDecoderCropTest, Types);
 
-TYPED_TEST(HostDecodeTest, JpegDecode) {
+TYPED_TEST(HostDecoderCropTest, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(HostDecodeTest, PngDecode) {
+TYPED_TEST(HostDecoderCropTest, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(HostDecodeTest, TiffDecode) {
+TYPED_TEST(HostDecoderCropTest, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 
