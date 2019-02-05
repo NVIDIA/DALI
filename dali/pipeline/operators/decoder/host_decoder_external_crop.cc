@@ -52,7 +52,7 @@ void HostDecoderExternalCrop::DataDependentSetup(SampleWorkspace *ws, unsigned i
 
   const auto data_idx = ws->data_idx();
   per_sample_crop_window_generators_[data_idx] =
-    [this, data_idx, crop_width, crop_height, crop_x, crop_y](int H, int W) {
+    [crop_width, crop_height, crop_x, crop_y](int H, int W) {
       CropWindow crop_window;
       crop_window.h = crop_height * H;
       crop_window.w = crop_width * W;

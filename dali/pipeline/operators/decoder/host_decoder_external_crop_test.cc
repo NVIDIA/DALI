@@ -24,7 +24,6 @@ class HostDecoderExternalCropTest : public HostDecodeTestBase<ImgType> {
 
   void AddAdditionalInputs(
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
-
       vector<Dims> shape(this->batch_size_, {2});
 
       begin_data.set_type(TypeInfo::Create<float>());
