@@ -59,6 +59,8 @@ class RandomBBoxCrop : public Operator<Backend> {
     ProspectiveCrop(
       bool success, const Crop &crop, const BoundingBoxes &boxes, const std::vector<int> &labels) :
       success_(success), crop_(crop), boxes_(boxes), labels_(labels) {}
+
+    ProspectiveCrop() : success_(false), crop_(Crop::FromLtrb(0, 0, 1, 1)) { }
   };
 
  public:
