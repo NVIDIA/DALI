@@ -222,7 +222,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
   std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
   double duration = std::chrono::duration_cast< std::chrono::duration<double> >
                     (end - start).count();
-  std::cout << "Transpose duration: " << (duration * 1000.0) << " ms" << std::endl;
+  LOG_LINE << "Transpose duration: " << (duration * 1000.0) << " ms" << std::endl;
 }
 
 DALI_REGISTER_OPERATOR(Transpose, Transpose<GPUBackend>, GPU);
