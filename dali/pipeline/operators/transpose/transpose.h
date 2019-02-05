@@ -23,6 +23,8 @@
 
 namespace dali {
 
+using IntArr = std::unique_ptr<int[]>;
+
 template <typename Backend>
 class Transpose : public Operator<Backend> {
  public:
@@ -50,16 +52,15 @@ class Transpose : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, int idx) override;
 
  private:
-  void NaiveTransposeKernel(const TensorList<GPUBackend>& input, TensorList<GPUBackend>* output);
 
-  template <typename T = float>
-  void cuTTKernel(const TensorList<GPUBackend>& input,
-                  TensorList<GPUBackend>* output,
+  template <typename T>
+  void cuTTKernel(const TensorList<Backend>& input,
+                  TensorList<Backend>* output,
                   cudaStream_t stream);
 
-  template <typename T = float>
-  void cuTTKernelBatched(const TensorList<GPUBackend>& input,
-                         TensorList<GPUBackend>* output,
+  template <typename T>
+  void cuTTKernelBatched(const TensorList<Backend>& input,
+                         TensorList<Backend>* output,
                          cudaStream_t stream);
 
   std::vector<int> perm_;

@@ -25,7 +25,7 @@ SOFTWARE.
 #include "dali/pipeline/operators/transpose/cutt/CudaMemcpy.h"
 
 #include "dali/util/dynlink_cuda.h"
-#include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 
 const int numthread = 64;
