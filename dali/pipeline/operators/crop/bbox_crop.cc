@@ -23,7 +23,9 @@ two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[
 corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
 coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
 Bounding boxes are provided as a `(m*4)` Tensor, where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`. Resulting
-labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.)code")
+labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.
+Be advised, when `allow_no_crop` is `false` and `thresholds` does not contain `0` it is good to increase `num_attempts` as otherwise
+it may loop for a very long time.)code")
     .NumInput(2)
     .NumOutput(4)
     .AddOptionalArg(
