@@ -29,7 +29,7 @@ labels match the boxes that remain, after being discarded with respect to the mi
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-Selected at random for every sample from provided values. Default imposes no restrictions on IOU.)code",
+Selected at random for every sample from provided values. Default imposes no restrictions on Intersection over Union for boxes and crop.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
@@ -97,7 +97,7 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
-    SampleWorkspace *ws, const std::vector<int> &labels) {
+  SampleWorkspace *ws, const std::vector<int> &labels) {
   auto &labels_out = ws->Output<CPUBackend>(3);
   labels_out.Resize({static_cast<Index>(labels.size()), 1});
 

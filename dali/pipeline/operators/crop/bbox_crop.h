@@ -109,13 +109,12 @@ class RandomBBoxCrop : public Operator<Backend> {
 
   std::pair<float, bool> SelectMinimumOverlap() {
     std::uniform_int_distribution<> sampler(
-        0, static_cast<int>(sample_options_.size() - 1));
+      0, static_cast<int>(sample_options_.size() - 1));
     return sample_options_[sampler(rd_)];
   }
 
   float SampleCandidateDimension() {
-    std::uniform_real_distribution<> sampler(scaling_bounds_.min,
-                                                    scaling_bounds_.max);
+    std::uniform_real_distribution<> sampler(scaling_bounds_.min, scaling_bounds_.max);
     return static_cast<float>(sampler(rd_));
   }
 
@@ -123,8 +122,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 
-  bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes,
-                    float threshold) {
+  bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes, float threshold) {
     return std::all_of(boxes.begin(), boxes.end(),
                        [&crop, threshold](const BoundingBox &box) {
                          return crop.IntersectionOverUnion(box) >= threshold;
@@ -199,11 +197,11 @@ class RandomBBoxCrop : public Operator<Backend> {
             SamplePatch(candidate_height, candidate_width);
 
         if (ValidOverlap(candidate_crop, bounding_boxes, minimum_overlap.first)) {
-        BoundingBoxes candidate_boxes;
-        std::vector<int> candidate_labels;
+          BoundingBoxes candidate_boxes;
+          std::vector<int> candidate_labels;
 
-        std::tie(candidate_boxes, candidate_labels) =
-              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes, labels);
+          std::tie(candidate_boxes, candidate_labels) =
+                DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes, labels);
 
           if (candidate_boxes.begin() != candidate_boxes.end()) {
             const auto remapped_boxes = RemapBoxes(
