@@ -198,7 +198,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws->stream());
     } else if (itype.size() == 4) {
       kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws->stream());
-    } else {  // == 8
+    } else {  // itype.size() == 8
       kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws->stream());
     }
   } else {
@@ -214,7 +214,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       kernel::cuTTKernel<uint16_t>(input, output, perm_, ws->stream());
     } else if (itype.size() == 4) {
       kernel::cuTTKernel<int32_t>(input, output, perm_, ws->stream());
-    } else {  // == 8
+    } else {  // itype.size() == 8
       kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());
     }
   }
