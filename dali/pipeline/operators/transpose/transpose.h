@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_TRANSPOSE_TRANSPOSE_H_
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
@@ -53,6 +54,8 @@ class Transpose : public Operator<Backend> {
   std::vector<int> perm_;
 
   cuttHandle cutt_handle_ = 0;
+  // used by dense TL cuttHandle
+  Dims previous_iter_shape_;
 
   USE_OPERATOR_MEMBERS();
 };

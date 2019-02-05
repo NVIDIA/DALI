@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <chrono>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dali/pipeline/operators/transpose/transpose.h"
@@ -25,7 +27,7 @@ namespace dali {
 #define cuttCheck(stmt) do {                                   \
   cuttResult err = stmt;                                       \
   if (err != CUTT_SUCCESS) {                                   \
-    DALI_FAIL("Error while transposing" + std::string(#stmt)); \
+    DALI_FAIL("Error while transposing " + std::string(#stmt)); \
   }                                                            \
 } while (0)
 
@@ -178,6 +180,15 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
                "Transposed tensors rank should be equal to the permutation index list.");
 
   if (input.IsDenseTensor()) {
+    if (cutt_handle_ != 0) {
+      if (input_shape != previous_iter_shape_) {
+        cuttCheck(cuttDestroy(cutt_handle_));
+        cutt_handle_ = 0;
+        previous_iter_shape_ = input_shape;
+      }
+    } else {
+      previous_iter_shape_ = input_shape;
+    }
     Dims permuted_dims = GetPermutedDims(input_shape, perm_);
     output.Resize(std::vector<Dims>(batch_size_, permuted_dims));
     if (input.type().size() == 4) {
