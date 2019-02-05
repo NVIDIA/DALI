@@ -136,16 +136,16 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   while (true) {
     auto prospective_crop = FindProspectiveCrop(bounding_boxes, labels, SelectMinimumOverlap());
 
-    if (std::get<3>(prospective_crop)) {
-      const auto &selected_boxes = std::get<1>(prospective_crop);
-      const auto &selected_labels = std::get<2>(prospective_crop);
+    if (prospective_crop.success_) {
+      const auto &selected_boxes = prospective_crop.boxes_;
+      const auto &selected_labels = prospective_crop.labels_;
 
       DALI_ENFORCE(selected_boxes.size() == selected_labels.size(),
                   "Expected boxes.size() == labels.size(). Received: " +
                       std::to_string(selected_boxes.size()) +
                       "!=" + std::to_string(selected_labels.size()));
 
-      WriteCropToOutput(ws, std::get<0>(prospective_crop));
+      WriteCropToOutput(ws, prospective_crop.crop_);
       WriteBoxesToOutput(ws, selected_boxes);
       WriteLabelsToOutput(ws, selected_labels);
 

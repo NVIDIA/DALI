@@ -50,6 +50,17 @@ class RandomBBoxCrop : public Operator<Backend> {
   using Crop = BoundingBox;
   using BoundingBoxes = std::vector<BoundingBox>;
 
+  struct ProspectiveCrop {
+    bool success_;
+    Crop crop_;
+    BoundingBoxes boxes_;
+    std::vector<int> labels_;
+
+    ProspectiveCrop(
+      bool success, const Crop &crop, const BoundingBoxes &boxes, const std::vector<int> &labels) :
+      success_(success), crop_(crop), boxes_(boxes), labels_(labels) {}
+  };
+
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec)
       : Operator<Backend>(spec),
@@ -170,11 +181,11 @@ class RandomBBoxCrop : public Operator<Backend> {
     return std::make_pair(candidate_boxes, candidate_labels);
   }
 
-  std::tuple<Crop, BoundingBoxes, std::vector<int>, bool> FindProspectiveCrop(
+  ProspectiveCrop FindProspectiveCrop(
       const BoundingBoxes &bounding_boxes, const std::vector<int> &labels,
       std::pair<float, bool> minimum_overlap) {
     if (!minimum_overlap.second)
-      return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, true);
+      return ProspectiveCrop(true, Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
 
     for (int i = 0; i < num_attempts_; ++i) {
       // Image is HWC
@@ -195,12 +206,12 @@ class RandomBBoxCrop : public Operator<Backend> {
           if (candidate_boxes.begin() != candidate_boxes.end()) {
             const auto remapped_boxes = RemapBoxes(
               candidate_crop, candidate_boxes, candidate_height, candidate_width);
-            return std::make_tuple(candidate_crop, remapped_boxes, candidate_labels, true);
+            return ProspectiveCrop(true, candidate_crop, remapped_boxes, candidate_labels);
           }
         }
       }
     }
-    return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, false);
+    return ProspectiveCrop(false, Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
   }
 
   std::vector<std::pair<float, bool>> sample_options_;
