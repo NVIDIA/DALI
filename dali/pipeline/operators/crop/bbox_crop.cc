@@ -133,10 +133,10 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
     labels.emplace_back(*label_data);
   }
 
-  while(true) {
+  while (true) {
     auto prospective_crop = FindProspectiveCrop(bounding_boxes, labels, SelectMinimumOverlap());
 
-    if(std::get<3>(prospective_crop)) {
+    if (std::get<3>(prospective_crop)) {
       const auto &selected_boxes = std::get<1>(prospective_crop);
       const auto &selected_labels = std::get<2>(prospective_crop);
 

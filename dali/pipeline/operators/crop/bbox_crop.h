@@ -78,7 +78,7 @@ class RandomBBoxCrop : public Operator<Backend> {
       sample_options_.push_back(std::make_pair(threshold, true));
     }
 
-    if(spec.GetArgument<bool>("allow_no_crop"))
+    if (spec.GetArgument<bool>("allow_no_crop"))
       sample_options_.push_back(std::make_pair(0.f, false));
   }
 
@@ -175,7 +175,7 @@ class RandomBBoxCrop : public Operator<Backend> {
       std::pair<float, bool> minimum_overlap) {
     if (!minimum_overlap.second)
       return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, true);
-      
+
     for (int i = 0; i < num_attempts_; ++i) {
       // Image is HWC
       const auto candidate_height = SampleCandidateDimension();
@@ -201,7 +201,6 @@ class RandomBBoxCrop : public Operator<Backend> {
       }
     }
     return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, false);
-
   }
 
   std::vector<std::pair<float, bool>> sample_options_;
