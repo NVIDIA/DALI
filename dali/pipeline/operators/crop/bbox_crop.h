@@ -53,7 +53,6 @@ class RandomBBoxCrop : public Operator<Backend> {
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec)
       : Operator<Backend>(spec),
-        thresholds_{spec.GetRepeatedArgument<float>("thresholds")},
         scaling_bounds_{Bounds(spec.GetRepeatedArgument<float>("scaling"))},
         aspect_ratio_bounds_{
             Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))},
@@ -61,10 +60,12 @@ class RandomBBoxCrop : public Operator<Backend> {
         num_attempts_{spec.GetArgument<int>("num_attempts")}
 
   {
-    DALI_ENFORCE(!thresholds_.empty(),
+    auto thresholds = spec.GetRepeatedArgument<float>("thresholds");
+
+    DALI_ENFORCE(!thresholds.empty(),
                  "At least one threshold value must be provided");
 
-    for (const auto &threshold : thresholds_) {
+    for (const auto &threshold : thresholds) {
       DALI_ENFORCE(0.0 <= threshold,
                    "Threshold value must be >= 0.0. Received: " +
                        std::to_string(threshold));
@@ -73,10 +74,12 @@ class RandomBBoxCrop : public Operator<Backend> {
                        std::to_string(threshold));
       DALI_ENFORCE(num_attempts_ > 0,
                    "Minimum number of attempts must be greater than zero");
+
+      sample_options_.push_back(std::make_pair(threshold, true));
     }
 
     if(spec.GetArgument<bool>("allow_no_crop"))
-      thresholds_.push_back(2.0f);
+      sample_options_.push_back(std::make_pair(0.f, false));
   }
 
   ~RandomBBoxCrop() override = default;
@@ -91,10 +94,10 @@ class RandomBBoxCrop : public Operator<Backend> {
 
   void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels);
 
-  float SelectMinimumOverlap() {
+  std::pair<float, bool> SelectMinimumOverlap() {
     std::uniform_int_distribution<> sampler(
-        0, static_cast<int>(thresholds_.size() - 1));
-    return thresholds_[sampler(rd_)];
+        0, static_cast<int>(sample_options_.size() - 1));
+    return sample_options_[sampler(rd_)];
   }
 
   float SampleCandidateDimension() {
@@ -167,43 +170,41 @@ class RandomBBoxCrop : public Operator<Backend> {
     return std::make_pair(candidate_boxes, candidate_labels);
   }
 
-  std::tuple<Crop, BoundingBoxes, std::vector<int>> FindProspectiveCrop(
+  std::tuple<Crop, BoundingBoxes, std::vector<int>, bool> FindProspectiveCrop(
       const BoundingBoxes &bounding_boxes, const std::vector<int> &labels,
-      float minimum_overlap) {
-    if (minimum_overlap <= 1.0f) {
-      for (int i = 0; i < num_attempts_; ++i) {
-        // Image is HWC
-        const auto candidate_height = SampleCandidateDimension();
-        const auto candidate_width = SampleCandidateDimension();
+      std::pair<float, bool> minimum_overlap) {
+    if (!minimum_overlap.second)
+      return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, true);
+      
+    for (int i = 0; i < num_attempts_; ++i) {
+      // Image is HWC
+      const auto candidate_height = SampleCandidateDimension();
+      const auto candidate_width = SampleCandidateDimension();
 
-        if (ValidAspectRatio(candidate_height, candidate_width)) {
-          const auto candidate_crop =
-              SamplePatch(candidate_height, candidate_width);
+      if (ValidAspectRatio(candidate_height, candidate_width)) {
+        const auto candidate_crop =
+            SamplePatch(candidate_height, candidate_width);
 
-          BoundingBoxes candidate_boxes;
-          std::vector<int> candidate_labels;
+        if (ValidOverlap(candidate_crop, bounding_boxes, minimum_overlap.first)) {
+        BoundingBoxes candidate_boxes;
+        std::vector<int> candidate_labels;
 
-          std::tie(candidate_boxes, candidate_labels) =
-              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes,
-                                             labels);
+        std::tie(candidate_boxes, candidate_labels) =
+              DiscardBoundingBoxesByCentroid(candidate_crop, bounding_boxes, labels);
 
-          if (candidate_boxes.begin() != candidate_boxes.end() && 
-                ValidOverlap(candidate_crop, candidate_boxes, minimum_overlap)) {
-            const auto remapped_boxes =
-                RemapBoxes(candidate_crop, candidate_boxes, candidate_height,
-                           candidate_width);
-
-            return std::make_tuple(candidate_crop, remapped_boxes,
-                                   candidate_labels);
+          if (candidate_boxes.begin() != candidate_boxes.end()) {
+            const auto remapped_boxes = RemapBoxes(
+              candidate_crop, candidate_boxes, candidate_height, candidate_width);
+            return std::make_tuple(candidate_crop, remapped_boxes, candidate_labels, true);
           }
         }
       }
     }
+    return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels, false);
 
-    return std::make_tuple(Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
   }
 
-  std::vector<float> thresholds_;
+  std::vector<std::pair<float, bool>> sample_options_;
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
   const bool ltrb_;
