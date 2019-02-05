@@ -214,6 +214,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return ProspectiveCrop(false, Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
   }
 
+  // float - threshold for IoU, bool - whether to apply crop (false means no cropp)
   std::vector<std::pair<float, bool>> sample_options_;
   const Bounds scaling_bounds_;
   const Bounds aspect_ratio_bounds_;
