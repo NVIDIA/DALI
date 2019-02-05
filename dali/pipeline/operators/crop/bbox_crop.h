@@ -51,16 +51,16 @@ class RandomBBoxCrop : public Operator<Backend> {
   using BoundingBoxes = std::vector<BoundingBox>;
 
   struct ProspectiveCrop {
-    bool success_;
-    Crop crop_;
-    BoundingBoxes boxes_;
-    std::vector<int> labels_;
+    bool success;
+    Crop crop;
+    BoundingBoxes boxes;
+    std::vector<int> labels;
 
     ProspectiveCrop(
       bool success, const Crop &crop, const BoundingBoxes &boxes, const std::vector<int> &labels) :
-      success_(success), crop_(crop), boxes_(boxes), labels_(labels) {}
+      success(success), crop(crop), boxes(boxes), labels(labels) {}
 
-    ProspectiveCrop() : success_(false), crop_(Crop::FromLtrb(0, 0, 1, 1)) { }
+    ProspectiveCrop() : success(false), crop(Crop::FromLtrb(0, 0, 1, 1)) { }
   };
 
  public:
