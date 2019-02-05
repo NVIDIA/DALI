@@ -354,8 +354,9 @@ void ExposeTensorList(py::module &m) { // NOLINT
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def("asCPU", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
+    .def("as_cpu", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
           TensorList<CPUBackend> * ret = new TensorList<CPUBackend>();
+          ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           ret->Copy(t, s);
@@ -535,6 +536,7 @@ PYBIND11_MODULE(backend_impl, m) {
   py::enum_<DALITensorLayout>(types_m, "DALITensorLayout", "Tensor layout")
     .value("NCHW", DALI_NCHW)
     .value("NHWC", DALI_NHWC)
+    .value("NFHWC", DALI_NFHWC)
     .value("SAME", DALI_SAME)
     .export_values();
 

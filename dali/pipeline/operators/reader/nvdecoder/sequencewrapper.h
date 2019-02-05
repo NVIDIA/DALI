@@ -47,7 +47,7 @@ struct SequenceWrapper {
     if (started_) {
       CUDA_CALL(cudaEventDestroy(event_));
     }
-    CUDA_CALL(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming));
+    CUDA_CALL(cudaEventCreateWithFlags(&event_, cudaEventBlockingSync | cudaEventDisableTiming));
     started_ = false;
   }
 

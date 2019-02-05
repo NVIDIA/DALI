@@ -84,14 +84,15 @@ class HybridTrainPipe(Pipeline):
         #let user decide which pipeline works him bets for RN version he runs
         if dali_cpu:
             dali_device = "cpu"
-            self.decode = ops.HostDecoder(device=dali_device, output_type=types.RGB)
+            self.decode = ops.HostDecoderRandomCrop(device=dali_device, output_type=types.RGB)
+            self.res = ops.Resize(resize_x=crop, resize_y=crop)
         else:
             dali_device = "gpu"
             # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
             # without additional reallocations
             self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512)
+            self.res = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
 
-        self.rrc = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,
                                             output_layout=types.NCHW,
@@ -106,7 +107,7 @@ class HybridTrainPipe(Pipeline):
         rng = self.coin()
         self.jpegs, self.labels = self.input(name="Reader")
         images = self.decode(self.jpegs)
-        images = self.rrc(images)
+        images = self.res(images)
         output = self.cmnp(images.gpu(), mirror=rng)
         return [output, self.labels]
 
@@ -275,13 +276,13 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
+            if epoch == args.epochs - 1:
+                print('##Top-1 {0}\n'
+                      '##Top-5 {1}'.format(prec1, prec5))
 
         # reset DALI iterators
         train_loader.reset()
         val_loader.reset()
-        if args.epochs == args.start_epoch - 1:
-            print('##Top-1 {0}\n'
-                  '##Top-5 {1}').format(prec1, prec5)
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()

@@ -26,7 +26,7 @@ namespace dali {
 
 class LocalFileStream : public FileStream {
  public:
-  explicit LocalFileStream(const std::string& path);
+  explicit LocalFileStream(const std::string& path, bool read_ahead);
   void Close() override;
   shared_ptr<void> Get(size_t n_bytes) override;
   static bool ReserveFileMappings(unsigned int num);
@@ -44,6 +44,7 @@ class LocalFileStream : public FileStream {
   size_t length_;
   size_t pos_;
   string path_;
+  bool read_ahead_whole_file_;
 };
 
 }  // namespace dali

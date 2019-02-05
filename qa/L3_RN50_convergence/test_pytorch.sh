@@ -52,3 +52,5 @@ printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP
 if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" ]]; then
     CLEAN_AND_EXIT 0
 fi
+
+CLEAN_AND_EXIT 4

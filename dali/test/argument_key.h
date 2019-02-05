@@ -58,6 +58,14 @@ class ArgumentKey {
   std::string node_name_, arg_name_;
 };
 
+inline std::ostream& operator<<(std::ostream& os, const ArgumentKey& ak) {
+  if (ak.node_name().empty()) {
+    os << ak.arg_name();
+  } else {
+    os << ak.node_name() << ":" << ak.arg_name();
+  }
+  return os;
+}
 
 }  // namespace testing
 }  // namespace dali

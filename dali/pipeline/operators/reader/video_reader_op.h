@@ -76,14 +76,15 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     tl_sequence_output.Resize(tl_shape_);
     tl_sequence_output.SetLayout(DALI_NFHWC);
 
-    const int data_idx = samples_processed_.load();
-    auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
 
-    auto* prefetched_sequence = prefetched_batch_[data_idx];
-    CUDA_CALL(cudaMemcpy(sequence_output,
-                         prefetched_sequence->sequence.raw_data(),
-                         prefetched_sequence->sequence.nbytes(),
-                         cudaMemcpyDeviceToDevice));
+      auto* prefetched_sequence = prefetched_batch_[data_idx];
+      tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
+                                  prefetched_sequence->sequence.raw_data(),
+                                  prefetched_sequence->sequence.size(),
+                                  ws->stream());
+    }
   }
 
 

@@ -6,10 +6,11 @@ mkdir -p idx-files/
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-for file in $(ls /data/imagenet/train-val-tfrecord-480);
+DATA_SET_DIR=/data/imagenet/train-val-tfrecord-480
+for file in $(ls $DATA_SET_DIR --ignore *\.txt);
 do
     echo ${file}
-    python /opt/dali/tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480/${file} \
+    python /opt/dali/tools/tfrecord2idx $DATA_SET_DIR/${file} \
         idx-files/${file}.idx;
 done
 
@@ -22,8 +23,8 @@ OUT=${LOG%.log}.dir
 
 SECONDS=0
 mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-    python -u resnet.py --layers=18 \
-    --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
+    python -u resnet.py --layers=50 \
+    --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16   --num_iter=90  --iter_unit=epoch --display_every=50 \
     --batch=256 --use_dali=GPU --log_dir=$OUT \
     2>&1 | tee $LOG
@@ -56,3 +57,5 @@ printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP
 if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" ]]; then
     CLEAN_AND_EXIT 0
 fi
+
+CLEAN_AND_EXIT 4

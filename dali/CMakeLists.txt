@@ -19,6 +19,11 @@ set(DALI_TEST_SRCS)
 set(DALI_BENCHMARK_SRCS)
 set(DALI_TF_SRCS)
 
+set(dali_lib "dali")
+set(dali_operator_lib "dali_operators")
+set(dali_kernel_lib "dali_kernels")
+set(dali_kernel_test_lib "dali_kernel_test")
+
 ################################################
 # Build libdali
 ################################################
@@ -29,9 +34,6 @@ add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
 add_subdirectory(aux)
-
-set(dali_lib "dali")
-set(dali_operator_lib "dali_operators")
 
 # Collect source files for dali
 file(GLOB tmp *.cc)
@@ -52,6 +54,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
 cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
+target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}")
 
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
@@ -119,10 +122,15 @@ if (BUILD_TEST)
 
   # Link to the dali lib
   message(STATUS "Adding dependencies to ${test_main_bin}: '${dali_lib}'")
-  add_dependencies(${test_main_bin} ${dali_lib})
+  add_dependencies(${test_main_bin} ${dali_lib} ${dali_kernel_test_lib} ${dali_kernel_lib})
 
   # We'll have to add dependency libs
-  target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS} ${dali_lib} gtest)
+  target_link_libraries(${test_main_bin} PRIVATE
+    "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_kernel_test_lib}> -Wl,--no-whole-archive"
+    "${dali_kernel_test_lib}"
+    "${DALI_LIBS}"
+    "${dali_lib}"
+    "gtest")
 
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})

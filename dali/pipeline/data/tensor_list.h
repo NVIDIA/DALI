@@ -64,6 +64,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
+    this->SetLayout(other.GetLayout());
     ResizeLike(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
@@ -72,15 +73,18 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
     auto type = other[0].type();
+    auto layout = other[0].GetLayout();
 
     vector<Dims> new_shape(other.size());
     for (size_t i = 0; i < other.size(); ++i) {
       assert(type == other[i].type());
+      assert(layout == other[i].GetLayout());
       new_shape[i] = other[i].shape();
     }
 
     this->Resize(new_shape);
     this->set_type(type);
+    this->SetLayout(layout);
 
     for (size_t i = 0; i < other.size(); ++i) {
       type.template Copy<SrcBackend, Backend>(

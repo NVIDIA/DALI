@@ -52,7 +52,8 @@ class Loader {
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
-      num_shards_(options.GetArgument<int>("num_shards")) {
+      num_shards_(options.GetArgument<int>("num_shards")),
+      read_ahead_(options.GetArgument<bool>("read_ahead")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -192,6 +193,8 @@ class Loader {
 
   // if read data need to be copied or can be just shared with tensor
   bool copy_read_data_;
+  // if accessed files should be loaded into memory in advance at the first access
+  bool read_ahead_;
 };
 
 };  // namespace dali

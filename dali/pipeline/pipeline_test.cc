@@ -414,4 +414,43 @@ TYPED_TEST(PipelineTest, TestSingleForwardOp) {
   }
 }
 */
+
+TYPED_TEST(PipelineTest, TestSeedSet) {
+  int num_thread = TypeParam::nt;
+  int batch_size = this->jpegs_.nImages();
+  constexpr int seed_set = 567;
+
+  Pipeline pipe(batch_size, num_thread, 0);
+
+
+  TensorList<CPUBackend> batch;
+  this->MakeJPEGBatch(&batch, batch_size);
+
+  pipe.AddExternalInput("data");
+  pipe.SetExternalInput("data", batch);
+
+  pipe.AddOperator(
+      OpSpec("HostDecoder")
+      .AddArg("device", "cpu")
+      .AddInput("data", "cpu")
+      .AddOutput("decoded", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddArg("seed", seed_set)
+      .AddInput("decoded", "gpu")
+      .AddOutput("copied", "gpu"));
+
+  vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
+
+  pipe.Build(outputs);
+
+  OpGraph &original_graph = this->GetGraph(&pipe);
+
+  // Check if seed can be manually set to the reader
+  ASSERT_EQ(original_graph.node(3).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
+  ASSERT_NE(original_graph.node(0).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
+}
+
 }  // namespace dali

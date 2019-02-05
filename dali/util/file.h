@@ -70,7 +70,7 @@ class DLL_PUBLIC FileStream {
    private:
      unsigned int reserved;
   };
-  static std::unique_ptr<FileStream> Open(const std::string& uri);
+  static std::unique_ptr<FileStream> Open(const std::string& uri, bool read_ahead);
 
   virtual void Close() = 0;
   virtual size_t Read(uint8_t * buffer, size_t n_bytes) = 0;

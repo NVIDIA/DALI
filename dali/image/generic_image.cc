@@ -25,24 +25,45 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
 
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-GenericImage::DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer,
+GenericImage::DecodeImpl(DALIImageType image_type,
+                         const uint8_t *encoded_buffer,
                          size_t length) const {
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-          cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
-          IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
+    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
+    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
 
-  if (decoded_image.data == nullptr) {
-     DALI_FAIL("Unsupported image type.");
+  int W = decoded_image.cols;
+  int H = decoded_image.rows;
+
+  DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
+
+  // If required, crop the image
+  auto crop_generator = GetCropWindowGenerator();
+  if (crop_generator) {
+      cv::Mat decoded_image_roi;
+      auto crop = crop_generator(H, W);
+      const int x = crop.x;
+      const int y = crop.y;
+      const int newW = crop.w;
+      const int newH = crop.h;
+      DALI_ENFORCE(newW > 0 && newW <= W);
+      DALI_ENFORCE(newH > 0 && newH <= H);
+      cv::Rect roi(x, y, newW, newH);
+      decoded_image(roi).copyTo(decoded_image_roi);
+      decoded_image = decoded_image_roi;
+      W = decoded_image.cols;
+      H = decoded_image.rows;
+      DALI_ENFORCE(W == newW);
+      DALI_ENFORCE(H == newH);
   }
+
   // if different image type needed (e.g. RGB), permute from BGR
   if (IsColor(image_type) && image_type != DALI_BGR) {
     OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
 
   const int c = IsColor(image_type) ? 3 : 1;
-  const int W = decoded_image.cols;
-  const int H = decoded_image.rows;
 
   std::shared_ptr<uint8_t> decoded_img_ptr(
           decoded_image.ptr(),

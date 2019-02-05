@@ -94,7 +94,7 @@ class TestLoadedPlugin(unittest.TestCase):
         pipe_out = pipe.run()
         print(pipe_out)
         images, output = pipe_out
-        output_cpu = output.asCPU()
+        output_cpu = output.as_cpu()
         assert len(images) == batch_size
         assert len(output_cpu) == batch_size
 

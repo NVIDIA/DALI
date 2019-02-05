@@ -54,7 +54,7 @@ def test_tensor_multiple_uses():
     assert(out[0].as_tensor().shape() == out[2].as_tensor().shape())
     a_raw = out[0]
     a_cpu = out[1]
-    a_gpu = out[2].asCPU()
+    a_gpu = out[2].as_cpu()
     for i in range(batch_size):
         t_raw = a_raw.at(i)
         t_cpu = a_cpu.at(i)
@@ -105,8 +105,8 @@ def test_cropmirrornormalize_layout():
     shape_nchw = out[0].as_tensor().shape()
     shape_nhwc = out[1].as_tensor().shape()
     assert(shape_nchw[0] == shape_nhwc[0])
-    a_nchw = out[0].asCPU()
-    a_nhwc = out[1].asCPU()
+    a_nchw = out[0].as_cpu()
+    a_nhwc = out[1].as_cpu()
     for i in range(batch_size):
         t_nchw = a_nchw.at(i)
         t_nhwc = a_nhwc.at(i)
@@ -159,8 +159,8 @@ def test_cropmirrornormalize_pad():
         shape     = out[0].as_tensor().shape()
         shape_pad = out[1].as_tensor().shape()
         assert(shape[0] == shape_pad[0])
-        a = out[0].asCPU()
-        a_pad = out[1].asCPU()
+        a = out[0].as_cpu()
+        a_pad = out[1].as_cpu()
         for i in range(batch_size):
             t     = a.at(i)
             t_pad = a_pad.at(i)
@@ -211,7 +211,7 @@ def test_seed():
                           device_id = 0)
         pipe.build()
         pipe_out = pipe.run()
-        pipe_out_cpu = pipe_out[0].asCPU()
+        pipe_out_cpu = pipe_out[0].as_cpu()
         img_chw_test = pipe_out_cpu.at(n)
         if i == 0:
             img_chw = img_chw_test
@@ -253,7 +253,7 @@ def test_as_array():
                           device_id = 0)
         pipe.build()
         pipe_out = pipe.run()
-        pipe_out_cpu = pipe_out[0].asCPU()
+        pipe_out_cpu = pipe_out[0].as_cpu()
         img_chw_test = pipe_out_cpu.as_array()
         if i == 0:
             img_chw = img_chw_test
@@ -299,7 +299,7 @@ def test_seed_serialize():
         pipe = Pipeline()
         pipe.deserialize_and_build(s)
         pipe_out = pipe.run()
-        pipe_out_cpu = pipe_out[0].asCPU()
+        pipe_out_cpu = pipe_out[0].as_cpu()
         img_chw_test = pipe_out_cpu.at(n)
         if i == 0:
             img_chw = img_chw_test
@@ -339,12 +339,12 @@ def test_rotate():
     pipe.build()
     pipe_out = pipe.run()
     import cv2
-    orig_cpu = pipe_out[1].asCPU()
+    orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
         M = cv2.getRotationMatrix2D((112,112),45, 1)
         out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
-        rotated_dali = pipe_out[2].asCPU().at(i)
+        rotated_dali = pipe_out[2].as_cpu().at(i)
         diff = out - rotated_dali
         diff[rotated_dali==[128.,128.,128.]] = 0
         assert(np.max(np.abs(diff)/255.0) < 0.025)
@@ -385,12 +385,12 @@ def test_warpaffine():
     pipe.build()
     pipe_out = pipe.run()
     import cv2
-    orig_cpu = pipe_out[1].asCPU()
+    orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
         M = np.array([1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112]).reshape((2,3))
         out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
-        dali_output = pipe_out[2].asCPU().at(i)
+        dali_output = pipe_out[2].as_cpu().at(i)
         diff = out - dali_output
         diff[dali_output==[128.,128.,128.]] = 0
         assert(np.max(np.abs(diff)/255.0) < 0.025)
@@ -445,9 +445,9 @@ def test_type_conversion():
     pipe.build()
     for i in range(10):
         pipe_out = pipe.run()
-        orig_cpu = pipe_out[1].asCPU().as_tensor()
-        int_cpu  = pipe_out[2].asCPU().as_tensor()
-        arg1_cpu = pipe_out[3].asCPU().as_tensor()
+        orig_cpu = pipe_out[1].as_cpu().as_tensor()
+        int_cpu  = pipe_out[2].as_cpu().as_tensor()
+        arg1_cpu = pipe_out[3].as_cpu().as_tensor()
         assert_array_equal(orig_cpu, int_cpu)
         assert_array_equal(orig_cpu, arg1_cpu)
 
@@ -490,8 +490,8 @@ def test_crop():
 
     for _ in range(iterations):
         pipe_out = pipe.run()
-        cmn_img_batch_cpu = pipe_out[0].asCPU()
-        crop_img_batch_cpu = pipe_out[1].asCPU()
+        cmn_img_batch_cpu = pipe_out[0].as_cpu()
+        crop_img_batch_cpu = pipe_out[1].as_cpu()
         for b in range(batch_size):
             img_cmn = cmn_img_batch_cpu.at(b)
             img_crop = crop_img_batch_cpu.at(b)
@@ -617,3 +617,82 @@ def test_external_source():
         except StopIteration:
             break
     assert(iter_num == i)
+
+def test_element_extract_operator():
+    batch_size = 4
+    F = 10
+    W = 32
+    H = 32
+    C = 3
+
+    test_data = []
+    for _ in range(batch_size):
+        test_data.append( np.array( np.random.rand(F, H, W, C) * 255, dtype = np.uint8 ) )
+
+    class ExternalInputIterator(object):
+        def __init__(self, batch_size):
+            self.batch_size = batch_size
+
+        def __iter__(self):
+            self.i = 0
+            self.n = self.batch_size
+            return self
+
+        def __next__(self):
+            batch = test_data
+            self.i = (self.i + 1) % self.n
+            return (batch)
+
+        next = __next__
+
+    eii = ExternalInputIterator(batch_size)
+    iterator = iter(eii)
+
+    class ElementExtractPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(ElementExtractPipeline, self).__init__(batch_size, num_threads, device_id)
+            self.inputs = ops.ExternalSource()
+            # Extract first element in each sample
+            self.element_extract_first = ops.ElementExtract(element_map=[0])
+            # Extract last element in each sample
+            self.element_extract_last = ops.ElementExtract(element_map=[F-1])
+            # Extract both first and last element in each sample to two separate outputs
+            self.element_extract_first_last = ops.ElementExtract(element_map=[0, F-1])
+
+        def define_graph(self):
+            self.sequences = self.inputs()
+            first_element_1 = self.element_extract_first(self.sequences)
+            last_element_1 = self.element_extract_last(self.sequences)
+            first_element_2, last_element_2 = self.element_extract_first_last(self.sequences)
+            return (first_element_1, last_element_1, first_element_2, last_element_2)
+
+        def iter_setup(self):
+            sequences = iterator.next()
+            self.feed_input(self.sequences, sequences)
+
+
+    pipe = ElementExtractPipeline(batch_size, 1, 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    output1, output2, output3, output4 = pipe_out
+
+    assert len(output1) == batch_size
+    assert len(output2) == batch_size
+    assert len(output3) == batch_size
+    assert len(output4) == batch_size
+
+    for i in range(batch_size):
+        out1 = output1.at(i)
+        out2 = output2.at(i)
+        out3 = output3.at(i)
+        out4 = output4.at(i)
+
+        expected_first = test_data[i][0]
+        assert out1.shape == out3.shape
+        np.testing.assert_array_equal( expected_first, out1 )
+        np.testing.assert_array_equal( expected_first, out3 )
+
+        expected_last = test_data[i][F-1]
+        assert out2.shape == out4.shape
+        np.testing.assert_array_equal( expected_last, out2 )
+        np.testing.assert_array_equal( expected_last, out4 )
