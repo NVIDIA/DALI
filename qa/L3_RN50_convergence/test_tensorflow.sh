@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-cd /opt/tensorflow/nvidia-examples/cnn/
+cd /opt/dali/docs/examples/tensorflow/demo
 
 mkdir -p idx-files/
 
@@ -26,7 +26,7 @@ mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
     python -u resnet.py --layers=50 \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16   --num_iter=90  --iter_unit=epoch --display_every=50 \
-    --batch=256 --use_dali=GPU --log_dir=$OUT \
+    --batch=256 --log_dir=$OUT \
     2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}

@@ -66,14 +66,16 @@ class HybridPipe(dali.pipeline.Pipeline):
                 random_aspect_ratio=[0.8, 1.25],
                 random_area=[0.1, 1.0],
                 num_attempts=100)
+            resize_device = "cpu"
         else:
             self.decode = dali.ops.nvJPEGDecoder(
                 device="mixed",
                 output_type=dali.types.RGB)
+            resize_device = "gpu"
 
         if training:
             if dali_cpu:
-                self.resize = dali.ops.Resize (device="cpu", resize_x=width, resize_y=heigth)
+                self.resize = dali.ops.Resize (device=resize_device, resize_x=width, resize_y=height)
             else:
                 self.resize = dali.ops.RandomResizedCrop(
                     device=resize_device,
