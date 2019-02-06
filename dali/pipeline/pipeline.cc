@@ -365,8 +365,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     }
   }
 
-  for (int i = 0; i < graph_.NumOp(DALIOpType::DALI_MIXED); i++) {
-    OpNode &node = graph_.Node(DALIOpType::DALI_MIXED, i);
+  for (int i = 0; i < graph_.NumOp(DALIOpType::MIXED); i++) {
+    OpNode &node = graph_.Node(DALIOpType::MIXED, i);
     if (node.spec.name() == "MakeContiguous") {
       PropagateMemoryHint(node);
     }
@@ -578,15 +578,15 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
 
 std::map<std::string, Index> Pipeline::EpochSize() {
   std::map<std::string, Index> ret;
-  for (Index i = 0; i < graph_.NumOp(DALIOpType::DALI_CPU); ++i) {
-    const OpNode &current = graph_.Node(DALIOpType::DALI_CPU, i);
+  for (Index i = 0; i < graph_.NumOp(DALIOpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(DALIOpType::CPU, i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));
     }
   }
-  for (Index i = 0; i < graph_.NumOp(DALIOpType::DALI_GPU); ++i) {
-    const OpNode &current = graph_.Node(DALIOpType::DALI_GPU, i);
+  for (Index i = 0; i < graph_.NumOp(DALIOpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(DALIOpType::GPU, i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));

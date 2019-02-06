@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <algorithm>
 
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operators/op_schema.h"
 
@@ -43,6 +43,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
+// TODO(klecki): Graph creation is not a place to check OpSpec?
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
 
@@ -76,13 +77,13 @@ void CheckOpConstraints(const OpSpec &spec) {
 
 DALIOpType DeviceStringToOpType(std::string device) {
   if (device == "gpu") {
-    return DALIOpType::DALI_GPU;
+    return DALIOpType::GPU;
   } else if (device == "cpu") {
-    return DALIOpType::DALI_CPU;
+    return DALIOpType::CPU;
   } else if (device == "mixed") {
-    return DALIOpType::DALI_MIXED;
+    return DALIOpType::MIXED;
   } else if (device == "support") {
-    return DALIOpType::DALI_SUPPORT;
+    return DALIOpType::SUPPORT;
   }
   DALI_FAIL("Unsupported device type: " + device + ".");
 }
@@ -105,7 +106,7 @@ OpNode& OpGraph::PlaceNewOp(DALIOpType op_type, OpSpec op_spec, std::string inst
   node.op_type = op_type;
   auto new_partition_id = NumOp(op_type);
   node.partition_index = new_partition_id;
-  node_partitions_[static_cast<int>(op_type)].push_back(node.id);
+  op_paritions_[static_cast<int>(op_type)].push_back(node.id);
   return node;
 }
 
@@ -121,22 +122,23 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
   string device = spec.GetArgument<string>("device");
   auto op_type = DeviceStringToOpType(device);
+  // TODO(klecki): refactor this out
   switch (op_type) {
-    case DALIOpType::DALI_CPU: {
+    case DALIOpType::CPU: {
       // Enforce graph constraints
       DALI_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
       DALI_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
       break;
     }
-    case DALIOpType::DALI_GPU: {
+    case DALIOpType::GPU: {
       break;
     }
-    case DALIOpType::DALI_MIXED: {
+    case DALIOpType::MIXED: {
       // Enforce graph constraints
       DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
       break;
     }
-    case DALIOpType::DALI_SUPPORT: {
+    case DALIOpType::SUPPORT: {
       // Enforce graph constraints
       DALI_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
       break;
@@ -217,11 +219,11 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
 void OpGraph::InstantiateOperators() {
   // traverse devices by topological order (support, cpu, mixed, gpu)
-  DALIOpType order[] = { DALIOpType::DALI_SUPPORT, DALIOpType::DALI_CPU,
-                         DALIOpType::DALI_MIXED,   DALIOpType::DALI_GPU };
+  DALIOpType order[] = { DALIOpType::SUPPORT, DALIOpType::CPU,
+                         DALIOpType::MIXED,   DALIOpType::GPU };
 
   for (auto op_type : order) {
-    for (auto op_id : node_partitions_[static_cast<int>(op_type)]) {
+    for (auto op_id : op_paritions_[static_cast<int>(op_type)]) {
       op_nodes_[op_id].InstantiateOperator();
     }
   }
@@ -401,7 +403,7 @@ void OpGraph::RemoveOp(OpNodeId id) {
   // In case we consume this tensor more than once, we try to remove all occurences
   for (auto t : target.parent_tensors) {
     auto &sibling_consumers = tensor_nodes_[t].consumer_edges;
-    for (int i = 0; i < sibling_consumers.size(); i++) {
+    for (size_t i = 0; i < sibling_consumers.size(); i++) {
       if (sibling_consumers[i].node == id) {
         RemoveVectorElement(sibling_consumers, i);
       }
@@ -409,18 +411,29 @@ void OpGraph::RemoveOp(OpNodeId id) {
   }
 
   RemoveOpNode(id);
-  Repartition();
+  // Just recalculate, do not try to fix
+  RepartitionOps();
 }
 
-void OpGraph::Repartition() {
-  for (auto & p : node_partitions_) {
+void OpGraph::RepartitionOps() {
+  for (auto & p : op_paritions_) {
     p.clear();
   }
   for (auto &node : op_nodes_) {
     auto new_partition_id = NumOp(node.op_type);
     node.partition_index = new_partition_id;
-    node_partitions_[static_cast<int>(node.op_type)].push_back(node.id);
+    op_paritions_[static_cast<int>(node.op_type)].push_back(node.id);
   }
+}
+
+std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const {
+  std::vector<std::vector<TensorNodeId>> out;
+  out.resize(static_cast<int>(DALIOpType::COUNT));
+  for (auto &tensor : tensor_nodes_) {
+    auto producer_op_type = Node(tensor.producer_edge.node).op_type;
+    out[static_cast<int>(producer_op_type)].push_back(tensor.id);
+  }
+  return out;
 }
 
 // TODO(klecki): get rid of string indexing
@@ -450,13 +463,13 @@ namespace {
   }
   std::string GetOpColor(DALIOpType op_type) {
     switch (op_type) {
-      case DALIOpType::DALI_CPU:
+      case DALIOpType::CPU:
         return "blue";
-      case DALIOpType::DALI_GPU:
+      case DALIOpType::GPU:
         return "#76b900";
-      case DALIOpType::DALI_MIXED:
+      case DALIOpType::MIXED:
         return "cyan";
-      case DALIOpType::DALI_SUPPORT:
+      case DALIOpType::SUPPORT:
         return "grey";
       default:
         return "black";
@@ -502,6 +515,32 @@ void OpGraph::GenerateDOTFromGraph(const TensorNode &current_node, std::ofstream
       PrintTo(ofs, child_op, show_ids) << "[label=" << edge.index << "];\n";
   }
 }
+
+std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names) {
+  std::vector<TensorNodeId> result;
+  for (const auto& out : output_names) {
+    result.push_back(TensorId(out));
+  }
+  return result;
+}
+
+std::vector<TensorNodeId> OpGraph::GetStageOutputs(DALIOpType stage) {
+  std::vector<TensorNodeId> result;
+  for (const auto& tensor : tensor_nodes_) {
+    // Check if the tensor is produced in current stage
+    if (Node(tensor.producer_edge.node).op_type == stage) {
+      for (auto cons_edge : tensor.consumer_edges) {
+        // We found a consumer from different stage, this tensor is a stage output
+        if (Node(cons_edge.node).op_type != stage) {
+          result.push_back(tensor.id);
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
 
 template <>
 bool OpGraph::TensorIsType<CPUBackend>(const string &name) {

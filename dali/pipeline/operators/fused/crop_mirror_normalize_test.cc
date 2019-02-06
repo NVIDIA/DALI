@@ -33,7 +33,7 @@ class CropMirrorNormalizePermuteTest : public GenericMatchingTest<ImgType> {
     this->SetExternalInputs({{"jpegs", &data}});
 
     string device(deviceName);
-    this->setOpType(device == "gpu" ? DALIOpType::DALI_GPU : DALIOpType::DALI_CPU);
+    this->setOpType(device == "gpu" ? DALIOpType::GPU : DALIOpType::CPU);
     OpSpec spec = OpSpec(opName)
                       .AddArg("device", device)
                       .AddInput("images", device)

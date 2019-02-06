@@ -24,6 +24,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "dali/api_helper.h"
@@ -59,6 +60,32 @@ struct DALISize {
     int width;
     int height;
 };
+
+/**
+ * @brief Operator types, indicating backend and required workspace
+ */
+enum class DALIOpType {
+  GPU = 0,
+  CPU = 1,
+  MIXED = 2,
+  SUPPORT = 3,
+  COUNT = 4
+};
+
+static std::string to_string(DALIOpType op_type) {
+  switch (op_type) {
+    case DALIOpType::CPU:
+      return "CPU";
+    case DALIOpType::GPU:
+      return "GPU";
+    case DALIOpType::MIXED:
+      return "MIXED";
+    case DALIOpType::SUPPORT:
+      return "SUPPORT";
+    default:
+      return "<INVALID>";
+  }
+}
 
 /**
  * @brief Supported interpolation types
@@ -275,6 +302,9 @@ template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
 std::vector<std::string> string_split(const std::string &s, const char delim);
+
+template <bool Value, typename Type = void>
+using en_if_t = typename std::enable_if<Value, Type>::type;
 
 }  // namespace dali
 

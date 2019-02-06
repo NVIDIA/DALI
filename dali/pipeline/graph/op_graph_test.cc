@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 #include <gtest/gtest.h>
 
@@ -47,9 +47,9 @@ TEST_F(OpGraphTest, TestCPUOnly) {
           .AddOutput("copy_data", "cpu")), "");
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 2);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -93,9 +93,9 @@ TEST_F(OpGraphTest, TestGPUOnly) {
           .AddOutput("copy_data", "gpu")), "");
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 2);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -145,9 +145,9 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
           .AddOutput("copy_data", "gpu")), "");
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 1);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -219,9 +219,9 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
           .AddOutput("copy_data", "cpu")), "");
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 2);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 2);
 
   // Validate the gpu source op
   auto& node = graph.Node(0);
@@ -302,9 +302,9 @@ TEST_F(OpGraphTest, TestOpRemoval) {
 
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 3);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 3);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the dummy source op
   auto& node = graph.Node(0);
@@ -357,9 +357,9 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   graph.RemoveOp(1);
 
   // Validate the updated graph
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 2);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 0);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the source op
   auto& node4 = graph.Node(0);

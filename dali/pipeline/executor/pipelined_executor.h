@@ -55,9 +55,6 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
 
   void SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb);
 
-  std::vector<int> GetMemoryHints(const OpSpec &spec);
-
-
   template <typename Backend>
   class TensorVectorPool {
    public:

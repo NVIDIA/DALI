@@ -28,10 +28,14 @@
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/support_workspace.h"
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
+
+
+#include "dali/pipeline/graph/op_graph_verifier.h"
+#include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
 
@@ -84,32 +88,58 @@ class DLL_PUBLIC Executor {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  using WorkspaceBlob = struct {
-    vector<HostWorkspace> cpu_op_data;
-    vector<MixedWorkspace> mixed_op_data;
-    vector<DeviceWorkspace> gpu_op_data;
-    vector<SupportWorkspace> support_op_data;
+  struct WorkspaceBlob {
+    workspace_store_t op_data;
+
+    void Resize(int support, int cpu, int mixed, int gpu) {
+      std::get<static_cast<int>(DALIOpType::SUPPORT)>(op_data).resize(support);
+      std::get<static_cast<int>(DALIOpType::CPU)>(op_data).resize(cpu);
+      std::get<static_cast<int>(DALIOpType::MIXED)>(op_data).resize(mixed);
+      std::get<static_cast<int>(DALIOpType::GPU)>(op_data).resize(gpu);
+    }
 
     void Clear() {
-      cpu_op_data.clear();
-      mixed_op_data.clear();
-      gpu_op_data.clear();
-      support_op_data.clear();
+      std::get<0>(op_data).clear();
+      std::get<1>(op_data).clear();
+      std::get<2>(op_data).clear();
+      std::get<3>(op_data).clear();
     }
   };
   vector<WorkspaceBlob> wss_;
 
   void PruneUnusedGraphNodes();
 
-  void SetupDataForGraph(WorkspaceBlob *wsb);
+  void SetupWorkspacesForGraph(WorkspaceBlob *wsb);
 
-  void PresizeData(WorkspaceBlob *wsb);
+  std::vector<int> GetMemoryHints(const OpNode &node);
+
+  void PresizeData(std::vector<tensor_data_store_t>& tensor_to_storage, const OpGraph& graph);
 
   void SetupStreamsForGraph(WorkspaceBlob *wsb);
 
   void SetupOutputQueuesForGraph();
 
   void SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb);
+
+  template <DALIOpType op_type>
+  workspace_t<op_type>& get_workspace(workspace_store_t& wo, OpPartitionId partition_idx);
+
+  template <DALIOpType op_type>
+  workspace_t<op_type>& get_workspace(workspace_store_t& wo, const OpNode &node);
+
+  template <DALIOpType op_type>
+  void SetupInputOutput(workspace_t<op_type>& ws, const OpGraph &graph, const OpNode &node);
+
+  template <DALIOpType op_type>
+  void SetupPinned(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node);
+
+  template <DALIOpType op_type>
+  void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node);
+
+  // TODO(klecki): this would require queue indexes for parents and children
+  template <DALIOpType op_type>
+  workspace_t<op_type> CreateWorkspace(const OpGraph &graph, const OpNode &node);
+
 
   template <typename Backend>
   class TensorListPool {
@@ -205,6 +235,9 @@ class DLL_PUBLIC Executor {
   std::mutex errors_mutex_;
   bool exec_error_;
   ExecutorCallback cb_;
+  std::vector<tensor_data_store_t> tensor_to_storage_;
+  cudaStream_t mixed_op_stream_, gpu_op_stream_;
+  std::vector<cudaEvent_t> mixed_op_events_;  // To introduce dependency from MIXED to GPU Ops
 };
 
 #define USE_EXECUTOR_MEMBERS()                             \
@@ -230,6 +263,155 @@ class DLL_PUBLIC Executor {
   using Executor::stream_pool_;                            \
   using Executor::event_pool_;                             \
   using Executor::thread_pool_
+
+
+template <DALIOpType op_type>
+workspace_t<op_type>& Executor::get_workspace(workspace_store_t& wo, OpPartitionId partition_idx) {
+  auto& ws_vec = std::get<static_cast<size_t>(op_type)>(wo);
+  return ws_vec[partition_idx];
+}
+
+
+template <DALIOpType op_type>
+workspace_t<op_type>& Executor::get_workspace(workspace_store_t& wo, const OpNode &node) {
+  DALI_ENFORCE(node.op_type == op_type,
+               "Wrong variant of method selected. DALIOpType does not match.");
+  auto& ws_vec = std::get<static_cast<size_t>(op_type)>(wo);
+  return ws_vec[node.partition_index];
+}
+
+// We instantiate the operation of adding the input only for parent op_type and device
+// that are specifically allowed
+template <DALIOpType op_type, DALIOpType producer_type, DALITensorDevice device>
+en_if_t<allows_op_input<op_type>(producer_type) && allows_tensor_input<op_type>(device)> add_input(
+    workspace_t<op_type> &ws, const tensor_data_store_t &storage) {
+  auto tensor = get_storage<producer_type, device>(storage);
+  ws.AddInput(tensor);
+}
+
+// If parent op_type or device is not allowed this is a no-op
+template <DALIOpType op_type, DALIOpType producer_type, DALITensorDevice device>
+en_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
+add_input(workspace_t<op_type>, const tensor_data_store_t) {}
+
+// This will be only used for allowed ones (TODO(klecki) with exception of the device)
+template <DALIOpType op_type, DALITensorDevice device>
+void add_output(workspace_t<op_type> &ws, const tensor_data_store_t &storage) {
+  auto tensor = get_storage<op_type, device>(storage);
+  ws.AddOutput(tensor);
+}
+
+// TODO(klecki): should we move this to OpNode, and make it subclasses for
+// all DALIOpTypes -> implement `add_input` and add_output for all of the subclasses
+// as well with later operations
+template <DALIOpType op_type>
+void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
+                                const OpNode &node) {
+  for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+    auto tid = node.parent_tensors[j];
+    auto &parent_node = graph.Node(graph.Tensor(tid).producer_edge.node);
+    auto parent_op_type = parent_node.op_type;
+    auto tensor_device = graph.Tensor(tid).producer_edge.storage_device;
+
+    VALUE_SWITCH(parent_op_type, parent_op_static,
+        (DALIOpType::GPU, DALIOpType::CPU, DALIOpType::MIXED, DALIOpType::SUPPORT),
+    (
+      VALUE_SWITCH(tensor_device, device_static, (DALITensorDevice::CPU, DALITensorDevice::GPU),
+      (
+        add_input<op_type, parent_op_static, device_static>(ws, tensor_to_storage_[tid]);
+      ), DALI_FAIL("Unexpected device"))  // NOLINT(whitespace/parens)
+    ), DALI_FAIL("Unexpected op_type"));  // NOLINT(whitespace/parens)
+  }
+
+  // Argument inputs can be handled genericaly
+  for (const auto &arg_pair : node.spec.ArgumentInputs()) {
+  // Get each argument input and add them to this op's workspace.
+    auto input_index = arg_pair.second;
+    auto tid = node.parent_tensors[input_index];
+    auto tensor = get_storage<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_storage_[tid]);
+    ws.AddArgumentInput(tensor, arg_pair.first);
+  }
+
+  for (int j = 0; j < node.spec.NumOutput(); ++j) {
+    auto tid = node.children_tensors[j];
+    auto tensor_device = graph.Tensor(tid).producer_edge.storage_device;
+    VALUE_SWITCH(tensor_device, device_static, (DALITensorDevice::CPU, DALITensorDevice::GPU),
+    (
+      add_output<op_type, device_static>(ws, tensor_to_storage_[tid]);
+    ), DALI_FAIL("Unexpected device"));  // NOLINT(whitespace/parens)
+  }
+}
+
+template <DALIOpType op_type>
+void Executor::SetupPinned(workspace_t<op_type> &, const OpGraph &, const OpNode &) {
+  /* No-op if we are not MIXED MakeContigous node */
+}
+
+// TODO(klecki): this should be handled on Tensor level?
+template <>
+inline void Executor::SetupPinned<DALIOpType::MIXED>(MixedWorkspace& ws, const OpGraph &graph,
+                                                           const OpNode &node) {
+  for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+    auto tid = node.parent_tensors[j];
+    // Use pinned memory only when it is useful
+    if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
+        node.spec.OutputDevice(0) == "gpu") {
+      // TODO(klecki): we need some wrappers for WorkspaceOutputType with set_pinned in API
+      for (auto t : get_storage<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_storage_[tid])) {
+        t->set_pinned(true);
+      }
+    }
+  }
+}
+
+template <DALIOpType op_type>
+void Executor::SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph,
+                                     const OpNode &node) {
+  /* No-op if we are not Mixed or GPU */
+}
+
+template <>
+inline void Executor::SetupStreamsAndEvents<DALIOpType::MIXED>(MixedWorkspace &ws,
+                                                               const OpGraph &graph,
+                                                               const OpNode &node) {
+  // We assign unique stream to mixed ops.
+  // This ensures that we won't have false dependencies
+  // between mixed ops and the previous iterations
+  // gpu ops.
+  ws.set_stream(mixed_op_stream_);
+  ws.set_event(mixed_op_events_[node.partition_index]);
+}
+
+template <>
+inline void Executor::SetupStreamsAndEvents<DALIOpType::GPU>(DeviceWorkspace &ws,
+                                                             const OpGraph &graph,
+                                                             const OpNode &node) {
+  // I/O pipeline is always going to be launched alongside
+  // some other GPU work (like DL training).
+  // Therefore it is not necessary to use more than
+  // 1 stream for GPU ops, even though we may not fill
+  // the whole GPU with just I/O pipeline kernels
+  // by doing so.
+  ws.set_stream(gpu_op_stream_);
+  for (const auto& p : node.parents) {
+    if (graph.NodeType(p) == DALIOpType::MIXED) {
+      const auto &parent_op = graph.Node(p);
+      // We need to block on this op's event to
+      // make sure that we respect the dependency
+      ws.AddParentEvent(mixed_op_events_[parent_op.partition_index]);
+    }
+  }
+}
+
+template <DALIOpType op_type>
+workspace_t<op_type> Executor::CreateWorkspace(const OpGraph &graph, const OpNode &node) {
+  workspace_t<op_type> ws;
+  SetupInputOutput<op_type>(ws, graph, node);
+  SetupPinned<op_type>(ws, graph, node);
+  SetupStreamsAndEvents<op_type>(ws, graph, node);
+  return ws;
+}
+
 
 }  // namespace dali
 

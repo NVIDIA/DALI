@@ -29,7 +29,7 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operators/util/external_source.h"
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 
 namespace dali {
@@ -137,7 +137,7 @@ class DLL_PUBLIC Pipeline {
       return;
     }
     OpNodeId node_id = graph_.TensorSourceID(name + "_cpu");
-    DALI_ENFORCE(graph_.NodeType(node_id) == DALIOpType::DALI_CPU,
+    DALI_ENFORCE(graph_.NodeType(node_id) == DALIOpType::CPU,
         "Internal error setting external input data.");
 
     auto &node = graph_.Node(node_id);

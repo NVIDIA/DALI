@@ -40,15 +40,15 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   }
 
   vector<HostWorkspace> CPUData(Executor *exe, int idx) const {
-    return exe->wss_[idx].cpu_op_data;
+    return std::get<static_cast<int>(DALIOpType::CPU)>(exe->wss_[idx].op_data);
   }
 
   vector<MixedWorkspace> MixedData(Executor *exe, int idx) const {
-    return exe->wss_[idx].mixed_op_data;
+    return std::get<static_cast<int>(DALIOpType::MIXED)>(exe->wss_[idx].op_data);
   }
 
   vector<DeviceWorkspace> GPUData(Executor *exe, int idx) const {
-    return exe->wss_[idx].gpu_op_data;
+    return std::get<static_cast<int>(DALIOpType::GPU)>(exe->wss_[idx].op_data);
   }
 
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) const {
@@ -103,9 +103,9 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   // Validate the graph - op 3 should
   // have been pruned as its outputs
   // are unused.
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 2);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -174,9 +174,9 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 
   // Validate the graph - op 2&3 should
   // have been pruned
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -237,9 +237,9 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 
   // Validate the graph - op 2&3 should
   // have been pruned
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_CPU), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_MIXED), 1);
-  ASSERT_EQ(graph.NumOp(DALIOpType::DALI_GPU), 0);
+  ASSERT_EQ(graph.NumOp(DALIOpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::MIXED), 1);
+  ASSERT_EQ(graph.NumOp(DALIOpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
@@ -375,7 +375,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
 
   // Set the data for the external source
   auto *src_op =
-      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::DALI_CPU, 0).op.get());
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -423,7 +423,7 @@ TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
 
   // Set the data for the external source
   auto *src_op =
-      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::DALI_CPU, 0).op.get());
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -482,7 +482,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
 
   // Set the data for the external source
   auto *src_op =
-      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::DALI_CPU, 0).op.get());
+      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(DALIOpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_*2);

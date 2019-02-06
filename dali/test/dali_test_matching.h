@@ -43,7 +43,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
-    if (OpType() == DALIOpType::DALI_GPU)
+    if (OpType() == DALIOpType::GPU)
       return this->CopyToHost(ws->Output<GPUBackend>(1));
     else
       return this->CopyToHost(ws->Output<CPUBackend>(1));
@@ -74,7 +74,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
   inline void setOpType(DALIOpType opType)        { m_nOpType = opType; }
 
 
-  DALIOpType m_nOpType = DALIOpType::DALI_GPU;
+  DALIOpType m_nOpType = DALIOpType::GPU;
 };
 
 }  // namespace dali
