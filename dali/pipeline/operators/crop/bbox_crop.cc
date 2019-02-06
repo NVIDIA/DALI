@@ -52,13 +52,13 @@ Default values disallow changes in aspect ratio.)code",
         1)
     .AddOptionalArg(
         "allow_no_crop",
-        R"code(It true, includes no cropping as one of the random options.)code",
+        R"code(If true, includes no cropping as one of the random options.)code",
         true)
     .EnforceInputLayout(DALI_NHWC);
 
 template <>
-void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
-                                                   const Crop &crop) {
+void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(
+  SampleWorkspace *ws, const Crop &crop) const {
   const auto coordinates = crop.AsXywh();
 
   // Copy the anchor to output
@@ -80,7 +80,7 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
-    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) {
+    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const {
   auto &bbox_out = ws->Output<CPUBackend>(2);
   bbox_out.Resize(
       {static_cast<Index>(bounding_boxes.size()), BoundingBox::kSize});
@@ -99,7 +99,7 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
-  SampleWorkspace *ws, const std::vector<int> &labels) {
+  SampleWorkspace *ws, const std::vector<int> &labels) const {
   auto &labels_out = ws->Output<CPUBackend>(3);
   labels_out.Resize({static_cast<Index>(labels.size()), 1});
 

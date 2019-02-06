@@ -99,36 +99,36 @@ class RandomBBoxCrop : public Operator<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop);
+  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop) const;
 
-  void WriteBoxesToOutput(SampleWorkspace *ws,
-                          const BoundingBoxes &bounding_boxes);
+  void WriteBoxesToOutput(
+    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const;
 
-  void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels);
+  void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels) const;
 
-  std::pair<float, bool> SelectMinimumOverlap() {
+  const std::pair<float, bool> SelectMinimumOverlap() {
     std::uniform_int_distribution<> sampler(
       0, static_cast<int>(sample_options_.size() - 1));
     return sample_options_[sampler(rd_)];
   }
 
-  float SampleCandidateDimension() {
+  const float SampleCandidateDimension() {
     std::uniform_real_distribution<> sampler(scaling_bounds_.min, scaling_bounds_.max);
     return static_cast<float>(sampler(rd_));
   }
 
-  bool ValidAspectRatio(float width, float height) const {
+  const bool ValidAspectRatio(float width, float height) const {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 
-  bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes, float threshold) {
+  const bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes, float threshold) const {
     return std::all_of(boxes.begin(), boxes.end(),
                        [&crop, threshold](const BoundingBox &box) {
                          return crop.IntersectionOverUnion(box) >= threshold;
                        });
   }
 
-  BoundingBoxes RemapBoxes(const Crop &crop, const BoundingBoxes &boxes,
+  const BoundingBoxes RemapBoxes(const Crop &crop, const BoundingBoxes &boxes,
                            float height, float width) const {
     BoundingBoxes remapped_boxes;
     remapped_boxes.reserve(boxes.size());
@@ -140,23 +140,25 @@ class RandomBBoxCrop : public Operator<Backend> {
     return remapped_boxes;
   }
 
-  Crop SamplePatch(float scaled_height, float scaled_width) {
-    std::uniform_real_distribution<float> width_sampler(static_cast<float>(0.),
-                                                        1 - scaled_width);
-    std::uniform_real_distribution<float> height_sampler(static_cast<float>(0.),
-                                                         1 - scaled_height);
+  const Crop SamplePatch(float scaled_height, float scaled_width) {
+    std::uniform_real_distribution<float> width_sampler(
+      static_cast<float>(0.), 1 - scaled_width);
+    std::uniform_real_distribution<float> height_sampler(
+      static_cast<float>(0.), 1 - scaled_height);
 
     const auto left_offset = width_sampler(rd_);
     const auto height_offset = height_sampler(rd_);
 
-    return Crop::FromLtrb(left_offset, height_offset,
-                          (left_offset + scaled_width),
-                          (height_offset + scaled_height));
+    return Crop::FromLtrb(
+      left_offset,
+      height_offset,
+      (left_offset + scaled_width),
+      (height_offset + scaled_height));
   }
 
-  std::pair<BoundingBoxes, std::vector<int>> DiscardBoundingBoxesByCentroid(
+  const std::pair<BoundingBoxes, std::vector<int>> DiscardBoundingBoxesByCentroid(
       const Crop &crop, const BoundingBoxes &bounding_boxes,
-      const std::vector<int> &labels) {
+      const std::vector<int> &labels) const {
     DALI_ENFORCE(bounding_boxes.size() == labels.size(),
                  "Labels and bounding boxes should have the same length");
     BoundingBoxes candidate_boxes;
@@ -180,7 +182,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return std::make_pair(candidate_boxes, candidate_labels);
   }
 
-  ProspectiveCrop FindProspectiveCrop(
+  const ProspectiveCrop FindProspectiveCrop(
       const BoundingBoxes &bounding_boxes, const std::vector<int> &labels,
       std::pair<float, bool> minimum_overlap) {
     if (!minimum_overlap.second)
