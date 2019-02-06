@@ -51,16 +51,15 @@ class RandomBBoxCrop : public Operator<Backend> {
   using BoundingBoxes = std::vector<BoundingBox>;
 
   struct ProspectiveCrop {
-    bool success;
-    Crop crop;
+    bool success = false;
+    Crop crop = Crop::FromLtrb(0, 0, 1, 1);
     BoundingBoxes boxes;
     std::vector<int> labels;
 
     ProspectiveCrop(
       bool success, const Crop &crop, const BoundingBoxes &boxes, const std::vector<int> &labels) :
       success(success), crop(crop), boxes(boxes), labels(labels) {}
-
-    ProspectiveCrop() : success(false), crop(Crop::FromLtrb(0, 0, 1, 1)) { }
+    ProspectiveCrop() = default;
   };
 
  public:
@@ -211,7 +210,7 @@ class RandomBBoxCrop : public Operator<Backend> {
         }
       }
     }
-    return ProspectiveCrop(false, Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
+    return ProspectiveCrop();
   }
 
   // float - threshold for IoU, bool - whether to apply crop (false means no cropp)
