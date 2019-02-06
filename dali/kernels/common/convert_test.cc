@@ -21,14 +21,29 @@ namespace kernels {
 
 TEST(ConvertNorm, float2int) {
   EXPECT_EQ(ConvertNorm<uint8_t>(0.0f), 0);
+  EXPECT_EQ(ConvertNorm<uint8_t>(0.499f), 127);
   EXPECT_EQ(ConvertNorm<uint8_t>(1.0f), 255);
   EXPECT_EQ(ConvertNorm<int8_t>(1.0f), 127);
+  EXPECT_EQ(ConvertNorm<int8_t>(0.499f), 63);
   EXPECT_EQ(ConvertNorm<int8_t>(-1.0f), -127);
+
 
   EXPECT_EQ(ConvertNorm<uint16_t>(0.0f), 0);
   EXPECT_EQ(ConvertNorm<uint16_t>(1.0f), 0xffff);
   EXPECT_EQ(ConvertNorm<int16_t>(1.0f), 0x7fff);
   EXPECT_EQ(ConvertNorm<int16_t>(-1.0f), -0x7fff);
+}
+
+TEST(ConvertSatNorm, float2int) {
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(2.0f), 255);
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(0.499f), 127);
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(-2.0f), 0);
+  EXPECT_EQ(ConvertSatNorm<int8_t>(2.0f), 127);
+  EXPECT_EQ(ConvertSatNorm<int8_t>(0.499f), 63);
+  EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);
+
+  EXPECT_EQ(ConvertSatNorm<int16_t>(2.0f), 0x7fff);
+  EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);
 }
 
 TEST(ConvertNorm, int2float) {
