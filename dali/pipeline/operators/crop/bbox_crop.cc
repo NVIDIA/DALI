@@ -23,13 +23,15 @@ two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[
 corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
 coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
 Bounding boxes are provided as a `(m*4)` Tensor, where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`. Resulting
-labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.)code")
+labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.
+Be advised, when `allow_no_crop` is `false` and `thresholds` does not contain `0` it is good to increase `num_attempts` as otherwise
+it may loop for a very long time.)code")
     .NumInput(2)
     .NumOutput(4)
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-Selected at random for every sample from provided values. Default leaves the input image as-is in the new crop.)code",
+Selected at random for every sample from provided values. Default imposes no restrictions on Intersection over Union for boxes and crop.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
@@ -48,11 +50,15 @@ Default values disallow changes in aspect ratio.)code",
         "num_attempts",
         R"code(Number of attempts to retrieve a patch with the desired parameters.)code",
         1)
+    .AddOptionalArg(
+        "allow_no_crop",
+        R"code(If true, includes no cropping as one of the random options.)code",
+        true)
     .EnforceInputLayout(DALI_NHWC);
 
 template <>
-void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
-                                                   const Crop &crop) {
+void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(
+  SampleWorkspace *ws, const Crop &crop) const {
   const auto coordinates = crop.AsXywh();
 
   // Copy the anchor to output
@@ -74,7 +80,7 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(SampleWorkspace *ws,
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
-    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) {
+    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const {
   auto &bbox_out = ws->Output<CPUBackend>(2);
   bbox_out.Resize(
       {static_cast<Index>(bounding_boxes.size()), BoundingBox::kSize});
@@ -93,7 +99,7 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
-    SampleWorkspace *ws, const std::vector<int> &labels) {
+  SampleWorkspace *ws, const std::vector<int> &labels) const {
   auto &labels_out = ws->Output<CPUBackend>(3);
   labels_out.Resize({static_cast<Index>(labels.size()), 1});
 
@@ -129,18 +135,20 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
     labels.emplace_back(*label_data);
   }
 
-  const auto prospective_crop =
-      FindProspectiveCrop(bounding_boxes, labels, SelectMinimumOverlap());
+  ProspectiveCrop prospective_crop;
+  while (!prospective_crop.success)
+    prospective_crop  = FindProspectiveCrop(
+        bounding_boxes, labels, SelectMinimumOverlap());
 
-  const auto &selected_boxes = std::get<1>(prospective_crop);
-  const auto &selected_labels = std::get<2>(prospective_crop);
+  const auto &selected_boxes = prospective_crop.boxes;
+  const auto &selected_labels = prospective_crop.labels;
 
   DALI_ENFORCE(selected_boxes.size() == selected_labels.size(),
-               "Expected boxes.size() == labels.size(). Received: " +
-                   std::to_string(selected_boxes.size()) +
-                   "!=" + std::to_string(selected_labels.size()));
+              "Expected boxes.size() == labels.size(). Received: " +
+                  std::to_string(selected_boxes.size()) +
+                  "!=" + std::to_string(selected_labels.size()));
 
-  WriteCropToOutput(ws, std::get<0>(prospective_crop));
+  WriteCropToOutput(ws, prospective_crop.crop);
   WriteBoxesToOutput(ws, selected_boxes);
   WriteLabelsToOutput(ws, selected_labels);
 }
