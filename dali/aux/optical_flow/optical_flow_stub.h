@@ -15,9 +15,9 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
 #define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
 
-#include <dali/kernels/tensor_view.h>
-#include <dali/aux/optical_flow/optical_flow_adapter.h>
 #include <vector>
+#include "dali/kernels/tensor_view.h"
+#include "dali/aux/optical_flow/optical_flow_adapter.h"
 
 namespace dali {
 namespace optical_flow {
@@ -40,7 +40,7 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
                        TensorView<StorageBackend, const float, 3> external_hints) override;
 
 
-  static constexpr float kStubValue = 666.f;
+  static constexpr float kStubValue = 666.f;  /// Stub output value for Optical Flow
 };
 
 

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <dali/aux/optical_flow/optical_flow_stub.h>
-#include <dali/kernels/backend_tags.h>
-#include <dali/util/cuda_utils.h>
 #include <memory>
+#include "dali/aux/optical_flow/optical_flow_stub.h"
+#include "dali/kernels/backend_tags.h"
+#include "dali/util/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {
@@ -30,9 +30,9 @@ using kernels::StorageGPU;
 static int kTestDataSize = 2;
 
 TEST(OpticalFlowAdapter, StubApiCpuBackend) {
-  std::unique_ptr<float> data(new float[kTestDataSize]);
   TensorView<StorageCPU, uint8_t, 3> tvref, tvin;
-  TensorView<StorageCPU, float, 3> tvout(data.get(), {1, 1, 2});
+  std::vector<float> in_data(kTestDataSize);
+  TensorView<StorageCPU, float, 3> tvout(in_data.data(), {1, 1, 2});
   OpticalFlowParams params;
   std::unique_ptr<OpticalFlowAdapter<ComputeCPU>> of(new OpticalFlowStub<ComputeCPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
