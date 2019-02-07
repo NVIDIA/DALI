@@ -22,12 +22,12 @@
 
 namespace dali {
 
-class HostDecoderExternalCrop : public HostDecoder {
+class HostDecoderSlice : public HostDecoder {
  public:
-  explicit HostDecoderExternalCrop(const OpSpec &spec);
+  explicit HostDecoderSlice(const OpSpec &spec);
 
-  inline ~HostDecoderExternalCrop() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(HostDecoderExternalCrop);
+  inline ~HostDecoderSlice() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(HostDecoderSlice);
 
  protected:
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {

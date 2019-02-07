@@ -18,12 +18,12 @@
 #include <memory>
 #include "dali/error_handling.h"
 #include "dali/image/image_factory.h"
-#include "dali/pipeline/operators/decoder/host_decoder_fixed_crop.h"
+#include "dali/pipeline/operators/decoder/host_decoder_crop.h"
 #include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
-HostDecoderFixedCrop::HostDecoderFixedCrop(const OpSpec &spec)
+HostDecoderCrop::HostDecoderCrop(const OpSpec &spec)
   : HostDecoder(spec)
   , CropAttr(spec)
   , per_sample_crop_window_generators_(batch_size_) {
@@ -33,7 +33,7 @@ HostDecoderFixedCrop::HostDecoderFixedCrop(const OpSpec &spec)
   }
 }
 
-void HostDecoderFixedCrop::SetupSharedSampleParams(SampleWorkspace *ws) {
+void HostDecoderCrop::SetupSharedSampleParams(SampleWorkspace *ws) {
   const auto data_idx = ws->data_idx();
   const auto crop_x_norm = spec_.GetArgument<float>("crop_pos_x", ws, data_idx);
   const auto crop_y_norm = spec_.GetArgument<float>("crop_pos_y", ws, data_idx);
@@ -53,9 +53,9 @@ void HostDecoderFixedCrop::SetupSharedSampleParams(SampleWorkspace *ws) {
     };
 }
 
-DALI_REGISTER_OPERATOR(HostDecoderFixedCrop, HostDecoderFixedCrop, CPU);
+DALI_REGISTER_OPERATOR(HostDecoderCrop, HostDecoderCrop, CPU);
 
-DALI_SCHEMA(HostDecoderFixedCrop)
+DALI_SCHEMA(HostDecoderCrop)
   .DocStr(R"code(Decode images on the host with a fixed cropping window size and variable anchor.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
 When not supported, will decode the whole image and then crop.

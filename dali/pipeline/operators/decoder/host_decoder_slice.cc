@@ -18,17 +18,17 @@
 #include <memory>
 #include "dali/error_handling.h"
 #include "dali/image/image_factory.h"
-#include "dali/pipeline/operators/decoder/host_decoder_external_crop.h"
+#include "dali/pipeline/operators/decoder/host_decoder_slice.h"
 #include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
-HostDecoderExternalCrop::HostDecoderExternalCrop(const OpSpec &spec)
+HostDecoderSlice::HostDecoderSlice(const OpSpec &spec)
   : HostDecoder(spec)
   , per_sample_crop_window_generators_(batch_size_) {
 }
 
-void HostDecoderExternalCrop::DataDependentSetup(SampleWorkspace *ws, unsigned int idx) {
+void HostDecoderSlice::DataDependentSetup(SampleWorkspace *ws, unsigned int idx) {
   DALI_ENFORCE(
     ws->NumInput() == 3,
     "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
@@ -63,9 +63,9 @@ void HostDecoderExternalCrop::DataDependentSetup(SampleWorkspace *ws, unsigned i
     };
 }
 
-DALI_REGISTER_OPERATOR(HostDecoderExternalCrop, HostDecoderExternalCrop, CPU);
+DALI_REGISTER_OPERATOR(HostDecoderSlice, HostDecoderSlice, CPU);
 
-DALI_SCHEMA(HostDecoderExternalCrop)
+DALI_SCHEMA(HostDecoderSlice)
   .DocStr(R"code(Decode images on the host with a cropping window of given size and anchor.
 Inputs must be supplied as 3 tensors in a specific order: `encoded_data` containing encoded
 image data, `begin` containing the starting pixel coordinates for the `crop` in `(x,y)`

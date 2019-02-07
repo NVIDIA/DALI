@@ -280,7 +280,7 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoderRandomCrop)->Iterations(100)
 ->UseRealTime()
 ->Apply(HostPipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderFixedCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -300,7 +300,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderFixedCrop)(benchmark::State& st) { /
   pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
-      OpSpec("HostDecoderFixedCrop")
+      OpSpec("HostDecoderCrop")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddArg("crop", std::vector<float>{224.0f, 224.0f})
@@ -341,12 +341,12 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderFixedCrop)(benchmark::State& st) { /
       benchmark::Counter::kIsRate);
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoderFixedCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, HostDecoderCrop)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HostPipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderExternalCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -392,7 +392,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderExternalCrop)(benchmark::State& st) 
   pipe.SetExternalInput("crop_data", crop_data);
 
   pipe.AddOperator(
-      OpSpec("HostDecoderExternalCrop")
+      OpSpec("HostDecoderSlice")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
@@ -434,7 +434,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderExternalCrop)(benchmark::State& st) 
       benchmark::Counter::kIsRate);
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoderExternalCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, HostDecoderSlice)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(HostPipeArgs);

@@ -22,12 +22,12 @@
 
 namespace dali {
 
-class HostDecoderFixedCrop : public HostDecoder, protected CropAttr {
+class HostDecoderCrop : public HostDecoder, protected CropAttr {
  public:
-  explicit HostDecoderFixedCrop(const OpSpec &spec);
+  explicit HostDecoderCrop(const OpSpec &spec);
 
-  inline ~HostDecoderFixedCrop() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(HostDecoderFixedCrop);
+  inline ~HostDecoderCrop() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
 
   void SetupSharedSampleParams(SampleWorkspace *ws) override;
 

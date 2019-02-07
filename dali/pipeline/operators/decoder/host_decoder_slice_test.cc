@@ -17,7 +17,7 @@
 namespace dali {
 
 template <typename ImgType>
-class HostDecoderExternalCropTest : public HostDecodeTestBase<ImgType> {
+class HostDecoderSliceTest : public HostDecodeTestBase<ImgType> {
  protected:
   TensorList<CPUBackend> begin_data;
   TensorList<CPUBackend> crop_data;
@@ -45,7 +45,7 @@ class HostDecoderExternalCropTest : public HostDecodeTestBase<ImgType> {
   }
 
   const OpSpec DecodingOp() const override {
-    return this->GetOpSpec("HostDecoderExternalCrop")
+    return this->GetOpSpec("HostDecoderSlice")
       .AddInput("begin", "cpu")
       .AddInput("crop", "cpu");
   }
@@ -66,17 +66,17 @@ class HostDecoderExternalCropTest : public HostDecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecoderExternalCropTest, Types);
+TYPED_TEST_CASE(HostDecoderSliceTest, Types);
 
-TYPED_TEST(HostDecoderExternalCropTest, JpegDecode) {
+TYPED_TEST(HostDecoderSliceTest, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(HostDecoderExternalCropTest, PngDecode) {
+TYPED_TEST(HostDecoderSliceTest, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(HostDecoderExternalCropTest, TiffDecode) {
+TYPED_TEST(HostDecoderSliceTest, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 
