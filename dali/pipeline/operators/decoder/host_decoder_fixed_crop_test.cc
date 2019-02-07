@@ -35,7 +35,7 @@ class HostDecoderFixedCropTest : public HostDecodeTestBase<ImgType> {
     };
   }
 
-  int crop_H = 224, crop_W = 200;
+  static constexpr int crop_H = 224, crop_W = 200;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
