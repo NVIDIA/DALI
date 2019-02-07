@@ -23,14 +23,13 @@ namespace {
 template <typename Out>
 __global__ void BatchedCropKernel(const int C, const int *height,
                                   const int *width,
-                                  const int seq_size,
                                   const uint8 *const *img_ptrs,
                                   const int *in_strides,
                                   DALITensorLayout layout, Out *out,
                                   const int *output_offsets) {
   const int n = blockIdx.x;
-  const int W = width[n / seq_size];
-  const int H = height[n / seq_size];
+  const int W = width[n];
+  const int H = height[n];
   const int in_stride = in_strides[n];
   const uint8 *input_ptr = img_ptrs[n];
 
@@ -65,11 +64,11 @@ __global__ void BatchedCropKernel(const int C, const int *height,
 
 template <typename Out>
 DALIError_t BatchedCrop(const uint8 *const *in_batch, const int *in_strides,
-                        int N, const int *H, const int *W, int seq_size, int C,
+                        int N, const int *H, const int *W, int C,
                         DALITensorLayout L, Out *out_batch,
                         const int *output_offsets, cudaStream_t stream) {
   BatchedCropKernel<Out><<<N, dim3(32, 32), 0, stream>>>(
-      C, H, W, seq_size, in_batch, in_strides, L, out_batch, output_offsets);
+      C, H, W, in_batch, in_strides, L, out_batch, output_offsets);
   return DALISuccess;
 }
 
@@ -83,8 +82,7 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
       input_ptrs_gpu_.data<const uint8 *>(),
       input_strides_gpu_.data<int>(), batch_size_ * SequenceSize(idx),
       crop_height_gpu_.data<int>(),
-      crop_width_gpu_.data<int>(), SequenceSize(idx),
-      C_, output_layout_,
+      crop_width_gpu_.data<int>(), C_, output_layout_,
       output.mutable_data<Out>(),
       output_offsets_gpu_.data<int>(), ws->stream())));
 }
@@ -92,14 +90,23 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
 template <>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   const auto &input = ws->Input<GPUBackend>(0);
+    int total_batch = batch_size_ * SequenceSize(0);
   if (SequenceSize(0) > 1) {
-    Init(batch_size_ * SequenceSize(0));
+    Init(total_batch);
+    std::vector<int> new_crop_height_(total_batch);
+    std::vector<int> new_crop_width_(total_batch);
+    for (int i = 0; i < total_batch; ++i) {
+      new_crop_height_[i] = crop_height_[i / SequenceSize(0)];
+      new_crop_width_[i] = crop_width_[i / SequenceSize(0)];
+    }
+    crop_height_ = new_crop_height_;
+    crop_width_ = new_crop_width_;
   }
 
   if (output_type_ == DALI_NO_TYPE) output_type_ = input.type().id();
 
-  for (int i = 0; i < batch_size_ * SequenceSize(0); ++i)
-    SetupSharedSampleParams(ws, input.tensor_shape(i), i, i / SequenceSize(0));
+  for (int i = 0; i < total_batch; ++i)
+    SetupSharedSampleParams(ws, input.tensor_shape(i), i, i);
 }
 
 template <>
@@ -140,18 +147,15 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
     const int crop_y = per_sample_crop_[i].first;
     const int crop_x = per_sample_crop_[i].second;
 
-    // we need to retrieve the right crop_height and crop_width
-    int seq_pos = i / SequenceSize(idx);
-
     input_strides_.mutable_data<int>()[i] = W * C;
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
-    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, seq_pos);
+    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, i);
 
     if (i == 0) {
       output_offsets_.mutable_data<int>()[i] = 0;
     } else {
       auto cumulative_offset =
-          (crop_height_[seq_pos - 1] * crop_width_[seq_pos - 1] * C_) +
+          (crop_height_[i - 1] * crop_width_[i - 1] * C_) +
           output_offsets_.mutable_data<int>()[i - 1];
       output_offsets_.mutable_data<int>()[i] = cumulative_offset;
     }
