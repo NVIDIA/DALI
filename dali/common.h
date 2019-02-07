@@ -215,6 +215,32 @@ inline std::string to_string(const DALITensorLayout& layout) {
   }
 }
 
+inline DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
+  switch (sequence_layout) {
+    case DALI_NFHWC:
+      return DALI_NHWC;
+    case DALI_NFCHW:
+      return DALI_NCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return sequence_layout;
+  }
+}
+
+inline DALITensorLayout GetSequenceLayout(DALITensorLayout element_layout) {
+  switch (element_layout) {
+    case DALI_NHWC:
+      return DALI_NFHWC;
+    case DALI_NCHW:
+      return DALI_NFCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return element_layout;
+  }
+}
+
+inline bool IsSequence(DALITensorLayout layout) {
+  return layout == DALI_NFHWC || layout == DALI_NFCHW;
+}
+
 template <typename T>
 auto to_string(const T& v) -> decltype(std::string(v)) {
   return v;

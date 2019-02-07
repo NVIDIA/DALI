@@ -155,7 +155,7 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Notes that multiple input sets can be used with this op
+   * @brief Notes that sequences can be used with this op
    */
   DLL_PUBLIC inline OpSchema& AllowSequences() {
     allow_sequences_ = true;

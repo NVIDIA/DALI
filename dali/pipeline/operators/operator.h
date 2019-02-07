@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_OPERATOR_H_
 #define DALI_PIPELINE_OPERATORS_OPERATOR_H_
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -213,11 +214,11 @@ class Operator : public OperatorBase {
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
 
   int SequenceSize(int idx = 0) {
-    if (!sequences_allowed_) {
-      return 1;
-    }
+    DALI_ENFORCE(sequences_allowed_,
+      "This operator is not implemented for sequences. "
+      "Use AllowSequences() is OpSchema to enable it.");
     DALI_ENFORCE_VALID_INDEX(idx, seq_sizes_.size());
-    return seq_sizes_[idx] == 0 ? 1 : seq_sizes_[idx];
+    return std::max(1, seq_sizes_[idx]);
   }
 
  private:
@@ -240,12 +241,10 @@ class Operator : public OperatorBase {
     seq_sizes_.clear();
     seq_sizes_.resize(input_sets_, 0);
     for (int i = 0; i < input_sets_; ++i) {
-      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
       auto &input = ws->template MutableInput<Backend>(i);
-
       const std::vector<Dims>& old_shapes = input.shape();
       DALITensorLayout layout = input.GetLayout();
-      if (layout == DALI_NFHWC || layout == DALI_NFCHW) {
+      if (IsSequence(layout)) {
         // size of seq is the first dim in each tensor
         seq_sizes_[i] = old_shapes[0][0];
 
@@ -258,11 +257,7 @@ class Operator : public OperatorBase {
           }
         }
         input.Resize(new_shapes);
-        if (layout == DALI_NFHWC) {
-          input.SetLayout(DALI_NHWC);
-        } else {
-          input.SetLayout(DALI_NCHW);
-        }
+        input.SetLayout(GetElementLayout(input.GetLayout()));
       }
     }
   }
@@ -271,10 +266,10 @@ class Operator : public OperatorBase {
   typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
   Flatten(Workspace<B> */*unused*/) {}
 
+
   template <typename B = Backend>
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
   Unflatten(Workspace<Backend> *ws) {
-    // TODO(spanev): Handle ops where OpSchema::NumInput != OpSchema::NumOuput?
     for (int idx = 0; idx < input_sets_; ++idx) {
       CUDA_CALL(cudaStreamSynchronize(ws->stream()));
       if (seq_sizes_[idx] > 0) {
@@ -306,16 +301,8 @@ class Operator : public OperatorBase {
         }
         input.Resize(new_shapes_input);
         output.Resize(new_shapes_output);
-        if (input.GetLayout() == DALI_NHWC) {
-          input.SetLayout(DALI_NFHWC);
-        } else {
-          input.SetLayout(DALI_NFCHW);
-        }
-        if (output.GetLayout() == DALI_NHWC) {
-          output.SetLayout(DALI_NFHWC);
-        } else {
-          output.SetLayout(DALI_NFCHW);
-        }
+        input.SetLayout(GetSequenceLayout(input.GetLayout()));
+        output.SetLayout(GetSequenceLayout(output.GetLayout()));
       }
     }
   }
