@@ -217,7 +217,7 @@ class Operator : public OperatorBase {
       return 1;
     }
     DALI_ENFORCE_VALID_INDEX(idx, seq_sizes_.size());
-    return seq_sizes_[idx];
+    return seq_sizes_[idx] == 0 ? 1 : seq_sizes_[idx];
   }
 
  private:
@@ -238,7 +238,7 @@ class Operator : public OperatorBase {
   typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
   Flatten(Workspace<Backend> *ws) {
     seq_sizes_.clear();
-    seq_sizes_.resize(input_sets_, 1);
+    seq_sizes_.resize(input_sets_, 0);
     for (int i = 0; i < input_sets_; ++i) {
       CUDA_CALL(cudaStreamSynchronize(ws->stream()));
       auto &input = ws->template MutableInput<Backend>(i);
@@ -277,7 +277,7 @@ class Operator : public OperatorBase {
     // TODO(spanev): Handle ops where OpSchema::NumInput != OpSchema::NumOuput?
     for (int idx = 0; idx < input_sets_; ++idx) {
       CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-      if (seq_sizes_[idx] > 1) {
+      if (seq_sizes_[idx] > 0) {
         auto &input = ws->template MutableInput<Backend>(idx);
         auto &output = ws->template Output<Backend>(idx);
         const std::vector<Dims>& old_shapes_input = input.shape();
