@@ -123,7 +123,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
   template <typename Kernel>
   void RunKernel(const Tensor<CPUBackend> &input, typename Kernel::KernelAttributes args,
                  Tensor<CPUBackend> &output) {
-    // ValidateHelper not needed - TensorWrapper ensures that ptr != nullptr.
     // TODO(klecki) - Input and output allocations should already be hanlded at this stage.
 
     const auto *in = input.template data<typename Kernel::InputType>();
@@ -169,8 +168,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
  private:
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
-  template <typename Out>
-  void ValidateHelper(TensorList<Backend> &output);
 
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
                                const vector<Index> &inputShape, int threadIdx,
