@@ -25,12 +25,12 @@ namespace optical_flow {
 namespace detail {
 
 template<typename ComputeBackend>
-struct Compute2Storage {
+struct compute_to_storage {
   using type = kernels::StorageCPU;
 };
 
 template<>
-struct Compute2Storage<kernels::ComputeGPU> {
+struct compute_to_storage<kernels::ComputeGPU> {
   using type = kernels::StorageGPU;
 };
 
@@ -53,7 +53,7 @@ using dali::kernels::TensorView;
 template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
  protected:
-  using StorageBackend = typename detail::Compute2Storage<ComputeBackend>::type;
+  using StorageBackend = typename detail::compute_to_storage<ComputeBackend>::type;
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) {}
 
