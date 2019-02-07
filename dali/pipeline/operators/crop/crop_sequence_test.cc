@@ -19,17 +19,22 @@
 namespace dali {
 namespace testing {
 
+template <typename Backend_, typename T_,
+          Index N_ = 2, Index F_ = 10, Index H_ = 1280, Index W_ = 800, Index C_ = 3,
+          Index crop_H_ = 224, Index crop_W_ = 256>
 struct CropSequenceTestArgs {
-    int ntensors = 2;
-    int F = 10;
-    int H = 1280;
-    int W = 800;
-    int C = 3;
-    int crop_H = 224;
-    int crop_W = 256;
+  using Backend = Backend_;
+  using T = T_;
+  enum { N = N_ };
+  enum { F = F_ };
+  enum { H = H_ };
+  enum { W = W_ };
+  enum { C = C_ };
+  enum { crop_H = crop_H_ };
+  enum { crop_W = crop_W_ };
 };
 
-template <typename Backend, typename T>
+template <typename TestArgs>
 class CropSequenceTest : public DaliOperatorTest {
  protected:
     GraphDescr GenerateOperatorGraph() const noexcept override {
@@ -37,25 +42,22 @@ class CropSequenceTest : public DaliOperatorTest {
     }
 
  public:
-    CropSequenceTest(){
-    }
-
     std::unique_ptr<TensorList<CPUBackend>>
     GetSequenceData() {
         std::unique_ptr<TensorList<CPUBackend>> data(
             new TensorList<CPUBackend>);
-        std::vector<Dims> shape(args_.ntensors, {args_.F, args_.W, args_.H, args_.C});
-        data->set_type(TypeInfo::Create<T>());
+        std::vector<Dims> shape(TestArgs::N, {TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
+        data->set_type(TypeInfo::Create<typename TestArgs::T>());
         data->SetLayout(DALITensorLayout::DALI_NFHWC);
         data->Resize(shape);
 
-        const auto frame_size = args_.W * args_.H * args_.C;
-        for (int i = 0; i < args_.ntensors; i++) {
-            T *raw_data = static_cast<T*>(
+        const auto frame_size = TestArgs::W * TestArgs::H * TestArgs::C;
+        for (int i = 0; i < TestArgs::N; i++) {
+            auto *raw_data = static_cast<typename TestArgs::T*>(
                 data->raw_mutable_tensor(i));
-            for (int f = 0; f < args_.F; f++) {
-                T *frame_data = &raw_data[f*frame_size];
-                T value = f % 256;
+            for (int f = 0; f < TestArgs::F; f++) {
+                auto *frame_data = &raw_data[f*frame_size];
+                auto value = f % 256;
                 for (int k = 0; k < frame_size; k++)
                     frame_data[k] = value;
             }
@@ -75,27 +77,25 @@ class CropSequenceTest : public DaliOperatorTest {
         ASSERT_EQ(nintensors, nouttensors);
         for (int idx = 0; idx < nouttensors; idx++) {
             const Dims shape = output_tl->tensor_shape(idx);
-            const auto *data = output_tl->tensor<T>(idx);
-            ASSERT_EQ(args_.F, shape[0]);
-            ASSERT_EQ(args_.crop_H, shape[1]);
-            ASSERT_EQ(args_.crop_W, shape[2]);
-            ASSERT_EQ(args_.C, shape[3]);
+            const auto *data = output_tl->tensor<typename TestArgs::T>(idx);
+            ASSERT_EQ(TestArgs::F, shape[0]);
+            ASSERT_EQ(TestArgs::crop_H, shape[1]);
+            ASSERT_EQ(TestArgs::crop_W, shape[2]);
+            ASSERT_EQ(TestArgs::C, shape[3]);
 
-            auto size_frame = args_.crop_H * args_.crop_W * args_.C;
-            for (int f = 0; f < args_.F; f++) {
-                for (int k = f*size_frame; k < (f+1)*size_frame; k++ ) {
+            auto size_frame = TestArgs::crop_H * TestArgs::crop_W * TestArgs::C;
+            for (int f = 0; f < TestArgs::F; f++) {
+                for (int k = f*size_frame; k < (f+1)*size_frame; k++) {
                     ASSERT_EQ(f%256, (int)data[k]);
                 }
             }
         }
     }
 
-    void Run(CropSequenceTestArgs test_args) {
-        args_ = test_args;
-
+    void Run() {
         Arguments args;
-        args.emplace("crop", std::vector<float>{1.0f*args_.crop_H, 1.0f*args_.crop_W});
-        args.emplace("device", detail::BackendStringName<Backend>());
+        args.emplace("crop", std::vector<float>{1.0f*TestArgs::crop_H, 1.0f*TestArgs::crop_W});
+        args.emplace("device", detail::BackendStringName<typename TestArgs::Backend>());
         TensorListWrapper tlout;
         auto tlin = GetSequenceData();
         this->RunTest(
@@ -105,40 +105,63 @@ class CropSequenceTest : public DaliOperatorTest {
                 std::placeholders::_2,
                 std::placeholders::_3));
     }
-
-    CropSequenceTestArgs args_;
 };
 
-template <typename T>
-class CropSequenceGPUTest : public CropSequenceTest<GPUBackend, T> {};
+template <typename Backend>
+using ValidCropArgs = ::testing::Types<
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 224, 256>,
+    CropSequenceTestArgs<Backend, uint8_t, 1, 10, 1280, 800, 3, 224, 256>,
+    CropSequenceTestArgs<Backend, uint8_t, 2, 1,  1280, 800, 3, 224, 256>,
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 1,   1>,
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 1,   256>>;
 
-typedef ::testing::Types<uint8_t/*, float */> Types;
-TYPED_TEST_CASE(CropSequenceGPUTest, Types);
+using GPU_ValidCropArgs = ValidCropArgs<GPUBackend>;
+using CPU_ValidCropArgs = ValidCropArgs<CPUBackend>;
 
-TYPED_TEST(CropSequenceGPUTest, 1_frame) {
-    CropSequenceTestArgs args;
-    args.F = 1;
-    this->Run(args);
+template < typename T>
+using CropSequenceTest_GPU_Valid = CropSequenceTest<T>;
+TYPED_TEST_CASE(CropSequenceTest_GPU_Valid, GPU_ValidCropArgs);
+
+TYPED_TEST(CropSequenceTest_GPU_Valid, test_valid_crop_gpu) {
+    this->Run();
 }
 
-TYPED_TEST(CropSequenceGPUTest, 10_frame) {
-    CropSequenceTestArgs args;
-    args.F = 10;
-    this->Run(args);
+template < typename T>
+using CropSequenceTest_CPU_Valid = CropSequenceTest<T>;
+TYPED_TEST_CASE(CropSequenceTest_CPU_Valid, CPU_ValidCropArgs);
+
+// TODO(spanev, janton): enable after implementing CPU version
+TYPED_TEST(CropSequenceTest_CPU_Valid, DISABLED_test_valid_crop_cpu) {
+    this->Run();
 }
 
-TYPED_TEST(CropSequenceGPUTest, 1_by_1_cropping_window) {
-    CropSequenceTestArgs args;
-    args.crop_H = 1;
-    args.crop_W = 1;
-    this->Run(args);
+template <typename Backend>
+using InvalidCropArgs = ::testing::Types<
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1, 1, 3, 224, 256>,
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1, 1, 3, -1, -1>>;
+
+using GPU_InvalidCropArgs = InvalidCropArgs<GPUBackend>;
+using CPU_InvalidCropArgs = InvalidCropArgs<CPUBackend>;
+
+template < typename T>
+using CropSequenceTest_GPU_Invalid = CropSequenceTest<T>;
+TYPED_TEST_CASE(CropSequenceTest_GPU_Invalid, GPU_InvalidCropArgs);
+
+TYPED_TEST(CropSequenceTest_GPU_Invalid, invalid_arguments) {
+    EXPECT_THROW(
+        this->Run(),
+        std::runtime_error);
 }
 
-TYPED_TEST(CropSequenceGPUTest, 224_by_256_cropping_window) {
-    CropSequenceTestArgs args;
-    args.crop_H = 224;
-    args.crop_W = 256;
-    this->Run(args);
+template < typename T>
+using CropSequenceTest_CPU_Invalid = CropSequenceTest<T>;
+TYPED_TEST_CASE(CropSequenceTest_CPU_Invalid, CPU_InvalidCropArgs);
+
+// TODO(spanev, janton): enable after implementing CPU version
+TYPED_TEST(CropSequenceTest_CPU_Invalid, DISABLED_invalid_arguments) {
+    EXPECT_THROW(
+        this->Run(),
+        std::runtime_error);
 }
 
 }  // namespace testing
