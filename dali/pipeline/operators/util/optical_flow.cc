@@ -73,14 +73,14 @@ OpticalFlow<CPUBackend>::OpticalFlow(const OpSpec &spec) :
 template<>
 void OpticalFlow<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   const auto &input = ws->template Input<CPUBackend>(idx);
-//  auto tvin = view<const uint8_t, 3>(input);
-//
+  auto tvin = view<const uint8_t, 3>(input);
+
   auto &output = ws->template Output<CPUBackend>(idx);
   output.ResizeLike(input);
-  output.template mutable_data<uint8_t>();
-//  auto tvout = view<float, 3>(output);
-//
-//  optical_flow_->CalcOpticalFlow(tvin[0], tvin[0], tvout[0]);
+  output.template mutable_data<float>();
+  auto tvout = view<float, 3>(output);
+
+  optical_flow_->CalcOpticalFlow(tvin, tvin, tvout);
 }
 
 }  // namespace dali

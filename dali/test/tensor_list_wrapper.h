@@ -80,9 +80,9 @@ class TensorListWrapper {
     return *gpu_;
   }
 
-  template <typename Backend>
-  std::unique_ptr<TensorList<Backend>> CopyTo() const {
-    std::unique_ptr<TensorList<Backend>> result(new TensorList<Backend>());
+  template <typename DestinationBackend>
+  std::unique_ptr<TensorList<DestinationBackend>> CopyTo() const {
+    std::unique_ptr<TensorList<DestinationBackend>> result(new TensorList<DestinationBackend>());
     ASSERT_NE(has_cpu(), has_gpu())
         << "Should contain TensorList from exactly one backend", nullptr;
     if (has_cpu()) {
