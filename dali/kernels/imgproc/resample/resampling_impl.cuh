@@ -76,7 +76,7 @@ __device__ void ResampleHorz_Channels(
     float f = (sx0 - sx0f) * filter_step;
     __syncthreads();
     for (int k = threadIdx.y; k < support; k += blockDim.y) {
-      float flt = filter.at_abs(f + k*filter_step);
+      float flt = filter(f + k*filter_step);
       coeffs[coeff_base + coeff_stride*k] = flt;
     }
     __syncthreads();
@@ -110,7 +110,7 @@ __device__ void ResampleHorz_Channels(
         }
 
       } else {
-        float tmp[static_channels < 0 ? 1 : static_channels];
+        float tmp[static_channels < 0 ? 1 : static_channels];  // NOLINT - not a variable length array
         for (int c = 0; c < channels; c++)
           tmp[c] = bias;
 
@@ -131,7 +131,7 @@ __device__ void ResampleHorz_Channels(
   }
 }
 
-/// @brief Implements horizontal resampling for a custom ROI
+/// @brief Implements vertical resampling for a custom ROI
 /// @param x0 - start column, in output coordinates
 /// @param x1 - end column (exclusive), in output coordinates
 /// @param y0 - start row
@@ -166,7 +166,7 @@ __device__ void ResampleVert_Channels(
     float f = (sy0 - sy0f) * filter_step;
     __syncthreads();
     for (int k = threadIdx.x; k < support; k += blockDim.x) {
-      float flt = filter.at_abs(f + k*filter_step);
+      float flt = filter(f + k*filter_step);
       coeffs[coeff_base + k] = flt;
     }
     __syncthreads();
@@ -201,7 +201,7 @@ __device__ void ResampleVert_Channels(
           out_col[c] = clamp<Dst>(tmp * norm);
         }
       } else {
-        float tmp[static_channels < 0 ? 1 : static_channels];
+        float tmp[static_channels < 0 ? 1 : static_channels];  // NOLINT - not a variable length array
         for (int c = 0; c < channels; c++)
           tmp[c] = bias;
 

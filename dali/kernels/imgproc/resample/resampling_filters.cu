@@ -13,9 +13,11 @@
 // limitations under the License.
 
 #include <cuda_runtime.h>
+#include <algorithm>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
-#include "dali/kernels/imgproc/resample.cuh"
+#include <vector>
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/span.h"
@@ -87,18 +89,18 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   cudaStreamSynchronize(stream);
 }
 
-ResamplingFilter ResamplingFilters::Gaussian(float sigma) const {
+ResamplingFilter ResamplingFilters::Gaussian(float sigma) const noexcept {
   auto flt = filters[1];
   flt.rescale(std::max(1.0f, 4*sigma));
   return flt;
 }
 
-ResamplingFilter ResamplingFilters::Lanczos3() const {
+ResamplingFilter ResamplingFilters::Lanczos3() const noexcept {
   return filters[2];
 }
 
-ResamplingFilter ResamplingFilters::Triangular(float radius) const {
-  auto flt = filters[1];
+ResamplingFilter ResamplingFilters::Triangular(float radius) const noexcept {
+  auto flt = filters[0];
   flt.rescale(std::max(1.0f, 2*radius));
   return flt;
 }

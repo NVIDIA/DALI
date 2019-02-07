@@ -16,12 +16,14 @@
 #define DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_H_
 
 #include <cuda_runtime.h>
+#include <memory>
+#include <vector>
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
 namespace kernels {
 
-
+/// @brief Defines an interface of a separable resampling filter
 template <typename OutputElement, typename InputElement>
 struct SeparableResamplingFilter {
   using Input = InListGPU<InputElement, 3>;
@@ -31,9 +33,13 @@ struct SeparableResamplingFilter {
 
   using Params = std::vector<ResamplingParams2D>;
 
-  virtual KernelRequirements Setup(KernelContext &context, const Input &in, const Params &params) = 0;
-  virtual void Run(KernelContext &context, const Output &out, const Input &in, const Params &params) = 0;
-  using Ptr = std::unique_ptr<SeparableResamplingFilter>;
+  virtual KernelRequirements
+  Setup(KernelContext &context, const Input &in, const Params &params) = 0;
+
+  virtual void
+  Run(KernelContext &context, const Output &out, const Input &in, const Params &params) = 0;
+
+  using Ptr = std::shared_ptr<SeparableResamplingFilter>;
 
   static Ptr Create(const Params &params);
 };
@@ -41,6 +47,6 @@ struct SeparableResamplingFilter {
 }  // namespace kernels
 }  // namespace dali
 
-#include "separable_impl_select.h"
+#include "dali/kernels/imgproc/resample/separable_impl_select.h"
 
 #endif  // DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_H_

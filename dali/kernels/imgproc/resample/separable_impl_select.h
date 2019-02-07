@@ -15,18 +15,21 @@
 #ifndef DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_IMPL_SELECT_H_
 #define DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_IMPL_SELECT_H_
 
-#include "separable_large.h"
+#include "dali/kernels/imgproc/resample/separable.h"
+#include "dali/kernels/imgproc/resample/separable_impl.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename OutputElement, typename InputElement>
-SeparableResamplingFilter<OutputElement, InputElement>::Ptr
+typename SeparableResamplingFilter<OutputElement, InputElement>::Ptr
 SeparableResamplingFilter<OutputElement, InputElement>::Create(const Params &params) {
-  return Ptr(new LargeSeparableResamplingGPU<OutputElement, InputElement>());
+  (void)params;
+  using ImplType = SeparableResamplingGPUImpl<OutputElement, InputElement>;
+  return Ptr(new ImplType());
 }
 
-} // kernels
-} // dali
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_IMPL_SELECT_H_

@@ -15,9 +15,13 @@
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
 #include <opencv2/imgcodecs.hpp>
+#include <algorithm>
 #include <chrono>
+#include <memory>
+#include <string>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/test/mat2tensor.h"
+#include "dali/kernels/common/copy.h"
 #include "dali/kernels/test/test_data.h"
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/tensor_shape_print.h"
@@ -36,7 +40,7 @@ __global__ void ResampleHorzTestKernel(
     Dst *out, int out_stride, int out_w,
     const Src *in, int in_stride, int in_w, int in_h, int channels,
     ResamplingFilter filter, int support) {
-  float scale = (float)in_w / out_w;
+  float scale = static_cast<float>(in_w) / out_w;
 
   int x0 = blockIdx.x * out_w / gridDim.x;
   int x1 = (blockIdx.x + 1) * out_w / gridDim.x;
@@ -53,7 +57,7 @@ __global__ void ResampleVertTestKernel(
     Dst *out, int out_stride, int out_h,
     const Src *in, int in_stride, int in_w, int in_h, int channels,
     ResamplingFilter filter, int support) {
-  float scale = (float)in_h / out_h;
+  float scale = static_cast<float>(in_h) / out_h;
 
   int x0 = blockIdx.x * in_w / gridDim.x;
   int x1 = (blockIdx.x + 1) * in_w / gridDim.x;
@@ -64,35 +68,6 @@ __global__ void ResampleVertTestKernel(
     out, out_stride, in, in_stride, in_h,
     channels, filter, support);
 }
-
-template <typename T, typename U, int ndim1, int ndim2>
-void copy(const TensorView<StorageGPU, T, ndim1> &out, const TensorView<StorageCPU, U, ndim2> &in, cudaStream_t stream = 0) {
-  static_assert(sizeof(T) == sizeof(U), "Tensor elements must be of equal size");
-  assert(in.shape == out.shape);
-  cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T), cudaMemcpyHostToDevice);
-}
-
-template <typename T, typename U, int ndim1, int ndim2>
-void copy(const TensorView<StorageCPU, T, ndim1> &out, const TensorView<StorageGPU, U, ndim2> &in, cudaStream_t stream = 0) {
-  static_assert(sizeof(T) == sizeof(U), "Tensor elements must be of equal size");
-  assert(in.shape == out.shape);
-  cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T), cudaMemcpyDeviceToHost);
-}
-
-template <typename T, typename U, int ndim1, int ndim2>
-void copy(const TensorView<StorageGPU, T, ndim1> &out, const TensorView<StorageGPU, U, ndim2> &in, cudaStream_t stream = 0) {
-  static_assert(sizeof(T) == sizeof(U), "Tensor elements must be of equal size");
-  assert(in.shape == out.shape);
-  cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T), cudaMemcpyDeviceToDevice);
-}
-
-template <typename T, typename U, int ndim1, int ndim2>
-void copy(const TensorView<StorageCPU, T, ndim1> &out, const TensorView<StorageCPU, U, ndim2> &in, cudaStream_t stream = 0) {
-  static_assert(sizeof(T) == sizeof(U), "Tensor elements must be of equal size");
-  assert(in.shape == out.shape);
-  cudaMemcpy(out.data, in.data, in.num_elements() * sizeof(T), cudaMemcpyHostToHost);
-}
-
 
 TEST(Resample, HorizontalGaussian) {
   auto cv_img = testing::data::image("imgproc_test/checkerboard.png");
@@ -113,7 +88,7 @@ TEST(Resample, HorizontalGaussian) {
   img_in = { gpu_mem_in.get(), img.shape };
   img_out = { gpu_mem_out.get(), { H, outW, channels } };
 
-  copy(img_in, img);
+  copy(img_in, img);  // NOLINT
 
   auto filters = GetResamplingFilters(0);
   ResamplingFilter filter = (*filters)[1];
@@ -121,7 +96,7 @@ TEST(Resample, HorizontalGaussian) {
   int radius = 40;
   filter.rescale(2*radius+1);
 
-  for (int i=0; i<100; i++) {
+  for (int i = 0; i < 100; i++) {
     ResampleHorzTestKernel<<<1, dim3(32, 24), ResampleSharedMemSize>>>(
       img_out.data, outW*channels, outW, img_in.data, W*channels, W, H, channels,
       filter, filter.support());
@@ -132,7 +107,7 @@ TEST(Resample, HorizontalGaussian) {
   out.create(H, outW, CV_8UC3);
   auto img_out_cpu = view_as_tensor<uint8_t, 3>(out);
   auto img_ref_cpu = view_as_tensor<uint8_t, 3>(cv_ref);
-  copy(img_out_cpu, img_out);
+  copy(img_out_cpu, img_out);  // NOLINT
   cudaDeviceSynchronize();
   EXPECT_NO_FATAL_FAILURE(Check(img_out_cpu, img_ref_cpu, EqualEps(1))) <<
   [&]() {
@@ -162,7 +137,7 @@ TEST(Resample, VerticalGaussian) {
   img_in = { gpu_mem_in.get(), img.shape };
   img_out = { gpu_mem_out.get(), { outH, W, channels } };
 
-  copy(img_in, img);
+  copy(img_in, img);  // NOLINT
 
   auto filters = GetResamplingFilters(0);
   ResamplingFilter filter = (*filters)[1];
@@ -170,7 +145,7 @@ TEST(Resample, VerticalGaussian) {
   int radius = 40;
   filter.rescale(2*radius+1);
 
-  for (int i=0; i<100; i++) {
+  for (int i = 0; i < 100; i++) {
     ResampleVertTestKernel<<<1, dim3(32, 24), ResampleSharedMemSize>>>(
       img_out.data, W*channels, outH, img_in.data, W*channels, W, H, channels,
       filter, filter.support());
@@ -181,7 +156,7 @@ TEST(Resample, VerticalGaussian) {
   out.create(outH, W, CV_8UC3);
   auto img_out_cpu = view_as_tensor<uint8_t, 3>(out);
   auto img_ref_cpu = view_as_tensor<uint8_t, 3>(cv_ref);
-  copy(img_out_cpu, img_out);
+  copy(img_out_cpu, img_out);  // NOLINT
   cudaDeviceSynchronize();
   EXPECT_NO_FATAL_FAILURE(Check(img_out_cpu, img_ref_cpu, EqualEps(1))) <<
   [&]() {
@@ -202,8 +177,8 @@ class ResamplingTest : public ::testing::Test {
   void SetOutputSize(int w, int h) {
     out_w_ = w;
     out_h_ = h;
-    scale_x_ = (double)out_w_ / InputWidth();
-    scale_y_ = (double)out_h_ / InputWidth();
+    scale_x_ = static_cast<double>(out_w_) / InputWidth();
+    scale_y_ = static_cast<double>(out_h_) / InputWidth();
     fixed_size_ = true;
   }
   void SetScale(double sx, double sy) {
@@ -211,8 +186,7 @@ class ResamplingTest : public ::testing::Test {
     scale_y_ = sy;
     out_w_ = sx * InputWidth();
     out_h_ = sy * InputHeight();
-    fixed_size_ = false;
-  }
+    fixed_size_ = false;  }
   void SetBlockConfig(BlockConfig config) {
     block_config_ = config;
   }
@@ -276,8 +250,8 @@ class ResamplingTest : public ::testing::Test {
 
     // update output size or scale
     if (fixed_size_) {
-      scale_x_ = (double)out_w_ / W;
-      scale_y_ = (double)out_h_ / H;
+      scale_x_ = static_cast<double>(out_w_) / W;
+      scale_y_ = static_cast<double>(out_h_) / H;
     } else {
       out_w_ = W * scale_x_;
       out_h_ = H * scale_y_;
@@ -349,16 +323,16 @@ class ResamplingTest : public ::testing::Test {
     return input_.rows;
   }
   int OutputWidth() const {
-    return fixed_size_ ? out_w_ : (int)(InputWidth() * scale_x_);
+    return fixed_size_ ? out_w_ : static_cast<int>(InputWidth() * scale_x_);
   }
   int OutputHeight() const {
-    return fixed_size_ ? out_h_ : (int)(InputHeight() * scale_y_);
+    return fixed_size_ ? out_h_ : static_cast<int>(InputHeight() * scale_y_);
   }
   double ScaleX() const {
-    return fixed_size_ ? (double)out_w_ / InputWidth() : scale_x_;
+    return fixed_size_ ? static_cast<double>(out_w_) / InputWidth() : scale_x_;
   }
   double ScaleY() const {
-    return fixed_size_ ? (double)out_h_ / InputHeight() : scale_y_;
+    return fixed_size_ ? static_cast<double>(out_h_) / InputHeight() : scale_y_;
   }
 
   cv::Mat input_, reference_, output_;
@@ -381,7 +355,7 @@ class ResamplingTest : public ::testing::Test {
     flt_x_ = flt_y_ = {};
   }
 
-// private:
+ private:
   int out_w_, out_h_;
   double scale_x_ = 1, scale_y_ = 1;
   bool fixed_size_ = false;
@@ -435,7 +409,7 @@ TEST_F(ResamplingTest, SeparableTriangular) {
   Prepare();
   SetFilters(fx, fy);
   Run();
-  SaveOutput("containers_tri.png");
+  // SaveOutput("containers_tri.png");
   Verify(5, "containers_tri_dif.png");
 }
 
@@ -455,7 +429,7 @@ TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
   SetSource("imgproc_test/containers.jpg", nullptr);
 
   auto filters = GetResamplingFilters(0);
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++) {
     float sigmaX = powf(1.10f, i) * 0.5f;
     float sigmaY = powf(1.10f, i) * 0.5f;
 
@@ -464,8 +438,8 @@ TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
     SetFilters(fx, fy);
     Prepare();
     Run();
-    char name[64];
-    sprintf(name, "blur_%i.png", i);
+    char name[64] = {};
+    snprintf(name, sizeof(name), "blur_%i.png", i);
     SaveOutput(name);
   }
 }
@@ -488,9 +462,9 @@ TEST_F(ResamplingTest, Perf_Lanczos3) {
   ResamplingFilter f = filters->Lanczos3();
   SetFilters(f, f);
   Prepare();
-  for (int i=0; i<1000; i++)
+  for (int i = 0; i < 1000; i++)
     Run();
 }
 
-}  // namespace dali
 }  // namespace kernels
+}  // namespace dali

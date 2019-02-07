@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_CUH_
-#define DALI_KERNELS_IMGPROC_RESAMPLE_CUH_
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_H_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_H_
 
 #include <cuda_runtime.h>
 #include <memory>
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/imgproc_common.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/imgproc/resample/separable.h"
 
@@ -38,25 +37,39 @@ struct ResampleGPU {
       KernelContext &context,
       const Input &input,
       const Params &params) {
-    auto cur_impl = any_cast<ImplPtr*>(context.kernel_data);
+    auto cur_impl = any_cast<ImplPtr>(&context.kernel_data);
     if (cur_impl) {
       return cur_impl->get();
     } else {
-      ImplPtr(Impl::Create(params));
+      auto ptr = Impl::Create(params);
+      context.kernel_data = ptr;
+      return ptr.get();
+    }
+  }
+  static Impl *GetImpl(KernelContext &context) {
+    auto cur_impl = any_cast<ImplPtr>(&context.kernel_data);
+    if (cur_impl) {
+      return cur_impl->get();
+    } else {
+      return nullptr;
     }
   }
 
-  static KernelRequirements GetRequirements(KernelContext &context, const Input &input, const Params &params) {
+  static KernelRequirements
+  GetRequirements(KernelContext &context, const Input &input, const Params &params) {
     auto *impl = SelectImpl(context, input, params);
     return impl->Setup(context, input, params);
   }
 
-  static void Run(KernelContext &contex, const Output &output, const Input &input, const Params &params) {
-
+  static void
+  Run(KernelContext &context, const Output &output, const Input &input, const Params &params) {
+    Impl *impl = GetImpl(context);
+    assert(impl != nullptr);
+    impl->Run(context, output, input, params);
   }
 };
 
-}  // kernels
-}  // dali
+}  // namespace kernels
+}  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_CUH_
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_H_

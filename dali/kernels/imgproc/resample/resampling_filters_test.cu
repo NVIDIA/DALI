@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <vector>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 
@@ -30,10 +31,10 @@ __global__ void GetFilterValues(float *out, ResamplingFilter filter, int n, floa
   int i = threadIdx.x + blockIdx.x*blockDim.x;
   if (i >= n)
     return;
-  out[i] = filter.at_abs(i*step);
+  out[i] = filter(i*step);
 }
 
-TEST(ResamplingFilters, PrintFilters) {
+TEST(ResamplingFilters, DISABLED_PrintFilters) {
   auto filters = GetResamplingFilters(0);
   ASSERT_NE(filters, nullptr);
   for (auto &f : filters->filters) {

@@ -12,10 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_FILTERS_CUH_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_FILTERS_CUH_
+
 #include <cuda_runtime.h>
 #include <vector>
 #include <memory>
 #include <functional>
+#ifndef __CUDACC__
+#include <cmath>
+#include <algorithm>
+#endif
 
 namespace dali {
 namespace kernels {
@@ -37,16 +44,24 @@ struct ResamplingFilter {
     return ceilf(num_coeffs / scale);
   }
 
-  __device__ float at_abs(float x) const {
+  __device__ float operator()(float x) const {
     if (!(x >= 0))
       return 0;
     if (x > num_coeffs-1)
       return 0;
-    int x0 = x;
+#ifdef __CUDA_ARCH__
+    int x0 = floorf(x);
     int x1 = min(num_coeffs-1, x0 + 1);
     float d = x - x0;
     float f0 = __ldg(coeffs + x0);
     float f1 = __ldg(coeffs + x1);
+#else
+    int x0 = std::floor(x);
+    int x1 = std::min(num_coeffs-1, x0 + 1);
+    float d = x - x0;
+    float f0 = coeffs[x0];
+    float f1 = coeffs[x1];
+#endif
     return f0 + d * (f1 - f0);
   }
 };
@@ -54,16 +69,16 @@ struct ResamplingFilter {
 struct ResamplingFilters {
   std::unique_ptr<float, std::function<void(void*)>> filter_data;
 
-  ResamplingFilter Gaussian(float sigma) const;
-  ResamplingFilter Lanczos3() const;
-  ResamplingFilter Triangular(float radius) const;
+  ResamplingFilter Gaussian(float sigma) const noexcept;
+  ResamplingFilter Lanczos3() const noexcept;
+  ResamplingFilter Triangular(float radius) const noexcept;
 
   std::vector<ResamplingFilter> filters;
-  ResamplingFilter &operator[](int index) {
+  ResamplingFilter &operator[](int index) noexcept {
     return filters[index];
   }
 
-  const ResamplingFilter &operator[](int index) const {
+  const ResamplingFilter &operator[](int index) const noexcept {
     return filters[index];
   }
 };
@@ -72,3 +87,5 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters(cudaStream_t stream);
 
 }  // namespace kernels
 }  // namespace dali
+
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_FILTERS_CUH_

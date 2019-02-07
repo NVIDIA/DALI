@@ -12,5 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cuda_runtime.h>
-#include "dali/kernels/imgproc/resample/resampling_impl.cuh"
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_BATCH_H_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_BATCH_H_
+
+#include "dali/kernels/imgproc/resample/resampling_setup.h"
+
+namespace dali {
+namespace kernels {
+
+template <int which_pass, typename Output, typename Input>
+void BatchedSeparableResample(Output *out, const Input *in,
+  const SeparableResamplingSetup::SampleDesc *samples,
+  int num_samples, const SampleBlockInfo *block2sample, int num_blocks,
+  cudaStream_t stream);
+
+}  // namespace kernels
+}  // namespace dali
+
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_BATCH_H_
