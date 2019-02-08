@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_EXTERNAL_CROP_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_EXTERNAL_CROP_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_SLICE_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_SLICE_H_
 
 #include <vector>
 #include "dali/common.h"
@@ -47,4 +47,4 @@ class HostDecoderSlice : public HostDecoder {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_EXTERNAL_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_SLICE_H_

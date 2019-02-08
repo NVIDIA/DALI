@@ -25,7 +25,7 @@ class HostDecoderCropTest : public HostDecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator() const override {
-    return [this] (int H, int W) {
+    return [] (int H, int W) {
       CropWindow crop_window;
       crop_window.h = crop_H;
       crop_window.w = crop_W;
