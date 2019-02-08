@@ -40,6 +40,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  protected:
   virtual const OpSpec DecodingOp() const { return OpSpec(); }
 
+  virtual void
+    AddAdditionalInputs(
+      vector<std::pair<string, TensorList<CPUBackend>*>>&) {}
+
   void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
@@ -58,8 +62,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
         DALI_FAIL("Image of type `" + string(buff) + "` cannot be decoded");
       }
     }
-
-    this->SetExternalInputs({std::make_pair("encoded", &encoded_data)});
+    std::vector<std::pair<std::string, TensorList<CPUBackend>*>> inputs{
+      std::make_pair("encoded", &encoded_data)};
+    AddAdditionalInputs(inputs);
+    this->SetExternalInputs(inputs);
     this->RunOperator(DecodingOp(), eps);
   }
 
