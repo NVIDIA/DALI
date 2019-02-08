@@ -17,27 +17,29 @@
 
 #include <dali/aux/optical_flow/optical_flow_adapter.h>
 #include <dali/pipeline/data/views.h>
-#include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/data/backend.h"
+#include <dali/pipeline/operators/operator.h>
+#include <dali/pipeline/data/backend.h>
+#include <dali/aux/optical_flow/optical_flow_stub.h>
 
 namespace dali {
 
 namespace detail {
 
 template<typename Backend>
-struct Backend2ComputeBackend {
+struct backend_to_compute {
   using type = kernels::ComputeCPU;
 };
 
 template<>
-struct Backend2ComputeBackend<GPUBackend> {
-  using type = kernels::ComputeCPU;
+struct backend_to_compute<GPUBackend> {
+  using type = kernels::ComputeGPU;
 };
 
 }  // namespace detail
 
 template<typename Backend>
 class OpticalFlow : public Operator<Backend> {
+  using ComputeBackend = typename detail::backend_to_compute<Backend>::type;
  public:
   explicit OpticalFlow(const OpSpec &spec);
 
@@ -50,7 +52,6 @@ class OpticalFlow : public Operator<Backend> {
 
 
  private:
-  using ComputeBackend = typename detail::Backend2ComputeBackend<Backend>::type;
   const float quality_factor_;
   const int grid_size_;
   const bool enable_hints_;

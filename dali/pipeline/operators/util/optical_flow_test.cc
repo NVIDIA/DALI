@@ -16,6 +16,7 @@
 #include <opencv2/opencv.hpp>
 #include <dali/test/dali_operator_test.h>
 #include <dali/pipeline/operators/util/optical_flow.h>
+#include <dali/test/dali_operator_test_utils.h>
 
 namespace dali {
 namespace testing {
@@ -41,20 +42,26 @@ std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const cv::Mat &image) {
 }
 
 
-template<>
-std::unique_ptr<TensorList<GPUBackend>> ToTensorList(const cv::Mat &image) {
-  std::unique_ptr<TensorList<GPUBackend>> tl(new TensorList<GPUBackend>);
-  tl->Resize({{image.rows, image.cols, image.channels()}});
-  auto img_ptr = image.data;
-  using DataType = std::remove_pointer<decltype(img_ptr)>::type;
-  auto tl_ptr = tl->template mutable_data<DataType>();
-  CUDA_CALL(
-          cudaMemcpy(tl_ptr, img_ptr, sizeof(DataType) * image.rows * image.cols * image.channels(),
-                     cudaMemcpyHostToDevice));
-  return tl;
-}
+std::vector<Arguments> arguments = {
+        {{"preset", .5f}, {"enable_hints", false}}
+};
+
 
 }  // namespace
+
+std::string kImage = "/home/mszolucha/Pictures/pokoj.png";
+
+TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
+  cv::Mat img = cv::imread(kImage);
+  auto tl = ToTensorList<CPUBackend>(img);
+  auto img_ptr = img.data;
+  auto tl_ptr = tl->template data<uint8_t>();
+  ASSERT_EQ(img.rows * img.cols * img.channels(), tl->size()) << "Sizes don't match";
+  for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
+    ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
+  }
+}
+
 
 class OpticalFlowTest : public DaliOperatorTest {
   GraphDescr GenerateOperatorGraph() const override {
@@ -63,77 +70,32 @@ class OpticalFlowTest : public DaliOperatorTest {
   }
 };
 
-Arguments argums = {{"device",       std::string{"cpu"}},
-                    {"preset",       .5f},
-                    {"enable_hints", true}};
-
 
 void verify(const TensorListWrapper &input,
             const TensorListWrapper &output,
-            const Arguments &) {
-//  auto ptr = input.CopyTo<CPUBackend>()->data<float>();
-  auto ptr = input.get<CPUBackend>()->data<uint8_t>();
-  auto out = output.get<CPUBackend>()->data<float>();
-  EXPECT_FLOAT_EQ(666.f, out[0]);
-  EXPECT_FLOAT_EQ(333.f, out[1]);
+            const Arguments &args) {
+  auto input_tl = input.CopyTo<CPUBackend>();
+  auto output_tl = output.CopyTo<CPUBackend>();
+  const uint8_t *input_data;
+  const float *output_data;
+  utils::pointer_to_data(*input_tl, input_data);
+  utils::pointer_to_data(*output_tl, output_data);
+  EXPECT_FLOAT_EQ(666.f, output_data[0]);
+  EXPECT_FLOAT_EQ(333.f, output_data[1]);
 }
 
 
-void verify_gpu(const TensorListWrapper &input,
-                const TensorListWrapper &output,
-                const Arguments &) {
-  auto ptr = input.CopyTo<GPUBackend>()->data<float>();
-  auto out = output.get<GPUBackend>()->data<float>();
-  EXPECT_FLOAT_EQ(666.f, out[0]);
-  EXPECT_FLOAT_EQ(333.f, out[1]);
-}
-
-
-std::string kImage = "/home/mszolucha/Pictures/pokoj.png";
-
-
-TEST(OpticalFlowUtilsTest, ImageToTensorList) {
-  // CPU backend
-  {
-    cv::Mat img = cv::imread(kImage);
-    auto tl = ToTensorList<CPUBackend>(img);
-    auto img_ptr = img.data;
-    auto tl_ptr = tl->template data<uint8_t>();
-    for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
-      ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
-    }
-  }
-
-  // GPU backend
-  {
-    cv::Mat img = cv::imread(kImage);
-    auto tl = ToTensorList<GPUBackend>(img);
-    std::unique_ptr<TensorList<CPUBackend>> tl_cpu(new TensorList<CPUBackend>());
-    tl->Copy(*tl_cpu, 0);
-    auto img_ptr = img.data;
-    auto tl_ptr = tl_cpu->template data<uint8_t>();
-    for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
-      ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
-    }
-  }
-}
-
-
-TEST_F(OpticalFlowTest, StubImplementationCpuTest) {
+TEST_P(OpticalFlowTest, StubImplementationTest) {
   cv::Mat img = cv::imread(kImage);
   auto tl = ToTensorList<CPUBackend>(img);
   TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, argums, verify);
+  auto args = GetParam();
+  this->RunTest(tl.get(), tlout, args, verify);
 }
 
 
-TEST_F(OpticalFlowTest, StubImplementationGpuTest) {
-  cv::Mat img = cv::imread(kImage);
-  auto tl = ToTensorList<GPUBackend>(img);
-  TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, argums, verify_gpu);
-}
-
+INSTANTIATE_TEST_CASE_P(OpticalFlowStubImplementationsTest, OpticalFlowTest,
+                        ::testing::ValuesIn(testing::cartesian(utils::kDevices, arguments)));
 
 }  // namespace testing
 }  // namespace dali
