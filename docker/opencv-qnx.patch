@@ -1,0 +1,83 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6c53bf8..c58514b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -588,6 +588,8 @@ if(UNIX)
+       set(OPENCV_LINKER_LIBS ${OPENCV_LINKER_LIBS} m pthread)
+     elseif(EMSCRIPTEN)
+       # no need to link to system libs with emscripten
++    elseif(${CMAKE_SYSTEM_NAME} MATCHES "QNX")
++        set(OPENCV_LINKER_LIBS ${OPENCV_LINKER_LIBS} m)
+     else()
+       set(OPENCV_LINKER_LIBS ${OPENCV_LINKER_LIBS} dl m pthread rt)
+     endif()
+diff --git a/platforms/qnx/aarch64-qnx.toolchain.cmake b/platforms/qnx/aarch64-qnx.toolchain.cmake
+new file mode 100644
+index 0000000..efbf4a0
+--- /dev/null
++++ b/platforms/qnx/aarch64-qnx.toolchain.cmake
+@@ -0,0 +1,64 @@
++#if(COMMAND toolchain_save_config)
++#  return() # prevent recursive call
++#endif()
++
++set(CMAKE_SYSTEM_NAME QNX)
++set(CMAKE_SYSTEM_VERSION 1)
++if(NOT DEFINED CMAKE_SYSTEM_PROCESSOR)
++  set(CMAKE_SYSTEM_PROCESSOR aarch64)
++else()
++  #message("CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}")
++endif()
++
++
++set(CMAKE_SYSROOT $ENV{QNX_TARGET})
++
++set(CMAKE_SYSTEM_NAME QNX)
++ set(CMAKE_SYSTEM_VERSION 1)
++ set(CMAKE_SYSTEM_PROCESSOR aarch64)
++ set(QNX_VERSION "qnx7.0.0")
++ set(QNX_TOOLCHAIN_PATH "$ENV{P4ROOT}/sw/tools/embedded/qnx/qnx700-ga1")
++ set(CMAKE_AS "$ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROCESSOR}-unknown-nto-${QNX_VERSION}-as")
++ set(CMAKE_C_COMPILER "$ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROCESSOR}-unknown-nto-${QNX_VERSION}-gcc")
++ set(CMAKE_CXX_COMPILER "$ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROCESSOR}-unknown-nto-${QNX_VERSION}-g++")
++ add_definitions(-D__AARCH64_QNX__)
++ add_definitions(-DGOOGLE_PROTOBUF_ARCH_ARM_QNX)
++ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fexceptions -fPIC -D_XOPEN_SOURCE=600 -std=gnu++0x -L$ENV{QNX_TARGET}/aarch64le/lib -lc")
++ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -D_XOPEN_SOURCE=600 -std=gnu99")
++
++ set(CMAKE_CXX_COMPILER_TARGET_FORCED TRUE)
++ set(CMAKE_C_COMPILER_TARGET_FORCED TRUE)
++ set(CMAKE_C_COMPILER_TARGET aarch64)
++ set(CMAKE_CXX_COMPILER_TARGET aarch64)
++ set(CMAKE_LINKER $ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROVESSOR}-unknown-nto-${QNX_VERSION}-ld)
++ set(LINKER_FLAGS "-Wl,--no-undefined -Wl,--gc-sections -Wl,-z,noexecstack -Wl,- z,relro -Wl,-z,now,-lc")
++
++ set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
++ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so,.a")
++ set(CMAKE_SHARED_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
++ set(CMAKE_MODULE_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
++ set(CMAKE_EXE_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}")
++
++ if(NOT DEFINED CMAKE_LINKER)
++     if(${ARCH} MATCHES "qnx")
++         find_program(CMAKE_LINKER NAMES $ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROCESSOR}-unkown-nto-${QNX_VERSION}-ld)
++     endif()
++ endif()
++
++ message("Including the header directories")
++ include_directories(
++      $ENV{QNX_TARGET}/usr/include
++      $ENV{QNX_TARGET}/usr/include/aarch64
++      $ENV{QNX_TARGET}/usr/include/c++/v1
++      set(CMAKE_FIND_ROOT_PATH  $ENV{QNX_TARGET})
++      set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
++      set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
++     )
++
++if(USE_NEON)
++  message(WARNING "You use obsolete variable USE_NEON to enable NEON instruction set. Use -DENABLE_NEON=ON instead." )
++  set(ENABLE_NEON TRUE)
++elseif(USE_VFPV3)
++  message(WARNING "You use obsolete variable USE_VFPV3 to enable VFPV3 instruction set. Use -DENABLE_VFPV3=ON instead." )
++  set(ENABLE_VFPV3 TRUE)
++endif()

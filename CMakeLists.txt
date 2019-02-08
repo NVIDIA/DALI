@@ -59,7 +59,15 @@ message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Dependencies
-include(cmake/Dependencies.cmake)
+if(${ARCH} MATCHES "aarch64-linux")
+  message("Target set to aarch64-linux")
+  include(cmake/Dependencies.aarch64-linux.cmake)
+elseif(${ARCH} MATCHES "aarch64-qnx")
+  message("Target set to aarch64-qnx")
+  include(cmake/Dependencies.aarch64-qnx.cmake)
+else()
+  include(cmake/Dependencies.cmake)
+endif()
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 

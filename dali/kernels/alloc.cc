@@ -15,8 +15,15 @@
 #include <cuda_runtime.h>
 #include <cassert>
 #include "dali/kernels/alloc.h"
+#if !defined(__AARCH64_GNU__) && !defined(__AARCH64_QNX__)
 #include "dali/core/static_switch.h"
+#else
+#include <stdlib.h>
+#endif
 #include "dali/core/device_guard.h"
+#if defined(__AARCH64_QNX__)
+#include <stdlib.h>
+#endif
 
 namespace dali {
 namespace kernels {
@@ -79,20 +86,62 @@ struct Allocator<AllocType::Unified> {
 };
 
 void *Allocate(AllocType type, size_t size) noexcept {
+#if !defined(__AARCH64_GNU__) && !defined(__AARCH64_QNX__)
   VALUE_SWITCH(type, type_label,
     (AllocType::Host, AllocType::Pinned, AllocType::GPU, AllocType::Unified),
     (return Allocator<type_label>::Allocate(size)),
     (assert(!"Invalid allocation type requested");
     return nullptr;)
   );  // NOLINT
+#else
+  void *ptr = nullptr;
+  switch (type) {
+    case AllocType::Host:
+      ptr = Allocator<AllocType::Host>::Allocate(size);
+      break;
+    case AllocType::Pinned:
+      ptr = Allocator<AllocType::Pinned>::Allocate(size);
+      break;
+    case AllocType::GPU:
+      ptr = Allocator<AllocType::GPU>::Allocate(size);
+      break;
+    case AllocType::Unified:
+      ptr = Allocator<AllocType::Unified>::Allocate(size);
+      break;
+    default:
+      assert(!"Invalid allocation type requested");
+      break;
+  }
+  return ptr;
+#endif
 }
 
 void Deallocate(AllocType type, void *mem, int device) noexcept {
+#if !defined(__AARCH64_GNU__) && !defined(__AARCH64_QNX__)
   VALUE_SWITCH(type, type_label,
     (AllocType::Host, AllocType::Pinned, AllocType::GPU, AllocType::Unified),
     (return Allocator<type_label>::Deallocate(mem, device)),
     (assert(!"Invalid allocation type requested");)
   );  // NOLINT
+#else
+  switch (type) {
+    case AllocType::Host:
+      Allocator<AllocType::Host>::Deallocate(mem, device);
+      break;
+    case AllocType::Pinned:
+      Allocator<AllocType::Pinned>::Deallocate(mem, device);
+      break;
+    case AllocType::GPU:
+      Allocator<AllocType::GPU>::Deallocate(mem, device);
+      break;
+    case AllocType::Unified:
+      Allocator<AllocType::Unified>::Deallocate(mem, device);
+      break;
+    default:
+      assert(!"Invalid Deallocation type requested");
+      break;
+  }
+#endif
 }
 
 Deleter GetDeleter(AllocType type) noexcept {
