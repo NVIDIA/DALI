@@ -15,9 +15,9 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 #define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 
-#include <dali/pipeline/data/backend.h>
-#include <dali/kernels/backend_tags.h>
-#include <dali/kernels/tensor_view.h>
+#include "dali/pipeline/data/backend.h"
+#include "dali/kernels/backend_tags.h"
+#include "dali/kernels/tensor_view.h"
 
 namespace dali {
 namespace optical_flow {
