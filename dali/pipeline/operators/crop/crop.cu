@@ -113,10 +113,14 @@ void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
 template <>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
+
+  const DALITensorLayout in_layout = input.GetLayout();
+  DALI_ENFORCE(in_layout == DALI_NHWC);
+
   auto &output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
-  DALITensorLayout outLayout = DALI_UNKNOWN;
+  DALITensorLayout out_layout = DALI_UNKNOWN;
 
   int total_batch_size = batch_size_ * SequenceSize(idx);
   if (SequenceSize(idx) > 1) {
@@ -150,7 +154,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
     input_strides_.mutable_data<int>()[i] = W * C;
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
-    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, i);
+    output_shape[i] = GetOutShape(in_layout, &out_layout, i);
 
     if (i == 0) {
       output_offsets_.mutable_data<int>()[i] = 0;
@@ -163,7 +167,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
 
   output.Resize(output_shape);
-  output.SetLayout(outLayout);
+  output.SetLayout(out_layout);
 
   // Calculate input pointers and copy to gpu
   for (int i = 0; i < total_batch_size; ++i) {

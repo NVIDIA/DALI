@@ -130,8 +130,7 @@ template < typename T>
 using CropSequenceTest_CPU_Valid = CropSequenceTest<T>;
 TYPED_TEST_CASE(CropSequenceTest_CPU_Valid, CPU_ValidCropArgs);
 
-// TODO(spanev, janton): enable after implementing CPU version
-TYPED_TEST(CropSequenceTest_CPU_Valid, DISABLED_test_valid_crop_cpu) {
+TYPED_TEST(CropSequenceTest_CPU_Valid, test_valid_crop_cpu) {
     this->Run();
 }
 
@@ -157,8 +156,7 @@ template < typename T>
 using CropSequenceTest_CPU_Invalid = CropSequenceTest<T>;
 TYPED_TEST_CASE(CropSequenceTest_CPU_Invalid, CPU_InvalidCropArgs);
 
-// TODO(spanev, janton): enable after implementing CPU version
-TYPED_TEST(CropSequenceTest_CPU_Invalid, DISABLED_invalid_arguments) {
+TYPED_TEST(CropSequenceTest_CPU_Invalid, invalid_arguments) {
     EXPECT_THROW(
         this->Run(),
         std::runtime_error);
