@@ -53,11 +53,11 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
   std::unique_ptr<OpticalFlowAdapter<ComputeGPU>> of(new OpticalFlowStub<ComputeGPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
 
-  std::unique_ptr<float> host(new float[kTestDataSize]);
-  CUDA_CALL(cudaMemcpy(host.get(), tvout.data, kTestDataSize * sizeof(StubValueType),
+  std::vector<float> host(kTestDataSize);
+  CUDA_CALL(cudaMemcpy(host.data(), tvout.data, kTestDataSize * sizeof(StubValueType),
                        cudaMemcpyDeviceToHost));
-  EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeGPU>::kStubValue, host.get()[0]);
-  EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeGPU>::kStubValue / 2, host.get()[1]);
+  EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeGPU>::kStubValue, host[0]);
+  EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeGPU>::kStubValue / 2, host[1]);
 
   CUDA_CALL(cudaFree(tvout_data));
 }
