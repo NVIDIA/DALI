@@ -54,7 +54,10 @@ class ResizeParamDescr {
 
 class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
-  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
+  explicit inline ResizeAttr(const OpSpec &spec)
+    : ResizeCropMirrorAttr(spec)
+    , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+  }
 
   void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
                DALISize *out_size, TransformMeta const * meta = nullptr) const;
@@ -80,6 +83,7 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
   vector<uint8*> output_ptrs_;
 
   vector<DALISize> sizes_[2];
+  const int C_;
 };
 
 template <typename Backend>
