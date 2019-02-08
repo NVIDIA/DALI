@@ -92,6 +92,4 @@ TYPED_TEST(CropCastPermuteTest, Output_DALI_FLOAT) {
   this->RunTest("CropCastPermute", params, sizeof(params) / sizeof(params[0]), addImageType);
 }
 
-#undef LAYOUT_TO_STRING
-
 }  // namespace dali
