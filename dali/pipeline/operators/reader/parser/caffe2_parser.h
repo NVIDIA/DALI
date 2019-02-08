@@ -207,6 +207,7 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
                   image_proto.byte_data().data(),
                   image_proto.byte_data().size());
     }
+    image.SetSourceInfo(data.GetSourceInfo());
 
     // Parse all label types
     auto label_data_type = label_proto.data_type();

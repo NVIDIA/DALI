@@ -446,8 +446,9 @@ void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
     receive_frames(*tensor);
     tensor->wait();
-    if (++current_frame_idx_ >= static_cast<Index>(frame_starts_.size())) {
-      current_frame_idx_ = 0;
+    ++current_frame_idx_;
+    if (IsNextShard(current_frame_idx_)) {
+      Reset();
     }
 }
 

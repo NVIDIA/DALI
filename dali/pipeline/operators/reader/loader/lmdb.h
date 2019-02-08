@@ -80,14 +80,7 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     // Optional: debug printing
     lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
 
-    // work out how many entries to move forward to handle sharding
-    if (shard_id_ == 0) return;
-    int start_idx = start_index(shard_id_, num_shards_, Size());
-
-    for (int i = 0; i < start_idx; ++i) {
-      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
-      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
-    }
+    Reset();
   }
   ~LMDBReader() override {
     mdb_cursor_close(mdb_cursor_);
@@ -100,10 +93,10 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void ReadSample(Tensor<CPUBackend>* tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
     bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    ++current_index_;
 
-    if (!ok) {
-      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
-      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
+    if (!ok || IsNextShard(current_index_)) {
+      Reset();
     }
 
     tensor->Resize({static_cast<Index>(value_.mv_size)});
@@ -122,6 +115,17 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  private:
+  void Reset() override {
+    // work out how many entries to move forward to handle sharding
+    current_index_ = start_index(shard_id_, num_shards_, Size());
+    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+    DALI_ENFORCE(ok, "lmdb::SeekLMDB to the beginning failed");
+
+    for (size_t i = 0; i < current_index_; ++i) {
+      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+      DALI_ENFORCE(ok, "lmdb::SeekLMDB to position " + to_string(current_index_) + " failed");
+    }
+  }
   using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
   using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
@@ -129,6 +133,7 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   MDB_cursor* mdb_cursor_;
   MDB_dbi mdb_dbi_;
   MDB_txn* mdb_transaction_;
+  size_t current_index_;
 
   // values
   MDB_val key_, value_;

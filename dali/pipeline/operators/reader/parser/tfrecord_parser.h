@@ -72,7 +72,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       auto& encoded_feature = example.features().feature().at(name);
       if (f.HasShape() && f.GetType() != FeatureType::string) {
         if (f.Shape().empty()) {
-        output.Resize({1});
+          output.Resize({1});
         } else {
           output.Resize(f.Shape());
         }
@@ -104,6 +104,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.float_list().value().size()*sizeof(float));
           break;
       }
+      output.SetSourceInfo(data.GetSourceInfo());
     }
   }
 
