@@ -12,75 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_decoder.h"
+#include "dali/pipeline/operators/decoder/host_decoder_test.h"
 
 namespace dali {
 
 template <typename ImgType>
-class HostDecodeTest : public GenericDecoderTest<ImgType> {
+class HostDecodeTest : public HostDecodeTestBase<ImgType> {
  protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_loadJPEGs + t_loadPNGs;
-  }
-
   const OpSpec DecodingOp() const override {
-    return OpSpec("HostDecoder")
-      .AddArg("device", "cpu")
-      .AddArg("output_type", this->img_type_)
-      .AddInput("encoded", "cpu")
-      .AddOutput("decoded", "cpu");
-  }
-
-  uint32_t GetTestCheckType() const  override {
-    return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
+    return this->GetOpSpec("HostDecoder");
   }
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(HostDecodeTest, Types);
 
-
-template<typename ImageType>
-class HostDecodeTestJpeg : public HostDecodeTest<ImageType> {
- protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_jpegImgType;
-  }
-};
-
-TYPED_TEST_CASE(HostDecodeTestJpeg, Types);
-
-TYPED_TEST(HostDecodeTestJpeg, TestJpegDecode) {
-  this->RunTestDecode(t_jpegImgType, 0.7);
+TYPED_TEST(HostDecodeTest, JpegDecode) {
+  this->Run(t_jpegImgType);
 }
 
-
-template<typename ImageType>
-class HostDecodeTestPng : public HostDecodeTest<ImageType> {
- protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_pngImgType;
-  }
-};
-
-TYPED_TEST_CASE(HostDecodeTestPng, Types);
-
-TYPED_TEST(HostDecodeTestPng, TestPngDecode) {
-  this->RunTestDecode(t_pngImgType, 0.7);
+TYPED_TEST(HostDecodeTest, PngDecode) {
+  this->Run(t_pngImgType);
 }
 
-
-template<typename ImageType>
-class HostDecodeTestTiff : public HostDecodeTest<ImageType> {
- protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_tiffImgType;
-  }
-};
-
-TYPED_TEST_CASE(HostDecodeTestTiff, Types);
-
-TYPED_TEST(HostDecodeTestTiff, TestTiffDecode) {
-  this->RunTestDecode(t_tiffImgType, 0.7);
+TYPED_TEST(HostDecodeTest, TiffDecode) {
+  this->Run(t_tiffImgType);
 }
+
 }  // namespace dali

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <tuple>
-
+#include <vector>
 #include "dali/image/transform.h"
 #include "dali/pipeline/operators/crop/kernel/coords.h"
 #include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
@@ -46,43 +46,11 @@ the resulting crop will be square with size `(c,c)`)code",
         std::vector<float>{0.f, 0.f})
     .EnforceInputLayout(DALI_NHWC);
 
-std::pair<int, int> CropAttr::SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
-    const Index dataIdx, int H, int W) {
-
-    auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, dataIdx);
-    auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, dataIdx);
-
-    DALI_ENFORCE(crop_y_norm >= 0.f && crop_y_norm <= 1.f,
-                 "Crop coordinates need to be in range [0.0, 1.0]");
-    DALI_ENFORCE(crop_x_norm >= 0.f && crop_x_norm <= 1.f,
-                 "Crop coordinates need to be in range [0.0, 1.0]");
-
-    DALI_ENFORCE(crop_height_[dataIdx] <= H,
-                 "Crop height needs to be smaller or equal to input height.");
-    DALI_ENFORCE(crop_width_[dataIdx] <= W,
-                 "Crop width needs to be smaller or equal to input width.");
-
-    const int crop_y = crop_y_norm * (H - crop_height_[dataIdx]);
-    const int crop_x = crop_x_norm * (W - crop_width_[dataIdx]);
-
-    return std::make_pair(crop_y, crop_x);
-}
-
-const vector<Index> CropAttr::CheckShapes(const SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-
-  // enforce that all shapes match
-  for (int i = 1; i < ws->NumInput(); ++i) {
-    DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
-  }
-
-  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-
-  return input.shape();
-}
-
 template <>
-Crop<CPUBackend>::Crop(const OpSpec &spec) : Operator<CPUBackend>(spec), CropAttr(spec) {
+Crop<CPUBackend>::Crop(const OpSpec &spec)
+  : Operator<CPUBackend>(spec)
+  , CropAttr(spec)
+  , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
   Init(num_threads_);
 }
 
