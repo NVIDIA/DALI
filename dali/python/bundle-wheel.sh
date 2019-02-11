@@ -52,12 +52,13 @@ OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
 PKGNAME=$(echo "$OUTWHLNAME" | sed 's/-.*$//')
 PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' )
+# Strip cuda version from the name
+PKGNAME_PATH=${PKGNAME_PATH%%_cu*}
 
 if [[ -z "$INWHL" || ! -f "$INWHL" || -z "$PKGNAME" ]]; then
     echo "Usage: $0 <inputfile.whl>"
     exit 1
 fi
-
 
 #######################################################################
 # ADD DEPENDENCIES INTO THE WHEEL
