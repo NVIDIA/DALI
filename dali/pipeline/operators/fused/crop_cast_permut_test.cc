@@ -13,15 +13,13 @@
 // limitations under the License.
 
 #include "dali/test/dali_test_matching.h"
+#include "dali/test/dali_test_utils.h"
 
 namespace dali {
 
 template <typename ImgType>
 class CropCastPermuteTest : public GenericMatchingTest<ImgType> {};
 
-
-#define ENUM_TO_STRING(val) \
-  std::to_string(static_cast<std::underlying_type<decltype(val)>::type>(val)).c_str()
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(CropCastPermuteTest, Types);

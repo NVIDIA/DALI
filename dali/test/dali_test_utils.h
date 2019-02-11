@@ -1,4 +1,3 @@
-
 // Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,9 @@
 #define DALI_TEST_DALI_TEST_UTILS_H_
 
 #include <string>
+
+#define ENUM_TO_STRING(val) \
+  std::to_string(static_cast<std::underlying_type<decltype(val)>::type>(val)).c_str()
 
 namespace dali {
 
