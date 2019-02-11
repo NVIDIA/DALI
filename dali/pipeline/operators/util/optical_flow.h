@@ -35,13 +35,41 @@ struct backend_to_compute<GPUBackend> {
   using type = kernels::ComputeGPU;
 };
 
+const std::string kPresetArgName = "preset";   // NOLINT
+const std::string kOutputFormatArgName = "output_format";   // NOLINT
+const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
+
 }  // namespace detail
 
 template<typename Backend>
 class OpticalFlow : public Operator<Backend> {
   using ComputeBackend = typename detail::backend_to_compute<Backend>::type;
  public:
-  explicit OpticalFlow(const OpSpec &spec);
+  explicit OpticalFlow(const OpSpec &spec) :
+          Operator<Backend>(spec),
+          quality_factor_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->quality_factor_)>::type>(detail::kPresetArgName)),
+          grid_size_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->grid_size_)>::type>(detail::kOutputFormatArgName)),
+          enable_hints_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->enable_hints_)>::type>(detail::kEnableHintsArgName)),
+          optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
+                  new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))) {
+
+    // In case hints are enabled, we need 2 inputs
+    DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
+                 "Incorrect number of inputs. Expected: 2, Obtained: " +
+                 std::to_string(spec.NumInput()));
+    optical_flow::VectorGridSize grid_size;
+    if (grid_size_ < 4) {
+      grid_size = optical_flow::VectorGridSize::UNDEF;
+    } else if (grid_size_ == 4) {
+      grid_size = optical_flow::VectorGridSize::SIZE_4;
+    } else {
+      grid_size = optical_flow::VectorGridSize::MAX;
+    }
+    of_params_ = {quality_factor_, grid_size, enable_hints_};
+  }
 
 
   ~OpticalFlow() = default;
@@ -55,7 +83,7 @@ class OpticalFlow : public Operator<Backend> {
   const float quality_factor_;
   const int grid_size_;
   const bool enable_hints_;
-  const optical_flow::OpticalFlowParams of_params_;
+  optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
 };
 

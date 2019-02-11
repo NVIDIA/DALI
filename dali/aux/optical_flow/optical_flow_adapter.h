@@ -36,16 +36,16 @@ struct compute_to_storage<kernels::ComputeGPU> {
 
 }  // namespace detail
 
-enum VectorGridSize {
+enum struct VectorGridSize {
   UNDEF,
-  SIZE_4,  /// 4x4 grid
+  SIZE_4 = 4,  /// 4x4 grid
   MAX,
 };
 
 struct OpticalFlowParams {
-  float perf_quality_factor = .0f;  /// 0..1, where 0 is best quality, lowest performance
-  VectorGridSize grid_size = UNDEF;
-  bool enable_hints = false;
+  float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
+  VectorGridSize grid_size;
+  bool enable_hints;
 };
 
 using dali::kernels::TensorView;

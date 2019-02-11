@@ -18,9 +18,6 @@
 
 namespace dali {
 
-const std::string kPresetArgName = "preset";   // NOLINT
-const std::string kOutputFormatArgName = "output_format";   // NOLINT
-const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
 
 DALI_SCHEMA(OpticalFlow)
                 .DocStr(R"code(Calculates the Optical Flow for sequence of images given as a input.
@@ -30,52 +27,17 @@ The output format of this operator matches output format of OF driver API.
 CPU version of this Operator is no-op.)code")
                 .NumInput(1, 2)
                 .NumOutput(1)
-                .AddOptionalArg(kPresetArgName, R"code(Setting quality level of OF calculation.
+                .AddOptionalArg(detail::kPresetArgName, R"code(Setting quality level of OF calculation.
  0.0f ... 1.0f, where 1.0f is best quality, lowest speed)code", .0f, false)
-                .AddOptionalArg(kOutputFormatArgName,
+                .AddOptionalArg(detail::kOutputFormatArgName,
                                 R"code(Setting grid size for output vector.)code", -1, false)
-                .AddOptionalArg(kEnableHintsArgName,
+                .AddOptionalArg(detail::kEnableHintsArgName,
                                 R"code(enabling/disabling temporal hints for sequences longer than 2 images)code",
                                 false, false);
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<CPUBackend>, CPU);
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
-
-
-template<>
-OpticalFlow<CPUBackend>::OpticalFlow(const OpSpec &spec) :
-        Operator<CPUBackend>(spec),
-        quality_factor_(spec.GetArgument<
-                std::remove_const<decltype(this->quality_factor_)>::type>("preset")),
-        grid_size_(spec.GetArgument<
-                std::remove_const<decltype(this->grid_size_)>::type>("output_format")),
-        enable_hints_(spec.GetArgument<
-                std::remove_const<decltype(this->enable_hints_)>::type>("enable_hints")),
-        of_params_({}),
-        optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
-                new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))) {
-
-  // In case hints are enabled, we need 2 inputs
-  DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
-               "Incorrect number of inputs. Expected: 2, Obtained: " +
-               std::to_string(spec.NumInput()));
-}
-
-
-template<>
-OpticalFlow<GPUBackend>::OpticalFlow(const OpSpec &spec) :
-        Operator<GPUBackend>(spec),
-        quality_factor_(spec.GetArgument<
-                std::remove_const<decltype(this->quality_factor_)>::type>("preset")),
-        grid_size_(spec.GetArgument<
-                std::remove_const<decltype(this->grid_size_)>::type>("output_format")),
-        enable_hints_(spec.GetArgument<
-                std::remove_const<decltype(this->enable_hints_)>::type>("enable_hints")),
-        of_params_({}),
-        optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
-                new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))) {
-}
 
 
 template<>
@@ -93,7 +55,7 @@ void OpticalFlow<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) 
 
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   if (enable_hints_) {
     const auto &input = ws->template Input<GPUBackend>(0);
     const auto &external_hints = ws->template Input<GPUBackend>(1);
@@ -110,8 +72,8 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
       optical_flow_->CalcOpticalFlow(in[i - 1], in[i], out[i - 1], hints[i]);
     }
   } else {
-    const auto &input = ws->template Input<GPUBackend>(0);
-    auto &output = ws->template Output<GPUBackend>(0);
+    const auto &input = ws->template Input<GPUBackend>(idx);
+    auto &output = ws->template Output<GPUBackend>(idx);
 
     output.ResizeLike(input);
 

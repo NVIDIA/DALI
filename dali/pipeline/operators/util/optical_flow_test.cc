@@ -22,21 +22,16 @@ namespace dali {
 namespace testing {
 
 namespace {
-template<typename Backend>
-std::unique_ptr<TensorList<Backend>> ToTensorList(const cv::Mat &image) {
-  DALI_FAIL("Non-existent specialization. Feel free to write your own.");
-}
-
-
-template<>
-std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const cv::Mat &image) {
+std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<cv::Mat> &images) {
   std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
-  tl->Resize({{image.rows, image.cols, image.channels()}});
-  auto img_ptr = image.data;
-  auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img_ptr)>::type>();
-
-  for (decltype(image.rows) i = 0; i < image.rows * image.cols * image.channels(); i++) {
-    tl_ptr[i] = img_ptr[i];
+  auto img = images[0];
+  tl->Resize({images.size(), {img.rows, img.cols, img.channels()}});
+  auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img.data)>::type>();
+  for (const auto &image:images) {
+    auto img_ptr = image.data;
+    for (decltype(image.rows) i = 0; i < image.rows * image.cols * image.channels(); i++) {
+      *tl_ptr++ = img_ptr[i];
+    }
   }
   return tl;
 }
@@ -53,7 +48,7 @@ std::string kImage = "/home/mszolucha/Pictures/pokoj.png";
 
 TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);
-  auto tl = ToTensorList<CPUBackend>(img);
+  auto tl = ToTensorList({img});
   auto img_ptr = img.data;
   auto tl_ptr = tl->template data<uint8_t>();
   ASSERT_EQ(img.rows * img.cols * img.channels(), tl->size()) << "Sizes don't match";
@@ -87,7 +82,7 @@ void verify(const TensorListWrapper &input,
 
 TEST_P(OpticalFlowTest, StubImplementationTest) {
   cv::Mat img = cv::imread(kImage);
-  auto tl = ToTensorList<CPUBackend>(img);
+  auto tl = ToTensorList({img, img});
   TensorListWrapper tlout;
   auto args = GetParam();
   this->RunTest(tl.get(), tlout, args, verify);
