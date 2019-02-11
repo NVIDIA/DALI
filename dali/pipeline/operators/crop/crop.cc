@@ -72,91 +72,40 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   using nhwc_t = detail::dali_index_sequence<0, 1, 2>;
   using nchw_t = detail::dali_index_sequence<2, 0, 1>;
 
-  if (out_layout == DALI_NHWC) {
-    if (output_type_ == DALI_FLOAT16) {
-      using Kernel = detail::CropKernel<uint8_t, half_float::half, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_FLOAT) {
-      using Kernel = detail::CropKernel<uint8_t, float, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      using Kernel = detail::CropKernel<uint8_t, uint8_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      using Kernel = detail::CropKernel<uint8_t, int16_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      using Kernel = detail::CropKernel<uint8_t, int32_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      using Kernel = detail::CropKernel<uint8_t, int64_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
+  DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OType,
+    switch(out_layout) {
+      case DALI_NHWC:
+      {
+        using Kernel = detail::CropKernel<uint8_t, OType, nhwc_t>;
+        AllocateAndRunKernel<Kernel>(ws, idx);
+      }
+      break;
+
+      case DALI_NCHW:
+      {
+        using Kernel = detail::CropKernel<uint8_t, OType, nchw_t>;
+        AllocateAndRunKernel<Kernel>(ws, idx);
+      }
+      break;
+
+      case DALI_NFHWC:
+      {
+        using Kernel = detail::SequenceCropKernel<uint8_t, OType, nhwc_t>;
+        AllocateAndRunKernel<Kernel>(ws, idx);
+      }
+      break;
+
+      case DALI_NFCHW:
+      {
+        using Kernel = detail::SequenceCropKernel<uint8_t, OType, nchw_t>;
+        AllocateAndRunKernel<Kernel>(ws, idx);
+      }
+      break;
+
+      default:
+        DALI_FAIL("output layout not supported");
     }
-  } else if (out_layout == DALI_NCHW) {
-    if (output_type_ == DALI_FLOAT16) {
-      using Kernel = detail::CropKernel<uint8_t, float16_cpu, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_FLOAT) {
-      using Kernel = detail::CropKernel<uint8_t, float, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      using Kernel = detail::CropKernel<uint8_t, uint8_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      using Kernel = detail::CropKernel<uint8_t, int16_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      using Kernel = detail::CropKernel<uint8_t, int32_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      using Kernel = detail::CropKernel<uint8_t, int64_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
-  } else if (out_layout == DALI_NFHWC) {
-    if (output_type_ == DALI_FLOAT) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, float, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, uint8_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int16_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int32_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int64_t, nhwc_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
-  } else if (out_layout == DALI_NFCHW) {
-    if (output_type_ == DALI_FLOAT) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, float, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, uint8_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int16_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int32_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      using Kernel = detail::SequenceCropKernel<uint8_t, int64_t, nchw_t>;
-      AllocateAndRunKernel<Kernel>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
-  } else {
-      DALI_FAIL("Unsupported output layout.");
-  }
+  );
 }
 
 template <>
