@@ -17,6 +17,9 @@
 #include <dali/pipeline/operators/util/optical_flow.h>
 #include <dali/test/dali_operator_test.h>
 #include <dali/test/dali_operator_test_utils.h>
+#include <vector>
+#include <string>
+#include <memory>
 
 namespace dali {
 namespace testing {
@@ -27,7 +30,7 @@ std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<cv::Mat> 
   auto img = images[0];
   tl->Resize({images.size(), {img.rows, img.cols, img.channels()}});
   auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img.data)>::type>();
-  for (const auto &image:images) {
+  for (const auto &image : images) {
     auto img_ptr = image.data;
     for (decltype(image.rows) i = 0; i < image.rows * image.cols * image.channels(); i++) {
       *tl_ptr++ = img_ptr[i];
@@ -44,7 +47,8 @@ std::vector<Arguments> arguments = {
 
 }  // namespace
 
-std::string kImage = "/home/mszolucha/Pictures/pokoj.png";  // TODO
+// TODO(mszolucha): update for Dali_extra usage
+std::string kImage = "/data/dali/test/test_images/410.jpg";  // NOLINT
 
 TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);

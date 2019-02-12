@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPTICAL_FLOW_H
-#define DALI_OPTICAL_FLOW_H
+#ifndef DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
+#define DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
 
 #include <dali/pipeline/data/views.h>
 #include <dali/pipeline/data/backend.h>
 #include <dali/pipeline/operators/operator.h>
 #include <dali/aux/optical_flow/optical_flow_stub.h>
+#include <memory>
 
 namespace dali {
 
@@ -43,6 +44,7 @@ const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
 template<typename Backend>
 class OpticalFlow : public Operator<Backend> {
   using ComputeBackend = typename detail::backend_to_compute<Backend>::type;
+
  public:
   explicit OpticalFlow(const OpSpec &spec) :
           Operator<Backend>(spec),
@@ -54,7 +56,6 @@ class OpticalFlow : public Operator<Backend> {
                   decltype(this->enable_hints_)>::type>(detail::kEnableHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))) {
-
     // In case hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -88,4 +89,4 @@ class OpticalFlow : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPTICAL_FLOW_H
+#endif  // DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_

@@ -15,6 +15,7 @@
 #ifndef  DALI_PIPELINE_DATA_VIEWS_H_
 #define  DALI_PIPELINE_DATA_VIEWS_H_
 
+#include <string>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/data/tensor_list.h"
