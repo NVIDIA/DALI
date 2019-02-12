@@ -21,8 +21,136 @@
 
 #include "dali/core/common.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/common/convert.h"
+#include "dali/kernels/static_switch.h"
 
 namespace dali {
+
+template <DALIInterpType interp>
+struct Interpolation;
+
+template <>
+struct Interpolation<DALI_INTERP_NN> {
+
+  template <typename In>
+  static const In *value_at(const kernels::InTensorCPU<In, 3> &input, int x, int y, const In *border_value) {
+    if (x < 0 || x >= input.shape[1] ||
+        y < 0 || y >= input.shape[0]) {
+      return border_value;
+    } else {
+      return input(y, x);
+    }
+  }
+
+  struct Sample {
+    Sample() = default;
+    Sample(int x, int y) : x(x), y(y) {}
+    int x, y;
+
+    template <typename T, typename In>
+    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value) const {
+      auto *v = value_at(input, x, y, border_value);
+      for (int c = 0; c < input.shape[2]; c++) {
+        pixel[c] = kernels::clamp<T>(v[c]);
+      }
+    }
+
+    template <typename T, typename In>
+    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value, int channel) const {
+      auto *v = value_at(input, x, y, border_value);
+      pixel[channel] = kernels::clamp<T>(v[channel]);
+    }
+  };
+
+  Sample operator()(float x, float y) const {
+    return {
+      static_cast<int>(floorf(x)),
+      static_cast<int>(floorf(y))
+    };
+  }
+};
+
+
+template <>
+struct Interpolation<DALI_INTERP_LINEAR> {
+  struct Sample {
+    float x, y;
+
+    template <typename T, typename In>
+    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value) const {
+      using NN = Interpolation<DALI_INTERP_NN>;
+      int x0 = floorf(x);
+      int y0 = floorf(y);
+      const In *s00 = NN::value_at(input, x0,   y0,   border_value);
+      const In *s01 = NN::value_at(input, x0+1, y0,   border_value);
+      const In *s10 = NN::value_at(input, x0,   y0+1, border_value);
+      const In *s11 = NN::value_at(input, x0+1, y0+1, border_value);
+      float qx = x - x0;
+      float px = 1 - qx;
+      float qy = y - y0;
+      for (int c = 0; c < input.shape[2]; c++) {
+        float s0 = s00[c] * px + s01[c] * qx;
+        float s1 = s10[c] * px + s11[c] * qx;
+        pixel[c] = kernels::clamp<T>(s0 + (s1 - s0) * qy);
+      }
+    }
+
+    template <typename T, typename In>
+    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value, int channel) const {
+      using NN = Interpolation<DALI_INTERP_NN>;
+      int x0 = floorf(x);
+      int y0 = floorf(y);
+      const In *s00 = NN::value_at(input, x0,   y0,   border_value);
+      const In *s01 = NN::value_at(input, x0+1, y0,   border_value);
+      const In *s10 = NN::value_at(input, x0,   y0+1, border_value);
+      const In *s11 = NN::value_at(input, x0+1, y0+1, border_value);
+      float qx = x - x0;
+      float px = 1 - qx;
+      float qy = y - y0;
+      float s0 = s00[channel] * px + s01[channel] * qx;
+      float s1 = s10[channel] * px + s11[channel] * qx;
+      pixel[channel] = kernels::clamp<T>(s0 + (s1 - s0) * qy);
+    }
+  };
+
+  Sample operator()(float x, float y) const {
+    return { x, y };
+  }
+};
+
+template <DALIInterpType interp_type, bool per_channel,
+          typename Out, typename In, typename Displacement>
+void Warp(
+    const kernels::OutTensorCPU<Out, 3> &out,
+    const kernels::InTensorCPU<In, 3> &in,
+    Displacement &displacement,
+    const Out *fillValue) {
+  DALI_ENFORCE(in.shape[2] == out.shape[2], "Number of channels in input and output must match");
+  int outH = out.shape[0];
+  int outW = out.shape[1];
+  int C = out.shape[2];
+  int inH = in.shape[0];
+  int inW = in.shape[1];
+
+  Interpolation<interp_type> interp;
+
+  for (int y = 0; y < outH; y++) {
+    Out *out_row = out(y, 0);
+    for (int x = 0; x < outW; x++) {
+      if (per_channel) {
+        for (int c = 0; c < C; c++) {
+          auto p = displacement.template operator()<float>(y, x, c, inH, inW, C);
+          interp(p.x, p.y)(&out_row[C*x], in, fillValue, c);
+        }
+      } else {
+        auto p = displacement.template operator()<float>(y, x, 0, inH, inW, C);
+        interp(p.x, p.y)(&out_row[C*x], in, fillValue);
+      }
+    }
+  }
+}
 
 template <class Displacement, bool per_channel_transform>
 class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
@@ -52,33 +180,57 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     }
   }
 
+  template <typename Out, typename In, DALIInterpType interp>
+  void RunWarp(SampleWorkspace *ws, int idx) {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
+
+    auto &displace = displace_[ws->thread_idx()];
+    In fill[1024];
+    auto in = view_as_tensor<const Out, 3>(input);
+    auto out = view_as_tensor<In, 3>(output);
+
+    for (int i = 0; i < in.shape[2]; i++) {
+      fill[i] = fill_value_;
+    }
+
+    Warp<interp, per_channel_transform>(out, in, displace, fill);
+
+  }
+
   void RunImpl(SampleWorkspace *ws, const int idx) override {
     DataDependentSetup(ws, idx);
 
     auto &input = ws->Input<CPUBackend>(idx);
-    switch (interp_type_) {
-      case DALI_INTERP_NN:
-        if (IsType<float>(input.type())) {
-          PerSampleCPULoop<float, DALI_INTERP_NN>(ws, idx);
-        } else if (IsType<uint8_t>(input.type())) {
-          PerSampleCPULoop<uint8_t, DALI_INTERP_NN>(ws, idx);
-        } else {
-          DALI_FAIL("Unexpected input type " + input.type().name());
-        }
-        break;
-      case DALI_INTERP_LINEAR:
-        if (IsType<float>(input.type())) {
-          PerSampleCPULoop<float, DALI_INTERP_LINEAR>(ws, idx);
-        } else if (IsType<uint8_t>(input.type())) {
-          PerSampleCPULoop<uint8_t, DALI_INTERP_LINEAR>(ws, idx);
-        } else {
-          DALI_FAIL("Unexpected input type " + input.type().name());
-        }
-        break;
-      default:
-        DALI_FAIL(
-            "Unsupported interpolation type,"
-            " only NN and LINEAR are supported for this operation");
+
+    if (!has_mask_ || mask_->template data<bool>()[ws->data_idx()]) {
+      switch (interp_type_) {
+        case DALI_INTERP_NN:
+          if (IsType<float>(input.type())) {
+            RunWarp<float, float, DALI_INTERP_NN>(ws, idx);
+          } else if (IsType<uint8_t>(input.type())) {
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(ws, idx);
+          } else {
+            DALI_FAIL("Unexpected input type " + input.type().name());
+          }
+          break;
+        case DALI_INTERP_LINEAR:
+          if (IsType<float>(input.type())) {
+            RunWarp<float, float, DALI_INTERP_LINEAR>(ws, idx);
+          } else if (IsType<uint8_t>(input.type())) {
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(ws, idx);
+          } else {
+            DALI_FAIL("Unexpected input type " + input.type().name());
+          }
+          break;
+        default:
+          DALI_FAIL(
+              "Unsupported interpolation type,"
+              " only NN and LINEAR are supported for this operation");
+      }
+    } else {
+      auto &output = ws->Output<CPUBackend>(idx);
+      output.Copy(input, ws->stream());
     }
   }
 
@@ -114,178 +266,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  // TODO(klecki) We could probably interpolate with something other than float,
-  // for example integer type
-  struct LinearCoefs {
-    LinearCoefs(float rx, float ry)
-        : rx(rx), ry(ry), mrx(1.f - rx), mry(1.f - ry) {}
-    LinearCoefs() = delete;
-    const float rx, ry, mrx, mry;
-  };
-
-  template <typename T>
-  bool ShouldTransform(Point<T> p) {
-    return p.x >= 0 && p.y >= 0;
-  }
-
-  template <typename T>
-  Index PointToInIdx(Point<T> p, Index H, Index W, Index C) {
-    Point<Index> p_idx = p.template Cast<Index>();
-    return (p_idx.y * W + p_idx.x) * C;
-  }
-
-  LinearCoefs PointToLinearCoefs(Point<float> p) {
-    Point<Index> p_idx = p.template Cast<Index>();
-    return {p.x - p_idx.x, p.y - p_idx.y};
-  }
-
-  std::pair<Index, LinearCoefs> PointToInIdxCoefs(Point<float> p, Index H,
-                                                  Index W, Index C) {
-    Point<Index> p_idx = p.template Cast<Index>();
-    return {PointToInIdx(p_idx, H, W, C),
-            LinearCoefs{p.x - p_idx.x, p.y - p_idx.y}};
-  }
-
-  // Calculate offset to next element on x and y axis with border handling
-  template <typename T>
-  Point<Index> CalcNextOffsets(Point<T> p, Index H, Index W, Index C) {
-    Point<Index> p_idx = p.template Cast<Index>();
-    return {p_idx.x < W - 1 ? C : 0, p_idx.y < H - 1 ? C * W : 0};
-  }
-
-  template <typename T>
-  std::array<T, 4> load_inputs(const T *in, Index in_idx,
-                               Point<Index> next_offsets) {
-    std::array<T, 4> result;
-    // 0, 0
-    result[0] = in[in_idx];
-    // 1, 0
-    result[1] = in[in_idx + next_offsets.x];
-    // 0, 1
-    result[2] = in[in_idx + next_offsets.y];
-    // 1, 1
-    result[3] = in[in_idx + next_offsets.x + next_offsets.y];
-    return result;
-  }
-
-  template <typename T>
-  T linear_interpolate(std::array<T, 4> inter_values, LinearCoefs coefs) {
-    return static_cast<T>(inter_values[0] * coefs.mrx * coefs.mry +
-                          inter_values[1] * coefs.rx * coefs.mry +
-                          inter_values[2] * coefs.mrx * coefs.ry +
-                          inter_values[3] * coefs.rx * coefs.ry);
-  }
-
-  template <typename T, DALIInterpType interp_type>
-  bool PerSampleCPULoop(SampleWorkspace *ws, const int idx) {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
-
-    DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-
-    const auto H = input.shape()[0];
-    const auto W = input.shape()[1];
-    const auto C = input.shape()[2];
-
-    auto *in = input.data<T>();
-    auto *out = output.template mutable_data<T>();
-
-    if (!has_mask_ || mask_->template data<bool>()[ws->data_idx()]) {
-      for (Index h = 0; h < H; ++h) {
-        for (Index w = 0; w < W; ++w) {
-          // calculate displacement for all channels at once
-          // vs. per-channel
-          if (per_channel_transform) {
-            for (Index c = 0; c < C; ++c) {
-              // output idx is set by location
-              Index out_idx = (h * W + w) * C + c;
-              // input idx is calculated by function
-              T out_value;
-              if (interp_type == DALI_INTERP_NN) {
-                // NN interpolation
-                const auto p =
-                    displace_[ws->thread_idx()].template operator()<Index>(
-                        h, w, c, H, W, C);
-                if (ShouldTransform(p)) {
-                  const auto in_idx = PointToInIdx(p, H, W, C) + c;
-                  out_value = in[in_idx];
-                } else {
-                  out_value = fill_value_;
-                }
-              } else {
-                // LINEAR interpolation
-                const auto p =
-                    displace_[ws->thread_idx()].template operator()<float>(
-                        h, w, c, H, W, C);
-                if (ShouldTransform(p)) {
-                  const auto in_idx = PointToInIdx(p, H, W, C) + c;
-                  const auto next_offsets = CalcNextOffsets(p, H, W, C);
-                  const auto linear_coefs = PointToLinearCoefs(p);
-                  const auto inter_values =
-                      load_inputs(in, in_idx, next_offsets);
-                  out_value = linear_interpolate(inter_values, linear_coefs);
-                } else {
-                  out_value = fill_value_;
-                }
-              }
-              // copy
-              out[out_idx] = out_value;
-            }
-          } else {
-            // output idx is set by location
-            Index out_idx = (h * W + w) * C;
-            if (interp_type == DALI_INTERP_NN) {
-              // input idx is calculated by function
-              const auto p =
-                  displace_[ws->thread_idx()].template operator()<Index>(
-                      h, w, 0, H, W, C);
-              if (ShouldTransform(p)) {
-                const auto in_idx = PointToInIdx(p, H, W, C);
-                // apply transform uniformly across channels
-                for (int c = 0; c < C; ++c) {
-                  out[out_idx + c] = in[in_idx + c];
-                }
-              } else {
-                for (int c = 0; c < C; ++c) {
-                  out[out_idx + c] = fill_value_;
-                }
-              }
-            } else {
-              const auto p =
-                  displace_[ws->thread_idx()].template operator()<float>(
-                      h, w, 0, H, W, C);
-              if (ShouldTransform(p)) {
-                const auto in_idx = PointToInIdx(p, H, W, C);
-                const auto next_offsets = CalcNextOffsets(p, H, W, C);
-                const auto linear_coefs = PointToLinearCoefs(p);
-                for (int c = 0; c < C; ++c) {
-                  const auto inter_values =
-                      load_inputs(in, in_idx + c, next_offsets);
-                  out[out_idx + c] =
-                      linear_interpolate(inter_values, linear_coefs);
-                }
-              } else {
-                for (int c = 0; c < C; ++c) {
-                  out[out_idx + c] = fill_value_;
-                }
-              }
-            }
-          }
-        }
-      }
-    } else {  // Do not do augmentation, pass through
-      // TODO(klecki) just use memcpy
-      for (Index h = 0; h < H; ++h) {
-        for (Index w = 0; w < W; ++w) {
-          for (int c = 0; c < C; ++c) {
-            out[(h * W + w) * C + c] = in[(h * W + w) * C + c];
-          }
-        }
-      }
-    }
-    return true;
-  }
-
   std::vector<Displacement> displace_;
   DALIInterpType interp_type_;
   float fill_value_;

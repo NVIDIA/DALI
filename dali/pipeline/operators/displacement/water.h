@@ -46,7 +46,7 @@ class WaterAugment {
 
   template <typename T>
   DISPLACEMENT_IMPL
-  Point<T> operator()(int h, int w, int c, int H, int W, int C) {
+  Point<T> operator()(float h, float w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;
 
