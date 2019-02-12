@@ -63,7 +63,9 @@ class DLL_PUBLIC OpSchema {
     internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
     internal_arguments_unq_.push_back(std::move(v));
 
-    AddOptionalArg("seed", "Random seed", 1234);
+    AddOptionalArg("seed", "Random seed (If not provided it will be populated based "
+      "on the global seed of the pipeline)", -1);
+
     AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
       "per sample. The memory will be preallocated if it uses GPU or page-locked memory", 0);
   }
