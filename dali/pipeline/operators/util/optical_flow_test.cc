@@ -14,8 +14,8 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
-#include <dali/test/dali_operator_test.h>
 #include <dali/pipeline/operators/util/optical_flow.h>
+#include <dali/test/dali_operator_test.h>
 #include <dali/test/dali_operator_test_utils.h>
 
 namespace dali {
@@ -44,7 +44,7 @@ std::vector<Arguments> arguments = {
 
 }  // namespace
 
-std::string kImage = "/home/mszolucha/Pictures/pokoj.png";
+std::string kImage = "/home/mszolucha/Pictures/pokoj.png";  // TODO
 
 TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);

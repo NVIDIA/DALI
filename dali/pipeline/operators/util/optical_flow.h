@@ -15,10 +15,9 @@
 #ifndef DALI_OPTICAL_FLOW_H
 #define DALI_OPTICAL_FLOW_H
 
-#include <dali/aux/optical_flow/optical_flow_adapter.h>
 #include <dali/pipeline/data/views.h>
-#include <dali/pipeline/operators/operator.h>
 #include <dali/pipeline/data/backend.h>
+#include <dali/pipeline/operators/operator.h>
 #include <dali/aux/optical_flow/optical_flow_stub.h>
 
 namespace dali {
@@ -76,7 +75,7 @@ class OpticalFlow : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws, const int) override;
 
 
  private:

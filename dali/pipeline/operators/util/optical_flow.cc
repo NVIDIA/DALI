@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #include <dali/pipeline/data/views.h>
-
-#include "optical_flow.h"
+#include <dali/pipeline/operators/util/optical_flow.h>
 
 namespace dali {
 
@@ -55,7 +54,7 @@ void OpticalFlow<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) 
 
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
   if (enable_hints_) {
     const auto &input = ws->template Input<GPUBackend>(0);
     const auto &external_hints = ws->template Input<GPUBackend>(1);
@@ -72,8 +71,8 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) 
       optical_flow_->CalcOpticalFlow(in[i - 1], in[i], out[i - 1], hints[i]);
     }
   } else {
-    const auto &input = ws->template Input<GPUBackend>(idx);
-    auto &output = ws->template Output<GPUBackend>(idx);
+    const auto &input = ws->template Input<GPUBackend>(0);
+    auto &output = ws->template Output<GPUBackend>(0);
 
     output.ResizeLike(input);
 
