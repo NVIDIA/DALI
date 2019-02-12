@@ -107,8 +107,8 @@ std::vector<testing::Arguments> devices = {
 
 namespace detail {
 
-template <typename T, int RANK, int CURR_DIM>
-inline typename std::enable_if<RANK == CURR_DIM>::type
+template <typename T, int Rank, int CurrDim>
+inline typename std::enable_if<Rank == CurrDim>::type
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
                  const std::vector<Index>& /*unused*/,
@@ -118,30 +118,30 @@ tensor_loop_impl(const T* in_tensor,
   EXPECT_EQ(in_tensor[in_idx], out_tensor[out_idx]);
 }
 
-template <typename T, int RANK, int CURR_DIM>
-inline typename std::enable_if<RANK != CURR_DIM>::type
+template <typename T, int Rank, int CurrDim>
+inline typename std::enable_if<Rank != CurrDim>::type
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
                  const std::vector<Index>& shape,
                  const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                  const std::vector<int>& perm,
                  int in_idx, int out_idx) {
-  for (int i = 0; i < shape[CURR_DIM]; ++i) {
-    tensor_loop_impl<T, RANK, CURR_DIM +1>(in_tensor,
+  for (int i = 0; i < shape[CurrDim]; ++i) {
+    tensor_loop_impl<T, Rank, CurrDim +1>(in_tensor,
                                       out_tensor,
                                       shape, old_strides, new_strides, perm,
-                                      in_idx + old_strides[perm[CURR_DIM]] * i,
-                                      out_idx + new_strides[CURR_DIM] * i);
+                                      in_idx + old_strides[perm[CurrDim]] * i,
+                                      out_idx + new_strides[CurrDim] * i);
   }
 }
 
-template <typename T, int RANK>
+template <typename T, int Rank>
 inline void tensor_loop(const T* in_tensor,
                         const T* out_tensor,
                         const std::vector<Index>& shape,
                         const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                         const std::vector<int>& perm) {
-  detail::tensor_loop_impl<T, RANK, 0>(in_tensor, out_tensor,
+  detail::tensor_loop_impl<T, Rank, 0>(in_tensor, out_tensor,
                                        shape, old_strides, new_strides, perm,
                                        0, 0);
 }
