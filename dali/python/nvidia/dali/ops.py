@@ -42,7 +42,9 @@ def _docstring_generator(cls):
     pre_doc = "This is " + ", ".join(op_dev) + " operator\n\n"
 
     schema = b.GetSchema(op_name)
-    ret = pre_doc
+    # insert tag to easily link to the operator
+    ret = '.. _' + op_name + ':\n\n'
+    ret += pre_doc
     ret += schema.Dox()
     ret += '\n'
     ret += """
