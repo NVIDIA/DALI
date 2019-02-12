@@ -112,6 +112,8 @@ add_custom_command(
 # Build test suite
 ################################################
 if (BUILD_TEST)
+  find_package(Boost REQUIRED COMPONENTS filesystem program_options)
+
   set(TEST_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
 
   # get all test srcs
@@ -130,6 +132,7 @@ if (BUILD_TEST)
     "${dali_kernel_test_lib}"
     "${DALI_LIBS}"
     "${dali_lib}"
+    ${Boost_LIBRARIES}
     "gtest")
 
   set_target_properties(${test_main_bin} PROPERTIES
