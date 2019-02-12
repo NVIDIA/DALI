@@ -21,8 +21,8 @@ namespace dali {
 DALI_SCHEMA(OpticalFlow)
                 .DocStr(R"code(Calculates the Optical Flow for sequence of images given as a input.
  Mandatory input for the operator is a sequence of frames.
- As as optional input, operator accepts external hints for OF calculation.
-The output format of this operator matches output format of OF driver API.
+ As an optional input, operator accepts external hints for OF calculation.
+The output format of this operator matches the output format of OF driver API.
 CPU version of this Operator is no-op.)code")
                 .NumInput(1, 2)
                 .NumOutput(1)
@@ -41,10 +41,10 @@ DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
 
 template<>
 void OpticalFlow<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
-  const auto &input = ws->template Input<CPUBackend>(idx);
+  const auto &input = ws->Input<CPUBackend>(idx);
   auto tvin = view<const uint8_t, 3>(input);
 
-  auto &output = ws->template Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   output.ResizeLike(input);
   output.template mutable_data<float>();
   auto tvout = view<float, 3>(output);
@@ -56,9 +56,9 @@ void OpticalFlow<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
   if (enable_hints_) {
-    const auto &input = ws->template Input<GPUBackend>(0);
-    const auto &external_hints = ws->template Input<GPUBackend>(1);
-    auto &output = ws->template Output<GPUBackend>(0);
+    const auto &input = ws->Input<GPUBackend>(0);
+    const auto &external_hints = ws->Input<GPUBackend>(1);
+    auto &output = ws->Output<GPUBackend>(0);
 
     output.ResizeLike(input);
 
@@ -71,8 +71,8 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
       optical_flow_->CalcOpticalFlow(in[i - 1], in[i], out[i - 1], hints[i]);
     }
   } else {
-    const auto &input = ws->template Input<GPUBackend>(0);
-    auto &output = ws->template Output<GPUBackend>(0);
+    const auto &input = ws->Input<GPUBackend>(0);
+    auto &output = ws->Output<GPUBackend>(0);
 
     output.ResizeLike(input);
 
