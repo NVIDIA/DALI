@@ -73,7 +73,7 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   using nchw_t = detail::dali_index_sequence<2, 0, 1>;
 
   DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OType,
-    switch(out_layout) {
+    switch (out_layout) {
       case DALI_NHWC:
       {
         using Kernel = detail::CropKernel<uint8_t, OType, nhwc_t>;
@@ -105,7 +105,7 @@ void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
       default:
         DALI_FAIL("output layout not supported");
     }
-  );
+  ); // NOLINT
 }
 
 template <>
