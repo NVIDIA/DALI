@@ -29,7 +29,7 @@ template <typename T>
 void Arrange(T* ptr, const std::vector<Index>& shape) {
   auto volume = Volume(shape);
   for (int i = 0; i < volume; ++i) {
-    ptr[i] = static_cast<int>(i);
+    ptr[i] = static_cast<T>(i);
   }
 }
 
@@ -111,9 +111,6 @@ std::vector<testing::Arguments> devices = {
 //    {{"device", std::string{"cpu"}}},
     {{"device", std::string{"gpu"}}},
 };
-
-
-
 
 template <typename T>
 void CheckTransposition(const T* in_tensor, const T* out_tensor,

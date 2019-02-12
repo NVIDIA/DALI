@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -31,6 +30,8 @@ namespace dali {
   }                                                            \
 } while (0)
 
+using IntArr = std::unique_ptr<int[]>;
+
 std::pair<IntArr, IntArr>
 RowToColumnMajor(const int *dims, const int *perm, int rank) {
   IntArr new_dims(new int[rank]);
@@ -41,43 +42,6 @@ RowToColumnMajor(const int *dims, const int *perm, int rank) {
     new_perm[i] = rank - 1 - perm[rank - 1 - i];
   }
   return {std::move(new_dims), std::move(new_perm)};
-}
-
-template <typename T = double>
-void cuttSanityCheck(int *dims, int *perm, int rank) {
-  int vol = 1;
-  for (int i = 0; i < rank; ++i) {
-    vol *= dims[i];
-  }
-  T *datain = new T[vol];
-  for (int i = 0; i < vol; ++i) datain[i] = static_cast<T>(i);
-
-  T *dataout = new T[vol];
-
-  T *datagpuin;
-  T *datagpuout;
-
-  cudaMalloc(&datagpuin, vol * sizeof(T));
-  cudaMalloc(&datagpuout, vol * sizeof(T));
-
-  cudaMemcpy(datagpuin, datain, vol * sizeof(T), cudaMemcpyHostToDevice);
-
-  IntArr c_dims, c_perm;
-  std::tie(c_dims, c_perm) = RowToColumnMajor(dims, perm, rank);
-
-  cuttHandle plan;
-  cuttCheck(cuttPlan(&plan, rank, c_dims.get(), c_perm.get(), sizeof(T), 0));
-  cuttCheck(cuttExecute(plan, datagpuin, datagpuout));
-
-  CUDA_CALL(cudaStreamSynchronize(0));
-  cudaMemcpy(dataout, datagpuout, vol * sizeof(T), cudaMemcpyDeviceToHost);
-
-  for (int i = 0; i < vol; ++i)
-    std::cout << dataout[i] << " ";
-  std::cout << std::endl;
-  cuttCheck(cuttDestroy(plan));
-  cudaFree(datagpuin);
-  cudaFree(datagpuout);
 }
 
 namespace kernel {
@@ -164,8 +128,6 @@ inline Dims GetPermutedDims(const Dims& dims, const std::vector<int>& permutatio
 
 template<>
 void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
-  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-
   const auto& input = ws->Input<GPUBackend>(idx);
   auto& output = ws->Output<GPUBackend>(idx);
 
@@ -218,11 +180,6 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());
     }
   }
-
-  std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-  double duration = std::chrono::duration_cast< std::chrono::duration<double> >
-                    (end - start).count();
-  LOG_LINE << "Transpose duration: " << (duration * 1000.0) << " ms" << std::endl;
 }
 
 DALI_REGISTER_OPERATOR(Transpose, Transpose<GPUBackend>, GPU);

@@ -24,9 +24,9 @@ SOFTWARE.
 *******************************************************************************/
 #include "dali/pipeline/operators/transpose/cutt/CudaMemcpy.h"
 
-#include "dali/util/dynlink_cuda.h"
-#include "dali/util/cuda_utils.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
+#include "dali/util/cuda_utils.h"
+#include "dali/util/dynlink_cuda.h"
 
 const int numthread = 64;
 
@@ -46,8 +46,6 @@ template <typename T>
 void scalarCopy(const int n, const T* data_in, T* data_out, cudaStream_t stream) {
 
   int numblock = (n - 1)/numthread + 1;
-  // numblock = min(65535, numblock);
-  // numblock = min(256, numblock);
 
   scalarCopyKernel<T> <<< numblock, numthread, 0, stream >>>
   (n, data_in, data_out);

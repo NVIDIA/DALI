@@ -24,8 +24,6 @@
 
 namespace dali {
 
-using IntArr = std::unique_ptr<int[]>;
-
 template <typename Backend>
 class Transpose : public Operator<Backend> {
  public:
