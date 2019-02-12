@@ -53,8 +53,6 @@ void HostDecoderCrop::SetupSharedSampleParams(SampleWorkspace *ws) {
     };
 }
 
-DALI_REGISTER_OPERATOR(HostDecoderCrop, HostDecoderCrop, CPU);
-
 DALI_SCHEMA(HostDecoderCrop)
   .DocStr(R"code(Decode images on the host with a fixed cropping window size and variable anchor.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
@@ -62,16 +60,28 @@ When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("crop_pos_x",
-      R"code(Horizontal position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f, true)
-  .AddOptionalArg("crop_pos_y",
-      R"code(Vertical position of the crop in image coordinates (0.0 - 1.0))code",
-      0.5f, true)
-  .AddOptionalArg("crop",
-      R"code(Size of the cropped image. If only a single value `c` is provided,
-      the resulting crop will be square with size `(c,c)`)code",
+  .AddOptionalArg(
+      "crop",
+      R"code(Size of the cropped image, specified as a pair `(crop_H, crop_W)`.
+If only a single value `c` is provided, the resulting crop will be square
+with size `(c,c)`)code",
       std::vector<float>{0.f, 0.f})
+  .AddOptionalArg(
+      "crop_pos_x",
+      R"code(Normalized horizontal position of the crop (0.0 - 1.0).
+Actual position is calculated as `crop_x = crop_x_norm * (W - crop_W)`,
+where `crop_x_norm` is the normalized position, `W` is the width of the image
+and `crop_W` is the width of the cropping window)code",
+      0.5f, true)
+  .AddOptionalArg(
+      "crop_pos_y",
+      R"code(Normalized vertical position of the crop (0.0 - 1.0).
+Actual position is calculated as `crop_y = crop_y_norm * (H - crop_H)`,
+where `crop_y_norm` is the normalized position, `H` is the height of the image
+and `crop_H` is the height of the cropping window)code",
+      0.5f, true)
   .AddParent("HostDecoder");
+
+DALI_REGISTER_OPERATOR(HostDecoderCrop, HostDecoderCrop, CPU);
 
 }  // namespace dali
