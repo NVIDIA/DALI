@@ -17,11 +17,15 @@
 #include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operators/op_spec.h"
+#include "dali/test/dali_test_argparse.h"
 
 int main(int argc, char **argv) {
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
                  dali::OpSpec("PinnedCPUAllocator"),
                  dali::OpSpec("GPUAllocator"));
   ::testing::InitGoogleTest(&argc, argv);
+
+  dali::testing::parse_args(argc, argv);
+
   return RUN_ALL_TESTS();
 }
