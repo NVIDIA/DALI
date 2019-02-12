@@ -111,7 +111,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |gcc link|_ or later                   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |boost link|_ or later                 | Modules: *preprocessor*                                                                     |
+   | |boost link|_ or later                 | Modules: *preprocessor, filesystem, program_options*                                        |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |gcc link|_ or later                   |                                                                                             |
    | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially*                                           |
@@ -169,6 +169,14 @@ Prerequisites
      --enable-demuxer=mov,matroska \
      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
      make
+
+.. note::
+
+   Example command for building boost:
+
+.. code-block:: bash
+
+   ./bootstrap.sh --with-libraries=program_options,filesystem
 
 Get the DALI source
 ^^^^^^^^^^^^^^^^^^^
