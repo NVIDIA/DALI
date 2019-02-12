@@ -15,6 +15,7 @@
 #include <mutex>
 #include <cstring>
 #include <cassert>
+#include <iostream>
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
@@ -26,34 +27,29 @@ namespace {
 /// Path to Dali_extra repository
 std::string _dali_extra_path;  // NOLINT
 
-std::once_flag parse_only_once;
-
-bool parsed;  /// indicates, that parsing completed successfully
-
-
-void parse(int argc, const char **argv) {
-  // TODO(mszolucha): in case more args appear, use better solution (e.g. boost::program_options)
-  const size_t cmd_len = 17;
-  for (int i = 1; i < argc; i++) {
-    if (0 == std::strncmp(argv[i], "--dali_extra_path", cmd_len)) {
-      _dali_extra_path = std::string{&argv[i][cmd_len + 1]};
-      parsed = true;
-      break;
-    }
-  }
-}
+std::once_flag noninit_warning;
 
 }  // namespace
 
 
 const std::string &dali_extra_path() {
-  assert(parsed);
+  if (_dali_extra_path.empty()) {
+    std::call_once(noninit_warning,
+                   []() { std::cerr << "dali_extra_path not initialized. Using current path."; });
+  }
   return _dali_extra_path;
 }
 
 
 void parse_program_options(int argc, const char **argv) {
-  std::call_once(parse_only_once, parse, argc, argv);
+  // TODO(mszolucha): in case more args appear, use better solution (e.g. boost::program_options)
+  const char key[] = "--dali_extra_path";
+  for (int i = 1; i < argc; i++) {
+    if (0 == std::strncmp(argv[i], key, sizeof(key))) {
+      _dali_extra_path = std::string{&argv[i][sizeof(key) + 1]};
+      break;
+    }
+  }
 }
 
 }  // namespace program_options
