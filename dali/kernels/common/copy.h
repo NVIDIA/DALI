@@ -26,7 +26,8 @@ template <typename Storage1, typename T1, int ndim1, typename Storage2, typename
 void copy(const TensorView<Storage1, T1, ndim1> &out,  // NOLINT
           const TensorView<Storage2, T2, ndim2> &in,
           cudaStream_t stream = 0) {
-  static_assert(sizeof(T1) == sizeof(T2), "Tensor elements must be of equal size");
+  static_assert(sizeof(T1) == sizeof(T2), "Tensor elements must be of equal size!");
+  static_assert(!std::is_const<T1>::value, "Cannot copy to a tensor of const elements!");
   assert(in.shape == out.shape);
 
   if (!is_gpu_accessible<Storage1>::value) {
