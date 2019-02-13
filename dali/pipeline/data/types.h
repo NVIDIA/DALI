@@ -57,6 +57,35 @@
 
 namespace dali {
 
+namespace detail {
+
+typedef void (*Copier)(void *, const void*, Index);
+
+template <typename T>
+inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
+CopyFunc(void *dst, const void *src, Index n) {
+  // T is trivially copyable, we can copy using raw memcopy
+  std::memcpy(dst, src, n*sizeof(T));
+}
+
+template <typename T>
+inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
+CopyFunc(void *dst, const void *src, Index n) {
+  T *typed_dst = static_cast<T*>(dst);
+  const T* typed_src = static_cast<const T*>(src);
+  for (Index i = 0; i < n; ++i) {
+    // T is not trivially copyable, iterate and
+    // call the copy-assignment operator
+    typed_dst[i] = typed_src[i];
+  }
+}
+
+template <typename T>
+inline Copier GetCopier() {
+  return &CopyFunc<T>;
+}
+
+}  // namespace detail
 
 /**
  * @brief Enum identifiers for the different data types that
@@ -122,12 +151,6 @@ class DLL_PUBLIC TypeInfo {
   template <typename T, typename U = normalize_t<T> >
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
 
-  template <typename Backend>
-  DLL_PUBLIC void Construct(void *ptr, Index n);
-
-  template <typename Backend>
-  DLL_PUBLIC void Destruct(void *ptr, Index n);
-
   template <typename DstBackend, typename SrcBackend>
   DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
 
@@ -153,48 +176,7 @@ class DLL_PUBLIC TypeInfo {
   }
 
  private:
-  template <typename T>
-  inline void ConstructorFunc(void *ptr, Index n) {
-    T *typed_ptr = static_cast<T*>(ptr);
-    for (Index i = 0; i < n; ++i) {
-      new (typed_ptr + i) T;
-    }
-  }
-
-  template <typename T>
-  inline void DestructorFunc(void *ptr, Index n) {
-    T *typed_ptr = static_cast<T*>(ptr);
-    for (Index i = 0; i < n; ++i) {
-      typed_ptr[i].~T();
-    }
-  }
-
-  template <typename T>
-  inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
-  CopyFunc(void *dst, const void *src, Index n) {
-    // T is trivially copyable, we can copy using raw memcopy
-    std::memcpy(dst, src, n*sizeof(T));
-  }
-
-  template <typename T>
-  inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
-  CopyFunc(void *dst, const void *src, Index n) {
-    T *typed_dst = static_cast<T*>(dst);
-    const T* typed_src = static_cast<const T*>(src);
-    for (Index i = 0; i < n; ++i) {
-      // T is not trivially copyable, iterate and
-      // call the copy-assignment operator
-      typed_dst[i] = typed_src[i];
-    }
-  }
-
-  typedef std::function<void (void*, Index)> Constructor;
-  typedef std::function<void (void*, Index)> Destructor;
-  typedef std::function<void (void *, const void*, Index)> Copier;
-
-  Constructor constructor_;
-  Destructor destructor_;
-  Copier copier_;
+  detail::Copier copier_;
 
   DALIDataType id_;
   size_t type_size_;
@@ -291,14 +273,8 @@ void TypeInfo::SetType(DALIDataType dtype) {
   }
   name_ = TypeTable::GetTypeName<T>();
 
-  // Get constructor/destructor/copier for this type
-  constructor_ = std::bind(&TypeInfo::ConstructorFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2);
-  destructor_ = std::bind(&TypeInfo::DestructorFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2);
-  copier_ = std::bind(&TypeInfo::CopyFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2,
-      std::placeholders::_3);
+  // Get copier for this type
+  copier_ = detail::GetCopier<T>();
 }
 
 inline std::string to_string(const DALIDataType& dtype) {
