@@ -167,6 +167,17 @@ class BoundingBox {
     return {(left_ + right_) * 0.5f, (top_ + bottom_) * 0.5f, right_ - left_, bottom_ - top_};
   }
 
+  bool operator==(const BoundingBox& other) const {
+    return left_ == other.left_
+        && top_ == other.top_
+        && right_ == other.right_
+        && bottom_ == other.bottom_;
+  }
+
+  bool operator!=(const BoundingBox& other) const {
+    return !operator==(other);
+  }
+
  private:
   static void CheckBounds(float value, float lower, float upper, string name) {
     DALI_ENFORCE(

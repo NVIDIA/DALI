@@ -84,6 +84,17 @@ class DLL_PUBLIC OpSpec {
   }
 
   /**
+   * @brief Add an argument with the given name and value if it doesn't exist already.
+   */
+  template <typename T>
+  DLL_PUBLIC inline OpSpec& AddArgIfNotExisting(const string &name, const T &val) {
+    if (arguments_.find(name) != arguments_.end()) {
+      return *this;
+    }
+    return SetArg(name, val);
+  }
+
+  /**
    * @brief Sets or adds an argument with the given name and value.
    */
   template <typename T>

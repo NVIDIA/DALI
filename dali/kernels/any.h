@@ -18,6 +18,7 @@
 #include <exception>
 #include <utility>
 #include <type_traits>
+#include <typeinfo>
 
 namespace dali {
 

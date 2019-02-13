@@ -87,7 +87,8 @@ enum DALITensorLayout {
   DALI_NCHW  = 0,
   DALI_NHWC  = 1,
   DALI_NFHWC = 2,
-  DALI_SAME  = 3
+  DALI_NFCHW = 3,
+  DALI_SAME  = 4
 };
 
 inline bool IsColor(DALIImageType type) {
@@ -205,11 +206,39 @@ inline std::string to_string(const DALITensorLayout& layout) {
       return "NHWC";
     case DALI_NFHWC:
       return "NFHWC";
+    case DALI_NFCHW:
+      return "NFCHW";
     case DALI_SAME:
       return "SAME";
     default:
       return "<unknown>";
   }
+}
+
+inline DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
+  switch (sequence_layout) {
+    case DALI_NFHWC:
+      return DALI_NHWC;
+    case DALI_NFCHW:
+      return DALI_NCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return sequence_layout;
+  }
+}
+
+inline DALITensorLayout GetSequenceLayout(DALITensorLayout element_layout) {
+  switch (element_layout) {
+    case DALI_NHWC:
+      return DALI_NFHWC;
+    case DALI_NCHW:
+      return DALI_NFCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return element_layout;
+  }
+}
+
+inline bool IsSequence(DALITensorLayout layout) {
+  return layout == DALI_NFHWC || layout == DALI_NFCHW;
 }
 
 template <typename T>
@@ -252,5 +281,9 @@ std::vector<std::string> string_split(const std::string &s, const char delim);
 #define LOG_LINE \
   if (0) \
   std::cout << __FILE__ << ":" << __LINE__ << ": "
+
+#define ERROR_LOG \
+  if (1) \
+  std::cerr << __FILE__ << ":" << __LINE__ << ": "
 
 #endif  // DALI_COMMON_H_

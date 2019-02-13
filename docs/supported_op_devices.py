@@ -11,9 +11,10 @@ def main(argv):
     mix_ops.remove('MakeContiguous')
     support_ops = set(b.RegisteredSupportOps())
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
-    op_name_max_len = len(max(all_ops, key=len))
+    link_string = '_'
+    op_name_max_len = len(max(all_ops, key=len)) + len(link_string)
     name_bar = op_name_max_len * '='
-    formater = '{:{c}>{op_name_max_len}}  {:{c}>6}  {:{c}>6}  {:{c}>6}  {:{c}>7}\n'
+    formater = '{0:{c}>{op_name_max_len}}  {1:{c}>6}  {2:{c}>6}  {3:{c}>6}  {4:{c}>7}\n'
     doc_table = ''
     doc_table += 'Below table lists all available operators and devices they can operate on.\n\n'
     doc_table += '.. |tick| image:: images/tick.gif\n'
@@ -25,7 +26,8 @@ def main(argv):
         is_gpu = '|tick|' if op in gpu_ops else ''
         is_mixed = '|tick|' if op in mix_ops else ''
         is_support = '|tick|' if op in support_ops else ''
-        op_doc = formater.format(op, is_cpu, is_gpu, is_mixed, is_support, op_name_max_len = op_name_max_len, c=' ')
+        op_string = op + link_string
+        op_doc = formater.format(op_string, is_cpu, is_gpu, is_mixed, is_support, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     with open(argv[0], 'w') as f:

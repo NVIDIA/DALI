@@ -19,7 +19,6 @@
 #include <type_traits>
 
 namespace dali {
-namespace kernels {
 
 // Based on "span: bounds-safe views for sequences of objects"
 // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0122r7.pdf
@@ -153,7 +152,6 @@ constexpr span<T, Extent> make_span(T *data) { return { data }; }
 template <ptrdiff_t Extent = dynamic_extent, typename T>
 constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) { return { data, extent }; }
 
-}  // namespace kernels
 }  // namespace dali
 
 #endif  // DALI_KERNELS_SPAN_H_

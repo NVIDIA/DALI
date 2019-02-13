@@ -73,14 +73,14 @@ void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr,
                                             device_type_t dst_type) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   CopyToExternalTensorHelper<CPUBackend>(t, ptr, dst_type,
-                                         Product(t.shape()) * t.type().size());
+                                         Volume(t.shape()) * t.type().size());
 }
 
 void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr,
                                             device_type_t dst_type) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   CopyToExternalTensorHelper<GPUBackend>(t, ptr, dst_type,
-                                         Product(t.shape()) * t.type().size());
+                                         Volume(t.shape()) * t.type().size());
 }
 void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr,
                                             device_type_t dst_type) {

@@ -26,6 +26,7 @@ add_subdirectory(support)
 add_subdirectory(util)
 add_subdirectory(paste)
 add_subdirectory(geometric)
+add_subdirectory(transpose)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)

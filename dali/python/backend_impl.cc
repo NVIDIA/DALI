@@ -116,7 +116,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
           }
-          size_t bytes = Product(i_shape) * info.itemsize;
+          size_t bytes = Volume(i_shape) * info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;
@@ -221,7 +221,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             tensor_shape[i-1] = info.shape[i];
           }
           std::vector<Dims> i_shape(info.shape[0], tensor_shape);
-          size_t bytes = Product(tensor_shape)*i_shape.size()*info.itemsize;
+          size_t bytes = Volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;
@@ -537,6 +537,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("NCHW", DALI_NCHW)
     .value("NHWC", DALI_NHWC)
     .value("NFHWC", DALI_NFHWC)
+    .value("NFCHW", DALI_NFCHW)
     .value("SAME", DALI_SAME)
     .export_values();
 
@@ -756,7 +757,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
         "arg_name"_a,
         "local_only"_a = false)
-    .def("IsTensorArgument", &OpSchema::IsTensorArgument);
+    .def("IsTensorArgument", &OpSchema::IsTensorArgument)
+    .def("AllowsSequences", &OpSchema::AllowsSequences);
 
   ExposeTensor(m);
   ExposeTensorList(m);

@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Get all the source files
+# Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
+file(GLOB tmp_test *_test.cc)
+remove(tmp "${tmp}" ${tmp_test})
+
 set(DALI_SRCS ${DALI_SRCS} ${tmp} PARENT_SCOPE)
+
+if (BUILD_TEST)
+  # get all the test srcs
+  file(GLOB tmp *_test.cc)
+  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
+endif()

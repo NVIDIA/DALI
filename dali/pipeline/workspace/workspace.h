@@ -301,6 +301,38 @@ class WorkspaceBase : public ArgumentWorkspace {
     (*index_map)[idx] = std::make_pair(on_cpu, vec->size()-1);
   }
 
+  inline const InputType<GPUBackend>& GPUInput(int idx) const {
+    auto tensor_meta = FetchAtIndex(input_index_map_, idx);
+    DALI_ENFORCE(!tensor_meta.first, "Input with given "
+        "index (" + std::to_string(idx) +
+        ") does not have the calling backend type (GPUBackend)");
+    return gpu_inputs_[tensor_meta.second];
+  }
+
+  inline const InputType<CPUBackend>& CPUInput(int idx) const {
+    auto tensor_meta = FetchAtIndex(input_index_map_, idx);
+    DALI_ENFORCE(tensor_meta.first, "Input with given "
+        "index (" + std::to_string(idx) +
+        ") does not have the calling backend type (CPUBackend)");
+    return cpu_inputs_[tensor_meta.second];
+  }
+
+  inline const InputType<GPUBackend>& GPUOutput(int idx) const {
+    auto tensor_meta = FetchAtIndex(output_index_map_, idx);
+    DALI_ENFORCE(!tensor_meta.first, "Output with given "
+        "index (" + std::to_string(idx) +
+        ")does not have the calling backend type (GPUBackend)");
+    return gpu_outputs_[tensor_meta.second];
+  }
+
+  inline const InputType<CPUBackend>& CPUOutput(int idx) const {
+    auto tensor_meta = FetchAtIndex(output_index_map_, idx);
+    DALI_ENFORCE(tensor_meta.first, "Output with given "
+        "index (" + std::to_string(idx) +
+        ") does not have the calling backend type (CPUBackend)");
+    return cpu_outputs_[tensor_meta.second];
+  }
+
   vector<InputType<CPUBackend>> cpu_inputs_;
   vector<OutputType<CPUBackend>> cpu_outputs_;
   vector<InputType<GPUBackend>> gpu_inputs_;
@@ -315,6 +347,16 @@ class WorkspaceBase : public ArgumentWorkspace {
   // Tensor is stored on cpu, and the second element is the index of
   // that tensor in the {cpu, gpu}_inputs_ vector.
   vector<std::pair<bool, int>> input_index_map_, output_index_map_;
+
+ private:
+  inline const std::pair<bool, int>& FetchAtIndex(
+    const vector<std::pair<bool, int>>& index_map, int idx) const {
+    DALI_ENFORCE(idx >= 0 && idx < (int) index_map.size(),
+      "Index out of range." + std::to_string(idx) +
+      " not in range [0, " + std::to_string(index_map.size())
+      + ")");
+    return index_map[idx];
+  }
 };
 
 }  // namespace dali

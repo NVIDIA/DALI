@@ -213,6 +213,8 @@ class DataReader : public Operator<Backend> {
 
     Operator<Backend>::Run(ws);
 
+    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+
     for (auto &sample : prefetched_batch_) {
         loader_->ReturnTensor(sample);
     }
