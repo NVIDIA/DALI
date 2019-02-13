@@ -17,8 +17,8 @@ import nvidia.dali.types as types
 class VideoReaderPipeline(Pipeline):
     def __init__(self, batch_size, sequence_length, num_threads, device_id, files):
         super(VideoReaderPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length,
-                                     random_shuffle=True, dtype=types.UINT8, initial_fill=16)
+        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length, normalized=True,
+                                     random_shuffle=True, image_type=types.YCbCr, dtype=types.UINT8, initial_fill=16)
         self.crop = ops.Crop(device="gpu", crop=(550,950))
         self.uniform = ops.Uniform(range=(0.0, 1.0))
         self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
@@ -58,8 +58,6 @@ def get_loader(args, ds_type):
         raise ValueError("ds_type has to be either 'train' or 'val'")
 
     if args.loader == 'pytorch':
-
-
         if ds_type == 'train':
             dataset = imageDataset(
                 args.frames,

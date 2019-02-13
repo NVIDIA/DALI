@@ -31,7 +31,6 @@ def psnr(img1, img2):
 
 
 def rgb2ycbcr(input_tensor):
-
     # Conversion from RGB to YCbCr according to
     # https://en.wikipedia.org/wiki/YCbCr?section=6#JPEG_conversion
     # Expecting batch of RGB images with values in [0, 255]
@@ -53,7 +52,6 @@ def rgb2ycbcr(input_tensor):
 
 
 def ycbcr2rgb(input_tensor):
-
     # Conversion from YCbCr to RGB according to
     # https://en.wikipedia.org/wiki/YCbCr/16?section=6#JPEG_conversion
     # Expecting batch of YCbCr images with values in [0, 255]
@@ -96,13 +94,8 @@ def get_grid(batchsize, rows, cols, fp16):
 
 def tensorboard_image(name, image, iteration, writer):
     # tensorboardX expects CHW images
-    out_im = image.data.cpu().numpy().astype('uint8')
+    out_im = ycbcr2rgb(image.data).cpu().numpy().astype('uint8')
     # out_im = np.transpose(image.data.cpu().numpy().astype('int8'), (1, 2, 0))
-    # print(out_im.shape)
-    # from PIL import Image
-    # im = Image.fromarray(out_im)
-    # im.save('framed_thatshouldbegood.png')
-
     writer.add_image(name, out_im, iteration)
 
 
@@ -141,11 +134,12 @@ class VSRNet(nn.Module):
         self.conv3.weight = torch.nn.init.normal(self.conv3.weight, 0, 0.1)
 
     def forward(self, inputs, iteration, writer, im_out=False):
-
         batchsize, channels, frames, rows, cols = inputs.size()
 
-        y, cb, cr = rgb2ycbcr(inputs)
-        y /= 255
+        # inputs are normalized
+        y, cb, cr = inputs
+        cb *= 255
+        cr *= 255
         target = y[:, :, self.mi, :, :]
 
         if writer is not None and im_out:
@@ -157,12 +151,14 @@ class VSRNet(nn.Module):
             tensorboard_image('upsampled', out_im, iteration, writer)
 
         # Compute per RGB channel mean across pixels for each image in input batch
+        # YCbCr mean? Does it matter?
         rgb_mean = inputs.view((batchsize, channels) + (-1, )).float().mean(dim=-1)
         rgb_mean = rgb_mean.view((batchsize, channels) + (1, 1, 1, ))
         if self.fp16:
             rgb_mean = rgb_mean.half()
 
-        inputs = (inputs - rgb_mean) / 255
+        # can we keep it normalized?
+        inputs = (inputs - rgb_mean)
 
         if self.training:
             if self.train_grid is None:
@@ -174,6 +170,7 @@ class VSRNet(nn.Module):
             grid = self.val_grid
         grid.requires_grad = False
 
+        # should we denormalize cb and cr here or later?
         downsampled_input = self.pooling(cb[:, :, self.mi, :, :])
         cb[:, :, self.mi, :, :] = self.upsample(downsampled_input)
         downsampled_input = self.pooling(cr[:, :, self.mi, :, :])
@@ -194,6 +191,7 @@ class VSRNet(nn.Module):
 
                 to_warp = y[:, :, fr, :, :]
 
+                # feeding im_pair as normalized YCbCr
                 flow = self.upsample(self.FlowNetSD_network(im_pair)[0]) / 16
 
                 flow = torch.cat([flow[:, 0:1, :, :] / ((cols - 1.0) / 2.0),
@@ -223,8 +221,8 @@ class VSRNet(nn.Module):
             psnr_metric = psnr(prediction[:, :, 12:, :-12].float() * 255,
                                target[:, :, 12:, :-12].float() * 255)
 
-        prediction = ycbcr2rgb(torch.cat((prediction * 255, cb[:, :, self.mi, :, :],
-                               cr[:, :, self.mi, :, :]), 1))
+        prediction = torch.cat((prediction * 255, cb[:, :, self.mi, :, :] *255,
+                               cr[:, :, self.mi, :, :]) * 255, 1 )
 
         if writer is not None and im_out:
             out_im = prediction[0, :, :, :]

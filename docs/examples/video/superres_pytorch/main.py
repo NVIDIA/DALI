@@ -207,12 +207,6 @@ def main(args):
         for i, inputs in enumerate(val_loader):
             if args.loader == 'DALI':
                 inputs = inputs[0]["data"]
-                ### Temporary numpy pipeline ###
-                # NFHWC to NCFHW
-                np_tmp = inputs.cpu().numpy().transpose((0, 4, 1, 2, 3))
-                np_tmp = np.ascontiguousarray(np_tmp[:, :, :, 100:612, 150:1110]) # crop to 512x960
-                inputs = torch.from_numpy(np_tmp)
-
                 # Needed? It is already gpu
                 inputs = inputs.cuda(non_blocking=True)
             else:
