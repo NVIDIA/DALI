@@ -17,13 +17,16 @@ import nvidia.dali.types as types
 class VideoReaderPipeline(Pipeline):
     def __init__(self, batch_size, sequence_length, num_threads, device_id, files):
         super(VideoReaderPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.input = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length,
-                                     shard_id=device_id, num_shards=1, random_shuffle=True,
-                                     initial_fill=16)
-
+        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length,
+                                     random_shuffle=True, dtype=types.UINT8, initial_fill=16)
+        self.crop = ops.Crop(device="gpu", crop=(550,950))
+        self.uniform = ops.Uniform(range=(0.0, 1.0))
+        self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
 
     def define_graph(self):
-        output = self.input(name="Reader")
+        input = self.reader(name="Reader")
+        cropped = self.crop(input, crop_pos_x=self.uniform(), crop_pos_y=self.uniform())
+        output = self.transpose(cropped)
         return output
 
 class DALILoader():
