@@ -30,14 +30,17 @@ class FlipAugment : public WarpAffineAugment {
   }
 
   void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
-    float horizontal = (spec.GetArgument<int>("horizontal", ws, index)) ? -1.0 : 1.0;
-    float vertical = (spec.GetArgument<int>("vertical", ws, index)) ? -1.0 : 1.0;
-    p->matrix[0] = 1.0 * horizontal;
-    p->matrix[1] = 0.0;
-    p->matrix[2] = 0.0;
-    p->matrix[3] = 0.0;
-    p->matrix[4] = 1.0 * vertical;
-    p->matrix[5] = 0.0;
+    bool horizontal = 0 != spec.GetArgument<int>("horizontal", ws, index);
+    bool vertical   = 0 != spec.GetArgument<int>("vertical", ws, index);
+    // NOTE:
+    // There are additional -1px offsets for flipped axes because use_image_center is broken.
+    // To be removed when displacement is done properly.
+    p->matrix[0] = horizontal ? -1 : 1;
+    p->matrix[1] = 0;
+    p->matrix[2] = horizontal ? -1 : 0;
+    p->matrix[3] = 0;
+    p->matrix[4] = vertical ? -1 : 1;
+    p->matrix[5] = vertical ? -1 : 0;
   }
 };
 
