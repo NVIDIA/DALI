@@ -22,10 +22,10 @@ namespace dali {
 namespace kernels {
 
 template <typename T, size_t N>
-class DevArray {
+class DeviceArray {
  public:
-  constexpr DevArray() = default;
-  __host__ DevArray(const std::array<T, N> &src) {
+  constexpr DeviceArray() = default;
+  __host__ DeviceArray(const std::array<T, N> &src) {
     for (size_t i = 0; i < N; i++)
       data_[i] = src[i];
   }
@@ -42,14 +42,28 @@ class DevArray {
   __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const
   { return data_[index]; }
 
-  __host__ __device__ T *begin() { return data_; }
+  __host__ __device__ inline T *begin() { return data_; }
   __host__ __device__ constexpr const T *begin() const { return data_; }
   __host__ __device__ constexpr const T *cbegin() const { return data_; }
-  __host__ __device__ T *end() { return data_ + N; }
+  __host__ __device__ inline T *end() { return data_ + N; }
   __host__ __device__ constexpr const T *end() const { return data_ + N; }
   __host__ __device__ constexpr const T *cend() const { return data_ + N; }
   __host__ __device__ constexpr size_t size() const { return N; }
   __host__ __device__ constexpr bool empty() const { return N == 0; }
+  __host__ __device__ inline T *data() { return data_; }
+  __host__ __device__ constexpr T *data() const { return data_; }
+
+  __host__ __device__ inline bool operator==(const DeviceArray &other) const {
+    for (size_t i = 0; i < N; i++) {
+      if (data_[i] != other.data_[i])
+        return false;
+    }
+    return true;
+  }
+
+  __host__ __device__ inline bool operator!=(const DeviceArray &other) const {
+    return !(*this == other);
+  }
 
  private:
   T data_[N];
