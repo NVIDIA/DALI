@@ -305,7 +305,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     size_t elms = 0;
 
     for (auto &shape : shape_) {
-      elms += Product(shape);
+      elms += Volume(shape);
     }
     return elms;
   }
