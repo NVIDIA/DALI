@@ -38,28 +38,6 @@ std::unordered_map<size_t, TypeInfo> TypeTable::type_info_map_;
 int TypeTable::index_ = DALI_DATATYPE_END;
 
 template <>
-void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
-  // Call our constructor function
-  constructor_(ptr, n);
-}
-
-template <>
-void TypeInfo::Construct<GPUBackend>(void *, Index) {
-  // NoOp. GPU types must not require constructor
-}
-
-template <>
-void TypeInfo::Destruct<CPUBackend>(void *ptr, Index n) {
-  // Call our destructor function
-  destructor_(ptr, n);
-}
-
-template <>
-void TypeInfo::Destruct<GPUBackend>(void *, Index) {
-  // NoOp. GPU types must not require destructor
-}
-
-template <>
 void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
     const void *src, Index n, cudaStream_t /* unused */) {
   // Call our copy function
