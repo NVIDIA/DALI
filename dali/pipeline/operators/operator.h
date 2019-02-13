@@ -250,6 +250,9 @@ class Operator : public OperatorBase {
 
         std::vector<Dims> new_shapes;
         for (const Dims &old_shape : old_shapes) {
+          // batch of sequences of different size not implemented
+          DALI_ENFORCE(seq_sizes_[i] == old_shape[0],
+            "Operator " + spec_.name() + " expects a batch of sequences of same length.");
           // getting only the need 3 dimensions
           Dims new_shape(old_shape.begin() + 1, old_shape.end());
           for (int s = 0; s < seq_sizes_[i]; ++s) {
