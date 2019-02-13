@@ -25,12 +25,12 @@ namespace program_options {
  * Parses entry values of C++ executable and stores them internally.
  * You can access these values using functions below.
  */
-extern void parse_program_options(int argc, const char **argv);
+void parse_program_options(int argc, const char **argv);
 
 /**
  * Returns value passed using "--dali_extra_path" flag
  */
-extern const std::string &dali_extra_path();
+const std::string &dali_extra_path();
 
 }  // namespace program_options
 }  // namespace testing
