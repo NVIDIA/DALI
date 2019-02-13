@@ -94,8 +94,8 @@ bool is_aligned(T *ptr, size_t alignment = alignof(T)) {
   return intptr_t(ptr) % alignment == 0;
 }
 
-TEST(Scratch, Scratchpad) {
-  Scratchpad pad;
+TEST(Scratch, PreallocatedScratchpad) {
+  PreallocatedScratchpad pad;
 
   const size_t size = 256;
   const size_t num_allocs = (size_t)AllocType::Count;
@@ -131,6 +131,14 @@ TEST(Scratch, Scratchpad) {
   }
 }
 
+TEST(Scratch, Scratchpad) {
+  Scratchpad scratchpad;
+  for (size_t i = 0; i < scratchpad.allocs.size(); i++) {
+    AllocType alloc = AllocType(i);
+    scratchpad.reserve(AllocType::Host, 1024);
+    scratchpad.reserve(AllocType::GPU,  2*1024);
+  }
+}
 
 }  // namespace kernels
 }  // namespace dali

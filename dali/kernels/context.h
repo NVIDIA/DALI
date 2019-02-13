@@ -16,9 +16,11 @@
 #define DALI_KERNELS_CONTEXT_H_
 
 #include <cuda_runtime_api.h>
+#include <utility>
 #include <vector>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc_type.h"
+#include "dali/kernels/any.h"
 
 namespace dali {
 namespace kernels {
@@ -37,13 +39,21 @@ class ScratchpadAllocator {
 
   template <AllocType alloc_type, typename T, size_t dim>
   TensorView<AllocBackend<alloc_type>, T, dim> AllocTensor(TensorShape<dim> shape) {
-    return { New<T>(alloc_type, Volume(shape)), shape };
+    return { New<T>(alloc_type, Volume(shape)), std::move(shape) };
   }
 
   template <AllocType alloc_type, typename T, size_t dim>
   TensorListView<AllocBackend<alloc_type>, T, dim>
-  AllocTensorList(std::vector<TensorShape<dim>> shape) {
+  AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
     TensorListView<AllocBackend<alloc_type>, T, dim> tlv(nullptr, shape);
+    tlv.data = New<T>(alloc_type, tlv.total_size());
+    return tlv;
+  }
+
+  template <AllocType alloc_type, typename T, size_t dim>
+  TensorListView<AllocBackend<alloc_type>, T, dim>
+  AllocTensorList(TensorListShape<dim> shape) {
+    TensorListView<AllocBackend<alloc_type>, T, dim> tlv(nullptr, std::move(shape));
     tlv.data = New<T>(alloc_type, tlv.total_size());
     return tlv;
   }
@@ -63,7 +73,13 @@ using GPUContext = Context<ComputeGPU>;
 struct KernelContext {
   CPUContext cpu;
   GPUContext gpu;
+
+  /// @brief Caller-provided allocator for temporary data.
   ScratchpadAllocator *scratchpad;
+
+  /// @brief Kernel-provided context; should not be changed by the caller between
+  ///        calls to GetRequirements and Run
+  any kernel_data;
 };
 
 }  // namespace kernels

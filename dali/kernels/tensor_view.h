@@ -255,6 +255,11 @@ struct TensorListViewBase {
   ptrdiff_t num_elements() const { return offsets.empty() ? 0 : offsets[size()]; }
   int sample_dim() const { return shape.sample_dim(); }
 
+  /// @brief Update offsets after shape has been changed
+  void update_offsets() {
+    calculate_offsets(offsets, shape);
+  }
+
   template <int other_sample_ndim>
   TensorListView<Backend, DataType, other_sample_ndim> to_static() {
     static_assert(other_sample_ndim != DynamicDimensions,

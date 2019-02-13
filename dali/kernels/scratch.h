@@ -18,6 +18,7 @@
 #include <array>
 #include <utility>
 #include <type_traits>
+#include "dali/kernels/alloc.h"
 #include "dali/kernels/context.h"
 
 namespace dali {
@@ -65,16 +66,30 @@ class BumpAllocator {
     assert(used_ + required <= total_);
   }
 
+  /// @brief Resets the usage counter so the buffer can be reused.
+  inline void clear() {
+    used_ = 0;
+  }
+
  private:
   T *memory_ = nullptr;
   size_t total_ = 0;
   size_t used_ = 0;
 };
 
-struct Scratchpad : ScratchpadAllocator {
-  Scratchpad() = default;
-  explicit Scratchpad(std::array<BumpAllocator<char>, size_t(AllocType::Count)> &&allocs)
-    : allocs(std::move(allocs)) {}
+struct PreallocatedScratchpad : ScratchpadAllocator {
+  PreallocatedScratchpad() = default;
+
+  explicit PreallocatedScratchpad(
+      std::array<BumpAllocator<char>,
+      size_t(AllocType::Count)> &&allocs)
+  : allocs(std::move(allocs)) {}
+
+  void clear() {
+    for (auto &a : allocs) {
+      a.clear();
+    }
+  }
 
   void *Alloc(AllocType alloc, size_t bytes, size_t alignment) override {
     auto &A = allocs[(size_t)alloc];
@@ -86,6 +101,43 @@ struct Scratchpad : ScratchpadAllocator {
   }
 
   std::array<BumpAllocator<char>, size_t(AllocType::Count)> allocs;
+};
+
+/// @brief Implements an ever-growing scratchpad
+class Scratchpad : public PreallocatedScratchpad {
+ public:
+  static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
+
+  void free() {
+    allocs = {};
+    buffers_ = {};
+  }
+
+  void reserve(std::array<size_t, NumAllocTypes> sizes) {
+    for (size_t idx = 0; idx < NumAllocTypes; idx++) {
+      reserve(AllocType(idx), sizes[idx]);
+    }
+  }
+
+  void reserve(AllocType type, size_t size) {
+    size_t index = static_cast<size_t>(type);
+    auto &buf = buffers_[index];
+    if (buf.capacity < size) {
+      constexpr size_t alignment = 64;
+      buf.mem = memory::alloc_unique<char>(type, size + alignment);
+      uintptr_t ptr = reinterpret_cast<uintptr_t>(buf.mem.get());
+      size_t padding = (alignment-1) & (-ptr);
+      allocs[index] = { buf.mem.get() + padding, size };
+      buffers_[index].capacity = size + alignment - padding;
+    }
+  }
+
+ private:
+  struct Buffer {
+    memory::KernelUniquePtr<char> mem;
+    size_t capacity = 0;
+  };
+  std::array<Buffer, NumAllocTypes> buffers_;
 };
 
 }  // namespace kernels

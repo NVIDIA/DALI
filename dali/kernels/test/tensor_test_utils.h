@@ -70,6 +70,12 @@ void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2
   CheckEqual(s1, s2, max_errors);
 }
 
+template <typename T>
+T printable(T t) { return t; }
+
+inline int printable(char c) { return c; }
+inline int printable(signed char c) { return c; }
+inline int printable(unsigned char c) { return c; }
 
 template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
 void Check(
@@ -92,8 +98,8 @@ void Check(
       if (errors++ < max_errors) {
         EXPECT_TRUE(eq(tv1.data[i], tv2.data[i]))
           << "Failed at offset " << i << ", pos = " << pos
-          << "tv1[" << i << "] = " << tv1.data[i]
-          << "tv2[" << i << "] = " << tv2.data[i];
+          << " tv1[" << i << "] = " << printable(tv1.data[i])
+          << " tv2[" << i << "] = " << printable(tv2.data[i]);
       }
     }
 
@@ -128,7 +134,7 @@ struct EqualEps {
 
   template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
-    return std::abs(b-a) < eps;
+    return std::abs(b-a) <= eps;
   }
   double eps = 1e-6;
 };
