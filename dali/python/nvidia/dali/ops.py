@@ -47,6 +47,8 @@ def _docstring_generator(cls):
     ret += pre_doc
     ret += schema.Dox()
     ret += '\n'
+    if schema.AllowsSequences():
+        ret += "\nThis operator allows sequence inputs\n"
     ret += """
 Parameters
 ----------

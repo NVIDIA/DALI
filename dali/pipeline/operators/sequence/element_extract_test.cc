@@ -46,7 +46,7 @@ class ElementExtractTest : public DaliOperatorTest {
     GetSequenceData() {
         std::unique_ptr<TensorList<CPUBackend>> data(
             new TensorList<CPUBackend>);
-        std::vector<Dims> shape(ntensors_, {F_, W_, H_, C_});
+        std::vector<Dims> shape(ntensors_, {F_, H_, W_, C_});
         data->set_type(TypeInfo::Create<T>());
         data->SetLayout(DALITensorLayout::DALI_NFHWC);
         data->Resize(shape);
@@ -80,7 +80,7 @@ class ElementExtractTest : public DaliOperatorTest {
                 const Dims shape = output_tl->tensor_shape(idx);
                 const auto *data = output_tl->tensor<T>(idx);
                 ASSERT_NE(nullptr, data);
-                Dims expected_shape{W_, H_, C_};
+                Dims expected_shape{H_, W_, C_};
                 EXPECT_EQ(expected_shape, shape);
                 for (int i = 0; i < H_; i++)
                     for (int j = 0; j < W_; j++)

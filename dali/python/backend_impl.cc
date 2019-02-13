@@ -537,6 +537,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("NCHW", DALI_NCHW)
     .value("NHWC", DALI_NHWC)
     .value("NFHWC", DALI_NFHWC)
+    .value("NFCHW", DALI_NFCHW)
     .value("SAME", DALI_SAME)
     .export_values();
 
@@ -756,7 +757,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
         "arg_name"_a,
         "local_only"_a = false)
-    .def("IsTensorArgument", &OpSchema::IsTensorArgument);
+    .def("IsTensorArgument", &OpSchema::IsTensorArgument)
+    .def("AllowsSequences", &OpSchema::AllowsSequences);
 
   ExposeTensor(m);
   ExposeTensorList(m);

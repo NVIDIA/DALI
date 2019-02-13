@@ -17,6 +17,7 @@
 
 #include <utility>
 #include <vector>
+#include <tuple>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
@@ -119,21 +120,31 @@ class Crop : public Operator<Backend>, protected CropAttr {
  private:
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
 
+  inline static std::tuple<Index, Index, Index> GetHWC(const vector<Index> &shape) {
+    if (shape.size() == 3) {
+      return std::make_tuple(shape[0], shape[1], shape[2]);
+    } else if (shape.size() == 4) {
+      return std::make_tuple(shape[1], shape[2], shape[3]);
+    }
+    DALI_FAIL("Expected 3-dimensional or 4-dimensional input");
+  }
+
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
                                const vector<Index> &inputShape, int threadIdx,
                                int dataIdx) {
-    DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
-
-    const int H = inputShape[0];
-    const int W = inputShape[1];
+    Index H, W, C;
+    std::tie(H, W, C) = GetHWC(inputShape);
 
     per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
 
-    int C = inputShape[2];
     DALI_ENFORCE(C == C_,
-                 "Input channel dimension does not match "
-                 "the output image type. Expected input with " +
-                     to_string(C_) + " channels, got " + to_string(C) + ".");
+      "Input channel dimension does not match "
+      "the output image type. Expected input with " +
+      to_string(C_) + " channels, got " + to_string(C) + ".");
+
+    DALI_ENFORCE(H >= crop_height_[dataIdx] && W >= crop_width_[dataIdx],
+      "Image dimensions for sample " + std::to_string(dataIdx)
+      + " are smaller than the cropping window");
 
     per_sample_crop_[threadIdx] = CalculateCropYX(spec_, ws, dataIdx, H, W);
   }
@@ -173,9 +184,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
     for (int i = 1; i < ws->NumInput(); ++i) {
       DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
     }
-
-    DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-
     return input.shape();
   }
 };

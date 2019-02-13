@@ -17,6 +17,7 @@
 #define DALI_PIPELINE_OPERATORS_SEQUENCE_ELEMENT_EXTRACT_H_
 
 #include <vector>
+#include "dali/common.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -34,15 +35,6 @@ namespace detail {
     for (auto elem : element_map)
         DALI_ENFORCE(elem < N_input,
             "index " + std::to_string(elem) + " out of bounds");
-  }
-
-  static DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
-    switch (sequence_layout) {
-        case DALI_NFHWC:
-            return DALI_NHWC;
-        default:  // if cannot produce anything meaningful, keep the same layout
-            return sequence_layout;
-    }
   }
 }  // namespace detail
 

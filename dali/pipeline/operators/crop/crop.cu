@@ -71,16 +71,16 @@ DALIError_t BatchedCrop(const uint8 *const *in_batch, const int *in_strides,
       C, H, W, in_batch, in_strides, L, out_batch, output_offsets);
   return DALISuccess;
 }
+
 }  // namespace
 
 template <>
 template <typename Out>
 void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   auto &output = ws->Output<GPUBackend>(idx);
-
   DALI_CALL((BatchedCrop<Out>(
       input_ptrs_gpu_.data<const uint8 *>(),
-      input_strides_gpu_.data<int>(), batch_size_,
+      input_strides_gpu_.data<int>(), batch_size_ * SequenceSize(idx),
       crop_height_gpu_.data<int>(),
       crop_width_gpu_.data<int>(), C_, output_layout_,
       output.mutable_data<Out>(),
@@ -90,23 +90,48 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
 template <>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   const auto &input = ws->Input<GPUBackend>(0);
+  const int sequence_size = SequenceSize(0);
+  const int total_batch_size = batch_size_ * sequence_size;
+  if (sequence_size > 1) {
+    Init(total_batch_size);
+    std::vector<int> new_crop_height_(total_batch_size);
+    std::vector<int> new_crop_width_(total_batch_size);
+    for (int i = 0; i < total_batch_size; ++i) {
+      new_crop_height_[i] = crop_height_[i / sequence_size];
+      new_crop_width_[i] = crop_width_[i / sequence_size];
+    }
+    crop_height_ = new_crop_height_;
+    crop_width_ = new_crop_width_;
+  }
 
   if (output_type_ == DALI_NO_TYPE) output_type_ = input.type().id();
 
-  for (int i = 0; i < batch_size_; ++i)
+  for (int i = 0; i < total_batch_size; ++i)
     SetupSharedSampleParams(ws, input.tensor_shape(i), i, i);
 }
 
 template <>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
+
+  const DALITensorLayout in_layout = input.GetLayout();
+  DALI_ENFORCE(in_layout == DALI_NHWC);
+
   auto &output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
-  DALITensorLayout outLayout = DALI_UNKNOWN;
+  DALITensorLayout out_layout = DALI_UNKNOWN;
 
-  std::vector<Dims> output_shape(batch_size_);
-  for (int i = 0; i < batch_size_; ++i) {
+  int total_batch_size = batch_size_ * SequenceSize(idx);
+  if (SequenceSize(idx) > 1) {
+    crop_offsets_.resize(total_batch_size);
+    input_ptrs_.Resize({total_batch_size});
+    input_strides_.Resize({total_batch_size});
+    output_offsets_.Resize({total_batch_size});
+  }
+
+  std::vector<Dims> output_shape(total_batch_size);
+  for (int i = 0; i < total_batch_size; ++i) {
     const auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
@@ -129,7 +154,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
 
     input_strides_.mutable_data<int>()[i] = W * C;
     crop_offsets_[i] = (crop_y * W + crop_x) * C;
-    output_shape[i] = GetOutShape(input.GetLayout(), &outLayout, i);
+    output_shape[i] = GetOutShape(in_layout, &out_layout, i);
 
     if (i == 0) {
       output_offsets_.mutable_data<int>()[i] = 0;
@@ -142,10 +167,10 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
 
   output.Resize(output_shape);
-  output.SetLayout(outLayout);
+  output.SetLayout(out_layout);
 
   // Calculate input pointers and copy to gpu
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < total_batch_size; ++i) {
     input_ptrs_.mutable_data<const uint8 *>()[i] =
         input.tensor<uint8>(i) + crop_offsets_[i];
   }

@@ -28,6 +28,7 @@ Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowMultipleInputSets()
+    .AllowSequences()
     .EnforceInputLayout(DALI_NHWC)
     .AddParent("Crop");
 
