@@ -87,7 +87,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
           break;
         case FeatureType::string:
-          if (!f.HasShape() || Product(f.Shape()) > 1) {
+          if (!f.HasShape() || Volume(f.Shape()) > 1) {
             DALI_FAIL("Tensors of strings are not supported.");
           }
           output.Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});

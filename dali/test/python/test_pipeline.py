@@ -497,6 +497,40 @@ def test_crop():
             img_crop = crop_img_batch_cpu.at(b)
             assert(np.array_equal(img_cmn, img_crop))
 
+def test_transpose():
+    class TransposePipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(TransposePipe, self).__init__(batch_size, num_threads, device_id, seed=12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.crop = ops.Crop(device = "gpu",
+                                 crop = (224, 224),
+                                 image_type = types.RGB)
+            self.transpose = ops.Transpose(device="gpu", perm=[2, 0, 1])
+
+        def define_graph(self):
+            imgs, labels = self.input()
+            output = self.decode(imgs)
+            cropped = self.crop(output)
+            transposed = self.transpose(cropped)
+            return (cropped, transposed, labels.gpu())
+
+    batch_size = 8
+    iterations = 8
+
+    pipe = TransposePipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+
+    for _ in range(iterations):
+        pipe_out = pipe.run()
+        images = pipe_out[0].asCPU().as_array()
+        images_transposed = pipe_out[1].asCPU().as_array()
+
+        for b in range(batch_size):
+            np_transposed = images[b].transpose((2, 0, 1))
+            np_transposed = np.ascontiguousarray(np_transposed)
+            assert(np.array_equal(np_transposed, images_transposed[b]))
+
 def test_iter_setup():
     class TestIterator():
         def __init__(self, n):

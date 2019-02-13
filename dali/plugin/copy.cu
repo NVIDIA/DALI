@@ -28,7 +28,7 @@ void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr,
   if (dst_type == CPU) {
     std::memcpy(ptr,
               t.raw_data(),
-              Product(t.shape()) * t.type().size());
+              Volume(t.shape()) * t.type().size());
   } else {
     DALI_FAIL("Coping from CPUBackend to device type " + to_string(dst_type));
   }
@@ -49,7 +49,7 @@ void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr,
   }
   CUDA_CALL(cudaMemcpyAsync(ptr,
                             t.raw_data(),
-                            Product(t.shape()) * t.type().size(),
+                            Volume(t.shape()) * t.type().size(),
                             direction,
                             stream));
   CUDA_CALL(cudaStreamSynchronize(stream));
