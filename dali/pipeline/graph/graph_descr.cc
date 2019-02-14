@@ -267,6 +267,7 @@ void OpGraph::RemoveTensorNode(TensorNodeId id) {
   DALI_ENFORCE_VALID_INDEX(id, (Index)tensor_nodes_.size());
   DALI_ENFORCE(tensor_nodes_[id].consumer_edges.empty(),
                "Removed tensors cannot have any consumers.");
+  auto removed_name = tensor_nodes_[id].name;
   // Swap it out
   for (TensorNodeId i = id + 1; i < static_cast<int>(tensor_nodes_.size()); i++) {
     // Move from i to i - 1
@@ -274,6 +275,7 @@ void OpGraph::RemoveTensorNode(TensorNodeId id) {
   }
   // We remove the last element
   tensor_nodes_.pop_back();
+  tensor_name_to_id_.erase(removed_name);
   // There is no option to remove from positional array of tensor produced by parent op
 }
 
@@ -516,7 +518,7 @@ void OpGraph::GenerateDOTFromGraph(const TensorNode &current_node, std::ofstream
   }
 }
 
-std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names) {
+std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names) const {
   std::vector<TensorNodeId> result;
   for (const auto& out : output_names) {
     result.push_back(TensorId(out));
@@ -524,7 +526,7 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
   return result;
 }
 
-std::vector<TensorNodeId> OpGraph::GetStageOutputs(DALIOpType stage) {
+std::vector<TensorNodeId> OpGraph::GetStageOutputs(DALIOpType stage) const {
   std::vector<TensorNodeId> result;
   for (const auto& tensor : tensor_nodes_) {
     // Check if the tensor is produced in current stage

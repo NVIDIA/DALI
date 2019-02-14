@@ -109,7 +109,7 @@ bool Reserve(DeviceWorkspace::output_t<Backend> &t, size_t new_num_bytes) {
 
 
 /*
- * Mappings from DALIOpType, DALITensorDevice to index in tensor_data_store_t
+ * Mappings from DALIOpType, DALITensorDevice to index in tensor_data_store_queue_t
  */
 
 constexpr size_t GetTensorStoreIndex(DALIOpType op_type, DALITensorDevice device) {
@@ -143,18 +143,74 @@ struct workspace_out_data_type_gen {
       storage_idx)>::template output_t<storage_backend_t<GetStorageDevice(storage_idx)>>;
 };
 
+// Helper struct for buffering Storage for Workspace Output Types
+// If we have more than one elements, we are Queueing them, and we allow indexing into queue.
+// If we only store 1 element, this means we are not queueing, and we always return that single
+// element
+template <typename StoredType>
+struct StoreBufferQueue {
+  static constexpr size_t unbuffered_size = 1;
+  std::vector<StoredType> store;
+
+  StoreBufferQueue() = default;
+
+  explicit StoreBufferQueue(size_t initial_size) {
+    store.resize(initial_size);
+  }
+
+  bool IsBuffered() const {
+    return store.size() > unbuffered_size;
+  }
+
+  void Queue(size_t elements) {
+    store.resize(elements);
+  }
+
+  auto operator[] (size_t index) -> decltype(store[index]) {
+    if (!IsBuffered()) {
+      return store[0];
+    }
+    return store[index];
+  }
+
+  auto begin() -> decltype(store.begin()) {
+    return store.begin();
+  }
+
+  auto end() -> decltype(store.end()) {
+    return store.end();
+  }
+
+  auto operator[] (size_t index) const -> decltype(store[index]) {
+    if (!IsBuffered()) {
+      return store[0];
+    }
+    return store[index];
+  }
+
+  auto begin() const -> decltype(store.begin()) {
+    return store.begin();
+  }
+
+  auto end() const -> decltype(store.end()) {
+    return store.end();
+  }
+
+  size_t size() const {
+    return store.size();
+  }
+};
+
+// Generator for Queue of Worskpace Output Type, indexed by GetTensorStoreIndex()
 template <int storage_idx>
-using workspace_out_data_t = typename workspace_out_data_type_gen<storage_idx>::type;
+using workspace_out_data_queue_t =
+    StoreBufferQueue<typename workspace_out_data_type_gen<storage_idx>::type>;
 
 template <DALIOpType op_type, DALITensorDevice device>
-using tensor_store_elem_t = workspace_out_data_t<GetTensorStoreIndex(op_type, device)>;
+using tensor_store_elem_t =
+    typename workspace_out_data_type_gen<GetTensorStoreIndex(op_type, device)>::type;
 
-// using tensor_data_store_t =
-//     std::tuple<workspace_out_data_t<0>, workspace_out_data_t<1>, workspace_out_data_t<2>,
-//                workspace_out_data_t<3>, workspace_out_data_t<4>, workspace_out_data_t<5>,
-//                workspace_out_data_t<6>, workspace_out_data_t<7>>;
-
-using tensor_data_store_t = detail::tuple_generator_t<workspace_out_data_t,
+using tensor_data_store_queue_t = detail::tuple_generator_t<workspace_out_data_queue_t,
                                                   detail::build_seq_t<0, GetMaxTensorStoreIndex()>>;
 
 template <int op_type>
@@ -209,10 +265,13 @@ struct BatchFactoryImpl<DALIOpType::SUPPORT, device> {
 
 template <DALIOpType op_type, DALITensorDevice device>
 struct FillStorageOwner {
-  tensor_data_store_t operator()(int batch_size) {
-    tensor_data_store_t result;
-    std::get<GetTensorStoreIndex(op_type, device)>(result) =
-        BatchFactoryImpl<op_type, device>::CreateOutputBatch(batch_size);
+  tensor_data_store_queue_t operator()(int batch_size, int queue_size) {
+    tensor_data_store_queue_t result;
+    auto& queue = std::get<GetTensorStoreIndex(op_type, device)>(result);
+    queue.Queue(queue_size);
+    for (auto& elem : queue) {
+      elem = BatchFactoryImpl<op_type, device>::CreateOutputBatch(batch_size);
+    }
     return result;
   }
 };
@@ -260,45 +319,45 @@ Ret Switch_Device(DALITensorDevice device, T &&... args) {
 
 /**
  * @brief Create the instance of of Workspace::OutputType for runtime pair of op_type and device
- * storing it at apropraite index of tensor_data_store_t tuple
+ * storing it at apropraite index of tensor_data_store_queue_t tuple
  * Other entries of tuple are empty
  */
-inline tensor_data_store_t BatchFactory(DALIOpType op_type, DALITensorDevice device,
-                                          int batch_size) {
-  return Switch_OpType_Device<FillStorageOwner, tensor_data_store_t>(op_type, device, batch_size);
+inline tensor_data_store_queue_t BatchFactory(DALIOpType op_type, DALITensorDevice device,
+                                              int batch_size, int queue_size = 1) {
+  return Switch_OpType_Device<FillStorageOwner, tensor_data_store_queue_t>(op_type, device,
+                                                                           batch_size, queue_size);
 }
 
 /**
  * @brief Set of wrappers for std::get, that for specified op_type and device
- * retrive the appropriate Workspace::OutputType from the tensor_data_store_t tuple
+ * retrive the appropriate Workspace::OutputType from the tensor_data_store_queue_t tuple
  */
 template <DALIOpType op_type, DALITensorDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_t>::type&
-get_storage(tensor_data_store_t& owner) noexcept {
+typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_queue_t>::type &
+get_queue(tensor_data_store_queue_t &owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <DALIOpType op_type, DALITensorDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_t>::type&&
-get_storage(tensor_data_store_t&& owner) noexcept {
+typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_queue_t>::type
+    &&
+    get_queue(tensor_data_store_queue_t &&owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <DALIOpType op_type, DALITensorDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_t>::type const&
-get_storage(const tensor_data_store_t& owner) noexcept {
+typename std::tuple_element<GetTensorStoreIndex(op_type, device),
+                            tensor_data_store_queue_t>::type const &
+get_queue(const tensor_data_store_queue_t &owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <DALIOpType op_type, DALITensorDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_t>::type const&&
-get_storage(const tensor_data_store_t&& owner) noexcept {
+typename std::tuple_element<GetTensorStoreIndex(op_type, device),
+                            tensor_data_store_queue_t>::type const &&
+get_queue(const tensor_data_store_queue_t &&owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
-
-
-
-
 
 }  // namespace dali
 

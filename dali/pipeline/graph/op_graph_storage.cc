@@ -18,24 +18,33 @@
 
 namespace dali {
 
-std::vector<tensor_data_store_t> CreateBackingStorageForTensorNodes(const OpGraph &op_graph,
-                                                                int batch_size) {
-  std::vector<tensor_data_store_t> result;
+std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(const OpGraph &op_graph,
+    int batch_size, const std::vector<int>& queue_sizes) {
+  DALI_ENFORCE(queue_sizes.size() == op_graph.NumTensor(),
+               "Data queue sizes undefined for some Tensor nodes.");
+  std::vector<tensor_data_store_queue_t> result;
   result.resize(op_graph.NumTensor());
+
   // Assign data to each Tensor node in graph
   for (int i = 0; i < op_graph.NumTensor(); i++) {
     const auto &tensor = op_graph.Tensor(i);
     auto producer_op_type = op_graph.Node(tensor.producer_edge.node).op_type;
-    result[i] = BatchFactory(producer_op_type, tensor.producer_edge.storage_device, batch_size);
+    result[i] = BatchFactory(producer_op_type, tensor.producer_edge.storage_device, batch_size,
+                             queue_sizes[i]);
   }
   return result;
 }
 
-std::vector<cudaEvent_t> CreateEventsForMixedOps(EventPool &event_pool, const OpGraph& op_graph) {
-  std::vector<cudaEvent_t> result;
+std::vector<std::vector<cudaEvent_t>> CreateEventsForMixedOps(EventPool &event_pool,
+                                                              const OpGraph &op_graph,
+                                                              int queue_depth) {
+  std::vector<std::vector<cudaEvent_t>> result;
   result.resize(op_graph.NumOp(DALIOpType::MIXED));
   for (int i = 0; i < op_graph.NumOp(DALIOpType::MIXED); i++) {
-    result[i] = event_pool.GetEvent();
+    result[i].resize(queue_depth);
+    for (int j = 0; j < queue_depth; j++) {
+      result[i][j] = event_pool.GetEvent();
+    }
   }
   return result;
 }

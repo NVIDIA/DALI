@@ -335,8 +335,8 @@ class DLL_PUBLIC OpGraph {
     visited_nodes_.clear();
   }
 
-  DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names);
-  DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(DALIOpType stage);
+  DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names) const;
+  DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(DALIOpType stage) const;
 
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
