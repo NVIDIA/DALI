@@ -44,6 +44,8 @@ std::vector<Arguments> arguments = {
         {{"preset", .5f}, {"enable_hints", false}}
 };
 
+Arguments device_gpu = {{"device", std::string{"gpu"}}};
+
 
 }  // namespace
 
@@ -94,7 +96,7 @@ TEST_P(OpticalFlowTest, StubImplementationTest) {
 
 
 INSTANTIATE_TEST_CASE_P(OpticalFlowStubImplementationsTest, OpticalFlowTest,
-                        ::testing::ValuesIn(testing::cartesian(utils::kDevices, arguments)));
+                        ::testing::ValuesIn(testing::cartesian({device_gpu}, arguments)));
 
 }  // namespace testing
 }  // namespace dali

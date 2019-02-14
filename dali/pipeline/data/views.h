@@ -83,12 +83,8 @@ kernels::TensorShape<ndim> tensor_shape(const Tensor<Backend> &tl) {
   int dim = tshape.size();
   if (ndim != kernels::DynamicDimensions) {
     DALI_ENFORCE(dim == ndim,
-                 [=]() -> std::string {
-                     std::stringstream errss;
-                     errss << "Input has a wrong number of dimensions: ("
-                           << dim << ") vs (" << ndim << ")";
-                     return errss.str();
-                 }());
+                 "Input has a wrong number of dimensions:"
+                 " (" + to_string(dim) + ") vs (" + to_string(ndim) + ")");
   } else {
     out.resize(dim);
   }
