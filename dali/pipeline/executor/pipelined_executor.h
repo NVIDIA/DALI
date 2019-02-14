@@ -51,50 +51,9 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);
 
  protected:
-  void SetupStageOutputsForGraph();
+  void SetupOutputInfo(const OpGraph &graph) override;
 
-  void SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb);
-
-  template <typename Backend>
-  class TensorVectorPool {
-   public:
-    inline TensorVectorPool(int size, int batch_size, size_t bytes_hint, bool pinned = false) {
-      tvs_.resize(size);
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < batch_size; ++j) {
-          tvs_[i].push_back(std::make_shared<Tensor<Backend>>());
-          tvs_[i].back()->set_pinned(pinned);
-          if (pinned || std::is_same<Backend, GPUBackend>::value)
-            tvs_[i].back()->reserve(bytes_hint);
-        }
-      }
-    }
-
-    inline const vector<shared_ptr<Tensor<Backend>>> &Get(int idx) {
-      return tvs_[idx];
-    }
-   private:
-    vector<vector<shared_ptr<Tensor<Backend>>>> tvs_;
-  };
-
-  template <typename Backend>
-  class TensorPool {
-   public:
-    inline TensorPool(int size, int, size_t bytes_hint, bool pinned = false) {
-      for (int i = 0; i < size; ++i) {
-        ts_.push_back(std::make_shared<Tensor<Backend>>());
-        ts_.back()->set_pinned(pinned);
-        if (pinned || std::is_same<Backend, GPUBackend>::value)
-          ts_.back()->reserve(bytes_hint);
-      }
-    }
-
-    inline shared_ptr<Tensor<Backend>> Get(int idx) {
-      return ts_[idx];
-    }
-   private:
-    vector<shared_ptr<Tensor<Backend>>> ts_;
-  };
+  std::vector<int> GetTensorQueueSizes(const OpGraph &graph) override;
 
   // Note: Pipelining the cpu, mixed, and gpu execution
   // can be viewed as prefetching each stage w.r.t. the
@@ -107,14 +66,8 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
   // we do not worry about CPU outputs of the mixed
   // stage, as these will only be created as outputs
   // requested by the user.
-  vector<TensorPool<CPUBackend>> support_stage_outputs_;
-  vector<TensorVectorPool<CPUBackend>> cpu_stage_outputs_;
-  vector<TensorListPool<CPUBackend>> mixed_stage_cpu_outputs_;
-  vector<TensorListPool<GPUBackend>> mixed_stage_gpu_outputs_;
-  vector<OutputInfo> support_stage_output_info_;
-  vector<OutputInfo> cpu_stage_output_info_;
-  vector<OutputInfo> mixed_stage_cpu_output_info_;
-  vector<OutputInfo> mixed_stage_gpu_output_info_;
+
+  std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
   USE_EXECUTOR_MEMBERS();
 };
