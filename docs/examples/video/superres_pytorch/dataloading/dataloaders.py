@@ -15,11 +15,11 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 
 class VideoReaderPipeline(Pipeline):
-    def __init__(self, batch_size, sequence_length, num_threads, device_id, files):
+    def __init__(self, batch_size, sequence_length, num_threads, device_id, files, crop_size):
         super(VideoReaderPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length, normalized=True,
+        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length, normalized=False,
                                      random_shuffle=True, image_type=types.YCbCr, dtype=types.UINT8, initial_fill=16)
-        self.crop = ops.Crop(device="gpu", crop=(550,950))
+        self.crop = ops.CropCastPermute(device="gpu", crop=crop_size, output_layout=types.NHWC, output_dtype=types.FLOAT)
         self.uniform = ops.Uniform(range=(0.0, 1.0))
         self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
 
@@ -30,18 +30,16 @@ class VideoReaderPipeline(Pipeline):
         return output
 
 class DALILoader():
-    def __init__(self, batch_size, file_root, sequence_length):
+    def __init__(self, batch_size, file_root, sequence_length, crop_size):
         container_files = os.listdir(file_root)
         container_files = [file_root + '/' + f for f in container_files]
-        print(container_files)
         self.pipeline = VideoReaderPipeline(batch_size=batch_size,
                                             sequence_length=sequence_length,
                                             num_threads=2,
                                             device_id=0,
-                                            files=container_files)
-        print("after")
+                                            files=container_files,
+                                            crop_size=crop_size)
         self.pipeline.build()
-        print("after build")
         self.epoch_size = self.pipeline.epoch_size("Reader")
         self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline,
                                                          ["data"],
@@ -110,12 +108,10 @@ def get_loader(args, ds_type):
             batches = math.ceil(len(dataset) / float(args.world_size))
 
     elif args.loader == 'DALI':
-
-        print(ds_type + " loader init")
         loader = DALILoader(args.batchsize,
             os.path.join(args.root, ds_type),
-            args.frames)
-        print(ds_type + " loader getting length")
+            args.frames,
+            args.crop_size)
         batches = len(loader)
         sampler = None
 

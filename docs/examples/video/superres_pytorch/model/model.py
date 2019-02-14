@@ -56,18 +56,18 @@ def ycbcr2rgb(input_tensor):
     # https://en.wikipedia.org/wiki/YCbCr/16?section=6#JPEG_conversion
     # Expecting batch of YCbCr images with values in [0, 255]
 
-    y = input_tensor[:, 0, :, :]
-    cb = input_tensor[:, 1, :, :]
-    cr = input_tensor[:, 2, :, :]
+    y =  input_tensor[0, :, :]
+    cb = input_tensor[1, :, :]
+    cr = input_tensor[2, :, :]
 
     r = y + 1.402 * (cr - 128)
     g = y - 0.344136 * (cb - 128) - 0.714136 * (cr - 128)
     b = y + 1.772 * (cb - 128)
-    r = torch.unsqueeze(r, 1)
-    g = torch.unsqueeze(g, 1)
-    b = torch.unsqueeze(b, 1)
+    r = torch.unsqueeze(r, 0)
+    g = torch.unsqueeze(g, 0)
+    b = torch.unsqueeze(b, 0)
 
-    return torch.clamp(torch.cat((r, g, b), 1), 0, 255)
+    return torch.clamp(torch.cat((r, g, b), 0), 0, 255)
 
 
 def get_grid(batchsize, rows, cols, fp16):
@@ -107,7 +107,7 @@ class VSRNet(nn.Module):
         self.fp16 = fp16
         self.mi = floor(self.frames / 2)
 
-        self.pooling = nn.AvgPool2d(4)
+        self.pooling = nn.AvgPool2d(4, ceil_mode=True)
         self.upsample = nn.Upsample(scale_factor=4, mode='bilinear')
 
         if fp16:
@@ -137,9 +137,10 @@ class VSRNet(nn.Module):
         batchsize, channels, frames, rows, cols = inputs.size()
 
         # inputs are normalized
-        y, cb, cr = inputs
-        cb *= 255
-        cr *= 255
+        y =  torch.unsqueeze(inputs[:, 0, :, :, :], 1)
+        cb = torch.unsqueeze(inputs[:, 1, :, :, :], 1)
+        cr = torch.unsqueeze(inputs[:, 2, :, :, :], 1)
+        y = y / 255
         target = y[:, :, self.mi, :, :]
 
         if writer is not None and im_out:
@@ -157,8 +158,7 @@ class VSRNet(nn.Module):
         if self.fp16:
             rgb_mean = rgb_mean.half()
 
-        # can we keep it normalized?
-        inputs = (inputs - rgb_mean)
+        inputs = (inputs - rgb_mean) / 255
 
         if self.training:
             if self.train_grid is None:
