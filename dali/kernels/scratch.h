@@ -24,15 +24,10 @@
 namespace dali {
 namespace kernels {
 
-template <typename T>
 class BumpAllocator {
-  static_assert(
-    std::is_pod<T>::value,
-    "BumpAllocator must be used with POD types");
-
  public:
   BumpAllocator() = default;
-  BumpAllocator(T *mem, size_t total) : memory_(mem), total_(total), used_(0) {}
+  BumpAllocator(char *mem, size_t total) : memory_(mem), total_(total), used_(0) {}
   BumpAllocator(BumpAllocator &&a) {
     *this = std::move(a);
   }
@@ -49,14 +44,14 @@ class BumpAllocator {
     return *this;
   }
 
-  inline T *New(size_t elements) {
+  inline char *alloc(size_t elements) {
     AssertAvail(elements);
-    T *p = next();
+    char *p = next();
     used_ += elements;
     return p;
   }
 
-  inline T *next() const { return memory_ + used_; }
+  inline char *next() const { return memory_ + used_; }
 
   inline size_t avail() const { return total_ - used_; }
   inline size_t total() const { return total_; }
@@ -67,27 +62,27 @@ class BumpAllocator {
   }
 
   /// @brief Resets the usage counter so the buffer can be reused.
-  inline void clear() {
+  inline void Clear() {
     used_ = 0;
   }
 
  private:
-  T *memory_ = nullptr;
+  char *memory_ = nullptr;
   size_t total_ = 0;
   size_t used_ = 0;
 };
 
-struct PreallocatedScratchpad : ScratchpadAllocator {
+struct PreallocatedScratchpad : Scratchpad {
   PreallocatedScratchpad() = default;
 
   explicit PreallocatedScratchpad(
-      std::array<BumpAllocator<char>,
+      std::array<BumpAllocator,
       size_t(AllocType::Count)> &&allocs)
   : allocs(std::move(allocs)) {}
 
-  void clear() {
+  void Clear() {
     for (auto &a : allocs) {
-      a.clear();
+      a.Clear();
     }
   }
 
@@ -96,30 +91,34 @@ struct PreallocatedScratchpad : ScratchpadAllocator {
     uintptr_t ptr = reinterpret_cast<uintptr_t>(A.next());
     // Calculate the padding needed to satisfy alignmnent requirements
     uintptr_t padding = (alignment-1) & (-ptr);
-    (void)A.New(padding);
-    return A.New(bytes);
+    (void)A.alloc(padding);
+    return A.alloc(bytes);
   }
 
-  std::array<BumpAllocator<char>, size_t(AllocType::Count)> allocs;
+  std::array<BumpAllocator, size_t(AllocType::Count)> allocs;
 };
 
 /// @brief Implements an ever-growing scratchpad
-class Scratchpad : public PreallocatedScratchpad {
+class ScratchpadAllocator {
  public:
   static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
 
-  void free() {
-    allocs = {};
+  /// @brief Releases any storage allocated by calls to `Reserve`.
+  /// @remarks Scratchpad returned by `GetScratchpad` is invalid after this call.
+  void Free() {
     buffers_ = {};
   }
 
-  void reserve(std::array<size_t, NumAllocTypes> sizes) {
+  void Reserve(std::array<size_t, NumAllocTypes> sizes) {
     for (size_t idx = 0; idx < NumAllocTypes; idx++) {
-      reserve(AllocType(idx), sizes[idx]);
+      Reserve(AllocType(idx), sizes[idx]);
     }
   }
 
-  void reserve(AllocType type, size_t size) {
+  /// @brief Ensures that at least `sizes` bytes of memory are available in storage `type`
+  /// @remarks If reallocation happens, any `Scratchpad` returned by `GetScratchpad`
+  ///          is invalidated.
+  void Reserve(AllocType type, size_t size) {
     size_t index = static_cast<size_t>(type);
     auto &buf = buffers_[index];
     if (buf.capacity < size) {
@@ -127,15 +126,27 @@ class Scratchpad : public PreallocatedScratchpad {
       buf.mem = memory::alloc_unique<char>(type, size + alignment);
       uintptr_t ptr = reinterpret_cast<uintptr_t>(buf.mem.get());
       size_t padding = (alignment-1) & (-ptr);
-      allocs[index] = { buf.mem.get() + padding, size };
       buffers_[index].capacity = size + alignment - padding;
+      buffers_[index].padding = padding;
     }
+  }
+
+  /// @brief Returns a scratchpad.
+  /// @remarks The returned scratchpad is invalidated by desctruction of this
+  ///          object or by subsequent calls to `Reserve` or `Free`.
+  PreallocatedScratchpad GetScratchpad() {
+    PreallocatedScratchpad scratchpad;
+    for (size_t idx = 0; idx < NumAllocTypes; idx++) {
+      auto &buf = buffers_[idx];
+      scratchpad.allocs[idx] = { buf.mem.get() + buf.padding, buf.capacity };
+    }
+    return scratchpad;
   }
 
  private:
   struct Buffer {
     memory::KernelUniquePtr<char> mem;
-    size_t capacity = 0;
+    size_t capacity = 0, padding = 0;
   };
   std::array<Buffer, NumAllocTypes> buffers_;
 };
