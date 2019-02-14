@@ -156,22 +156,6 @@ class Crop : public Operator<Backend>, protected CropAttr {
     output_layout_ = DALI_SAME;
   }
 
-  void CallRunHelper(Workspace<Backend> *ws, int idx) {
-    if (output_type_ == DALI_FLOAT) {
-      RunHelper<float>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      RunHelper<unsigned char>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      RunHelper<int16>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      RunHelper<int>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      RunHelper<int64>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
-    }
-  }
-
   /**
    * @brief Enforce that all shapes match
    *
