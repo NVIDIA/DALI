@@ -187,8 +187,7 @@ template <>
 void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   DataDependentSetup(ws, idx);
   DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
-    RunHelper<OutputType>(ws, idx);
-  );
+    RunHelper<OutputType>(ws, idx));
 }
 
 // Register operator
