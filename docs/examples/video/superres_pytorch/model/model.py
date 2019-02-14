@@ -221,8 +221,8 @@ class VSRNet(nn.Module):
             psnr_metric = psnr(prediction[:, :, 12:, :-12].float() * 255,
                                target[:, :, 12:, :-12].float() * 255)
 
-        prediction = torch.cat((prediction * 255, cb[:, :, self.mi, :, :] *255,
-                               cr[:, :, self.mi, :, :]) * 255, 1 )
+        prediction = torch.cat((prediction * 255, cb[:, :, self.mi, :, :],
+                               cr[:, :, self.mi, :, :]), 1 )
 
         if writer is not None and im_out:
             out_im = prediction[0, :, :, :]
