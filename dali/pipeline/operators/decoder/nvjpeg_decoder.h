@@ -61,15 +61,13 @@ namespace dali {
 
 namespace memory {
 
-int DeviceNew(void **ptr, size_t size) {
+inline int DeviceNew(void **ptr, size_t size) {
   *ptr = GPUBackend::New(size, false);
-
   return 0;
 }
 
-int DeviceDelete(void *ptr) {
+inline int DeviceDelete(void *ptr) {
   GPUBackend::Delete(ptr, 0, false);
-
   return 0;
 }
 

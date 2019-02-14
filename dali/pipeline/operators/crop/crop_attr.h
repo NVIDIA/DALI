@@ -92,7 +92,6 @@ class CropAttr {
   std::vector<int> crop_width_;
 };
 
-
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_CROP_CROP_ATTR_H_
