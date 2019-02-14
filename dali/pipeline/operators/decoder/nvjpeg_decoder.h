@@ -372,7 +372,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
     // If image is somehow not supported try hostdecoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
-      if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED) {
+      if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
         OCVFallback(data, in_size, output, stream, file_name);
         CUDA_CALL(cudaStreamSynchronize(stream));
         return;
