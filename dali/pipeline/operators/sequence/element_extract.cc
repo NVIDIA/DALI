@@ -22,6 +22,7 @@ DALI_SCHEMA(ElementExtract)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
+    .SequenceOperator()
     .AddArg("element_map",
         R"code(Indices of extracted elements)code",
         DALI_INT_VEC)

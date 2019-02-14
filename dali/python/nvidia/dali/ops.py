@@ -39,7 +39,7 @@ def _docstring_generator(cls):
         op_dev.append("'mixed'")
     if op_name in __support_ops:
         op_dev.append("'support'")
-    pre_doc = "This is " + ", ".join(op_dev) + " operator\n\n"
+    pre_doc = "This is a " + ", ".join(op_dev) + " operator\n\n"
 
     schema = b.GetSchema(op_name)
     # insert tag to easily link to the operator
@@ -47,7 +47,9 @@ def _docstring_generator(cls):
     ret += pre_doc
     ret += schema.Dox()
     ret += '\n'
-    if schema.AllowsSequences():
+    if schema.IsSequenceOperator():
+        ret += "\nThis operator expects sequence inputs\n"
+    elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
     ret += """
 Parameters
