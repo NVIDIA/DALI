@@ -56,6 +56,10 @@ struct Sampler<DALI_INTERP_NN, In> {
   __host__ __device__ T at(
       float x, float y, int c,
       const In *border_value) const {
+    return at<T>(
+      static_cast<int>(floorf(x)),
+      static_cast<int>(floorf(y)),
+      c, border_value);
   }
 
   template <typename T>

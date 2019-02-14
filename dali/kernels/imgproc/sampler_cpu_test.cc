@@ -46,6 +46,7 @@ TEST(SamplerCPU, NN) {
       EXPECT_EQ(pixel, ref) << " mismatch at (" << x << ",  " << y << ")";
       for (int c = 0; c < surf.channels; c++) {
         EXPECT_EQ(sampler.at(ix, iy, c, border.data()), ref[c]);
+        EXPECT_EQ(sampler.at(x,  y,  c, border.data()), ref[c]);
       }
     }
   }
