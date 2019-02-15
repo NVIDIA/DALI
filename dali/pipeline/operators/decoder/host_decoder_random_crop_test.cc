@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/host_decoder_test.h"
+#include "dali/pipeline/operators/decoder/decoder_test.h"
 #include "dali/util/random_crop_generator.h"
 
 namespace dali {
 
 template <typename ImgType>
-class HostDecoderRandomCropTest : public HostDecodeTestBase<ImgType> {
+class HostDecoderRandomCropTest : public DecodeTestBase<ImgType> {
  public:
   HostDecoderRandomCropTest()
     : random_crop_generator(
