@@ -46,11 +46,11 @@ struct SeparableResamplingSetup {
   };
 
   struct SampleDesc {
-    using DevShape = DevArray<int, 2>;
+    using DevShape = DeviceArray<int, 2>;
 
-    DevArray<ptrdiff_t, 3> offsets;
-    DevArray<int, 3>       strides;
-    DevArray<DevShape, 3>  shapes;
+    DeviceArray<ptrdiff_t, 3> offsets;
+    DeviceArray<int, 3>       strides;
+    DeviceArray<DevShape, 3>  shapes;
 
     ProcessingOrder order;
     int channels;

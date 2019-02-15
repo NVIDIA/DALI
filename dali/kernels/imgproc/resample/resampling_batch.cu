@@ -32,7 +32,7 @@ __global__ void BatchedSeparableResampleKernel(Output *out, const Input *in,
   const Input *sample_in;
   int blocks;
 
-  DevArray<int, 2> in_shape, out_shape;
+  DeviceArray<int, 2> in_shape, out_shape;
 
   in_stride = sample.strides[which_pass];
   out_stride = sample.strides[which_pass+1];

@@ -216,9 +216,8 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     params[i] = batch[i].params;
   }
 
-  Scratchpad scratchpad;
+  ScratchpadAllocator scratch_alloc;
   KernelContext ctx;
-  ctx.scratchpad = &scratchpad;
   ctx.gpu.stream = 0;
   SeparableResamplingGPUImpl<uint8_t, uint8_t> resampling;
   TestTensorList<uint8_t, 3> input, output;
@@ -242,7 +241,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
-  scratchpad.reserve(req.scratch_sizes);
+  scratch_alloc.Reserve(req.scratch_sizes);
 
   output.reshape(req.output_shapes[0].to_static<3>());
   OutListGPU<uint8_t, 3> out_tv = output.gpu();
@@ -264,6 +263,8 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
   }
 
+  auto scratchpad = scratch_alloc.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
   resampling.Run(ctx, out_tv, in_tv, params);
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
@@ -300,9 +301,8 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     params[i] = batch[i].params;
   }
 
-  Scratchpad scratchpad;
+  ScratchpadAllocator scratch_alloc;
   KernelContext ctx;
-  ctx.scratchpad = &scratchpad;
   ctx.gpu.stream = 0;
   using Kernel = ResampleGPU<uint8_t, uint8_t>;
   TestTensorList<uint8_t, 3> input, output;
@@ -326,7 +326,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
-  scratchpad.reserve(req.scratch_sizes);
+  scratch_alloc.Reserve(req.scratch_sizes);
 
   output.reshape(req.output_shapes[0].to_static<3>());
   OutListGPU<uint8_t, 3> out_tv = output.gpu();
@@ -341,6 +341,8 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
+  auto scratchpad = scratch_alloc.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
   Kernel::Run(ctx, out_tv, in_tv, params);
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);

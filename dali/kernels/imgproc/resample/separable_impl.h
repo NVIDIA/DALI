@@ -96,17 +96,17 @@ struct SeparableResamplingGPUImpl : Interface {
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) {
     cudaStream_t stream = context.gpu.stream;
 
-    SampleDesc *descs_gpu = context.scratchpad->New<SampleDesc>(
+    SampleDesc *descs_gpu = context.scratchpad->Allocate<SampleDesc>(
         AllocType::GPU, setup.sample_descs.size());
 
     int total_blocks = setup.total_blocks.pass[0] + setup.total_blocks.pass[1];
 
     OutTensorCPU<SampleBlockInfo, 1> sample_lookup_cpu = {
-      context.scratchpad->New<SampleBlockInfo>(AllocType::Host, total_blocks),
+      context.scratchpad->Allocate<SampleBlockInfo>(AllocType::Host, total_blocks),
       { total_blocks }
     };
     OutTensorGPU<SampleBlockInfo, 1> sample_lookup_gpu = {
-      context.scratchpad->New<SampleBlockInfo>(AllocType::GPU, total_blocks),
+      context.scratchpad->Allocate<SampleBlockInfo>(AllocType::GPU, total_blocks),
       { total_blocks }
     };
     setup.InitializeSampleLookup(sample_lookup_cpu);
@@ -127,7 +127,7 @@ struct SeparableResamplingGPUImpl : Interface {
         sample_lookup_gpu.data + setup.total_blocks.pass[0],
         { setup.total_blocks.pass[1] });
 
-    intermediate.data = context.scratchpad->New<IntermediateElement>(
+    intermediate.data = context.scratchpad->Allocate<IntermediateElement>(
         AllocType::GPU, setup.intermediate_size);
 
     RunPass<0, IntermediateElement, InputElement>(
