@@ -2,6 +2,8 @@ import argparse
 import logging as log
 import os
 import time
+import datetime
+from functools import reduce
 
 import numpy as np
 
@@ -132,8 +134,14 @@ def main(args):
 
         iter_start = time.perf_counter()
 
+        training_data_times = []
+        training_start = datetime.datetime.now()
+
         # TRAINING EPOCH LOOP
         for i, inputs in enumerate(train_loader):
+            training_stop = datetime.datetime.now()
+            dataloading_time = training_stop - training_start
+            training_data_times.append(dataloading_time.total_seconds() * 1000.0)
 
             if args.loader == 'DALI':
                 inputs = inputs[0]["data"]
@@ -172,7 +180,6 @@ def main(args):
                     sample_timer += (iter_end - iter_start)
                     data_duration = data_end - iter_start
                     data_timer += data_duration
-                    print("Data loaded in " + str(data_duration) + "s")
                     compute_timer += (iter_end - data_end)
                     torch.cuda.synchronize()
                     iter_start = time.perf_counter()
@@ -182,9 +189,14 @@ def main(args):
             log.info('Rank %d, Epoch %d, Iteration %d of %d, loss %.5f' %
                     (args.rank, epoch, i+1, train_batches, loss.item()))
 
+            if total_iter % 100 == 0:
+                print("Avg dataloading time: " + str(reduce(lambda x, y: x + y, training_data_times) / len(training_data_times)) + "ms")
+
             total_iter += 1
             if total_iter > args.max_iter:
                 break
+
+            training_start = datetime.datetime.now()
 
         if args.rank == 0:
             if args.timing:
@@ -196,6 +208,7 @@ def main(args):
                 writer.add_scalar('sample_compute_time', compute_timer_avg, total_iter)
             epoch_loss_avg = total_epoch_loss / train_batches
             log.info('Rank %d, epoch %d: %.5f' % (args.rank, epoch, epoch_loss_avg))
+
 
 
         ### VALIDATION
