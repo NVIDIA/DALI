@@ -12,33 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
-#include "dali/kernels/test/test_data.h"
+#include <cmath>
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 #include "dali/kernels/imgproc/resample/resampling_impl_cpu.h"
 
 namespace dali {
 namespace kernels {
 
-TEST(ResampleCPU, InitFilter) {
-  int w = 10;
-  float scale = 1;
-  float sx0 = 0;
-  auto filter = GaussianFilter(2);
-  int support = filter.support();
-  std::vector<float> coeffs(w * support);
-  std::vector<int> idx(w);
-  InitializeFilter(idx.data(), coeffs.data(), w, sx0, scale, filter);
-  for (int i = 0; i < w; i++) {
-    for (int k = 0; k < support; k++) {
-      std::cout << coeffs[i*support + k] << " ";
-    }
-    std::cout << std::endl;
-  }
-}
+void InitializeFilter(
+    int *out_indices, float *out_coeffs, int out_width,
+    float sx0, float scale, const FilterWindow &filter) {
 
-TEST(ResampleCPU, Horizontal) {
-//  testing::data::image("imgproc_test/checkerboard.
+  sx0 += 0.5f * scale - scale * filter.anchor - 0.5f;
+  int support = filter.support();
+
+  for (int x = 0; x < out_width; x++) {
+    float sfx0 = sx0 + x * scale;
+    int sx0 = ceil(sfx0);
+    out_indices[x] = sx0;
+    float f0 = sx0 - sfx0;
+    for (int k = 0; k < support; k++) {
+      out_coeffs[support * x + k] = filter(f0 + k);
+    }
+  }
 }
 
 }  // namespace kernels

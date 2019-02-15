@@ -16,14 +16,19 @@
 #define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_WINDOWS_H_
 
 #include <cuda_runtime.h>
+#include <functional>
 #include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
 
-inline __host__ __device__ float GaussianWindow(float x, float sigma) {
+inline __host__ __device__ float GaussianWindow(float x, float sigma = 0.5f) {
   x /= sigma;
   return expf(-0.5f * x * x);
+}
+
+inline __host__ __device__ float GaussianWindowS1(float x) {
+  return expf(-x * x);
 }
 
 inline __host__ __device__ float TriangularWindow(float x) {
@@ -40,6 +45,44 @@ inline __host__ __device__ float LanczosWindow(float x, float a) {
     return 0.0f;
   return sinc(x)*sinc(x / a);
 }
+
+inline __host__ __device__ float Lanczos3Window(float x) {
+  return LanczosWindow(x, 3);
+}
+
+struct FilterWindow {
+  float anchor, size, scale;
+  std::function<float(float)> func;
+  float operator()(float x) const {
+    return func((x - anchor) * scale);
+  }
+
+  int support() const {
+    return floorf(size+1);
+  }
+};
+
+inline FilterWindow GaussianFilter(float radius, float sigma = 0) {
+  float scale;
+  if (!sigma) scale = 2 / radius;
+  else scale = 0.5f / sigma;
+  return { radius, 2*radius, scale, GaussianWindowS1 };
+}
+
+inline FilterWindow TriangularFilter(float radius) {
+  if (radius < 1)
+    return { 1, 2, 1, TriangularWindow };
+  return { radius, 2*radius, 1/radius, TriangularWindow };
+}
+
+inline  FilterWindow Lanczos3Filter() {
+  return { 3, 6, 1, Lanczos3Window };
+}
+
+inline  FilterWindow LanczosFilter(float a) {
+  return { 3, 6, 1, [a](float x) { return LanczosWindow(x, a); } };
+}
+
 
 }  // namespace kernels
 }  // namespace dali

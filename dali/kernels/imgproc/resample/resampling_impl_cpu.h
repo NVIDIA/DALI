@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_
-#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
 
 #include "dali/kernels/static_switch.h"
 #include "dali/kernels/common/convert.h"
@@ -21,6 +21,12 @@
 
 namespace dali {
 namespace kernels {
+
+struct FilterWindow;
+
+void InitializeFilter(
+    int *out_indices, float *out_coeffs, int out_width,
+    float srcx0, float scale, const FilterWindow &filter);
 
 template <int static_channels, bool clamp_left, bool clamp_right, typename Out, typename In>
 void ResampleCol(Out *out, const In *in, int x, int w, const int *in_columns,
@@ -119,4 +125,4 @@ void ResampleHorz(
 }  // namespace dali
 
 
-#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
