@@ -190,15 +190,31 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       EncodedImageInfo info;
 
       // Get necessary image information
-      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
-                                     static_cast<const unsigned char*>(data), in_size,
-                                     &info.c, &info.subsampling,
-                                     info.widths, info.heights);
+      nvjpegStatus_t ret = nvjpegGetImageInfo(
+        handle_,
+        static_cast<const unsigned char*>(data), in_size,
+        &info.c, &info.subsampling,
+        info.widths, info.heights);
+
+      auto crop_generator = GetCropWindowGenerator(i);
+      if (crop_generator) {
+        int H = info.heights[0];
+        int W = info.widths[0];
+        auto crop = crop_generator(H, W);
+        std::cout << "TODO(janton): ROI decode not implemented:"
+                  << " H="  << H << ", W=" << W
+                  << ", x=" << crop.x << ", y=" << crop.y
+                  << ", crop_H=" << crop.h << ", crop_W=" << crop.w
+                  << std::endl;
+        DALI_ENFORCE(crop.IsInRange(H, W));
+      }
+
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
         try {
           const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
+          image->SetCropWindowGenerator(crop_generator);
           const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
