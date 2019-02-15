@@ -449,6 +449,15 @@ struct TensorListShapeBase {
     return ret;
   }
 
+  void resize(int num_samples) {
+    shapes.resize(num_samples * sample_dim());
+  }
+
+  void resize(int num_samples, int dim) {
+    set_sample_dim(dim);
+    shapes.resize(num_samples * sample_ndim);
+  }
+
  protected:
   int size() const { return static_cast<const Derived *>(this)->size(); }
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
@@ -672,6 +681,21 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
 }
 
 /// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
+///        are described by tls. Offsets are calculated as number of elements of each tensors.
+///
+/// @param offsets - receives the result; the size of the output is tls.num_samples()+1 - the last
+///                  [i] is an offset to sample `i`, [i+1] is an offset one past sample `i`.
+template <int sample_ndim, typename Offset>
+void calculate_offsets(std::vector<Offset> &offsets, const TensorListShape<sample_ndim> &tls) {
+  offsets.resize(tls.size() + 1);
+  offsets[0] = 0;
+  for (int i = 0; i < tls.size(); i++) {
+    auto sample_shape_span = tls.tensor_shape_span(i);
+    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
+  }
+}
+
+/// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
 ///        are described by tls. Offsets are calculated as number of elements of each tensors
 ///
 /// @return std::vector<ptrdiff_t> containing tls.size() + 1 elements,
@@ -679,12 +703,7 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
 template <int sample_ndim>
 std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
   std::vector<ptrdiff_t> offsets;
-  offsets.resize(tls.size() + 1);
-  offsets[0] = 0;
-  for (int i = 0; i < tls.size(); i++) {
-    auto sample_shape_span = tls.tensor_shape_span(i);
-    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
-  }
+  calculate_offsets(offsets, tls);
   return offsets;
 }
 

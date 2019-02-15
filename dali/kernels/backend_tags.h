@@ -15,6 +15,8 @@
 #ifndef DALI_KERNELS_BACKEND_TAGS_H_
 #define DALI_KERNELS_BACKEND_TAGS_H_
 
+#include <type_traits>
+
 namespace dali {
 namespace kernels {
 
@@ -24,6 +26,21 @@ struct StorageUnified {};
 
 struct ComputeGPU {};
 struct ComputeCPU {};
+
+template <typename Storage>
+struct is_gpu_accessible : std::false_type {};
+
+template <typename Storage>
+struct is_cpu_accessible : std::false_type {};
+
+template <>
+struct is_gpu_accessible<StorageGPU> : std::true_type {};
+template <>
+struct is_gpu_accessible<StorageUnified> : std::true_type {};
+template <>
+struct is_cpu_accessible<StorageCPU> : std::true_type {};
+template <>
+struct is_cpu_accessible<StorageUnified> : std::true_type {};
 
 }  // namespace kernels
 }  // namespace dali
