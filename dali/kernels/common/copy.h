@@ -23,7 +23,7 @@ namespace dali {
 namespace kernels {
 
 template <typename Storage1, typename T1, int ndim1, typename Storage2, typename T2, int ndim2>
-void copy(const TensorView<Storage1, T1, ndim1> &out,  // NOLINT
+void copy(const TensorView<Storage1, T1, ndim1> &out,
           const TensorView<Storage2, T2, ndim2> &in,
           cudaStream_t stream = 0) {
   static_assert(sizeof(T1) == sizeof(T2), "Tensor elements must be of equal size!");

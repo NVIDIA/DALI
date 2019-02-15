@@ -69,7 +69,7 @@ __device__ inline void FindBestMatch(const int N, volatile float *vals, volatile
     if (threadIdx.x < stride) {
       if (vals[threadIdx.x] <= vals[threadIdx.x + stride]) {
         if (vals[threadIdx.x] == vals[threadIdx.x + stride]) {
-          idx[threadIdx.x] = max(idx[threadIdx.x], idx[threadIdx.x + stride]);  // NOLINT
+          idx[threadIdx.x] = max(idx[threadIdx.x], idx[threadIdx.x + stride]);
         } else {
           vals[threadIdx.x] = vals[threadIdx.x + stride];
           idx[threadIdx.x] = idx[threadIdx.x + stride];
