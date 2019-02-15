@@ -27,7 +27,7 @@ RUN if [ ${PYV} != "37" ] ; then \
         pip install tensorflow-gpu==1.12rc2 --target /tensorflow/1_12 && \
         pip install tf-nightly-gpu --target /tensorflow/nightly; \
     else \
-        # only nightly buidl of TF supports python 3.7 at that time
+        # only nightly build of TF supports python 3.7 at that time
         pip install tf-nightly-gpu; \
     fi && \
     rm -rf /root/.cache/pip/
