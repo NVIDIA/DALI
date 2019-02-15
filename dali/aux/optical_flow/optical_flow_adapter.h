@@ -15,9 +15,9 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 #define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 
-#include "dali/pipeline/data/backend.h"
-#include "dali/kernels/backend_tags.h"
 #include "dali/kernels/tensor_view.h"
+#include "dali/kernels/backend_tags.h"
+#include "dali/pipeline/data/backend.h"
 
 namespace dali {
 namespace optical_flow {
@@ -36,16 +36,16 @@ struct compute_to_storage<kernels::ComputeGPU> {
 
 }  // namespace detail
 
-enum VectorGridSize {
+enum struct VectorGridSize {
   UNDEF,
-  SIZE_4,  /// 4x4 grid
+  SIZE_4 = 4,  /// 4x4 grid
   MAX,
 };
 
 struct OpticalFlowParams {
-  float perf_quality_factor = .0f;  /// 0..1, where 0 is best quality, lowest performance
-  VectorGridSize grid_size = UNDEF;
-  bool enable_hints = false;
+  float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
+  VectorGridSize grid_size;
+  bool enable_hints;
 };
 
 using dali::kernels::TensorView;
