@@ -12,42 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CROP_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CROP_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_SLICE_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_SLICE_H_
 
 #include <vector>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
-#include "dali/pipeline/operators/crop/crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
+class nvJPEGDecoderSlice : public nvJPEGDecoder {
  public:
-  explicit nvJPEGDecoderCrop(const OpSpec& spec)
-    : nvJPEGDecoder(spec)
-    , CropAttr(spec)
-    , per_sample_crop_window_generators_(batch_size_) {
-    for (int i = 0; i < batch_size_; i++) {
-      DALI_ENFORCE(crop_height_[i] > 0 && crop_width_[i],
-        "crop window dimensions not provided for sample " + std::to_string(i));
-    }
-  }
+  explicit nvJPEGDecoderSlice(const OpSpec& spec);
+  ~nvJPEGDecoderSlice() noexcept(false) override = default;
 
-  ~nvJPEGDecoderCrop() noexcept(false) override = default;
-
-  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCrop);
+  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderSlice);
 
  protected:
+  using OperatorBase::Run;
+  void Run(MixedWorkspace *ws) override {
+    DataDependentSetup(ws);
+    nvJPEGDecoder::Run(ws);
+  }
+
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return per_sample_crop_window_generators_[data_idx];
   }
 
-  void SetupSharedSampleParams(MixedWorkspace *ws) override;
-
  private:
+  void DataDependentSetup(MixedWorkspace *ws);
+
   std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CROP_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_SLICE_H_
