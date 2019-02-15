@@ -13,9 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#if 0
-#include <algorithm>  // make cpplint shut up
-#endif
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/test/tensor_test_utils.h"
