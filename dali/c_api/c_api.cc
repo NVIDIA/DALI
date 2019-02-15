@@ -107,13 +107,11 @@ static size_t daliNumTensorsHelper(dali::DeviceWorkspace* ws, int n) {
 
 size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  size_t num_tensors = 0;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    num_tensors = daliNumTensorsHelper<dali::CPUBackend>(ws, n);
+    return daliNumTensorsHelper<dali::CPUBackend>(ws, n);
   } else {
-    num_tensors = daliNumTensorsHelper<dali::GPUBackend>(ws, n);
+    return daliNumTensorsHelper<dali::GPUBackend>(ws, n);
   }
-  return num_tensors;
 }
 
 template <typename T>
