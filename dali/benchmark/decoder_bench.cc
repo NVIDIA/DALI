@@ -238,6 +238,39 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { 
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
+
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"images", "cpu"}};
+  pipe.Build(outputs);
+
+  // Run once to allocate the memory
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  while (st.KeepRunning()) {
+    if (st.iterations() == 1) {
+      // We will start he processing for the next batch
+      // immediately after issueing work to the gpu to
+      // pipeline the cpu/copy/gpu work
+      pipe.RunCPU();
+      pipe.RunGPU();
+    }
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    if (st.iterations() == st.max_iterations) {
+      // Block for the last batch to finish
+      pipe.Outputs(&ws);
+    }
+  }
+
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
+  int num_batches = st.iterations() + 1;
+  st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
+      benchmark::Counter::kIsRate);
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, HostDecoderRandomCrop)->Iterations(100)
@@ -311,5 +344,89 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoderSlice)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderRandomCrop)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoderRandomCrop")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderRandomCrop)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCrop)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoderCrop")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCrop)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  vector<Dims> shape(batch_size, {2});
+  TensorList<CPUBackend> begin_data;
+  begin_data.set_type(TypeInfo::Create<float>());
+  begin_data.Resize(shape);
+  float crop_x = 0.25f, crop_y = 0.124f;
+  for (int k = 0; k < batch_size; k++) {
+    begin_data.mutable_tensor<float>(k)[0] = crop_x;
+    begin_data.mutable_tensor<float>(k)[1] = crop_y;
+  }
+
+  TensorList<CPUBackend> crop_data;
+  float crop_w = 0.5f, crop_h = 0.25f;
+  crop_data.set_type(TypeInfo::Create<float>());
+  crop_data.Resize(shape);
+  for (int k = 0; k < batch_size; k++) {
+    crop_data.mutable_tensor<float>(k)[0] = crop_w;
+    crop_data.mutable_tensor<float>(k)[1] = crop_h;
+  }
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoderSlice")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", DALI_RGB)
+      .AddInput("raw_jpegs", "cpu")
+      .AddInput("begin_data", "cpu")
+      .AddInput("crop_data", "cpu")
+      .AddOutput("images", "gpu"),
+    [&begin_data, &crop_data](Pipeline& pipe) {
+      pipe.AddExternalInput("begin_data");
+      pipe.SetExternalInput("begin_data", begin_data);
+      pipe.AddExternalInput("crop_data");
+      pipe.SetExternalInput("crop_data", crop_data);
+    });
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderSlice)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
 
 }  // namespace dali
