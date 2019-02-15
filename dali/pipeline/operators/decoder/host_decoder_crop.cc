@@ -29,7 +29,7 @@ HostDecoderCrop::HostDecoderCrop(const OpSpec &spec)
   , per_sample_crop_window_generators_(batch_size_) {
   for (int i = 0; i < batch_size_; i++) {
     DALI_ENFORCE(crop_height_[i] > 0 && crop_width_[i],
-      "crop window dimensions not provided");
+      "crop window dimensions not provided for sample " + std::to_string(i));
   }
 }
 

@@ -324,6 +324,8 @@ class Operator<MixedBackend> : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override = 0;
+
+  virtual void SetupSharedSampleParams(MixedWorkspace *ws) {}
 };
 
 // Create registries for CPU & GPU Operators

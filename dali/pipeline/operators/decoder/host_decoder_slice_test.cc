@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/host_decoder_test.h"
+#include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
 
 template <typename ImgType>
-class HostDecoderSliceTest : public HostDecodeTestBase<ImgType> {
+class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
  protected:
   TensorList<CPUBackend> begin_data;
   TensorList<CPUBackend> crop_data;

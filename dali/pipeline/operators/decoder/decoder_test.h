@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_TEST_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_TEST_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_TEST_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_TEST_H_
 
 #include <string>
 #include <vector>
@@ -38,12 +38,14 @@ class HostDecodeTestBase : public GenericDecoderTest<ImgType> {
     return {};
   }
 
-  inline OpSpec GetOpSpec(const std::string& op_name) const {
+  inline OpSpec GetOpSpec(const std::string& op_name,
+                          const std::string& device = "cpu") const {
+    const bool is_mixed = (device == "mixed");
     return OpSpec(op_name)
-      .AddArg("device", "cpu")
+      .AddArg("device", device)
       .AddArg("output_type", this->img_type_)
-      .AddInput("encoded", "cpu")
-      .AddOutput("decoded", "cpu");
+      .AddInput("encoded", is_mixed ? "cpu" : device)
+      .AddOutput("decoded", is_mixed ? "gpu" : device);
   }
 
   inline uint32_t GetTestCheckType() const override {
@@ -83,4 +85,4 @@ class HostDecodeTestBase : public GenericDecoderTest<ImgType> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_TEST_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_TEST_H_
