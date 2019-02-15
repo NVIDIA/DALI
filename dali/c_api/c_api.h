@@ -82,14 +82,10 @@ extern "C" {
    * calling Output function.
    * @remarks Caller is responsible to 'free' the memory returned
    */
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
   DLL_PUBLIC int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
-=======
-  DLL_PUBLIC int64_t* daliShapeAtAt(daliPipelineHandle* pipe_handle, int n, int k);
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
 
   /**
-   * @brief Return the number of tensors in the tensor list 
+   * @brief Return the number of tensors in the tensor list
    * stored at position `n` in the pipeline.
    */
   DLL_PUBLIC size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n);

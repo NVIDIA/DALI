@@ -24,11 +24,7 @@ namespace dali {
 
 template <typename T>
 static void CopyToExternalTensorHelper(const dali::Buffer<T> &src, void *dst,
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                                        device_type_t dst_type, size_t num) {}
-=======
-                                device_type_t dst_type, size_t num) {}
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
 
 template <>
 void CopyToExternalTensorHelper<CPUBackend>(const dali::Buffer<CPUBackend> &src, void *dst,
@@ -63,11 +59,7 @@ void CopyToExternalTensorHelper<GPUBackend>(const dali::Buffer<GPUBackend> &src,
 
 template <typename T>
 static void CopyToExternalTensorListHelper(TensorList<T>* tl, void* ptr,
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                                            device_type_t dst_type) {
-=======
-                                       device_type_t dst_type) {
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   if (tl->IsDenseTensor()) {
     Tensor<T> t;
     t.ShareData(tl);
@@ -78,7 +70,6 @@ static void CopyToExternalTensorListHelper(TensorList<T>* tl, void* ptr,
 }
 
 void CopyToExternalTensor(const Tensor<CPUBackend>& t, void* ptr,
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                           device_type_t dst_type) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   CopyToExternalTensorHelper<CPUBackend>(t, ptr, dst_type,
@@ -93,31 +84,11 @@ void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr,
 }
 void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr,
                           device_type_t dst_type) {
-=======
-                                            device_type_t dst_type) {
-  DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
-  CopyToExternalTensorHelper<CPUBackend>(t, ptr, dst_type,
-                                         Product(t.shape()) * t.type().size());
-}
-
-void CopyToExternalTensor(const Tensor<GPUBackend>& t, void* ptr,
-                                            device_type_t dst_type) {
-  DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
-  CopyToExternalTensorHelper<GPUBackend>(t, ptr, dst_type,
-                                         Product(t.shape()) * t.type().size());
-}
-void CopyToExternalTensor(TensorList<CPUBackend>* tl, void* ptr,
-                                            device_type_t dst_type) {
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   CopyToExternalTensorListHelper<CPUBackend>(tl, ptr, dst_type);
 }
 
 void CopyToExternalTensor(TensorList<GPUBackend>* tl, void* ptr,
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                           device_type_t dst_type) {
-=======
-                                            device_type_t dst_type) {
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   CopyToExternalTensorListHelper<GPUBackend>(tl, ptr, dst_type);
 }
 

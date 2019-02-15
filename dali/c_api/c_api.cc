@@ -92,11 +92,7 @@ static int64_t* daliShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n, i
   }
 }
 
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
 int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k) {
-=======
-int64_t* daliShapeAtAt(daliPipelineHandle* pipe_handle, int n, int k) {
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   return daliShapeAtTypedHelper(pipe_handle, n, k);
 }
 
@@ -122,11 +118,7 @@ size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
   return ws->Output<T>(n).GetElementsNumber();
-=======
-  return ws->Output<T>(n).GetElmsNumber();
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
 }
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
@@ -184,11 +176,7 @@ unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
 
 template <typename T>
 static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
-<<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
                                         device_type_t dst_type) {
-=======
-                                    device_type_t dst_type) {
->>>>>>> Add ability to return sparse tensor on CPU for TF DALI op
   dali::CopyToExternalTensor(&(ws->Output<T>(n)), dst, (dali::device_type_t)dst_type);
 }
 
