@@ -216,8 +216,7 @@ class DaliOp : public tf::OpKernel {
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({total_elms, dims}),
                                                  &data_output_tensors[j]));
         tf::Tensor* out_tensor = data_output_tensors[j];
-        auto out_indices = out_tensor->flat<tf::int64>().data();
-        auto p_out_indices = out_indices;
+        auto p_out_indices = out_tensor->flat<tf::int64>().data();
         for (unsigned n = 0; n < elms; ++n) {
           TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
 <<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b

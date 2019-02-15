@@ -85,13 +85,11 @@ static int64_t* daliShapeAtHelper(dali::DeviceWorkspace* ws, int n, int k) {
 
 static int64_t* daliShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n, int k) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  int64_t* c_shape = nullptr;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    c_shape = daliShapeAtHelper<dali::CPUBackend>(ws, n, k);
+    return daliShapeAtHelper<dali::CPUBackend>(ws, n, k);
   } else {
-    c_shape = daliShapeAtHelper<dali::GPUBackend>(ws, n, k);
+    return daliShapeAtHelper<dali::GPUBackend>(ws, n, k);
   }
-  return c_shape;
 }
 
 <<<<<<< 1f2a164ec4fe5cb82bb8e9693dd6e6463d46099b
@@ -133,13 +131,11 @@ static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  size_t num_elms = 0;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    num_elms = daliNumElementsHelper<dali::CPUBackend>(ws, n);
+    return daliNumElementsHelper<dali::CPUBackend>(ws, n);
   } else {
-    num_elms = daliNumElementsHelper<dali::GPUBackend>(ws, n);
+    return daliNumElementsHelper<dali::GPUBackend>(ws, n);
   }
-  return num_elms;
 }
 
 template <typename T>
@@ -149,13 +145,11 @@ static size_t daliTensorSizeHelper(dali::DeviceWorkspace* ws, int n) {
 
 size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  size_t size = 0;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    size = daliTensorSizeHelper<dali::CPUBackend>(ws, n);
+    return daliTensorSizeHelper<dali::CPUBackend>(ws, n);
   } else {
-    size = daliTensorSizeHelper<dali::GPUBackend>(ws, n);
+    return daliTensorSizeHelper<dali::GPUBackend>(ws, n);
   }
-  return size;
 }
 
 template <typename T>
@@ -165,7 +159,7 @@ static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
   size_t max_num_dim = 0;
   for (size_t i = 0; i < tensors_num; ++i) {
     size_t num_dim = out_tensor_list.tensor_shape(i).size();
-    // squeze last dimension
+    // squeeze last dimension
     if (out_tensor_list.tensor_shape(i).back() == 1) {
       --num_dim;
     }
@@ -176,13 +170,11 @@ static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
 
 size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  size_t max_num_dim = 0;
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    max_num_dim = daliMaxDimTensorsHelper<dali::CPUBackend>(ws, n);
+    return daliMaxDimTensorsHelper<dali::CPUBackend>(ws, n);
   } else {
-    max_num_dim = daliMaxDimTensorsHelper<dali::GPUBackend>(ws, n);
+    return daliMaxDimTensorsHelper<dali::GPUBackend>(ws, n);
   }
-  return max_num_dim;
 }
 
 unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
