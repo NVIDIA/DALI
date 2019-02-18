@@ -21,18 +21,27 @@ namespace kernels {
 
 void InitializeFilter(
     int *out_indices, float *out_coeffs, int out_width,
-    float sx0, float scale, const FilterWindow &filter) {
+    float srcx_0, float scale, const FilterWindow &filter) {
 
-  sx0 += 0.5f * scale - scale * filter.anchor - 0.5f;
+  srcx_0 += 0.5f * scale - 0.5f - filter.anchor;
   int support = filter.support();
 
   for (int x = 0; x < out_width; x++) {
-    float sfx0 = sx0 + x * scale;
-    int sx0 = ceil(sfx0);
+    float sx0f = x * scale + srcx_0;
+    int sx0 = ceilf(sx0f); // ceiling - below sx0f we assume the filter to be zero
     out_indices[x] = sx0;
-    float f0 = sx0 - sfx0;
+    const float f0 = sx0 - sx0f;
+    float sum = 0;
+    int k = 0;
     for (int k = 0; k < support; k++) {
-      out_coeffs[support * x + k] = filter(f0 + k);
+      float c = filter(f0 + k);
+      out_coeffs[support * x + k] = c;
+      sum += c;
+    }
+    if (sum) {
+      for (int k = 0; k < support; k++) {
+        out_coeffs[support * x + k] /= sum;
+      }
     }
   }
 }

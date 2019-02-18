@@ -51,14 +51,14 @@ inline __host__ __device__ float Lanczos3Window(float x) {
 }
 
 struct FilterWindow {
-  float anchor, size, scale;
+  float size, anchor, scale;
   std::function<float(float)> func;
   float operator()(float x) const {
     return func((x - anchor) * scale);
   }
 
   int support() const {
-    return floorf(size+1);
+    return ceilf(size);
   }
 };
 
@@ -66,21 +66,22 @@ inline FilterWindow GaussianFilter(float radius, float sigma = 0) {
   float scale;
   if (!sigma) scale = 2 / radius;
   else scale = 0.5f / sigma;
-  return { radius, 2*radius, scale, GaussianWindowS1 };
+  radius = floorf(radius + 0.4f)+0.5f;
+  return { 2*radius, radius, scale, GaussianWindowS1 };
 }
 
 inline FilterWindow TriangularFilter(float radius) {
   if (radius < 1)
     return { 1, 2, 1, TriangularWindow };
-  return { radius, 2*radius, 1/radius, TriangularWindow };
+  return { 2*radius, radius, 1/radius, TriangularWindow };
 }
 
 inline  FilterWindow Lanczos3Filter() {
-  return { 3, 6, 1, Lanczos3Window };
+  return { 6, 3, 1, Lanczos3Window };
 }
 
 inline  FilterWindow LanczosFilter(float a) {
-  return { 3, 6, 1, [a](float x) { return LanczosWindow(x, a); } };
+  return { 6, 3, 1, [a](float x) { return LanczosWindow(x, a); } };
 }
 
 

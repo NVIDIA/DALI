@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
 #define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
 
+#include <cassert>
 #include "dali/kernels/static_switch.h"
 #include "dali/kernels/common/convert.h"
 #include "dali/kernels/imgproc/surface.h"
@@ -70,15 +71,15 @@ void ResampleCol(Out *out, const In *in, int x, int w, const int *in_columns,
   }
 }
 
-template <int static_channels = -1, typename Out, typename In, typename Coeff>
+template <int static_channels = -1, typename Out, typename In>
 void ResampleHorz_Channels(
     Surface2D<Out> out, Surface2D<const In> in, const int *in_columns,
     const float *coeffs, int support) {
   const int channels = static_channels < 0 ? out.channels : static_channels;
 
   int first_regular_col = 0;
-  int last_regular_col = in.width - 1;
-  while (first_regular_col < in.width && in_columns[first_regular_col] < 0)
+  int last_regular_col = out.width - 1;
+  while (first_regular_col < out.width && in_columns[first_regular_col] < 0)
     first_regular_col++;
   while (last_regular_col >= 0 && in_columns[last_regular_col] + support > in.width)
     last_regular_col--;
@@ -109,8 +110,50 @@ void ResampleHorz_Channels(
   }
 }
 
+template <typename Out, typename In>
+void ResampleVert(
+    Surface2D<Out> out, Surface2D<const In> in, const int *in_rows,
+    const float *row_coeffs, int support) {
+  const float bias = std::is_integral<Out>::value ? 0.5f : 0;
+  const int tile = 64;
+  alignas(32) float tmp[tile];
 
-template <typename Out, typename In, typename Coeff>
+  int flat_w = out.width * out.channels;
+
+  const In *in_row_ptrs[256];
+  assert(support <= 256);
+
+  for (int y = 0; y < out.height; y++) {
+    Out *out_row = &out(0, y, 0);
+
+    for (int k = 0; k < support; k++) {
+      int sy = in_rows[y] + k;
+      if (sy < 0) sy = 0;
+      else if (sy > in.height-1) sy = in.height-1;
+      in_row_ptrs[k] = &in(0, sy);
+    }
+
+    for (int x0 = 0; x0 < flat_w; x0 += tile) {
+
+      int tile_w = x0 + tile <= flat_w ? tile : flat_w - x0;
+      for (int j = 0; j < tile_w; j++)
+        tmp[j] = bias;
+
+      for (int k = 0; k < support; k++) {
+        float flt = row_coeffs[y * support + k];
+        const In *in_row = in_row_ptrs[k];
+        for (int j = 0; j < tile_w; j++) {
+          tmp[j] += flt * in_row[x0 + j];
+        }
+      }
+
+      for (int j = 0; j < tile_w; j++)
+        out_row[x0 + j] = clamp<Out>(tmp[j]);
+    }
+  }
+}
+
+template <typename Out, typename In>
 void ResampleHorz(
     Surface2D<Out> out, Surface2D<const In> in, const int *in_columns,
     const float *col_coeffs, int support) {
