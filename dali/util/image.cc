@@ -78,6 +78,7 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
     imgs->data_.push_back(data);
     imgs->sizes_.push_back(img_size);
     img_file.read(reinterpret_cast<char*>(data), img_size);
+    imgs->filenames_.push_back(img_name);
   }
 }
 

@@ -46,6 +46,7 @@ class ImgSetDescr {
 
   vector<uint8 *> data_;
   vector<int> sizes_;
+  vector<string> filenames_;
 };
 
 /**

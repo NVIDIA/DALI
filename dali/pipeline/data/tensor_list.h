@@ -17,8 +17,8 @@
 
 #include <assert.h>
 #include <cstring>
+#include <string>
 #include <vector>
-
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
@@ -42,8 +42,8 @@ typedef vector<Index> Dims;
 template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
-  DLL_PUBLIC TensorList() : meta_(DALI_NHWC),
-                            tensor_view_(nullptr) {}
+  DLL_PUBLIC TensorList()
+    : tensor_view_(nullptr) {}
 
   DLL_PUBLIC ~TensorList() override {
     delete tensor_view_;
@@ -64,6 +64,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
+    this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
@@ -91,6 +92,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
           raw_mutable_tensor(i),
           other[i].raw_data(),
           other[i].size(), 0);
+      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
     }
   }
 
@@ -128,6 +130,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     if (tensor_view_) {
       tensor_view_->ShareData(this);
     }
+    meta_.resize(num_tensor);
   }
 
   /**
@@ -333,13 +336,24 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
+  inline std::string GetSourceInfo(int idx) const {
+    return meta_[idx].GetSourceInfo();
+  }
+
+  inline void SetSourceInfo(int idx, const std::string& source_info) {
+    meta_[idx].SetSourceInfo(source_info);
+  }
+
   inline DALITensorLayout GetLayout() const {
-    return meta_.GetLayout();
+    // Layout is enforced to be the same across all the samples
+    return meta_[0].GetLayout();
   }
 
   inline void SetLayout(DALITensorLayout layout) {
-    meta_.SetLayout(layout);
+    // Layout is enforced to be the same across all the samples
+    meta_[0].SetLayout(layout);
   }
+
 
  protected:
   // We store a set of dimension for each tensor in the list.
@@ -347,7 +361,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // underlying allocation for random access
   vector<Dims> shape_;
   vector<Index> offsets_;
-  DALIMeta meta_;
+  vector<DALIMeta> meta_;
 
   // In order to not leak memory (and make it slightly faster)
   // when sharing data with a Tensor, we will store a pointer to

@@ -62,6 +62,18 @@ class DALIBenchmark : public benchmark::Fixture {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
           jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
+      tl->SetSourceInfo(i, jpeg_names_[i % nImgs]);
+    }
+  }
+
+  inline void MakeJPEGBatch(vector<Tensor<CPUBackend>> *vt, int n) {
+    const auto nImgs = jpegs_.nImages();
+    TensorList<CPUBackend> tl;
+    MakeJPEGBatch(&tl, n);
+    (*vt).resize(n);
+    for (int i = 0; i < n; ++i) {
+      (*vt)[i].Copy(tl, i, 0);
+      (*vt)[i].SetSourceInfo(jpeg_names_[i % nImgs]);
     }
   }
 

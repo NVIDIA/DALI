@@ -1,0 +1,75 @@
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <gtest/gtest.h>
+#include <vector>
+#include <memory>
+#include "dali/pipeline/operators/decoder/decoder_cache.h"
+
+namespace dali {
+namespace testing {
+
+const char kKey1[] = "file1.jpg";
+const std::vector<uint8_t> kValue1(300, 0xAA);
+const Dims kDims1{100, 1, 3};
+
+struct DecoderCacheTest : public ::testing::Test {
+  DecoderCacheTest() {
+  }
+
+  void SetUp() override {
+    SetUpImpl((1<<9));
+  }
+
+  void SetUpImpl(std::size_t cache_size) {
+    cache_.reset(new DecoderCache(cache_size));
+  }
+
+  std::unique_ptr<DecoderCache> cache_;
+};
+
+TEST_F(DecoderCacheTest, EmptyCache) {
+  EXPECT_FALSE(cache_->IsCached(kKey1));
+}
+
+TEST_F(DecoderCacheTest, Add) {
+  EXPECT_FALSE(cache_->IsCached(kKey1));
+  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  EXPECT_TRUE(cache_->IsCached(kKey1));
+  std::vector<uint8_t> cachedData(kValue1.size(), 0x00);
+  cache_->CopyData(kKey1, &cachedData[0]);
+  EXPECT_EQ(kValue1, cachedData);}
+
+TEST_F(DecoderCacheTest, ErrorGetNonExistent) {
+  std::vector<uint8_t> cachedData(kValue1.size(), 0x00);
+  EXPECT_THROW(
+    cache_->CopyData(kKey1, &cachedData[0]),
+    std::runtime_error);
+}
+
+TEST_F(DecoderCacheTest, ErrorAddExisting) {
+  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  EXPECT_THROW(
+    cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1),
+    std::runtime_error);
+}
+
+TEST_F(DecoderCacheTest, ErrorTooSmallCacheSize) {
+  SetUpImpl(kValue1.size()-1);
+  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  EXPECT_FALSE(cache_->IsCached(kKey1));
+}
+
+}  // namespace testing
+}  // namespace dali

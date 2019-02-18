@@ -192,6 +192,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
+      tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
     }
   }
 
@@ -209,6 +210,7 @@ class DALITest : public ::testing::Test {
       ti = Tensor<CPUBackend>{};
       ti.Resize({data_sizes[i % nImgs]});
       ti.template mutable_data<uint8>();
+      ti.SetSourceInfo(imgs.filenames_[i % nImgs]);
 
       std::memcpy(ti.raw_mutable_data(), data[i % nImgs],
                   data_sizes[i % nImgs]);
