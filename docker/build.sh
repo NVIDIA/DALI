@@ -11,9 +11,15 @@ export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
 export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
 export RUN_IMG=dali_${PYV}_cu${CUDA_VERSION}.run
 
+set -o errexit
+
+# build manylinux3
 pushd ../third_party/manylinux/
-git checkout 96b47a25673b33c728e49099a3a6b1bf503a18c2 && git am ../../docker/0001-An-approximate-manylinux3.patch && PLATFORM=$(uname -m) TRAVIS_COMMIT=latest ./build.sh
+git checkout 96b47a25673b33c728e49099a3a6b1bf503a18c2
+git am ../../docker/0001-An-approximate-manylinux3.patch
+PLATFORM=$(uname -m) TRAVIS_COMMIT=latest ./build.sh
 popd
+
 pushd ../
 docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=manylinux3_x86_64 --build-arg "USE_CUDA_VERSION=${CUDA_VERSION}" -f Dockerfile.deps .
 echo "Build image:" ${BUILDER}
