@@ -18,6 +18,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import glob
+import argparse
 
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
@@ -94,7 +95,6 @@ class COCOReaderPipeline(CommonPipeline):
         return self.base_define_graph(images, labels)
 
 test_data = {
-
             FileReadPipeline: [["/data/imagenet/train-jpeg"],
                                ["/data/imagenet/val-jpeg"]],
             MXNetReaderPipeline: [["/data/imagenet/train-480-val-256-recordio/train.rec", "/data/imagenet/train-480-val-256-recordio/train.idx"],
@@ -108,14 +108,25 @@ test_data = {
                                 ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json"]]
             }
 
-N = 1               # number of GPUs
-BATCH_SIZE = 2048   # batch size
-LOG_INTERVAL = 200 // BATCH_SIZE + 1
+parser = argparse.ArgumentParser(description='nvJPEG and HostDecoder RN50 dataset test')
+parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
+                    help='number of GPUs (default: 1)')
+parser.add_argument('-b', '--batch', default=2048, type=int, metavar='N',
+                    help='batch size (default: 2048)')
+parser.add_argument('-p', '--print-freq', default=10, type=int,
+                    metavar='N', help='print frequency (default: 10)')
+args = parser.parse_args()
+
+N = args.gpus             # number of GPUs
+BATCH_SIZE = args.batch   # batch size
+LOG_INTERVAL = args.print_freq
+
+print("GPUs: {}, batch: {}, loging interval: {}".format(N, BATCH_SIZE, LOG_INTERVAL))
 
 for pipe_name in test_data.keys():
     data_set_len = len(test_data[pipe_name])
     for i, data_set in enumerate(test_data[pipe_name]):
-        pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=4, device_id = n, num_gpus = N, data_paths = data_set) for n in range(N)]
+        pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=4, device_id=n, num_gpus=N, data_paths=data_set) for n in range(N)]
         [pipe.build() for pipe in pipes]
 
         iters = pipes[0].epoch_size("Reader")
