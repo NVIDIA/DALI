@@ -45,14 +45,20 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 include(cmake/Dependencies.cmake)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  message(STATUS "Building in DEBUG mode")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DDALI_DEBUG=1")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -DDALI_DEBUG=0")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
-endif()
+
+# Debug flags
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -Og -DDALI_DEBUG=1")
+# Generate only line info for device as -G disables all optimizations and causes unit tests to fail
+set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
+
+# Release flags
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DDALI_DEBUG=0")
+set(CUDA_NVCC_FLAGS_RELEASE "${CUDA_NVCC_FLAGS_RELEASE} -DDALI_DEBUG=0")
+
+# Release with debug info flags
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g3")
+set(CUDA_NVCC_FLAGS_RELWITHDEBINFO "${CUDA_NVCC_FLAGS_RELWITHDEBINFO} -g -lineinfo")
+
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
