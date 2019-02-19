@@ -134,6 +134,9 @@ class DLL_PUBLIC Executor {
 
   std::vector<int> GetMemoryHints(const OpNode &node);
 
+  void PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                  const OpGraph &graph);
+
   void PresizeData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
                    const OpGraph &graph);
 
@@ -149,9 +152,9 @@ class DLL_PUBLIC Executor {
   void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
                         const QueueIdxs idxs);
 
-  template <DALIOpType op_type>
-  void SetupPinned(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-                   const QueueIdxs idxs);
+  // template <DALIOpType op_type>
+  // void SetupPinned(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+  //                  const QueueIdxs idxs);
 
   template <DALIOpType op_type>
   void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
@@ -341,29 +344,28 @@ void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
   }
 }
 
-template <DALIOpType op_type>
-void Executor::SetupPinned(workspace_t<op_type> &, const OpGraph &, const OpNode &,
-                           const QueueIdxs) {
-  /* No-op if we are not MIXED MakeContigous node */
-}
+// template <DALIOpType op_type>
+// void Executor::SetupPinned(workspace_t<op_type> &, const OpGraph &, const OpNode &,
+//                            const QueueIdxs) {
+//   /* No-op if we are not MIXED MakeContigous node */
+// }
 
-// TODO(klecki): this should be handled on Tensor level?
-template <>
-inline void Executor::SetupPinned<DALIOpType::MIXED>(MixedWorkspace &ws, const OpGraph &graph,
-                                                     const OpNode &node, const QueueIdxs idxs) {
-  for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
-    auto tid = node.parent_tensors[j];
-    // Use pinned memory only when it is useful
-    if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
-        node.spec.OutputDevice(0) == "gpu") {
-      // TODO(klecki): we need some wrappers for WorkspaceOutputType with set_pinned in API
-      auto &parent_tensor_queue =
-          get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
-      auto &tensor = parent_tensor_queue[idxs[DALIOpType::MIXED]];
-      SetPinned(tensor, true);
-    }
-  }
-}
+// // TODO(klecki): this should be handled on Tensor level?
+// template <>
+// inline void Executor::SetupPinned<DALIOpType::MIXED>(MixedWorkspace &ws, const OpGraph &graph,
+//                                                      const OpNode &node, const QueueIdxs idxs) {
+//   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+//     auto tid = node.parent_tensors[j];
+//     // Use pinned memory only when it is useful
+//     if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
+//         node.spec.OutputDevice(0) == "gpu") {
+//       auto &parent_tensor_queue =
+//           get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
+//       auto &tensor = parent_tensor_queue[idxs[DALIOpType::MIXED]];
+//       // SetPinned(tensor, true);
+//     }
+//   }
+// }
 
 template <DALIOpType op_type>
 void Executor::SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph,
@@ -411,7 +413,7 @@ workspace_t<op_type> Executor::CreateWorkspace(const OpGraph &graph, const OpNod
                                                const QueueIdxs idxs) {
   workspace_t<op_type> ws;
   SetupInputOutput<op_type>(ws, graph, node, idxs);
-  SetupPinned<op_type>(ws, graph, node, idxs);
+  // SetupPinned<op_type>(ws, graph, node, idxs);
   SetupStreamsAndEvents<op_type>(ws, graph, node, idxs);
   return ws;
 }

@@ -26,6 +26,25 @@
 
 namespace dali {
 
+void Executor::PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                           const OpGraph &graph) {
+  // We only pin what we need
+  for (int i = 0; i < graph.NumOp(DALIOpType::MIXED); i++) {
+    auto &node = graph.Node(DALIOpType::MIXED, i);
+    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+      auto tid = node.parent_tensors[j];
+      // Use pinned memory only when it is useful
+      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
+          node.spec.OutputDevice(0) == "gpu") {
+        auto &parent_tensor_queue =
+            get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
+        for (auto &tensor : parent_tensor_queue) {
+          SetPinned(tensor, true);
+        }
+      }
+    }
+   }
+ }
 
 void Executor::SetCompletionCallback(ExecutorCallback cb) {
   cb_ = cb;
@@ -64,6 +83,8 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
     gpu_op_stream_ = stream_pool_.GetStream();
     mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, queue_depth_);
   }
+
+  PrepinData(tensor_to_store_queue_, *graph_);
 
   // Presize the workspaces based on the hint
   PresizeData(tensor_to_store_queue_, *graph_);
