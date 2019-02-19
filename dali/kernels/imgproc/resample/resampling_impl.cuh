@@ -44,7 +44,7 @@ namespace resample_shared {
 /// recalculating them for each row, and stored in a shared memory block.
 ///
 /// The function follows different code paths for static and dynamic number of channels.
-/// For the dynamic, the innermost loop goes over filter taps, which eliminates the neeed
+/// For the dynamic, the innermost loop goes over filter taps, which eliminates the need
 /// for thread-local memory to store intermediate sums. This allows processing arbitrary
 /// number of channels.
 /// For static number of channels, the run-time parameter `channels` is ignored and
@@ -69,7 +69,7 @@ __device__ void ResampleHorz_Channels(
 
   const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
 
-  for (int j = x0; j < x1; j+=blockDim.x) {
+  for (int j = x0; j < x1; j += blockDim.x) {
     int dx = j + threadIdx.x;
     const float sx0f = dx * scale + src_x0;
     const int sx0 = ceilf(sx0f);
@@ -182,7 +182,7 @@ __device__ void ResampleVert_Channels(
     }
     norm = 1.0f / norm;
 
-    for (int j = x0 + threadIdx.x; j < x1; j+=blockDim.x) {
+    for (int j = x0 + threadIdx.x; j < x1; j += blockDim.x) {
       Dst *out_col = &out_row[j * channels];
       const Src *in_col = &in[j * channels];
 

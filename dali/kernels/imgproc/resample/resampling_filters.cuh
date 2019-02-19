@@ -44,7 +44,10 @@ struct ResamplingFilter {
     return ceilf(num_coeffs / scale);
   }
 
-  __device__ float operator()(float x) const {
+  /// @remarks WARNING: This function is available as both __host__ and
+  ///          __device__, but real availability depends on whether
+  ///         `coeffs` is accessible from particular backend.
+  __host__ __device__ float operator()(float x) const {
     if (!(x >= 0))
       return 0;
     if (x > num_coeffs-1)

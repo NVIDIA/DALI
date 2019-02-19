@@ -65,7 +65,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   int total_size = triangular_size + gaussian_size + lanczos_size;
 
-  filters.filter_data = memory::alloc_unique<float>(AllocType::GPU, total_size);
+  filters.filter_data = memory::alloc_unique<float>(AllocType::Unified, total_size);
 
   auto add_filter = [&](int size) {
     float *base = filters.filters.empty()

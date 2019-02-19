@@ -67,6 +67,7 @@ struct SeparableResamplingSetup {
   TensorListShape<3> output_shape, intermediate_shape;
   size_t intermediate_size;
   BlockCount total_blocks;
+  int2 block_size = { 32, 24 };
 
   std::shared_ptr<ResamplingFilters> filters;
   void Initialize(cudaStream_t stream) {

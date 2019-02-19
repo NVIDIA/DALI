@@ -87,6 +87,7 @@ struct SeparableResamplingGPUImpl : Interface {
     BatchedSeparableResample<which_pass>(
         out.data, in.data, descs_gpu, in.num_samples(),
         block2sample.data, block2sample.shape[0],
+        setup.block_size,
         stream);
   }
 

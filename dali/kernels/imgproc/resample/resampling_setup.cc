@@ -91,22 +91,19 @@ void SeparableResamplingSetup::SetupComputation(
     float cost_vert = size_weight*size_vert + compute_vert;
     float cost_horz = size_weight*size_horz + compute_horz;
 
-    const int vblock = 24;
-    const int hblock = 32;
-
     auto ts_tmp = intermediate_shape.tensor_shape_span(i);
     if (cost_vert < cost_horz) {
       sample_descs[i].order = VertHorz;
       ts_tmp[0] = out_H;
       ts_tmp[1] = W;
-      desc.block_count.pass[0] = (out_H + vblock - 1) / vblock;
-      desc.block_count.pass[1] = (out_W + hblock - 1) / hblock;
+      desc.block_count.pass[0] = (out_H + block_size.y - 1) / block_size.y;
+      desc.block_count.pass[1] = (out_W + block_size.x - 1) / block_size.x;
     } else {
       sample_descs[i].order = HorzVert;
       ts_tmp[0] = H;
       ts_tmp[1] = out_W;
-      desc.block_count.pass[0] = (out_W + hblock - 1) / hblock;
-      desc.block_count.pass[1] = (out_H + vblock - 1) / vblock;
+      desc.block_count.pass[0] = (out_W + block_size.x - 1) / block_size.x;
+      desc.block_count.pass[1] = (out_H + block_size.y - 1) / block_size.y;
     }
     ts_tmp[2] = C;
     desc.shapes[1] = {{ static_cast<int>(ts_tmp[0]), static_cast<int>(ts_tmp[1]) }};

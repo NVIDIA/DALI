@@ -108,14 +108,15 @@ template <int which_pass, typename Output, typename Input>
 void BatchedSeparableResample(Output *out, const Input *in,
     const SeparableResamplingSetup::SampleDesc *samples,
     int num_samples, const SampleBlockInfo *block2sample, int num_blocks,
+    int2 block_size,
     cudaStream_t stream) {
   if (num_blocks <= 0)
     return;
 
-  dim3 blockSize(32, 24);
+  dim3 block(block_size.x, block_size.y);
 
   BatchedSeparableResampleKernel<which_pass>
-  <<<num_blocks, blockSize, ResampleSharedMemSize, stream>>>(
+  <<<num_blocks, block, ResampleSharedMemSize, stream>>>(
     out, in, samples, block2sample);
 }
 
@@ -125,7 +126,7 @@ template void BatchedSeparableResample<which_pass, Output, Input>( \
   Output *out, const Input *in, \
   const SeparableResamplingSetup::SampleDesc *samples, \
   int num_samples, const SampleBlockInfo *block2sample, int num_blocks, \
-  cudaStream_t stream)
+  int2 block_size, cudaStream_t stream)
 
 INSTANTIATE_BATCHED_RESAMPLE(0, float, uint8_t);
 /*INSTANTIATE_BATCHED_RESAMPLE(0, float, int8_t);
