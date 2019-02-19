@@ -111,8 +111,8 @@ void SequenceLoader::ReadSample(TensorSequence *sequence) {
   }
   current_sequence_++;
   // wrap-around
-  if (current_sequence_ == total_size_) {
-    current_sequence_ = 0;
+  if (IsNextShard(current_sequence_)) {
+    Reset();
   }
 }
 

@@ -44,6 +44,8 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   Index Size() override {
     return 1;
   }
+
+  void Reset() override {}
 };
 class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:

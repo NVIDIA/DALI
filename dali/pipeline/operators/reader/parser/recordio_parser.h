@@ -38,6 +38,7 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     auto& image = ws->Output<CPUBackend>(0);
     auto& label = ws->Output<CPUBackend>(1);
     ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
+    image.SetSourceInfo(data.GetSourceInfo());
   }
 
  private:

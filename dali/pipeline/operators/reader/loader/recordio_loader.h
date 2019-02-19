@@ -76,11 +76,9 @@ class RecordIOLoader : public IndexedFileLoader {
   }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    if (current_index_ == static_cast<size_t>(Size())) {
-      // Release previously opened file
-      current_index_ = 0;
-      current_file_index_ = 0;
-      current_file_ = FileStream::Open(uris_[current_file_index_], read_ahead_);
+    // if we moved to next shard wrap up
+    if (IsNextShard(current_index_)) {
+      Reset();
     }
 
     int64 seek_pos, size;

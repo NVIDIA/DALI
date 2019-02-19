@@ -167,6 +167,15 @@ class Loader {
   virtual Index Size() = 0;
 
  protected:
+  // Reset reader to the first sample
+  virtual void Reset() = 0;
+
+  // Check if given reader moved to the next shard
+  virtual inline bool IsNextShard(Index current_index) {
+     return current_index >= Size() ||
+            (shard_id_ + 1 < num_shards_ &&
+            current_index == static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
+  }
   std::vector<LoadTarget*> sample_buffer_;
 
   std::list<LoadTarget*> empty_tensors_;
