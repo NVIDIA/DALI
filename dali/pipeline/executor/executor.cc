@@ -17,6 +17,9 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <mutex>
+#include <condition_variable>
+
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/operators/common.h"
 
@@ -26,25 +29,6 @@
 
 namespace dali {
 
-void Executor::PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                           const OpGraph &graph) {
-  // We only pin what we need
-  for (int i = 0; i < graph.NumOp(DALIOpType::MIXED); i++) {
-    auto &node = graph.Node(DALIOpType::MIXED, i);
-    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
-      auto tid = node.parent_tensors[j];
-      // Use pinned memory only when it is useful
-      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
-          node.spec.OutputDevice(0) == "gpu") {
-        auto &parent_tensor_queue =
-            get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
-        for (auto &tensor : parent_tensor_queue) {
-          SetPinned(tensor, true);
-        }
-      }
-    }
-   }
- }
 
 void Executor::SetCompletionCallback(ExecutorCallback cb) {
   cb_ = cb;
@@ -108,6 +92,8 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 
 void Executor::RunCPU() {
   TimeRange tr("[Executor] RunCPU");
+
+#if 0
   // Block until there is a free buffer to use
   std::unique_lock<std::mutex> lock(free_mutex_);
   while (free_queue_.empty() && !exec_error_) {
@@ -119,6 +105,8 @@ void Executor::RunCPU() {
   int queue_idx = free_queue_.front();
   free_queue_.pop();
   lock.unlock();
+#endif
+  auto support_idx = AcquireIdxs(DALIOpType::SUPPORT);
 
   DeviceGuard g(device_id_);
 
@@ -127,7 +115,8 @@ void Executor::RunCPU() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::SUPPORT); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::SUPPORT, i);
       OperatorBase &op = *op_node.op;
-      SupportWorkspace &ws = GetWorkspace<DALIOpType::SUPPORT>(queue_idx, i);
+      // SupportWorkspace &ws = GetWorkspace<DALIOpType::SUPPORT>(queue_idx, i);
+      SupportWorkspace ws = GetWorkspace<DALIOpType::SUPPORT>(support_idx, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
       op.Run(&ws);
@@ -138,6 +127,11 @@ void Executor::RunCPU() {
     errors_.push_back(e.what());
     ready_cond_.notify_all();
   }
+
+  ReleaseIdxs(DALIOpType::SUPPORT, support_idx);
+
+  auto cpu_idx = AcquireIdxs(DALIOpType::CPU);
+  auto queue_idx = cpu_idx;
 
   if (!exec_error_) {
     // Run the cpu-ops in the thread pool
@@ -168,26 +162,34 @@ void Executor::RunCPU() {
     }
   }
   // Pass the work to the mixed stage
+#if 0
   std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
   mixed_work_queue_.push(queue_idx);
   mixed_lock.unlock();
+#endif
+  ReleaseIdxs(DALIOpType::CPU, cpu_idx);
 }
 
 void Executor::RunMixed() {
   TimeRange tr("[Executor] RunMixed");
+#if 0
   std::unique_lock<std::mutex> lock(mixed_mutex_);
   DALI_ENFORCE(!mixed_work_queue_.empty(), "Mixed work "
       "queue empty. Did you call RunCPU prior to RunMixed?");
   int queue_idx = mixed_work_queue_.front();
   mixed_work_queue_.pop();
   lock.unlock();
+#endif
   DeviceGuard g(device_id_);
+
+  auto mixed_idx = AcquireIdxs(DALIOpType::MIXED);
+  auto queue_idx = mixed_idx;
 
   try {
     for (int i = 0; i < graph_->NumOp(DALIOpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::MIXED, i);
       OperatorBase &op = *op_node.op;
-      MixedWorkspace &ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, i);
+      MixedWorkspace ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
       op.Run(&ws);
@@ -204,20 +206,29 @@ void Executor::RunMixed() {
   }
 
   // Pass the work to the gpu stage
+#if 0
   std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
   gpu_work_queue_.push(queue_idx);
   gpu_lock.unlock();
+#endif
+  ReleaseIdxs(DALIOpType::MIXED, mixed_idx);
 }
 
 void Executor::RunGPU() {
   TimeRange tr("[Executor] RunGPU");
+#if 0
   std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
   DALI_ENFORCE(!gpu_work_queue_.empty(), "GPU work queue "
       "empty. Did you call RunMixed prior to RunGPU?");
   int queue_idx = gpu_work_queue_.front();
   gpu_work_queue_.pop();
   gpu_lock.unlock();
+#endif
+
+  auto gpu_idx = AcquireIdxs(DALIOpType::GPU);
+  auto queue_idx = gpu_idx;
   DeviceGuard g(device_id_);
+
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -233,7 +244,7 @@ void Executor::RunGPU() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::GPU); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::GPU, i);
       OperatorBase &op = *op_node.op;
-      DeviceWorkspace &ws = GetWorkspace<DALIOpType::GPU>(queue_idx, i);
+      DeviceWorkspace ws = GetWorkspace<DALIOpType::GPU>(queue_idx, i);
       auto parent_events = ws.ParentEvents();
 
       for (auto &event : parent_events) {
@@ -255,12 +266,14 @@ void Executor::RunGPU() {
       int src_idx = graph_->NodeIdx(src_id);
 
       // Record events for each output requested by the user
-      cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
+      // cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
+      // TODO(klecki): check this
+      cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx[DALIOpType::GPU]);
       if (graph_->NodeType(src_id) == DALIOpType::MIXED) {
-        auto &ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, src_idx);
+        auto ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else if (graph_->NodeType(src_id) == DALIOpType::GPU) {
-        auto &ws = GetWorkspace<DALIOpType::GPU>(queue_idx, src_idx);
+        auto ws = GetWorkspace<DALIOpType::GPU>(queue_idx, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else {
         DALI_FAIL("Internal error. Output node is not gpu/mixed");
@@ -277,15 +290,22 @@ void Executor::RunGPU() {
   // Update the ready queue to signal that all the work
   // in the `queue_idx` set of output buffers has been
   // issued. Notify any waiting threads.
+
+// #if 0
+  // TODO(kleckI): total workaround for test.
+  // We have to give up the elements to be occupied
   std::unique_lock<std::mutex> lock(ready_mutex_);
-  ready_queue_.push(queue_idx);
+  ready_queue_.push(queue_idx[DALIOpType::GPU]);
   ready_cond_.notify_all();
   lock.unlock();
+// #endif
+
+  ReleaseIdxs(DALIOpType::GPU, gpu_idx);
 
   // Save the queue_idx so we can enforce the
   // dependency between consecutive iterations
   // of the gpu stage of the pipeline.
-  previous_gpu_queue_idx_ = queue_idx;
+  previous_gpu_queue_idx_ = queue_idx[DALIOpType::GPU];
 
   // call any registered previously callback
   if (cb_) {
@@ -449,21 +469,41 @@ std::vector<int> Executor::GetTensorQueueSizes(const OpGraph &graph) {
 }
 
 void Executor::SetupWorkspacesForGraph(int queue_idx) {
-  DeviceGuard g(device_id_);
+  // DeviceGuard g(device_id_);
 
-  // Clear any old data setup
-  wss_[queue_idx].Clear();
-  wss_[queue_idx].Resize(graph_->NumOp(DALIOpType::SUPPORT), graph_->NumOp(DALIOpType::CPU),
-              graph_->NumOp(DALIOpType::MIXED), graph_->NumOp(DALIOpType::GPU));
+  // // Clear any old data setup
+  // wss_[queue_idx].Clear();
+  // wss_[queue_idx].Resize(graph_->NumOp(DALIOpType::SUPPORT), graph_->NumOp(DALIOpType::CPU),
+  //             graph_->NumOp(DALIOpType::MIXED), graph_->NumOp(DALIOpType::GPU));
 
-  for (int i = 0; i < graph_->NumOp(); i++) {
-    auto &node = graph_->Node(i);
-    VALUE_SWITCH(node.op_type, op_type_static,
-        (DALIOpType::SUPPORT, DALIOpType::CPU, DALIOpType::MIXED, DALIOpType::GPU),
-    (
-      auto &ws = GetWorkspace<op_type_static>(queue_idx, node);
-      ws = CreateWorkspace<op_type_static>(*graph_, node, QueueIdxs{queue_idx});
-    ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
+  // for (int i = 0; i < graph_->NumOp(); i++) {
+  //   auto &node = graph_->Node(i);
+  //   VALUE_SWITCH(node.op_type, op_type_static,
+  //       (DALIOpType::SUPPORT, DALIOpType::CPU, DALIOpType::MIXED, DALIOpType::GPU),
+  //   (
+  //     auto &ws = GetWorkspace<op_type_static>(queue_idx, node);
+  //     ws = CreateWorkspace<op_type_static>(*graph_, node, QueueIdxs{queue_idx});
+  //   ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
+  // }
+}
+
+void Executor::PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                           const OpGraph &graph) {
+  // We only pin what we need
+  for (int i = 0; i < graph.NumOp(DALIOpType::MIXED); i++) {
+    auto &node = graph.Node(DALIOpType::MIXED, i);
+    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+      auto tid = node.parent_tensors[j];
+      // Use pinned memory only when it is useful
+      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
+          node.spec.OutputDevice(0) == "gpu") {
+        auto &parent_tensor_queue =
+            get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
+        for (auto &tensor : parent_tensor_queue) {
+          SetPinned(tensor, true);
+        }
+      }
+    }
   }
 }
 
@@ -518,6 +558,67 @@ void Executor::SetupOutputQueuesForGraph() {
   // All buffers start off as free
   for (int i = 0; i < queue_depth_; ++i) {
     free_queue_.push(i);
+  }
+
+  for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
+    for (int i = 0; i < stage_queue_depths_[stage]; i++) {
+      stage_free_[stage].push(i);
+    }
+  }
+}
+
+std::ostream &operator<<(std::ostream &os, QueueIdxs idxs) {
+  os << "{" << idxs[DALIOpType::SUPPORT] << "," << idxs[DALIOpType::CPU] << ","
+     << idxs[DALIOpType::MIXED] << "," << idxs[DALIOpType::GPU] << "}";
+  return os;
+}
+
+QueueIdxs Executor::AcquireIdxs(DALIOpType stage) {
+  QueueIdxs result(0);
+  // We dine with the philosophers
+  std::cout << "Acquire for " << to_string(stage) << std::endl;
+
+  int current_stage = static_cast<int>(stage);
+  // We actually have a previous stage
+  if (HasPreviousStage(stage)) {
+    int previous_stage = static_cast<int>(PreviousStage(stage));
+    std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
+    stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
+      return !stage_ready_[previous_stage].empty();
+    });
+    result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
+    stage_ready_[previous_stage].pop();
+    // We are the only ones waiting for the lock, so we do not try to wake anyone
+  }
+  // There always is a current stage
+  {
+    std::unique_lock<std::mutex> free_current_lock(stage_free_mutex_[current_stage]);
+    stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
+      return !stage_free_[current_stage].empty();
+    });
+    result[stage] = stage_free_[current_stage].front();
+    stage_free_[current_stage].pop();
+    // As above? TODO(klecki): Where do we wake anyone
+  }
+  std::cout << "Acquired for " << to_string(stage) << " " << result << std::endl;
+  return result;
+}
+
+void Executor::ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
+  int current_stage = static_cast<int>(stage);
+  std::cout << "Releasing for " << to_string(stage) << " " << idxs << std::endl;
+  if (HasPreviousStage(stage)) {
+    int previous_stage = static_cast<int>(PreviousStage(stage));
+    // We always can just release the consumed buffer
+    std::unique_lock<std::mutex> free_previous_lock(stage_free_mutex_[previous_stage]);
+    stage_free_[previous_stage].push(idxs[static_cast<DALIOpType>(previous_stage)]);
+    // We freed buffer, so we notfiy the previous stage it can continue it's work
+    stage_free_cv_[previous_stage].notify_one();
+  }
+  {
+    std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
+    stage_ready_[current_stage].push(idxs[stage]);
+    stage_ready_cv_[current_stage].notify_one();
   }
 }
 

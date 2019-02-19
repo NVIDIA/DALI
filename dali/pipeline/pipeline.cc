@@ -280,26 +280,32 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
-  // Creating the executor
-  if (pipelined_execution_ && async_execution_) {
-    executor_.reset(new AsyncPipelinedExecutor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-    executor_->Init();
-  } else if (pipelined_execution_) {
-    executor_.reset(new PipelinedExecutor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  } else if (async_execution_) {
-    DALI_FAIL("Not implemented.");
-  } else {
-    executor_.reset(new Executor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  }
+  // // Creating the executor
+  // if (pipelined_execution_ && async_execution_) {
+  //   executor_.reset(new AsyncPipelinedExecutor(
+  //           batch_size_, num_threads_,
+  //           device_id_, bytes_per_sample_hint_,
+  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
+  //   executor_->Init();
+  // } else if (pipelined_execution_) {
+  //   executor_.reset(new PipelinedExecutor(
+  //           batch_size_, num_threads_,
+  //           device_id_, bytes_per_sample_hint_,
+  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
+  // } else if (async_execution_) {
+  //   DALI_FAIL("Not implemented.");
+  // } else {
+  //   executor_.reset(new Executor(
+  //           batch_size_, num_threads_,
+  //           device_id_, bytes_per_sample_hint_,
+  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
+  // }
+
+  // TODO(klecki): REVERT!!!
+  executor_.reset(new Executor(
+        batch_size_, num_threads_,
+        device_id_, bytes_per_sample_hint_,
+        set_affinity_, max_num_stream_, prefetch_queue_depth_));
 
   // Creating the graph
   for (auto& name_op_spec : op_specs_) {

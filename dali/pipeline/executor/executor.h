@@ -38,6 +38,62 @@
 
 namespace dali {
 
+static DALIOpType PreviousStage(DALIOpType op) {
+  switch (op) {
+    case DALIOpType::CPU:
+      return DALIOpType::SUPPORT;
+    case DALIOpType::MIXED:
+      return DALIOpType::CPU;
+    case DALIOpType::GPU:
+      return DALIOpType::MIXED;
+    default:
+      return static_cast<DALIOpType>(-1);  // No previous OpType
+  }
+}
+
+static bool HasPreviousStage(DALIOpType op) {
+  if (op == DALIOpType::SUPPORT) {
+    return false;
+  }
+  return true;
+}
+
+static DALIOpType NextStage(DALIOpType op) {
+  switch (op) {
+    case DALIOpType::SUPPORT:
+      return DALIOpType::CPU;
+    case DALIOpType::CPU:
+      return DALIOpType::MIXED;
+    case DALIOpType::MIXED:
+      return DALIOpType::GPU;
+    default:
+      return static_cast<DALIOpType>(-1);  // No next OpType
+  }
+}
+
+static bool HasNextStage(DALIOpType op) {
+  if (op == DALIOpType::GPU) {
+    return false;
+  }
+  return true;
+}
+
+struct QueueIdxs {
+  int &operator[](DALIOpType op_type) {
+    return idxs[static_cast<size_t>(op_type)];
+  }
+
+  const int &operator[](DALIOpType op_type) const {
+    return idxs[static_cast<size_t>(op_type)];
+  }
+
+  explicit QueueIdxs(int uniform_idx)
+      : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
+
+  private:
+  std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {0, 0, 0, 0};
+};
+
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
@@ -62,6 +118,13 @@ class DLL_PUBLIC Executor {
         cb_(nullptr) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
+
+    //TODO(klecki): Actual setup of queues
+    for (auto &e : stage_queue_depths_) {
+      e = queue_depth_;
+    }
+
+
   }
 
   DLL_PUBLIC virtual ~Executor() = default;
@@ -108,21 +171,7 @@ class DLL_PUBLIC Executor {
   };
   vector<WorkspaceBlob> wss_;
 
-  struct QueueIdxs {
-    int &operator[](DALIOpType op_type) {
-      return idxs[static_cast<size_t>(op_type)];
-    }
 
-    const int &operator[](DALIOpType op_type) const {
-      return idxs[static_cast<size_t>(op_type)];
-    }
-
-    explicit QueueIdxs(int uniform_idx)
-        : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
-
-   private:
-    std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {0, 0, 0, 0};
-  };
 
   void PruneUnusedGraphNodes();
 
@@ -143,10 +192,12 @@ class DLL_PUBLIC Executor {
   void SetupOutputQueuesForGraph();
 
   template <DALIOpType op_type>
-  workspace_t<op_type> &GetWorkspace(int queue_idx, OpPartitionId partition_idx);
+  // workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx);
+  workspace_t<op_type> GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx);
 
   template <DALIOpType op_type>
-  workspace_t<op_type> &GetWorkspace(int queue_idx, const OpNode &node);
+  // workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpNode &node);
+  workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpNode &node);
 
   template <DALIOpType op_type>
   void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
@@ -223,6 +274,20 @@ class DLL_PUBLIC Executor {
   std::queue<int> mixed_work_queue_, gpu_work_queue_;
   std::mutex mixed_mutex_, gpu_mutex_;
 
+  std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
+  std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_ready_mutex_;
+  std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_free_cv_;
+  std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_ready_cv_;
+
+  std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_free_;
+  std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
+  std::array<int, static_cast<int>(DALIOpType::COUNT)> stage_queue_depths_;
+
+  // TODO Scoped acquire?
+  QueueIdxs AcquireIdxs(DALIOpType stage);
+  void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
+
+
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
   EventPool event_pool_;
@@ -257,17 +322,21 @@ class DLL_PUBLIC Executor {
   using Executor::thread_pool_
 
 template <DALIOpType op_type>
-workspace_t<op_type> &Executor::GetWorkspace(int queue_idx, OpPartitionId partition_idx) {
-  auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[queue_idx].op_data);
-  return ws_vec[partition_idx];
+// workspace_t<op_type> &Executor::GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx) {
+workspace_t<op_type> Executor::GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx) {
+  // auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
+  // return ws_vec[partition_idx];
+  return CreateWorkspace<op_type>(*graph_, graph_->Node(op_type, partition_idx), idxs);
 }
 
 template <DALIOpType op_type>
-workspace_t<op_type> &Executor::GetWorkspace(int queue_idx, const OpNode &node) {
+// workspace_t<op_type> &Executor::GetWorkspace(QueueIdxs idxs, const OpNode &node) {
+workspace_t<op_type> Executor::GetWorkspace(QueueIdxs idxs, const OpNode &node) {
   DALI_ENFORCE(node.op_type == op_type,
                "Wrong variant of method selected. DALIOpType does not match.");
-  auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[queue_idx].op_data);
-  return ws_vec[node.partition_index];
+  // auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
+  // return ws_vec[node.partition_index];
+  return  CreateWorkspace<op_type>(*graph_, node, idxs);
 }
 
 // We instantiate the operation of adding the input only for parent op_type and device
