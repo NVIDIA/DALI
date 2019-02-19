@@ -159,6 +159,63 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoder)->Iterations(100)
 ->UseRealTime()
 ->Apply(nvJPEGPipeArgs);
 
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCached)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  // Create the pipeline
+  Pipeline pipe(
+      batch_size,
+      num_thread,
+      0, -1,
+      true,   // pipelined
+      2,      // pipe length
+      true);  // async
+
+  TensorList<CPUBackend> data;
+  this->MakeJPEGBatch(&data, batch_size);
+  pipe.AddExternalInput("raw_jpegs");
+  pipe.SetExternalInput("raw_jpegs", data);
+
+  pipe.AddOperator(
+      OpSpec("nvJPEGDecoder")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddArg("max_streams", num_thread)
+      .AddArg("use_batched_decode", false)
+      .AddArg("cache_size", (1<<30))
+      .AddArg("cache_threshold", 250*250*3)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"images", "gpu"}};
+  pipe.Build(outputs);
+
+  // Run once to allocate the memory
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  while (st.KeepRunning()) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  }
+
+  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
+  int num_batches = st.iterations();
+  st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
+      benchmark::Counter::kIsRate);
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCached)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(nvJPEGPipeArgs);
+
 BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <memory>
-#include "dali/pipeline/operators/decoder/decoder_cache.h"
+#include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
 
 namespace dali {
 namespace testing {
@@ -24,26 +24,26 @@ const char kKey1[] = "file1.jpg";
 const std::vector<uint8_t> kValue1(300, 0xAA);
 const Dims kDims1{100, 1, 3};
 
-struct DecoderCacheTest : public ::testing::Test {
-  DecoderCacheTest() {
+struct DecoderCacheBlobTest : public ::testing::Test {
+  DecoderCacheBlobTest() {
   }
 
   void SetUp() override {
     SetUpImpl((1<<9));
   }
 
-  void SetUpImpl(std::size_t cache_size) {
-    cache_.reset(new DecoderCache(cache_size));
+  void SetUpImpl(std::size_t cache_size, std::size_t image_size_threshold = 0) {
+    cache_.reset(new DecoderCacheBlob(cache_size, image_size_threshold));
   }
 
-  std::unique_ptr<DecoderCache> cache_;
+  std::unique_ptr<DecoderCacheBlob> cache_;
 };
 
-TEST_F(DecoderCacheTest, EmptyCache) {
+TEST_F(DecoderCacheBlobTest, EmptyCache) {
   EXPECT_FALSE(cache_->IsCached(kKey1));
 }
 
-TEST_F(DecoderCacheTest, Add) {
+TEST_F(DecoderCacheBlobTest, Add) {
   EXPECT_FALSE(cache_->IsCached(kKey1));
   cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
   EXPECT_TRUE(cache_->IsCached(kKey1));
@@ -51,21 +51,19 @@ TEST_F(DecoderCacheTest, Add) {
   cache_->CopyData(kKey1, &cachedData[0]);
   EXPECT_EQ(kValue1, cachedData);}
 
-TEST_F(DecoderCacheTest, ErrorGetNonExistent) {
+TEST_F(DecoderCacheBlobTest, ErrorGetNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size(), 0x00);
   EXPECT_THROW(
     cache_->CopyData(kKey1, &cachedData[0]),
     std::runtime_error);
 }
 
-TEST_F(DecoderCacheTest, ErrorAddExisting) {
+TEST_F(DecoderCacheBlobTest, AddExistingIgnored) {
   cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
-  EXPECT_THROW(
-    cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1),
-    std::runtime_error);
+  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
 }
 
-TEST_F(DecoderCacheTest, ErrorTooSmallCacheSize) {
+TEST_F(DecoderCacheBlobTest, ErrorTooSmallCacheSize) {
   SetUpImpl(kValue1.size()-1);
   cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
   EXPECT_FALSE(cache_->IsCached(kKey1));

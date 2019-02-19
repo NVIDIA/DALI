@@ -66,17 +66,6 @@ class DALIBenchmark : public benchmark::Fixture {
     }
   }
 
-  inline void MakeJPEGBatch(vector<Tensor<CPUBackend>> *vt, int n) {
-    const auto nImgs = jpegs_.nImages();
-    TensorList<CPUBackend> tl;
-    MakeJPEGBatch(&tl, n);
-    (*vt).resize(n);
-    for (int i = 0; i < n; ++i) {
-      (*vt)[i].Copy(tl, i, 0);
-      (*vt)[i].SetSourceInfo(jpeg_names_[i % nImgs]);
-    }
-  }
-
  protected:
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_;

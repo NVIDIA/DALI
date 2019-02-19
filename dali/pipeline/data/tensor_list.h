@@ -43,7 +43,8 @@ template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
   DLL_PUBLIC TensorList()
-    : tensor_view_(nullptr) {}
+    : layout_(DALI_NHWC)
+    , tensor_view_(nullptr) {}
 
   DLL_PUBLIC ~TensorList() override {
     delete tensor_view_;
@@ -130,7 +131,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     if (tensor_view_) {
       tensor_view_->ShareData(this);
     }
-    meta_.resize(num_tensor);
+
+    meta_.resize(num_tensor, DALIMeta(layout_));
   }
 
   /**
@@ -346,12 +348,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   inline DALITensorLayout GetLayout() const {
     // Layout is enforced to be the same across all the samples
-    return meta_[0].GetLayout();
+    return layout_;
   }
 
   inline void SetLayout(DALITensorLayout layout) {
     // Layout is enforced to be the same across all the samples
-    meta_[0].SetLayout(layout);
+    layout_ = layout;
+    for (auto& meta : meta_)
+      meta.SetLayout(layout_);
   }
 
 
@@ -362,6 +366,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   vector<Dims> shape_;
   vector<Index> offsets_;
   vector<DALIMeta> meta_;
+  DALITensorLayout layout_;
 
   // In order to not leak memory (and make it slightly faster)
   // when sharing data with a Tensor, we will store a pointer to

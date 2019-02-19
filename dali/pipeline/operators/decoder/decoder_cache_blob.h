@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_BLOB_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_BLOB_H_
 
 #include <string>
 #include <mutex>
@@ -24,26 +24,24 @@
 
 namespace dali {
 
-// TODO(janton): generalize for CPU/GPU cache?
-class DecoderCache {
+class DecoderCacheBlob {
  public:
     using ImageKey = std::string;
 
-    inline explicit DecoderCache(std::size_t cache_size)
-        : cache_size_(cache_size) {
-        buffer_ = static_cast<uint8_t*>(GPUBackend::New(cache_size_, false));
-        DALI_ENFORCE(buffer_ != nullptr);
-        tail_ = buffer_;
-        buffer_end_ = buffer_ + cache_size;
-        LOG_LINE << "cache size is " << cache_size / 1000000 << " MB" << std::endl;
+    inline DecoderCacheBlob(std::size_t cache_size,
+                            std::size_t image_size_threshold )
+        : cache_size_(cache_size)
+        , image_size_threshold_(image_size_threshold) {
+        DALI_ENFORCE(image_size_threshold <= cache_size_,
+            "Cache size should fit at least one image");
     }
 
-    inline ~DecoderCache() {
+    inline ~DecoderCacheBlob() {
         if (buffer_)
             GPUBackend::Delete(buffer_, 0, false);
     }
 
-    DISABLE_COPY_MOVE_ASSIGN(DecoderCache);
+    DISABLE_COPY_MOVE_ASSIGN(DecoderCacheBlob);
 
     inline bool IsCached(const ImageKey& image_key) const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -81,11 +79,19 @@ class DecoderCache {
                     const uint8_t *data, std::size_t data_size,
                     const Dims& data_shape,
                     cudaStream_t stream = 0) {
+        if (data_size < image_size_threshold_)
+            return;
+
         if (IsCached(image_key))
             return;
+
         std::lock_guard<std::mutex> lock(mutex_);
         LOG_LINE << "Add: image_key[" << image_key << "]" << std::endl;
-         DALI_ENFORCE(!image_key.empty());
+        DALI_ENFORCE(!image_key.empty());
+
+        if (buffer_ == nullptr)
+            AllocateBuffer();
+
         if (bytes_left() < data_size) {
             LOG_LINE << "WARNING: not enough space in cache. Ignore" << std::endl;
             return;
@@ -103,6 +109,14 @@ class DecoderCache {
         return static_cast<std::size_t>(buffer_end_ - tail_);
     }
 
+    inline void AllocateBuffer() {
+        buffer_ = static_cast<uint8_t*>(GPUBackend::New(cache_size_, false));
+        DALI_ENFORCE(buffer_ != nullptr);
+        tail_ = buffer_;
+        buffer_end_ = buffer_ + cache_size_;
+        LOG_LINE << "cache size is " << cache_size_ / 1000000 << " MB" << std::endl;
+    }
+
     struct DecodedImage {
         span<uint8_t, dynamic_extent> data;
         Dims dims;
@@ -114,6 +128,7 @@ class DecoderCache {
     };
 
     std::size_t cache_size_ = 0;
+    std::size_t image_size_threshold_ = 0;
     uint8_t* buffer_ = nullptr;
     uint8_t* buffer_end_ = nullptr;
     uint8_t* tail_ = nullptr;
@@ -124,4 +139,4 @@ class DecoderCache {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_BLOB_H_

@@ -27,7 +27,7 @@
 #include <string>
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/decoder_cache.h"
+#include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
@@ -127,8 +127,16 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     batched_output_(batch_size_),
     thread_pool_(max_streams_,
                  spec.GetArgument<int>("device_id"),
-                 true /* pin threads */),
-    cache_(new DecoderCache((1<<30))) {
+                 true /* pin threads */) {
+      const std::size_t cache_size = static_cast<std::size_t>(
+        spec.GetArgument<int>("cache_size"));
+      const std::size_t cache_threshold = static_cast<std::size_t>(
+        spec.GetArgument<int>("cache_threshold"));
+      if (cache_size > 0 && cache_size >= cache_threshold) {
+        cache_.reset(
+          new DecoderCacheBlob(cache_size, cache_threshold));
+      }
+
       // Setup the allocator struct to use our internal allocator
       nvjpegDevAllocator_t allocator;
       allocator.dev_malloc = &memory::DeviceNew;
@@ -169,7 +177,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   }
 
   using dali::OperatorBase::Run;
-
   void Run(MixedWorkspace *ws) override {
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
@@ -310,8 +317,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                 const int stream_idx = tid;
                 const auto output_data_size = Volume(output_shape) * sizeof(uint8_t);
 
-                if (cache_->IsCached(file_name)) {
-                  const auto &shape = cache_->GetShape(file_name);
+                if (cache_ && !file_name.empty() && cache_->IsCached(file_name)) {
                   DALI_ENFORCE(cache_->GetShape(file_name) == output_shape,
                     "Output shape does not match the dimensions of the cached image");
                   cache_->CopyData(
@@ -332,7 +338,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                   streams_[stream_idx],
                   file_name);
 
-                if (!cache_->IsCached(file_name)) {
+                if (cache_ && !file_name.empty() && !cache_->IsCached(file_name)) {
                   cache_->Add(
                     file_name,
                     output_data,
@@ -503,7 +509,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   // device id
   int device_id_;
 
-  std::unique_ptr<DecoderCache> cache_;
+  std::unique_ptr<DecoderCacheBlob> cache_;
 };
 
 }  // namespace dali

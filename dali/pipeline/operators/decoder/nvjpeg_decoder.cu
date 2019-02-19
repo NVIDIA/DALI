@@ -37,7 +37,13 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
       R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024);
+      16*1024*1024)
+  .AddOptionalArg("cache_size",
+      R"code(Total size of the decoder cache in bytes. When provided, decoded
+images bigged than `cache_threshold` will be cached in memory.)code",
+      0)
+  .AddOptionalArg("cache_threshold",
+      R"code(Size threshold (in bytes) for images to be cached.)code",
+      0);
 
 }  // namespace dali
-
