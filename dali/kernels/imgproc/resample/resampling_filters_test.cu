@@ -27,11 +27,12 @@ TEST(ResamplingFilters, GetFilters) {
   EXPECT_EQ(filters, filters2);
 }
 
-__global__ void GetFilterValues(float *out, ResamplingFilter filter, int n, float step) {
+__global__ void GetFilterValues(float *out, ResamplingFilter filter,
+                                int n, float start, float step) {
   int i = threadIdx.x + blockIdx.x*blockDim.x;
   if (i >= n)
     return;
-  out[i] = filter(i*step);
+  out[i] = filter((i+start+filter.anchor)*filter.scale*step);
 }
 
 TEST(ResamplingFilters, DISABLED_PrintFilters) {
@@ -40,7 +41,7 @@ TEST(ResamplingFilters, DISABLED_PrintFilters) {
   for (auto &f : filters->filters) {
     int size = f.num_coeffs;
     auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
-    GetFilterValues<<<1, size>>>(mem.get(), f, size, 1);
+    GetFilterValues<<<1, size>>>(mem.get(), f, size, -f.anchor, 1);
     std::vector<float> host(size);
     cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
     for (auto &value : host)
@@ -53,16 +54,37 @@ TEST(ResamplingFilters, DISABLED_PrintFilters) {
 TEST(ResamplingFilters, TestTriangular) {
   auto filters = GetResamplingFilters(0);
   ASSERT_NE(filters, nullptr);
-  int scale = 64;
-  int size = 2 * scale + 1;
+  int radius = 64;
+  auto f = filters->Triangular(radius);
+  int size = f.support();
   auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
-  auto &f = filters->filters[0];
-  GetFilterValues<<<1, size>>>(mem.get(), f, size, 1.0f/scale);
+  GetFilterValues<<<1, size>>>(mem.get(), f, size, -f.anchor, 1.0f);
   std::vector<float> host(size);
   cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
   for (int i = 0; i < size; i++) {
-    float ref = 1.0f - fabsf(i - scale) / scale;
+    float x = (i - f.anchor) * f.scale;
+    float ref = std::max(0.0f, 1.0f - fabsf(x));
     EXPECT_NEAR(host[i], ref, 1e-6f);
+  }
+}
+
+TEST(ResamplingFilters, Gaussian) {
+  auto filters = GetResamplingFilters(0);
+  ASSERT_NE(filters, nullptr);
+  int radius = 64;
+  const float sigma = radius / (2 * sqrt(2));
+  auto f = filters->Gaussian(sigma);
+  int size = f.support();
+  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  GetFilterValues<<<1, size>>>(mem.get(), f, size, -radius, 1);
+  std::vector<float> host(size);
+  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  for (int i = 0; i < size-1; i++) {
+    float x = (i - radius);
+    float ref = expf(-x*x / (2 * sigma*sigma));
+    float cpu = f((x + f.anchor) * f.scale);
+    EXPECT_NEAR(host[i], ref, 1e-3f);
+    EXPECT_NEAR(host[i], cpu, 1e-6f);
   }
 }
 

@@ -244,6 +244,47 @@ class ResamplingTest : public ::testing::Test {
     }();
   }
 
+  void VerifyWithMargin(int hmargin, int vmargin, double epsilon,
+                        const char *diff_image = nullptr) {
+    ASSERT_FALSE(reference_.empty()) << "Cannot verify with empty refernce";
+    CopyOutputToCPU();
+    cv::Mat tmp_out;
+    output_.copyTo(tmp_out);
+    {
+      int W = tmp_out.cols;
+      int H = tmp_out.rows;
+      if (hmargin) {
+        cv::Rect L(0, 0, hmargin, H);
+        cv::Rect R(W-hmargin, 0, hmargin, H);
+        reference_(L).copyTo(tmp_out(L));
+        reference_(R).copyTo(tmp_out(R));
+      }
+      if (vmargin) {
+        cv::Rect T(0, 0, W, vmargin);
+        cv::Rect B(0, H-vmargin, W, vmargin);
+        reference_(T).copyTo(tmp_out(T));
+        reference_(B).copyTo(tmp_out(B));
+      }
+    }
+    auto img_ref_cpu = view_as_tensor<uint8_t, 3>(reference_);
+    auto img_out_cpu = view_as_tensor<uint8_t, 3>(tmp_out);
+    EXPECT_NO_FATAL_FAILURE(Check(img_out_cpu, img_ref_cpu, EqualEps(epsilon))) <<
+    [&]()->std::string {
+      if (diff_image) {
+        if (img_out_cpu.shape == img_ref_cpu.shape) {
+          cv::Mat diff;
+          cv::absdiff(output_, reference_, diff);
+          cv::imwrite(diff_image, diff);
+          return "Test failed. Absolute difference image saved to " + std::string(diff_image);
+        } else {
+          return "Test failed. Ouput and reference have different size - no difference written.";
+        }
+      } else {
+        return "Test failed. Difference image not saved (no file name specified).";
+      }
+    }();
+  }
+
   void Prepare() {
     int W = InputWidth();
     int H = InputHeight();
@@ -375,8 +416,10 @@ TEST_F(ResamplingTest, ResampleGauss) {
   SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
   auto filters = GetResamplingFilters(0);
-  auto fx = filters->Gaussian(1/ScaleX() - 0.3f);
-  auto fy = filters->Gaussian(1/ScaleY() - 0.3f);
+  float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
+  float sigmaY = (1/ScaleY() - 0.3f) / sqrt(2);
+  auto fx = filters->Gaussian(sigmaX);
+  auto fy = filters->Gaussian(sigmaY);
   SetFilters(fx, fy);
   Prepare();
   Run();
@@ -388,8 +431,10 @@ TEST_F(ResamplingTest, ResampleVHGauss) {
   SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
   auto filters = GetResamplingFilters(0);
-  auto fx = filters->Gaussian(1/ScaleX() - 0.3f);
-  auto fy = filters->Gaussian(1/ScaleY() - 0.3f);
+  float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
+  float sigmaY = (1/ScaleY() - 0.3f) / sqrt(2);
+  auto fx = filters->Gaussian(sigmaX);
+  auto fy = filters->Gaussian(sigmaY);
   SetProcessingOrder(true);
   SetFilters(fx, fy);
   Prepare();
@@ -399,7 +444,7 @@ TEST_F(ResamplingTest, ResampleVHGauss) {
 }
 
 TEST_F(ResamplingTest, SeparableTriangular) {
-  SetSource("imgproc_test/containers.jpg", "imgproc_test/ref_out/containers_tri_300x300.png");
+  SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_PIL.png");
   SetOutputSize(300, 300);
 
   auto filters = GetResamplingFilters(0);
@@ -409,15 +454,15 @@ TEST_F(ResamplingTest, SeparableTriangular) {
   Prepare();
   SetFilters(fx, fy);
   Run();
-  // SaveOutput("containers_tri.png");
-  Verify(5, "containers_tri_dif.png");
+  // SaveOutput("alley_tri.png");
+  VerifyWithMargin(1, 1, 1, "alley_tri_dif.png");
 }
 
 TEST_F(ResamplingTest, GaussianBlur) {
-  SetSource("imgproc_test/containers.jpg", "imgproc_test/ref_out/containers_blurred.png");
+  SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png");
   auto filters = GetResamplingFilters(0);
-  float sigmaX = 6.0f;
-  float sigmaY = 6.0f;
+  float sigmaX = 6.0f / sqrt(2);
+  float sigmaY = 6.0f / sqrt(2);
 
   SetFilters(filters->Gaussian(sigmaX), filters->Gaussian(sigmaY));
   Prepare();
@@ -426,7 +471,7 @@ TEST_F(ResamplingTest, GaussianBlur) {
 }
 
 TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
-  SetSource("imgproc_test/containers.jpg", nullptr);
+  SetSource("imgproc_test/alley.png", nullptr);
 
   auto filters = GetResamplingFilters(0);
   for (int i = 0; i < 10; i++) {
@@ -453,17 +498,6 @@ TEST_F(ResamplingTest, Lanczos3) {
   Prepare();
   Run();
   Verify(1, "score_lanczos_dif.png");
-}
-
-TEST_F(ResamplingTest, Perf_Lanczos3) {
-  SetSource("imgproc_test/score.png");
-  SetScale(5, 5);
-  auto filters = GetResamplingFilters(0);
-  ResamplingFilter f = filters->Lanczos3();
-  SetFilters(f, f);
-  Prepare();
-  for (int i = 0; i < 1000; i++)
-    Run();
 }
 
 }  // namespace kernels

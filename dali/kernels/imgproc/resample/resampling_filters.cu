@@ -61,7 +61,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   int lanczos_resolution = 32;
   int lanczos_a = 3;
   int triangular_size = 3;
-  int gaussian_size = 63;
+  int gaussian_size = 65;
   int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   int total_size = triangular_size + gaussian_size + lanczos_size;
 
@@ -91,7 +91,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
 
 ResamplingFilter ResamplingFilters::Gaussian(float sigma) const noexcept {
   auto flt = filters[1];
-  flt.rescale(std::max(1.0f, 4*sigma));
+  flt.rescale(std::max(1.0f, static_cast<float>(4*M_SQRT2)*sigma));
   return flt;
 }
 

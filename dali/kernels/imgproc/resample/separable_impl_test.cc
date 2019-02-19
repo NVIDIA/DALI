@@ -146,14 +146,14 @@ using ResamplingTestBatch = std::vector<ResamplingTestEntry>;
 
 ResamplingTestBatch SingleImageBatch = {
   {
-    "imgproc_test/containers.jpg", "imgproc_test/ref_out/containers_tri_300x300.png",
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_300x300.png",
     { 300, 300 }, tri(), 5
   }
 };
 
 ResamplingTestBatch Batch1 = {
   {
-    "imgproc_test/containers.jpg", "imgproc_test/ref_out/containers_tri_300x300.png",
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_300x300.png",
     { 300, 300 }, tri(), 5
   },
   {
@@ -161,8 +161,8 @@ ResamplingTestBatch Batch1 = {
     { 540, 250 }, lanczos(), 1
   },
   {
-    "imgproc_test/containers.jpg", "imgproc_test/ref_out/containers_blurred.png",
-    { 377, 480 }, gauss(12), 2
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png",
+    { 681, 960 }, gauss(12), 2
   }
 };
 

@@ -22,7 +22,7 @@ inline ResamplingFilter GetResamplingFilter(
     const ResamplingFilters *filters, const FilterDesc &params) noexcept {
   switch (params.type) {
     case ResamplingFilterType::Gaussian:
-      return filters->Gaussian(params.radius*0.5f);
+      return filters->Gaussian(params.radius*0.5f/M_SQRT2);
     case ResamplingFilterType::Triangular:
       return filters->Triangular(params.radius);
     case ResamplingFilterType::Lanczos3:

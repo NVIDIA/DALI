@@ -44,26 +44,23 @@ struct ResamplingFilter {
     return ceilf(num_coeffs / scale);
   }
 
-  /// @remarks WARNING: This function is available as both __host__ and
-  ///          __device__, but real availability depends on whether
-  ///         `coeffs` is accessible from particular backend.
   __host__ __device__ float operator()(float x) const {
-    if (!(x >= 0))
+    if (!(x > -1))  // negative and NaN arguments
       return 0;
-    if (x > num_coeffs-1)
+    if (x >= num_coeffs)
       return 0;
 #ifdef __CUDA_ARCH__
     int x0 = floorf(x);
-    int x1 = min(num_coeffs-1, x0 + 1);
+    int x1 = x0 + 1;
     float d = x - x0;
-    float f0 = __ldg(coeffs + x0);
-    float f1 = __ldg(coeffs + x1);
+    float f0 = x0 < 0 ? 0.0f : __ldg(coeffs + x0);
+    float f1 = x1 >= num_coeffs ? 0.0f : __ldg(coeffs + x1);
 #else
     int x0 = std::floor(x);
-    int x1 = std::min(num_coeffs-1, x0 + 1);
+    int x1 = x0 + 1;
     float d = x - x0;
-    float f0 = coeffs[x0];
-    float f1 = coeffs[x1];
+    float f0 = x0 < 0.0f ? 0 : coeffs[x0];
+    float f1 = x1 >= num_coeffs ? 0.0f : coeffs[x1];
 #endif
     return f0 + d * (f1 - f0);
   }

@@ -129,20 +129,20 @@ template void BatchedSeparableResample<which_pass, Output, Input>( \
   int2 block_size, cudaStream_t stream)
 
 INSTANTIATE_BATCHED_RESAMPLE(0, float, uint8_t);
-/*INSTANTIATE_BATCHED_RESAMPLE(0, float, int8_t);
+INSTANTIATE_BATCHED_RESAMPLE(0, float, int8_t);
 INSTANTIATE_BATCHED_RESAMPLE(0, float, uint16_t);
 INSTANTIATE_BATCHED_RESAMPLE(0, float, int16_t);
 INSTANTIATE_BATCHED_RESAMPLE(0, float, uint32_t);
 INSTANTIATE_BATCHED_RESAMPLE(0, float, int32_t);
-INSTANTIATE_BATCHED_RESAMPLE(0, float, float);*/
+INSTANTIATE_BATCHED_RESAMPLE(0, float, float);
 
 INSTANTIATE_BATCHED_RESAMPLE(1, uint8_t,  float);
-/*INSTANTIATE_BATCHED_RESAMPLE(1, int8_t,   float);
+INSTANTIATE_BATCHED_RESAMPLE(1, int8_t,   float);
 INSTANTIATE_BATCHED_RESAMPLE(1, uint16_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(1, int16_t,  float);
 INSTANTIATE_BATCHED_RESAMPLE(1, uint32_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(1, int32_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(1, float,    float);*/
+INSTANTIATE_BATCHED_RESAMPLE(1, float,    float);
 
 }  // namespace kernels
 }  // namespace dali
