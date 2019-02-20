@@ -94,6 +94,29 @@ struct QueueIdxs {
   std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {0, 0, 0, 0};
 };
 
+struct OutputIdxs {
+  int mixed;
+  int gpu;
+
+  int &operator[](DALIOpType op_type) {
+    if (op_type == DALIOpType::MIXED) {
+      return mixed;
+    }
+    else {
+      return gpu;
+    }
+  }
+
+  const int &operator[](DALIOpType op_type) const {
+    if (op_type == DALIOpType::MIXED) {
+      return mixed;
+    }
+    else {
+      return gpu;
+    }
+  }
+};
+
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
@@ -123,6 +146,8 @@ class DLL_PUBLIC Executor {
     for (auto &e : stage_queue_depths_) {
       e = queue_depth_;
     }
+    stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] = 100;
+    stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] = 100;
 
 
   }
@@ -249,8 +274,8 @@ class DLL_PUBLIC Executor {
   // is marked as in-use when it is returned as and output.
   // The buffer is then returned the the ready queue the
   // next time Ouputs() is called.
-  std::queue<int> ready_queue_, free_queue_, in_use_queue_;
-  std::mutex ready_mutex_, free_mutex_;
+  // std::queue<int> ready_queue_, free_queue_, in_use_queue_;
+  // std::mutex ready_mutex_, free_mutex_;
   std::condition_variable ready_cond_, free_cond_;
 
   // Work is passed between the stages through queues. This
@@ -283,9 +308,15 @@ class DLL_PUBLIC Executor {
   std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
   std::array<int, static_cast<int>(DALIOpType::COUNT)> stage_queue_depths_;
 
+  std::mutex ready_output_mutex_, in_use_mutex_;
+  std::queue<OutputIdxs> ready_output_queue_;
+  std::queue<OutputIdxs> in_use_queue_;
+
   // TODO Scoped acquire?
   QueueIdxs AcquireIdxs(DALIOpType stage);
   void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
+
+  void QueueOutputIdxs(QueueIdxs idxs);
 
 
   OpGraph *graph_ = nullptr;
@@ -313,8 +344,6 @@ class DLL_PUBLIC Executor {
   using Executor::queue_depth_;           \
   using Executor::output_names_;          \
   using Executor::gpu_output_events_;     \
-  using Executor::ready_queue_;           \
-  using Executor::ready_mutex_;           \
   using Executor::ready_cond_;            \
   using Executor::graph_;                 \
   using Executor::stream_pool_;           \

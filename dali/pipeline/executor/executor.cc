@@ -294,13 +294,15 @@ void Executor::RunGPU() {
 // #if 0
   // TODO(kleckI): total workaround for test.
   // We have to give up the elements to be occupied
-  std::unique_lock<std::mutex> lock(ready_mutex_);
-  ready_queue_.push(queue_idx[DALIOpType::GPU]);
-  ready_cond_.notify_all();
-  lock.unlock();
+  // std::unique_lock<std::mutex> lock(ready_mutex_);
+  // ready_queue_.push(queue_idx[DALIOpType::GPU]);
+  // ready_cond_.notify_all();
+  // lock.unlock(); // TODO (this should be before notify?)
 // #endif
 
-  ReleaseIdxs(DALIOpType::GPU, gpu_idx);
+  // We do not release
+  // ReleaseIdxs(DALIOpType::GPU, gpu_idx);
+  QueueOutputIdxs(gpu_idx);
 
   // Save the queue_idx so we can enforce the
   // dependency between consecutive iterations
@@ -317,11 +319,21 @@ void Executor::ReleaseOutputs() {
   // Mark the last in-use buffer as free and signal
   // to waiting threads
   if (!in_use_queue_.empty()) {
-    std::unique_lock<std::mutex> lock(free_mutex_);
-    free_queue_.push(in_use_queue_.front());
+    auto mixed_idx = static_cast<int>(DALIOpType::MIXED);
+    auto gpu_idx =static_cast<int>(DALIOpType::GPU);
+    auto processed = in_use_queue_.front(); // TODO(klecki): this should be guarded as well
+    std::cout << "Releasing outputs: " << processed.mixed << ", " << processed.gpu << std::endl;
+    {
+      std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
+      stage_free_[mixed_idx].push(processed.mixed);
+    }
+    stage_free_cv_[mixed_idx].notify_one();
+    {
+      std::unique_lock<std::mutex> lock(stage_free_mutex_[gpu_idx]);
+      stage_free_[gpu_idx].push(processed.gpu);
+    }
     in_use_queue_.pop();
-    free_cond_.notify_one();
-    lock.unlock();
+    stage_free_cv_[gpu_idx].notify_one();
   }
 }
 
@@ -343,9 +355,9 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
 
   // Block until the work for a batch has been issued.
   // Move the queue id from ready to in_use
-  std::unique_lock<std::mutex> lock(ready_mutex_);
-  while (ready_queue_.empty() && !exec_error_) {
-    ready_cond_.wait(lock);
+  std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
+  while (ready_output_queue_.empty() && !exec_error_) {
+    ready_cond_.wait(ready_lock);
     if (exec_error_) {
       break;
     }
@@ -355,10 +367,11 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
   }
-  int output_idx = ready_queue_.front();
-  ready_queue_.pop();
-  in_use_queue_.push(output_idx);
-  lock.unlock();
+  auto output_idx = ready_output_queue_.front();
+  ready_output_queue_.pop();
+  std::cout << "Marking as in use: " << output_idx.mixed << ", " << output_idx.gpu << std::endl;
+  in_use_queue_.push(output_idx); //TODO(klecki) -this may cause some problems!!!
+  ready_lock.unlock();
 
   // We already gathered info about outputs, so we only have to wait on respective
   // events to make sure that the computation has completed
@@ -371,15 +384,17 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
       (
         auto &queue = get_queue<op_type_static, DALITensorDevice::GPU>(
             tensor_to_store_queue_[out_tensor_id]);
-        ws->AddOutput(queue[output_idx]);
-        CUDA_CALL(cudaEventSynchronize(gpu_output_events_[i].GetEvent(output_idx)));
+        auto stage_output_idx = output_idx[op_type_static];
+        ws->AddOutput(queue[stage_output_idx]);
+        CUDA_CALL(cudaEventSynchronize(gpu_output_events_[i].GetEvent(stage_output_idx)));
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     } else {
       VALUE_SWITCH(op_type, op_type_static, (DALIOpType::MIXED, DALIOpType::GPU),
       (
         auto &queue = get_queue<op_type_static, DALITensorDevice::CPU>(
             tensor_to_store_queue_[out_tensor_id]);
-        ws->AddOutput(queue[output_idx]);
+        auto stage_output_idx = output_idx[op_type_static];
+        ws->AddOutput(queue[stage_output_idx]);
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     }
   }
@@ -556,9 +571,9 @@ std::vector<int> Executor::GetMemoryHints(const OpNode &node) {
 
 void Executor::SetupOutputQueuesForGraph() {
   // All buffers start off as free
-  for (int i = 0; i < queue_depth_; ++i) {
-    free_queue_.push(i);
-  }
+  // for (int i = 0; i < queue_depth_; ++i) {
+  //   free_queue_.push(i);
+  // }
 
   for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
     for (int i = 0; i < stage_queue_depths_[stage]; i++) {
@@ -620,6 +635,12 @@ void Executor::ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
     stage_ready_[current_stage].push(idxs[stage]);
     stage_ready_cv_[current_stage].notify_one();
   }
+}
+
+void Executor::QueueOutputIdxs(QueueIdxs idxs) {
+  std::cout << "Queueing outputs " << idxs << std::endl;
+  std::unique_lock<std::mutex> ready_output_lock(ready_output_mutex_);
+  ready_output_queue_.push({idxs[DALIOpType::MIXED], idxs[DALIOpType::GPU]});
 }
 
 }  // namespace dali
