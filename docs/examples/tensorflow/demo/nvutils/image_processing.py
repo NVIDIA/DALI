@@ -37,7 +37,7 @@ class HybridPipe(dali.pipeline.Pipeline):
                  shard_id,
                  num_gpus,
                  deterministic=False,
-                 dali_cpu=True,
+                 dali_cpu=False,
                  training=True):
 
         kwargs = dict()
@@ -71,7 +71,9 @@ class HybridPipe(dali.pipeline.Pipeline):
         else:
             self.decode = dali.ops.nvJPEGDecoder(
                 device="mixed",
-                output_type=dali.types.RGB)
+                output_type=dali.types.RGB,
+                cache_size=1000000000,
+                cache_threshold=250*250*3)
             resize_device = "gpu"
 
         if training:
@@ -126,7 +128,7 @@ class DALIPreprocessor(object):
                  batch_size,
                  num_threads,
                  dtype=tf.uint8,
-                 dali_cpu=True,
+                 dali_cpu=False,
                  deterministic=False,
                  training=False):
         device_id = hvd.local_rank()
@@ -162,7 +164,7 @@ class DALIPreprocessor(object):
 
 def image_set(filenames, batch_size, height, width, training=False,
               distort_color=False, num_threads=10, nsummary=10,
-              deterministic=False, dali_cpu=True, idx_filenames=None):
+              deterministic=False, dali_cpu=False, idx_filenames=None):
     if idx_filenames is None:
         raise ValueError("Must provide idx_filenames for DALI's reader")
 
