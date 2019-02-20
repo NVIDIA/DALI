@@ -51,6 +51,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -Og -DDALI_DEBUG=1")
 # Generate only line info for device as -G disables all optimizations and causes unit tests to fail
 set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
 
+# DevDebug flags - Use the "-G" for proper debug info for device code
+set(CMAKE_CXX_FLAGS_DEVDEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+string(REPLACE "-lineinfo" "-G" CUDA_NVCC_FLAGS_DEVDEBUG "${CUDA_NVCC_FLAGS_DEBUG}")
+
 # Release flags
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DDALI_DEBUG=0")
 set(CUDA_NVCC_FLAGS_RELEASE "${CUDA_NVCC_FLAGS_RELEASE} -DDALI_DEBUG=0")
