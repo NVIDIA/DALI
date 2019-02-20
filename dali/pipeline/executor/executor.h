@@ -198,7 +198,8 @@ class DLL_PUBLIC Executor {
       std::get<3>(op_data).clear();
     }
   };
-  vector<WorkspaceBlob> wss_;
+  // TODO(klecki): do not need the blob right now
+  // vector<WorkspaceBlob> wss_;
 
 
 
