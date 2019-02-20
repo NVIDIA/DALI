@@ -45,6 +45,7 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
 void daliRun(daliPipelineHandle* pipe_handle) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   pipeline->RunCPU();
+  pipeline->RunMIXED();
   pipeline->RunGPU();
 }
 

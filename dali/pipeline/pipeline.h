@@ -206,6 +206,11 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunCPU();
 
   /**
+   * @brief Run the mixed portion of the pipeline.
+   */
+  DLL_PUBLIC void RunMIXED();
+
+  /**
    * @brief Run the gpu portion of the pipeline.
    */
   DLL_PUBLIC void RunGPU();
@@ -220,7 +225,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
-   * This method blocks until the next batch is complete. RunCPU and RunGPU
+   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
@@ -229,7 +234,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * To release previously returned buffers ReleaseOutputs need to be called.
-   * This method blocks until the next batch is complete. RunCPU and RunGPU
+   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */

@@ -56,6 +56,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -65,9 +66,11 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMIXED();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
@@ -131,11 +134,13 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
@@ -194,11 +199,13 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { /
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
@@ -248,6 +255,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { 
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -257,9 +265,11 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { 
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMIXED();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
@@ -314,6 +324,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) { // NOL
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -323,9 +334,11 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) { // NOL
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMIXED();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
@@ -407,6 +420,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) { // NO
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMIXED();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -416,9 +430,11 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) { // NO
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMIXED();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 

@@ -231,6 +231,12 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.RunCPU()
 
+    def _run_mixed(self):
+        """Run MIXED portion of the pipeline."""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        self._pipe.RunMIXED()
+
     def _run_gpu(self):
         """Run GPU portion of the pipeline."""
         if not self._built:
@@ -306,6 +312,7 @@ class Pipeline(object):
             if not self._last_iter:
                 self.iter_setup()
                 self._run_cpu()
+                self._run_mixed()
                 self._run_gpu()
                 self._batches_to_consume += 1
         except StopIteration:

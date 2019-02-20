@@ -114,6 +114,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   for (int i=0; i < 5; ++i) {
     printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
@@ -139,6 +140,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
   for (int i = 0; i < 4; ++i) {
     printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
+    pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
     auto shape = ws.Output<CPUBackend>(0).AsTensor()->shape();

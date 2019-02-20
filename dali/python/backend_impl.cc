@@ -615,6 +615,7 @@ PYBIND11_MODULE(backend_impl, m) {
           p->SetOutputNames(outputs);
           })
     .def("RunCPU", &Pipeline::RunCPU)
+    .def("RunMIXED", &Pipeline::RunMIXED)
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {

@@ -394,8 +394,14 @@ void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
   executor_->RunCPU();
+}
+
+void Pipeline::RunMIXED() {
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
   executor_->RunMixed();
 }
+
 
 void Pipeline::RunGPU() {
   DALI_ENFORCE(built_,

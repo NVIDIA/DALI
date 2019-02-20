@@ -46,6 +46,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
     pipe->RunCPU();
+    pipe->RunMIXED();
     pipe->RunGPU();
 
     DeviceWorkspace ws;
@@ -86,6 +87,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "gpu"}, {"resized_boxes", "gpu"}});
     pipe->RunCPU();
+    pipe->RunMIXED();
     pipe->RunGPU();
 
     DeviceWorkspace ws;
@@ -133,6 +135,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
     pipe->RunCPU();
+    pipe->RunMIXED();
     pipe->RunGPU();
 
     DeviceWorkspace ws;
