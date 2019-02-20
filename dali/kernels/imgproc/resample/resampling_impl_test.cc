@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/imgcodecs.hpp>
 #include "dali/kernels/test/test_data.h"
+#include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 #include "dali/kernels/imgproc/resample/resampling_impl_cpu.h"
 #include "dali/kernels/test/mat2tensor.h"
@@ -92,18 +93,19 @@ TEST(ResampleCPU, TriangularFilter) {
 }
 
 TEST(ResampleCPU, Horizontal) {
-  auto img = testing::data::image("imgproc_test/moire2.png");
+  auto img = testing::data::image("imgproc_test/checkerboard.png");
+  auto ref = testing::data::image("imgproc_test/ref_out/resample_horz.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_w = img.cols;
-  int out_w = 100;
+  int out_w = in_w/2;
 
   float scale = static_cast<float>(in_w)/out_w;
 
   cv::Mat out_img(img.rows, out_w, img.type());
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
-  auto filter = TriangularFilter(scale);
+  auto filter = GaussianFilter(40);
   int support = filter.support();
   std::vector<float> coeffs(out_w * support);
   std::vector<int> idx(out_w);
@@ -112,22 +114,24 @@ TEST(ResampleCPU, Horizontal) {
   ResampleHorz(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
     idx.data(), coeffs.data(), support);
 
-  cv::imwrite("horz_300.png", out_img);
+  auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
+  Check(out_tensor, ref_tensor, EqualEps(1));
 }
 
 TEST(ResampleCPU, Vertical) {
-  auto img = testing::data::image("imgproc_test/moire2.png");
+  auto img = testing::data::image("imgproc_test/checkerboard.png");
+  auto ref = testing::data::image("imgproc_test/ref_out/resample_vert.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_h = img.rows;
-  int out_h = 100;
+  int out_h = in_h/2;
 
   float scale = static_cast<float>(in_h)/out_h;
 
   cv::Mat out_img(out_h, img.cols, img.type());
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
-  auto filter = TriangularFilter(scale);
+  auto filter = GaussianFilter(40);
   int support = filter.support();
   std::vector<float> coeffs(out_h * support);
   std::vector<int> idx(out_h);
@@ -136,8 +140,90 @@ TEST(ResampleCPU, Vertical) {
   ResampleVert(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
     idx.data(), coeffs.data(), support);
 
-  cv::imwrite("vert_300.png", out_img);
+  auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
+  Check(out_tensor, ref_tensor, EqualEps(1));
 }
+
+TEST(ResampleCPU, NN) {
+  auto img = testing::data::image("imgproc_test/blobs.png");
+  auto ref = testing::data::image("imgproc_test/dots.png");
+  auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
+
+  int in_h = img.rows;
+  int in_w = img.cols;
+  int out_w = 4;
+  int out_h = 4;
+
+  float scalex = static_cast<float>(in_w)/out_w;
+  float scaley = static_cast<float>(in_h)/out_h;
+
+  cv::Mat out_img(out_h, out_w, img.type());
+  auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
+
+  ResampleNN(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
+    0, 0, scalex, scaley);
+
+  auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
+  Check(ref_tensor, out_tensor);
+}
+
+
+TEST(ResampleCPU, NN_Identity) {
+  auto img = testing::data::image("imgproc_test/alley.png");
+  auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
+
+  int in_h = img.rows;
+  int in_w = img.cols;
+  int out_w = in_w;
+  int out_h = in_h;
+
+  float scalex = static_cast<float>(in_w)/out_w;
+  float scaley = static_cast<float>(in_h)/out_h;
+
+  cv::Mat out_img(out_h, out_w, img.type());
+  auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
+
+  ResampleNN(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
+    0, 0, scalex, scaley);
+
+  Check(in_tensor, out_tensor);
+}
+
+
+TEST(ResampleCPU, Linear) {
+  auto img = testing::data::image("imgproc_test/dots.png");
+  auto ref = testing::data::image("imgproc_test/blobs.png");
+  auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
+
+  int in_h = img.rows;
+  int in_w = img.cols;
+  int out_w = 300;
+  int out_h = 300;
+
+  float scalex = static_cast<float>(in_w)/out_w;
+  float scaley = static_cast<float>(in_h)/out_h;
+
+  cv::Mat out_img(out_h, out_w, img.type());
+  cv::Mat tmp_img(out_h,in_w, CV_32FC3);
+  auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
+  auto tmp_tensor = view_as_tensor<float, 3>(tmp_img);
+
+  auto filter = LinearFilter();
+  int support = filter.support();
+  std::vector<float> coeffs(std::max(out_h, out_w) * support);
+  std::vector<int> idx(std::max(out_h, out_w));
+  InitializeFilter(idx.data(), coeffs.data(), out_h, 0, scaley, filter);
+  ResampleVert(as_surface_HWC(tmp_tensor), as_surface_HWC(in_tensor),
+    idx.data(), coeffs.data(), support);
+
+  InitializeFilter(idx.data(), coeffs.data(), out_w, 0, scalex, filter);
+  ResampleHorz<uint8_t, float>(as_surface_HWC(out_tensor), as_surface_HWC(tmp_tensor),
+    idx.data(), coeffs.data(), support);
+
+  auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
+  Check(ref_tensor, out_tensor);
+}
+
 
 }  // namespace kernels
 }  // namespace dali

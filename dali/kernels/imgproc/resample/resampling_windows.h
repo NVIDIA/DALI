@@ -27,13 +27,17 @@ inline __host__ __device__ float GaussianWindow(float x, float sigma = 0.5f) {
   return expf(-0.5f * x * x);
 }
 
-inline __host__ __device__ float GaussianWindowS1(float x) {
+inline __host__ __device__ float ExpMinusX2(float x) {
   return expf(-x * x);
 }
 
 inline __host__ __device__ float TriangularWindow(float x) {
   float t = 1 - fabsf(x);
   return t < 0 ? 0 : t;
+}
+
+inline __host__ __device__ float RectangularWindow(float x) {
+  return -0.5f <= x && x < 0.5f ? 1 : 0;
 }
 
 inline __host__ __device__ float sinc(float x) {
@@ -65,9 +69,9 @@ struct FilterWindow {
 inline FilterWindow GaussianFilter(float radius, float sigma = 0) {
   float scale;
   if (!sigma) scale = 2 / radius;
-  else scale = 0.5f / sigma;
-  radius = floorf(radius + 0.4f)+0.5f;
-  return { 2*radius, radius, scale, GaussianWindowS1 };
+  else scale = M_SQRT1_2 / sigma;
+  radius = std::floor(radius + 0.4f)+0.5f;
+  return { 2*radius, radius, scale, ExpMinusX2 };
 }
 
 inline FilterWindow TriangularFilter(float radius) {
@@ -84,6 +88,13 @@ inline  FilterWindow LanczosFilter(float a) {
   return { 6, 3, 1, [a](float x) { return LanczosWindow(x, a); } };
 }
 
+inline  FilterWindow LinearFilter() {
+  return { 2, 1, 1, TriangularWindow };
+}
+
+inline  FilterWindow NNFilter() {
+  return { 1, 0.5f, 1, RectangularWindow };
+}
 
 }  // namespace kernels
 }  // namespace dali

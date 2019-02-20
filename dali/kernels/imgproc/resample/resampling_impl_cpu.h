@@ -73,7 +73,7 @@ void ResampleCol(Out *out, const In *in, int x, int w, const int *in_columns,
 
 template <int static_channels = -1, typename Out, typename In>
 void ResampleHorz_Channels(
-    Surface2D<Out> out, Surface2D<const In> in, const int *in_columns,
+    Surface2D<Out> out, Surface2D<In> in, const int *in_columns,
     const float *coeffs, int support) {
   const int channels = static_channels < 0 ? out.channels : static_channels;
 
@@ -112,7 +112,7 @@ void ResampleHorz_Channels(
 
 template <typename Out, typename In>
 void ResampleVert(
-    Surface2D<Out> out, Surface2D<const In> in, const int *in_rows,
+    Surface2D<Out> out, Surface2D<In> in, const int *in_rows,
     const float *row_coeffs, int support) {
   const float bias = std::is_integral<Out>::value ? 0.5f : 0;
   const int tile = 64;
@@ -155,13 +155,111 @@ void ResampleVert(
 
 template <typename Out, typename In>
 void ResampleHorz(
-    Surface2D<Out> out, Surface2D<const In> in, const int *in_columns,
+    Surface2D<Out> out, Surface2D<In> in, const int *in_columns,
     const float *col_coeffs, int support) {
   VALUE_SWITCH(out.channels, static_channels, (1, 2, 3, 4), (
     ResampleHorz_Channels<static_channels>(out, in, in_columns, col_coeffs, support);
   ), (
     ResampleHorz_Channels<-1>(out, in, in_columns, col_coeffs, support);
   ));  // NOLINT
+}
+
+
+///@brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
+///@param out - output surface
+///@param in - input surface
+///@param src_x0 - starting X coordinate of input
+///@param src_y0 - starting Y coordinate of input
+///@param scale_x - step of X input coordinate taken for each output pixel
+///@param scale_y - step of Y input coordinate taken for each output row
+///@remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
+///         Scales can be negative to achieve flipping.
+template <typename Out, typename In>
+void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
+                float src_x0, float src_y0, float scale_x, float scale_y) {
+  assert(out.channels == in.channels);
+  assert(in.channel_stride == 1 && out.channel_stride == 1 ||
+         in.channels == 1 && out_channels == 1);
+  // assume HCW layout with contiguous pixels (not necessarily rows)
+  assert(out.pixel_stride == out.channels);
+
+  if (scale_x == 1) {
+    // FAST PATH - not scaling along X axis - just copy with repeated boundaries
+    int sx0 = std::floor(src_x0 + 0.5f);
+    int dx1 = sx0 + in.width;
+    if (dx1 > out.width)
+      dx1 = out.width;
+    int dx0 = 0;
+    if (sx0 < 0) {
+      dx0 = std::min(-sx0, out.width);
+    }
+
+    float sy = src_y0 + 0.5f * scale_y;
+    for (int y = 0; y < out.height; y++, sy += scale_y) {
+      int srcy = std::floor(sy);
+
+      if (srcy < 0) srcy = 0;
+      else if (srcy > in.height-1) srcy = in.height-1;
+
+      Out *out_ch = &out(0, y, 0);
+
+      int x;
+      const In *first_px = &in(0, srcy, 0);
+      for (x = 0; x < dx0; x++) {
+        for (int c = 0; c < out.channels; c++)
+          *out_ch++ = first_px[c];
+      }
+
+      const In *in_row = &in(sx0 + dx0, srcy, 0);
+      for (int j = x * out.channels; j < dx1 * out.channels; j++)
+          *out_ch++ = clamp<Out>(*in_row++);
+
+      x = dx1;
+      const In *last_px = &in(in.width-1, srcy, 0);
+      for (; x < out.width; x++) {
+        for (int c = 0; c < out.channels; c++)
+          *out_ch++ = last_px[c];
+      }
+
+    }
+    return;
+  }
+
+  constexpr int max_span_width = 256;
+  int col_offsets[max_span_width];
+
+  for (int x0 = 0; x0 < out.width; x0 += max_span_width) {
+
+    float sy = src_y0 + 0.5f * scale_y;
+
+    int span_width = x0 + max_span_width <= out.width ? max_span_width : out.width - x0;
+
+    for (int j = 0; j < span_width; j++) {
+      int x = x0 + j;
+      float sx = src_x0 + (x + 0.5f) * scale_x;
+      int srcx = std::floor(sx);
+      if (srcx < 0) srcx = 0;
+      else if (srcx > in.width-1) srcx += in.width - 1;
+      col_offsets[j] = srcx * in.pixel_stride;
+    }
+
+    for (int y = 0; y < out.height; y++, sy += scale_y) {
+      int srcy = std::floor(sy);
+
+      if (srcy < 0) srcy = 0;
+      else if (srcy > in.height-1) srcy = in.height-1;
+
+      const In *in_row = &in(0, srcy);
+      Out *out_ch = &out(x0, y, 0);
+
+      for (int j = 0; j < span_width; j++) {
+        const In *in_ch = &in_row[col_offsets[j]];
+        for (int c = 0; c < out.channels; c++) {
+          *out_ch++ = clamp<Out>(*in_ch++);
+        }
+      }
+    }
+  }
 }
 
 }  // namespace kernels
