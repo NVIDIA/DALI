@@ -111,7 +111,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   pipe.Build(outputs);
 
   DeviceWorkspace ws;
-  for (int i=0; i < 5; ++i) {
+  for (int i=0; i < 50; ++i) {
     printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
     pipe.RunMIXED();

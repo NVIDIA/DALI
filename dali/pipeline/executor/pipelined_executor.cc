@@ -41,15 +41,14 @@ void PipelinedExecutor::SetupOutputInfo(const OpGraph &graph) {
 }
 
 std::vector<int> PipelinedExecutor::GetTensorQueueSizes(const OpGraph &graph) {
-  std::vector<int> result;
-  result.resize(graph.NumTensor(), 1);
-  auto output_ids = graph.GetOutputs(output_names_);
+  Executor::GetTensorQueueSizes(graph);
+  std::vector<int> result = Executor::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
     auto stage_outputs = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
-    output_ids.insert(output_ids.end(), stage_outputs.begin(), stage_outputs.end());
-  }
-  for (auto id : output_ids) {
-    result[id] = queue_depth_;
+    for (auto id : stage_outputs) {
+      result[id] = stage_queue_depths_[stage];
+    }
+    // output_ids.insert(output_ids.end(), stage_outputs.begin(), stage_outputs.end());
   }
   return result;
 }

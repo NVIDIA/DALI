@@ -78,6 +78,14 @@ static bool HasNextStage(DALIOpType op) {
   return true;
 }
 
+struct QueueSizes {
+  QueueSizes(int output_size) : cpu_size(1), mixed_size(output_size), gpu_size(output_size) {}
+  QueueSizes(int cpu_size, int mixed_size, int gpu_size)
+      : cpu_size(cpu_size), mixed_size(mixed_size), gpu_size(gpu_size) {}
+
+  int cpu_size = 1, mixed_size = 1, gpu_size = 1;
+};
+
 struct QueueIdxs {
   int &operator[](DALIOpType op_type) {
     return idxs[static_cast<size_t>(op_type)];
@@ -129,11 +137,11 @@ class DLL_PUBLIC Executor {
 
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
-                             int max_num_stream = -1, int prefetch_queue_depth = 2)
+                             int max_num_stream = -1, QueueSizes prefetch_queue_depth = 2)
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        queue_depth_(prefetch_queue_depth),
+        // queue_depth_(prefetch_queue_depth),
         stream_pool_(max_num_stream, true),
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
@@ -142,14 +150,10 @@ class DLL_PUBLIC Executor {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
-    //TODO(klecki): Actual setup of queues
-    for (auto &e : stage_queue_depths_) {
-      e = queue_depth_;
-    }
-    stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] = 100;
-    stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] = 100;
-
-
+    stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] = 1; // synchronous with CPU
+    stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] = prefetch_queue_depth.cpu_size;
+    stage_queue_depths_[static_cast<int>(DALIOpType::MIXED)] = prefetch_queue_depth.mixed_size;
+    stage_queue_depths_[static_cast<int>(DALIOpType::GPU)] = prefetch_queue_depth.gpu_size;
   }
 
   DLL_PUBLIC virtual ~Executor() = default;
@@ -258,7 +262,7 @@ class DLL_PUBLIC Executor {
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  int queue_depth_;
+  // QueueSizes queue_depth_;
   int previous_gpu_queue_idx_ = -1;
 
   vector<string> output_names_;
@@ -334,21 +338,20 @@ class DLL_PUBLIC Executor {
   std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
 };
 
-#define USE_EXECUTOR_MEMBERS()            \
- protected:                               \
-  using Executor::WorkspaceBlob;          \
-  using Executor::wss_;                   \
-  using Executor::batch_size_;            \
-  using Executor::device_id_;             \
-  using Executor::bytes_per_sample_hint_; \
-  using Executor::queue_depth_;           \
-  using Executor::output_names_;          \
-  using Executor::gpu_output_events_;     \
-  using Executor::ready_cond_;            \
-  using Executor::graph_;                 \
-  using Executor::stream_pool_;           \
-  using Executor::event_pool_;            \
-  using Executor::thread_pool_
+// #define USE_EXECUTOR_MEMBERS()            \
+//  protected:                               \
+//   using Executor::WorkspaceBlob;          \
+//   using Executor::wss_;                   \
+//   using Executor::batch_size_;            \
+//   using Executor::device_id_;             \
+//   using Executor::bytes_per_sample_hint_; \
+//   using Executor::output_names_;          \
+//   using Executor::gpu_output_events_;     \
+//   using Executor::ready_cond_;            \
+//   using Executor::graph_;                 \
+//   using Executor::stream_pool_;           \
+//   using Executor::event_pool_;            \
+//   using Executor::thread_pool_
 
 template <DALIOpType op_type>
 // workspace_t<op_type> &Executor::GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx) {

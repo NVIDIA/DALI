@@ -65,7 +65,8 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
-    mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, queue_depth_);
+    mixed_op_events_ = CreateEventsForMixedOps(
+        event_pool_, *graph_, stage_queue_depths_[static_cast<int>(DALIOpType::MIXED)]);
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);
@@ -80,11 +81,13 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
   // asynchonrous executors that can overlap work issue)
-  WorkspaceBlob base_wsb;
-  wss_.resize(queue_depth_);
-  for (int queue_idx = 0; queue_idx < queue_depth_; queue_idx++) {
-    SetupWorkspacesForGraph(queue_idx);
-  }
+
+  // TODO(klecki): Add cache'ing policy to CreateWorkspace
+  // WorkspaceBlob base_wsb;
+  // wss_.resize(queue_depth_);
+  // for (int queue_idx = 0; queue_idx < queue_depth_; queue_idx++) {
+  //   SetupWorkspacesForGraph(queue_idx);
+  // }
 
   // Producer-consumer queues info
   SetupOutputQueuesForGraph();
@@ -292,7 +295,7 @@ void Executor::RunGPU() {
   // issued. Notify any waiting threads.
 
 // #if 0
-  // TODO(kleckI): total workaround for test.
+  // TODO(klecki): total workaround for test.
   // We have to give up the elements to be occupied
   // std::unique_lock<std::mutex> lock(ready_mutex_);
   // ready_queue_.push(queue_idx[DALIOpType::GPU]);
@@ -461,8 +464,11 @@ void Executor::SetupOutputInfo(const OpGraph &graph) {
   DeviceGuard g(device_id_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
   for (auto tid : pipeline_outputs_) {
-    if (graph.Tensor(tid).producer_edge.storage_device == DALITensorDevice::GPU) {
-      gpu_output_events_.push_back(EventList(queue_depth_, &event_pool_));
+    auto &tensor = graph.Tensor(tid);
+    if (tensor.producer_edge.storage_device == DALITensorDevice::GPU) {
+      auto parent_type = graph.Node(tensor.producer_edge.node).op_type;
+      gpu_output_events_.push_back(
+          EventList(stage_queue_depths_[static_cast<int>(parent_type)], &event_pool_));
     } else {
       gpu_output_events_.push_back(EventList());
   // DALI_ENFORCE(
@@ -478,7 +484,9 @@ std::vector<int> Executor::GetTensorQueueSizes(const OpGraph &graph) {
   result.resize(graph.NumTensor(), 1);
   auto output_ids = graph.GetOutputs(output_names_);
   for (auto id : output_ids) {
-    result[id] = queue_depth_;
+    auto &tensor = graph.Tensor(id);
+    auto parent_type =  graph.Node(tensor.producer_edge.node).op_type;
+    result[id] = stage_queue_depths_[static_cast<int>(parent_type)];
   }
   return result;
 }

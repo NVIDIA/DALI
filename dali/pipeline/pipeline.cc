@@ -302,10 +302,10 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   // }
 
   // TODO(klecki): REVERT!!!
-  executor_.reset(new Executor(
+  executor_.reset(new PipelinedExecutor(
         batch_size_, num_threads_,
         device_id_, bytes_per_sample_hint_,
-        set_affinity_, max_num_stream_, prefetch_queue_depth_));
+        set_affinity_, max_num_stream_));
 
   // Creating the graph
   for (auto& name_op_spec : op_specs_) {

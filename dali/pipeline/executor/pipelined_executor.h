@@ -39,7 +39,7 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
  public:
   DLL_PUBLIC inline PipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int max_num_stream = -1, int prefetch_queue_depth = 2) :
+      bool set_affinity = false, int max_num_stream = -1, QueueSizes prefetch_queue_depth = {2, 2, 2}) :
     Executor(batch_size, num_thread, device_id, bytes_per_sample_hint,
         set_affinity, max_num_stream, prefetch_queue_depth) {
   }
@@ -69,7 +69,7 @@ class DLL_PUBLIC PipelinedExecutor : public Executor {
 
   std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
-  USE_EXECUTOR_MEMBERS();
+  // USE_EXECUTOR_MEMBERS();
 };
 
 }  // namespace dali
