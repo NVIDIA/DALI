@@ -306,6 +306,7 @@ void Executor::RunGPU() {
   // We do not release
   // ReleaseIdxs(DALIOpType::GPU, gpu_idx);
   QueueOutputIdxs(gpu_idx);
+  ready_cond_.notify_all();
 
   // Save the queue_idx so we can enforce the
   // dependency between consecutive iterations

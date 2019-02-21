@@ -111,13 +111,25 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   pipe.Build(outputs);
 
   DeviceWorkspace ws;
-  for (int i=0; i < 50; ++i) {
+  pipe.RunCPU();
+  pipe.RunCPU();
+  pipe.RunCPU();
+  pipe.RunCPU();
+  for (int i=0; i < 10; ++i) {
     printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
     pipe.RunMIXED();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
+    pipe.RunMIXED();
+    pipe.RunMIXED();
+    pipe.RunMIXED();
+    pipe.RunGPU();
+    pipe.RunMIXED();
+    pipe.RunGPU();
+    pipe.RunGPU();
+    pipe.RunGPU();
 
   return;
 }
