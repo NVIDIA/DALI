@@ -19,14 +19,14 @@
 namespace dali {
 namespace kernels {
 
-void InitializeFilter(
-    int *out_indices, float *out_coeffs, int out_width,
+void InitializeResamplingFilter(
+    int32_t *out_indices, float *out_coeffs, int out_size,
     float srcx_0, float scale, const FilterWindow &filter) {
 
   srcx_0 += 0.5f * scale - 0.5f - filter.anchor;
   int support = filter.support();
 
-  for (int x = 0; x < out_width; x++) {
+  for (int x = 0; x < out_size; x++) {
     float sx0f = x * scale + srcx_0;
     int sx0 = ceilf(sx0f); // ceiling - below sx0f we assume the filter to be zero
     out_indices[x] = sx0;

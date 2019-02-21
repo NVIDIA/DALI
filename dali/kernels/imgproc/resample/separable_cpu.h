@@ -24,13 +24,13 @@ namespace kernels {
 
 struct ResamplingSetupCPU {
   struct SampleDesc {
-    float x0, y0;
-    float scale_x, scale_y;
-    bool VertHorz;
+    float origin[2];
+    float scale[2];
     FilterWindow filter[2];
     ResamplingFilterType filter_type[2];
-    std::array<int, 2> tmp_shape, out_shape;
+    TensorShape<2> tmp_shape, out_shape;
     int channels;
+    bool vert_horz;
 
     bool IsPureNN() const {
       return
@@ -68,7 +68,7 @@ struct ResamplingSetupCPU {
       FilterDesc filter = desc.out_shape[i] < in_shape[i]
         ? params[i].min_filter : params[i].mag_filter;
 
-      if (!filter.radius == 0)
+      if (!filter.radius)
         filter.radius = DefaultFilterRadius(filter.type, in_shape[i], desc.out_shape[i]);
 
       desc.filter_type[i] = filter.type;
@@ -82,10 +82,10 @@ struct ResamplingSetupCPU {
     int flt_vert = desc.filter[0].support();
     int flt_horz = desc.filter[1].support();
 
-    desc.scale_x = static_cast<float>(in_W)/out_W;
-    desc.scale_y = static_cast<float>(in_H)/out_H;
-    desc.x0 = 0;
-    desc.y0 = 0;
+    desc.scale[0] = static_cast<float>(in_H)/out_H;
+    desc.scale[1] = static_cast<float>(in_W)/out_W;
+    desc.origin[0] = 0;
+    desc.origin[1] = 0;
 
     // vertical resampling is cheaper
     float horz_cost = 3;
@@ -93,32 +93,56 @@ struct ResamplingSetupCPU {
     // calculate the cost of resampling in different orders
     float cost_hv = in_H * out_W * flt_horz * horz_cost + out_H * out_W * flt_vert * vert_cost;
     float cost_vh = out_H * in_W * flt_vert * vert_cost + out_H * out_W * flt_horz * horz_cost;
-    desc.VertHorz = (cost_vh < cost_hv);
-    if (desc.VertHorz) {
+    desc.vert_horz = (cost_vh < cost_hv);
+    if (desc.vert_horz) {
       desc.tmp_shape = { out_H, in_W };
     } else {
       desc.tmp_shape = { in_H, out_W };
     }
 
     return desc;
+  }
+
+  struct MemoryReq {
+    size_t tmp_size = 0;
+    size_t coeffs_size = 0;
+    size_t indices_size = 0;
+
+    MemoryReq &extend(const MemoryReq &other) {
+      if (other.tmp_size > tmp_size)
+        tmp_size = other.tmp_size;
+      if (other.coeffs_size > coeffs_size)
+        coeffs_size = other.coeffs_size;
+      if (other.indices_size > indices_size)
+        indices_size = other.indices_size;
+      return *this;
+    }
   };
+
+  MemoryReq GetMemoryRequirements(const SampleDesc &desc) {
+    if (desc.IsPureNN()) {
+      return {};
+    } else {
+      MemoryReq req;
+      req.tmp_size = volume(desc.tmp_shape) * desc.channels;
+      req.indices_size = std::max(desc.out_shape[0], desc.out_shape[1]);
+      int vsupport = desc.filter[0].support();
+      int hsupport = desc.filter[1].support();
+      req.coeffs_size = std::max(desc.out_shape[0] * vsupport, desc.out_shape[1] * hsupport);
+      return req;
+    }
+  }
 };
 
 struct ResamplingSetupSingleImage : ResamplingSetupCPU {
 
   void Setup(const TensorShape<3> &in_shape, const ResamplingParams2D &params) {
     desc = GetSampleDesc(in_shape, params);
-    if (desc.IsPureNN()) {
-      tmp_size = 0;
-    } else {
-      tmp_size = volume(desc.tmp_shape) * desc.channels;
-    }
+    memory = GetMemoryRequirements(desc);
   }
 
   SampleDesc desc;
-  size_t tmp_size;
-  size_t coeffs_size;
-  size_t indices_size;
+  MemoryReq memory;
 };
 
 template <typename OutputElement, typename InputElement>
@@ -135,11 +159,15 @@ struct SeparableResampleCPU  {
         { setup.desc.out_shape[0], setup.desc.out_shape[1], setup.desc.channels };
 
     ScratchpadEstimator se;
-    se.add<float>(AllocType::Host, setup.tmp_size);
+    se.add<float>(AllocType::Host, setup.memory.tmp_size);
+    se.add<float>(AllocType::Host, setup.memory.coeffs_size);
+    se.add<int32_t>(AllocType::Host, setup.memory.indices_size);
+
+    TensorListShape<> out_tls({ out_shape });
 
     KernelRequirements req;
-    req.output_shapes = { out_shape };
-    req.scratch_sizes = se;
+    req.output_shapes = { out_tls };
+    req.scratch_sizes = se.sizes;
 
     return req;
   }
@@ -151,9 +179,47 @@ struct SeparableResampleCPU  {
 
     auto &desc = setup.desc;
     if (desc.IsPureNN()) {
-      ResampleNN(as_surface_HWC(output), as_surface_HWC(input), desc.x0, desc.y0, desc.scale_x, desc.scale_y);
+      ResampleNN(as_surface_HWC(output), as_surface_HWC(input),
+                 desc.origin[1], desc.origin[0], desc.scale[1], desc.scale[0]);
+    } else {
+      TensorShape<3> tmp_shape = shape_cat(desc.tmp_shape, desc.channels);
+      auto tmp = context.scratchpad->AllocTensor<AllocType::Host, float, 3>(tmp_shape);
+
+      void *filter_mem = context.scratchpad->Allocate<int32_t>(AllocType::Host,
+        setup.memory.coeffs_size + setup.memory.indices_size);
+
+      if (desc.vert_horz) {
+        ResamplePass<0, float, InputElement>(tmp, input, filter_mem);
+        ResamplePass<1, OutputElement, float>(output, tmp, filter_mem);
+      } else {
+        ResamplePass<1, float, InputElement>(tmp, input, filter_mem);
+        ResamplePass<0, OutputElement, float>(output, tmp, filter_mem);
+      }
     }
 
+  }
+
+  template <int axis, typename PassOutput, typename PassInput>
+  void ResamplePass(const OutTensorCPU<PassOutput, 3> &out,
+                    const InTensorCPU<PassInput, 3> &in,
+                    void *mem) {
+    auto &desc = setup.desc;
+
+    if (desc.filter_type[axis] == ResamplingFilterType::Nearest) {
+      // use specialized NN resampling pass - should be faster
+      ResampleNN(as_surface_HWC(out), as_surface_HWC(in),
+        desc.origin[1], desc.origin[0],
+        (axis == 1 ? desc.scale[1] : 1.0f), (axis == 0 ? desc.scale[0] : 1.0f));
+    } else {
+      int32_t *indices = static_cast<int32_t*>(mem);
+      float *coeffs = static_cast<float*>(static_cast<void*>(indices + desc.out_shape[axis]));
+      int support = desc.filter[axis].support();
+
+      InitializeResamplingFilter(indices, coeffs, desc.out_shape[axis],
+                                 desc.origin[axis], desc.scale[axis], desc.filter[axis]);
+
+      ResampleAxis(as_surface_HWC(out), as_surface_HWC(in), indices, coeffs, support, axis);
+    }
   }
 
   ResamplingSetupSingleImage setup;

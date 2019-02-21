@@ -34,7 +34,7 @@ TEST(ResampleCPU, FilterSymmetry) {
   ASSERT_GE(support, 4) << "Gaussian filter with radius 2 must have support of at least 4";
   std::vector<float> coeffs(w * support);
   std::vector<int> idx(w);
-  InitializeFilter(idx.data(), coeffs.data(), w, sx0, scale, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), w, sx0, scale, filter);
 
   for (int i = 0; i < w / 2; i++) {
     for (int k = 0; k < support; k++) {
@@ -65,7 +65,7 @@ TEST(ResampleCPU, TriangularFilter) {
   ASSERT_EQ(support, 11);
   std::vector<float> coeffs(w * support);
   std::vector<int> idx(w);
-  InitializeFilter(idx.data(), coeffs.data(), w, sx0, scale, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), w, sx0, scale, filter);
 
   for (int i = 0; i < w; i++) {
     float src = (i + 0.5f) * scale;
@@ -109,7 +109,7 @@ TEST(ResampleCPU, Horizontal) {
   int support = filter.support();
   std::vector<float> coeffs(out_w * support);
   std::vector<int> idx(out_w);
-  InitializeFilter(idx.data(), coeffs.data(), out_w, 0, scale, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), out_w, 0, scale, filter);
 
   ResampleHorz(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
     idx.data(), coeffs.data(), support);
@@ -135,7 +135,7 @@ TEST(ResampleCPU, Vertical) {
   int support = filter.support();
   std::vector<float> coeffs(out_h * support);
   std::vector<int> idx(out_h);
-  InitializeFilter(idx.data(), coeffs.data(), out_h, 0, scale, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), out_h, 0, scale, filter);
 
   ResampleVert(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
     idx.data(), coeffs.data(), support);
@@ -212,11 +212,11 @@ TEST(ResampleCPU, Linear) {
   int support = filter.support();
   std::vector<float> coeffs(std::max(out_h, out_w) * support);
   std::vector<int> idx(std::max(out_h, out_w));
-  InitializeFilter(idx.data(), coeffs.data(), out_h, 0, scaley, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), out_h, 0, scaley, filter);
   ResampleVert(as_surface_HWC(tmp_tensor), as_surface_HWC(in_tensor),
     idx.data(), coeffs.data(), support);
 
-  InitializeFilter(idx.data(), coeffs.data(), out_w, 0, scalex, filter);
+  InitializeResamplingFilter(idx.data(), coeffs.data(), out_w, 0, scalex, filter);
   ResampleHorz<uint8_t, float>(as_surface_HWC(out_tensor), as_surface_HWC(tmp_tensor),
     idx.data(), coeffs.data(), support);
 

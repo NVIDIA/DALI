@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
 
 #include <cassert>
+#include <type_traits>
 #include "dali/kernels/static_switch.h"
 #include "dali/kernels/common/convert.h"
 #include "dali/kernels/imgproc/surface.h"
@@ -25,13 +26,12 @@ namespace kernels {
 
 struct FilterWindow;
 
-void InitializeFilter(
-    int *out_indices, float *out_coeffs, int out_width,
-    float srcx0, float scale, const FilterWindow &filter);
+void InitializeResamplingFilter(int32_t *out_indices, float *out_coeffs, int out_size,
+                                float srcx0, float scale, const FilterWindow &filter);
 
 template <int static_channels, bool clamp_left, bool clamp_right, typename Out, typename In>
-void ResampleCol(Out *out, const In *in, int x, int w, const int *in_columns,
-                const float *coeffs, int support, int dynamic_channels) {
+void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns,
+                 const float *coeffs, int support, int dynamic_channels) {
   const float bias = std::is_integral<Out>::value ? 0.5f : 0;
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
 
@@ -112,7 +112,7 @@ void ResampleHorz_Channels(
 
 template <typename Out, typename In>
 void ResampleVert(
-    Surface2D<Out> out, Surface2D<In> in, const int *in_rows,
+    Surface2D<Out> out, Surface2D<In> in, const int32_t *in_rows,
     const float *row_coeffs, int support) {
   const float bias = std::is_integral<Out>::value ? 0.5f : 0;
   const int tile = 64;
@@ -154,9 +154,8 @@ void ResampleVert(
 }
 
 template <typename Out, typename In>
-void ResampleHorz(
-    Surface2D<Out> out, Surface2D<In> in, const int *in_columns,
-    const float *col_coeffs, int support) {
+inline void ResampleHorz(Surface2D<Out> out, Surface2D<In> in,
+                         const int *in_columns, const float *col_coeffs, int support) {
   VALUE_SWITCH(out.channels, static_channels, (1, 2, 3, 4), (
     ResampleHorz_Channels<static_channels>(out, in, in_columns, col_coeffs, support);
   ), (
@@ -164,6 +163,16 @@ void ResampleHorz(
   ));  // NOLINT
 }
 
+template <typename Out, typename In>
+inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
+                         const int *in_indices, const float *coeffs, int support, int axis) {
+  if (axis == 0)
+    ResampleVert(out, in, in_indices, coeffs, support);
+  else if (axis == 1)
+    ResampleHorz(out, in, in_indices, coeffs, support);
+  else
+    assert(!"Invalid axis index");
+}
 
 ///@brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
 ///@param out - output surface
