@@ -28,7 +28,7 @@ void InitializeResamplingFilter(
 
   for (int x = 0; x < out_size; x++) {
     float sx0f = x * scale + srcx_0;
-    int sx0 = ceilf(sx0f); // ceiling - below sx0f we assume the filter to be zero
+    int sx0 = ceilf(sx0f);  // ceiling - below sx0f we assume the filter to be zero
     out_indices[x] = sx0;
     const float f0 = sx0 - sx0f;
     float sum = 0;

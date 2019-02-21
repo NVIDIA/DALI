@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_KERNEL_CPU_H_
-#define DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_KERNEL_CPU_H_
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_CPU_H_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_CPU_H_
 
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
@@ -135,7 +135,6 @@ struct ResamplingSetupCPU {
 };
 
 struct ResamplingSetupSingleImage : ResamplingSetupCPU {
-
   void Setup(const TensorShape<3> &in_shape, const ResamplingParams2D &params) {
     desc = GetSampleDesc(in_shape, params);
     memory = GetMemoryRequirements(desc);
@@ -176,7 +175,6 @@ struct SeparableResampleCPU  {
            const Output &output,
            const Input &input,
            const ResamplingParams2D &params) {
-
     auto &desc = setup.desc;
     if (desc.IsPureNN()) {
       ResampleNN(as_surface_HWC(output), as_surface_HWC(input),
@@ -196,7 +194,6 @@ struct SeparableResampleCPU  {
         ResamplePass<0, OutputElement, float>(output, tmp, filter_mem);
       }
     }
-
   }
 
   template <int axis, typename PassOutput, typename PassInput>
@@ -229,4 +226,4 @@ struct SeparableResampleCPU  {
 }  // namespace dali
 
 
-#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_KERNEL_CPU_H_
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_SEPARABLE_CPU_H_

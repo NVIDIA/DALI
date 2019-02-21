@@ -27,10 +27,10 @@ namespace kernels {
 TEST(ResampleCPU, FilterSymmetry) {
   int w = 9;
   int in_w = 10;
-  float scale = (float)in_w / w;
+  float scale = static_cast<float>(in_w) / w;
   float sx0 = 0;
   auto filter = GaussianFilter(2);
-  int support = filter.support()  ;
+  int support = filter.support();
   ASSERT_GE(support, 4) << "Gaussian filter with radius 2 must have support of at least 4";
   std::vector<float> coeffs(w * support);
   std::vector<int> idx(w);
@@ -87,9 +87,7 @@ TEST(ResampleCPU, TriangularFilter) {
     EXPECT_LT(coeffs[i*support + 0], slope) << "Filter misses a contributing pixel";
     EXPECT_LT(coeffs[i*support + support - 1], slope) << "Filter misses a contributing pixel";
     EXPECT_EQ(idx[i] + max_k, src_i) << "Filter maximum expected to coincide with NN pixel";
-
   }
-
 }
 
 TEST(ResampleCPU, Horizontal) {
@@ -204,7 +202,7 @@ TEST(ResampleCPU, Linear) {
   float scaley = static_cast<float>(in_h)/out_h;
 
   cv::Mat out_img(out_h, out_w, img.type());
-  cv::Mat tmp_img(out_h,in_w, CV_32FC3);
+  cv::Mat tmp_img(out_h, in_w, CV_32FC3);
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
   auto tmp_tensor = view_as_tensor<float, 3>(tmp_img);
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
-#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
+#ifndef DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_
+#define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_
 
 #include <cassert>
 #include <type_traits>
@@ -47,13 +47,12 @@ void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns
         if (clamp_left) if (srcx < 0) srcx = 0;
         if (clamp_right) if (srcx > w-1) srcx = w-1;
         sum += coeffs[k0 + k] * in[srcx * channels + c];
-
       }
       out[channels * x + c] = clamp<Out>(sum);
     }
   } else {
     // we know how many channels we have at compile time - inner loop over channels
-    float tmp[static_channels > 0 ? static_channels : 1];
+    float tmp[static_channels > 0 ? static_channels : 1];  // NOLINT
     for (int c = 0; c < channels; c++)
       tmp[c] = bias;
 
@@ -106,7 +105,6 @@ void ResampleHorz_Channels(
       ResampleCol<static_channels, false, true>(
         out_row, in_row, x, in.width, in_columns, coeffs, support, channels);
     }
-
   }
 }
 
@@ -134,7 +132,6 @@ void ResampleVert(
     }
 
     for (int x0 = 0; x0 < flat_w; x0 += tile) {
-
       int tile_w = x0 + tile <= flat_w ? tile : flat_w - x0;
       for (int j = 0; j < tile_w; j++)
         tmp[j] = bias;
@@ -158,9 +155,9 @@ inline void ResampleHorz(Surface2D<Out> out, Surface2D<In> in,
                          const int *in_columns, const float *col_coeffs, int support) {
   VALUE_SWITCH(out.channels, static_channels, (1, 2, 3, 4), (
     ResampleHorz_Channels<static_channels>(out, in, in_columns, col_coeffs, support);
-  ), (
+  ), (  // NOLINT
     ResampleHorz_Channels<-1>(out, in, in_columns, col_coeffs, support);
-  ));  // NOLINT
+  ));   // NOLINT
 }
 
 template <typename Out, typename In>
@@ -174,15 +171,15 @@ inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
     assert(!"Invalid axis index");
 }
 
-///@brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
-///@param out - output surface
-///@param in - input surface
-///@param src_x0 - starting X coordinate of input
-///@param src_y0 - starting Y coordinate of input
-///@param scale_x - step of X input coordinate taken for each output pixel
-///@param scale_y - step of Y input coordinate taken for each output row
-///@remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
-///         Scales can be negative to achieve flipping.
+/// @brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
+/// @param out - output surface
+/// @param in - input surface
+/// @param src_x0 - starting X coordinate of input
+/// @param src_y0 - starting Y coordinate of input
+/// @param scale_x - step of X input coordinate taken for each output pixel
+/// @param scale_y - step of Y input coordinate taken for each output row
+/// @remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
+///          Scales can be negative to achieve flipping.
 template <typename Out, typename In>
 void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
                 float src_x0, float src_y0, float scale_x, float scale_y) {
@@ -229,16 +226,14 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
         for (int c = 0; c < out.channels; c++)
           *out_ch++ = last_px[c];
       }
-
     }
     return;
   }
 
   constexpr int max_span_width = 256;
-  int col_offsets[max_span_width];
+  int col_offsets[max_span_width];  // NOLINT (kOnstant)
 
   for (int x0 = 0; x0 < out.width; x0 += max_span_width) {
-
     float sy = src_y0 + 0.5f * scale_y;
 
     int span_width = x0 + max_span_width <= out.width ? max_span_width : out.width - x0;
@@ -274,5 +269,4 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
 }  // namespace kernels
 }  // namespace dali
 
-
-#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_H_
+#endif  // DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CPU_H_

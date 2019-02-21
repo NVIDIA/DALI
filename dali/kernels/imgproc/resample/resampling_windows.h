@@ -67,9 +67,7 @@ struct FilterWindow {
 };
 
 inline FilterWindow GaussianFilter(float radius, float sigma = 0) {
-  float scale;
-  if (!sigma) scale = 2 / radius;
-  else scale = M_SQRT1_2 / sigma;
+  float scale = sigma ? M_SQRT1_2 / sigma : 2 / radius;
   radius = std::floor(radius + 0.4f)+0.5f;
   return { 2*radius, radius, scale, ExpMinusX2 };
 }
