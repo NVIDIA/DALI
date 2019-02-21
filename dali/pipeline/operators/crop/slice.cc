@@ -29,8 +29,11 @@ Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumOutput(1)
     .AllowMultipleInputSets()
     .AllowSequences()
-    .EnforceInputLayout(DALI_NHWC)
-    .AddParent("Crop");
+    .AddOptionalArg(
+        "image_type",
+        R"code(The color space of input and output image)code",
+        DALI_RGB, false)
+    .EnforceInputLayout(DALI_NHWC);
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
