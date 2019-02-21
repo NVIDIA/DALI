@@ -231,7 +231,7 @@ class DLL_PUBLIC Executor {
 
   template <DALIOpType op_type>
   void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-                        const QueueIdxs idxs);
+                        const std::vector<tensor_data_store_queue_t>& tensor_to_store_queue, const QueueIdxs idxs);
 
   // template <DALIOpType op_type>
   // void SetupPinned(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
@@ -239,6 +239,8 @@ class DLL_PUBLIC Executor {
 
   template <DALIOpType op_type>
   void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+                             cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                             const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
                              const QueueIdxs idxs);
 
   template <DALIOpType op_type>
@@ -405,8 +407,9 @@ void add_output(workspace_t<op_type> &ws, const tensor_data_store_queue_t &stora
 // all DALIOpTypes -> implement `add_input` and add_output for all of the subclasses
 // as well with later operations
 template <DALIOpType op_type>
-void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
-                                const OpNode &node, const QueueIdxs idxs) {
+void Executor::SetupInputOutput(
+    workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+    const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const QueueIdxs idxs) {
   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
     auto tid = node.parent_tensors[j];
     auto &parent_node = graph.Node(graph.Tensor(tid).producer_edge.node);
@@ -419,7 +422,7 @@ void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
       VALUE_SWITCH(tensor_device, device_static, (DALITensorDevice::CPU, DALITensorDevice::GPU),
       (
         add_input<op_type, parent_op_static, device_static>(ws,
-                                                            tensor_to_store_queue_[tid],
+                                                            tensor_to_store_queue[tid],
                                                             idxs[parent_op_static]);
       ), DALI_FAIL("Unexpected device"))  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Unexpected op_type"));  // NOLINT(whitespace/parens)
@@ -431,7 +434,7 @@ void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
     auto input_index = arg_pair.second;
     auto tid = node.parent_tensors[input_index];
     auto &queue =
-        get_queue<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
+        get_queue<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_store_queue[tid]);
     auto tensor = queue[idxs[DALIOpType::MIXED]];  // TODO(klecki): check queueueueueuing
     ws.AddArgumentInput(tensor, arg_pair.first);
   }
@@ -441,71 +444,51 @@ void Executor::SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph,
     auto tensor_device = graph.Tensor(tid).producer_edge.storage_device;
     VALUE_SWITCH(tensor_device, device_static, (DALITensorDevice::CPU, DALITensorDevice::GPU),
     (
-      add_output<op_type, device_static>(ws, tensor_to_store_queue_[tid], idxs[op_type]);
+      add_output<op_type, device_static>(ws, tensor_to_store_queue[tid], idxs[op_type]);
     ), DALI_FAIL("Unexpected device"));  // NOLINT(whitespace/parens)
   }
 }
 
-// template <DALIOpType op_type>
-// void Executor::SetupPinned(workspace_t<op_type> &, const OpGraph &, const OpNode &,
-//                            const QueueIdxs) {
-//   /* No-op if we are not MIXED MakeContigous node */
-// }
-
-// // TODO(klecki): this should be handled on Tensor level?
-// template <>
-// inline void Executor::SetupPinned<DALIOpType::MIXED>(MixedWorkspace &ws, const OpGraph &graph,
-//                                                      const OpNode &node, const QueueIdxs idxs) {
-//   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
-//     auto tid = node.parent_tensors[j];
-//     // Use pinned memory only when it is useful
-//     if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
-//         node.spec.OutputDevice(0) == "gpu") {
-//       auto &parent_tensor_queue =
-//           get_queue<DALIOpType::CPU, DALITensorDevice::CPU>(tensor_to_store_queue_[tid]);
-//       auto &tensor = parent_tensor_queue[idxs[DALIOpType::MIXED]];
-//       // SetPinned(tensor, true);
-//     }
-//   }
-// }
-
 template <DALIOpType op_type>
 void Executor::SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph,
-                                     const OpNode &node, const QueueIdxs idxs) {
+                                     const OpNode &node, cudaStream_t mixed_op_stream,
+                                     cudaStream_t gpu_op_stream,
+                                     const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+                                     const QueueIdxs idxs) {
   /* No-op if we are not Mixed or GPU */
 }
 
 template <>
-inline void Executor::SetupStreamsAndEvents<DALIOpType::MIXED>(MixedWorkspace &ws,
-                                                               const OpGraph &graph,
-                                                               const OpNode &node,
-                                                               const QueueIdxs idxs) {
+inline void Executor::SetupStreamsAndEvents<DALIOpType::MIXED>(
+    MixedWorkspace &ws, const OpGraph &graph, const OpNode &node, cudaStream_t mixed_op_stream,
+    cudaStream_t gpu_op_stream, const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+    const QueueIdxs idxs) {
   // We assign unique stream to mixed ops.
   // This ensures that we won't have false dependencies
   // between mixed ops and the previous iterations
   // gpu ops.
-  ws.set_stream(mixed_op_stream_);
-  ws.set_event(mixed_op_events_[node.partition_index][idxs[DALIOpType::MIXED]]);
+  ws.set_stream(mixed_op_stream);
+  ws.set_event(mixed_op_events[node.partition_index][idxs[DALIOpType::MIXED]]);
 }
 
 template <>
-inline void Executor::SetupStreamsAndEvents<DALIOpType::GPU>(DeviceWorkspace &ws,
-                                                             const OpGraph &graph,
-                                                             const OpNode &node,
-                                                             const QueueIdxs idxs) {
+inline void Executor::SetupStreamsAndEvents<DALIOpType::GPU>(
+    DeviceWorkspace &ws, const OpGraph &graph, const OpNode &node, cudaStream_t mixed_op_stream,
+    cudaStream_t gpu_op_stream, const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+    const QueueIdxs idxs) {
   // I/O pipeline is always going to be launched alongside
   // some other GPU work (like DL training).
   // Therefore it is not necessary to use more than
   // 1 stream for GPU ops, even though we may not fill
   // the whole GPU with just I/O pipeline kernels
   // by doing so.
-  ws.set_stream(gpu_op_stream_);
+  ws.set_stream(gpu_op_stream);
   for (const auto &p : node.parents) {
     if (graph.NodeType(p) == DALIOpType::MIXED) {
       const auto &parent_op = graph.Node(p);
       // We need to block on this op's event to
       // make sure that we respect the dependency
-      ws.AddParentEvent(mixed_op_events_[parent_op.partition_index][idxs[DALIOpType::MIXED]]);
+      ws.AddParentEvent(mixed_op_events[parent_op.partition_index][idxs[DALIOpType::MIXED]]);
     }
   }
 }
@@ -514,9 +497,10 @@ template <DALIOpType op_type>
 workspace_t<op_type> Executor::CreateWorkspace(const OpGraph &graph, const OpNode &node,
                                                const QueueIdxs idxs) {
   workspace_t<op_type> ws;
-  SetupInputOutput<op_type>(ws, graph, node, idxs);
+  SetupInputOutput<op_type>(ws, graph, node, tensor_to_store_queue_, idxs);
   // SetupPinned<op_type>(ws, graph, node, idxs);
-  SetupStreamsAndEvents<op_type>(ws, graph, node, idxs);
+  SetupStreamsAndEvents<op_type>(ws, graph, node, mixed_op_stream_, gpu_op_stream_,
+                                 mixed_op_events_, idxs);
   return ws;
 }
 
