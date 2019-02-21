@@ -32,9 +32,10 @@ namespace dali {
 class CropAttr {
  protected:
   explicit inline CropAttr(const OpSpec &spec) {
-    if (spec.name() != "Resize") {
-      const int batch_size = spec.GetArgument<int>("batch_size");
-      vector<float> cropArgs = spec.GetRepeatedArgument<float>("crop");
+    const int batch_size = spec.GetArgument<int>("batch_size");
+    vector<float> cropArgs = {0, 0};
+    if (spec.HasArgument("crop")) {
+      cropArgs = spec.GetRepeatedArgument<float>("crop");
 
       DALI_ENFORCE(cropArgs[0] >= 0,
         "Crop height must be greater than zero. Received: " +
@@ -43,10 +44,10 @@ class CropAttr {
       DALI_ENFORCE(cropArgs[1] >= 0,
         "Crop width must be greater than zero. Received: " +
         std::to_string(cropArgs[1]));
-
-      crop_height_ = std::vector<int>(batch_size, static_cast<int>(cropArgs[0]));
-      crop_width_ = std::vector<int>(batch_size, static_cast<int>(cropArgs[1]));
     }
+
+    crop_height_.resize(batch_size, static_cast<int>(cropArgs[0]));
+    crop_width_.resize(batch_size, static_cast<int>(cropArgs[1]));
   }
 
   /**
