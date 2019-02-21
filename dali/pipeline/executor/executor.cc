@@ -89,6 +89,9 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
   //   SetupWorkspacesForGraph(queue_idx);
   // }
 
+  InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_,
+      mixed_op_events_, queue_sizes_);
+
   // Producer-consumer queues info
   SetupOutputQueuesForGraph();
 }
@@ -119,7 +122,7 @@ void Executor::RunCPU() {
       OpNode &op_node = graph_->Node(DALIOpType::SUPPORT, i);
       OperatorBase &op = *op_node.op;
       // SupportWorkspace &ws = GetWorkspace<DALIOpType::SUPPORT>(queue_idx, i);
-      SupportWorkspace ws = GetWorkspace<DALIOpType::SUPPORT>(support_idx, i);
+      SupportWorkspace ws = GetWorkspace<DALIOpType::SUPPORT>(support_idx, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
       op.Run(&ws);
@@ -146,7 +149,7 @@ void Executor::RunCPU() {
             for (int j = 0; j < graph_->NumOp(DALIOpType::CPU); ++j) {
               OpNode &op_node = graph_->Node(DALIOpType::CPU, j);
               OperatorBase &op = *op_node.op;
-              GetWorkspace<DALIOpType::CPU>(queue_idx, op_node).GetSample(&ws, data_idx, tid);
+              GetWorkspace<DALIOpType::CPU>(queue_idx, *graph_, op_node).GetSample(&ws, data_idx, tid);
               TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
                   + " on " + to_string(data_idx),
                   TimeRange::kBlue1);
@@ -192,7 +195,7 @@ void Executor::RunMixed() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::MIXED, i);
       OperatorBase &op = *op_node.op;
-      MixedWorkspace ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, i);
+      MixedWorkspace ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
       op.Run(&ws);
@@ -247,7 +250,7 @@ void Executor::RunGPU() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::GPU); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::GPU, i);
       OperatorBase &op = *op_node.op;
-      DeviceWorkspace ws = GetWorkspace<DALIOpType::GPU>(queue_idx, i);
+      DeviceWorkspace ws = GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, i);
       auto parent_events = ws.ParentEvents();
 
       for (auto &event : parent_events) {
@@ -273,10 +276,10 @@ void Executor::RunGPU() {
       // TODO(klecki): check this
       cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx[DALIOpType::GPU]);
       if (graph_->NodeType(src_id) == DALIOpType::MIXED) {
-        auto ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, src_idx);
+        auto ws = GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else if (graph_->NodeType(src_id) == DALIOpType::GPU) {
-        auto ws = GetWorkspace<DALIOpType::GPU>(queue_idx, src_idx);
+        auto ws = GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else {
         DALI_FAIL("Internal error. Output node is not gpu/mixed");
