@@ -22,8 +22,6 @@
 #include "dali/kernels/span.h"
 #include "dali/error_handling.h"
 
-#define ENABLE_STATS 1
-
 namespace dali {
 
 class DecoderCacheBlob {
@@ -31,9 +29,11 @@ class DecoderCacheBlob {
     using ImageKey = std::string;
 
     inline DecoderCacheBlob(std::size_t cache_size,
-                            std::size_t image_size_threshold )
+                            std::size_t image_size_threshold,
+                            bool stats_enabled = true )
         : cache_size_(cache_size)
-        , image_size_threshold_(image_size_threshold) {
+        , image_size_threshold_(image_size_threshold)
+        , stats_enabled_(stats_enabled) {
         DALI_ENFORCE(image_size_threshold <= cache_size_,
             "Cache size should fit at least one image");
     }
@@ -41,22 +41,8 @@ class DecoderCacheBlob {
     inline ~DecoderCacheBlob() {
         if (buffer_)
             GPUBackend::Delete(buffer_, 0, false);
-
-#if ENABLE_STATS
-        static std::mutex stats_mutex;
-        std::lock_guard<std::mutex> lock(stats_mutex);
-        std::cout << "#################### CACHE STATS ####################" << std::endl;
-        std::cout << "cache_size: " << cache_size_ << std::endl;
-        std::cout << "cache_threshold: " << image_size_threshold_ << std::endl;
-        std::cout << "is_full: " << static_cast<int>(is_full) << std::endl;
-        for (auto &elem : stats_) {
-            std::cout << "image[" << elem.first
-                      << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
-                      << "] decodes[" << elem.second.decodes
-                      << "] reads[" << elem.second.reads << "]" << std::endl;
-        }
-        std::cout << "#################### END   STATS ####################" << std::endl;
-#endif
+        if (stats_enabled_)
+            print_stats();
     }
 
     DISABLE_COPY_MOVE_ASSIGN(DecoderCacheBlob);
@@ -91,18 +77,17 @@ class DecoderCacheBlob {
                 data.data(),
                 data.size(),
                 stream);
-#if ENABLE_STATS
-        stats_[image_key].reads++;
-#endif
+
+        if (stats_enabled_)
+            stats_[image_key].reads++;
     }
 
     inline void Add(const ImageKey& image_key,
                     const uint8_t *data, std::size_t data_size,
                     const Dims& data_shape,
                     cudaStream_t stream = 0) {
-#if ENABLE_STATS
-        stats_[image_key].decodes++;
-#endif
+        if (stats_enabled_)
+            stats_[image_key].decodes++;
 
         if (data_size < image_size_threshold_)
             return;
@@ -119,9 +104,8 @@ class DecoderCacheBlob {
 
         if (bytes_left() < data_size) {
             LOG_LINE << "WARNING: not enough space in cache. Ignore" << std::endl;
-#if ENABLE_STATS
-            is_full = true;
-#endif
+            if (stats_enabled_)
+                is_full = true;
             return;
         }
         MemCopy(tail_, data, data_size, stream);
@@ -130,12 +114,43 @@ class DecoderCacheBlob {
             data_shape };
         tail_ += data_size;
 
-#if ENABLE_STATS
-        stats_[image_key].is_cached = true;
-#endif
+        if (stats_enabled_)
+            stats_[image_key].is_cached = true;
     }
 
  private:
+    inline void print_stats() const {
+        static std::mutex stats_mutex;
+        std::lock_guard<std::mutex> lock(stats_mutex);
+        std::size_t images_cached = 0;
+        std::size_t images_not_cached = 0;
+        for (auto &elem : stats_) {
+            if (elem.second.is_cached)
+                images_cached++;
+            else
+                images_not_cached++;
+        }
+        std::cout << "#################### CACHE STATS ####################" << std::endl;
+        std::cout << "cache_size: " << cache_size_ << std::endl;
+        std::cout << "cache_threshold: " << image_size_threshold_ << std::endl;
+        std::cout << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
+        std::cout << "images_seen: " << images_cached + images_not_cached << std::endl;
+        std::cout << "images_cached: " << images_cached << std::endl;
+        std::cout << "images_not_cached: " << images_not_cached << std::endl;
+        for (auto &elem : stats_) {
+            std::cout << "image[" << elem.first
+                    << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
+                    << "] decodes[" << elem.second.decodes
+                    << "] reads[" << elem.second.reads << "]";
+            if (elem.second.is_cached) {
+                Dims dims = GetShape(elem.first);
+                std::cout << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "#################### END   STATS ####################" << std::endl;
+    }
+
     inline std::size_t bytes_left() const {
         assert(buffer_end_ >= tail_);
         return static_cast<std::size_t>(buffer_end_ - tail_);
@@ -161,6 +176,7 @@ class DecoderCacheBlob {
 
     std::size_t cache_size_ = 0;
     std::size_t image_size_threshold_ = 0;
+    bool stats_enabled_ = false;
     uint8_t* buffer_ = nullptr;
     uint8_t* buffer_end_ = nullptr;
     uint8_t* tail_ = nullptr;
@@ -168,7 +184,6 @@ class DecoderCacheBlob {
     std::unordered_map<ImageKey, DecodedImage> cache_;
     mutable std::mutex mutex_;
 
-#if ENABLE_STATS
     struct Stats {
         std::size_t decodes = 0;
         std::size_t reads = 0;
@@ -176,7 +191,6 @@ class DecoderCacheBlob {
     };
     mutable std::unordered_map<ImageKey, Stats> stats_;
     bool is_full = false;
-#endif
 };
 
 }  // namespace dali

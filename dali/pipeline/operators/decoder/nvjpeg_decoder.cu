@@ -27,7 +27,8 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
       R"code(The color space of output image.)code",
       DALI_RGB)
   .AddOptionalArg("use_batched_decode",
-      R"code(Use nvJPEG's batched decoding API.)code", false)
+      R"code(Use nvJPEG's batched decoding API.)code",
+      false)
   .AddOptionalArg("device_memory_padding",
       R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
@@ -44,6 +45,9 @@ images bigged than `cache_threshold` will be cached in memory.)code",
       0)
   .AddOptionalArg("cache_threshold",
       R"code(Size threshold (in bytes) for images to be cached.)code",
-      0);
+      0)
+  .AddOptionalArg("cache_debug",
+      R"code(Print debug information about decoder cache.)code",
+      false);
 
 }  // namespace dali

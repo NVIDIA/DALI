@@ -132,9 +132,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         spec.GetArgument<int>("cache_size"));
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
+      const bool cache_debug = spec.GetArgument<bool>("cache_debug");
       if (cache_size > 0 && cache_size >= cache_threshold) {
         cache_.reset(
-          new DecoderCacheBlob(cache_size, cache_threshold));
+          new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
       }
 
       // Setup the allocator struct to use our internal allocator

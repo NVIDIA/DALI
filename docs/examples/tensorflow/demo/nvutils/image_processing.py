@@ -73,7 +73,8 @@ class HybridPipe(dali.pipeline.Pipeline):
                 device="mixed",
                 output_type=dali.types.RGB,
                 cache_size=1000000000,
-                cache_threshold=250*250*3)
+                cache_threshold=400*400*3,
+                cache_debug=True)
             resize_device = "gpu"
 
         if training:

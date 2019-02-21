@@ -90,7 +90,7 @@ class HybridTrainPipe(Pipeline):
             dali_device = "gpu"
             # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
             # without additional reallocations
-            self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512, cache_size=1000000000, cache_threshold=250*250*3)
+            self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512, cache_size=1000000000, cache_threshold=400*400*3, cache_debug=True)
             self.res = ops.RandomResizedCrop(device=dali_device, size =(crop, crop))
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
