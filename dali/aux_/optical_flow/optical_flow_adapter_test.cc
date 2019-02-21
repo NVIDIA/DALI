@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <memory>
-#include "dali/aux/optical_flow/optical_flow_stub.h"
+#include "dali/aux_/optical_flow/optical_flow_stub.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/util/cuda_utils.h"
 

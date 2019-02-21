@@ -17,7 +17,7 @@
 
 #include <vector>
 #include "dali/kernels/tensor_view.h"
-#include "dali/aux/optical_flow/optical_flow_adapter.h"
+#include "dali/aux_/optical_flow/optical_flow_adapter.h"
 
 namespace dali {
 namespace optical_flow {

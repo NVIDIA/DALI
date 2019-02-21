@@ -18,7 +18,7 @@
 #include <dali/pipeline/data/views.h>
 #include <dali/pipeline/data/backend.h>
 #include <dali/pipeline/operators/operator.h>
-#include <dali/aux/optical_flow/optical_flow_stub.h>
+#include <dali/aux_/optical_flow/optical_flow_stub.h>
 #include <memory>
 
 namespace dali {
