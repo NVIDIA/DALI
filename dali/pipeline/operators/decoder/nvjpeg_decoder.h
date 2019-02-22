@@ -28,6 +28,7 @@
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
+#include "dali/pipeline/operators/decoder/decoder_cache_largest_only.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/util/device_guard.h"
 #include "dali/util/image.h"
@@ -128,14 +129,20 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     thread_pool_(max_streams_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
+      const std::string cache_type = spec.GetArgument<std::string>("cache_type");
       const std::size_t cache_size = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_size"));
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
       const bool cache_debug = spec.GetArgument<bool>("cache_debug");
       if (cache_size > 0 && cache_size >= cache_threshold) {
-        cache_.reset(
-          new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
+        if (cache_type == "threshold") {
+          cache_.reset(
+            new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
+        } else {
+          cache_.reset(
+            new DecoderCacheLargestOnly(cache_size, 0, cache_debug));
+        }
       }
 
       // Setup the allocator struct to use our internal allocator
@@ -316,7 +323,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         thread_pool_.DoWorkWithID(std::bind(
               [this, info, data, in_size, output_data, output_shape, file_name](int idx, int tid) {
                 const int stream_idx = tid;
-                const auto output_data_size = Volume(output_shape) * sizeof(uint8_t);
+                const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
 
                 if (cache_ && !file_name.empty() && cache_->IsCached(file_name)) {
                   DALI_ENFORCE(cache_->GetShape(file_name) == output_shape,

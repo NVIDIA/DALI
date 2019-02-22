@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
 
 namespace dali {
@@ -48,6 +49,12 @@ images bigged than `cache_threshold` will be cached in memory.)code",
       0)
   .AddOptionalArg("cache_debug",
       R"code(Print debug information about decoder cache.)code",
-      false);
+      false)
+  .AddOptionalArg("cache_type",
+      R"code(Choose cache type:
+`threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
+`largest`: Store largest images that can fit the cache.
+default: `largest`)code",
+      std::string());
 
 }  // namespace dali

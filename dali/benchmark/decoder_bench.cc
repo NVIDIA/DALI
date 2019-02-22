@@ -127,7 +127,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCached)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -141,12 +141,37 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCached)(benchmark::State& st) { //
       .AddArg("use_batched_decode", false)
       .AddArg("cache_size", 1000000000)
       .AddArg("cache_threshold", 250*250*3)
+      .AddArg("cache_type", "threshold")
       .AddArg("cache_debug", true)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCached)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedThreshold)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoder")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddArg("max_streams", num_thread)
+      .AddArg("use_batched_decode", false)
+      .AddArg("cache_size", 1000000000)
+      .AddArg("cache_type", "largest")
+      .AddArg("cache_debug", true)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedLargest)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);

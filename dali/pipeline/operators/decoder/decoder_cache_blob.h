@@ -38,10 +38,10 @@ class DecoderCacheBlob {
             "Cache size should fit at least one image");
     }
 
-    inline ~DecoderCacheBlob() {
+    inline virtual ~DecoderCacheBlob() {
         if (buffer_)
             GPUBackend::Delete(buffer_, 0, false);
-        if (stats_enabled_)
+        if (stats_enabled_ && images_seen() > 0)
             print_stats();
     }
 
@@ -82,10 +82,10 @@ class DecoderCacheBlob {
             stats_[image_key].reads++;
     }
 
-    inline void Add(const ImageKey& image_key,
-                    const uint8_t *data, std::size_t data_size,
-                    const Dims& data_shape,
-                    cudaStream_t stream = 0) {
+    inline virtual void Add(const ImageKey& image_key,
+                            const uint8_t *data, std::size_t data_size,
+                            const Dims& data_shape,
+                            cudaStream_t stream = 0) {
         if (stats_enabled_)
             stats_[image_key].decodes++;
 
@@ -118,25 +118,22 @@ class DecoderCacheBlob {
             stats_[image_key].is_cached = true;
     }
 
- private:
+ protected:
     inline void print_stats() const {
         static std::mutex stats_mutex;
         std::lock_guard<std::mutex> lock(stats_mutex);
         std::size_t images_cached = 0;
-        std::size_t images_not_cached = 0;
-        for (auto &elem : stats_) {
+        for (auto &elem : stats_)
             if (elem.second.is_cached)
                 images_cached++;
-            else
-                images_not_cached++;
-        }
+        assert(images_cached <= images_seen());
         std::cout << "#################### CACHE STATS ####################" << std::endl;
         std::cout << "cache_size: " << cache_size_ << std::endl;
         std::cout << "cache_threshold: " << image_size_threshold_ << std::endl;
         std::cout << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
-        std::cout << "images_seen: " << images_cached + images_not_cached << std::endl;
+        std::cout << "images_seen: " << images_seen() << std::endl;
         std::cout << "images_cached: " << images_cached << std::endl;
-        std::cout << "images_not_cached: " << images_not_cached << std::endl;
+        std::cout << "images_not_cached: " << images_seen() - images_cached << std::endl;
         for (auto &elem : stats_) {
             std::cout << "image[" << elem.first
                     << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
@@ -149,6 +146,11 @@ class DecoderCacheBlob {
             std::cout << std::endl;
         }
         std::cout << "#################### END   STATS ####################" << std::endl;
+    }
+
+    inline std::size_t images_seen() const {
+        return (total_seen_images_ == 0) ?
+            stats_.size() : total_seen_images_;
     }
 
     inline std::size_t bytes_left() const {
@@ -191,6 +193,7 @@ class DecoderCacheBlob {
     };
     mutable std::unordered_map<ImageKey, Stats> stats_;
     bool is_full = false;
+    std::size_t total_seen_images_ = 0;
 };
 
 }  // namespace dali
