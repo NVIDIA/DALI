@@ -112,8 +112,8 @@ template <typename Out, typename In>
 void ResampleVert(
     Surface2D<Out> out, Surface2D<In> in, const int32_t *in_rows,
     const float *row_coeffs, int support) {
-  const float bias = std::is_integral<Out>::value ? 0.5f : 0;
-  const int tile = 64;
+  constexpr float bias = std::is_integral<Out>::value ? 0.5f : 0;
+  constexpr int tile = 64;
   alignas(32) float tmp[tile];
 
   int flat_w = out.width * out.channels;
