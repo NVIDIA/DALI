@@ -58,12 +58,12 @@ __global__ void InitLanczosFilter(ResamplingFilter filter, float a) {
 }
 
 void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
-  int lanczos_resolution = 32;
-  int lanczos_a = 3;
-  int triangular_size = 3;
-  int gaussian_size = 65;
-  int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
-  int total_size = triangular_size + gaussian_size + lanczos_size;
+  const int lanczos_resolution = 32;
+  const int lanczos_a = 3;
+  const int triangular_size = 3;
+  const int gaussian_size = 65;
+  const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
+  const int total_size = triangular_size + gaussian_size + lanczos_size;
 
   filters.filter_data = memory::alloc_unique<float>(AllocType::Unified, total_size);
 
