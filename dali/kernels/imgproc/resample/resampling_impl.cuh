@@ -231,7 +231,7 @@ __device__ void ResampleHorz(
     Dst *out, int out_stride,
     const Src *in, int in_stride, int in_w, int channels,
     ResamplingFilter filter, int support) {
-  // Specialize over commnon numbers of channels.
+  // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for
   // three channel image with large kernel.
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
@@ -256,7 +256,7 @@ __device__ void ResampleVert(
     Dst *out, int out_stride,
     const Src *in, int in_stride, int in_h, int channels,
     ResamplingFilter filter, int support) {
-  // Specialize over commnon numbers of channels.
+  // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for
   // three channel image with large kernel.
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),

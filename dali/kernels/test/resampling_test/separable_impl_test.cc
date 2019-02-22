@@ -22,12 +22,14 @@
 #include "dali/kernels/test/test_data.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
+#include "dali/kernels/test/resampling_test/resampling_test_params.h"
 
 using std::cout;
 using std::endl;
 
 namespace dali {
 namespace kernels {
+namespace resample_test {
 
 namespace {
 void RandomParams(
@@ -99,51 +101,6 @@ TEST(SeparableImpl, Setup) {
   EXPECT_GT(resampling.setup.total_blocks.pass[1], N);
 }
 
-constexpr FilterDesc tri(float radius = 0) {
-  return { ResamplingFilterType::Triangular, radius };
-}
-
-constexpr FilterDesc lin() {
-  return { ResamplingFilterType::Linear, 0 };
-}
-
-constexpr FilterDesc lanczos() {
-  return { ResamplingFilterType::Lanczos3, 0 };
-}
-
-constexpr FilterDesc gauss(float radius) {
-  return { ResamplingFilterType::Gaussian, radius };
-}
-
-struct ResamplingTestEntry {
-  ResamplingTestEntry(std::string input,
-                      std::string reference,
-                      std::array<int, 2> sizeWH,
-                      FilterDesc filter,
-                      double epsilon = 1)
-    : ResamplingTestEntry(std::move(input)
-    , std::move(reference), sizeWH, filter, filter, epsilon) {}
-
-  ResamplingTestEntry(std::string input,
-                      std::string reference,
-                      std::array<int, 2> sizeWH,
-                      FilterDesc fx,
-                      FilterDesc fy,
-                      double epsilon = 1)
-    : input(std::move(input)), reference(std::move(reference)), epsilon(epsilon) {
-    params[0].output_size = sizeWH[1];
-    params[1].output_size = sizeWH[0];
-    params[0].mag_filter = params[0].min_filter = fy;
-    params[1].mag_filter = params[1].min_filter = fx;
-  }
-
-  std::string input, reference;
-  ResamplingParams2D params;
-  double epsilon = 1;
-};
-
-using ResamplingTestBatch = std::vector<ResamplingTestEntry>;
-
 ResamplingTestBatch SingleImageBatch = {
   {
     "imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_300x300.png",
@@ -166,37 +123,6 @@ ResamplingTestBatch Batch1 = {
   }
 };
 
-std::ostream &operator<<(std::ostream &os, const FilterDesc fd) {
-  const char *names[] = { "NN", "Linear", "Triangular", "Gaussian", "Lanczos3" };
-  os << names[static_cast<int>(fd.type)];
-  if (static_cast<int>(fd.type) > static_cast<int>(ResamplingFilterType::Linear) && fd.radius)
-    os << "(r = " << fd.radius << ")";
-  return os;
-}
-
-std::ostream &operator<<(std::ostream &os, const ResamplingParams2D &params) {
-  os  << "  Horizontal " << params[1].output_size << " px; "
-      << " mag = " << params[1].mag_filter << " min = " << params[1].min_filter << "\n"
-      << "  Vertical   " << params[0].output_size << " px; "
-      << " mag = " << params[0].mag_filter << " min = " << params[0].min_filter << "\n";
-  return os;
-}
-
-void PrintTo(const ResamplingTestEntry &entry, std::ostream *os) {
-  *os << "Input: " << entry.input << "   ref:" << entry.reference << "\n  params:\n"
-      << entry.params << "  Eps = " << entry.epsilon;
-}
-
-void PrintTo(const ResamplingTestBatch &batch, std::ostream *os) {
-  *os << "{\n";
-  bool first = true;
-  for (auto &entry : batch) {
-    if (first) { first = false;
-    } else { *os << ",\n"; }
-    PrintTo(entry, os);
-  }
-  *os << "\n}\n";
-}
 
 class BatchResamplingTest : public ::testing::Test,
                             public ::testing::WithParamInterface<ResamplingTestBatch> {
@@ -369,5 +295,6 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
 INSTANTIATE_TEST_CASE_P(SingleImage, BatchResamplingTest, ::testing::Values(SingleImageBatch));
 INSTANTIATE_TEST_CASE_P(MultipleImages, BatchResamplingTest, ::testing::Values(Batch1));
 
+}  // namespace resample_test
 }  // namespace kernels
 }  // namespace dali

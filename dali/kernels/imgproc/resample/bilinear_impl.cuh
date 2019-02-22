@@ -75,7 +75,7 @@ __device__ void LinearHorz(
     float src_x0, float scale,
     Dst *out, int out_stride,
     const Src *in, int in_stride, int in_w, int channels) {
-  // Specialize over commnon numbers of channels.
+  // Specialize over common numbers of channels.
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     LinearHorz_Channels<static_channels>(
