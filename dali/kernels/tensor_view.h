@@ -414,19 +414,18 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
   return { data, std::move(shape) };
 }
 
-
-template <typename Backend, typename T, int ndim>
-struct element_type<TensorView<Backend, T, ndim>> {
-  using type = T;
-};
-
-template <typename Backend, typename T, int ndim>
-struct element_type<TensorListView<Backend, T, ndim>> {
-  using type = T;
-};
-
-
 }  // namespace kernels
+
+template <typename Backend, typename T, int ndim>
+struct element_type<kernels::TensorView<Backend, T, ndim>> {
+  using type = T;
+};
+
+template <typename Backend, typename T, int ndim>
+struct element_type<kernels::TensorListView<Backend, T, ndim>> {
+  using type = T;
+};
+
 }  // namespace dali
 
 #endif  // DALI_KERNELS_TENSOR_VIEW_H_

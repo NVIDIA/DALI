@@ -116,7 +116,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
           }
-          size_t bytes = Volume(i_shape) * info.itemsize;
+          size_t bytes = volume(i_shape) * info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;
@@ -221,7 +221,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             tensor_shape[i-1] = info.shape[i];
           }
           std::vector<Dims> i_shape(info.shape[0], tensor_shape);
-          size_t bytes = Volume(tensor_shape)*i_shape.size()*info.itemsize;
+          size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;

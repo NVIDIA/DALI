@@ -112,7 +112,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       }
     }
     for (Index i = 0; i < num_tensor; ++i) {
-      auto tensor_size = Volume(new_shape[i]);
+      auto tensor_size = volume(new_shape[i]);
 
       // Save the offset of the current sample & accumulate the size
       offsets_[i] = new_size;
@@ -292,7 +292,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       if (offset != offsets_[i]) {
         return false;
       }
-      offset += Volume(o);
+      offset += volume(o);
     }
     return true;
   }
@@ -305,7 +305,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     size_t elms = 0;
 
     for (auto &shape : shape_) {
-      elms += Volume(shape);
+      elms += volume(shape);
     }
     return elms;
   }

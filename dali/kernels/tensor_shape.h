@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,21 +26,6 @@
 
 namespace dali {
 namespace kernels {
-
-/// @brief Returns the product of all elements in shape
-/// @param shape - shape of a tensor whose elements we count
-template <typename T>
-inline int64_t volume(const T &shape) {
-  int n = shape.size();
-  if (n < 1) {
-    return 0;
-  }
-  int64_t v = shape[0];
-  for (int i = 1; i < n; i++) {
-    v *= shape[i];
-  }
-  return v;
-}
 
 constexpr int DynamicDimensions = -1;
 constexpr int InferDimensions = -2;
@@ -431,7 +416,7 @@ struct TensorListShapeBase {
       return {};
 
     Derived ret;
-    int dim = dali::kernels::size(ss);
+    int dim = dali::size(ss);
     ret.set_sample_dim(dim);
     ret.shapes.resize(dim * num_samples);
 

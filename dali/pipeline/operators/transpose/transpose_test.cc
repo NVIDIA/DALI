@@ -28,8 +28,8 @@ namespace {
 // Fill tensors of consecutive numbers
 template <typename T>
 void Arrange(T* ptr, const std::vector<Index>& shape) {
-  auto volume = Volume(shape);
-  for (int i = 0; i < volume; ++i) {
+  auto vol = volume(shape);
+  for (int i = 0; i < vol; ++i) {
     ptr[i] = static_cast<T>(i);
   }
 }
@@ -153,8 +153,8 @@ void CheckTransposition(const T* in_tensor, const T* out_tensor,
                         const std::vector<Index>& old_shape,
                         const std::vector<Index>& new_shape,
                         const std::vector<int>& perm) {
-  auto old_volume = Volume(old_shape);
-  auto new_volume = Volume(new_shape);
+  auto old_volume = volume(old_shape);
+  auto new_volume = volume(new_shape);
   ASSERT_EQ(old_volume, new_volume);
 
   auto old_strides = GetStrides(old_shape);

@@ -28,6 +28,7 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/meta.h"
+#include "dali/kernels/util.h"
 
 namespace dali {
 
@@ -114,13 +115,13 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Resizes the buffer to fit `Volume(shape)` elements.
+   * @brief Resizes the buffer to fit `volume(shape)` elements.
    * The underlying storage is only reallocated in the case that
    * the current buffer is not large enough for the requested
    * number of elements.
    */
   inline void Resize(const vector<Index> &shape) {
-    Index new_size = Volume(shape);
+    Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
   }
@@ -155,7 +156,7 @@ class Tensor : public Buffer<Backend> {
 
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(idx);
-    size_ = Volume(shape_);
+    size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
@@ -212,7 +213,7 @@ class Tensor : public Buffer<Backend> {
     data_ = ptr;
     num_bytes_ = bytes;
     type_ = TypeInfo::Create<NoType>();
-    Index new_size = Volume(shape);
+    Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
 
@@ -279,7 +280,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(0);
     shape_.insert(shape_.begin(), tl->ntensor());
-    size_ = Volume(shape_);
+    size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();

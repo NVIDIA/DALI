@@ -222,7 +222,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
       output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
-      image_order[i] = std::make_pair(Volume(output_shape_[i]), i);
+      image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }
 
     // Resize the output (contiguous)
