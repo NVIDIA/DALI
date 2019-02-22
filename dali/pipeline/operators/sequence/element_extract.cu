@@ -50,7 +50,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
 
         for (unsigned int i = 0; i < input.ntensor(); i++) {
             const auto& tensor_shape = input.tensor_shape(i);
-            auto element_size = Volume(tensor_shape.begin()+1, tensor_shape.end());
+            auto element_size = volume(tensor_shape.begin()+1, tensor_shape.end());
             auto input_offset_bytes = element * element_size * data_type.size();
 
             data_type.Copy<GPUBackend, GPUBackend>(

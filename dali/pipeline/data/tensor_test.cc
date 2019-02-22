@@ -80,7 +80,7 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   // Give the tensor a size. This
   // should trigger an allocation
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   t.Resize(shape);
 
   // Validate the internals
@@ -96,7 +96,7 @@ TYPED_TEST(TensorTest, TestGetSizeTypeBytes) {
 
   // Give the tensor a size
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   t.Resize(shape);
 
   ASSERT_EQ(t.size(), size);
@@ -120,7 +120,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
 
   // Get an allocation
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   float *ptr = new float[size];
 
   // Wrap the allocation
@@ -159,7 +159,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
 
   // Get an allocation
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   float *ptr = new float[size];
 
   // Wrap the allocation
@@ -198,7 +198,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
 
   // Get an allocation
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   float *ptr = new float[size];
 
   // Wrap the allocation
@@ -235,7 +235,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
 
   // Get an allocation
   auto shape = this->GetRandShape();
-  auto size = Volume(shape);
+  auto size = volume(shape);
   float *ptr = new float[size];
 
   // Wrap the allocation
@@ -289,7 +289,7 @@ TYPED_TEST(TensorTest, TestShareData) {
     ASSERT_EQ(tensor.type(), tl.type());
     ASSERT_EQ(tensor.shape(), tl.tensor_shape(i));
 
-    Index size = Volume(tl.tensor_shape(i));
+    Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensor.size(), size);
     ASSERT_EQ(tensor.nbytes(), size*sizeof(float));
   }
@@ -304,7 +304,7 @@ TYPED_TEST(TensorTest, TestResize) {
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
@@ -322,7 +322,7 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
 
     // Verify the settings
     ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-    ASSERT_EQ(tensor.size(), Volume(shape));
+    ASSERT_EQ(tensor.size(), volume(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
     for (size_t i = 0; i < shape.size(); ++i) {
       ASSERT_EQ(tensor.dim(i), shape[i]);
@@ -339,7 +339,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
 }
 
@@ -352,7 +352,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
 
   // Verify the settings
   ASSERT_EQ(tensor.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
 }
 
@@ -365,7 +365,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
@@ -379,7 +379,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   tensor.template mutable_data<int>();
 
   // Verify the settings
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
@@ -393,7 +393,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   tensor.template mutable_data<uint8>();
 
   // Verify the settings
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
@@ -407,7 +407,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   tensor.template mutable_data<double>();
 
   // Verify the settings
-  ASSERT_EQ(tensor.size(), Volume(shape));
+  ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);

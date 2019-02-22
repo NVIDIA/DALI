@@ -26,7 +26,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     const int c = this->GetNumColorComp();
     for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
-      auto data_size = Volume(encoded_data.tensor_shape(i));
+      auto data_size = volume(encoded_data.tensor_shape(i));
 
       this->DecodeImage(data, data_size, c, this->ImageType(), &out[i]);
     }

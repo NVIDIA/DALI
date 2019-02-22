@@ -43,7 +43,7 @@ class Scratchpad {
   ///        in the memory of type `alloc_type`.
   template <AllocType alloc_type, typename T, size_t dim>
   TensorView<AllocBackend<alloc_type>, T, dim> AllocTensor(TensorShape<dim> shape) {
-    return { Allocate<T>(alloc_type, Volume(shape)), std::move(shape) };
+    return { Allocate<T>(alloc_type, volume(shape)), std::move(shape) };
   }
 
   /// @brief Allocates storage for a TensorList of elements `T` and given `shape`
