@@ -44,6 +44,8 @@ class DecoderCacheLargestOnly : public DecoderCacheBlob{
                     const uint8_t *data, std::size_t data_size,
                     const Dims& data_shape,
                     cudaStream_t stream = 0) override {
+
+        std::unique_lock<std::mutex> lock(mutex_);
         // If we haven't started caching
         if (!start_caching_) {
             // if we've already seen this image, start caching
@@ -94,6 +96,7 @@ class DecoderCacheLargestOnly : public DecoderCacheBlob{
                 }
             }
         }
+        lock.unlock();
 
         if (start_caching_ && images_.find(image_key) != images_.end()) {
             DecoderCacheBlob::Add(image_key, data, data_size, data_shape, stream);
