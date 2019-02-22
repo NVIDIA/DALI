@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(resample)
-
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
 set(DALI_KERNEL_SRCS ${DALI_KERNEL_SRCS} ${tmp})

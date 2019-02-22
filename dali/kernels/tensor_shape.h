@@ -301,6 +301,30 @@ TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<l
   return result;
 }
 
+/// @brief Appends a scalar to a shape
+template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+TensorShape<out_dim> shape_cat(const TensorShape<ndim> &left, int64_t right) {
+  TensorShape<out_dim> result;
+  result.resize(left.size() + 1);
+  for (int i = 0; i < left.size(); i++) {
+    result[i] = left[i];
+  }
+  result[left.size()] = right;
+  return result;
+}
+
+/// @brief Prepends a scalar to a shape
+template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+TensorShape<out_dim> shape_cat(int64_t left, const TensorShape<ndim> &right) {
+  TensorShape<out_dim> result;
+  result.resize(right.size() + 1);
+  result[0] = left;
+  for (int i = 0; i < right.size(); i++) {
+    result[i+1] = right[i];
+  }
+  return result;
+}
+
 /// @brief Flatten list of shapes into contigous vector
 template <int sample_ndim>
 typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>::type
