@@ -206,6 +206,11 @@ class DLL_PUBLIC OpSpec {
     return TensorName(outputs_[idx].first, outputs_[idx].second);
   }
 
+  DLL_PUBLIC inline string MutableOutput(int idx) const {
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    return TensorName(outputs_[idx].first, outputs_[idx].second);
+  }
+
   DLL_PUBLIC inline string OutputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].first;
@@ -291,14 +296,14 @@ class DLL_PUBLIC OpSpec {
     return GetArgument<T, std::vector<T>>(name, ws, idx);
   }
 
-  DLL_PUBLIC inline StrPair* mutable_input(int idx) {
+  DLL_PUBLIC inline StrPair& MutableInput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return &inputs_[idx];
+    return inputs_[idx];
   }
 
-  DLL_PUBLIC inline StrPair* mutable_output(int idx) {
+  DLL_PUBLIC inline StrPair& MutableOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return &outputs_[idx];
+    return outputs_[idx];
   }
 
   DLL_PUBLIC string ToString() const {

@@ -15,6 +15,8 @@
 # Get all the source files and dump test files
 if (BUILD_NVJPEG)
   list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cu")
+  list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_new.cu")
+#  list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_gpu_new.cu")
   if (BUILD_TEST)
     list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
   endif()
