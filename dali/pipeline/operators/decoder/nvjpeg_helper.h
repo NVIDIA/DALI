@@ -62,7 +62,7 @@ struct EncodedImageInfo {
   unsigned int heights[NVJPEG_MAX_COMPONENT];
 };
 
-nvjpegJpegState_t GetNvjpegState(StateNvJPEG& state) {
+inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
   switch (state.nvjpeg_backend) {
     case NVJPEG_BACKEND_HYBRID:
       return state.decoder_host_state;
@@ -74,7 +74,7 @@ nvjpegJpegState_t GetNvjpegState(StateNvJPEG& state) {
   }
 }
 
-nvjpegOutputFormat_t GetFormat(DALIImageType type) {
+inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
       return NVJPEG_OUTPUT_RGBI;
@@ -88,7 +88,7 @@ nvjpegOutputFormat_t GetFormat(DALIImageType type) {
 }
 
 
-int GetOutputPitch(DALIImageType type) {
+inline int GetOutputPitch(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_BGR:
@@ -100,7 +100,7 @@ int GetOutputPitch(DALIImageType type) {
   }
 }
 
-bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
+inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
   switch (subsampling) {
     case NVJPEG_CSS_444:
     case NVJPEG_CSS_422:
