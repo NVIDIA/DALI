@@ -61,6 +61,12 @@ struct OutputIdxs {
   }
 };
 
+static std::ostream &operator<<(std::ostream &os, QueueIdxs idxs) {
+  os << "{" << idxs[DALIOpType::SUPPORT] << ", " << idxs[DALIOpType::CPU] << ", "
+     << idxs[DALIOpType::MIXED] << ", " << idxs[DALIOpType::GPU] << "}";
+  return os;
+}
+
 
 static DALIOpType PreviousStage(DALIOpType op) {
   switch (op) {

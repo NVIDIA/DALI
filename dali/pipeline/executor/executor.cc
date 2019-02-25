@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <condition_variable>
 #include <iterator>
+#include <mutex>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
-#include <mutex>
-#include <condition_variable>
 
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
@@ -121,7 +121,8 @@ void Executor::RunCPU() {
     exec_error_ = true;
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
-    ready_cond_.notify_all();
+    // TODO
+    // ready_output_cv_.notify_all();
   }
 
   ReleaseIdxs(DALIOpType::SUPPORT, support_idx);
@@ -154,7 +155,8 @@ void Executor::RunCPU() {
       exec_error_ = true;
       std::unique_lock<std::mutex> errors_lock(errors_mutex_);
       errors_.push_back(e.what());
-      ready_cond_.notify_all();
+      // TODO
+      // ready_output_cv_.notify_all();
     }
   }
   // Pass the work to the mixed stage
@@ -197,8 +199,9 @@ void Executor::RunMixed() {
     exec_error_ = true;
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
-    ready_cond_.notify_all();
-    free_cond_.notify_all();
+    // TODO
+    // ready_output_cv_.notify_all();
+    // free_cond_.notify_all();
   }
 
   // Pass the work to the gpu stage
@@ -279,8 +282,9 @@ void Executor::RunGPU() {
     exec_error_ = true;
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
-    free_cond_.notify_all();
-    ready_cond_.notify_all();
+    // TODO
+    // free_cond_.notify_all();
+    // ready_output_cv_.notify_all();
     return;
   }
   // Update the ready queue to signal that all the work
@@ -292,14 +296,14 @@ void Executor::RunGPU() {
   // We have to give up the elements to be occupied
   // std::unique_lock<std::mutex> lock(ready_mutex_);
   // ready_queue_.push(queue_idx[DALIOpType::GPU]);
-  // ready_cond_.notify_all();
+  // ready_output_cv_.notify_all();
   // lock.unlock(); // TODO (this should be before notify?)
 // #endif
 
   // We do not release
   // ReleaseIdxs(DALIOpType::GPU, gpu_idx);
   QueueOutputIdxs(gpu_idx);
-  ready_cond_.notify_all();
+  // ready_output_cv_.notify_all();
 
   // Save the queue_idx so we can enforce the
   // dependency between consecutive iterations
@@ -313,25 +317,26 @@ void Executor::RunGPU() {
 }
 
 void Executor::ReleaseOutputs() {
-  // Mark the last in-use buffer as free and signal
-  // to waiting threads
-  if (!in_use_queue_.empty()) {
-    auto mixed_idx = static_cast<int>(DALIOpType::MIXED);
-    auto gpu_idx =static_cast<int>(DALIOpType::GPU);
-    auto processed = in_use_queue_.front(); // TODO(klecki): this should be guarded as well
-    std::cout << "Releasing outputs: " << processed.mixed << ", " << processed.gpu << std::endl;
-    {
-      std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
-      stage_free_[mixed_idx].push(processed.mixed);
-    }
-    stage_free_cv_[mixed_idx].notify_one();
-    {
-      std::unique_lock<std::mutex> lock(stage_free_mutex_[gpu_idx]);
-      stage_free_[gpu_idx].push(processed.gpu);
-    }
-    in_use_queue_.pop();
-    stage_free_cv_[gpu_idx].notify_one();
-  }
+//   // Mark the last in-use buffer as free and signal
+//   // to waiting threads
+//   if (!in_use_queue_.empty()) {
+//     auto mixed_idx = static_cast<int>(DALIOpType::MIXED);
+//     auto gpu_idx =static_cast<int>(DALIOpType::GPU);
+//     auto processed = in_use_queue_.front(); // TODO(klecki): this should be guarded as well
+//     std::cout << "Releasing outputs: " << processed.mixed << ", " << processed.gpu << std::endl;
+//     {
+//       std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
+//       stage_free_[mixed_idx].push(processed.mixed);
+//     }
+//     stage_free_cv_[mixed_idx].notify_one();
+//     {
+//       std::unique_lock<std::mutex> lock(stage_free_mutex_[gpu_idx]);
+//       stage_free_[gpu_idx].push(processed.gpu);
+//     }
+//     in_use_queue_.pop();
+//     stage_free_cv_[gpu_idx].notify_one();
+//   }
+  ReleaseOutputIdxs();
 }
 
 void Executor::Outputs(DeviceWorkspace *ws) {
@@ -350,25 +355,27 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
     throw std::runtime_error(error);
   }
 
-  // Block until the work for a batch has been issued.
-  // Move the queue id from ready to in_use
-  std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
-  while (ready_output_queue_.empty() && !exec_error_) {
-    ready_cond_.wait(ready_lock);
-    if (exec_error_) {
-      break;
-    }
-  }
-  if (exec_error_) {
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-    throw std::runtime_error(error);
-  }
-  auto output_idx = ready_output_queue_.front();
-  ready_output_queue_.pop();
-  std::cout << "Marking as in use: " << output_idx.mixed << ", " << output_idx.gpu << std::endl;
-  in_use_queue_.push(output_idx); //TODO(klecki) -this may cause some problems!!!
-  ready_lock.unlock();
+  // // Block until the work for a batch has been issued.
+  // // Move the queue id from ready to in_use
+  // std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
+  // while (ready_output_queue_.empty() && !exec_error_) {
+  //   ready_output_cv_.wait(ready_lock);
+  //   if (exec_error_) {
+  //     break;
+  //   }
+  // }
+  // if (exec_error_) {
+  //   std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+  //   std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+  //   throw std::runtime_error(error);
+  // }
+  // auto output_idx = ready_output_queue_.front();
+  // ready_output_queue_.pop();
+  // std::cout << "Marking as in use: " << output_idx.mixed << ", " << output_idx.gpu << std::endl;
+  // in_use_queue_.push(output_idx); //TODO(klecki) -this may cause some problems!!!
+  // ready_lock.unlock();
+
+  auto output_idx = UseOutputIdxs();
 
   // We already gathered info about outputs, so we only have to wait on respective
   // events to make sure that the computation has completed
@@ -558,72 +565,67 @@ void Executor::SetupOutputQueuesForGraph() {
   //   free_queue_.push(i);
   // }
 
-  for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
-    for (int i = 0; i < stage_queue_depths_[stage]; i++) {
-      stage_free_[stage].push(i);
-    }
-  }
+  // for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
+  //   for (int i = 0; i < stage_queue_depths_[stage]; i++) {
+  //     stage_free_[stage].push(i);
+  //   }
+  // }
+  InitializeQueues(stage_queue_depths_);
 }
 
-std::ostream &operator<<(std::ostream &os, QueueIdxs idxs) {
-  os << "{" << idxs[DALIOpType::SUPPORT] << "," << idxs[DALIOpType::CPU] << ","
-     << idxs[DALIOpType::MIXED] << "," << idxs[DALIOpType::GPU] << "}";
-  return os;
-}
+// QueueIdxs Executor::AcquireIdxs(DALIOpType stage) {
+//   QueueIdxs result(0);
+//   // We dine with the philosophers
+//   std::cout << "Acquire for " << to_string(stage) << std::endl;
 
-QueueIdxs Executor::AcquireIdxs(DALIOpType stage) {
-  QueueIdxs result(0);
-  // We dine with the philosophers
-  std::cout << "Acquire for " << to_string(stage) << std::endl;
+//   int current_stage = static_cast<int>(stage);
+//   // We actually have a previous stage
+//   if (HasPreviousStage(stage)) {
+//     int previous_stage = static_cast<int>(PreviousStage(stage));
+//     std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
+//     stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
+//       return !stage_ready_[previous_stage].empty();
+//     });
+//     result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
+//     stage_ready_[previous_stage].pop();
+//     // We are the only ones waiting for the lock, so we do not try to wake anyone
+//   }
+//   // There always is a current stage
+//   {
+//     std::unique_lock<std::mutex> free_current_lock(stage_free_mutex_[current_stage]);
+//     stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
+//       return !stage_free_[current_stage].empty();
+//     });
+//     result[stage] = stage_free_[current_stage].front();
+//     stage_free_[current_stage].pop();
+//     // As above? TODO(klecki): Where do we wake anyone
+//   }
+//   std::cout << "Acquired for " << to_string(stage) << " " << result << std::endl;
+//   return result;
+// }
 
-  int current_stage = static_cast<int>(stage);
-  // We actually have a previous stage
-  if (HasPreviousStage(stage)) {
-    int previous_stage = static_cast<int>(PreviousStage(stage));
-    std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
-    stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
-      return !stage_ready_[previous_stage].empty();
-    });
-    result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
-    stage_ready_[previous_stage].pop();
-    // We are the only ones waiting for the lock, so we do not try to wake anyone
-  }
-  // There always is a current stage
-  {
-    std::unique_lock<std::mutex> free_current_lock(stage_free_mutex_[current_stage]);
-    stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
-      return !stage_free_[current_stage].empty();
-    });
-    result[stage] = stage_free_[current_stage].front();
-    stage_free_[current_stage].pop();
-    // As above? TODO(klecki): Where do we wake anyone
-  }
-  std::cout << "Acquired for " << to_string(stage) << " " << result << std::endl;
-  return result;
-}
+// void Executor::ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
+//   int current_stage = static_cast<int>(stage);
+//   std::cout << "Releasing for " << to_string(stage) << " " << idxs << std::endl;
+//   if (HasPreviousStage(stage)) {
+//     int previous_stage = static_cast<int>(PreviousStage(stage));
+//     // We always can just release the consumed buffer
+//     std::unique_lock<std::mutex> free_previous_lock(stage_free_mutex_[previous_stage]);
+//     stage_free_[previous_stage].push(idxs[static_cast<DALIOpType>(previous_stage)]);
+//     // We freed buffer, so we notfiy the previous stage it can continue it's work
+//     stage_free_cv_[previous_stage].notify_one();
+//   }
+//   {
+//     std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
+//     stage_ready_[current_stage].push(idxs[stage]);
+//     stage_ready_cv_[current_stage].notify_one();
+//   }
+// }
 
-void Executor::ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
-  int current_stage = static_cast<int>(stage);
-  std::cout << "Releasing for " << to_string(stage) << " " << idxs << std::endl;
-  if (HasPreviousStage(stage)) {
-    int previous_stage = static_cast<int>(PreviousStage(stage));
-    // We always can just release the consumed buffer
-    std::unique_lock<std::mutex> free_previous_lock(stage_free_mutex_[previous_stage]);
-    stage_free_[previous_stage].push(idxs[static_cast<DALIOpType>(previous_stage)]);
-    // We freed buffer, so we notfiy the previous stage it can continue it's work
-    stage_free_cv_[previous_stage].notify_one();
-  }
-  {
-    std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
-    stage_ready_[current_stage].push(idxs[stage]);
-    stage_ready_cv_[current_stage].notify_one();
-  }
-}
-
-void Executor::QueueOutputIdxs(QueueIdxs idxs) {
-  std::cout << "Queueing outputs " << idxs << std::endl;
-  std::unique_lock<std::mutex> ready_output_lock(ready_output_mutex_);
-  ready_output_queue_.push({idxs[DALIOpType::MIXED], idxs[DALIOpType::GPU]});
-}
+// void Executor::QueueOutputIdxs(QueueIdxs idxs) {
+//   std::cout << "Queueing outputs " << idxs << std::endl;
+//   std::unique_lock<std::mutex> ready_output_lock(ready_output_mutex_);
+//   ready_output_queue_.push({idxs[DALIOpType::MIXED], idxs[DALIOpType::GPU]});
+// }
 
 }  // namespace dali

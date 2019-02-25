@@ -25,6 +25,7 @@
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/queue_policy.h"
 #include "dali/pipeline/executor/workspace_policy.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
@@ -45,7 +46,7 @@ namespace dali {
  * buffers, so that we can produce data into one while the
  * other is in use by the user.
  */
-class DLL_PUBLIC Executor : public JIT_WS_Policy {
+class DLL_PUBLIC Executor : public JIT_WS_Policy, public UniformQueuePolicy {
  public:
   using ExecutorCallback = std::function<void(void)>;
 
@@ -151,7 +152,7 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
   // next time Ouputs() is called.
   // std::queue<int> ready_queue_, free_queue_, in_use_queue_;
   // std::mutex ready_mutex_, free_mutex_;
-  std::condition_variable ready_cond_, free_cond_;
+  // std::condition_variable ready_output_cv_, free_cond_;
 
   // Work is passed between the stages through queues. This
   // is needed for potentially asynchronous work issue, which
@@ -171,27 +172,29 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
   // two sets of locks doing similar things in each stage,
   // it simplifies the software for now so we leave it
   // unless it becomes an issue in the future.
-  std::queue<int> mixed_work_queue_, gpu_work_queue_;
-  std::mutex mixed_mutex_, gpu_mutex_;
+  // std::queue<int> mixed_work_queue_, gpu_work_queue_;
+  // std::mutex mixed_mutex_, gpu_mutex_;
 
-  std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
-  std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_ready_mutex_;
-  std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_free_cv_;
-  std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_ready_cv_;
+  // std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
+  // std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_ready_mutex_;
+  // std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_free_cv_;
+  // std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_ready_cv_;
 
-  std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_free_;
-  std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
+  // std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_free_;
+  // std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
+
+
   std::array<int, static_cast<int>(DALIOpType::COUNT)> stage_queue_depths_;
 
-  std::mutex ready_output_mutex_, in_use_mutex_;
-  std::queue<OutputIdxs> ready_output_queue_;
-  std::queue<OutputIdxs> in_use_queue_;
+  // std::mutex ready_output_mutex_, in_use_mutex_;
+  // std::queue<OutputIdxs> ready_output_queue_;
+  // std::queue<OutputIdxs> in_use_queue_;
 
   // TODO Scoped acquire?
-  QueueIdxs AcquireIdxs(DALIOpType stage);
-  void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
+  // QueueIdxs AcquireIdxs(DALIOpType stage);
+  // void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
 
-  void QueueOutputIdxs(QueueIdxs idxs);
+  // void QueueOutputIdxs(QueueIdxs idxs);
 
 
   OpGraph *graph_ = nullptr;
