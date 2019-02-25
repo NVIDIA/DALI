@@ -18,6 +18,7 @@
 #include "dali/common.h"
 #include "dali/error_handling.h"
 
+#include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/workspace/device_workspace.h"
@@ -27,27 +28,6 @@
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
-
-// TODO(klecki): move to another file
-struct QueueIdxs {
-  int &operator[](DALIOpType op_type) { return idxs[static_cast<size_t>(op_type)]; }
-
-  const int &operator[](DALIOpType op_type) const { return idxs[static_cast<size_t>(op_type)]; }
-
-  explicit QueueIdxs(int uniform_idx) : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
-
- private:
-  std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {{0, 0, 0, 0}};
-};
-
-struct QueueSizes {
-  QueueSizes() = default;
-  QueueSizes(int output_size) : cpu_size(1), mixed_size(output_size), gpu_size(output_size) {}
-  QueueSizes(int cpu_size, int mixed_size, int gpu_size)
-      : cpu_size(cpu_size), mixed_size(mixed_size), gpu_size(gpu_size) {}
-
-  int cpu_size = 1, mixed_size = 1, gpu_size = 1;
-};
 
 // We instantiate the operation of adding the input only for parent op_type and device
 // that are specifically allowed

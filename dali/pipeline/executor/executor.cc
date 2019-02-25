@@ -21,11 +21,10 @@
 #include <condition_variable>
 
 #include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/operators/common.h"
-
-#include "dali/pipeline/workspace/workspace_data_factory.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
-
+#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
 

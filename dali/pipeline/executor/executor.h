@@ -24,7 +24,10 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+#include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/workspace_policy.h"
 #include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -32,76 +35,9 @@
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/support_workspace.h"
-
-#include "dali/pipeline/executor/workspace_policy.h"
-#include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
-
-static DALIOpType PreviousStage(DALIOpType op) {
-  switch (op) {
-    case DALIOpType::CPU:
-      return DALIOpType::SUPPORT;
-    case DALIOpType::MIXED:
-      return DALIOpType::CPU;
-    case DALIOpType::GPU:
-      return DALIOpType::MIXED;
-    default:
-      return static_cast<DALIOpType>(-1);  // No previous OpType
-  }
-}
-
-static bool HasPreviousStage(DALIOpType op) {
-  if (op == DALIOpType::SUPPORT) {
-    return false;
-  }
-  return true;
-}
-
-static DALIOpType NextStage(DALIOpType op) {
-  switch (op) {
-    case DALIOpType::SUPPORT:
-      return DALIOpType::CPU;
-    case DALIOpType::CPU:
-      return DALIOpType::MIXED;
-    case DALIOpType::MIXED:
-      return DALIOpType::GPU;
-    default:
-      return static_cast<DALIOpType>(-1);  // No next OpType
-  }
-}
-
-static bool HasNextStage(DALIOpType op) {
-  if (op == DALIOpType::GPU) {
-    return false;
-  }
-  return true;
-}
-
-
-struct OutputIdxs {
-  int mixed;
-  int gpu;
-
-  int &operator[](DALIOpType op_type) {
-    if (op_type == DALIOpType::MIXED) {
-      return mixed;
-    }
-    else {
-      return gpu;
-    }
-  }
-
-  const int &operator[](DALIOpType op_type) const {
-    if (op_type == DALIOpType::MIXED) {
-      return mixed;
-    }
-    else {
-      return gpu;
-    }
-  }
-};
 
 /**
  * @brief Basic executor for dali graphs. This executor enables
