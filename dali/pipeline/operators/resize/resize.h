@@ -25,6 +25,9 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/fused/resize_crop_mirror.h"
+#include "dali/kernels/context.h"
+#include "dali/kernels/scratch.h"
+#include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
 
@@ -54,10 +57,7 @@ class ResizeParamDescr {
 
 class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
-  explicit inline ResizeAttr(const OpSpec &spec)
-    : ResizeCropMirrorAttr(spec)
-    , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
-  }
+  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
 
   void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
                DALISize *out_size, TransformMeta const * meta = nullptr) const;
@@ -83,7 +83,6 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
   vector<uint8*> output_ptrs_;
 
   vector<DALISize> sizes_[2];
-  const int C_;
 };
 
 template <typename Backend>
@@ -96,6 +95,11 @@ class Resize : public Operator<Backend>, protected ResizeAttr {
   void RunImpl(Workspace<Backend> *ws, int idx) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
+  kernels::KernelContext context_;
+  kernels::KernelRequirements requirements_;
+  kernels::ScratchpadAllocator scratch_alloc_;
+
+  vector<kernels::ResamplingParams2D> resample_params_;
   vector<NppiPoint> *resizeParam_ = nullptr;
   USE_OPERATOR_MEMBERS();
   bool save_attrs_;

@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/resize/resize.h"
-
 #include <cuda_runtime_api.h>
 
 #include <utility>
 #include <vector>
 
 #include "dali/util/npp.h"
+#include "dali/pipeline/operators/resize/resize.h"
+#include "dali/kernels/static_switch.h"
+#include "dali/kernels/imgproc/resample.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -115,16 +117,46 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
+  resample_params_.resize(batch_size_);
+
+  auto interp_min = spec_.GetArgument<DALIInterpType>("min_filter");
+  auto interp_mag = spec_.GetArgument<DALIInterpType>("mag_filter");
+  auto interp_default = spec_.GetArgument<DALIInterpType>("interp_type");
+  if (interp_default != DALI_INTERP_LINEAR && interp_mag == DALI_INTERP_LINEAR)
+    interp_mag = interp_default;  // old syntax used
+
+  kernels::ResamplingFilterType interp2resample[] = {
+    kernels::ResamplingFilterType::Nearest,
+    kernels::ResamplingFilterType::Linear,
+    kernels::ResamplingFilterType::Linear,  // cubic - not supported
+    kernels::ResamplingFilterType::Lanczos3,
+    kernels::ResamplingFilterType::Triangular,
+    kernels::ResamplingFilterType::Gaussian
+  };
+
+  kernels::FilterDesc min_filter = { interp2resample[interp_min], 0 };
+  kernels::FilterDesc mag_filter = { interp2resample[interp_mag], 0 };
+
   for (int i = 0; i < batch_size_; ++i) {
     vector<Index> input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
     per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
+    resample_params_[i][0].output_size = per_sample_meta_[i].rsz_h;
+    resample_params_[i][1].output_size = per_sample_meta_[i].rsz_w;
+    resample_params_[i][0].min_filter = resample_params_[i][1].min_filter = min_filter;
+    resample_params_[i][0].mag_filter = resample_params_[i][1].mag_filter = mag_filter;
   }
+
+  context_.gpu.stream = ws->stream();
+  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
+  requirements_ = Kernel::GetRequirements(context_, view<const uint8_t, 3>(input), resample_params_);
+  scratch_alloc_.Reserve(requirements_.scratch_sizes);
 }
 
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+    context_.gpu.stream = ws->stream();
     const auto &input = ws->Input<GPUBackend>(idx);
 
     auto &output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
@@ -133,15 +165,34 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     DataDependentSetupGPU(input, output, batch_size_, false,
                             inputImages(), outputImages(), NULL, &resizeDescr);
 
+    auto scratchpad = scratch_alloc_.GetScratchpad();
+    context_.scratchpad = &scratchpad;
+    using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
+
+    cudaStreamSynchronize(ws->stream());
+    //auto start = std::chrono::high_resolution_clock::now();
+    Kernel::Run(context_, view<uint8_t, 3>(output), view<const uint8_t, 3>(input), resample_params_);
+    cudaStreamSynchronize(ws->stream());
+    //auto end = std::chrono::high_resolution_clock::now();
+    //auto resample_time = end-start;
+    //cout << "Resample: " << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(resample_time).count() << "ms\n";
+
     // Run the kernel
-    cudaStream_t old_stream = nppGetStream();
+    /*cudaStream_t old_stream = nppGetStream();
     nppSetStream(ws->stream());
+    start = std::chrono::high_resolution_clock::now();
+    cudaStreamSynchronize(ws->stream());
+    int C_ = IsColor(spec_.GetArgument<DALIImageType>("image_type")) ? 3 : 1;
     BatchedResize(
         (const uint8**)input_ptrs_.data(),
         batch_size_, C_, sizes(input_t).data(),
         output_ptrs_.data(), sizes(output_t).data(),
         resizeParam_->data(), getInterpType());
     nppSetStream(old_stream);
+    cudaStreamSynchronize(ws->stream());
+    end = std::chrono::high_resolution_clock::now();
+    auto npp_time = end-start;
+    cout << "NPP: " << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(npp_time).count() << "ms\n";*/
 
     // Setup and output the resize attributes if necessary
     if (save_attrs_) {

@@ -24,6 +24,10 @@ DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
+  .AddOptionalArg("mag_filter", "Filter used when scaling up",
+      DALI_INTERP_LINEAR)
+  .AddOptionalArg("min_filter", "Filter used when scaling down",
+      DALI_INTERP_LINEAR)
   .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
       "This option is mutually exclusive with `resize_shorter`. "
       "If the `resize_y` is left at 0, then the op will keep "
