@@ -163,15 +163,9 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
   using JIT_WS_Policy::InitializeWorkspaceStore;
   using JIT_WS_Policy::GetWorkspace;
 
-
-
-
-
   void PruneUnusedGraphNodes();
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
-
-  void SetupWorkspacesForGraph(int queue_idx);
 
   virtual void SetupOutputInfo(const OpGraph &graph);
 
@@ -184,34 +178,6 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
                    const OpGraph &graph);
 
   void SetupOutputQueuesForGraph();
-
-  // template <DALIOpType op_type>
-  // // workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx);
-  // workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
-
-  // template <DALIOpType op_type>
-  // // workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpNode &node);
-  // workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
-
-  // template <DALIOpType op_type>
-  // void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-  //                       const std::vector<tensor_data_store_queue_t>& tensor_to_store_queue, const QueueIdxs idxs);
-
-  // // template <DALIOpType op_type>
-  // // void SetupPinned(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-  // //                  const QueueIdxs idxs);
-
-  // template <DALIOpType op_type>
-  // void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-  //                            cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-  //                            const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-  //                            const QueueIdxs idxs);
-
-  // template <DALIOpType op_type>
-  // workspace_t<op_type> CreateWorkspace(const OpGraph &graph, const OpNode &node,
-  //   const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, cudaStream_t mixed_op_stream,
-  //   cudaStream_t gpu_op_stream, const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-  //                                              const QueueIdxs idxs);
 
   class EventList {
    public:

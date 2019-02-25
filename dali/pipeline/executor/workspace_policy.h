@@ -15,36 +15,28 @@
 #ifndef DALI_PIPELINE_EXECUTOR_WORKSPACE_POLICY_H_
 #define DALI_PIPELINE_EXECUTOR_WORKSPACE_POLICY_H_
 
-
-
 #include "dali/common.h"
 #include "dali/error_handling.h"
 
 #include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/support_workspace.h"
-#include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
-
 
 namespace dali {
 
 // TODO(klecki): move to another file
 struct QueueIdxs {
-  int &operator[](DALIOpType op_type) {
-    return idxs[static_cast<size_t>(op_type)];
-  }
+  int &operator[](DALIOpType op_type) { return idxs[static_cast<size_t>(op_type)]; }
 
-  const int &operator[](DALIOpType op_type) const {
-    return idxs[static_cast<size_t>(op_type)];
-  }
+  const int &operator[](DALIOpType op_type) const { return idxs[static_cast<size_t>(op_type)]; }
 
-  explicit QueueIdxs(int uniform_idx)
-      : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
+  explicit QueueIdxs(int uniform_idx) : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
 
-  private:
+ private:
   std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {{0, 0, 0, 0}};
 };
 
@@ -56,7 +48,6 @@ struct QueueSizes {
 
   int cpu_size = 1, mixed_size = 1, gpu_size = 1;
 };
-
 
 // We instantiate the operation of adding the input only for parent op_type and device
 // that are specifically allowed
@@ -91,9 +82,9 @@ void add_output(workspace_t<op_type> &ws, const tensor_data_store_queue_t &stora
 // all DALIOpTypes -> implement `add_input` and add_output for all of the subclasses
 // as well with later operations
 template <DALIOpType op_type>
-void SetupInputOutput(
-    workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
-    const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const QueueIdxs idxs) {
+void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+                      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                      const QueueIdxs idxs) {
   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
     auto tid = node.parent_tensors[j];
     auto &parent_node = graph.Node(graph.Tensor(tid).producer_edge.node);
@@ -117,8 +108,7 @@ void SetupInputOutput(
     // Get each argument input and add them to this op's workspace.
     auto input_index = arg_pair.second;
     auto tid = node.parent_tensors[input_index];
-    auto &queue =
-        get_queue<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_store_queue[tid]);
+    auto &queue = get_queue<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_store_queue[tid]);
     auto tensor = queue[idxs[DALIOpType::MIXED]];  // TODO(klecki): check queueueueueuing
     ws.AddArgumentInput(tensor, arg_pair.first);
   }
@@ -134,11 +124,10 @@ void SetupInputOutput(
 }
 
 template <DALIOpType op_type>
-void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph,
-                                     const OpNode &node, cudaStream_t mixed_op_stream,
-                                     cudaStream_t gpu_op_stream,
-                                     const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-                                     const QueueIdxs idxs) {
+void SetupStreamsAndEvents(workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+                           cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                           const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+                           const QueueIdxs idxs) {
   /* No-op if we are not Mixed or GPU */
 }
 
@@ -178,24 +167,25 @@ inline void SetupStreamsAndEvents<DALIOpType::GPU>(
 }
 
 template <DALIOpType op_type>
-workspace_t<op_type> CreateWorkspace(const OpGraph &graph, const OpNode &node,
-    const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, cudaStream_t mixed_op_stream,
-    cudaStream_t gpu_op_stream, const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-                                               const QueueIdxs idxs) {
+workspace_t<op_type> CreateWorkspace(
+    const OpGraph &graph, const OpNode &node,
+    const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+    cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+    const std::vector<std::vector<cudaEvent_t>> &mixed_op_events, const QueueIdxs idxs) {
   workspace_t<op_type> ws;
   SetupInputOutput<op_type>(ws, graph, node, tensor_to_store_queue, idxs);
   // SetupPinned<op_type>(ws, graph, node, idxs);
-  SetupStreamsAndEvents<op_type>(ws, graph, node, mixed_op_stream, gpu_op_stream,
-                                 mixed_op_events, idxs);
+  SetupStreamsAndEvents<op_type>(ws, graph, node, mixed_op_stream, gpu_op_stream, mixed_op_events,
+                                 idxs);
   return ws;
 }
 
 struct JIT_WS_Policy {
   void InitializeWorkspaceStore(const OpGraph &graph,
-      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-      const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-      const QueueSizes idxs) {
+                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                                const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+                                const QueueSizes idxs) {
     tensor_to_store_queue_ = tensor_to_store_queue;
     mixed_op_stream_ = mixed_op_stream;
     gpu_op_stream_ = gpu_op_stream;
@@ -204,17 +194,19 @@ struct JIT_WS_Policy {
   }
 
   template <DALIOpType op_type>
-  workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+  workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
+                                    OpPartitionId partition_idx) {
     return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx),
-      tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
+                                    tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_,
+                                    mixed_op_events_, idxs);
   }
 
   template <DALIOpType op_type>
   workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
-      DALI_ENFORCE(node.op_type == op_type,
-               "Wrong variant of method selected. DALIOpType does not match.");
-    return  CreateWorkspace<op_type>(graph, node, tensor_to_store_queue_, mixed_op_stream_,
-        gpu_op_stream_, mixed_op_events_, idxs);
+    DALI_ENFORCE(node.op_type == op_type,
+                 "Wrong variant of method selected. DALIOpType does not match.");
+    return CreateWorkspace<op_type>(graph, node, tensor_to_store_queue_, mixed_op_stream_,
+                                    gpu_op_stream_, mixed_op_events_, idxs);
   }
 
  private:
@@ -227,12 +219,12 @@ struct JIT_WS_Policy {
 
 struct AOT_WS_Policy {
   void InitializeWorkspaceStore(const OpGraph &graph,
-      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-      const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
-      const QueueSizes idxs) {
+                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                                const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+                                const QueueSizes idxs) {
     DALI_ENFORCE(idxs.cpu_size == idxs.mixed_size && idxs.mixed_size == idxs.gpu_size,
-        "This policy does not support splited queues");
+                 "This policy does not support splited queues");
     queue_size_ = idxs.cpu_size;
     wss_.resize(queue_size_);
     for (int i = 0; i < queue_size_; i++) {
@@ -241,7 +233,8 @@ struct AOT_WS_Policy {
   }
 
   template <DALIOpType op_type>
-  workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+  workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
+                                     OpPartitionId partition_idx) {
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     return ws_vec[partition_idx];
   }
@@ -249,22 +242,22 @@ struct AOT_WS_Policy {
   template <DALIOpType op_type>
   workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
-              "Wrong variant of method selected. DALIOpType does not match.");
+                 "Wrong variant of method selected. DALIOpType does not match.");
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     return ws_vec[node.partition_index];
   }
 
  private:
   void PrepareWSB(int queue_idx, const OpGraph &graph,
-      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-      const std::vector<std::vector<cudaEvent_t>> &mixed_op_events) {
+                  const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                  cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                  const std::vector<std::vector<cudaEvent_t>> &mixed_op_events) {
     // DeviceGuard g(device_id_); // TODO(klecki): really?
 
     // Clear any old data setup
     wss_[queue_idx].Clear();
     wss_[queue_idx].Resize(graph.NumOp(DALIOpType::SUPPORT), graph.NumOp(DALIOpType::CPU),
-                graph.NumOp(DALIOpType::MIXED), graph.NumOp(DALIOpType::GPU));
+                           graph.NumOp(DALIOpType::MIXED), graph.NumOp(DALIOpType::GPU));
 
     for (int i = 0; i < graph.NumOp(); i++) {
       auto &node = graph.Node(i);

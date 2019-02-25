@@ -76,19 +76,10 @@ void Executor::Build(OpGraph *graph, vector<string> output_names) {
 
   // Setup workspaces for each op and connect
   // their inputs and outputs.
-  // TODO(klecki) rework this
   // For each set of outputs, setup another set of
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
   // asynchonrous executors that can overlap work issue)
-
-  // TODO(klecki): Add cache'ing policy to CreateWorkspace
-  // WorkspaceBlob base_wsb;
-  // wss_.resize(queue_depth_);
-  // for (int queue_idx = 0; queue_idx < queue_depth_; queue_idx++) {
-  //   SetupWorkspacesForGraph(queue_idx);
-  // }
-
   InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_,
       mixed_op_events_, queue_sizes_);
 
@@ -493,25 +484,6 @@ std::vector<int> Executor::GetTensorQueueSizes(const OpGraph &graph) {
     result[id] = stage_queue_depths_[static_cast<int>(parent_type)];
   }
   return result;
-}
-
-void Executor::SetupWorkspacesForGraph(int queue_idx) {
-  // DeviceGuard g(device_id_);
-
-  // // Clear any old data setup
-  // wss_[queue_idx].Clear();
-  // wss_[queue_idx].Resize(graph_->NumOp(DALIOpType::SUPPORT), graph_->NumOp(DALIOpType::CPU),
-  //             graph_->NumOp(DALIOpType::MIXED), graph_->NumOp(DALIOpType::GPU));
-
-  // for (int i = 0; i < graph_->NumOp(); i++) {
-  //   auto &node = graph_->Node(i);
-  //   VALUE_SWITCH(node.op_type, op_type_static,
-  //       (DALIOpType::SUPPORT, DALIOpType::CPU, DALIOpType::MIXED, DALIOpType::GPU),
-  //   (
-  //     auto &ws = GetWorkspace<op_type_static>(queue_idx, node);
-  //     ws = CreateWorkspace<op_type_static>(*graph_, node, QueueIdxs{queue_idx});
-  //   ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
-  // }
 }
 
 void Executor::PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
