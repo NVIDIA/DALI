@@ -49,7 +49,8 @@ namespace dali {
 struct StateNvJPEG {
   nvjpegBackend_t nvjpeg_backend;
   nvjpegBufferPinned_t pinned_buffer;
-  nvjpegJpegState_t decoder_state;
+  nvjpegJpegState_t decoder_host_state;
+  nvjpegJpegState_t decoder_hybrid_state;
   nvjpegJpegStream_t jpeg_stream;
 };
 
@@ -60,6 +61,18 @@ struct EncodedImageInfo {
   unsigned int widths[NVJPEG_MAX_COMPONENT];
   unsigned int heights[NVJPEG_MAX_COMPONENT];
 };
+
+nvjpegJpegState_t GetNvjpegState(StateNvJPEG& state) {
+  switch (state.nvjpeg_backend) {
+    case NVJPEG_BACKEND_HYBRID:
+      return state.decoder_host_state;
+    case NVJPEG_BACKEND_GPU_HYBRID:
+      return state.decoder_hybrid_state;
+    default:
+      DALI_FAIL("Unknown nvjpegBackend_t "
+                + std::to_string(state.nvjpeg_backend));
+  }
+}
 
 nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {

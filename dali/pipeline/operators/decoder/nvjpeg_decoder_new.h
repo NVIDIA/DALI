@@ -65,8 +65,12 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       // We want to use nvJPEG default pinned allocator
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
 
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_huff_host_, &decoder_host_state_[i]));
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_huff_hybrid_, &decoder_huff_hybrid_state_[i]));
+      NVJPEG_CALL(nvjpegJpegStateCreate(handle_,
+                                        decoder_huff_host_,
+                                        &decoder_host_state_[i]));
+      NVJPEG_CALL(nvjpegJpegStateCreate(handle_,
+                                        decoder_huff_hybrid_,
+                                        &decoder_huff_hybrid_state_[i]));
     }
 
     // GPU
@@ -75,7 +79,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_));
   }
 
-  ~nvJPEGDecoderNew() noexcept(false) {
+  virtual ~nvJPEGDecoderNew() noexcept(false) {
     for (int i = 0; i < batch_size_; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
@@ -96,6 +100,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       const auto &in = ws->Input<CPUBackend>(0, i);
       const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
+      const auto file_name = in.GetSourceInfo();
 
       nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                  static_cast<const unsigned char*>(input_data),
@@ -105,7 +110,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                  jpeg_streams_[i]);
 
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
-        auto file_name = in.GetSourceInfo();
         try {
           EncodedImageInfo info;
           const auto image = ImageFactory::CreateImage(
@@ -128,28 +132,37 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
         NVJPEG_CALL(nvjpegJpegStreamGetChromaSubsampling(jpeg_streams_[i],
                                                          &info.subsampling));
         info.nvjpeg_support = SupportedSubsampling(info.subsampling);
-        output_info_[i] = info;
+        if (info.nvjpeg_support) {
+          output_info_[i] = info;
 
-        if (ShouldBeHybrid(info)) {
-          image_decoders_[i] = decoder_huff_hybrid_;
-          image_states_[i] = decoder_huff_hybrid_state_[i];
-        } else {
-          image_decoders_[i] = decoder_huff_host_;
-          image_states_[i] = decoder_host_state_[i];
+          if (ShouldBeHybrid(info)) {
+            image_decoders_[i] = decoder_huff_hybrid_;
+            image_states_[i] = decoder_huff_hybrid_state_[i];
+          } else {
+            image_decoders_[i] = decoder_huff_host_;
+            image_states_[i] = decoder_host_state_[i];
+          }
+
+          /*
+          // TODO(spanev): add this function when integrating Crop
+          nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
+          */
+          NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
+                                                    pinned_buffer_[i]));
+          nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
+                                                    image_decoders_[i],
+                                                    image_states_[i],
+                                                    decode_params_[i],
+                                                    jpeg_streams_[i]);
+          // If image is somehow not supported try hostdecoder
+          if (ret != NVJPEG_STATUS_SUCCESS) {
+            if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
+              info.nvjpeg_support = false;
+            } else {
+              NVJPEG_CALL_EX(ret, file_name);
+            }
+          }
         }
-
-        /*
-        // TODO(spanev): add this function when integrating Crop
-        nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
-        */
-        NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
-                                                  pinned_buffer_[i]));
-        NVJPEG_CALL(nvjpegDecodeJpegHost(
-            handle_,
-            image_decoders_[i],
-            image_states_[i],
-            decode_params_[i],
-            jpeg_streams_[i]));
       }
     }
 
