@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_
 
-#include <nvjpeg.h>
+#include "nvjpeg_decoupled.h"
 
 #include <string>
 
@@ -46,61 +46,61 @@ namespace dali {
     }                                                        \
   } while (0)
 
-  struct StateNvJPEG {
-    nvjpegBackend_t nvjpeg_backend;
-    nvjpegBufferPinned_t pinned_buffer;
-    nvjpegDecoderStateHost_t decoder_host_state;
-    nvjpegDecoderStateHost_t decoder_hybrid_state;
-  };
+struct StateNvJPEG {
+  nvjpegBackend_t nvjpeg_backend;
+  nvjpegBufferPinned_t pinned_buffer;
+  nvjpegJpegState_t decoder_state;
+  nvjpegJpegStream_t jpeg_stream;
+};
 
-  struct EncodedImageInfo {
-    bool nvjpeg_support;
-    int c;
-    nvjpegChromaSubsampling_t subsampling;
-    int widths[NVJPEG_MAX_COMPONENT];
-    int heights[NVJPEG_MAX_COMPONENT];
-  };
+struct EncodedImageInfo {
+  bool nvjpeg_support;
+  unsigned int c;
+  nvjpegChromaSubsampling_t subsampling;
+  unsigned int widths[NVJPEG_MAX_COMPONENT];
+  unsigned int heights[NVJPEG_MAX_COMPONENT];
+};
 
-  nvjpegOutputFormat_t GetFormat(DALIImageType type) {
-    switch (type) {
-      case DALI_RGB:
-        return NVJPEG_OUTPUT_RGBI;
-      case DALI_BGR:
-        return NVJPEG_OUTPUT_BGRI;
-      case DALI_GRAY:
-        return NVJPEG_OUTPUT_Y;
-      default:
-        DALI_FAIL("Unknown output format");
-    }
+nvjpegOutputFormat_t GetFormat(DALIImageType type) {
+  switch (type) {
+    case DALI_RGB:
+      return NVJPEG_OUTPUT_RGBI;
+    case DALI_BGR:
+      return NVJPEG_OUTPUT_BGRI;
+    case DALI_GRAY:
+      return NVJPEG_OUTPUT_Y;
+    default:
+      DALI_FAIL("Unknown output format");
   }
+}
 
 
-  int GetOutputPitch(DALIImageType type) {
-    switch (type) {
-      case DALI_RGB:
-      case DALI_BGR:
-        return 3;
-      case DALI_GRAY:
-        return 1;
-      default:
-        DALI_FAIL("Unknown output format");
-    }
+int GetOutputPitch(DALIImageType type) {
+  switch (type) {
+    case DALI_RGB:
+    case DALI_BGR:
+      return 3;
+    case DALI_GRAY:
+      return 1;
+    default:
+      DALI_FAIL("Unknown output format");
   }
+}
 
-  bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
-    switch (subsampling) {
-      case NVJPEG_CSS_444:
-      case NVJPEG_CSS_422:
-      case NVJPEG_CSS_420:
-      case NVJPEG_CSS_411:
-      case NVJPEG_CSS_410:
-      case NVJPEG_CSS_GRAY:
-      case NVJPEG_CSS_440:
-        return true;
-      default:
-        return false;
-    }
+bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
+  switch (subsampling) {
+    case NVJPEG_CSS_444:
+    case NVJPEG_CSS_422:
+    case NVJPEG_CSS_420:
+    case NVJPEG_CSS_411:
+    case NVJPEG_CSS_410:
+    case NVJPEG_CSS_GRAY:
+    case NVJPEG_CSS_440:
+      return true;
+    default:
+      return false;
   }
+}
 
 }  // namespace dali
 

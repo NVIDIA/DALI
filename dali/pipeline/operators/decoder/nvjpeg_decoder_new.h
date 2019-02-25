@@ -15,6 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_NEW_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_NEW_H_
 
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_decoupled.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
@@ -32,12 +37,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     output_shape_(batch_size_),
     output_info_(batch_size_),
     image_decoders_(batch_size_),
-    image_host_states_(batch_size_),
+    image_states_(batch_size_),
     jpeg_streams_(batch_size_),
     pinned_buffer_(batch_size_),
-    decoder_host_state_h_(batch_size_),
-    decoder_huff_hybrid_state_h_(batch_size_) {
-    
+    decoder_host_state_(batch_size_),
+    decoder_huff_hybrid_state_(batch_size_) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
@@ -49,38 +53,33 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegDecoderCreate(
                       handle_, NVJPEG_BACKEND_HYBRID, &decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderCreate(
-                      handle_, NVJPEG_BACKEND_GPU_HYBRID, &decoder_huff_hybrid_));  // NVJPEG_BACKEND_GPU_HYBRID
+                      handle_, NVJPEG_BACKEND_GPU_HYBRID, &decoder_huff_hybrid_));
 
-  
+
     for (int i = 0; i < batch_size_; i++) {
       NVJPEG_CALL(nvjpegDecodeParamsCreate(handle_, &decode_params_[i]));
-      NVJPEG_CALL(nvjpegnvjpegDecodeParamsSetOutputFormat(decode_params_[i],
-                                            GetFormat(output_image_type_)));
+      NVJPEG_CALL(nvjpegDecodeParamsSetOutputFormat(decode_params_[i],
+                                                    GetFormat(output_image_type_)));
 
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       // We want to use nvJPEG default pinned allocator
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
 
-      NVJPEG_CALL(nvjpegDecoderCreateStateHost(handle_, decoder_huff_host_, &decoder_host_state_h_[i]));
-      NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(decoder_host_state_h_[i], pinned_buffer_[i]));
-
-      NVJPEG_CALL(nvjpegDecoderCreateStateHost(
-                               handle_, decoder_huff_hybrid_, &decoder_huff_hybrid_state_h_[i]));
-      NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(
-                               decoder_huff_hybrid_state_h_[i], pinned_buffer_[i]));
+      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_huff_host_, &decoder_host_state_[i]));
+      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_huff_hybrid_, &decoder_huff_hybrid_state_[i]));
     }
 
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
     NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_));
-    NVJPEG_CALL(nvjpegDecoderCreateStateDevice(handle_, decoder_huff_host_, &decoder_state_d_));
-    NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(decoder_state_d_, device_buffer_));
   }
 
   ~nvJPEGDecoderNew() noexcept(false) {
-    for (auto &j_s : jpeg_streams_) {
-      NVJPEG_CALL(nvjpegJpegStreamDestroy(j_s));
+    for (int i = 0; i < batch_size_; ++i) {
+      NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
+      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
+      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
@@ -93,13 +92,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
      ****************** CPU *******************
     ******************************************/
 
-    for (int i = 0; i < batch_size_; i++)
-    {
-      const auto& in = ws->Input<CPUBackend>(0, i);
+    for (int i = 0; i < batch_size_; i++) {
+      const auto &in = ws->Input<CPUBackend>(0, i);
       const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
-      // Get necessary image information
-        
+
       nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                  static_cast<const unsigned char*>(input_data),
                                                  in_size,
@@ -110,8 +107,9 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
         try {
-          EncodedImageInfo info; 
-          const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data), in_size);
+          EncodedImageInfo info;
+          const auto image = ImageFactory::CreateImage(
+                                            static_cast<const uint8 *>(input_data), in_size);
           const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
@@ -121,33 +119,35 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        EncodedImageInfo info; 
-   //     NVJPEG_CALL_EX(nvjpegGetImageInfo(handle_,  // waiting for API
-   //                                   jpeg_streams_[i],
-   //                                   &info.c, &info.subsampling,
-   //                                   info.widths, info.heights),
-   //                    in.GetSourceInfo());
+        EncodedImageInfo info;
+        NVJPEG_CALL(nvjpegJpegStreamGetFrameDimensions(jpeg_streams_[i],
+                                                       info.widths,
+                                                       info.heights));
+        NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
+                                                           &info.c));
+        NVJPEG_CALL(nvjpegJpegStreamGetChromaSubsampling(jpeg_streams_[i],
+                                                         &info.subsampling));
         info.nvjpeg_support = SupportedSubsampling(info.subsampling);
-        // Store info to pass to GPU Op
         output_info_[i] = info;
 
         if (ShouldBeHybrid(info)) {
           image_decoders_[i] = decoder_huff_hybrid_;
-          image_host_states_[i] = decoder_huff_hybrid_state_h_[i];
+          image_states_[i] = decoder_huff_hybrid_state_[i];
         } else {
           image_decoders_[i] = decoder_huff_host_;
-          image_host_states_[i] = decoder_host_state_h_[i];
+          image_states_[i] = decoder_host_state_[i];
         }
-        
-        
+
         /*
         // TODO(spanev): add this function when integrating Crop
         nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
         */
+        NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
+                                                  pinned_buffer_[i]));
         NVJPEG_CALL(nvjpegDecodeJpegHost(
             handle_,
             image_decoders_[i],
-            image_host_states_[i],
+            image_states_[i],
             decode_params_[i],
             jpeg_streams_[i]));
       }
@@ -156,13 +156,13 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     /******************************************
      ****************** GPU *******************
     ******************************************/
-    
+
     std::vector<Dims> output_shape(batch_size_);
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
-      int c = GetOutputPitch(output_image_type_);
+      const int c = GetOutputPitch(output_image_type_);
       output_shape[i] = Dims({output_info_[i].heights[0], output_info_[i].widths[0], c});
       image_order[i] = std::make_pair(Volume(output_shape[i]), i);
     }
@@ -185,11 +185,19 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
         nvjpeg_image.channel[0] = output_data;
         nvjpeg_image.pitch[0] = GetOutputPitch(output_image_type_) * info.widths[0];
 
+        NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[i], device_buffer_));
+
+        NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
+            handle_,
+            image_decoders_[i],
+            image_states_[i],
+            jpeg_streams_[i],
+            ws->stream()));
+
         NVJPEG_CALL(nvjpegDecodeJpegDevice(
             handle_,
             image_decoders_[i],
-            image_host_states_[i],
-            decoder_state_d_,
+            image_states_[i],
             &nvjpeg_image,
             ws->stream()));
       } else {
@@ -204,7 +212,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
  protected:
   bool ShouldBeHybrid(EncodedImageInfo& info) {
     // TODO(spanev): implement
-    return true;
+    return false;
   }
   /**
    * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
@@ -250,15 +258,14 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
   // CPU
   std::vector<nvjpegJpegDecoder_t> image_decoders_;
-  std::vector<nvjpegDecoderStateHost_t> image_host_states_;
+  std::vector<nvjpegJpegState_t> image_states_;
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegDecodeParams_t> decode_params_;
   std::vector<nvjpegBufferPinned_t> pinned_buffer_;
-  std::vector<nvjpegDecoderStateHost_t> decoder_host_state_h_;
-  std::vector<nvjpegDecoderStateHost_t> decoder_huff_hybrid_state_h_;
+  std::vector<nvjpegJpegState_t> decoder_host_state_;
+  std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
 
   // GPU
-  nvjpegDecoderStateDevice_t decoder_state_d_;
   nvjpegBufferDevice_t device_buffer_;
 };
 
