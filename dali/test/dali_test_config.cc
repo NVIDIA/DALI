@@ -20,7 +20,6 @@
 
 namespace dali {
 namespace testing {
-namespace program_options {
 
 namespace {
 
@@ -33,25 +32,17 @@ std::once_flag noninit_warning;
 
 
 const std::string &dali_extra_path() {
-  if (_dali_extra_path.empty()) {
+  auto ptr = std::getenv("DALI_EXTRA_PATH");
+  if (!ptr) {
     std::call_once(noninit_warning,
-                   []() { std::cerr << "dali_extra_path not initialized. Using current path."; });
+                   []() { std::cerr << "DALI_EXTRA_PATH not initialized."; });
+    _dali_extra_path = "";
+  } else {
+    _dali_extra_path = std::string(ptr);
   }
   return _dali_extra_path;
 }
 
-void parse_program_options(int argc, const char **argv) {
-  // TODO(mszolucha): in case more args appear, use better solution (e.g. boost::program_options)
-  const char key[] = "--dali_extra_path";
-  for (int i = 1; i < argc; i++) {
-    if (0 == std::strncmp(argv[i], key, sizeof(key)-1)) {
-      _dali_extra_path = std::string{&argv[i][sizeof(key)]};
-      break;
-    }
-  }
-}
-
-}  // namespace program_options
 }  // namespace testing
 }  // namespace dali
 

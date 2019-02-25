@@ -25,19 +25,6 @@ namespace kernel {
 DLL_PUBLIC void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values);
 
 /**
- * Extract span of bits from an integer and return it as an integer
- * @param number Where to extract from?
- * @param from Starting bit, 0 is the least significant one.
- * @param howmany How many bits to extract?
- */
-DLL_PUBLIC __host__ __device__ int extract_bits(int number, int from, int howmany);
-
-/**
- * Count digits in integer
- */
-DLL_PUBLIC __host__ __device__ size_t count_digits(int number);
-
-/**
  * Decode 16-bit float in S10.5 format
  */
 DLL_PUBLIC __host__ __device__ float decode_flow_component(int16_t value);

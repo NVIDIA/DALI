@@ -26,7 +26,5 @@ int main(int argc, char **argv) {
                  dali::OpSpec("GPUAllocator"));
   ::testing::InitGoogleTest(&argc, argv);
 
-  dali::testing::program_options::parse_program_options(argc, const_cast<const char **>(argv));
-
   return RUN_ALL_TESTS();
 }

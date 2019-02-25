@@ -21,49 +21,20 @@
 #include <vector>
 #include <string>
 
-
 namespace dali {
 namespace optical_flow {
 namespace testing {
 
-
-TEST(OpticalFlowTuringTest, ExtractBitsTest) {
-  ASSERT_EQ(9, kernel::extract_bits(3623, 2, 4));
-  ASSERT_EQ(3328, kernel::extract_bits(-1535, 1, 12));
+namespace {
+constexpr float kFlowVectorEpsilon = 1.f / 32;
 }
-
-
-TEST(OpticalFlowTuringTest, CountDigitsTest) {
-  ASSERT_EQ(1, kernel::count_digits(0));
-  ASSERT_EQ(1, kernel::count_digits(1));
-  ASSERT_EQ(2, kernel::count_digits(10));
-  ASSERT_EQ(2, kernel::count_digits(15));
-  ASSERT_EQ(2, kernel::count_digits(99));
-  ASSERT_EQ(3, kernel::count_digits(100));
-  ASSERT_EQ(3, kernel::count_digits(999));
-  ASSERT_EQ(4, kernel::count_digits(1000));
-  ASSERT_EQ(4, kernel::count_digits(9999));
-  ASSERT_EQ(5, kernel::count_digits(10000));
-  ASSERT_EQ(5, kernel::count_digits(99999));
-  ASSERT_EQ(1, kernel::count_digits(-1));
-  ASSERT_EQ(2, kernel::count_digits(-10));
-  ASSERT_EQ(2, kernel::count_digits(-15));
-  ASSERT_EQ(2, kernel::count_digits(-99));
-  ASSERT_EQ(3, kernel::count_digits(-100));
-  ASSERT_EQ(3, kernel::count_digits(-999));
-  ASSERT_EQ(4, kernel::count_digits(-1000));
-  ASSERT_EQ(4, kernel::count_digits(-9999));
-  ASSERT_EQ(5, kernel::count_digits(-10000));
-  ASSERT_EQ(5, kernel::count_digits(-99999));
-}
-
 
 TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
   using std::vector;
   vector<int16_t> test_data = {101, -32376, 676, 3453, -23188};
-  vector<float> ref_data = {3.5f, -12.8f, 21.4f, 107.29f, -299.12f};
+  vector<float> ref_data = {3.15625f, -12.25f, 21.125f, 107.90625f, -299.375f};
   for (size_t i = 0; i < test_data.size(); i++) {
-    EXPECT_EQ(ref_data[i], kernel::decode_flow_component(test_data[i]));
+    EXPECT_NEAR(ref_data[i], kernel::decode_flow_component(test_data[i]), kFlowVectorEpsilon);
   }
 }
 
@@ -72,8 +43,7 @@ TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
   using std::ifstream;
   using std::string;
   using std::vector;
-  auto test_data_path = dali::testing::program_options::dali_extra_path() +
-                        "/db/optical_flow/flow_vector_decode/";
+  auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/flow_vector_decode/";
   ifstream infile(test_data_path + "flow_vector_test_data.txt"),
           reffile(test_data_path + "flow_vector_ground_truth.txt");
   ASSERT_TRUE(infile && reffile) << "Error accessing test data";
@@ -97,7 +67,7 @@ TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
   kernel::DecodeFlowComponents(incuda, outcuda, test_data.size());
   CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {
-    EXPECT_EQ(ref_data[i], outcuda[i]);
+    EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon);
   }
   CUDA_CALL(cudaFree(incuda));
   CUDA_CALL(cudaFree(outcuda));

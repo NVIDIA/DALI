@@ -19,30 +19,16 @@ namespace optical_flow {
 namespace kernel {
 
 constexpr size_t kFractionLength = 5;
-constexpr size_t kDecimalLength = 10;
-constexpr size_t kSignBit = 15;
 constexpr size_t kBlockSize = 256;
-
-__host__ __device__ int extract_bits(int number, int from, int howmany) {
-  return (((1 << howmany) - 1) & (number >> (from)));
-}
-
-
-__host__ __device__ size_t count_digits(int number) {
-  if (number < 0) number *= -1;
-  return number > 0 ? static_cast<size_t>(log10(static_cast<double>(number))) + 1 : 1;
-}
 
 
 __host__ __device__ float decode_flow_component(int16_t value) {
-  auto fra = extract_bits(value, 0, kFractionLength);
-  auto dec = extract_bits(value, kFractionLength, kDecimalLength);
-  return (dec + static_cast<float>(fra) / static_cast<float>(std::pow(10, count_digits(fra)))) *
-         ((value & (1 << kSignBit)) ? -1.f : 1.f);
+  constexpr float precision = 1.0f / (1 << kFractionLength);
+  return (value < 0 ? -precision : precision) * (value & 0x7fff);
 }
 
 
-__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, size_t num_values) {
+__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   output[idx] = decode_flow_component(input[idx]);
 }
@@ -50,7 +36,7 @@ __global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, s
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values) {
   size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
-  DecodeFlowComponentKernel<<<num_blocks, kBlockSize>>>(input, output, num_values);
+  DecodeFlowComponentKernel<<<num_blocks, kBlockSize>>>(input, output);
 }
 
 }  // namespace kernel
