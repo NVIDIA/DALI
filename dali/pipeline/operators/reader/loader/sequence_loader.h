@@ -107,7 +107,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
       std::mt19937 g(524287);
       std::shuffle(sequences_.begin(), sequences_.end(), g);
     }
-    Reset();
+    Reset(true);
   }
 
   void PrepareEmpty(TensorSequence *tensor) override;
@@ -115,8 +115,12 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   Index Size() override;
 
  private:
-  void Reset() override {
-    current_sequence_ = start_index(shard_id_, num_shards_, Size());
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_sequence_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_sequence_ = 0;
+    }
   }
   // TODO(klecki) For now sequence is <directory, image list> pair, later it
   // will be a video file

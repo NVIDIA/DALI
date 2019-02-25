@@ -38,9 +38,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    if (IsNextShard(current_index_)) {
-      Reset();
-    }
+    MoveToNextShard(current_index_);
+
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
@@ -105,16 +104,20 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     ReadIndexFile(index_uris);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
     current_file_index_ = INVALID_INDEX;
-    Reset();
+    Reset(true);
 
     mmap_reserver = FileStream::FileStreamMappinReserver(uris_.size());
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
   }
 
-  void Reset() override {
+  void Reset(bool wrap_to_shard) override {
     int64 seek_pos, size;
     size_t file_index;
-    current_index_ = start_index(shard_id_, num_shards_, Size());
+    if (wrap_to_shard) {
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
+    }
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {

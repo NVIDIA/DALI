@@ -28,6 +28,10 @@ DALI_SCHEMA(LoaderBase)
       R"code(Id of the part to read.)code", 0)
   .AddOptionalArg("tensor_init_bytes",
       R"code(Hint for how much memory to allocate per image.)code", 1048576)
+  .AddOptionalArg("stick_to_shard",
+      R"code(Whether reader should stick to given data shard instead of going through the whole dataset.
+When decoder caching is used, it reduces significantly the amount of data to be cached, but could affect
+accuracy in some cases)code", false)
   .AddOptionalArg("read_ahead",
       R"code(Whether accessed data should be read ahead. In case of big files like LMDB,
 RecordIO or TFRecord it will slow down first access but will decrease the time of all following
