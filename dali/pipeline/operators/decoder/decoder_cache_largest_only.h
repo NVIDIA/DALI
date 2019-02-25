@@ -63,8 +63,10 @@ class DecoderCacheLargestOnly : public DecoderCacheBlob{
                 // mark the image as seen
                 images_.insert(image_key);
 
+                const bool data_fits = (biggest_images_total_ + data_size <= cache_size_);
+                is_full = is_full || !data_fits;
                 // if there is enough space, store the image as one of biggest
-                if (biggest_images_total_ + data_size <= cache_size_) {
+                if (data_fits) {
                     biggest_images_.push({data_size, image_key});
                     biggest_images_total_ += data_size;
                 } else if (data_size <= cache_size_) {
