@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "optical_flow_turing.h"
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 
 namespace dali {
 namespace optical_flow {
@@ -50,8 +50,7 @@ __global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, s
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values) {
   size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
-  DecodeFlowComponentKernel << < num_blocks, kBlockSize >> > (input, output, num_values);
-  cudaDeviceSynchronize();
+  DecodeFlowComponentKernel<<<num_blocks, kBlockSize>>>(input, output, num_values);
 }
 
 }  // namespace kernel

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_TURING_H_
-#define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_TURING_H_
+#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 
 #include <host_defines.h>
 #include "dali/common.h"
@@ -48,5 +48,5 @@ DLL_PUBLIC __host__ __device__ float decode_flow_component(int16_t value);
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_TURING_H_
+#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 

@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
-#include <fstream>
-#include <cuda_runtime.h>
 #include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
 #include <dali/test/dali_test_config.h>
 #include <dali/util/cuda_utils.h>
+#include <cuda_runtime.h>
+#include <gtest/gtest.h>
+#include <fstream>
+#include <vector>
+#include <string>
 
 
 namespace dali {
 namespace optical_flow {
 namespace testing {
-
-auto test_data_path = "/home/mszolucha/workspace/DALI_extra/db/";
-//auto test_data_path = dali::testing::program_options::dali_extra_path();
 
 
 TEST(OpticalFlowTuringTest, ExtractBitsTest) {
@@ -60,7 +59,7 @@ TEST(OpticalFlowTuringTest, CountDigitsTest) {
 
 
 TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
-  using namespace std;
+  using std::vector;
   vector<int16_t> test_data = {101, -32376, 676, 3453, -23188};
   vector<float> ref_data = {3.5f, -12.8f, 21.4f, 107.29f, -299.12f};
   for (size_t i = 0; i < test_data.size(); i++) {
@@ -70,11 +69,14 @@ TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
 
 
 TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
-  using namespace std;
-  ifstream infile(
-          test_data_path + string("/optical_flow/flow_vector_decode/flow_vector_test_data.txt")),
-          reffile(
-          test_data_path + string("/optical_flow/flow_vector_decode/flow_vector_ground_truth.txt"));
+  using std::ifstream;
+  using std::string;
+  using std::vector;
+  auto test_data_path = dali::testing::program_options::dali_extra_path() +
+                        "/db/optical_flow/flow_vector_decode/";
+  ifstream infile(test_data_path + "flow_vector_test_data.txt"),
+          reffile(test_data_path + "flow_vector_ground_truth.txt");
+  ASSERT_TRUE(infile && reffile) << "Error accessing test data";
   vector<int16_t> test_data;
   int16_t valin;
   float valref;
@@ -93,6 +95,7 @@ TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
   CUDA_CALL(cudaMemcpy(incuda, test_data.data(), test_data.size() * sizeof(int16_t),
                        cudaMemcpyDefault));
   kernel::DecodeFlowComponents(incuda, outcuda, test_data.size());
+  CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {
     EXPECT_EQ(ref_data[i], outcuda[i]);
   }

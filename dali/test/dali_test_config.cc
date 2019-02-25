@@ -40,13 +40,12 @@ const std::string &dali_extra_path() {
   return _dali_extra_path;
 }
 
-
 void parse_program_options(int argc, const char **argv) {
   // TODO(mszolucha): in case more args appear, use better solution (e.g. boost::program_options)
   const char key[] = "--dali_extra_path";
   for (int i = 1; i < argc; i++) {
-    if (0 == std::strncmp(argv[i], key, sizeof(key))) {
-      _dali_extra_path = std::string{&argv[i][sizeof(key) + 1]};
+    if (0 == std::strncmp(argv[i], key, sizeof(key)-1)) {
+      _dali_extra_path = std::string{&argv[i][sizeof(key)]};
       break;
     }
   }
