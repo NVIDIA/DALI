@@ -45,7 +45,7 @@ struct QueueIdxs {
       : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
 
   private:
-  std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {0, 0, 0, 0};
+  std::array<int, static_cast<size_t>(DALIOpType::COUNT)> idxs = {{0, 0, 0, 0}};
 };
 
 struct QueueSizes {
@@ -205,7 +205,7 @@ struct JIT_WS_Policy {
 
   template <DALIOpType op_type>
   workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx), 
+    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx),
       tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
   }
 
@@ -276,7 +276,7 @@ struct AOT_WS_Policy {
            gpu_op_stream, mixed_op_events, QueueIdxs{queue_idx});
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     }
-  } 
+  }
   struct WorkspaceBlob {
     workspace_store_t op_data;
 

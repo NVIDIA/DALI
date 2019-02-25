@@ -382,7 +382,7 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
 
   // We already gathered info about outputs, so we only have to wait on respective
   // events to make sure that the computation has completed
-  for (int i = 0; i < pipeline_outputs_.size(); i++) {
+  for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
     auto out_tensor_id = pipeline_outputs_[i];
     auto &out_tensor = graph_->Tensor(out_tensor_id);
     auto op_type = graph_->Node(out_tensor.producer_edge.node).op_type;

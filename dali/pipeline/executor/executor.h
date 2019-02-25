@@ -163,7 +163,7 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
   using JIT_WS_Policy::InitializeWorkspaceStore;
   using JIT_WS_Policy::GetWorkspace;
 
- 
+
 
 
 
@@ -307,42 +307,6 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy {
   // To introduce dependency from MIXED to GPU Ops
   std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
 };
-
-// #define USE_EXECUTOR_MEMBERS()            \
-//  protected:                               \
-//   using Executor::WorkspaceBlob;          \
-//   using Executor::wss_;                   \
-//   using Executor::batch_size_;            \
-//   using Executor::device_id_;             \
-//   using Executor::bytes_per_sample_hint_; \
-//   using Executor::output_names_;          \
-//   using Executor::gpu_output_events_;     \
-//   using Executor::ready_cond_;            \
-//   using Executor::graph_;                 \
-//   using Executor::stream_pool_;           \
-//   using Executor::event_pool_;            \
-//   using Executor::thread_pool_
-
-// template <DALIOpType op_type>
-// // workspace_t<op_type> &Executor::GetWorkspace(QueueIdxs idxs, OpPartitionId partition_idx) {
-// workspace_t<op_type> Executor::GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-//   // auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
-//   // return ws_vec[partition_idx];
-//   return CreateWorkspace<op_type>(*graph_, graph_->Node(op_type, partition_idx), 
-//       tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
-// }
-
-// template <DALIOpType op_type>
-// // workspace_t<op_type> &Executor::GetWorkspace(QueueIdxs idxs, const OpNode &node) {
-// workspace_t<op_type> Executor::GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
-//   DALI_ENFORCE(node.op_type == op_type,
-//                "Wrong variant of method selected. DALIOpType does not match.");
-//   // auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
-//   // return ws_vec[node.partition_index];
-//   return  CreateWorkspace<op_type>(*graph_, node, tensor_to_store_queue_, mixed_op_stream_,
-//       gpu_op_stream_, mixed_op_events_, idxs);
-// }
-
 
 
 }  // namespace dali

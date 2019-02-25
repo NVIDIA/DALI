@@ -20,7 +20,7 @@ namespace dali {
 
 std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(const OpGraph &op_graph,
     int batch_size, const std::vector<int>& queue_sizes) {
-  DALI_ENFORCE(queue_sizes.size() == op_graph.NumTensor(),
+  DALI_ENFORCE(static_cast<int>(queue_sizes.size()) == op_graph.NumTensor(),
                "Data queue sizes undefined for some Tensor nodes.");
   std::vector<tensor_data_store_queue_t> result;
   result.resize(op_graph.NumTensor());
