@@ -69,6 +69,9 @@ void SeparableResamplingSetup::SetupComputation(
 
     desc.shapes[0] = {{ H, W }};
     desc.shapes[2] = {{ out_H, out_W }};
+    desc.origin = {{ 0, 0 }};
+    desc.scale[0] = static_cast<float>(H)/out_H;
+    desc.scale[1] = static_cast<float>(W)/out_W;
 
     int size_vert = W * out_H;
     int size_horz = H * out_W;

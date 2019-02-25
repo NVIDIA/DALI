@@ -54,8 +54,8 @@ template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleHorz_Channels(
     int x0, int x1, int y0, int y1,
     float src_x0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_w, int dynamic_channels,
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_w, int dynamic_channels,
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
@@ -145,8 +145,8 @@ template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleVert_Channels(
     int x0, int x1, int y0, int y1,
     float src_y0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_h, int dynamic_channels,
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_h, int dynamic_channels,
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
@@ -228,8 +228,8 @@ template <typename Dst, typename Src>
 __device__ void ResampleHorz(
     int x0, int x1, int y0, int y1,
     float src_x0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_w, int channels,
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_w, int channels,
     ResamplingFilter filter, int support) {
   // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for
@@ -253,8 +253,8 @@ template <typename Dst, typename Src>
 __device__ void ResampleVert(
     int x0, int x1, int y0, int y1,
     float src_y0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_h, int channels,
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_h, int channels,
     ResamplingFilter filter, int support) {
   // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for

@@ -36,8 +36,8 @@ template <int static_channels = -1, typename Dst, typename Src>
 __device__ void LinearHorz_Channels(
     int x0, int x1, int y0, int y1,
     float src_x0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_w, int dynamic_channels) {
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_w, int dynamic_channels) {
   src_x0 += 0.5f * scale - 0.5f;
 
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
@@ -46,8 +46,8 @@ __device__ void LinearHorz_Channels(
     const float sx0f = j * scale + src_x0;
     const int sx0 = min(max(0, static_cast<int>(floorf(sx0f))), in_w-1);
     const int sx1 = min(sx0+1, in_w-1);
-    float q = sx0f - sx0;
-    float p = 1-q;
+    const float q = sx0f - sx0;
+    const float p = 1-q;
 
     const Src *in_col1 = &in[sx0 * channels];
     const Src *in_col2 = &in[sx1 * channels];
@@ -73,8 +73,8 @@ template <typename Dst, typename Src>
 __device__ void LinearHorz(
     int x0, int x1, int y0, int y1,
     float src_x0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_w, int channels) {
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_w, int channels) {
   // Specialize over common numbers of channels.
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
@@ -100,8 +100,8 @@ template <typename Dst, typename Src>
 __device__ void LinearVert(
     int x0, int x1, int y0, int y1,
     float src_y0, float scale,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_h, int channels) {
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_h, int channels) {
   src_y0 += 0.5f * scale - 0.5f;
 
   // columns are independent - we can safely merge columns with channels
@@ -112,8 +112,8 @@ __device__ void LinearVert(
     const float sy0f = i * scale + src_y0;
     const int sy0 = min(max(0, static_cast<int>(floorf(sy0f))), in_h-1);
     const int sy1 = min(sy0+1, in_h-1);
-    float q = sy0f - sy0;
-    float p = 1-q;
+    const float q = sy0f - sy0;
+    const float p = 1-q;
 
     Dst *out_row = &out[i * out_stride];
     const Src *in1 = &in[sy0 * in_stride];

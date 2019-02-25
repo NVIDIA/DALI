@@ -52,6 +52,8 @@ struct SeparableResamplingSetup {
     DeviceArray<int, 3>       strides;
     DeviceArray<DevShape, 3>  shapes;
 
+    DeviceArray<float, 2> origin, scale;
+
     ProcessingOrder order;
     int channels;
     ResamplingFilterType filter_type[2];

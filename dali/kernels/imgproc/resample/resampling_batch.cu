@@ -22,11 +22,14 @@ namespace dali {
 namespace kernels {
 
 template <int which_pass, typename Output, typename Input>
-__global__ void BatchedSeparableResampleKernel(Output *out, const Input *in,
-    const SeparableResamplingSetup::SampleDesc *samples, const SampleBlockInfo *block2sample) {
+__global__ void BatchedSeparableResampleKernel(
+    Output *__restrict__ out,
+    const Input *__restrict__ in,
+    const SeparableResamplingSetup::SampleDesc *__restrict__ samples,
+    const SampleBlockInfo *__restrict__ block2sample) {
   // find which part of which sample this block will process
   SampleBlockInfo sbi = block2sample[blockIdx.x];
-  SeparableResamplingSetup::SampleDesc sample = samples[sbi.sample];
+  const SeparableResamplingSetup::SampleDesc &sample = samples[sbi.sample];
   int in_stride, out_stride;
   Output *sample_out;
   const Input *sample_in;
@@ -44,20 +47,27 @@ __global__ void BatchedSeparableResampleKernel(Output *out, const Input *in,
 
   int block = sbi.block_in_sample;
 
-  // 0 = vertical axis, 1 = horizontal axis
-  int axis = (which_pass == 0) ^ (sample.order == SeparableResamplingSetup::VertHorz);
+  // Axis: 0 = vertical, 1 = horizontal (HWC layout).
+  int axis = which_pass;
+
+  // If processing in VertHorz order, then the pass 0 is vertical (axis 0) and
+  // pass 1 is horizontal (axis 1). If processing in HortVerz order, then axes
+  // are swapped (pass 0 is axis 1 and vice versa).
+  if (sample.order == SeparableResamplingSetup::HorzVert)
+    axis = 1-axis;
 
   ResamplingFilterType ftype = sample.filter_type[axis];
   ResamplingFilter filter = sample.filter[axis];
   int support = filter.support();
 
-  float scale = in_shape[axis] * (1.0f / out_shape[axis]);
+  float origin = sample.origin[axis];
+  float scale  = sample.scale[axis];
 
   int block_size = axis == 1 ? blockDim.x : blockDim.y;
   int size_in_blocks = (out_shape[axis] + block_size - 1) / block_size;
 
-  int start = min(size_in_blocks * block / blocks * block_size, out_shape[axis]);  // NOLINT
-  int end   = min(size_in_blocks * (block + 1) / blocks * block_size, out_shape[axis]);  // NOLINT
+  int start = min(size_in_blocks *  block      / blocks * block_size, out_shape[axis]);
+  int end   = min(size_in_blocks * (block + 1) / blocks * block_size, out_shape[axis]);
 
   int x0, x1, y0, y1;
 
@@ -76,28 +86,28 @@ __global__ void BatchedSeparableResampleKernel(Output *out, const Input *in,
   switch (ftype) {
   case ResamplingFilterType::Nearest:
     if (axis == 1) {
-      NNResample(x0, x1, y0, y1, 0, 0, scale, 1, sample_out, out_stride, sample_in, in_stride,
+      NNResample(x0, x1, y0, y1, origin, 0, scale, 1, sample_out, out_stride, sample_in, in_stride,
         in_shape[1], in_shape[0], sample.channels);
     } else {
-      NNResample(x0, x1, y0, y1, 0, 0, 1, scale, sample_out, out_stride, sample_in, in_stride,
+      NNResample(x0, x1, y0, y1, 0, origin, 1, scale, sample_out, out_stride, sample_in, in_stride,
         in_shape[1], in_shape[0], sample.channels);
     }
     break;
   case ResamplingFilterType::Linear:
     if (axis == 1) {
-      LinearHorz(x0, x1, y0, y1, 0, scale, sample_out, out_stride, sample_in, in_stride,
+      LinearHorz(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
         in_shape[1], sample.channels);
     } else {
-      LinearVert(x0, x1, y0, y1, 0, scale, sample_out, out_stride, sample_in, in_stride,
+      LinearVert(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
         in_shape[0], sample.channels);
     }
     break;
   default:
     if (axis == 1) {
-      ResampleHorz(x0, x1, y0, y1, 0, scale, sample_out, out_stride, sample_in, in_stride,
+      ResampleHorz(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
         in_shape[1], sample.channels, filter, support);
     } else {
-      ResampleVert(x0, x1, y0, y1, 0, scale, sample_out, out_stride, sample_in, in_stride,
+      ResampleVert(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
         in_shape[0], sample.channels, filter, support);
     }
     break;

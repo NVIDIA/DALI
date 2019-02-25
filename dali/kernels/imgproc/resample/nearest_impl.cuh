@@ -28,8 +28,8 @@ template <typename Dst, typename Src>
 __device__ void NNResample(
     int x0, int x1, int y0, int y1,
     float src_x0, float src_y0, float scale_x, float scale_y,
-    Dst *out, int out_stride,
-    const Src *in, int in_stride, int in_w, int in_h, int channels) {
+    Dst *__restrict__ out, int out_stride,
+    const Src *__restrict__ in, int in_stride, int in_w, int in_h, int channels) {
   src_y0 += 0.5f * scale_y;
   src_x0 += 0.5f * scale_x;
   for (int i = y0 + threadIdx.y; i < y1; i += blockDim.y) {

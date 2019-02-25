@@ -470,6 +470,7 @@ TEST_F(ResamplingTest, GaussianBlur) {
   Verify(2, "blur_dif.png");
 }
 
+// DISABLED: this 'test' is only for producing images for manual assessment
 TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
   SetSource("imgproc_test/alley.png", nullptr);
 
