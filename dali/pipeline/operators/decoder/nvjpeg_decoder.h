@@ -141,7 +141,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
             new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
         } else {
           cache_.reset(
-            new DecoderCacheLargestOnly(cache_size, 0, cache_debug));
+            new DecoderCacheLargestOnly(cache_size, cache_debug));
         }
       }
 

@@ -61,7 +61,7 @@ class DecoderBench : public DALIBenchmark {
 
     while (st.KeepRunning()) {
       if (st.iterations() == 1) {
-        // We will start he processing for the next batch
+        // We will start the processing for the next batch
         // immediately after issueing work to the gpu to
         // pipeline the cpu/copy/gpu work
         pipe.RunCPU();

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <signal.h>
+#include <cstring>
 #include "dali/pipeline/init.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/backend.h"
@@ -22,7 +23,7 @@ namespace dali {
 namespace {
 
 void signal_handler(int sig) {
-  std::cerr << "Error: signal " << std::to_string(sig) << ":"
+  std::cerr << "Error: signal " << strsignal(sig) << ":"
             << GetStacktrace() << std::endl;
   exit(1);
 }

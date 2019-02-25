@@ -49,7 +49,8 @@ TEST_F(DecoderCacheBlobTest, Add) {
   EXPECT_TRUE(cache_->IsCached(kKey1));
   std::vector<uint8_t> cachedData(kValue1.size(), 0x00);
   cache_->CopyData(kKey1, &cachedData[0]);
-  EXPECT_EQ(kValue1, cachedData);}
+  EXPECT_EQ(kValue1, cachedData);
+}
 
 TEST_F(DecoderCacheBlobTest, ErrorGetNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size(), 0x00);

@@ -21,6 +21,7 @@
 #include "dali/pipeline/data/tensor_list.h"  // needed for Dims
 #include "dali/kernels/span.h"
 #include "dali/error_handling.h"
+#include "dali/kernels/alloc.h"
 
 namespace dali {
 
@@ -36,11 +37,16 @@ class DecoderCacheBlob {
         , stats_enabled_(stats_enabled) {
         DALI_ENFORCE(image_size_threshold <= cache_size_,
             "Cache size should fit at least one image");
+
+        buffer_ = kernels::memory::alloc_unique<uint8_t>(
+            kernels::AllocType::GPU, cache_size_);
+        DALI_ENFORCE(buffer_ != nullptr);
+        tail_ = buffer_.get();
+        buffer_end_ = buffer_.get() + cache_size_;
+        LOG_LINE << "cache size is " << cache_size_ / 1000000 << " MB" << std::endl;
     }
 
     inline virtual ~DecoderCacheBlob() {
-        if (buffer_)
-            GPUBackend::Delete(buffer_, 0, false);
         if (stats_enabled_ && images_seen() > 0)
             print_stats();
     }
@@ -99,9 +105,6 @@ class DecoderCacheBlob {
         LOG_LINE << "Add: image_key[" << image_key << "]" << std::endl;
         DALI_ENFORCE(!image_key.empty());
 
-        if (buffer_ == nullptr)
-            AllocateBuffer();
-
         if (bytes_left() < data_size) {
             LOG_LINE << "WARNING: not enough space in cache. Ignore" << std::endl;
             if (stats_enabled_)
@@ -154,16 +157,8 @@ class DecoderCacheBlob {
     }
 
     inline std::size_t bytes_left() const {
-        assert(buffer_end_ >= tail_);
+        DALI_ENFORCE(buffer_end_ >= tail_);
         return static_cast<std::size_t>(buffer_end_ - tail_);
-    }
-
-    inline void AllocateBuffer() {
-        buffer_ = static_cast<uint8_t*>(GPUBackend::New(cache_size_, false));
-        DALI_ENFORCE(buffer_ != nullptr);
-        tail_ = buffer_;
-        buffer_end_ = buffer_ + cache_size_;
-        LOG_LINE << "cache size is " << cache_size_ / 1000000 << " MB" << std::endl;
     }
 
     struct DecodedImage {
@@ -179,7 +174,7 @@ class DecoderCacheBlob {
     std::size_t cache_size_ = 0;
     std::size_t image_size_threshold_ = 0;
     bool stats_enabled_ = false;
-    uint8_t* buffer_ = nullptr;
+    kernels::memory::KernelUniquePtr<uint8_t> buffer_;
     uint8_t* buffer_end_ = nullptr;
     uint8_t* tail_ = nullptr;
 
