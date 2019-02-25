@@ -97,7 +97,7 @@ list(SORT CUDA_TARGET_ARCHS_SORTED)
 CUDA_find_supported_arch_values(CUDA_targeted_archs ${CUDA_TARGET_ARCHS_SORTED})
 message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
 if (NOT CUDA_targeted_archs)
-  message(FATAL_ERROR "None of the provided CUDA archs: {${CUDA_TARGET_ARCHS}} is supported by the nvcc, you should use one of ${CUDA_supported_archs}")
+  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}}) is supported by nvcc, use one or more of: ${CUDA_supported_archs}")
 endif()
 
 CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_targeted_archs})
