@@ -27,8 +27,10 @@ inline ResamplingFilter GetResamplingFilter(
       return filters->Triangular(params.radius);
     case ResamplingFilterType::Lanczos3:
       return filters->Lanczos3();
-  default:
-    return { nullptr, 0, 0, 0 };
+    case ResamplingFilterType::Cubic:
+      return filters->Cubic();
+    default:
+      return { nullptr, 0, 0, 0 };
   }
 }
 
@@ -39,7 +41,7 @@ void SeparableResamplingSetup::SetupComputation(
     Initialize(0);
 
   int N = in.num_samples();
-  assert(params.size() == N);
+  assert(params.size() == static_cast<size_t>(N));
 
   sample_descs.resize(N);
   intermediate_shape.resize(N);

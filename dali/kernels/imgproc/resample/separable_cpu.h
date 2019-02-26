@@ -49,6 +49,8 @@ struct ResamplingSetupCPU {
       return TriangularFilter(desc.radius);
     case ResamplingFilterType::Gaussian:
       return GaussianFilter(desc.radius);
+    case ResamplingFilterType::Cubic:
+      return CubicFilter();
     case ResamplingFilterType::Lanczos3:
       return Lanczos3Filter();
     default:

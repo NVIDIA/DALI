@@ -21,6 +21,7 @@
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/span.h"
+#include "dali/kernels/imgproc/resample/resampling_windows.h"
 
 namespace dali {
 namespace kernels {
@@ -40,20 +41,18 @@ __global__ void InitGaussianFilter(ResamplingFilter filter) {
   });
 }
 
-inline __host__ __device__ float sinc(float x) {
-  return x ? sinf(x * M_PI) / (x * M_PI) : 1;
-}
-
-inline __host__ __device__ float LanczosWindow(float x, float a) {
-  if (fabsf(x) >= a)
-    return 0.0f;
-  return sinc(x)*sinc(x / a);
-}
-
 __global__ void InitLanczosFilter(ResamplingFilter filter, float a) {
   InitFilter(filter, [&](int i) {
     float x = 2 * a * (i - (filter.num_coeffs-1)*0.5f) / (filter.num_coeffs-1);
     return LanczosWindow(x, a);
+  });
+}
+
+
+__global__ void InitCubicFilter(ResamplingFilter filter) {
+  InitFilter(filter, [&](int i) {
+    float x = 4 * (i - (filter.num_coeffs-1)*0.5f) / (filter.num_coeffs-1);
+    return CubicWindow(x);
   });
 }
 
@@ -62,6 +61,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   const int lanczos_a = 3;
   const int triangular_size = 3;
   const int gaussian_size = 65;
+  const int cubic_size = 129;
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + lanczos_size;
 
@@ -76,6 +76,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   add_filter(triangular_size);
   add_filter(gaussian_size);
   add_filter(lanczos_size);
+  add_filter(cubic_size);
 
   float triangle[3] = { 0, 1, 0 };
 
@@ -84,9 +85,15 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
 
   InitGaussianFilter<<<1, gaussian_size, 0, stream>>>(filters.filters[1]);
   InitLanczosFilter<<<1, lanczos_size, 0, stream>>>(filters.filters[2], lanczos_a);
+  InitCubicFilter<<<1, cubic_size, 0, stream>>>(filters.filters[3]);
 
   filters[2].rescale(6);
+  filters[3].rescale(4);
   cudaStreamSynchronize(stream);
+}
+
+ResamplingFilter ResamplingFilters::Cubic() const noexcept {
+  return filters[3];
 }
 
 ResamplingFilter ResamplingFilters::Gaussian(float sigma) const noexcept {

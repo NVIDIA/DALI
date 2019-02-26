@@ -42,6 +42,10 @@ constexpr FilterDesc lanczos() {
   return { ResamplingFilterType::Lanczos3, 0 };
 }
 
+constexpr FilterDesc cubic() {
+  return { ResamplingFilterType::Cubic, 0 };
+}
+
 constexpr FilterDesc gauss(float radius) {
   return { ResamplingFilterType::Gaussian, radius };
 }
@@ -77,10 +81,23 @@ struct ResamplingTestEntry {
 using ResamplingTestBatch = std::vector<ResamplingTestEntry>;
 
 inline std::ostream &operator<<(std::ostream &os, const FilterDesc fd) {
-  const char *names[] = { "NN", "Linear", "Triangular", "Gaussian", "Lanczos3" };
-  os << names[static_cast<int>(fd.type)];
-  if (static_cast<int>(fd.type) > static_cast<int>(ResamplingFilterType::Linear) && fd.radius)
-    os << "(r = " << fd.radius << ")";
+  os << FilterName(fd.type);
+  if (fd.radius) {
+    switch (fd.type) {
+    case ResamplingFilterType::Gaussian:
+    case ResamplingFilterType::Triangular:
+      os << "(r = " << fd.radius << ")";
+      break;
+    case ResamplingFilterType::Cubic:
+      if (fd.radius != 4) os << "(custom radius: " << fd.radius << ")";
+      break;
+    case ResamplingFilterType::Lanczos3:
+      if (fd.radius != 3) os << "(custom radius: " << fd.radius << ")";
+      break;
+    default:
+      break;
+    }
+  }
   return os;
 }
 
