@@ -63,7 +63,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
     OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
 
-  const int c = IsColor(image_type) ? 3 : 1;
+  const int C = NumberOfChannels(image_type);
 
   std::shared_ptr<uint8_t> decoded_img_ptr(
           decoded_image.ptr(),
@@ -77,7 +77,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
               // It will be freed, when last shared_ptr is deleted.
           });
 
-  return std::make_pair(decoded_img_ptr, std::make_tuple(H, W, c));
+  return std::make_pair(decoded_img_ptr, std::make_tuple(H, W, C));
 }
 
 

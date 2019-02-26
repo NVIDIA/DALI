@@ -27,7 +27,7 @@ class HostDecoder : public Operator<CPUBackend> {
   explicit inline HostDecoder(const OpSpec &spec) :
           Operator<CPUBackend>(spec),
           output_type_(spec.GetArgument<DALIImageType>("output_type")),
-          c_(IsColor(output_type_) ? 3 : 1) {}
+          c_(NumberOfChannels(output_type_)) {}
 
   inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);

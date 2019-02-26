@@ -57,7 +57,7 @@ template <>
 Crop<CPUBackend>::Crop(const OpSpec &spec)
   : Operator<CPUBackend>(spec)
   , CropAttr(spec)
-  , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+  , C_(NumberOfChannels(spec.GetArgument<DALIImageType>("image_type"))) {
   Init(num_threads_);
 }
 

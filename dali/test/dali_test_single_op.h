@@ -168,7 +168,7 @@ class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
-    c_ = (IsColor(OutputImageType()) ? 3 : 1);
+    c_ = (NumberOfChannels(OutputImageType()));
     jpegs_.clear();
 
     const auto flags = GetImageLoadingFlags();
@@ -176,21 +176,21 @@ class DALISingleOpTest : public DALITest {
     if (flags & t_loadJPEGs) {
       LoadJPEGS(images::jpeg_test_images, &jpegs_);
       if (flags & t_decodeJPEGs)
-        DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
+        DecodeImages(img_type_, jpegs_, jpeg_decoded_, jpeg_dims_);
     }
 
     if (flags & t_loadPNGs) {
       LoadImages(images::png_test_images, &png_);
 
       if (flags & t_decodePNGs)
-        DecodeImages(img_type_, png_, &png_decoded_, &png_dims_);
+        DecodeImages(img_type_, png_, png_decoded_, png_dims_);
     }
 
     if (flags & t_loadTiffs) {
       LoadImages(images::tiff_test_images, &tiff_);
 
       if (flags & t_decodeTiffs) {
-        DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
+        DecodeImages(img_type_, tiff_, tiff_decoded_, tiff_dims_);
       }
     }
 

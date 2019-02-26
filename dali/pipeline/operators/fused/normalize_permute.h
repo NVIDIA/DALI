@@ -30,7 +30,7 @@ class NormalizePermute : public Operator<Backend> {
     output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
     H_(spec.GetArgument<int>("height")),
     W_(spec.GetArgument<int>("width")),
-    C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+    C_(NumberOfChannels(spec.GetArgument<DALIImageType>("image_type"))) {
     DALI_ENFORCE(H_ > 0);
     DALI_ENFORCE(W_ > 0);
     DALI_ENFORCE(C_ == 3 || C_ == 1);

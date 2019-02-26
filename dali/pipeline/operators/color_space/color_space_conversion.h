@@ -27,6 +27,9 @@ class ColorSpaceConversion : public Operator<Backend> {
     : Operator<Backend>(spec)
     , input_type_(spec.GetArgument<DALIImageType>("image_type"))
     , output_type_(spec.GetArgument<DALIImageType>("output_type")) {
+
+    if (input_type_ == output_type_)
+      ERROR_LOG << "WARNING: input and output color space are the same type. Just copying data" << std::endl;
   }
 
  protected:

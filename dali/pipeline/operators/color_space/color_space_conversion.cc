@@ -47,6 +47,16 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int id
     "Incorrect number of channels for input");
   output_shape[2] = output_C;
   output.Resize(output_shape);
+  output.set_type(input.type());
+
+  if (input_type_ == output_type_) {
+    input.type().Copy<CPUBackend, CPUBackend>(
+      output.raw_mutable_data(),
+      input.raw_data(),
+      input.size(),
+      0);
+    return;
+  }
 
   auto pImgInp = input.template data<uint8>();
 

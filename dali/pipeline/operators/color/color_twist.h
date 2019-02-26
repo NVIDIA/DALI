@@ -170,7 +170,7 @@ class ColorTwistBase : public Operator<Backend> {
   static const int nDim = 4;
 
   inline explicit ColorTwistBase(const OpSpec &spec) : Operator<Backend>(spec),
-                      C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+                      C_(NumberOfChannels(spec.GetArgument<DALIImageType>("image_type"))) {
     DALI_ENFORCE(C_ == 3, "Color transformation is implemented only for RGB images");
   }
 

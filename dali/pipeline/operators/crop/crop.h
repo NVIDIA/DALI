@@ -33,7 +33,7 @@ class Crop : public Operator<Backend>, protected CropAttr {
   explicit inline Crop(const OpSpec &spec)
     : Operator<Backend>(spec)
     , CropAttr(spec)
-    , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+    , C_(NumberOfChannels(spec.GetArgument<DALIImageType>("image_type"))) {
     // Resize per-image data
     crop_offsets_.resize(batch_size_);
     input_ptrs_.Resize({batch_size_});

@@ -36,7 +36,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     pad_(spec.GetArgument<bool>("pad_output")),
     image_type_(spec.GetArgument<DALIImageType>("image_type")),
     color_(IsColor(image_type_)),
-    C_(color_ ? 3 : 1) {
+    C_(NumberOfChannels(image_type_)) {
     vector<float> temp_crop;
     GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
 

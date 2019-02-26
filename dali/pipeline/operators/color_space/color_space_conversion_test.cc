@@ -16,11 +16,14 @@
 
 namespace dali {
 
-template <typename InputImgType>
-class ColorSpaceConversionToBGRTest : public GenericConversionTest<InputImgType, BGR> {};
+// TODO(janton) : enable tests with 4-channel as input type (need to support it in host decoder)
+typedef ::testing::Types<RGB, BGR, Gray, YCbCr/*, RGBA, BGRA, ARGB, ABGR*/> AllColorSpaces;
 
 template <typename InputImgType>
 class ColorSpaceConversionToRGBTest : public GenericConversionTest<InputImgType, RGB> {};
+
+template <typename InputImgType>
+class ColorSpaceConversionToBGRTest : public GenericConversionTest<InputImgType, BGR> {};
 
 template <typename InputImgType>
 class ColorSpaceConversionToGrayTest : public GenericConversionTest<InputImgType, Gray> {};
@@ -28,31 +31,55 @@ class ColorSpaceConversionToGrayTest : public GenericConversionTest<InputImgType
 template <typename InputImgType>
 class ColorSpaceConversionToYCbCrTest : public GenericConversionTest<InputImgType, YCbCr> {};
 
-typedef ::testing::Types<RGB, Gray, YCbCr> ConvertibleToBGR;
-TYPED_TEST_CASE(ColorSpaceConversionToBGRTest, ConvertibleToBGR);
+template <typename InputImgType>
+class ColorSpaceConversionToRGBATest : public GenericConversionTest<InputImgType, RGBA> {};
 
+template <typename InputImgType>
+class ColorSpaceConversionToBGRATest : public GenericConversionTest<InputImgType, BGRA> {};
+
+template <typename InputImgType>
+class ColorSpaceConversionToARGBTest : public GenericConversionTest<InputImgType, ARGB> {};
+
+template <typename InputImgType>
+class ColorSpaceConversionToABGRTest : public GenericConversionTest<InputImgType, ABGR> {};
+
+TYPED_TEST_CASE(ColorSpaceConversionToBGRTest, AllColorSpaces);
 TYPED_TEST(ColorSpaceConversionToBGRTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+  this->RunTest("ColorSpaceConversion");
 }
 
-typedef ::testing::Types<BGR, Gray, YCbCr> ConvertibleToRGB;
-TYPED_TEST_CASE(ColorSpaceConversionToRGBTest, ConvertibleToRGB);
-
+TYPED_TEST_CASE(ColorSpaceConversionToRGBTest, AllColorSpaces);
 TYPED_TEST(ColorSpaceConversionToRGBTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 
-typedef ::testing::Types<RGB, BGR, YCbCr> ConvertibleToGray;
-TYPED_TEST_CASE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
-
+TYPED_TEST_CASE(ColorSpaceConversionToGrayTest, AllColorSpaces);
 TYPED_TEST(ColorSpaceConversionToGrayTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 
-typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
-TYPED_TEST_CASE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
-
+TYPED_TEST_CASE(ColorSpaceConversionToYCbCrTest, AllColorSpaces);
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
+  this->RunTest("ColorSpaceConversion");
+}
+
+TYPED_TEST_CASE(ColorSpaceConversionToRGBATest, AllColorSpaces);
+TYPED_TEST(ColorSpaceConversionToRGBATest, test) {
+  this->RunTest("ColorSpaceConversion");
+}
+
+TYPED_TEST_CASE(ColorSpaceConversionToARGBTest, AllColorSpaces);
+TYPED_TEST(ColorSpaceConversionToARGBTest, test) {
+  this->RunTest("ColorSpaceConversion");
+}
+
+TYPED_TEST_CASE(ColorSpaceConversionToBGRATest, AllColorSpaces);
+TYPED_TEST(ColorSpaceConversionToBGRATest, test) {
+  this->RunTest("ColorSpaceConversion");
+}
+
+TYPED_TEST_CASE(ColorSpaceConversionToABGRTest, AllColorSpaces);
+TYPED_TEST(ColorSpaceConversionToABGRTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 

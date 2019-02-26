@@ -54,6 +54,18 @@ struct Gray {
 struct YCbCr {
   static const DALIImageType type = DALI_YCbCr;
 };
+struct RGBA {
+  static const DALIImageType type = DALI_RGBA;
+};
+struct ARGB {
+  static const DALIImageType type = DALI_ARGB;
+};
+struct BGRA {
+  static const DALIImageType type = DALI_BGRA;
+};
+struct ABGR {
+  static const DALIImageType type = DALI_ABGR;
+};
 
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
@@ -113,25 +125,27 @@ class DALITest : public ::testing::Test {
   }
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
-                           vector<uint8 *> *images,
-                           vector<DimPair> *image_dims) {
-    c_ = IsColor(type) ? 3 : 1;
+                           vector<uint8 *> &images,
+                           vector<DimPair> &image_dims) {
+    c_ = NumberOfChannels(type);
     const int flag =
-        IsColor(type) ? cv::IMREAD_COLOR: cv::IMREAD_GRAYSCALE;
+        IsColor(type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE;
+    DALI_ENFORCE(c_==1 || c_==3,
+      "Not supported number of channels" + std::to_string(c_));
     const auto cType = IsColor(type) ? CV_8UC3 : CV_8UC1;
     const auto &encoded = imgs.data_;
     const auto &encoded_sizes = imgs.sizes_;
     const auto nImgs = imgs.nImages();
-    images->resize(nImgs);
-    image_dims->resize(nImgs);
+    images.resize(nImgs);
+    image_dims.resize(nImgs);
     for (size_t i = 0; i < nImgs; ++i) {
       cv::Mat img;
       cv::Mat encode = cv::Mat(1, encoded_sizes[i], CV_8UC1, encoded[i]);
 
       cv::imdecode(encode, flag, &img);
 
-      const int h = (*image_dims)[i].h = img.rows;
-      const int w = (*image_dims)[i].w = img.cols;
+      const int h = image_dims[i].h = img.rows;
+      const int w = image_dims[i].w = img.cols;
       cv::Mat out_img(h, w, cType);
       if (IsColor(type) && type != DALI_BGR) {
         // Convert from BGR to type for verification
@@ -142,13 +156,13 @@ class DALITest : public ::testing::Test {
 
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
-      (*images)[i] = new uint8[h * w * c_];
-      std::memcpy((*images)[i], out_img.ptr(), h * w * c_);
+      images[i] = new uint8[h * w * c_];
+      std::memcpy(images[i], out_img.ptr(), h * w * c_);
     }
   }
 
   inline void DecodeJPEGS(DALIImageType type) {
-    DecodeImages(type, jpegs_, &images_, &image_dims_);
+    DecodeImages(type, jpegs_, images_, image_dims_);
   }
 
   inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,

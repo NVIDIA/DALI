@@ -56,7 +56,7 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
   explicit inline ResizeAttr(const OpSpec &spec)
     : ResizeCropMirrorAttr(spec)
-    , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+    , C_(NumberOfChannels(spec.GetArgument<DALIImageType>("image_type"))) {
   }
 
   void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,

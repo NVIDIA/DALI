@@ -29,7 +29,9 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer,
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
-  const int c = IsColor(type) ? 3 : 1;
+  const int c = NumberOfChannels(type);
+  DALI_ENFORCE(c == 1 || c == 3 || c == 4,
+    "Number of channels not supported " + std::to_string(c));
   const auto dims = PeekDims(jpeg, length);
   const auto h = std::get<0>(dims);
   const auto w = std::get<1>(dims);
@@ -41,7 +43,9 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
 
 #ifdef DALI_USE_JPEG_TURBO
   // not supported by libjpeg-turbo
-  if (type == DALI_YCbCr) {
+  if (type == DALI_YCbCr
+   || type == DALI_RGBA || type == DALI_BGRA
+   || type == DALI_ARGB || type == DALI_ABGR) {
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 

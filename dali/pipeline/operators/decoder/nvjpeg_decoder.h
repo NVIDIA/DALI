@@ -219,7 +219,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       }
 
       // Store pertinent info for later
-      const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
+      const int image_depth = NumberOfChannels(output_type_);
       output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
@@ -423,7 +423,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
    */
   void OCVFallback(const uint8_t* data, int size,
                    uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
-    const int c = (output_type_ == DALI_GRAY) ? 1 : 3;
+    const int c = NumberOfChannels(output_type_);
     auto decode_type = (output_type_ == DALI_GRAY) ? cv::IMREAD_GRAYSCALE
                                                    : cv::IMREAD_COLOR;
     cv::Mat input(1,

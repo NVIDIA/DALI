@@ -76,7 +76,11 @@ enum DALIImageType {
   DALI_RGB   = 0,
   DALI_BGR   = 1,
   DALI_GRAY  = 2,
-  DALI_YCbCr = 3
+  DALI_YCbCr = 3,
+  DALI_ARGB  = 4,
+  DALI_ABGR  = 5,
+  DALI_RGBA  = 6,
+  DALI_BGRA  = 7
 };
 
 /**
@@ -92,11 +96,24 @@ enum DALITensorLayout {
 };
 
 inline bool IsColor(DALIImageType type) {
-  return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
+  return type != DALI_GRAY;
 }
 
 inline std::size_t NumberOfChannels(DALIImageType type) {
-  return IsColor(type) ? 3 : 1;
+  switch (type) {
+    case DALI_ABGR:
+    case DALI_ARGB:
+    case DALI_RGBA:
+    case DALI_BGRA:
+      return 4;
+    case DALI_RGB:
+    case DALI_BGR:
+    case DALI_YCbCr:
+      return 3;
+    case DALI_GRAY:
+    default:
+      return 1;
+  }
 }
 
 // Helper to delete copy constructor & copy-assignment operator
