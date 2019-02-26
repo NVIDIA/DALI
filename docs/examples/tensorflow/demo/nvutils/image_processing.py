@@ -34,6 +34,7 @@ class HybridPipe(dali.pipeline.Pipeline):
                  batch_size,
                  num_threads,
                  device_id,
+                 shard_id,
                  num_gpus,
                  deterministic=False,
                  dali_cpu=True,
@@ -48,7 +49,7 @@ class HybridPipe(dali.pipeline.Pipeline):
             path=tfrec_filenames,
             index_path=tfrec_idx_filenames,
             random_shuffle=True,
-            shard_id=device_id,
+            shard_id=shard_id,
             num_shards=num_gpus,
             initial_fill=10000,
             features={
@@ -128,6 +129,9 @@ class DALIPreprocessor(object):
                  dali_cpu=True,
                  deterministic=False,
                  training=False):
+        device_id = hvd.local_rank()
+        shard_id = hvd.rank()
+        num_gpus = hvd.size()
         pipe = HybridPipe(
             tfrec_filenames=filenames,
             tfrec_idx_filenames=idx_filenames,
@@ -135,8 +139,9 @@ class DALIPreprocessor(object):
             width=width,
             batch_size=batch_size,
             num_threads=num_threads,
-            device_id=hvd.rank(),
-            num_gpus=hvd.size(),
+            device_id=device_id,
+            shard_id=shard_id,
+            num_gpus=num_gpus,
             deterministic=deterministic,
             dali_cpu=dali_cpu,
             training=training)
@@ -148,7 +153,7 @@ class DALIPreprocessor(object):
                 pipeline=pipe,
                 shapes=[(batch_size, height, width, 3), ()],
                 dtypes=[tf.float32, tf.int64],
-                device_id=hvd.rank())
+                device_id=device_id)
 
     def get_device_minibatches(self):
         with tf.device("/gpu:0"):
