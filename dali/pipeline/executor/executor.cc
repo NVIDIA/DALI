@@ -244,8 +244,6 @@ void Executor::RunGPU() {
   auto queue_idx = gpu_idx;
   DeviceGuard g(device_id_);
 
-  std::cout << "In RunGPU()" << std::endl;
-
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
   if (previous_gpu_queue_idx_ != -1) {

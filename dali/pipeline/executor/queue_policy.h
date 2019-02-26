@@ -255,13 +255,11 @@ struct SeparateQueuePolicy {
   }
 
   QueueIdxs AcquireIdxs(DALIOpType stage) {
-    std::cout << "Try Acquire for " << to_string(stage) << std::endl;
     if (exec_error_) {
       return QueueIdxs{-1};
     }
     QueueIdxs result(0);
     // We dine with the philosophers
-    std::cout << "Acquire for " << to_string(stage) << std::endl;
 
     int current_stage = static_cast<int>(stage);
     // We actually have a previous stage
@@ -272,7 +270,6 @@ struct SeparateQueuePolicy {
         return !stage_ready_[previous_stage].empty() || exec_error_;
       });
       if (exec_error_) {
-        std::cout << "WUT" << std::endl;
         return QueueIdxs{-1};
       }
       result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
@@ -292,13 +289,11 @@ struct SeparateQueuePolicy {
       stage_free_[current_stage].pop();
       // As above? TODO(klecki): Where do we wake anyone
     }
-    std::cout << "Acquired for " << to_string(stage) << " " << result << std::endl;
     return result;
   }
 
   void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
     int current_stage = static_cast<int>(stage);
-    std::cout << "Releasing for " << to_string(stage) << " " << idxs << std::endl;
     if (HasPreviousStage(stage)) {
       int previous_stage = static_cast<int>(PreviousStage(stage));
       // We always can just release the consumed buffer
@@ -318,7 +313,6 @@ struct SeparateQueuePolicy {
   }
 
   void QueueOutputIdxs(QueueIdxs idxs) {
-    std::cout << "Queueing outputs " << idxs << std::endl;
     std::unique_lock<std::mutex> ready_output_lock(ready_output_mutex_);
     ready_output_queue_.push({idxs[DALIOpType::MIXED], idxs[DALIOpType::GPU]});
     ready_output_lock.unlock();
@@ -348,7 +342,6 @@ struct SeparateQueuePolicy {
     // }
     auto output_idx = ready_output_queue_.front();
     ready_output_queue_.pop();
-    std::cout << "Marking as in use: " << output_idx.mixed << ", " << output_idx.gpu << std::endl;
     in_use_queue_.push(output_idx);  // TODO(klecki) -this may cause some problems!!!
     ready_lock.unlock();
     return output_idx;
@@ -362,7 +355,6 @@ struct SeparateQueuePolicy {
       auto gpu_idx = static_cast<int>(DALIOpType::GPU);
       auto processed = in_use_queue_.front();  // TODO(klecki): this should be guarded as well
       in_use_queue_.pop();
-      std::cout << "Releasing outputs: " << processed.mixed << ", " << processed.gpu << std::endl;
       {
         std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
         stage_free_[mixed_idx].push(processed.mixed);
@@ -377,7 +369,6 @@ struct SeparateQueuePolicy {
   }
 
   void SignalError() {
-    std::cout << "Signaling error" << std::endl;
     exec_error_ = true;
     ready_output_cv_.notify_all();
     free_cond_.notify_all();

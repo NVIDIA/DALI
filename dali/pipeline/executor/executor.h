@@ -97,8 +97,8 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  using JIT_WS_Policy::InitializeWorkspaceStore;
-  using JIT_WS_Policy::GetWorkspace;
+  // using JIT_WS_Policy::InitializeWorkspaceStore;
+  // using JIT_WS_Policy::GetWorkspace;
 
   void PruneUnusedGraphNodes();
 
