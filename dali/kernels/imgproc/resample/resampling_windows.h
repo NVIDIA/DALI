@@ -56,16 +56,15 @@ inline __host__ __device__ float Lanczos3Window(float x) {
 
 inline __host__ __device__ float CubicWindow(float x) {
   x = fabsf(x);
-  if (x >= 2) {
+  if (x >= 2)
     return 0;
-  } else {
-    float x2 = x*x;
-    float x3 = x2*x;
-    if (x > 1)
-      return -0.5f*x3 + 2.5f*x2 - 4.0f*x + 2.0f;
-    else
-      return 1.5f*x3 - 2.5f*x2 + 1.0f;
-  }
+
+  float x2 = x*x;
+  float x3 = x2*x;
+  if (x > 1)
+    return -0.5f*x3 + 2.5f*x2 - 4.0f*x + 2.0f;
+  else
+    return 1.5f*x3 - 2.5f*x2 + 1.0f;
 }
 
 struct FilterWindow {
@@ -82,7 +81,7 @@ struct FilterWindow {
 
 inline FilterWindow GaussianFilter(float radius, float sigma = 0) {
   float scale = sigma ? M_SQRT1_2 / sigma : 2 / radius;
-  radius = floorf(radius + 0.4f)+0.5f;
+  radius = floorf(radius + 0.4f) + 0.5f;
   return { 2*radius, radius, scale, ExpMinusX2 };
 }
 
