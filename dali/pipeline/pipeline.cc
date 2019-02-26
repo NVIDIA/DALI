@@ -305,7 +305,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   executor_.reset(new AsyncPipelinedExecutor(
         batch_size_, num_threads_,
         device_id_, bytes_per_sample_hint_,
-        set_affinity_, max_num_stream_));
+        set_affinity_, max_num_stream_, {2, 2, 2}));
   executor_->Init();
 
   // Creating the graph

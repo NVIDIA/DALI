@@ -46,7 +46,7 @@ namespace dali {
  * buffers, so that we can produce data into one while the
  * other is in use by the user.
  */
-class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
+class DLL_PUBLIC Executor : public JIT_WS_Policy, public AsyncUniformQueuePolicy {
  public:
   using ExecutorCallback = std::function<void(void)>;
 

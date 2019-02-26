@@ -145,6 +145,8 @@ struct UniformQueuePolicy {
   bool IsErrorSignaled() {
     return exec_error_;
   }
+ protected:
+  bool exec_error_ = false;
 
  private:
   std::queue<int> ready_queue_, free_queue_, in_use_queue_;
@@ -154,7 +156,90 @@ struct UniformQueuePolicy {
   std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_work_queue_;
   std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_work_mutex_;
 
-  bool exec_error_ = false;
+};
+
+
+struct AsyncUniformQueuePolicy : public UniformQueuePolicy {
+  // Acquire Queue indexes for given stage
+  QueueIdxs AcquireIdxs(DALIOpType stage) {
+    switch(stage) {
+      // This is the start of RunCPU()
+      case DALIOpType::SUPPORT: {
+        std::unique_lock<std::mutex> lock(cpu_mutex_);
+        DALI_ENFORCE(cpu_work_counter_ > 0, "Internal error, thread has no cpu work.");
+        --cpu_work_counter_;
+        lock.unlock();
+        break;
+      }
+      case DALIOpType::MIXED: {
+        // Block until there is mixed work to do
+        std::unique_lock<std::mutex> lock(mixed_mutex_);
+        while (mixed_work_counter_ == 0 && !exec_error_) {
+          mixed_work_cv_.wait(lock);
+        }
+        --mixed_work_counter_;
+        lock.unlock();
+        if (exec_error_) {
+          gpu_work_cv_.notify_all();
+          // return;
+        }
+        break;
+      }
+      case DALIOpType::GPU: {
+        // Block until there is gpu work to do
+        std::unique_lock<std::mutex> lock(gpu_mutex_);
+        while (gpu_work_counter_ == 0 && !exec_error_) {
+          gpu_work_cv_.wait(lock);
+        }
+        --gpu_work_counter_;
+        lock.unlock();
+        // if (exec_error_)
+        //   return;
+        break;
+      }
+      default:
+      // Other cases handled by base class
+      break;
+    }
+    return UniformQueuePolicy::AcquireIdxs(stage);
+  }
+
+  // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
+  void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
+    switch(stage) {
+      // This is the end of RunCPU()
+      case DALIOpType::CPU: {
+        // Mark that there is now mixed work to do
+        // and signal to any threads that are waiting
+        std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
+        ++mixed_work_counter_;
+        mixed_work_cv_.notify_one();
+        break;
+      }
+      case DALIOpType::MIXED: {
+        // Mark that there is now gpu work to do
+        // and signal to any threads that are waiting
+        std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
+        ++gpu_work_counter_;
+        gpu_work_cv_.notify_one();
+        gpu_lock.unlock();
+        break;
+      }
+      default:
+      // Other cases handled by base class
+      break;
+    }
+    UniformQueuePolicy::ReleaseIdxs(stage, idxs);
+  }
+
+ protected:
+  // TODO(klecki): hack for old async pipeline
+  int cpu_work_counter_ = 0;
+  std::mutex cpu_mutex_;
+ private:
+  int mixed_work_counter_ = 0, gpu_work_counter_ = 0;
+  std::mutex mixed_mutex_, gpu_mutex_;
+  std::condition_variable mixed_work_cv_, gpu_work_cv_;
 };
 
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
