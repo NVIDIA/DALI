@@ -99,11 +99,35 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
   Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
-    auto stage_outputs = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
-    for (auto id : stage_outputs) {
-      result[id] = stage_queue_depths_[stage];
+    if (static_cast<DALIOpType>(stage) == DALIOpType::SUPPORT) {
+      for (auto tid : stage_outputs_[stage]) {
+        auto &tensor = graph.Tensor(tid);
+        int consumers = tensor.consumer_edges.size();
+        int cpu_consumers = 0, gpu_consumers = 0;
+        for (auto cons_edge : tensor.consumer_edges) {
+          if (graph.Node(cons_edge.node).op_type == DALIOpType::CPU) {
+            cpu_consumers++;
+          } else {
+            gpu_consumers++;
+          }
+        }
+        std::cout << "CPU: " << cpu_consumers << " GPU: "<< gpu_consumers << std::endl;
+
+        if (gpu_consumers == 0) {
+          // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
+          result[tid] = 1;
+        } else {
+          // We buffer for a pair of CPU x GPU
+          result[tid] = stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] *
+                        stage_queue_depths_[static_cast<int>(DALIOpType::GPU)];
+        }
+      }
+
+    } else {
+      for (auto id : stage_outputs_[stage]) {
+        result[id] = stage_queue_depths_[stage];
+      }
     }
-    // output_ids.insert(output_ids.end(), stage_outputs.begin(), stage_outputs.end());
   }
   return result;
 }
