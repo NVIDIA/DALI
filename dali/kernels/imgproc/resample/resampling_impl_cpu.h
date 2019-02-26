@@ -184,9 +184,9 @@ template <typename Out, typename In>
 void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
                 float src_x0, float src_y0, float scale_x, float scale_y) {
   assert(out.channels == in.channels);
-  assert(in.channel_stride == 1 && out.channel_stride == 1 ||
-         in.channels == 1 && out_channels == 1);
-  // assume HCW layout with contiguous pixels (not necessarily rows)
+  assert((in.channel_stride == 1 && out.channel_stride == 1) ||
+         (in.channels == 1 && out.channels == 1));
+  // assume HWC layout with contiguous pixels (not necessarily rows)
   assert(out.pixel_stride == out.channels);
 
   if (scale_x == 1) {
