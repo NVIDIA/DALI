@@ -34,7 +34,7 @@ void subscribe_signals() {
   signal(SIGSEGV, signal_handler);
 }
 
-}
+}  // namespace
 
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,

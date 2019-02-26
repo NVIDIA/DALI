@@ -43,7 +43,6 @@ class DecoderCacheLargestOnly : public DecoderCacheBlob{
                     const uint8_t *data, std::size_t data_size,
                     const Dims& data_shape,
                     cudaStream_t stream = 0) override {
-
         std::unique_lock<std::mutex> lock(mutex_);
         // If we haven't started caching
         if (!start_caching_) {
