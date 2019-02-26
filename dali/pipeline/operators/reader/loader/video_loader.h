@@ -145,7 +145,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 
-    Reset();
+    Reset(true);
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
@@ -177,8 +177,12 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::pair<int, int> load_width_height(const std::string& filename);
 
  private:
-  void Reset() override {
-    current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_frame_idx_ = 0;
+    }
   }
   // Params
   int count_;

@@ -82,7 +82,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       std::mt19937 g(524287);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
-    Reset();
+    Reset(true);
   }
 
   void PrepareEmpty(ImageLabelWrapper *tensor) override;
@@ -91,8 +91,12 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
   Index Size() override;
 
  protected:
-  void Reset() override {
-    current_index_ = start_index(shard_id_, num_shards_, Size());
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
+    }
   }
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
   using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;

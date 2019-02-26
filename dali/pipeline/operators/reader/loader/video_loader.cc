@@ -447,9 +447,8 @@ void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     receive_frames(*tensor);
     tensor->wait();
     ++current_frame_idx_;
-    if (IsNextShard(current_frame_idx_)) {
-      Reset();
-    }
+
+    MoveToNextShard(current_frame_idx_);
 }
 
 Index VideoLoader::Size() {

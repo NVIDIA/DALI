@@ -77,9 +77,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
     // if we moved to next shard wrap up
-    if (IsNextShard(current_index_)) {
-      Reset();
-    }
+    MoveToNextShard(current_index_);
 
     int64 seek_pos, size;
     size_t file_index;
