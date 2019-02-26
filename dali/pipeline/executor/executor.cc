@@ -104,6 +104,7 @@ void Executor::RunCPU() {
 #endif
   auto support_idx = AcquireIdxs(DALIOpType::SUPPORT);
   if (exec_error_ || IsErrorSignaled()) {
+    ReleaseIdxs(DALIOpType::SUPPORT, support_idx);
     return;
   }
 
@@ -133,38 +134,37 @@ void Executor::RunCPU() {
 
   auto cpu_idx = AcquireIdxs(DALIOpType::CPU);
   if (exec_error_ || IsErrorSignaled()) {
+    ReleaseIdxs(DALIOpType::CPU, cpu_idx);
     return;
   }
   auto queue_idx = cpu_idx;
 
-  if (!exec_error_) {
-    // Run the cpu-ops in the thread pool
-    for (int i = 0; i < batch_size_; ++i) {
-      thread_pool_.DoWorkWithID(std::bind(
-            [this, queue_idx] (int data_idx, int tid) {
-            TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
-            SampleWorkspace ws;
-            for (int j = 0; j < graph_->NumOp(DALIOpType::CPU); ++j) {
-              OpNode &op_node = graph_->Node(DALIOpType::CPU, j);
-              OperatorBase &op = *op_node.op;
-              GetWorkspace<DALIOpType::CPU>(queue_idx, *graph_, op_node).GetSample(&ws, data_idx, tid);
-              TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
-                  + " on " + to_string(data_idx),
-                  TimeRange::kBlue1);
-              op.Run(&ws);
-            }
-            }, i, std::placeholders::_1));
-    }
-    try {
-      thread_pool_.WaitForWork();
-    } catch (std::runtime_error& e) {
-      exec_error_ = true;
-      SignalError();
-      std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back(e.what());
-      // TODO
-      // ready_output_cv_.notify_all();
-    }
+  // Run the cpu-ops in the thread pool
+  for (int i = 0; i < batch_size_; ++i) {
+    thread_pool_.DoWorkWithID(std::bind(
+          [this, queue_idx] (int data_idx, int tid) {
+          TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
+          SampleWorkspace ws;
+          for (int j = 0; j < graph_->NumOp(DALIOpType::CPU); ++j) {
+            OpNode &op_node = graph_->Node(DALIOpType::CPU, j);
+            OperatorBase &op = *op_node.op;
+            GetWorkspace<DALIOpType::CPU>(queue_idx, *graph_, op_node).GetSample(&ws, data_idx, tid);
+            TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
+                + " on " + to_string(data_idx),
+                TimeRange::kBlue1);
+            op.Run(&ws);
+          }
+          }, i, std::placeholders::_1));
+  }
+  try {
+    thread_pool_.WaitForWork();
+  } catch (std::runtime_error& e) {
+    exec_error_ = true;
+    SignalError();
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back(e.what());
+    // TODO
+    // ready_output_cv_.notify_all();
   }
   // Pass the work to the mixed stage
 #if 0
@@ -189,6 +189,7 @@ void Executor::RunMixed() {
 
   auto mixed_idx = AcquireIdxs(DALIOpType::MIXED);
   if (exec_error_ || IsErrorSignaled()) {
+    ReleaseIdxs(DALIOpType::MIXED, mixed_idx);
     return;
   }
   auto queue_idx = mixed_idx;
@@ -237,6 +238,7 @@ void Executor::RunGPU() {
 
   auto gpu_idx = AcquireIdxs(DALIOpType::GPU);
   if (exec_error_ || IsErrorSignaled()) {
+    ReleaseIdxs(DALIOpType::GPU, gpu_idx);
     return;
   }
   auto queue_idx = gpu_idx;
