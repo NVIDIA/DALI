@@ -24,10 +24,12 @@ namespace kernel {
 
 DLL_PUBLIC void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values);
 
-/**
- * Decode 16-bit float in S10.5 format
- */
-DLL_PUBLIC __host__ __device__ float decode_flow_component(int16_t value);
+constexpr size_t kFractionLength = 5;
+
+inline __host__ __device__ float decode_flow_component(int16_t value) {
+  constexpr float precision = 1.0f / (1 << kFractionLength);
+  return (value < 0 ? -precision : precision) * (value & 0x7fff);
+}
 
 }  // namespace kernel
 

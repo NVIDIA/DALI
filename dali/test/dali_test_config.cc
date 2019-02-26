@@ -36,7 +36,7 @@ const std::string &dali_extra_path() {
   if (!ptr) {
     std::call_once(noninit_warning,
                    []() { std::cerr << "DALI_EXTRA_PATH not initialized."; });
-    _dali_extra_path = "";
+    _dali_extra_path = ".";
   } else {
     _dali_extra_path = std::string(ptr);
   }

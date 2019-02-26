@@ -18,18 +18,18 @@ namespace dali {
 namespace optical_flow {
 namespace kernel {
 
-constexpr size_t kFractionLength = 5;
+namespace {
+
 constexpr size_t kBlockSize = 256;
 
-
-__host__ __device__ float decode_flow_component(int16_t value) {
-  constexpr float precision = 1.0f / (1 << kFractionLength);
-  return (value < 0 ? -precision : precision) * (value & 0x7fff);
-}
+}  // namespace
 
 
-__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output) {
+__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size) {
+    return;
+  }
   output[idx] = decode_flow_component(input[idx]);
 }
 
