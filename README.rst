@@ -68,7 +68,7 @@ For CUDA 10.0 based build issue:
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
 
 .. note::
-   nvidia-dali package contains prebuilt versions of the dali TensorFlow plugin for several versions of TensorFlow.
+   nvidia-dali package contains prebuilt versions of the DALI TensorFlow plugin for several versions of TensorFlow.
    Since release 0.6.1 there is also a possibility to install dali TensorFlow plugin for the currently installed version of TensorFlow, thus allowing forward compatibility:
 
 .. code-block:: bash
