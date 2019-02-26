@@ -36,7 +36,8 @@ __global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, s
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values) {
   size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
-  DecodeFlowComponentKernel<<<num_blocks, kBlockSize>>>(input, output, num_values);
+  size_t block_size = min(num_values, kBlockSize);
+  DecodeFlowComponentKernel<<<num_blocks, block_size>>>(input, output, num_values);
 }
 
 }  // namespace kernel
