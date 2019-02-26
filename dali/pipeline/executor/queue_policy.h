@@ -23,6 +23,28 @@
 
 namespace dali {
 
+// // Policy that passes Queueing/Buffering indexes between stages, handling required synchronization
+// struct QueuePolicy {
+//   // Initialize the policy during Executor::Build();
+//   void InitializeQueues(
+//       const std::array<int, static_cast<int>(DALIOpType::COUNT)> &stage_queue_depths);
+//   // Acquire Queue indexes for given stage
+//   QueueIdxs AcquireIdxs(DALIOpType stage);
+//   // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
+//   void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
+//   // Called by the last stage - mark the Queue idxs as ready to be used as output
+//   void QueueOutputIdxs(QueueIdxs idxs);
+//   // Get the indexes of ready outputs and mark them as in_use by the user
+//   OutputIdxs UseOutputIdxs();
+//   // Release currently used output
+//   void ReleaseOutputIdxs();
+//   // Wake all waiting threads and skip further execution due to error
+//   void SignalError();
+//   // Returns true if we signaled an error previously
+//   bool IsErrorSignaled();
+// };
+
+
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
   void InitializeQueues(
@@ -37,16 +59,20 @@ struct UniformQueuePolicy {
       free_queue_.push(i);
     }
   }
+
   QueueIdxs AcquireIdxs(DALIOpType stage) {
+    if (exec_error_) {
+      return QueueIdxs{-1};
+    }
     if (stage == DALIOpType::SUPPORT) {
       // Block until there is a free buffer to use
       std::unique_lock<std::mutex> lock(free_mutex_);
       while (free_queue_.empty() && !exec_error_) {
         free_cond_.wait(lock);
       }
-      // if (exec_error_) {
-      //   return; // TODO(klecki) error handling!!
-      // }
+      if (exec_error_) {
+        return QueueIdxs{-1}; // We return antyhing due to exec error
+      }
       int queue_idx = free_queue_.front();
       free_queue_.pop();
       return QueueIdxs{queue_idx};
@@ -87,14 +113,9 @@ struct UniformQueuePolicy {
     std::unique_lock<std::mutex> lock(ready_mutex_);
     while (ready_queue_.empty() && !exec_error_) {
       ready_cond_.wait(lock);
-      if (exec_error_) {
-        break;
-      }
     }
     if (exec_error_) {
-      // std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-      // std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-      // throw std::runtime_error(error);
+      return OutputIdxs{-1};
     }
     int output_idx = ready_queue_.front();
     ready_queue_.pop();
@@ -115,6 +136,16 @@ struct UniformQueuePolicy {
     }
   }
 
+  void SignalError() {
+    exec_error_ = true;
+    ready_cond_.notify_all();
+    free_cond_.notify_all();
+  }
+
+  bool IsErrorSignaled() {
+    return exec_error_;
+  }
+
  private:
   std::queue<int> ready_queue_, free_queue_, in_use_queue_;
   std::mutex ready_mutex_, free_mutex_;
@@ -123,7 +154,7 @@ struct UniformQueuePolicy {
   std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_work_queue_;
   std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_work_mutex_;
 
-  bool exec_error_ = false; // TODO (klecki)!!!!
+  bool exec_error_ = false;
 };
 
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
@@ -139,6 +170,10 @@ struct SeparateQueuePolicy {
   }
 
   QueueIdxs AcquireIdxs(DALIOpType stage) {
+    std::cout << "Try Acquire for " << to_string(stage) << std::endl;
+    if (exec_error_) {
+      return QueueIdxs{-1};
+    }
     QueueIdxs result(0);
     // We dine with the philosophers
     std::cout << "Acquire for " << to_string(stage) << std::endl;
@@ -149,8 +184,12 @@ struct SeparateQueuePolicy {
       int previous_stage = static_cast<int>(PreviousStage(stage));
       std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
       stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
-        return !stage_ready_[previous_stage].empty();
+        return !stage_ready_[previous_stage].empty() || exec_error_;
       });
+      if (exec_error_) {
+        std::cout << "WUT" << std::endl;
+        return QueueIdxs{-1};
+      }
       result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
       stage_ready_[previous_stage].pop();
       // We are the only ones waiting for the lock, so we do not try to wake anyone
@@ -159,8 +198,11 @@ struct SeparateQueuePolicy {
     {
       std::unique_lock<std::mutex> free_current_lock(stage_free_mutex_[current_stage]);
       stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
-        return !stage_free_[current_stage].empty();
+        return !stage_free_[current_stage].empty() || exec_error_;
       });
+      if (exec_error_) {
+        return QueueIdxs{-1};
+      }
       result[stage] = stage_free_[current_stage].front();
       stage_free_[current_stage].pop();
       // As above? TODO(klecki): Where do we wake anyone
@@ -209,11 +251,10 @@ struct SeparateQueuePolicy {
     //     break;
     //   }
     // }
-    while (ready_output_queue_.empty() /* && !exec_error_ */) {
-      ready_output_cv_.wait(ready_lock);
-      // if (exec_error_) {
-      //   break;
-      // }
+    ready_output_cv_.wait(ready_lock,
+                          [this]() { return !ready_output_queue_.empty() || exec_error_; });
+    if (exec_error_) {
+      return OutputIdxs{-1, -1};
     }
     // if (exec_error_) {
     //   std::unique_lock<std::mutex> errors_lock(errors_mutex_);
@@ -250,6 +291,14 @@ struct SeparateQueuePolicy {
     }
   }
 
+  void SignalError() {
+    exec_error_ = true;
+  }
+
+  bool IsErrorSignaled() {
+    return exec_error_;
+  }
+
  private:
   // For syncing free and ready buffers between stages
   std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
@@ -273,6 +322,8 @@ struct SeparateQueuePolicy {
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
+
+  bool exec_error_ = false;
 };
 
 }  // namespace dali

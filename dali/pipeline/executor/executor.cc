@@ -112,13 +112,14 @@ void Executor::RunCPU() {
       OpNode &op_node = graph_->Node(DALIOpType::SUPPORT, i);
       OperatorBase &op = *op_node.op;
       // SupportWorkspace &ws = GetWorkspace<DALIOpType::SUPPORT>(queue_idx, i);
-      SupportWorkspace ws = GetWorkspace<DALIOpType::SUPPORT>(support_idx, *graph_, i);
+      JIT_WS_Policy::ws_t<DALIOpType::SUPPORT> ws = GetWorkspace<DALIOpType::SUPPORT>(support_idx, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
       op.Run(&ws);
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
+    SignalError();
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // TODO
@@ -153,6 +154,7 @@ void Executor::RunCPU() {
     }
     catch (std::runtime_error& e) {
       exec_error_ = true;
+      SignalError();
       std::unique_lock<std::mutex> errors_lock(errors_mutex_);
       errors_.push_back(e.what());
       // TODO
@@ -197,6 +199,7 @@ void Executor::RunMixed() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
+    SignalError();
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // TODO
@@ -228,6 +231,7 @@ void Executor::RunGPU() {
   auto queue_idx = gpu_idx;
   DeviceGuard g(device_id_);
 
+  std::cout << "In RunGPU()" << std::endl;
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -280,11 +284,13 @@ void Executor::RunGPU() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
+    SignalError();
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // TODO
     // free_cond_.notify_all();
     // ready_output_cv_.notify_all();
+    // std::cout << "ERROR " << e.what() <<  std::endl;
     return;
   }
   // Update the ready queue to signal that all the work
@@ -349,33 +355,19 @@ void Executor::ShareOutputs(DeviceWorkspace *ws) {
   DeviceGuard g(device_id_);
   ws->Clear();
 
-  if (exec_error_) {
+  if (exec_error_ || IsErrorSignaled()) {
     std::unique_lock<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
   }
 
-  // // Block until the work for a batch has been issued.
-  // // Move the queue id from ready to in_use
-  // std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
-  // while (ready_output_queue_.empty() && !exec_error_) {
-  //   ready_output_cv_.wait(ready_lock);
-  //   if (exec_error_) {
-  //     break;
-  //   }
-  // }
-  // if (exec_error_) {
-  //   std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-  //   std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-  //   throw std::runtime_error(error);
-  // }
-  // auto output_idx = ready_output_queue_.front();
-  // ready_output_queue_.pop();
-  // std::cout << "Marking as in use: " << output_idx.mixed << ", " << output_idx.gpu << std::endl;
-  // in_use_queue_.push(output_idx); //TODO(klecki) -this may cause some problems!!!
-  // ready_lock.unlock();
-
   auto output_idx = UseOutputIdxs();
+
+  if (exec_error_ || IsErrorSignaled()) {
+    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+    throw std::runtime_error(error);
+  }
 
   // We already gathered info about outputs, so we only have to wait on respective
   // events to make sure that the computation has completed

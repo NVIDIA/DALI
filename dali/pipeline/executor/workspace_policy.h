@@ -161,6 +161,9 @@ workspace_t<op_type> CreateWorkspace(
 }
 
 struct JIT_WS_Policy {
+  template <DALIOpType op_type>
+  using ws_t = workspace_t<op_type>;
+
   void InitializeWorkspaceStore(const OpGraph &graph,
                                 const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
                                 cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
@@ -189,6 +192,8 @@ struct JIT_WS_Policy {
                                     gpu_op_stream_, mixed_op_events_, idxs);
   }
 
+
+
  private:
   // TODO(klecki): should consider if storing copy of backing storage is good idea
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
@@ -198,6 +203,9 @@ struct JIT_WS_Policy {
 };
 
 struct AOT_WS_Policy {
+  template <DALIOpType op_type>
+  using ws_t = workspace_t<op_type>&;
+
   void InitializeWorkspaceStore(const OpGraph &graph,
                                 const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
                                 cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
@@ -261,10 +269,10 @@ struct AOT_WS_Policy {
     }
 
     void Clear() {
-      std::get<0>(op_data).clear();
-      std::get<1>(op_data).clear();
-      std::get<2>(op_data).clear();
-      std::get<3>(op_data).clear();
+      std::get<static_cast<int>(DALIOpType::SUPPORT)>(op_data).clear();
+      std::get<static_cast<int>(DALIOpType::CPU)>(op_data).clear();
+      std::get<static_cast<int>(DALIOpType::MIXED)>(op_data).clear();
+      std::get<static_cast<int>(DALIOpType::GPU)>(op_data).clear();
     }
   };
   // TODO(klecki): do not need the blob right now
