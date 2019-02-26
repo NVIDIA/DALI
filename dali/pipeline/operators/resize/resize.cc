@@ -56,23 +56,23 @@ DALI_SCHEMA(Resize)
       R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr");
 
-void ResizeAttr::SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
-                         DALISize *out_size, TransformMeta const *meta) const {
-  in_size->height = shape[0];
-  in_size->width = shape[1];
-
+void ResizeAttr::GetSize(DALISize &in_size, DALISize &out_size, const vector<Index> &shape,
+                         int idx, TransformMeta const *meta) const {
   if (!meta)
     meta = per_sample_meta_.data();
 
-  out_size->height = meta[idx].rsz_h;
-  out_size->width = meta[idx].rsz_w;
+  in_size.height = shape[0];
+  in_size.width  = shape[1];
+
+  out_size.height = meta[idx].rsz_h;
+  out_size.width  = meta[idx].rsz_w;
 }
 
-void ResizeAttr::DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int idx) const {
-  *pCropX = per_sample_meta_[idx].crop.second;
-  *pCropY = per_sample_meta_[idx].crop.first;
-  out_size->height = crop_height_[idx];
-  out_size->width  = crop_width_[idx];
+void ResizeAttr::GetCrop(DALISize &out_size, int &cropX, int &cropY, int idx) const {
+  cropX = per_sample_meta_[idx].crop.second;
+  cropY = per_sample_meta_[idx].crop.first;
+  out_size.height = crop_height_[idx];
+  out_size.width  = crop_width_[idx];
 }
 
 template<>

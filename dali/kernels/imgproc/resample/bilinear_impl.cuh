@@ -47,7 +47,6 @@ __device__ void LinearHorz_Channels(
     const int sx0 = min(max(0, static_cast<int>(floorf(sx0f))), in_w-1);
     const int sx1 = min(sx0+1, in_w-1);
     const float q = sx0f - sx0;
-    const float p = 1-q;
 
     const Src *in_col1 = &in[sx0 * channels];
     const Src *in_col2 = &in[sx1 * channels];
@@ -58,10 +57,13 @@ __device__ void LinearHorz_Channels(
       const Src *in2 = &in_col2[i * in_stride];
 
       for (int c = 0; c < channels; c++) {
-        float tmp = __ldg(&in1[c]) * p + __ldg(&in2[c]) * q;
+        float a = __ldg(&in1[c]);
+        float b = __ldg(&in2[c]);
+        float tmp = fmaf(b-a, q, a);
         if (std::is_integral<Dst>::value)
-          tmp += 0.5f;
-        out_row[channels * j + c] = clamp<Dst>(tmp);
+          out_row[channels * j + c] = clamp<Dst>(__float2int_rn(tmp));
+        else
+          out_row[channels * j + c] = clamp<Dst>(tmp);
       }
     }
   }
@@ -113,17 +115,19 @@ __device__ void LinearVert(
     const int sy0 = min(max(0, static_cast<int>(floorf(sy0f))), in_h-1);
     const int sy1 = min(sy0+1, in_h-1);
     const float q = sy0f - sy0;
-    const float p = 1-q;
 
     Dst *out_row = &out[i * out_stride];
     const Src *in1 = &in[sy0 * in_stride];
     const Src *in2 = &in[sy1 * in_stride];
 
     for (int j = j0 + threadIdx.x; j < j1; j += blockDim.x) {
-      float tmp = __ldg(&in1[j]) * p + __ldg(&in2[j]) * q;
+      float a = __ldg(&in1[j]);
+      float b = __ldg(&in2[j]);
+      float tmp = fmaf(b-a, q, a);
       if (std::is_integral<Dst>::value)
-        tmp += 0.5f;
-      out_row[j] = clamp<Dst>(tmp);
+        out_row[j] = clamp<Dst>(__float2int_rn(tmp));
+      else
+        out_row[j] = clamp<Dst>(tmp);
     }
   }
 }

@@ -25,7 +25,7 @@ void NewResize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
   const auto &input_shape = input.shape();
   DALISize out_size, input_size;
-  SetSize(&input_size, input_shape, 0, &out_size);
+  GetSize(input_size, out_size, input_shape, 0);
 
   const int C = input_shape[2];
 

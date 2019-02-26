@@ -50,6 +50,11 @@ namespace dali {
 
 #define CUDA_CALLABLE __host__ __device__    // Calling from CUDA
 
+enum io_dir {
+  io_in = 0,
+  io_out = 1
+};
+
 typedef struct {
   uint16_t nPixels;               // number of the pixels, intersecting with the resulting pixel
   uint32_t intersectInfoAddr;     // address to the information for first intersecting pixel
@@ -72,8 +77,13 @@ typedef vector<PixMapping> ResizeMappingPixDescrCPU;
 
 #define nYoffset(W, C)          ((W) * (C))
 
-#define SAME_SIZES(size1, size2)    ((size1)->height == (size2)->height && \
-                                     (size1)->width == (size2)->width)
+inline bool operator==(const DALISize &a, const DALISize &b) {
+  return a.width == b.width && a.height == b.height;
+}
+inline bool operator!=(const DALISize &a, const DALISize &b) {
+  return !(a == b);
+}
+
 class ResizeMappingTable {
  public:
   DALISize io_size[2];
@@ -96,7 +106,7 @@ class ResizeMappingTable {
     if (!RESIZE_MAPPING_CPU(resizeMappingCPU) || C_ != C)
       return false;
 
-    return SAME_SIZES(io_size, &in) && SAME_SIZES(io_size+1, &out);
+    return io_size[io_in] == in && io_size[io_out] == out;
   }
 
   inline void copyToGPU(cudaStream_t s) {
@@ -185,7 +195,7 @@ class NewResize : public Resize<Backend> {
                            ResizeMappingTable *ppResizeTbl = NULL) const {
     const DALISize out_resize(*out_size);
     int cropY, cropX;
-    ResizeAttr::DefineCrop(out_size, &cropX, &cropY, idx);
+    ResizeAttr::GetCrop(*out_size, cropX, cropY, idx);
     resizeParam[2] = {cropX, cropY};
 
     return CreateResizeGrid(*input_size, out_resize, C, resizeParam, ppResizeTbl);
@@ -217,19 +227,19 @@ class NewResize : public Resize<Backend> {
     return newResize;
   }
 
-  bool BatchIsCongeneric(const DALISize *sizeIn, const DALISize *sizeOut, int C) {
+  bool BatchIsCongeneric(const DALISize &sizeIn, const DALISize &sizeOut, int C) {
       // Check if all input sizes are the same
-    const uint32_t imageSize = sizeOut->width * sizeOut->height * C;
+    const uint32_t imageSize = sizeOut.width * sizeOut.height * C;
 
     const auto pImages = *ResizeAttr::outputImages();
     const auto pFirstBatchImage = pImages[0];
 
     int i = batch_size_;
     while (--i > 0) {
-      if (!SAME_SIZES(ResizeAttr::size(input_t, i), sizeIn))
+      if (ResizeAttr::in_sizes[i] != sizeIn)
         break;
 
-      if (!SAME_SIZES(ResizeAttr::size(output_t, i), sizeOut))
+      if (ResizeAttr::out_sizes[i] != sizeOut)
         break;
 
       if (pImages[i] != pFirstBatchImage + i * imageSize)

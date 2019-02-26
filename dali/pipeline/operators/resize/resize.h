@@ -31,11 +31,6 @@
 
 namespace dali {
 
-typedef enum {
-  input_t,
-  output_t
-} io_type;
-
 typedef std::pair<int, int> resize_t;
 
 class ResizeAttr;
@@ -59,12 +54,13 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
   explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
 
-  void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
-               DALISize *out_size, TransformMeta const * meta = nullptr) const;
+  void GetSize(DALISize &in_size, DALISize &out_size, const vector<Index> &shape,
+               int idx, TransformMeta const * meta = nullptr) const;
 
-  inline vector<DALISize> &sizes(io_type type)            { return sizes_[type]; }
-  inline DALISize *size(io_type type, size_t idx)         { return sizes(type).data() + idx; }
-  void DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int idx = -1) const;
+  void GetCrop(DALISize &out_size, int &cropX, int &cropY, int idx) const;
+
+  vector<DALISize> out_sizes, in_sizes;
+
   void MirrorNeeded(NppiPoint *pntr, int idx = -1) const  {
       pntr->x = per_sample_meta_[idx].mirror;
       pntr->y = 0;  // Vertical mirroring not yet implemented for ResizeCropMirror
@@ -81,15 +77,12 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
 
   vector<const uint8*> input_ptrs_;
   vector<uint8*> output_ptrs_;
-
-  vector<DALISize> sizes_[2];
 };
 
 template <typename Backend>
 class Resize : public Operator<Backend>, protected ResizeAttr {
  public:
   explicit Resize(const OpSpec &spec);
-  inline ~Resize() override    { delete resizeParam_; }
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;
@@ -100,10 +93,10 @@ class Resize : public Operator<Backend>, protected ResizeAttr {
   kernels::ScratchpadAllocator scratch_alloc_;
 
   vector<kernels::ResamplingParams2D> resample_params_;
-  vector<NppiPoint> *resizeParam_ = nullptr;
   USE_OPERATOR_MEMBERS();
   bool save_attrs_;
   int outputs_per_idx_;
+  std::vector<Dims> out_shape_;
 };
 
 }  // namespace dali

@@ -114,23 +114,22 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
     // Collect the output shapes
     if (pResize) {
       // We are resizing
-      const auto input_size = pResize->size(input_t, i);
-      const auto out_size = pResize->size(output_t, i);
-
-      pResize->SetSize(input_size, input_shape, i, out_size);
+      auto &input_size = pResize->in_sizes[i];
+      auto &out_size = pResize->out_sizes[i];
+      pResize->GetSize(input_size, out_size, input_shape, i);
 
       if (pResizeParam) {
         // NewResize is used
-        const int H1 = out_size->height;
-        const int W1 = out_size->width;
+        const int H1 = out_size.height;
+        const int W1 = out_size.width;
 
         int cropY = 0, cropX = 0;
         auto resizeParam = pResizeParam + i * (pMirroring ? N_GRID_PARAMS : 2);
         if (pMirroring) {
           // "NewResize" operation is used (Mirroring is not supported in "Resize")
-          pResize->DefineCrop(out_size, &cropX, &cropY, i);
-          const int H0 = input_size->height;
-          const int W0 = input_size->width;
+          pResize->GetCrop(out_size, cropX, cropY, i);
+          const int H0 = input_size.height;
+          const int W0 = input_size.width;
 
           const int lcmH = lcm(H0, H1);
           const int lcmW = lcm(W0, W1);
@@ -169,7 +168,7 @@ bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBa
       }
 
       // Collect the output shapes
-      output_shape[i] = {out_size->height, out_size->width, input_shape[2]};
+      output_shape[i] = {out_size.height, out_size.width, input_shape[2]};
     } else {
       output_shape[i] = input_shape;
     }
@@ -354,8 +353,8 @@ __global__ void BatchedResizeKernel(int C, const ResizeGridParam *resizeDescr,
 void BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
                    const ResizeGridParam *resizeDescr, const ImgSizeDescr sizes[],
                    const ImgRasterDescr raster[], MappingInfo *ppMapping[], size_t nBatchSlice) {
-  auto in_sizes = IMG_SIZES(sizes[input_t]);
-  auto out_sizes = IMG_SIZES(sizes[output_t]);
+  auto in_sizes = IMG_SIZES(sizes[io_in]);
+  auto out_sizes = IMG_SIZES(sizes[io_out]);
   if (ppMapping) {
     ConstructResizeTables <<< N, gridDim, 0, stream >>>
              (nBatchSlice, resizeDescr, in_sizes, C, 0, ppMapping);
@@ -363,8 +362,8 @@ void BatchedResize(int N, const dim3 &gridDim, cudaStream_t stream, int C,
     CUDA_CALL(cudaGetLastError());
   }
 
-  const uint8 *const *in = IMG_RASTERS(raster[input_t]);
-  uint8 *const *out = IMG_RASTERS(raster[output_t]);
+  const uint8 *const *in = IMG_RASTERS(raster[io_in]);
+  uint8 *const *out = IMG_RASTERS(raster[io_out]);
 
   const MirroringInfo *pMirrorInfo = resizeDescr + N_GRID_PARAMS * N;
   BatchedResizeKernel <<< N, gridDim, 0, stream >>>
@@ -684,8 +683,8 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
   const int C = input.shape()[0][2];
 
-  const auto sizeIn = size(input_t, 0);
-  const auto sizeOut = size(output_t, 0);
+  const auto sizeIn = in_sizes[0];
+  const auto sizeOut = out_sizes[0];
   cudaStream_t s = ws->stream();
 
   const bool congenericBatch = BatchIsCongeneric(sizeIn, sizeOut, C);
@@ -727,8 +726,8 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 #endif
 
   BatchedCongenericResize(batch_size_, dim3(32, 32), s, C,
-                *sizeIn, input.template data<uint8>(),
-                *sizeOut, static_cast<uint8 *>(output.raw_mutable_data()),
+                sizeIn, input.template data<uint8>(),
+                sizeOut, static_cast<uint8 *>(output.raw_mutable_data()),
                 RESIZE_PARAM(resizeParamGPU_), MIRRORING_PARAM(mirrorParamGPU_),
                 mapPntr, pResizeMapping, pPixMapping, newMapping);
   } else {
@@ -736,8 +735,9 @@ void NewResize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
     vector<uint8 *> *raster[] = {(vector<uint8 *> *)(inputImages()), outputImages()};
 
-    for (int i = input_t; i <= output_t; i++) {
-        TENSOR_COPY(sizesGPU_[i], sizes(static_cast<io_type >(i)), s);
+    std::vector<DALISize> *sizes[2] = { &in_sizes, &out_sizes };
+    for (int i = io_in; i <= io_out; i++) {
+        TENSOR_COPY(sizesGPU_[i], *(sizes[i]), s);
         TENSOR_COPY(imgsGPU_[i], *(raster[i]), s);
     }
 
