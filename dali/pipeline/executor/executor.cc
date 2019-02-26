@@ -103,6 +103,9 @@ void Executor::RunCPU() {
   lock.unlock();
 #endif
   auto support_idx = AcquireIdxs(DALIOpType::SUPPORT);
+  if (exec_error_ || IsErrorSignaled()) {
+    return;
+  }
 
   DeviceGuard g(device_id_);
 
@@ -129,6 +132,9 @@ void Executor::RunCPU() {
   ReleaseIdxs(DALIOpType::SUPPORT, support_idx);
 
   auto cpu_idx = AcquireIdxs(DALIOpType::CPU);
+  if (exec_error_ || IsErrorSignaled()) {
+    return;
+  }
   auto queue_idx = cpu_idx;
 
   if (!exec_error_) {
@@ -151,8 +157,7 @@ void Executor::RunCPU() {
     }
     try {
       thread_pool_.WaitForWork();
-    }
-    catch (std::runtime_error& e) {
+    } catch (std::runtime_error& e) {
       exec_error_ = true;
       SignalError();
       std::unique_lock<std::mutex> errors_lock(errors_mutex_);
@@ -183,6 +188,9 @@ void Executor::RunMixed() {
   DeviceGuard g(device_id_);
 
   auto mixed_idx = AcquireIdxs(DALIOpType::MIXED);
+  if (exec_error_ || IsErrorSignaled()) {
+    return;
+  }
   auto queue_idx = mixed_idx;
 
   try {
@@ -228,6 +236,9 @@ void Executor::RunGPU() {
 #endif
 
   auto gpu_idx = AcquireIdxs(DALIOpType::GPU);
+  if (exec_error_ || IsErrorSignaled()) {
+    return;
+  }
   auto queue_idx = gpu_idx;
   DeviceGuard g(device_id_);
 
