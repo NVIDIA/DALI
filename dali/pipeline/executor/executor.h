@@ -97,9 +97,6 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  // using JIT_WS_Policy::InitializeWorkspaceStore;
-  // using JIT_WS_Policy::GetWorkspace;
-
   void PruneUnusedGraphNodes();
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
@@ -134,7 +131,6 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  // QueueSizes queue_depth_;
   int previous_gpu_queue_idx_ = -1;
 
   vector<string> output_names_;
@@ -142,17 +138,6 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
   // Meta-data about our stage outputs for fast lookup
   std::vector<TensorNodeId> pipeline_outputs_;
   std::vector<EventList> gpu_output_events_;
-
-  // Buffers are rotated between being 'free', where the
-  // pipeline is ok to fill them with data, 'ready', where
-  // they are already full of prepared data, and 'in-use',
-  // where the user currently owns that buffer. A buffer
-  // is marked as in-use when it is returned as and output.
-  // The buffer is then returned the the ready queue the
-  // next time Ouputs() is called.
-  // std::queue<int> ready_queue_, free_queue_, in_use_queue_;
-  // std::mutex ready_mutex_, free_mutex_;
-  // std::condition_variable ready_output_cv_, free_cond_;
 
   // Work is passed between the stages through queues. This
   // is needed for potentially asynchronous work issue, which
@@ -172,30 +157,9 @@ class DLL_PUBLIC Executor : public JIT_WS_Policy, public SeparateQueuePolicy {
   // two sets of locks doing similar things in each stage,
   // it simplifies the software for now so we leave it
   // unless it becomes an issue in the future.
-  // std::queue<int> mixed_work_queue_, gpu_work_queue_;
-  // std::mutex mixed_mutex_, gpu_mutex_;
-
-  // std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
-  // std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_ready_mutex_;
-  // std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_free_cv_;
-  // std::array<std::condition_variable, static_cast<int>(DALIOpType::COUNT)> stage_ready_cv_;
-
-  // std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_free_;
-  // std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
 
 
   std::array<int, static_cast<int>(DALIOpType::COUNT)> stage_queue_depths_;
-
-  // std::mutex ready_output_mutex_, in_use_mutex_;
-  // std::queue<OutputIdxs> ready_output_queue_;
-  // std::queue<OutputIdxs> in_use_queue_;
-
-  // TODO Scoped acquire?
-  // QueueIdxs AcquireIdxs(DALIOpType stage);
-  // void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs);
-
-  // void QueueOutputIdxs(QueueIdxs idxs);
-
 
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;

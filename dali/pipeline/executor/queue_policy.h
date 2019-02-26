@@ -49,10 +49,10 @@ namespace dali {
 struct UniformQueuePolicy {
   void InitializeQueues(
       const std::array<int, static_cast<int>(DALIOpType::COUNT)> &stage_queue_depths) {
-    // TODO(klecki): enforce uniform here:
-    DALI_ENFORCE(stage_queue_depths[(int)DALIOpType::CPU] == stage_queue_depths[(int)DALIOpType::MIXED] &&
-                     stage_queue_depths[(int)DALIOpType::MIXED] == stage_queue_depths[(int)DALIOpType::GPU],
-                 "This policy does not support splited queues");
+    DALI_ENFORCE(
+        stage_queue_depths[(int)DALIOpType::CPU] == stage_queue_depths[(int)DALIOpType::MIXED] &&
+            stage_queue_depths[(int)DALIOpType::MIXED] == stage_queue_depths[(int)DALIOpType::GPU],
+        "This policy does not support splited queues");
 
     // All buffers start off as free
     for (int i = 0; i < stage_queue_depths[(int)DALIOpType::CPU]; ++i) {
@@ -102,12 +102,6 @@ struct UniformQueuePolicy {
   }
 
   OutputIdxs UseOutputIdxs() {
-    if (exec_error_) {
-      // std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-      // std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-      // throw std::runtime_error(error);
-    }
-
     // Block until the work for a batch has been issued.
     // Move the queue id from ready to in_use
     std::unique_lock<std::mutex> lock(ready_mutex_);
@@ -319,27 +313,15 @@ struct SeparateQueuePolicy {
     ready_output_cv_.notify_all();
   }
 
-  // TODO(klecki): Error handling
   OutputIdxs UseOutputIdxs() {
     // Block until the work for a batch has been issued.
     // Move the queue id from ready to in_use
     std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
-    // while (ready_output_queue_.empty() && !exec_error_) {
-    //   ready_output_cv_.wait(ready_lock);
-    //   if (exec_error_) {
-    //     break;
-    //   }
-    // }
     ready_output_cv_.wait(ready_lock,
                           [this]() { return !ready_output_queue_.empty() || exec_error_; });
     if (exec_error_) {
       return OutputIdxs{-1, -1};
     }
-    // if (exec_error_) {
-    //   std::unique_lock<std::mutex> errors_lock(errors_mutex_);
-    //   std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-    //   throw std::runtime_error(error);
-    // }
     auto output_idx = ready_output_queue_.front();
     ready_output_queue_.pop();
     in_use_queue_.push(output_idx);  // TODO(klecki) -this may cause some problems!!!
