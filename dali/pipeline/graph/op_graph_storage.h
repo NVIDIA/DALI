@@ -24,13 +24,13 @@
 
 namespace dali {
 
-std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(
+DLL_PUBLIC std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(
     const OpGraph& op_graph, int batch_size, const std::vector<int>& queue_sizes);
 
 // Mapping from MixedOp partition id to queue of corresponding events
-std::vector<std::vector<cudaEvent_t>> CreateEventsForMixedOps(EventPool& event_pool,
-                                                              const OpGraph& op_graph,
-                                                              int queue_depth);
+DLL_PUBLIC std::vector<std::vector<cudaEvent_t>> CreateEventsForMixedOps(EventPool& event_pool,
+                                                                         const OpGraph& op_graph,
+                                                                         int queue_depth);
 
 }  // namespace dali
 

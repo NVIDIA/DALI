@@ -35,7 +35,7 @@ namespace dali {
  * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
-class DLL_PUBLIC PipelinedExecutor : public Executor {
+class DLL_PUBLIC PipelinedExecutor : public Executor<JIT_WS_Policy, SeparateQueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutor(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,

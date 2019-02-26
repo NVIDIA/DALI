@@ -410,7 +410,7 @@ void Pipeline::RunGPU() {
   executor_->RunGPU();
 }
 
-void Pipeline::SetCompletionCallback(Executor::ExecutorCallback cb) {
+void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
   executor_->SetCompletionCallback(cb);
 }
 

@@ -35,22 +35,23 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     return spec;
   }
 
-  inline void PruneGraph(Executor *exe) const {
+  template <typename WSPolicy, typename QPolicy>
+  inline void PruneGraph(Executor<WSPolicy, QPolicy> *exe) const {
     exe->PruneUnusedGraphNodes();
   }
 
   // TODO(klecki): adjust to refactored code
-  vector<HostWorkspace> CPUData(Executor *exe, int idx) const {
+  vector<HostWorkspace> CPUData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(DALIOpType::CPU)>(exe->wss_[idx].op_data);
     return {};
   }
 
-  vector<MixedWorkspace> MixedData(Executor *exe, int idx) const {
+  vector<MixedWorkspace> MixedData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(DALIOpType::MIXED)>(exe->wss_[idx].op_data);
     return {};
   }
 
-  vector<DeviceWorkspace> GPUData(Executor *exe, int idx) const {
+  vector<DeviceWorkspace> GPUData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(DALIOpType::GPU)>(exe->wss_[idx].op_data);
     return {};
   }
@@ -71,7 +72,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
 };
 
 TEST_F(ExecutorTest, TestPruneBasicGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -143,7 +144,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
 }
 
 TEST_F(ExecutorTest, TestPruneMultiple) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -206,7 +207,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
 }
 
 TEST_F(ExecutorTest, TestPruneRecursive) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -268,7 +269,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
 }
 
 TEST_F(ExecutorTest, TestPruneWholeGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -299,7 +300,7 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
 
 // TODO(klecki): adjust to after refactor
 TEST_F(ExecutorTest, DISABLED_TestDataSetup) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -354,7 +355,7 @@ TEST_F(ExecutorTest, DISABLED_TestDataSetup) {
 }
 
 TEST_F(ExecutorTest, TestRunBasicGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -398,7 +399,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
 }
 
 TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -451,7 +452,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   this->set_batch_size(batch_size);
   this->SetEps(1.6);
 
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  SimpleExecutor exe(this->batch_size_, this->num_threads_, 0, 1);
 
   // Build a basic cpu->gpu graph
   OpGraph graph;

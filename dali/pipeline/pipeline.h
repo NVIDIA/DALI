@@ -220,7 +220,7 @@ class DLL_PUBLIC Pipeline {
    * It blocks next GPU iteration so it is up to the developer to schedule
    * long lasting work in some thread and just fire the work from this CB
    */
-  DLL_PUBLIC void SetCompletionCallback(Executor::ExecutorCallback cb);
+  DLL_PUBLIC void SetCompletionCallback(ExecutorBase::ExecutorCallback cb);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
@@ -380,7 +380,7 @@ class DLL_PUBLIC Pipeline {
   size_t current_seed_;
 
   OpGraph graph_;
-  std::unique_ptr<Executor> executor_;
+  std::unique_ptr<ExecutorBase> executor_;
   std::map<string, EdgeMeta> edge_names_;
 
   // store a list of all OpSpec and external inputs
