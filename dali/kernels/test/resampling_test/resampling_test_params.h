@@ -76,7 +76,7 @@ struct ResamplingTestEntry {
 
 using ResamplingTestBatch = std::vector<ResamplingTestEntry>;
 
-std::ostream &operator<<(std::ostream &os, const FilterDesc fd) {
+inline std::ostream &operator<<(std::ostream &os, const FilterDesc fd) {
   const char *names[] = { "NN", "Linear", "Triangular", "Gaussian", "Lanczos3" };
   os << names[static_cast<int>(fd.type)];
   if (static_cast<int>(fd.type) > static_cast<int>(ResamplingFilterType::Linear) && fd.radius)
@@ -84,7 +84,7 @@ std::ostream &operator<<(std::ostream &os, const FilterDesc fd) {
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, const ResamplingParams2D &params) {
+inline std::ostream &operator<<(std::ostream &os, const ResamplingParams2D &params) {
   os  << "  Horizontal " << params[1].output_size << " px; "
       << " mag = " << params[1].mag_filter << " min = " << params[1].min_filter << "\n"
       << "  Vertical   " << params[0].output_size << " px; "
@@ -92,12 +92,12 @@ std::ostream &operator<<(std::ostream &os, const ResamplingParams2D &params) {
   return os;
 }
 
-void PrintTo(const ResamplingTestEntry &entry, std::ostream *os) {
+inline void PrintTo(const ResamplingTestEntry &entry, std::ostream *os) {
   *os << "Input: " << entry.input << "   ref:" << entry.reference << "\n  params:\n"
       << entry.params << "  Eps = " << entry.epsilon;
 }
 
-void PrintTo(const ResamplingTestBatch &batch, std::ostream *os) {
+inline void PrintTo(const ResamplingTestBatch &batch, std::ostream *os) {
   *os << "{\n";
   bool first = true;
   for (auto &entry : batch) {
