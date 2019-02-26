@@ -18,9 +18,9 @@ namespace dali {
 
 void AsyncPipelinedExecutor::RunCPU() {
   CheckForErrors();
-  std::unique_lock<std::mutex> lock(cpu_mutex_);
-  ++cpu_work_counter_;
-  lock.unlock();
+  // std::unique_lock<std::mutex> lock(cpu_mutex_);
+  // ++cpu_work_counter_;
+  // lock.unlock();
   std::cout << "Schedule Run CPU" << std::endl;
   cpu_thread_.DoWork([this]() {
         // Run the cpu work. We know there is cpu
