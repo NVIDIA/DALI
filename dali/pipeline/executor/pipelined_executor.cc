@@ -22,36 +22,8 @@
 
 namespace dali {
 
-void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
-  Executor::Build(graph, output_names);
-}
-
-void PipelinedExecutor::SetupOutputInfo(const OpGraph &graph) {
-  DeviceGuard g(device_id_);
-  Executor::SetupOutputInfo(graph);
-  constexpr auto stages_count = static_cast<int>(DALIOpType::COUNT);
-  stage_outputs_.resize(stages_count);
-  // stage_output_events_.resize(stages_count);
-  for (int stage = 0; stage < stages_count; stage++) {
-    stage_outputs_[stage] = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
-    // for (auto tid : stage_outputs_[stage]) {
-
-    // }
-  }
-}
-
-std::vector<int> PipelinedExecutor::GetTensorQueueSizes(const OpGraph &graph) {
-  Executor::GetTensorQueueSizes(graph);
-  std::vector<int> result = Executor::GetTensorQueueSizes(graph);
-  for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
-    auto stage_outputs = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
-    for (auto id : stage_outputs) {
-      result[id] = stage_queue_depths_[stage];
-    }
-    // output_ids.insert(output_ids.end(), stage_outputs.begin(), stage_outputs.end());
-  }
-  return result;
-}
+template class PipelinedExecutorImpl<AOT_WS_Policy, UniformQueuePolicy>;
+template class PipelinedExecutorImpl<JIT_WS_Policy, SeparateQueuePolicy>;
 
 }  // namespace dali
 

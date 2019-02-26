@@ -35,20 +35,21 @@ namespace dali {
  * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
-class DLL_PUBLIC PipelinedExecutor : public Executor<JIT_WS_Policy, SeparateQueuePolicy> {
+template <typename WorkspacePolicy, typename QueuePolicy>
+class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueuePolicy> {
  public:
-  DLL_PUBLIC inline PipelinedExecutor(int batch_size, int num_thread,
+  DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1, QueueSizes prefetch_queue_depth = {2, 2, 2}) :
-    Executor(batch_size, num_thread, device_id, bytes_per_sample_hint,
+    Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id, bytes_per_sample_hint,
         set_affinity, max_num_stream, prefetch_queue_depth) {
   }
 
-  DLL_PUBLIC ~PipelinedExecutor() override = default;
+  DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
 
-  DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutor);
+  DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutorImpl);
 
  protected:
   void SetupOutputInfo(const OpGraph &graph) override;
@@ -69,8 +70,48 @@ class DLL_PUBLIC PipelinedExecutor : public Executor<JIT_WS_Policy, SeparateQueu
 
   std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
-  // USE_EXECUTOR_MEMBERS();
+  using Executor<WorkspacePolicy, QueuePolicy>::device_id_;
+  using Executor<WorkspacePolicy, QueuePolicy>::stage_queue_depths_;
 };
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
+  Executor<WorkspacePolicy, QueuePolicy>::Build(graph, output_names);
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+  DeviceGuard g(device_id_);
+  Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
+  constexpr auto stages_count = static_cast<int>(DALIOpType::COUNT);
+  stage_outputs_.resize(stages_count);
+  // stage_output_events_.resize(stages_count);
+  for (int stage = 0; stage < stages_count; stage++) {
+    stage_outputs_[stage] = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
+    // for (auto tid : stage_outputs_[stage]) {
+
+    // }
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(const OpGraph &graph) {
+  Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
+  std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
+  for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
+    auto stage_outputs = graph.GetStageOutputs(static_cast<DALIOpType>(stage));
+    for (auto id : stage_outputs) {
+      result[id] = stage_queue_depths_[stage];
+    }
+    // output_ids.insert(output_ids.end(), stage_outputs.begin(), stage_outputs.end());
+  }
+  return result;
+}
+
+
+using PipelinedExecutor = PipelinedExecutorImpl<AOT_WS_Policy, UniformQueuePolicy>;
+using SeparatedPipelinedExecutor = PipelinedExecutorImpl<JIT_WS_Policy, SeparateQueuePolicy>;
+
 
 }  // namespace dali
 

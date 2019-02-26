@@ -12,22 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-#include <condition_variable>
-#include <iterator>
-#include <mutex>
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
-
-#include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/queue_metadata.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
-#include "dali/pipeline/operators/common.h"
-#include "dali/pipeline/workspace/workspace_data_factory.h"
+#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
 
 namespace dali {
 
-template class Executor<AOT_WS_Policy, UniformQueuePolicy>;
+void AsyncSeparatedPipelinedExecutor::RunCPU() {
+  CheckForErrors();
+  // Run the cpu work. We schedule it in queue and wait for free buffers
+  cpu_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunCPU(); });
+}
+
+void AsyncSeparatedPipelinedExecutor::RunMixed() {
+  CheckForErrors();
+  mixed_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunMixed(); });
+}
+
+void AsyncSeparatedPipelinedExecutor::RunGPU() {
+  CheckForErrors();
+  gpu_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunGPU(); });
+}
 
 }  // namespace dali

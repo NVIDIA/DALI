@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
-#define DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
+#ifndef DALI_PIPELINE_EXECUTOR_ASYNC_SEPARATED_PIPELINED_EXECUTOR_H_
+#define DALI_PIPELINE_EXECUTOR_ASYNC_SEPARATED_PIPELINED_EXECUTOR_H_
 
 #include <string>
 #include "dali/common.h"
@@ -30,20 +30,20 @@ namespace dali {
  * are retrieved by calling Outputs, which manages all
  * needed synchronization.
  */
-class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
+class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExecutor {
  public:
-  DLL_PUBLIC inline AsyncPipelinedExecutor(int batch_size, int num_thread, int device_id,
+  DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(int batch_size, int num_thread, int device_id,
                                            size_t bytes_per_sample_hint, bool set_affinity = false,
                                            int max_num_stream = -1,
                                            QueueSizes prefetch_queue_depth = {2})
-      : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
+      : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
                           max_num_stream, prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),
         mixed_thread_(device_id, set_affinity),
         gpu_thread_(device_id, set_affinity),
         device_id_(device_id) {}
 
-  DLL_PUBLIC ~AsyncPipelinedExecutor() override {
+  DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
@@ -79,11 +79,12 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override {
     CheckForErrors();
     try {
-      PipelinedExecutor::Outputs(ws);
+      SeparatedPipelinedExecutor::Outputs(ws);
     } catch (std::runtime_error &e) {
       exec_error_ = true;
-      mixed_work_cv_.notify_all();
-      gpu_work_cv_.notify_all();
+      // TODO(klecki): SIGNAL ERROR and wake who needs to be woken
+      // mixed_work_cv_.notify_all();
+      // gpu_work_cv_.notify_all();
       throw std::runtime_error(std::string(e.what()));
     } catch (...) {
       throw std::runtime_error("Unknown critical error in pipeline");
@@ -98,12 +99,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   }
 
   WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
-  int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
-  std::mutex cpu_mutex_, mixed_mutex_, gpu_mutex_;
-  std::condition_variable mixed_work_cv_, gpu_work_cv_;
   int device_id_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
+#endif  // DALI_PIPELINE_EXECUTOR_ASYNC_SEPARATED_PIPELINED_EXECUTOR_H_
