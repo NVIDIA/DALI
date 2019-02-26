@@ -26,8 +26,14 @@ enum class ResamplingFilterType : uint8_t {
   Linear,
   Triangular,
   Gaussian,
+  Cubic,
   Lanczos3,
 };
+
+inline const char * FilterName(ResamplingFilterType type) {
+  static const char *names[] = { "NN", "Linear", "Triangular", "Gaussian", "Cubic", "Lanczos3" };
+  return names[static_cast<int>(type)];
+}
 
 constexpr int KeepOriginalSize = -1;
 
@@ -37,6 +43,8 @@ inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float
     return in_size > out_size ? in_size/out_size : 1;
   case ResamplingFilterType::Gaussian:
     return in_size > out_size ? in_size/out_size : 1;
+  case ResamplingFilterType::Cubic:
+    return 2;
   case ResamplingFilterType::Lanczos3:
     return 3;
   default:

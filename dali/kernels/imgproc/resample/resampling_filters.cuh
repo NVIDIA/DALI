@@ -69,6 +69,7 @@ struct ResamplingFilter {
 struct ResamplingFilters {
   std::unique_ptr<float, std::function<void(void*)>> filter_data;
 
+  ResamplingFilter Cubic() const noexcept;
   ResamplingFilter Gaussian(float sigma) const noexcept;
   ResamplingFilter Lanczos3() const noexcept;
   ResamplingFilter Triangular(float radius) const noexcept;

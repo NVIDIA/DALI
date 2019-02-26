@@ -16,6 +16,7 @@
 #include <vector>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
+#include "dali/kernels/imgproc/resample/resampling_windows.h"
 
 namespace dali {
 namespace kernels {
@@ -85,11 +86,6 @@ TEST(ResamplingFilters, Gaussian) {
   }
 }
 
-
-inline float sinc(float x) {
-  return x ? sinf(x * M_PI) / (x * M_PI) : 1;
-}
-
 TEST(ResamplingFilters, Lanczos3) {
   auto filters = GetResamplingFilters(0);
   ASSERT_NE(filters, nullptr);
@@ -109,6 +105,24 @@ TEST(ResamplingFilters, Lanczos3) {
   }
 }
 
+TEST(ResamplingFilters, Cubic) {
+  auto filters = GetResamplingFilters(0);
+  ASSERT_NE(filters, nullptr);
+  int radius = 64;
+  auto f = filters->Cubic();
+  int size = 2*radius+1;
+  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  GetFilterValues<<<1, size>>>(mem.get(), f, size, -2.0f, 2.0f / radius);
+  std::vector<float> host(size);
+  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  for (int i = 0; i < size; i++) {
+    float x = 2.0f * (i - radius) / radius;
+    float ref = CubicWindow(x);
+    float cpu = f((x + f.anchor) * f.scale);
+    EXPECT_NEAR(host[i], ref, 1e-3f) << "@ i = " << i << " x = " << x;
+    EXPECT_NEAR(host[i], cpu, 1e-6f) << "@ i = " << i << " x = " << x;;
+  }
+}
 
 }  // namespace kernels
 }  // namespace dali

@@ -108,6 +108,11 @@ static std::vector<ResamplingTestEntry> ResampleTests = {
     "imgproc_test/score.png", "imgproc_test/ref_out/score_lanczos3.png",
     { 540, 250 }, lanczos(), 1
   },
+  // TODO(michalz): uncomment when test data propagates to CI
+  /*{
+    "imgproc_test/score.png", "imgproc_test/ref_out/score_cubic.png",
+    { 200, 93 }, cubic(), 1
+  },*/
   {
     "imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png",
     { 681, 960 }, gauss(12), 2
