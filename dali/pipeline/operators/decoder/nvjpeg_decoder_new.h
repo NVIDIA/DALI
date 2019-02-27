@@ -19,9 +19,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <nvjpeg.h>
 
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/nvjpeg_decoupled.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
@@ -39,9 +39,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     image_decoders_(batch_size_),
     image_states_(batch_size_),
     jpeg_streams_(batch_size_),
+    decode_params_(batch_size_),
     pinned_buffer_(batch_size_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_) {
+
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
@@ -65,10 +67,10 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       // We want to use nvJPEG default pinned allocator
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
 
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_,
+      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_huff_host_,
                                         &decoder_host_state_[i]));
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_,
+      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_huff_hybrid_,
                                         &decoder_huff_hybrid_state_[i]));
     }
@@ -105,8 +107,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                  static_cast<const unsigned char*>(input_data),
                                                  in_size,
-                                                 1,
-                                                 1,
+                                                 false,
+                                                 false,
                                                  jpeg_streams_[i]);
 
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
@@ -133,7 +135,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                          &info.subsampling));
         info.nvjpeg_support = SupportedSubsampling(info.subsampling);
         if (info.nvjpeg_support) {
-          output_info_[i] = info;
 
           if (ShouldBeHybrid(info)) {
             image_decoders_[i] = decoder_huff_hybrid_;
@@ -162,6 +163,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
               NVJPEG_CALL_EX(ret, file_name);
             }
           }
+          output_info_[i] = info;
         }
       }
     }
