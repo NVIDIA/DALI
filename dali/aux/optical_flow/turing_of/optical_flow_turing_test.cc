@@ -58,19 +58,25 @@ TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
     ref_data.push_back(valref);
   }
   ASSERT_EQ(ref_data.size(), test_data.size());
-  int16_t *incuda;
+  void *incuda;
   float *outcuda;
-  CUDA_CALL(cudaMallocManaged(&incuda, test_data.size() * sizeof(int16_t)));
+  size_t inpitch;
+
+  size_t inwidth=200, inheight=50;
+
+
+  CUDA_CALL(cudaMallocPitch(&incuda,  &inpitch, inwidth*sizeof(int16_t), inheight*sizeof(int16_t)));
+  CUDA_CALL(cudaMemcpy2D(incuda, inpitch, test_data.data(), inwidth*sizeof(int16_t), inwidth, inheight, cudaMemcpyDefault));
+  kernel::Prt((int16_t*)incuda);
   CUDA_CALL(cudaMallocManaged(&outcuda, ref_data.size() * sizeof(float)));
-  CUDA_CALL(cudaMemcpy(incuda, test_data.data(), test_data.size() * sizeof(int16_t),
-                       cudaMemcpyDefault));
-  kernel::DecodeFlowComponents(incuda, outcuda, test_data.size());
+  kernel::DecodeFlowComponents((int16_t*)incuda, outcuda, test_data.size());
   CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {
     EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon);
   }
   CUDA_CALL(cudaFree(incuda));
   CUDA_CALL(cudaFree(outcuda));
+cout<<"ASD\n";
 }
 
 

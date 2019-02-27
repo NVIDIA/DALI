@@ -22,6 +22,8 @@ namespace dali {
 namespace optical_flow {
 namespace kernel {
 
+DLL_PUBLIC void Prt(const int16_t* ptr);
+
 DLL_PUBLIC void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values);
 
 constexpr size_t kFractionLength = 5;

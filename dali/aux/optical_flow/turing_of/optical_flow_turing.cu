@@ -24,8 +24,23 @@ constexpr size_t kBlockSize = 256;
 
 }  // namespace
 
+__global__ void prt(const int16_t* ptr) {
+  for (int i=0;i<100;i++) {
+    printf("%d\t%d\n",i,ptr[i]);
+  }
+}
 
-__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, size_t size) {
+void Prt(const int16_t* ptr) {
+  prt<<<1,1>>>(ptr);
+}
+
+
+__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, size_t n) {
+
+  for (int idx = blockIdx.x * blockDim.x + threadIdx.x;idx<n; idx += blockDim.x * gridDim.x) {
+    output[idx]
+  }
+
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= size) {
     return;
@@ -33,11 +48,20 @@ __global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, s
   output[idx] = decode_flow_component(input[idx]);
 }
 
-
-void DecodeFlowComponents(const int16_t *input, float *output, size_t num_values) {
-  size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
-  size_t block_size = min(num_values, kBlockSize);
-  DecodeFlowComponentKernel<<<num_blocks, block_size>>>(input, output, num_values);
+/**
+ *
+ * @param input
+ * @param output
+ * @param pitch width of buffer in bytes
+ * @param width
+ * @param height
+ */
+void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width, size_t height) {
+//  size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
+//  size_t block_size = min(num_values, kBlockSize);
+  size_t num_threads = width;
+  size_t num_blocks = height;
+  DecodeFlowComponentKernel<<<num_blocks, num_threads>>>(input, output, width*height);
 }
 
 }  // namespace kernel
