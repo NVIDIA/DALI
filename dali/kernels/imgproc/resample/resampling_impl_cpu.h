@@ -114,12 +114,12 @@ void ResampleVert(
     const float *row_coeffs, int support) {
   constexpr float bias = std::is_integral<Out>::value ? 0.5f : 0;
   constexpr int tile = 64;
-  alignas(32) float tmp[tile];
+  float tmp[tile];  // NOLINT
 
   int flat_w = out.width * out.channels;
 
-  const In *in_row_ptrs[256];
-  assert(support <= 256);
+  assert(support > 0);
+  const In **in_row_ptrs = static_cast<const In **>(alloca(support * sizeof(const In *)));
 
   for (int y = 0; y < out.height; y++) {
     Out *out_row = &out(0, y, 0);
@@ -133,6 +133,7 @@ void ResampleVert(
 
     for (int x0 = 0; x0 < flat_w; x0 += tile) {
       int tile_w = x0 + tile <= flat_w ? tile : flat_w - x0;
+      assert(tile_w <= tile);
       for (int j = 0; j < tile_w; j++)
         tmp[j] = bias;
 

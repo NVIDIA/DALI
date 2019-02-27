@@ -63,8 +63,10 @@ __device__ void ResampleHorz_Channels(
 
   const float filter_step = filter.scale;
 
-  const int coeff_base = threadIdx.x;
-  const int coeff_stride = blockDim.x;
+
+  const bool huge_kernel = support > 256;
+  const int coeff_base = huge_kernel ? 0 : threadIdx.x;
+  const int coeff_stride = huge_kernel ? 1 : blockDim.x;
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
 
   const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
@@ -72,12 +74,19 @@ __device__ void ResampleHorz_Channels(
   for (int j = x0; j < x1; j += blockDim.x) {
     int dx = j + threadIdx.x;
     const float sx0f = dx * scale + src_x0;
-    const int sx0 = ceilf(sx0f);
+    const int sx0 = huge_kernel ? __float2int_rn(sx0f) : __float2int_ru(sx0f);
     float f = (sx0 - sx0f) * filter_step;
     __syncthreads();
-    for (int k = threadIdx.y; k < support; k += blockDim.y) {
-      float flt = filter(f + k*filter_step);
-      coeffs[coeff_base + coeff_stride*k] = flt;
+    if (huge_kernel) {
+      for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
+        float flt = filter(f + k*filter_step);
+        coeffs[k] = flt;
+      }
+    } else {
+      for (int k = threadIdx.y; k < support; k += blockDim.y) {
+        float flt = filter(f + k*filter_step);
+        coeffs[coeff_base + coeff_stride*k] = flt;
+      }
     }
     __syncthreads();
 
@@ -154,7 +163,8 @@ __device__ void ResampleVert_Channels(
 
   const float filter_step = filter.scale;
 
-  const int coeff_base = support*threadIdx.y;
+  const bool huge_kernel = support > 256;
+  const int coeff_base = huge_kernel ? 0 : support*threadIdx.y;
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
 
   const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
@@ -162,12 +172,19 @@ __device__ void ResampleVert_Channels(
   for (int i = y0; i < y1; i+=blockDim.y) {
     int dy = i + threadIdx.y;
     const float sy0f = dy * scale + src_y0;
-    const int sy0 = ceilf(sy0f);
+    const int sy0 = huge_kernel ? __float2int_rn(sy0f) : __float2int_ru(sy0f);
     float f = (sy0 - sy0f) * filter_step;
     __syncthreads();
-    for (int k = threadIdx.x; k < support; k += blockDim.x) {
-      float flt = filter(f + k*filter_step);
-      coeffs[coeff_base + k] = flt;
+    if (huge_kernel) {
+      for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
+        float flt = filter(f + k*filter_step);
+        coeffs[k] = flt;
+      }
+    } else {
+      for (int k = threadIdx.x; k < support; k += blockDim.x) {
+        float flt = filter(f + k*filter_step);
+        coeffs[coeff_base + k] = flt;
+      }
     }
     __syncthreads();
 
