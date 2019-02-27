@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_
 
-#include "nvjpeg_decoupled.h"
+#include <nvjpeg.h>
 
 #include <string>
 

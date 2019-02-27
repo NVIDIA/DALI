@@ -20,10 +20,9 @@
 #include <utility>
 #include <vector>
 
-#include "dali/pipeline/operators/decoder/nvjpeg_decoupled.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 
 #include "dali/image/image_factory.h"
-#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
@@ -85,8 +84,8 @@ class nvJPEGDecoderCPU : public Operator<CPUBackend> {
     nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                 static_cast<const unsigned char*>(input_data),
                                                 in_size,
-                                                1,
-                                                1,
+                                                false,
+                                                false,
                                                 state_nvjpeg->jpeg_stream);
     if (ret == NVJPEG_STATUS_BAD_JPEG) {
       try {
@@ -133,6 +132,8 @@ class nvJPEGDecoderCPU : public Operator<CPUBackend> {
           } else {
             NVJPEG_CALL_EX(ret, file_name);
           }
+        } else {
+          // TODO(spanev): free Output #2
         }
       }
     }
@@ -171,8 +172,12 @@ class nvJPEGDecoderCPU : public Operator<CPUBackend> {
 
       // We want to use nvJPEG default pinned allocator
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &state_p->pinned_buffer));
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_host_, &state_p->decoder_host_state));
-      NVJPEG_CALL(nvjpegJpegStateCreate(handle_, decoder_hybrid_, &state_p->decoder_hybrid_state));
+      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
+                                        decoder_host_,
+                                        &state_p->decoder_host_state));
+      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
+                                        decoder_hybrid_,
+                                        &state_p->decoder_hybrid_state));
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &state_p->jpeg_stream));
 
       state_tensor.ShareData(state_p, 1, {1});
