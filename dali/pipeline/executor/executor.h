@@ -85,7 +85,15 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
-    stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] = 1; // synchronous with CPU
+    // TODO(klecki) This should be moved to children
+    if (QueuePolicy::IsUniformPolicy()) {
+      // synchronous with CPU, we buffer for the GPU
+      stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] = prefetch_queue_depth.gpu_size;
+    } else {
+      // For non-uniform case we buffer for CPU x GPU pair.
+      stage_queue_depths_[static_cast<int>(DALIOpType::SUPPORT)] =
+          prefetch_queue_depth.cpu_size * prefetch_queue_depth.gpu_size;
+    }
     stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] = prefetch_queue_depth.cpu_size;
     stage_queue_depths_[static_cast<int>(DALIOpType::MIXED)] = prefetch_queue_depth.mixed_size;
     stage_queue_depths_[static_cast<int>(DALIOpType::GPU)] = prefetch_queue_depth.gpu_size;
@@ -263,7 +271,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       OpNode &op_node = graph_->Node(DALIOpType::SUPPORT, i);
       OperatorBase &op = *op_node.op;
       // SupportWorkspace &ws = GetWorkspace<DALIOpType::SUPPORT>(queue_idx, i);
-      typename WorkspacePolicy::template ws_t<DALIOpType::SUPPORT> ws = WorkspacePolicy::template GetWorkspace<DALIOpType::SUPPORT>(support_idx, *graph_, i);
+      typename WorkspacePolicy::template ws_t<DALIOpType::SUPPORT> ws =
+          WorkspacePolicy::template GetWorkspace<DALIOpType::SUPPORT>(support_idx, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
       op.Run(&ws);
@@ -295,7 +304,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
           for (int j = 0; j < graph_->NumOp(DALIOpType::CPU); ++j) {
             OpNode &op_node = graph_->Node(DALIOpType::CPU, j);
             OperatorBase &op = *op_node.op;
-            WorkspacePolicy::template GetWorkspace<DALIOpType::CPU>(queue_idx, *graph_, op_node).GetSample(&ws, data_idx, tid);
+            WorkspacePolicy::template GetWorkspace<DALIOpType::CPU>(queue_idx, *graph_, op_node)
+                .GetSample(&ws, data_idx, tid);
             TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
                 + " on " + to_string(data_idx),
                 TimeRange::kBlue1);
@@ -333,7 +343,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::MIXED, i);
       OperatorBase &op = *op_node.op;
-      typename WorkspacePolicy::template ws_t<DALIOpType::MIXED> ws = WorkspacePolicy::template GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, i);
+      typename WorkspacePolicy::template ws_t<DALIOpType::MIXED> ws =
+          WorkspacePolicy::template GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
       op.Run(&ws);
@@ -381,7 +392,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
     for (int i = 0; i < graph_->NumOp(DALIOpType::GPU); ++i) {
       OpNode &op_node = graph_->Node(DALIOpType::GPU, i);
       OperatorBase &op = *op_node.op;
-      typename WorkspacePolicy::template ws_t<DALIOpType::GPU> ws = WorkspacePolicy::template GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, i);
+      typename WorkspacePolicy::template ws_t<DALIOpType::GPU> ws =
+          WorkspacePolicy::template GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, i);
       auto parent_events = ws.ParentEvents();
 
       for (auto &event : parent_events) {
@@ -405,10 +417,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
       // Record events for each output requested by the user
       cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx[DALIOpType::GPU]);
       if (graph_->NodeType(src_id) == DALIOpType::MIXED) {
-        typename WorkspacePolicy::template ws_t<DALIOpType::MIXED> ws = WorkspacePolicy::template GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, src_idx);
+        typename WorkspacePolicy::template ws_t<DALIOpType::MIXED> ws =
+            WorkspacePolicy::template GetWorkspace<DALIOpType::MIXED>(queue_idx, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else if (graph_->NodeType(src_id) == DALIOpType::GPU) {
-        typename WorkspacePolicy::template ws_t<DALIOpType::GPU> ws = WorkspacePolicy::template GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, src_idx);
+        typename WorkspacePolicy::template ws_t<DALIOpType::GPU> ws =
+            WorkspacePolicy::template GetWorkspace<DALIOpType::GPU>(queue_idx, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else {
         DALI_FAIL("Internal error. Output node is not gpu/mixed");
@@ -592,8 +606,8 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                           const OpGraph &graph) {
+void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
+    std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
   // We only pin what we need
   for (int i = 0; i < graph.NumOp(DALIOpType::MIXED); i++) {
     auto &node = graph.Node(DALIOpType::MIXED, i);
@@ -614,8 +628,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(std::vector<tensor_data_
 
 // We apply hints to all of pinned CPU buffers and all GPU buffers
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                           const OpGraph &graph) {
+void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
+    std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
   DeviceGuard g(device_id_);
   TimeRange tr("[Executor] PresizeData");
 

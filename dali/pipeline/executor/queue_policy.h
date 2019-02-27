@@ -25,6 +25,7 @@ namespace dali {
 
 // // Policy that passes Queueing/Buffering indexes between stages, handling required synchronization
 // struct QueuePolicy {
+//   static bool IsUniformPolicy();
 //   // Initialize the policy during Executor::Build();
 //   void InitializeQueues(
 //       const std::array<int, static_cast<int>(DALIOpType::COUNT)> &stage_queue_depths);
@@ -47,6 +48,10 @@ namespace dali {
 
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
+  static bool IsUniformPolicy() {
+    return true;
+  }
+
   void InitializeQueues(
       const std::array<int, static_cast<int>(DALIOpType::COUNT)> &stage_queue_depths) {
     DALI_ENFORCE(
@@ -152,93 +157,13 @@ struct UniformQueuePolicy {
 
 };
 
-
-struct AsyncUniformQueuePolicy : public UniformQueuePolicy {
-  // Acquire Queue indexes for given stage
-  QueueIdxs AcquireIdxs(DALIOpType stage) {
-    switch(stage) {
-      // This is the start of RunCPU()
-      case DALIOpType::SUPPORT: {
-        std::unique_lock<std::mutex> lock(cpu_mutex_);
-        DALI_ENFORCE(cpu_work_counter_ > 0, "Internal error, thread has no cpu work.");
-        --cpu_work_counter_;
-        lock.unlock();
-        break;
-      }
-      case DALIOpType::MIXED: {
-        // Block until there is mixed work to do
-        std::unique_lock<std::mutex> lock(mixed_mutex_);
-        while (mixed_work_counter_ == 0 && !exec_error_) {
-          mixed_work_cv_.wait(lock);
-        }
-        --mixed_work_counter_;
-        lock.unlock();
-        if (exec_error_) {
-          gpu_work_cv_.notify_all();
-          // return;
-        }
-        break;
-      }
-      case DALIOpType::GPU: {
-        // Block until there is gpu work to do
-        std::unique_lock<std::mutex> lock(gpu_mutex_);
-        while (gpu_work_counter_ == 0 && !exec_error_) {
-          gpu_work_cv_.wait(lock);
-        }
-        --gpu_work_counter_;
-        lock.unlock();
-        // if (exec_error_)
-        //   return;
-        break;
-      }
-      default:
-      // Other cases handled by base class
-      break;
-    }
-    return UniformQueuePolicy::AcquireIdxs(stage);
-  }
-
-  // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
-  void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
-    switch(stage) {
-      // This is the end of RunCPU()
-      case DALIOpType::CPU: {
-        // Mark that there is now mixed work to do
-        // and signal to any threads that are waiting
-        std::unique_lock<std::mutex> mixed_lock(mixed_mutex_);
-        ++mixed_work_counter_;
-        mixed_work_cv_.notify_one();
-        break;
-      }
-      case DALIOpType::MIXED: {
-        // Mark that there is now gpu work to do
-        // and signal to any threads that are waiting
-        std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
-        ++gpu_work_counter_;
-        gpu_work_cv_.notify_one();
-        gpu_lock.unlock();
-        break;
-      }
-      default:
-      // Other cases handled by base class
-      break;
-    }
-    UniformQueuePolicy::ReleaseIdxs(stage, idxs);
-  }
-
- protected:
-  // TODO(klecki): hack for old async pipeline
-  int cpu_work_counter_ = 0;
-  std::mutex cpu_mutex_;
- private:
-  int mixed_work_counter_ = 0, gpu_work_counter_ = 0;
-  std::mutex mixed_mutex_, gpu_mutex_;
-  std::condition_variable mixed_work_cv_, gpu_work_cv_;
-};
-
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
 // stage
 struct SeparateQueuePolicy {
+  static bool IsUniformPolicy() {
+    return false;
+  }
+
   void InitializeQueues(
       const std::array<int, static_cast<int>(DALIOpType::COUNT)> &stage_queue_depths) {
     for (int stage = 0; stage < static_cast<int>(DALIOpType::COUNT); stage++) {
@@ -266,7 +191,9 @@ struct SeparateQueuePolicy {
       if (exec_error_) {
         return QueueIdxs{-1};
       }
-      result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
+      // result[static_cast<DALIOpType>(previous_stage)] = stage_ready_[previous_stage].front();
+      // We fill the information about all the previous stages herew
+      result = stage_ready_[previous_stage].front();
       stage_ready_[previous_stage].pop();
       // We are the only ones waiting for the lock, so we do not try to wake anyone
     }
@@ -279,29 +206,30 @@ struct SeparateQueuePolicy {
       if (exec_error_) {
         return QueueIdxs{-1};
       }
+      // We add info about current stage
       result[stage] = stage_free_[current_stage].front();
       stage_free_[current_stage].pop();
-      // As above? TODO(klecki): Where do we wake anyone
     }
     return result;
   }
 
   void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
     int current_stage = static_cast<int>(stage);
-    if (HasPreviousStage(stage)) {
-      int previous_stage = static_cast<int>(PreviousStage(stage));
-      // We always can just release the consumed buffer
-      std::unique_lock<std::mutex> free_previous_lock(stage_free_mutex_[previous_stage]);
-      stage_free_[previous_stage].push(idxs[static_cast<DALIOpType>(previous_stage)]);
+    // We have a special case for Support ops - they are set free by a GPU stage
+    if (stage != DALIOpType::CPU) {
+      if (HasPreviousStage(stage)) {
+        ReleaseStageIdx(PreviousStage(stage), idxs);
+      }
     }
-    // We freed buffer, so we notfiy the previous stage it can continue it's work
-    if (HasPreviousStage(stage)) {
-      int previous_stage = static_cast<int>(PreviousStage(stage));
-      stage_free_cv_[previous_stage].notify_one();
+    // In case of GPU we release also the Support Op
+    if (stage == DALIOpType::GPU) {
+      ReleaseStageIdx(DALIOpType::SUPPORT, idxs);
     }
     {
       std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
-      stage_ready_[current_stage].push(idxs[stage]);
+      // stage_ready_[current_stage].push(idxs[stage]);
+      // Store the idxs up to the point of stage that we processed
+      stage_ready_[current_stage].push(idxs);
     }
     stage_ready_cv_[current_stage].notify_one();
   }
@@ -361,6 +289,17 @@ struct SeparateQueuePolicy {
   }
 
  private:
+  void ReleaseStageIdx(DALIOpType stage, QueueIdxs idxs) {
+    auto released_stage = static_cast<int>(stage);
+    // We release the consumed buffer
+    {
+      std::unique_lock<std::mutex> free_lock(stage_free_mutex_[released_stage]);
+      stage_free_[released_stage].push(idxs[stage]);
+    }
+    // We freed buffer, so we notfiy the released stage it can continue it's work
+    stage_free_cv_[released_stage].notify_one();
+  }
+
   // For syncing free and ready buffers between stages
   std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_free_mutex_;
   std::array<std::mutex, static_cast<int>(DALIOpType::COUNT)> stage_ready_mutex_;
@@ -375,7 +314,7 @@ struct SeparateQueuePolicy {
   // The buffer is then returned the the ready queue the
   // next time Ouputs() is called.
   std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_free_;
-  std::array<std::queue<int>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
+  std::array<std::queue<QueueIdxs>, static_cast<int>(DALIOpType::COUNT)> stage_ready_;
 
   std::condition_variable ready_output_cv_, free_cond_;
   // Output ready and in_use mutexes and queues

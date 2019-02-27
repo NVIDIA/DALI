@@ -19,7 +19,6 @@
 
 namespace dali {
 
-// TODO(klecki): move to another file
 struct QueueIdxs {
   int &operator[](DALIOpType op_type) { return idxs[static_cast<size_t>(op_type)]; }
 

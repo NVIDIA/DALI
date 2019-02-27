@@ -118,8 +118,7 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
           result[tid] = 1;
         } else {
           // We buffer for a pair of CPU x GPU
-          result[tid] = stage_queue_depths_[static_cast<int>(DALIOpType::CPU)] *
-                        stage_queue_depths_[static_cast<int>(DALIOpType::GPU)];
+          result[tid] = stage_queue_depths_[stage];
         }
       }
 

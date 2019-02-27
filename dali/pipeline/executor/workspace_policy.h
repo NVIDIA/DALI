@@ -88,8 +88,9 @@ void SetupInputOutput(workspace_t<op_type> &ws, const OpGraph &graph, const OpNo
     // Get each argument input and add them to this op's workspace.
     auto input_index = arg_pair.second;
     auto tid = node.parent_tensors[input_index];
+    // Argument inputs are only CPU
     auto &queue = get_queue<DALIOpType::SUPPORT, DALITensorDevice::CPU>(tensor_to_store_queue[tid]);
-    auto tensor = queue[idxs[DALIOpType::MIXED]];  // TODO(klecki): check queueueueueuing
+    auto tensor = queue[idxs[DALIOpType::SUPPORT]];  // TODO(klecki): check queueueueueuing
     ws.AddArgumentInput(tensor, arg_pair.first);
   }
 

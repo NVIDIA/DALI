@@ -62,7 +62,7 @@ struct parent_constraints<DALIOpType::MIXED> {
 template <>
 struct parent_constraints<DALIOpType::GPU> {
   static constexpr DALIOpType allowed_parents[] = {DALIOpType::GPU, DALIOpType::MIXED,
-                                                   /* DALIOpType::SUPPORT */}; // TODO(klecki): revert this
+                                                   DALIOpType::SUPPORT};
   static constexpr DALITensorDevice allowed_input_tensors[] = {DALITensorDevice::CPU,
                                                                DALITensorDevice::GPU};
   static constexpr DALIOpType allowed_input_ops[] = {DALIOpType::MIXED, DALIOpType::GPU};
