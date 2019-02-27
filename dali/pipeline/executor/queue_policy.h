@@ -215,15 +215,12 @@ struct SeparateQueuePolicy {
 
   void ReleaseIdxs(DALIOpType stage, QueueIdxs idxs) {
     int current_stage = static_cast<int>(stage);
-    // We have a special case for Support ops - they are set free by a GPU stage
+    // We have a special case for Support ops - they are set free by a GPU stage,
+    // during QueueOutputIdxs
     if (stage != DALIOpType::CPU) {
       if (HasPreviousStage(stage)) {
         ReleaseStageIdx(PreviousStage(stage), idxs);
       }
-    }
-    // In case of GPU we release also the Support Op
-    if (stage == DALIOpType::GPU) {
-      ReleaseStageIdx(DALIOpType::SUPPORT, idxs);
     }
     {
       std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
@@ -239,6 +236,9 @@ struct SeparateQueuePolicy {
     ready_output_queue_.push({idxs[DALIOpType::MIXED], idxs[DALIOpType::GPU]});
     ready_output_lock.unlock();
     ready_output_cv_.notify_all();
+
+    // In case of GPU we release also the Support Op
+    ReleaseStageIdx(DALIOpType::SUPPORT, idxs);
   }
 
   OutputIdxs UseOutputIdxs() {
