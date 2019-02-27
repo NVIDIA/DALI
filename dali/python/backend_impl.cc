@@ -557,12 +557,17 @@ PYBIND11_MODULE(backend_impl, m) {
     .def(py::init(
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
-                bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                bool set_affinity = false, int max_num_stream = -1) {
+                bool separated_execution = false, bool async_execution = true,
+                size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+                int max_num_stream = -1, int cpu_queue = 2, int mixed_queue = 2, int gpu_queue = 2) {
+              QueueSizes queue_depth{prefetch_queue_depth};
+              if (separated_execution) {
+                queue_depth = QueueSizes{cpu_queue, mixed_queue, gpu_queue};
+              }
               return std::unique_ptr<Pipeline>(
                   new Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
-                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream));
+                      queue_depth, separated_execution, async_execution,
+                      bytes_per_sample_hint, set_affinity, max_num_stream));
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -570,10 +575,14 @@ PYBIND11_MODULE(backend_impl, m) {
         "seed"_a,
         "exec_pipelined"_a,
         "prefetch_queue_depth"_a = 2,
+        "exec_separated"_a,
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1
+        "max_num_stream"_a = -1,
+        "cpu_queue"_a,
+        "mixed_queue"_a,
+        "gpu_queue"_a
         )
     // initialize from serialized pipeline
     .def(py::init(
@@ -583,10 +592,11 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false,
              int max_num_stream = -1) {
+              // TODO(klecki): handle serialized pipeline
               return std::unique_ptr<Pipeline>(
                   new Pipeline(serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
-                               prefetch_queue_depth, async_execution, bytes_per_sample_hint,
+                               QueueSizes{prefetch_queue_depth}, async_execution, bytes_per_sample_hint,
                                set_affinity, max_num_stream));
             }),
         "serialized_pipe"_a,

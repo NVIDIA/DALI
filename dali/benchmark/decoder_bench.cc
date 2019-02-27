@@ -34,7 +34,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;
@@ -110,7 +110,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;
@@ -175,7 +175,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { /
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;
@@ -233,7 +233,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { 
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;
@@ -301,7 +301,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) { // NOL
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;
@@ -370,7 +370,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) { // NO
       num_thread,
       0, -1,
       true,   // pipelined
-      2,      // pipe length
+      QueueSizes{2},      // pipe length
       true);  // async
 
   TensorList<CPUBackend> data;

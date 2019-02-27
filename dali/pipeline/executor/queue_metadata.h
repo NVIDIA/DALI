@@ -32,7 +32,7 @@ struct QueueIdxs {
 
 struct QueueSizes {
   QueueSizes() = default;
-  QueueSizes(int output_size) : cpu_size(1), mixed_size(output_size), gpu_size(output_size) {}
+  explicit QueueSizes(int output_size) : cpu_size(output_size), mixed_size(output_size), gpu_size(output_size) {}
   QueueSizes(int cpu_size, int mixed_size, int gpu_size)
       : cpu_size(cpu_size), mixed_size(mixed_size), gpu_size(gpu_size) {}
 

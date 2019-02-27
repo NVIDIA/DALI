@@ -80,21 +80,22 @@ class DLL_PUBLIC Pipeline {
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    */
   DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
-      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+      bool pipelined_execution = true, QueueSizes prefetch_queue_depth = QueueSizes{2}, bool separated_execution = false,
       bool async_execution = true, size_t bytes_per_sample_hint = 0,
       bool set_affinity = false, int max_num_stream = -1) :
     built_(false) {
     Init(batch_size, num_threads, device_id, seed,
-         pipelined_execution, async_execution,
+         pipelined_execution, separated_execution, async_execution,
          bytes_per_sample_hint, set_affinity,
          max_num_stream, prefetch_queue_depth);
   }
 
-  DLL_PUBLIC Pipeline(const string &serialized_pipe,
-      int batch_size = -1, int num_threads = -1, int device_id = -1,
-      bool pipelined_execution = true, int prefetch_queue_depth = 2,
-      bool async_execution = true, size_t bytes_per_sample_hint = 0,
-      bool set_affinity = false, int max_num_stream = -1);
+  DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
+                      int device_id = -1, bool pipelined_execution = true,
+                      QueueSizes prefetch_queue_depth = QueueSizes{2},
+                      bool separated_execution = false, bool async_execution = true,
+                      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+                      int max_num_stream = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 
@@ -291,14 +292,15 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id,
-            int64_t seed, bool pipelined_execution, bool async_execution,
+            int64_t seed, bool pipelined_execution, bool separated_execution, bool async_execution,
             size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream, int prefetch_queue_depth = 2) {
+            int max_num_stream, QueueSizes prefetch_queue_depth = QueueSizes{2}) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
     this->original_seed_ = seed;
     this->pipelined_execution_ = pipelined_execution;
+    this->separated_execution_ = separated_execution;
     this->async_execution_ = async_execution;
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
@@ -369,11 +371,12 @@ class DLL_PUBLIC Pipeline {
   bool built_;
   int batch_size_, num_threads_, device_id_;
   bool pipelined_execution_;
+  bool separated_execution_;
   bool async_execution_;
   size_t bytes_per_sample_hint_;
   int set_affinity_;
   int max_num_stream_;
-  int prefetch_queue_depth_;
+  QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;
   int original_seed_;

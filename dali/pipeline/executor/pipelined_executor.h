@@ -40,7 +40,7 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread,
       int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int max_num_stream = -1, QueueSizes prefetch_queue_depth = {2, 2, 2}) :
+      bool set_affinity = false, int max_num_stream = -1, QueueSizes prefetch_queue_depth = QueueSizes{2}) :
     Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id, bytes_per_sample_hint,
         set_affinity, max_num_stream, prefetch_queue_depth) {
   }
@@ -111,8 +111,6 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
             gpu_consumers++;
           }
         }
-        std::cout << "CPU: " << cpu_consumers << " GPU: "<< gpu_consumers << std::endl;
-
         if (gpu_consumers == 0) {
           // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
           result[tid] = 1;

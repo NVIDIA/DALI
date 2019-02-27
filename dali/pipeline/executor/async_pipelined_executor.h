@@ -35,7 +35,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   DLL_PUBLIC inline AsyncPipelinedExecutor(int batch_size, int num_thread, int device_id,
                                            size_t bytes_per_sample_hint, bool set_affinity = false,
                                            int max_num_stream = -1,
-                                           QueueSizes prefetch_queue_depth = {2})
+                                           QueueSizes prefetch_queue_depth = QueueSizes{2})
       : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
                           max_num_stream, prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),

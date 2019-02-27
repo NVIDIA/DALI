@@ -212,8 +212,9 @@ struct AOT_WS_Policy {
                                 cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
                                 const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
                                 const QueueSizes idxs) {
-    DALI_ENFORCE(idxs.cpu_size == idxs.mixed_size && idxs.mixed_size == idxs.gpu_size,
-                 "This policy does not support splited queues");
+    DALI_ENFORCE((idxs.cpu_size == 1 || idxs.cpu_size == idxs.mixed_size) && idxs.mixed_size == idxs.gpu_size,
+                 "This policy does not support splited queues: " + std::to_string(idxs.cpu_size) +
+                     ", " + std::to_string(idxs.mixed_size) + ", " + std::to_string(idxs.gpu_size));
     queue_size_ = idxs.cpu_size;
     wss_.resize(queue_size_);
     for (int i = 0; i < queue_size_; i++) {

@@ -21,6 +21,7 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 
 void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     const char *serialized_pipeline,
@@ -29,13 +30,14 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     int num_threads,
     int device_id,
     int prefetch_queue_depth) {
+  // TODO(klecki), adjust C API
   dali::Pipeline* pipe = new dali::Pipeline(
                               std::string(serialized_pipeline, length),
                               batch_size,
                               num_threads,
                               device_id,
                               true,
-                              prefetch_queue_depth,
+                              dali::QueueSizes{prefetch_queue_depth},
                               true);
   pipe->Build();
   pipe_handle->pipe = reinterpret_cast<void*>(pipe);

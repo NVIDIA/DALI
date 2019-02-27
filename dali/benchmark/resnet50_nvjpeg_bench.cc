@@ -17,6 +17,7 @@
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 
 namespace dali {
 
@@ -36,7 +37,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   Pipeline pipe(
       batch_size,
       num_thread,
-      0, -1, pipelined, 2,
+      0, -1, pipelined, QueueSizes{2},
       async);
 
   pipe.AddOperator(

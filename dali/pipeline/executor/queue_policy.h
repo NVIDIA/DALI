@@ -57,7 +57,9 @@ struct UniformQueuePolicy {
     DALI_ENFORCE(
         stage_queue_depths[(int)DALIOpType::CPU] == stage_queue_depths[(int)DALIOpType::MIXED] &&
             stage_queue_depths[(int)DALIOpType::MIXED] == stage_queue_depths[(int)DALIOpType::GPU],
-        "This policy does not support splited queues");
+        "This policy does not support splited queues: " + std::to_string(stage_queue_depths[1]) +
+            ", " + std::to_string(stage_queue_depths[2]) + ", " +
+            std::to_string(stage_queue_depths[0]));
 
     // All buffers start off as free
     for (int i = 0; i < stage_queue_depths[(int)DALIOpType::CPU]; ++i) {

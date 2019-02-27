@@ -23,6 +23,7 @@
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/executor_factory.h"
 
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/common.h"
@@ -61,7 +62,7 @@ namespace dali {
 
   Pipeline::Pipeline(const string &serialized_pipe,
       int batch_size, int num_threads, int device_id,
-      bool pipelined_execution, int prefetch_queue_depth,
+      bool pipelined_execution, QueueSizes prefetch_queue_depth, bool separated_execution,
       bool async_execution, size_t bytes_per_sample_hint,
       bool set_affinity, int max_num_stream) : built_(false) {
     dali_proto::PipelineDef def;
@@ -88,6 +89,7 @@ namespace dali {
     Init(this->batch_size_, this->num_threads_,
          this->device_id_, def.seed(),
          pipelined_execution,
+         separated_execution,
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
@@ -281,32 +283,10 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
-  // // Creating the executor
-  // if (pipelined_execution_ && async_execution_) {
-  //   executor_.reset(new AsyncPipelinedExecutor(
-  //           batch_size_, num_threads_,
-  //           device_id_, bytes_per_sample_hint_,
-  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  //   executor_->Init();
-  // } else if (pipelined_execution_) {
-  //   executor_.reset(new PipelinedExecutor(
-  //           batch_size_, num_threads_,
-  //           device_id_, bytes_per_sample_hint_,
-  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  // } else if (async_execution_) {
-  //   DALI_FAIL("Not implemented.");
-  // } else {
-  //   executor_.reset(new Executor(
-  //           batch_size_, num_threads_,
-  //           device_id_, bytes_per_sample_hint_,
-  //           set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  // }
-
-  // TODO(klecki): REVERT!!!
-  executor_.reset(new AsyncSeparatedPipelinedExecutor(
-        batch_size_, num_threads_,
-        device_id_, bytes_per_sample_hint_,
-        set_affinity_, max_num_stream_, {11, 4, 3}));
+  // Creating the executor
+  executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
+                          num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
+                          max_num_stream_, prefetch_queue_depth_);
   executor_->Init();
 
   // Creating the graph
