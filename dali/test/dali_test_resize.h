@@ -100,7 +100,33 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
       // perform the resize
       cv::Mat rsz_img;
 
-      cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
+      if (getInterpType() == cv::INTER_NEAREST) {
+        // NN resampling with correct pixel center (unlike OpenCV)
+        rsz_img.create(rsz_h, rsz_w, input.type());
+        size_t elem_sz = rsz_img.elemSize();
+
+        float dy = 1.0f * input.rows / rsz_h;
+        float dx = 1.0f * input.cols / rsz_w;
+
+        float sy = 0.5f * dy;
+        for (int y = 0; y < rsz_h; y++, sy += dy) {
+          int srcy = floor(sy);
+          for (int x = 0; x < rsz_w; x++) {
+            // This is a bit lame - i.e. this reproduces exactly what we got in CPU ResampleNN.
+            // Proper solution would be to test the output and see if the output pixel is coming
+            // from a source pixel near the reference location - this would require rewriting the
+            // test from scratch for NN case, as it cannot be tested with a straightforward
+            // pixelwise comparison.
+            float sx = (x + 0.5f) * dx;
+            int srcx = floor(sx);
+            auto *dst = rsz_img.ptr<uint8_t>(y, x);
+            auto *src = input.ptr<uint8_t>(srcy, srcx);
+            memcpy(dst, src, elem_sz);
+          }
+        }
+      } else {
+        cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
+      }
 
       cv::Mat crop_img;
       cv::Mat const *finalImg = &rsz_img;

@@ -23,24 +23,24 @@ namespace dali {
 //      of the batch - the eps from second column will be used.
 
 static double testEps[] = {     //     TEST:
-                    0.7, 1.8,   // ResizeShorter_LINEAR
-                    2.1, 4.2,   // ResizeShorter_A_LINEAR
-                    1.7, 3.8,   // ResizeLonger_LINEAR
-                    3.1, 6.2,   // ResizeLonger_A_LINEAR
-                    2.8, 5.6,   // ResizeXY_LINEAR
-                    1.8, 3.4,   // ResizeXY_A_LINEAR
-                    1.5, 2.9,   // ResizeShorter_NN
-                    3.4, 5.3,   // ResizeShorter_A_NN
-                    2.5, 3.9,   // ResizeLonger_NN
-                    4.4, 6.3,   // ResizeLonger_A_NN
-                    3.4, 5.3,   // ResizeXY_NN
-                    2.4, 4.1,   // ResizeXY_A_NN
-                    0.8, 2.1,   // ResizeShorter_CUBIC
-                    2.4, 4.9,   // ResizeShorter_A_CUBIC
-                    1.8, 4.1,   // ResizeLonger_CUBIC
-                    3.4, 6.9,   // ResizeLonger_A_CUBIC
-                    3.2, 6.4,   // ResizeXY_CUBIC
-                    2.0, 4.0,   // ResizeXY_A_CUBIC
+                    0.2, 0.3,   // ResizeShorter_LINEAR
+                    0.2, 0.3,   // ResizeShorter_A_LINEAR
+                    0.2, 0.3,   // ResizeLonger_LINEAR
+                    0.2, 0.3,   // ResizeLonger_A_LINEAR
+                    0.2, 0.3,   // ResizeXY_LINEAR
+                    0.2, 0.3,   // ResizeXY_A_LINEAR
+                    1.1, 2.2,   // ResizeShorter_NN
+                    1.1, 2.2,   // ResizeShorter_A_NN
+                    1.1, 2.2,   // ResizeLonger_NN
+                    1.1, 2.2,   // ResizeLonger_A_NN
+                    1.1, 2.2,   // ResizeXY_NN
+                    1.1, 2.2,   // ResizeXY_A_NN
+                    0.3, 0.6,   // ResizeShorter_CUBIC
+                    0.3, 0.6,   // ResizeShorter_A_CUBIC
+                    0.3, 0.6,   // ResizeLonger_CUBIC
+                    0.3, 0.6,   // ResizeLonger_A_CUBIC
+                    0.3, 0.6,   // ResizeXY_CUBIC
+                    0.3, 0.6,   // ResizeXY_A_CUBIC
 };
 
 template <typename ImgType>
@@ -111,7 +111,7 @@ enum {
           this->SetTestCheckType(t_check##checkType);                           \
           this->TstBody(this->DefaultSchema("Resize", "cpu")                    \
                           .AddArg("interp_type", interpType[interp].daliInterp) \
-                          testArgs, 1e-5); }
+                          testArgs, this->getEps(t_##testName##_##interp)); }
 
 // Macro which allows to create pair of identical tests for t_checkDefault/t_checkElements types
 // of checking of average deviation of color values

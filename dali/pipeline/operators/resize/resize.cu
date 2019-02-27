@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include "dali/util/npp.h"
 #include "dali/pipeline/operators/resize/resize.h"
 #include "dali/kernels/static_switch.h"
 #include "dali/kernels/imgproc/resample.h"
@@ -30,63 +29,30 @@ Resize<GPUBackend>::Resize(const OpSpec &spec) : Operator<GPUBackend>(spec), Res
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
-  // Resize per-image data
-  input_ptrs_.resize(batch_size_);
-  output_ptrs_.resize(batch_size_);
-  out_sizes.resize(batch_size_);
-  in_sizes.resize(batch_size_);
-
-  // Per set-of-sample TransformMeta
-  per_sample_meta_.resize(batch_size_);
+  ResizeAttr::SetBatchSize(batch_size_);
+  kernel_data_.resize(1);
+  resample_params_.resize(batch_size_);
+  SetupResamplingParams();
 }
 
 template<>
 void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   auto &input = ws->Input<GPUBackend>(0);
+
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
-
-  resample_params_.resize(batch_size_);
-
-  DALIInterpType interp_min = DALIInterpType::DALI_INTERP_TRIANGULAR;
-  DALIInterpType interp_mag = DALIInterpType::DALI_INTERP_LINEAR;
-
-  if (spec_.HasArgument("min_filter"))
-    interp_min = spec_.GetArgument<DALIInterpType>("min_filter");
-  else if (spec_.HasArgument("interp_type"))
-    interp_min = spec_.GetArgument<DALIInterpType>("interp_type");
-
-  if (spec_.HasArgument("mag_filter"))
-    interp_mag = spec_.GetArgument<DALIInterpType>("mag_filter");
-  else if (spec_.HasArgument("interp_type"))
-    interp_mag = spec_.GetArgument<DALIInterpType>("interp_type");
-
-  kernels::ResamplingFilterType interp2resample[] = {
-    kernels::ResamplingFilterType::Nearest,
-    kernels::ResamplingFilterType::Linear,
-    kernels::ResamplingFilterType::Cubic,
-    kernels::ResamplingFilterType::Lanczos3,
-    kernels::ResamplingFilterType::Triangular,
-    kernels::ResamplingFilterType::Gaussian
-  };
-
-  kernels::FilterDesc min_filter = { interp2resample[interp_min], 0 };
-  kernels::FilterDesc mag_filter = { interp2resample[interp_mag], 0 };
+  if (input.GetLayout() != DALI_UNKNOWN) {
+    DALI_ENFORCE(input.GetLayout() == DALI_NHWC,
+                 "Resize expects interleaved channel layout (NHWC)");
+  }
 
   for (int i = 0; i < batch_size_; ++i) {
     vector<Index> input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
     per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
-    resample_params_[i][0].output_size = per_sample_meta_[i].rsz_h;
-    resample_params_[i][1].output_size = per_sample_meta_[i].rsz_w;
-    resample_params_[i][0].min_filter = resample_params_[i][1].min_filter = min_filter;
-    resample_params_[i][0].mag_filter = resample_params_[i][1].mag_filter = mag_filter;
+    resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
   }
-
-  context_.gpu.stream = ws->stream();
-  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-  requirements_ = Kernel::GetRequirements(context_, view<const uint8_t, 3>(input), resample_params_);
-  scratch_alloc_.Reserve(requirements_.scratch_sizes);
+  SetupResamplingParams();
 }
 
 template <int ndim>
@@ -105,18 +71,26 @@ void ToDimsVec(std::vector<Dims> &dims_vec, const kernels::TensorListShape<ndim>
 
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  context_.gpu.stream = ws->stream();
+  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
   const auto &input = ws->Input<GPUBackend>(idx);
+  auto &kdata = kernel_data_.front();
+
+  kdata.context.gpu.stream = ws->stream();
+  kdata.requirements = Kernel::GetRequirements(
+      kdata.context,
+      view<const uint8_t, 3>(input),
+      resample_params_);
+  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
 
   auto &output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
-  ToDimsVec(out_shape_, requirements_.output_shapes[0]);
+  ToDimsVec(out_shape_, kdata.requirements.output_shapes[0]);
   output.Resize(out_shape_);
 
-  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-
-  auto scratchpad = scratch_alloc_.GetScratchpad();
-  context_.scratchpad = &scratchpad;
-  Kernel::Run(context_, view<uint8_t, 3>(output), view<const uint8_t, 3>(input), resample_params_);
+  auto scratchpad = kdata.scratch_alloc.GetScratchpad();
+  kdata.context.scratchpad = &scratchpad;
+  auto in_view = view<const uint8_t, 3>(input);
+  auto out_view = view<uint8_t, 3>(output);
+  Kernel::Run(kdata.context, out_view, in_view, resample_params_);
 
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {
@@ -129,10 +103,11 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
     attr_output_cpu.Resize(resize_shape);
 
-    for (size_t i = 0; i < input.ntensor(); ++i) {
+    for (int i = 0; i < in_view.num_samples(); ++i) {
       int *t = attr_output_cpu.mutable_tensor<int>(i);
-      t[0] = in_sizes[i].height;
-      t[1] = in_sizes[i].width;
+      auto sample_shape = in_view.shape.tensor_shape_span(i);
+      t[0] = sample_shape[0];
+      t[1] = sample_shape[1];
     }
     ws->Output<GPUBackend>(outputs_per_idx_ * idx + 1).Copy(attr_output_cpu, ws->stream());
   }
