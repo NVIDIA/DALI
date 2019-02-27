@@ -73,7 +73,8 @@ bool CheckIsTiff(const uint8_t *tiff, int size) {
 std::unique_ptr<Image>
 ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
   DALI_ENFORCE(CheckIsPNG(encoded_image, length) + CheckIsBMP(encoded_image, length) +
-               CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length) == 1,
+               CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length)
+             + CheckIsTiff(encoded_image, length) == 1,
                "Encoded image has ambiguous format");
   if (CheckIsPNG(encoded_image, length)) {
     return std::unique_ptr<Image>(new PngImage(encoded_image, length, image_type));

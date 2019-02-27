@@ -12,23 +12,49 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <sys/stat.h>
+#include <dirent.h>
 #include "dali/util/image.h"
 
 namespace dali {
 
-void LoadImages(const string &image_folder, vector<string> *image_names,
-                ImgSetDescr *imgs) {
-  const string image_list = image_folder + "/image_list.txt";
-  std::ifstream file(image_list);
-  DALI_ENFORCE(file.is_open());
+inline bool ends_with(const std::string &value, const std::string &ending) {
+    if (ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
 
-  string img;
-  while (file >> img) {
-    DALI_ENFORCE(img.size());
-    image_names->push_back(image_folder + "/" + img);
+std::vector<std::string> list_files(
+  const std::string& directory,
+  const std::vector<std::string> &supported_extensions) {
+  std::vector<std::string> image_list;
+  DIR *d;
+  struct dirent *dir = nullptr;
+  d = opendir(directory.c_str());
+  DALI_ENFORCE(d, "didn't find any files in `" + directory + "`");
+  while ((dir=readdir(d)) != nullptr) {
+    if (dir->d_type != DT_REG)
+      continue;
+    std::string filename{dir->d_name};
+    if (!supported_extensions.empty()) {
+      bool is_supported = false;
+      for (const auto &extension : supported_extensions) {
+        is_supported = is_supported || ends_with(filename, extension);
+        if (is_supported)
+          break;
+      }
+      if (!is_supported)
+        continue;
+    }
+
+    struct stat stat_record;
+    std::string full_path = directory + "/" + dir->d_name;
+    const bool empty_file = (stat(full_path.c_str(), &stat_record) || stat_record.st_size <= 1);
+    if (empty_file)
+      continue;
+
+    image_list.push_back(full_path);
   }
-
-  LoadImages(*image_names, imgs);
+  return image_list;
 }
 
 void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
@@ -47,12 +73,11 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
   }
 }
 
-void LoadJPEGS(const string &image_folder, vector<string> *jpeg_names, ImgSetDescr *jpegs) {
-  LoadImages(image_folder, jpeg_names, jpegs);
-}
-
-void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *jpegs) {
-  LoadImages(jpeg_names, jpegs);
+void LoadImages(const string &image_folder, ImgSetDescr *imgs, vector<string> *names) {
+  auto filenames = list_files(image_folder, {".png", ".jpg", ".bmp", ".tiff", ".tif"});
+  if (names)
+    *names = filenames;
+  LoadImages(filenames, imgs);
 }
 
 void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c) {

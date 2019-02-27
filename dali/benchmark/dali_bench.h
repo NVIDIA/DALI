@@ -33,7 +33,7 @@ class DALIBenchmark : public benchmark::Fixture {
  public:
   DALIBenchmark() {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
+    LoadImages(image_folder, &jpegs_, &jpeg_names_);
   }
 
   ~DALIBenchmark() override = default;

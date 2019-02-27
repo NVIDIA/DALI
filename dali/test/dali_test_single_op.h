@@ -15,15 +15,12 @@
 #ifndef DALI_TEST_DALI_TEST_SINGLE_OP_H_
 #define DALI_TEST_DALI_TEST_SINGLE_OP_H_
 
-#include "dali/test/dali_test.h"
-
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
+#include "dali/test/dali_test.h"
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
@@ -33,44 +30,6 @@ namespace dali {
   #define PIXEL_STAT_FILE "pixelStatFile"  // Output of statistics for compared sets of images
                                            // Use "" to make the output in stdout
 #endif
-
-namespace images {
-
-const vector<string> jpeg_test_images = {
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/440.jpg",
-  image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
-  image_folder + "/411.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
-};
-
-const vector<string> png_test_images = {
-  image_folder + "/png/000000000139.png",
-  image_folder + "/png/000000000285.png",
-  image_folder + "/png/000000000632.png",
-  image_folder + "/png/000000000724.png",
-  image_folder + "/png/000000000776.png",
-  image_folder + "/png/000000000785.png",
-  image_folder + "/png/000000000802.png",
-  image_folder + "/png/000000000872.png",
-  image_folder + "/png/000000000885.png",
-  image_folder + "/png/000000001000.png",
-  image_folder + "/png/000000001268.png"
-};
-
-const std::vector<std::string> tiff_test_images = {
-        image_folder + "/tiff/420.tiff",
-        image_folder + "/tiff/422.tiff",
-        image_folder + "/tiff/notif.tif",
-};
-
-}  // namespace images
 
 typedef enum {            // Checking:
   t_checkDefault    = 0,  //    combined vectors (all images, all colors)
@@ -174,20 +133,20 @@ class DALISingleOpTest : public DALITest {
     const auto flags = GetImageLoadingFlags();
 
     if (flags & t_loadJPEGs) {
-      LoadJPEGS(images::jpeg_test_images, &jpegs_);
+      LoadImages(image_folder, &jpegs_);
       if (flags & t_decodeJPEGs)
         DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
     }
 
     if (flags & t_loadPNGs) {
-      LoadImages(images::png_test_images, &png_);
+      LoadImages(image_folder + "/png", &png_);
 
       if (flags & t_decodePNGs)
         DecodeImages(img_type_, png_, &png_decoded_, &png_dims_);
     }
 
     if (flags & t_loadTiffs) {
-      LoadImages(images::tiff_test_images, &tiff_);
+      LoadImages(image_folder + "/tiff", &tiff_);
 
       if (flags & t_decodeTiffs) {
         DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
