@@ -163,8 +163,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
               NVJPEG_CALL_EX(ret, file_name);
             }
           }
-          output_info_[i] = info;
         }
+        output_info_[i] = info;
       }
     }
 
