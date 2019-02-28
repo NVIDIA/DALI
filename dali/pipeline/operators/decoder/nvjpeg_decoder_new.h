@@ -34,7 +34,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   explicit nvJPEGDecoderNew(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
-    output_shape_(batch_size_),
     output_info_(batch_size_),
     image_decoders_(batch_size_),
     image_states_(batch_size_),
@@ -185,9 +184,10 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
               std::greater<std::pair<size_t, size_t>>());
 
     auto& output = ws->Output<GPUBackend>(0);
-    output.Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
+    output.Resize(output_shape);
+    output.SetLayout(DALI_NHWC);
 
     for (int idx = 0; idx < batch_size_; idx++) {
       const int i = image_order[idx].second;
@@ -266,7 +266,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
   // Common
   // Storage for per-image info
-  std::vector<Dims> output_shape_;
   std::vector<EncodedImageInfo> output_info_;
   nvjpegJpegDecoder_t decoder_huff_host_;
   nvjpegJpegDecoder_t decoder_huff_hybrid_;
