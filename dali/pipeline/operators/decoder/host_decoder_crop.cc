@@ -25,32 +25,7 @@ namespace dali {
 
 HostDecoderCrop::HostDecoderCrop(const OpSpec &spec)
   : HostDecoder(spec)
-  , CropAttr(spec)
-  , per_sample_crop_window_generators_(batch_size_) {
-  for (int i = 0; i < batch_size_; i++) {
-    DALI_ENFORCE(crop_height_[i] > 0 && crop_width_[i],
-      "crop window dimensions not provided for sample " + std::to_string(i));
-  }
-}
-
-void HostDecoderCrop::SetupSharedSampleParams(SampleWorkspace *ws) {
-  const auto data_idx = ws->data_idx();
-  const auto crop_x_norm = spec_.GetArgument<float>("crop_pos_x", ws, data_idx);
-  const auto crop_y_norm = spec_.GetArgument<float>("crop_pos_y", ws, data_idx);
-
-  per_sample_crop_window_generators_[data_idx] =
-    [this, data_idx, crop_x_norm, crop_y_norm](int H, int W) {
-      CropWindow crop_window;
-      crop_window.h = crop_height_[data_idx];
-      crop_window.w = crop_width_[data_idx];
-      std::tie(crop_window.y, crop_window.x) =
-        CalculateCropYX(
-          crop_y_norm, crop_x_norm,
-          crop_window.h, crop_window.w,
-          H, W);
-      DALI_ENFORCE(crop_window.IsInRange(H, W));
-      return crop_window;
-    };
+  , CropAttr(spec) {
 }
 
 DALI_SCHEMA(HostDecoderCrop)

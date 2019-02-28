@@ -46,25 +46,4 @@ and `crop_H` is the height of the cropping window)code",
     0.5f, true)
   .AddParent("nvJPEGDecoder");
 
-void nvJPEGDecoderCrop::SetupSharedSampleParams(MixedWorkspace *ws) {
-  for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
-    float crop_x_norm = spec_.GetArgument<float>("crop_pos_x", ws, data_idx);
-    float crop_y_norm = spec_.GetArgument<float>("crop_pos_y", ws, data_idx);
-
-    per_sample_crop_window_generators_[data_idx] =
-    [this, data_idx, crop_x_norm, crop_y_norm](int H, int W) {
-      CropWindow crop_window;
-      crop_window.h = crop_height_[data_idx];
-      crop_window.w = crop_width_[data_idx];
-      std::tie(crop_window.y, crop_window.x) =
-        CalculateCropYX(
-          crop_y_norm, crop_x_norm,
-          crop_window.h, crop_window.w,
-          H, W);
-      DALI_ENFORCE(crop_window.IsInRange(H, W));
-      return crop_window;
-    };
-  }
-}
-
 }  // namespace dali

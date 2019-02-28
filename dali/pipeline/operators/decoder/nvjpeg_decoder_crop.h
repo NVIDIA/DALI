@@ -25,12 +25,7 @@ class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
  public:
   explicit nvJPEGDecoderCrop(const OpSpec& spec)
     : nvJPEGDecoder(spec)
-    , CropAttr(spec)
-    , per_sample_crop_window_generators_(batch_size_) {
-    for (int i = 0; i < batch_size_; i++) {
-      DALI_ENFORCE(crop_height_[i] > 0 && crop_width_[i],
-        "crop window dimensions not provided for sample " + std::to_string(i));
-    }
+    , CropAttr(spec) {
   }
 
   ~nvJPEGDecoderCrop() noexcept(false) override = default;
@@ -39,13 +34,12 @@ class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return per_sample_crop_window_generators_[data_idx];
+    return CropAttr::GetCropWindowGenerator(data_idx);
   }
 
-  void SetupSharedSampleParams(MixedWorkspace *ws) override;
-
- private:
-  std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
+  void SetupSharedSampleParams(MixedWorkspace *ws) override {
+    CropAttr::ProcessArguments(ws);
+  }
 };
 
 }  // namespace dali
