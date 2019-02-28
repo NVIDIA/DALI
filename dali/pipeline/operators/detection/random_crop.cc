@@ -217,7 +217,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     for (int i = 0; i < num_attempts_; ++i) {
       auto w = float_dis_(gen_);
       auto h = float_dis_(gen_);
-
       // aspect ratio check
       if ((w / h < 0.5) || (w / h > 2.)) {
         continue;

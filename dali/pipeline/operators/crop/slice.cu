@@ -32,11 +32,19 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
 
     per_sample_dimensions_[i] = std::make_pair(H, W);
 
-    crop_width_[i] = static_cast<int>(crop_size.tensor<float>(i)[0] * W);
-    crop_height_[i] = static_cast<int>(crop_size.tensor<float>(i)[1] * H);
-
     const auto crop_x = static_cast<int>(crop_begin.tensor<float>(i)[0] * W);
     const auto crop_y = static_cast<int>(crop_begin.tensor<float>(i)[1] * H);
+    /*
+     * To decrease floating point error, first calculate the bounding box of crop and then
+     * calculate the width and height having left and top coordinates
+     */
+    auto crop_right_f = crop_size.tensor<float>(i)[0] + crop_begin.tensor<float>(i)[0];
+    auto crop_bottom_f = crop_size.tensor<float>(i)[1] + crop_begin.tensor<float>(i)[1];
+    auto crop_right = static_cast<int>(crop_right_f * W);
+    auto crop_bottom = static_cast<int>(crop_bottom_f * H);
+
+    crop_width_[i] = crop_right - crop_x;
+    crop_height_[i] = crop_bottom - crop_y;
 
     per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
   }

@@ -53,10 +53,10 @@ class HostDecoderSliceTest : public HostDecodeTestBase<ImgType> {
   CropWindowGenerator GetCropWindowGenerator() const override {
     return [this] (int H, int W) {
       CropWindow crop_window;
-      crop_window.h = crop_h * H;
-      crop_window.w = crop_w * W;
       crop_window.y = crop_y * H;
       crop_window.x = crop_x * W;
+      crop_window.h = (crop_h + crop_y) * H - crop_window.y;
+      crop_window.w = (crop_w + crop_x) * W - crop_window.x;
       return crop_window;
     };
   }
