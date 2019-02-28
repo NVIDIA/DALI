@@ -43,6 +43,8 @@ struct CropWindow {
     }
 };
 
+using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
+
 }  // namespace dali
 
 #endif  // DALI_UTIL_CROP_WINDOW_H_

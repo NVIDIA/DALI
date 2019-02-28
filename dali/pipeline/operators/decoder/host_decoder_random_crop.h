@@ -17,25 +17,26 @@
 
 #include "dali/common.h"
 #include "dali/pipeline/operators/decoder/host_decoder.h"
+#include "dali/pipeline/operators/crop/random_crop_attr.h"
 
 namespace dali {
 
 class RandomCropGenerator;
 
-class HostDecoderRandomCrop : public HostDecoder {
+class HostDecoderRandomCrop : public HostDecoder, public RandomCropAttr {
  public:
-  explicit HostDecoderRandomCrop(const OpSpec &spec);
+  explicit HostDecoderRandomCrop(const OpSpec &spec)
+    : HostDecoder(spec)
+    , RandomCropAttr(spec)
+  {}
 
   inline ~HostDecoderRandomCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return crop_window_generator_;
+    return RandomCropAttr::GetCropWindowGenerator(data_idx);
   }
-
- private:
-  CropWindowGenerator crop_window_generator_;
 };
 
 }  // namespace dali

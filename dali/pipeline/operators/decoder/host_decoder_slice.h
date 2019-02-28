@@ -18,11 +18,11 @@
 #include <vector>
 #include "dali/common.h"
 #include "dali/pipeline/operators/decoder/host_decoder.h"
-#include "dali/pipeline/operators/crop/crop_attr.h"
+#include "dali/pipeline/operators/crop/slice_attr.h"
 
 namespace dali {
 
-class HostDecoderSlice : public HostDecoder {
+class HostDecoderSlice : public HostDecoder, public SliceAttr {
  public:
   explicit HostDecoderSlice(const OpSpec &spec);
 
@@ -31,17 +31,15 @@ class HostDecoderSlice : public HostDecoder {
 
  protected:
   inline void RunImpl(SampleWorkspace *ws, const int idx) override {
-    DataDependentSetup(ws, idx);
+    SliceAttr::ProcessArguments(ws);
     HostDecoder::RunImpl(ws, idx);
   }
 
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return per_sample_crop_window_generators_[data_idx];
+    return SliceAttr::GetCropWindowGenerator(data_idx);
   }
 
  private:
-  void DataDependentSetup(SampleWorkspace *ws, unsigned int idx);
-
   std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 
