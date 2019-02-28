@@ -15,15 +15,12 @@
 #ifndef DALI_TEST_DALI_TEST_SINGLE_OP_H_
 #define DALI_TEST_DALI_TEST_SINGLE_OP_H_
 
-#include "dali/test/dali_test.h"
-
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
+#include "dali/test/dali_test.h"
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
@@ -36,6 +33,8 @@ namespace dali {
 
 namespace images {
 
+// TODO(janton): DALI-582 Using this order, breaks some tests
+// ImageList(image_folder, {".jpg"})
 const vector<string> jpeg_test_images = {
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
@@ -50,25 +49,8 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422-odd-width.jpg"
 };
 
-const vector<string> png_test_images = {
-  image_folder + "/png/000000000139.png",
-  image_folder + "/png/000000000285.png",
-  image_folder + "/png/000000000632.png",
-  image_folder + "/png/000000000724.png",
-  image_folder + "/png/000000000776.png",
-  image_folder + "/png/000000000785.png",
-  image_folder + "/png/000000000802.png",
-  image_folder + "/png/000000000872.png",
-  image_folder + "/png/000000000885.png",
-  image_folder + "/png/000000001000.png",
-  image_folder + "/png/000000001268.png"
-};
-
-const std::vector<std::string> tiff_test_images = {
-        image_folder + "/tiff/420.tiff",
-        image_folder + "/tiff/422.tiff",
-        image_folder + "/tiff/notif.tif",
-};
+const vector<string> png_test_images = ImageList(image_folder + "/png", {".png"});
+const vector<string> tiff_test_images = ImageList(image_folder + "/tiff", {".tiff", ".tif"});
 
 }  // namespace images
 
@@ -174,7 +156,7 @@ class DALISingleOpTest : public DALITest {
     const auto flags = GetImageLoadingFlags();
 
     if (flags & t_loadJPEGs) {
-      LoadJPEGS(images::jpeg_test_images, &jpegs_);
+      LoadImages(images::jpeg_test_images, &jpegs_);
       if (flags & t_decodeJPEGs)
         DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
     }

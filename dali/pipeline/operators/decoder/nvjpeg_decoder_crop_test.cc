@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/host_decoder_test.h"
+#include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
 
 template <typename ImgType>
-class HostDecoderCropTest : public HostDecodeTestBase<ImgType> {
+class nvJpegDecoderCropTest : public DecodeTestBase<ImgType> {
  protected:
   const OpSpec DecodingOp() const override {
-    return this->GetOpSpec("HostDecoderCrop")
+    return this->GetOpSpec("nvJPEGDecoderCrop", "mixed")
       .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W});
   }
 
   CropWindowGenerator GetCropWindowGenerator() const override {
-    return [this] (int H, int W) {
+    return [] (int H, int W) {
       CropWindow crop_window;
       crop_window.h = crop_H;
       crop_window.w = crop_W;
@@ -39,19 +39,19 @@ class HostDecoderCropTest : public HostDecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecoderCropTest, Types);
+TYPED_TEST_CASE(nvJpegDecoderCropTest, Types);
 
-TYPED_TEST(HostDecoderCropTest, JpegDecode) {
+TYPED_TEST(nvJpegDecoderCropTest, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(HostDecoderCropTest, PngDecode) {
+TYPED_TEST(nvJpegDecoderCropTest, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(HostDecoderCropTest, TiffDecode) {
-  this->crop_H = 100;
-  this->crop_W = 90;
+TYPED_TEST(nvJpegDecoderCropTest, TiffDecode) {
+  crop_H = 100;
+  crop_W = 90;
   this->Run(t_tiffImgType);
 }
 

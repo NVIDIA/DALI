@@ -109,6 +109,10 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
     this->CheckBuffers(h * w * c, out.mutable_data<uint8>(), img, false);
   }
+
+  uint32_t GetImageLoadingFlags() const override {
+    return t_loadJPEGs | t_loadPNGs | t_loadTiffs;
+  }
 };
 
 }  // namespace dali

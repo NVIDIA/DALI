@@ -55,26 +55,13 @@ class ImgSetDescr {
 DLL_PUBLIC void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs);
 
 /**
- * Loads images from a specified image folder. Assumes the folder contains
- * a file 'image_list.txt' that lists all the different images in the
- * folder
+ * Load filenames from a specified image folder.
+ * If the folder contains a text file 'image_list.txt' the filenames are read from this file
+ * If there is no image list, the folder is searched for files with the supported extensions
+ * Unsupported extensions and empty files are discarded
  */
-DLL_PUBLIC void LoadImages(const string &image_folder, vector<string> *jpeg_names,
-                           ImgSetDescr *imgs);
-
-/**
- * Loads jpegs from a specified image folder. Assumes the folder contains
- * a file 'image_list.txt' that lists all the different images in the
- * folder
- */
-DLL_PUBLIC void LoadJPEGS(const string &image_folder, vector<string> *jpeg_names,
-                          ImgSetDescr *imgs);
-
-/**
- * Loads all jpegs from the list of image names. Assumes names contains
- * full path
- */
-DLL_PUBLIC void LoadJPEGS(const vector<string> &jpeg_names, ImgSetDescr *imgs);
+DLL_PUBLIC std::vector<std::string> ImageList(const std::string& image_folder,
+                                              const std::vector<std::string> &supported_extensions);
 
 /**
  * @brief Writes the input image as a ppm file

@@ -38,10 +38,6 @@ class HostDecodeTestBase : public GenericDecoderTest<ImgType> {
     return {};
   }
 
-  inline uint32_t GetImageLoadingFlags() const override {
-    return image_type_;
-  }
-
   inline OpSpec GetOpSpec(const std::string& op_name) const {
     return OpSpec(op_name)
       .AddArg("device", "cpu")
