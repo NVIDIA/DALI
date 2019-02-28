@@ -29,11 +29,9 @@
 
 namespace dali {
 
-// TODO(spanev): move the gpu part to nvJPEGDecoderGPUNew
-
-class nvJPEGDecoderCPU : public Operator<CPUBackend> {
+class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
  public:
-  explicit nvJPEGDecoderCPU(const OpSpec& spec) :
+  explicit nvJPEGDecoderCPUStage(const OpSpec& spec) :
     Operator<CPUBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     decode_params_(batch_size_) {
@@ -55,7 +53,7 @@ class nvJPEGDecoderCPU : public Operator<CPUBackend> {
     }
   }
 
-  virtual ~nvJPEGDecoderCPU() noexcept(false) {
+  virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
@@ -87,7 +85,7 @@ class nvJPEGDecoderCPU : public Operator<CPUBackend> {
                                                 false,
                                                 false,
                                                 state_nvjpeg->jpeg_stream);
-    if (ret == NVJPEG_STATUS_BAD_JPEG) {
+    if (ret != NVJPEG_STATUS_SUCCESS) {
       try {
         const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data),
                                                      in_size);

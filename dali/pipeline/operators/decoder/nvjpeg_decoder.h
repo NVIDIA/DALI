@@ -351,6 +351,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                     uint8 *output,
                     cudaStream_t stream,
                     string file_name) {
+
     if (!info.nvjpeg_support) {
       OCVFallback(data, in_size, output, stream, file_name);
       CUDA_CALL(cudaStreamSynchronize(stream));
@@ -380,7 +381,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         NVJPEG_CALL_EX(ret, file_name);
       }
     }
-
     // Ensure previous GPU work is finished
     CUDA_CALL(cudaStreamSynchronize(stream));
 

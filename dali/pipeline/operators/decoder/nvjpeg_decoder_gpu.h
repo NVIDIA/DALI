@@ -25,9 +25,9 @@
 
 namespace dali {
 
-class nvJPEGDecoderGPU : public Operator<MixedBackend> {
+class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
  public:
-  explicit nvJPEGDecoderGPU(const OpSpec& spec) :
+  explicit nvJPEGDecoderGPUStage(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -44,7 +44,7 @@ class nvJPEGDecoderGPU : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
   }
 
-  ~nvJPEGDecoderGPU() noexcept(false) {
+  ~nvJPEGDecoderGPUStage() noexcept(false) {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));

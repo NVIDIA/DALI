@@ -16,13 +16,13 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderCPU, nvJPEGDecoderCPU, CPU);
+DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStage, nvJPEGDecoderCPUStage, CPU);
 
-DALI_SCHEMA(nvJPEGDecodeCPU)
+DALI_SCHEMA(nvJPEGDecodeCPUStage)
   .DocStr(R"code(This operator is the CPU stage of nvJPEGDecoderNew, it is not supposed to be called separately.
 It is automatically inserted during the pipeline creation.)code")
   .NumInput(1)
-  .NumOutput(1)
+  .NumOutput(3)
   .AddOptionalArg("output_type",
       R"code(The color space of output image.)code",
       DALI_RGB)

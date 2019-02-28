@@ -17,14 +17,14 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderGPU, nvJPEGDecoderGPU, GPU);
+DALI_REGISTER_OPERATOR(nvJPEGDecoderGPUStage, nvJPEGDecoderGPUStage, GPU);
 
-DALI_SCHEMA(nvJPEGDecoderGPU)
+DALI_SCHEMA(nvJPEGDecoderGPUStage)
   .DocStr(R"code(This operator is the GPU stage of nvJPEGDecoderNew, it is not supposed to be called separately.
 It is automatically inserted during the pipeline creation.)code")
-  .NumInput(1)
+  .NumInput(3)
   .NumOutput(1)
-  .AddParent("nvJPEGDecoderCPU");
+  .AddParent("nvJPEGDecoderCPUStage");
 
 }  // namespace dali
 

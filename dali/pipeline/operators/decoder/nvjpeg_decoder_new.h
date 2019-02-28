@@ -110,7 +110,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                  false,
                                                  jpeg_streams_[i]);
 
-      if (ret == NVJPEG_STATUS_BAD_JPEG) {
+      if (ret != NVJPEG_STATUS_SUCCESS) {
         try {
           EncodedImageInfo info;
           const auto image = ImageFactory::CreateImage(
