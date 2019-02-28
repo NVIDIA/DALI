@@ -18,44 +18,52 @@
 
 namespace dali {
 
+namespace {
+
 inline bool ends_with(const std::string &value, const std::string &ending) {
     if (ending.size() > value.size()) return false;
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+bool is_supported_extension(const std::string &file,
+                            const std::vector<std::string> &supported_extensions) {
+  for (const auto &extension : supported_extensions) {
+    if (ends_with(file, extension))
+      return true;
+  }
+  return false;
+}
+
+bool is_empty_file(const std::string &full_path) {
+  struct stat stat_record;
+  const bool empty_file = (stat(full_path.c_str(), &stat_record) || stat_record.st_size <= 1);
+  return empty_file;
 }
 
 std::vector<std::string> list_files(
   const std::string& directory,
   const std::vector<std::string> &supported_extensions) {
   std::vector<std::string> image_list;
-  DIR *d;
   struct dirent *dir = nullptr;
-  d = opendir(directory.c_str());
+  DIR *d = opendir(directory.c_str());
   DALI_ENFORCE(d, "didn't find any files in `" + directory + "`");
   while ((dir=readdir(d)) != nullptr) {
     if (dir->d_type != DT_REG)
       continue;
     std::string filename{dir->d_name};
-    if (!supported_extensions.empty()) {
-      bool is_supported = false;
-      for (const auto &extension : supported_extensions) {
-        is_supported = is_supported || ends_with(filename, extension);
-        if (is_supported)
-          break;
-      }
-      if (!is_supported)
-        continue;
-    }
+    if (!is_supported_extension(filename, supported_extensions))
+      continue;
 
-    struct stat stat_record;
     std::string full_path = directory + "/" + dir->d_name;
-    const bool empty_file = (stat(full_path.c_str(), &stat_record) || stat_record.st_size <= 1);
-    if (empty_file)
+    if (is_empty_file(full_path))
       continue;
 
     image_list.push_back(full_path);
   }
   return image_list;
 }
+
+}  // namespace
 
 void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
   for (auto img_name : image_names) {
@@ -73,11 +81,24 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
   }
 }
 
-void LoadImages(const string &image_folder, ImgSetDescr *imgs, vector<string> *names) {
-  auto filenames = list_files(image_folder, {".png", ".jpg", ".bmp", ".tiff", ".tif"});
-  if (names)
-    *names = filenames;
-  LoadImages(filenames, imgs);
+std::vector<std::string> ImageList(const std::string& image_folder,
+                                   const std::vector<std::string> &supported_extensions) {
+  std::vector<std::string> image_names;
+  const string image_list = image_folder  + "/image_list.txt";
+  std::ifstream file(image_list);
+  if (file.is_open()) {
+    std::string filename;
+    while (file >> filename) {
+      DALI_ENFORCE(!filename.empty());
+      std::string full_path = image_folder + "/" + filename;
+      if (is_supported_extension(filename, supported_extensions) && !is_empty_file(full_path)) {
+        image_names.push_back(full_path);
+      }
+    }
+    return image_names;
+  }
+
+  return list_files(image_folder, supported_extensions);
 }
 
 void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c) {

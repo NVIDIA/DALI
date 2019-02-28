@@ -60,9 +60,8 @@ class DALITest : public ::testing::Test {
  public:
   inline void SetUp() override {
     rand_gen_.seed(time(nullptr));
-    LoadImages(image_folder, &jpegs_, &jpeg_names_);
-    LoadImages(image_folder + "/png", &png_, &png_names_);
-    LoadImages(image_folder + "/tiff", &tiff_, &tiff_names_);
+    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    LoadImages(jpeg_names_, &jpegs_);
   }
 
   inline void TearDown() override {

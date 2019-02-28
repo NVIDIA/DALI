@@ -31,6 +31,29 @@ namespace dali {
                                            // Use "" to make the output in stdout
 #endif
 
+namespace images {
+
+// TODO(janton): DALI-582 Using this order, breaks some tests
+// ImageList(image_folder, {".jpg"})
+const vector<string> jpeg_test_images = {
+  image_folder + "/420.jpg",
+  image_folder + "/422.jpg",
+  image_folder + "/440.jpg",
+  image_folder + "/444.jpg",
+  image_folder + "/gray.jpg",
+  image_folder + "/411.jpg",
+  image_folder + "/411-non-multiple-4-width.jpg",
+  image_folder + "/420-odd-height.jpg",
+  image_folder + "/420-odd-width.jpg",
+  image_folder + "/420-odd-both.jpg",
+  image_folder + "/422-odd-width.jpg"
+};
+
+const vector<string> png_test_images = ImageList(image_folder + "/png", {".png"});
+const vector<string> tiff_test_images = ImageList(image_folder + "/tiff", {".tiff", ".tif"});
+
+}  // namespace images
+
 typedef enum {            // Checking:
   t_checkDefault    = 0,  //    combined vectors (all images, all colors)
   t_checkColorComp  = 1,  //    colors separately
@@ -133,20 +156,20 @@ class DALISingleOpTest : public DALITest {
     const auto flags = GetImageLoadingFlags();
 
     if (flags & t_loadJPEGs) {
-      LoadImages(image_folder, &jpegs_);
+      LoadImages(images::jpeg_test_images, &jpegs_);
       if (flags & t_decodeJPEGs)
         DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
     }
 
     if (flags & t_loadPNGs) {
-      LoadImages(image_folder + "/png", &png_);
+      LoadImages(images::png_test_images, &png_);
 
       if (flags & t_decodePNGs)
         DecodeImages(img_type_, png_, &png_decoded_, &png_dims_);
     }
 
     if (flags & t_loadTiffs) {
-      LoadImages(image_folder + "/tiff", &tiff_);
+      LoadImages(images::tiff_test_images, &tiff_);
 
       if (flags & t_decodeTiffs) {
         DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
