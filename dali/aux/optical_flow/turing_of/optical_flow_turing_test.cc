@@ -62,16 +62,18 @@ TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
   float *outcuda;
   size_t inpitch;
 
-  size_t inwidth=200, inheight=50;
-  ASSERT_EQ(test_data.size(), inwidth*inheight) << "Provided dims don't match with data size";
+  size_t inwidth = 200, inheight = 50;
+  ASSERT_EQ(test_data.size(), inwidth * inheight) << "Provided dims don't match with data size";
 
-  CUDA_CALL(cudaMallocPitch(&incuda,  &inpitch, inwidth*sizeof(int16_t), inheight));
-  CUDA_CALL(cudaMemcpy2D(incuda, inpitch, test_data.data(), inwidth*sizeof(int16_t), inwidth*sizeof(int16_t), inheight, cudaMemcpyDefault));
+  CUDA_CALL(cudaMallocPitch(&incuda, &inpitch, inwidth * sizeof(int16_t), inheight));
+  CUDA_CALL(cudaMemcpy2D(incuda, inpitch, test_data.data(), inwidth * sizeof(int16_t),
+                         inwidth * sizeof(int16_t), inheight, cudaMemcpyDefault));
   CUDA_CALL(cudaMallocManaged(&outcuda, ref_data.size() * sizeof(float)));
-  kernel::DecodeFlowComponents((int16_t*)incuda, outcuda, inpitch/sizeof(int16_t), inwidth, inheight);
+  kernel::DecodeFlowComponents(reinterpret_cast<int16_t *> (incuda), outcuda,
+                               inpitch / sizeof(int16_t), inwidth, inheight);
   CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {
-    EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon) << "Failed on idx: "<<i;
+    EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon) << "Failed on idx: " << i;
   }
   CUDA_CALL(cudaFree(incuda));
   CUDA_CALL(cudaFree(outcuda));

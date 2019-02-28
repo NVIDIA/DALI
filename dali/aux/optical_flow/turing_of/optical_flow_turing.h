@@ -22,9 +22,12 @@ namespace dali {
 namespace optical_flow {
 namespace kernel {
 
-DLL_PUBLIC void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width, size_t num_values);
+DLL_PUBLIC void
+DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
+                     size_t num_values);
 
 constexpr size_t kFractionLength = 5;
+
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
   constexpr float precision = 1.0f / (1 << kFractionLength);
