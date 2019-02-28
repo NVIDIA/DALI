@@ -83,6 +83,7 @@ class DLL_PUBLIC Executor {
 
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb);
 
+  template <typename T>
   friend class ExecutorTest;
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);

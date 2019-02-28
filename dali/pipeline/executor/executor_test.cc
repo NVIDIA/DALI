@@ -12,12 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <gtest/gtest.h>
+
 #include "dali/test/dali_test_decoder.h"
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/pipelined_executor.h"
+#include "dali/pipeline/executor/async_pipelined_executor.h"
 
 namespace dali {
 
+template <typename ExecutorToTest>
 class ExecutorTest : public GenericDecoderTest<RGB> {
  protected:
+  template <typename... T>
+  std::unique_ptr<ExecutorToTest> GetExecutor(T&&... args) {
+    return std::unique_ptr<ExecutorToTest>(new ExecutorToTest(std::forward<T>(args)...));
+  }
+
   uint32_t GetImageLoadingFlags() const override {
     return t_loadJPEGs + t_decodeJPEGs;
   }
@@ -66,8 +78,22 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   int batch_size_, num_threads_ = 1;
 };
 
-TEST_F(ExecutorTest, TestPruneBasicGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+using ExecutorTypes =
+    ::testing::Types<Executor, PipelinedExecutor, AsyncPipelinedExecutor>;
+
+TYPED_TEST_CASE(ExecutorTest, ExecutorTypes);
+
+template <typename ExecutorToTest>
+using ExecutorSyncTest = ExecutorTest<ExecutorToTest>;
+
+using ExecutorSyncTypes =
+    ::testing::Types<Executor, PipelinedExecutor>;
+
+TYPED_TEST_CASE(ExecutorSyncTest, ExecutorSyncTypes);
+
+TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -98,7 +124,7 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
           .AddOutput("data4", "cpu")), "");
 
   vector<string> outputs = {"data3_cont_cpu"};
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Validate the graph - op 3 should
   // have been pruned as its outputs
@@ -138,8 +164,9 @@ TEST_F(ExecutorTest, TestPruneBasicGraph) {
   ASSERT_EQ(node3.spec.Output(0), "data3_cont_cpu");
 }
 
-TEST_F(ExecutorTest, TestPruneMultiple) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestPruneMultiple) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -170,7 +197,7 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
           .AddOutput("data4", "cpu")), "");
 
   vector<string> outputs = {"data1_cont_cpu"};
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Validate the graph - op 2&3 should
   // have been pruned
@@ -201,8 +228,9 @@ TEST_F(ExecutorTest, TestPruneMultiple) {
   ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
 }
 
-TEST_F(ExecutorTest, TestPruneRecursive) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestPruneRecursive) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -233,7 +261,7 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
           .AddOutput("data3", "cpu")), "");
 
   vector<string> outputs = {"data1_cont_cpu"};
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Validate the graph - op 2&3 should
   // have been pruned
@@ -263,8 +291,9 @@ TEST_F(ExecutorTest, TestPruneRecursive) {
   ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
 }
 
-TEST_F(ExecutorTest, TestPruneWholeGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestPruneWholeGraph) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -289,12 +318,13 @@ TEST_F(ExecutorTest, TestPruneWholeGraph) {
           .AddOutput("data3", "cpu")), "");
 
   vector<string> outputs = {"data_that_does_not_exist"};
-  ASSERT_THROW(this->PruneGraph(&exe),
+  ASSERT_THROW(this->PruneGraph(exe.get()),
       std::runtime_error);
 }
 
-TEST_F(ExecutorTest, TestDataSetup) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestDataSetup) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -317,28 +347,28 @@ TEST_F(ExecutorTest, TestDataSetup) {
           .AddOutput("data3", "gpu")), "");
 
   vector<string> outputs = {"data3_gpu"};
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Verify the data has been setup correctly
   for (int i = 0; i < 2; ++i) {
-    auto host_workspaces = this->CPUData(&exe, i);
+    auto host_workspaces = this->CPUData(exe.get(), i);
     ASSERT_EQ(host_workspaces.size(), 1);
     HostWorkspace &hws = host_workspaces[0];
     ASSERT_EQ(hws.NumInput(), 0);
     ASSERT_EQ(hws.NumOutput(), 1);
-    ASSERT_EQ(hws.NumOutputAtIdx(0), batch_size_);
+    ASSERT_EQ(hws.NumOutputAtIdx(0), this->batch_size_);
     ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
 
-    auto mixed_workspaces = this->MixedData(&exe, i);
+    auto mixed_workspaces = this->MixedData(exe.get(), i);
     ASSERT_EQ(mixed_workspaces.size(), 1);
     MixedWorkspace &mws = mixed_workspaces[0];
     ASSERT_EQ(mws.NumInput(), 1);
-    ASSERT_EQ(mws.NumInputAtIdx(0), batch_size_);
+    ASSERT_EQ(mws.NumInputAtIdx(0), this->batch_size_);
     ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
     ASSERT_EQ(mws.NumOutput(), 1);
     ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
 
-    auto device_workspaces = this->GPUData(&exe, i);
+    auto device_workspaces = this->GPUData(exe.get(), i);
     ASSERT_EQ(device_workspaces.size(), 1);
     DeviceWorkspace &dws = device_workspaces[0];
     ASSERT_EQ(dws.NumInput(), 1);
@@ -348,8 +378,9 @@ TEST_F(ExecutorTest, TestDataSetup) {
   }
 }
 
-TEST_F(ExecutorTest, TestRunBasicGraph) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -371,7 +402,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
           .AddOutput("final_images", "cpu")), "");
 
   vector<string> outputs = {"final_images_cpu"};
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Set the data for the external source
   auto *src_op =
@@ -381,19 +412,20 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   this->MakeJPEGBatch(&tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe.RunCPU();
-  exe.RunMixed();
-  exe.RunGPU();
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
 
   DeviceWorkspace ws;
-  exe.Outputs(&ws);
+  exe->Outputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
-TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -416,10 +448,10 @@ TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
 
   vector<string> outputs = {"final_images_cpu"};
   int cb_counter = 0;
-  exe.SetCompletionCallback([&cb_counter]() {
+  exe->SetCompletionCallback([&cb_counter]() {
     ++cb_counter;
   });
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Set the data for the external source
   auto *src_op =
@@ -429,24 +461,26 @@ TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
   this->MakeJPEGBatch(&tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe.RunCPU();
-  exe.RunMixed();
-  exe.RunGPU();
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
 
   DeviceWorkspace ws;
-  exe.Outputs(&ws);
+  exe->Outputs(&ws);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(cb_counter, 1);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
-TEST_F(ExecutorTest, TestPrefetchedExecution) {
+// This test does not work with Async Executors
+TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
   this->SetEps(1.6);
 
-  Executor exe(this->batch_size_, this->num_threads_, 0, 1);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
@@ -475,10 +509,10 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
 
   vector<string> outputs = {"final_images_gpu"};
   int cb_counter = 0;
-  exe.SetCompletionCallback([&cb_counter]() {
+  exe->SetCompletionCallback([&cb_counter]() {
     ++cb_counter;
   });
-  exe.Build(&graph, outputs);
+  exe->Build(&graph, outputs);
 
   // Set the data for the external source
   auto *src_op =
@@ -510,19 +544,19 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
 
   // Run twice without getting the results
   src_op->SetDataSource(tl1);
-  exe.RunCPU();
-  exe.RunMixed();
-  exe.RunGPU();
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
 
   ASSERT_EQ(cb_counter, 1);
   src_op->SetDataSource(tl2);
-  exe.RunCPU();
-  exe.RunMixed();
-  exe.RunGPU();
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
 
   // Verify that both sets of results are correct
   DeviceWorkspace ws;
-  exe.Outputs(&ws);
+  exe->Outputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
@@ -534,7 +568,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
         res1.tensor_shape(i)[1], i);
   }
 
-  exe.Outputs(&ws);
+  exe->Outputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
