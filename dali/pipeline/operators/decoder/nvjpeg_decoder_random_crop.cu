@@ -38,27 +38,4 @@ The cropped image's area will be equal to `A` * original image's area.)code",
       10)
   .AddParent("nvJPEGDecoder");
 
-nvJPEGDecoderRandomCrop::nvJPEGDecoderRandomCrop(const OpSpec& spec)
-  : nvJPEGDecoder(spec) {
-  int64_t seed = spec.GetArgument<int64_t>("seed");
-  int num_attempts = spec.GetArgument<int>("num_attempts");
-
-  std::vector<float> aspect_ratio;
-  GetSingleOrRepeatedArg(spec, &aspect_ratio, "random_aspect_ratio", 2);
-
-  std::vector<float> area;
-  GetSingleOrRepeatedArg(spec, &area, "random_area", 2);
-
-  std::shared_ptr<RandomCropGenerator> random_crop_generator(
-    new RandomCropGenerator(
-      {aspect_ratio[0], aspect_ratio[1]},
-      {area[0], area[1]},
-      seed,
-      num_attempts));
-
-  crop_window_generator_ = std::bind(
-    &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
-    std::placeholders::_1, std::placeholders::_2);
-}
-
 }  // namespace dali

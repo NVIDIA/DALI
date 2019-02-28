@@ -17,12 +17,17 @@
 
 #include <vector>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
+#include "dali/pipeline/operators/crop/slice_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderSlice : public nvJPEGDecoder {
+class nvJPEGDecoderSlice : public nvJPEGDecoder, public SliceAttr {
  public:
-  explicit nvJPEGDecoderSlice(const OpSpec& spec);
+  explicit nvJPEGDecoderSlice(const OpSpec& spec)
+    : nvJPEGDecoder(spec)
+    , SliceAttr(spec)
+  {}
+
   ~nvJPEGDecoderSlice() noexcept(false) override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderSlice);
@@ -30,18 +35,13 @@ class nvJPEGDecoderSlice : public nvJPEGDecoder {
  protected:
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    DataDependentSetup(ws);
+    SliceAttr::ProcessArguments(ws);
     nvJPEGDecoder::Run(ws);
   }
 
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return per_sample_crop_window_generators_[data_idx];
+    return SliceAttr::GetCropWindowGenerator(data_idx);
   }
-
- private:
-  void DataDependentSetup(MixedWorkspace *ws);
-
-  std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 
 }  // namespace dali

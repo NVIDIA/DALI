@@ -21,6 +21,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -31,11 +32,12 @@ namespace dali {
  */
 class CropAttr {
  protected:
-  explicit inline CropAttr(const OpSpec &spec) {
-    const int batch_size = spec.GetArgument<int>("batch_size");
+  explicit inline CropAttr(const OpSpec &spec)
+    : spec__(spec)
+    , batch_size__(spec__.GetArgument<int>("batch_size")) {
     vector<float> cropArgs = {0, 0};
-    if (spec.HasArgument("crop")) {
-      cropArgs = spec.GetRepeatedArgument<float>("crop");
+    if (spec.HasArgument("crop") {
+    	cropArgs = spec__.GetRepeatedArgument<float>("crop");
 
       DALI_ENFORCE(cropArgs[0] >= 0,
         "Crop height must be greater than zero. Received: " +
@@ -45,9 +47,38 @@ class CropAttr {
         "Crop width must be greater than zero. Received: " +
         std::to_string(cropArgs[1]));
     }
+      
+    crop_height_.resize(batch_size__, static_cast<int>(cropArgs[0]));
+    crop_width_.resize(batch_size__, static_cast<int>(cropArgs[1]));
+    crop_x_norm_.resize(batch_size__, 0.0f);
+    crop_y_norm_.resize(batch_size__, 0.0f);
+    crop_window_generators_.resize(batch_size__, {});
+  }
 
-    crop_height_.resize(batch_size, static_cast<int>(cropArgs[0]));
-    crop_width_.resize(batch_size, static_cast<int>(cropArgs[1]));
+  void ProcessArguments(const ArgumentWorkspace *ws) {
+    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      crop_x_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_x", ws, data_idx);
+      crop_y_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_y", ws, data_idx);
+
+      crop_window_generators_[data_idx] =
+        [this, data_idx](int H, int W) {
+          CropWindow crop_window;
+          crop_window.h = crop_height_[data_idx];
+          crop_window.w = crop_width_[data_idx];
+          std::tie(crop_window.y, crop_window.x) =
+            CalculateCropYX(
+              crop_y_norm_[data_idx], crop_x_norm_[data_idx],
+              crop_window.h, crop_window.w,
+              H, W);
+          DALI_ENFORCE(crop_window.IsInRange(H, W));
+          return crop_window;
+        };
+    }
+  }
+
+  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
+    DALI_ENFORCE(data_idx < crop_window_generators_.size());
+    return crop_window_generators_[data_idx];
   }
 
   /**
@@ -67,6 +98,7 @@ class CropAttr {
     return std::make_pair(crop_y, crop_x);
   }
 
+  // TODO(janton) : remove this
   /**
    * @brief Calculate coordinate where the crop starts in pixels.
    *
@@ -90,6 +122,13 @@ class CropAttr {
 
   std::vector<int> crop_height_;
   std::vector<int> crop_width_;
+  std::vector<float> crop_x_norm_;
+  std::vector<float> crop_y_norm_;
+  std::vector<CropWindowGenerator> crop_window_generators_;
+
+ private:
+  OpSpec spec__;
+  std::size_t batch_size__;
 };
 
 }  // namespace dali
