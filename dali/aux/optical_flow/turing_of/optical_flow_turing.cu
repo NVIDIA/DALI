@@ -20,48 +20,29 @@ namespace kernel {
 
 namespace {
 
-constexpr size_t kBlockSize = 256;
+constexpr size_t kBlockSize = 32;
 
 }  // namespace
 
-__global__ void prt(const int16_t* ptr) {
-  for (int i=0;i<100;i++) {
-    printf("%d\t%d\n",i,ptr[i]);
-  }
+
+__global__ void
+DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, size_t width,
+                          size_t height) {
+  size_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  if (x >= width || y >= height) return;
+  size_t inidx = x + pitch * y;
+  size_t outidx = x + width * y;
+  output[outidx] = decode_flow_component(input[inidx]);
 }
 
-void Prt(const int16_t* ptr) {
-  prt<<<1,1>>>(ptr);
-}
 
-
-__global__ void DecodeFlowComponentKernel(const int16_t *input, float *output, size_t n) {
-
-  for (int idx = blockIdx.x * blockDim.x + threadIdx.x;idx<n; idx += blockDim.x * gridDim.x) {
-    output[idx]
-  }
-
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= size) {
-    return;
-  }
-  output[idx] = decode_flow_component(input[idx]);
-}
-
-/**
- *
- * @param input
- * @param output
- * @param pitch width of buffer in bytes
- * @param width
- * @param height
- */
-void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width, size_t height) {
-//  size_t num_blocks = (num_values + kBlockSize - 1) / kBlockSize;
-//  size_t block_size = min(num_values, kBlockSize);
-  size_t num_threads = width;
-  size_t num_blocks = height;
-  DecodeFlowComponentKernel<<<num_blocks, num_threads>>>(input, output, width*height);
+void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
+                          size_t height) {
+  dim3 block_dim(kBlockSize, kBlockSize);
+  dim3 grid_dim(std::ceil(static_cast<float>(width) / kBlockSize),
+                std::ceil(static_cast<float>(height) / kBlockSize));
+  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
 }
 
 }  // namespace kernel
