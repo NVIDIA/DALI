@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_BLOB_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_BLOB_H_
 
+#include <fstream>
 #include <string>
 #include <mutex>
 #include <unordered_map>
@@ -130,25 +131,31 @@ class DecoderCacheBlob {
             if (elem.second.is_cached)
                 images_cached++;
         assert(images_cached <= images_seen());
-        std::cout << "#################### CACHE STATS ####################" << std::endl;
-        std::cout << "cache_size: " << cache_size_ << std::endl;
-        std::cout << "cache_threshold: " << image_size_threshold_ << std::endl;
-        std::cout << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
-        std::cout << "images_seen: " << images_seen() << std::endl;
-        std::cout << "images_cached: " << images_cached << std::endl;
-        std::cout << "images_not_cached: " << images_seen() - images_cached << std::endl;
+        std::string log_file_name = std::getenv("DALI_LOG_FILE");
+        if (log_file_name.empty())
+            log_file_name = "dali.log";
+        std::ofstream log_file;
+        log_file.open(log_file_name.c_str());
+        log_file << "#################### CACHE STATS ####################" << std::endl;
+        log_file << "cache_size: " << cache_size_ << std::endl;
+        log_file << "cache_threshold: " << image_size_threshold_ << std::endl;
+        log_file << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
+        log_file << "images_seen: " << images_seen() << std::endl;
+        log_file << "images_cached: " << images_cached << std::endl;
+        log_file << "images_not_cached: " << images_seen() - images_cached << std::endl;
         for (auto &elem : stats_) {
-            std::cout << "image[" << elem.first
+            log_file << "image[" << elem.first
                     << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
                     << "] decodes[" << elem.second.decodes
                     << "] reads[" << elem.second.reads << "]";
             if (elem.second.is_cached) {
                 Dims dims = GetShape(elem.first);
-                std::cout << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+                log_file << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
             }
-            std::cout << std::endl;
+            log_file << std::endl;
         }
-        std::cout << "#################### END   STATS ####################" << std::endl;
+        log_file << "#################### END   STATS ####################" << std::endl;
+        log_file.close();
     }
 
     inline std::size_t images_seen() const {
