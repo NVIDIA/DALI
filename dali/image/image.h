@@ -35,8 +35,6 @@ static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
 
 DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
 
-using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
-
 class Image {
  public:
   /**

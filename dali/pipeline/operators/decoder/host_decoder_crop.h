@@ -29,15 +29,14 @@ class HostDecoderCrop : public HostDecoder, protected CropAttr {
   inline ~HostDecoderCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
 
-  void SetupSharedSampleParams(SampleWorkspace *ws) override;
+  void inline SetupSharedSampleParams(SampleWorkspace *ws) override {
+    CropAttr::ProcessArguments(ws);
+  }
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return per_sample_crop_window_generators_[data_idx];
+    return CropAttr::GetCropWindowGenerator(data_idx);
   }
-
- private:
-  std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 
 }  // namespace dali
