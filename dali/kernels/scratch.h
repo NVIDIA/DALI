@@ -103,10 +103,27 @@ class ScratchpadAllocator {
  public:
   static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
 
+  struct AllocPolicy {
+    float GrowthRatio = 2;
+    float Margin = 0.1;
+  };
+
+  AllocPolicy &Policy(AllocType type) {
+    return buffers_[static_cast<int>(type)].policy;
+  }
+
+  const AllocPolicy &Policy(AllocType type) const {
+    return buffers_[static_cast<int>(type)].policy;
+  }
+
   /// @brief Releases any storage allocated by calls to `Reserve`.
   /// @remarks Scratchpad returned by `GetScratchpad` is invalid after this call.
   void Free() {
-    buffers_ = {};
+    for (auto &buffer : buffers_) {
+      buffer.mem.reset();
+      buffer.capacity = 0;
+      buffer.padding = 0;
+    }
   }
 
   void Reserve(std::array<size_t, NumAllocTypes> sizes) {
@@ -121,13 +138,22 @@ class ScratchpadAllocator {
   void Reserve(AllocType type, size_t size) {
     size_t index = static_cast<size_t>(type);
     auto &buf = buffers_[index];
+
+    constexpr size_t alignment = 64;
+    size_t new_capacity = buf.capacity;
     if (buf.capacity < size) {
-      constexpr size_t alignment = 64;
-      buf.mem = memory::alloc_unique<char>(type, size + alignment);
+      new_capacity = buf.capacity * buf.policy.GrowthRatio;
+      size_t size_with_margin = size * (1 + buf.policy.Margin);
+      if (size_with_margin > new_capacity)
+        new_capacity = size_with_margin;
+    }
+
+    if (new_capacity != buf.capacity) {
+      buf.mem = memory::alloc_unique<char>(type, new_capacity + alignment);
       uintptr_t ptr = reinterpret_cast<uintptr_t>(buf.mem.get());
       size_t padding = (alignment-1) & (-ptr);
-      buffers_[index].capacity = size + alignment - padding;
-      buffers_[index].padding = padding;
+      buf.capacity = new_capacity + alignment - padding;
+      buf.padding = padding;
     }
   }
 
@@ -147,6 +173,7 @@ class ScratchpadAllocator {
   struct Buffer {
     memory::KernelUniquePtr<char> mem;
     size_t capacity = 0, padding = 0;
+    AllocPolicy policy = {};
   };
   std::array<Buffer, NumAllocTypes> buffers_;
 };
