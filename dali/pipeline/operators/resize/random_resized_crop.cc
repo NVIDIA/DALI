@@ -132,11 +132,11 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws)
 
   for (attempt = 0; attempt < num_attempts_; ++attempt) {
     if (TryCrop(H, W,
-                &params_->aspect_ratio_dis[id],
-                &params_->area_dis[id],
-                &params_->uniform[id],
-                &params_->rand_gens[id],
-                &crop)) {
+                params_->aspect_ratio_dis[id],
+                params_->area_dis[id],
+                params_->uniform[id],
+                params_->rand_gens[id],
+                crop)) {
       break;
     }
   }

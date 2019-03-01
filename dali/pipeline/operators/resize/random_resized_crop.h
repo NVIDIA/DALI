@@ -63,33 +63,47 @@ class RandomResizedCrop : public Operator<Backend> {
   void InitParams(const OpSpec &spec);
 
   bool TryCrop(int H, int W,
-               std::uniform_real_distribution<float> *ratio_dis,
-               std::uniform_real_distribution<float> *area_dis,
-               std::uniform_real_distribution<float> *uniform,
-               std::mt19937 *gen,
-               CropInfo * crop) {
-      float scale  = (*area_dis)(*gen);
-      float ratio  = (*ratio_dis)(*gen);
-      float swap   = (*uniform)(*gen);
+               std::uniform_real_distribution<float> &ratio_dis,
+               std::uniform_real_distribution<float> &area_dis,
+               std::uniform_real_distribution<float> &uniform,
+               std::mt19937 &gen,
+               CropInfo &crop) {
+      float scale = area_dis(gen);
+      bool swap   = uniform(gen) < 0.5f;
 
       size_t original_area = H * W;
       float target_area = scale * original_area;
 
-      int w = static_cast<int>(round(sqrtf(target_area * ratio)));
-      int h = static_cast<int>(round(sqrtf(target_area / ratio)));
 
-      if (swap < 0.5f) {
-        std::swap(w, h);
+      int w, h;
+
+      // Uniform distribution is not suitable for aspect ratios. Here, we randomly
+      // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
+      // reciprocal aspect ratio ranges, such as 3/4..4/3
+      if (swap) {
+        auto param = ratio_dis.param();
+        decltype(param) inv_param(1/param.b(), 1/param.a());
+        float ratio = ratio_dis(gen, inv_param);
+        w = static_cast<int>(
+            std::roundf(sqrtf(target_area / ratio)));
+        h = static_cast<int>(
+            std::roundf(sqrtf(target_area * ratio)));
+      } else {
+        float ratio = ratio_dis(gen);
+        w = static_cast<int>(
+            std::roundf(sqrtf(target_area * ratio)));
+        h = static_cast<int>(
+            std::roundf(sqrtf(target_area / ratio)));
       }
 
       if (w <= W && h <= H) {
-        float rand_x = (*uniform)(*gen);
-        float rand_y = (*uniform)(*gen);
+        float rand_x = uniform(gen);
+        float rand_y = uniform(gen);
 
-        crop->w = w;
-        crop->h = h;
-        crop->x = static_cast<int>(rand_x * (W - w));
-        crop->y = static_cast<int>(rand_y * (H - h));
+        crop.w = w;
+        crop.h = h;
+        crop.x = static_cast<int>(rand_x * (W - w));
+        crop.y = static_cast<int>(rand_y * (H - h));
         return true;
       } else {
         return false;

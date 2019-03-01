@@ -39,9 +39,10 @@ class DLL_PUBLIC RandomCropGenerator {
  private:
   CropWindow GenerateCropWindowImpl(int H, int W);
 
-  std::uniform_real_distribution<float> aspect_ratio_dis_;
+  std::uniform_real_distribution<float> aspect_ratio_dis_, inv_aspect_ratio_dis_;
   std::uniform_real_distribution<float> area_dis_;
   std::uniform_real_distribution<float> uniform_;
+  std::bernoulli_distribution coin_flip_;
   std::mt19937 rand_gen_;
   int64_t seed_;
   int num_attempts_;
