@@ -90,6 +90,7 @@ class Tensor : public Buffer<Backend> {
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
+    this->SetSourceInfo(other.GetSourceInfo());
     this->ResizeLike(other);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
@@ -104,6 +105,7 @@ class Tensor : public Buffer<Backend> {
     device_ = other.device_id();
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
+    this->SetSourceInfo(other.GetSourceInfo(idx));
     this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);

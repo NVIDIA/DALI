@@ -34,6 +34,9 @@ if (BUILD_TEST)
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_slice_test.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop_test.cc")
+    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop_test.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/decoder_cache_blob_test.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/decoder_cache_largest_only_test.cc"
+    )
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 endif()

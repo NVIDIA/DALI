@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
 
 namespace dali {
@@ -27,7 +28,8 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
       R"code(The color space of output image.)code",
       DALI_RGB)
   .AddOptionalArg("use_batched_decode",
-      R"code(Use nvJPEG's batched decoding API.)code", false)
+      R"code(Use nvJPEG's batched decoding API.)code",
+      false)
   .AddOptionalArg("device_memory_padding",
       R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
@@ -37,7 +39,26 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
       R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024);
+      16*1024*1024)
+  .AddOptionalArg("cache_size",
+      R"code(Total size of the decoder cache in megabytes. When provided, decoded
+images bigger than `cache_threshold` will be cached in memory.)code",
+      0)
+  .AddOptionalArg("cache_threshold",
+      R"code(Size threshold (in bytes) for images to be cached.)code",
+      0)
+  .AddOptionalArg("cache_debug",
+      R"code(Print debug information about decoder cache.)code",
+      false)
+  .AddOptionalArg("cache_type",
+      R"code(Choose cache type:
+`threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
+Warm up time for `threshold` policy is 1 epoch.
+`largest`: Store largest images that can fit the cache.
+Warm up time for `largest` policy is 2 epochs
+default: `largest`.
+To take advantage of caching, it is recommended to use the option `stick_to_shard=True` with
+the reader operators, to limit the amount of unique images seen by the decoder in a multi node environment)code",
+      std::string());
 
 }  // namespace dali
-
