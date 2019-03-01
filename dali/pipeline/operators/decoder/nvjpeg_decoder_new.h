@@ -91,9 +91,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
+      NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
+    NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
