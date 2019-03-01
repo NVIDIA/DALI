@@ -28,7 +28,7 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(int num_threads, int hybrid_huffman_threshold = 1000*1000) {
+  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold = 1000*1000) {
     hybrid_huffman_threshold_ = hybrid_huffman_threshold;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
@@ -43,8 +43,9 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_tiffImgType , 0.7);
   }
+
  private:
-  int hybrid_huffman_threshold_ = 1000*1000;
+  unsigned int hybrid_huffman_threshold_ = 1000*1000;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -76,19 +77,19 @@ TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4T) {
 ***********************************************/
 // H*W never > threshold so host huffman decoder is always chosen
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecodeHostHuffman) {
-  this->JpegTestDecode(1, std::numeric_limits<int>::max());
+  this->JpegTestDecode(1, std::numeric_limits<unsigned int>::max());
 }
 
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2THostHuffman) {
-  this->JpegTestDecode(2, std::numeric_limits<int>::max());
+  this->JpegTestDecode(2, std::numeric_limits<unsigned int>::max());
 }
 
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3THostHuffman) {
-  this->JpegTestDecode(3, std::numeric_limits<int>::max());
+  this->JpegTestDecode(3, std::numeric_limits<unsigned int>::max());
 }
 
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THostHuffman) {
-  this->JpegTestDecode(4, std::numeric_limits<int>::max());
+  this->JpegTestDecode(4, std::numeric_limits<unsigned int>::max());
 }
 
 /***********************************************
