@@ -78,8 +78,8 @@ class DecoderCacheBlob {
         DALI_ENFORCE(it != cache_.end(),
             "cache entry [" + image_key + "] not found");
         const auto &data = it->second.data;
-        assert(data.data() < tail_);
-        assert(data.data() + data.size() <= tail_);
+        DALI_ENFORCE(data.data() < tail_);
+        DALI_ENFORCE(data.data() + data.size() <= tail_);
         MemCopy(destination_buffer,
                 data.data(),
                 data.size(),
@@ -123,6 +123,8 @@ class DecoderCacheBlob {
     }
 
  protected:
+
+
     inline void print_stats() const {
         static std::mutex stats_mutex;
         std::lock_guard<std::mutex> lock(stats_mutex);
@@ -130,32 +132,31 @@ class DecoderCacheBlob {
         for (auto &elem : stats_)
             if (elem.second.is_cached)
                 images_cached++;
-        assert(images_cached <= images_seen());
-        std::string log_file_name = std::getenv("DALI_LOG_FILE");
-        if (log_file_name.empty())
-            log_file_name = "dali.log";
+        DALI_ENFORCE(images_cached <= images_seen());
+        const char* log_filename = std::getenv("DALI_LOG_FILE");
         std::ofstream log_file;
-        log_file.open(log_file_name.c_str());
-        log_file << "#################### CACHE STATS ####################" << std::endl;
-        log_file << "cache_size: " << cache_size_ << std::endl;
-        log_file << "cache_threshold: " << image_size_threshold_ << std::endl;
-        log_file << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
-        log_file << "images_seen: " << images_seen() << std::endl;
-        log_file << "images_cached: " << images_cached << std::endl;
-        log_file << "images_not_cached: " << images_seen() - images_cached << std::endl;
+        if (log_filename)
+            log_file.open(log_filename);
+        std::ostream& out = log_filename ? log_file : std::cout;
+        out << "#################### CACHE STATS ####################" << std::endl;
+        out << "cache_size: " << cache_size_ << std::endl;
+        out << "cache_threshold: " << image_size_threshold_ << std::endl;
+        out << "is_cache_full: " << static_cast<int>(is_full) << std::endl;
+        out << "images_seen: " << images_seen() << std::endl;
+        out << "images_cached: " << images_cached << std::endl;
+        out << "images_not_cached: " << images_seen() - images_cached << std::endl;
         for (auto &elem : stats_) {
-            log_file << "image[" << elem.first
+            out << "image[" << elem.first
                     << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
                     << "] decodes[" << elem.second.decodes
                     << "] reads[" << elem.second.reads << "]";
             if (elem.second.is_cached) {
                 Dims dims = GetShape(elem.first);
-                log_file << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+                out << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
             }
-            log_file << std::endl;
+            out << std::endl;
         }
-        log_file << "#################### END   STATS ####################" << std::endl;
-        log_file.close();
+        out << "#################### END   STATS ####################" << std::endl;
     }
 
     inline std::size_t images_seen() const {
