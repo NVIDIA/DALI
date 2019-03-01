@@ -26,6 +26,10 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .AddOptionalArg("output_type",
       R"code(The color space of output image.)code",
       DALI_RGB)
+  .AddOptionalArg("hybrid_huffman_threshold",
+      R"code(Images with size H*W greater than this threshold will use the nvJPEG hybrid huffman decoder.
+Smaller images will use the nvJPEG host huffman decoder.)code",
+      1000*1000)
   .AddOptionalArg("device_memory_padding",
       R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
