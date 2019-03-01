@@ -20,6 +20,8 @@
 
 namespace dali {
 
+#if DALI_DEBUG
+
 namespace {
 
 void signal_handler(int sig) {
@@ -36,10 +38,14 @@ void subscribe_signals() {
 
 }  // namespace
 
+#endif
+
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator) {
+#if DALI_DEBUG
   subscribe_signals();
+#endif
   InitializeBackends(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
 }
 
