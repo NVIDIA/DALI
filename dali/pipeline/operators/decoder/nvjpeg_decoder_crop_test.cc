@@ -25,7 +25,7 @@ class nvJpegDecoderCropTest : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator() const override {
-    return [] (int H, int W) {
+    return [this] (int H, int W) {
       CropWindow crop_window;
       crop_window.h = crop_H;
       crop_window.w = crop_W;
@@ -50,8 +50,8 @@ TYPED_TEST(nvJpegDecoderCropTest, PngDecode) {
 }
 
 TYPED_TEST(nvJpegDecoderCropTest, TiffDecode) {
-  crop_H = 100;
-  crop_W = 90;
+  this->crop_H = 100;
+  this->crop_W = 90;
   this->Run(t_tiffImgType);
 }
 
