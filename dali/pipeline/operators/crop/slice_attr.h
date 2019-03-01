@@ -95,20 +95,20 @@ class SliceAttr {
         crop_x_norm_[data_idx] = crop_x_norm;
         crop_y_norm_[data_idx] = crop_y_norm;
 
-        DALI_ENFORCE(crop_x_norm + crop_w < 1.0f,
+        DALI_ENFORCE(crop_x_norm + crop_w <= 1.0f,
             "crop_x[" + std::to_string(crop_x_norm) + "] + crop_width["
-            + std::to_string(crop_w) + "] must be < 1.0f");
-        DALI_ENFORCE(crop_y_norm + crop_h < 1.0f,
+            + std::to_string(crop_w) + "] must be <= 1.0f");
+        DALI_ENFORCE(crop_y_norm + crop_h <= 1.0f,
             "crop_y[" + std::to_string(crop_y_norm) + "] + crop_height["
-            + std::to_string(crop_h) + "] must be < 1.0f");
+            + std::to_string(crop_h) + "] must be <= 1.0f");
 
         crop_window_generators_[data_idx] =
             [this, data_idx](int H, int W) {
                 CropWindow crop_window;
-                crop_window.h = crop_height_[data_idx] * H;
-                crop_window.w = crop_width_[data_idx] * W;
                 crop_window.y = crop_y_norm_[data_idx] * H;
                 crop_window.x = crop_x_norm_[data_idx] * W;
+                crop_window.h = (crop_height_[data_idx] + crop_y_norm_[data_idx]) * H - crop_window.y;
+                crop_window.w = (crop_width_[data_idx] + crop_x_norm_[data_idx]) * W - crop_window.x;
                 DALI_ENFORCE(crop_window.IsInRange(H, W));
                 return crop_window;
             };
