@@ -35,7 +35,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   explicit nvJPEGDecoderNew(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
-    hybrid_huffman_threshold_(spec.GetArgument<int>("hybrid_huffman_threshold")),
+    hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     output_info_(batch_size_),
     image_decoders_(batch_size_),
     image_states_(batch_size_),
@@ -284,7 +284,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   // output colour format
   DALIImageType output_image_type_;
 
-  int hybrid_huffman_threshold_;
+  unsigned hybrid_huffman_threshold_;
 
   // Common
   // Storage for per-image info
