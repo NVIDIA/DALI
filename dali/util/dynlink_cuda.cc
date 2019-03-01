@@ -27,6 +27,7 @@ tcuInit                               *_cuInit;
 tcuDriverGetVersion                   *cuDriverGetVersion;
 tcuGetErrorString                     *cuGetErrorString;
 tcuGetErrorName                       *cuGetErrorName;
+tcuPointerGetAttribute                *cuPointerGetAttribute;
 tcuDeviceGet                          *cuDeviceGet;
 tcuDeviceGetCount                     *cuDeviceGetCount;
 tcuDeviceGetName                      *cuDeviceGetName;
@@ -322,6 +323,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     GET_PROC(cuDeviceGetProperties);
     GET_PROC(cuDeviceGetAttribute);
     GET_PROC(cuCtxDestroy);
+    GET_PROC(cuPointerGetAttribute);
     GET_PROC(cuCtxAttach);
     GET_PROC(cuCtxDetach);
     GET_PROC(cuCtxPushCurrent);
