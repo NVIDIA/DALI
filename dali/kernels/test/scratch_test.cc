@@ -142,8 +142,9 @@ TEST(Scratch, ScratchpadAllocator) {
   }
   auto s = sa.GetScratchpad();
   for (size_t i = 0; i < N; i++) {
+    float margin = sa.Policy(static_cast<AllocType>(i)).Margin;
     EXPECT_GE(s.allocs[i].total(), sizes[i]) << "Memory block smaller than requested";
-    EXPECT_LE(s.allocs[i].total(), sizes[i] + 64) << "Too much padding";
+    EXPECT_LE(s.allocs[i].total(), sizes[i] * (1 + margin) + 64) << "Too much padding";
     EXPECT_EQ(s.allocs[i].used(), 0) << "New scratchpad should be unused";
   }
 }

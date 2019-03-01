@@ -186,7 +186,8 @@ class ResamplingTest : public ::testing::Test {
     scale_y_ = sy;
     out_w_ = sx * InputWidth();
     out_h_ = sy * InputHeight();
-    fixed_size_ = false;  }
+    fixed_size_ = false;
+  }
   void SetBlockConfig(BlockConfig config) {
     block_config_ = config;
   }
