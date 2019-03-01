@@ -10,7 +10,9 @@ test_body() {
     # test code
     nosetests --verbose test_pipeline.py
     nosetests --verbose test_plugin_manager.py
+
     python test_random_bbcrop.py -i 300
+    python test_RN50_data_pipeline.py -i 10
 
     # DALI TF tests
 

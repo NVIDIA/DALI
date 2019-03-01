@@ -49,7 +49,7 @@ class CommonPipeline(Pipeline):
         images = self.decode_gpu(inputs)
         images = self.res(images)
         output = self.cmnp(images.gpu(), mirror=rng)
-        return (images, labels)
+        return (output, labels)
 
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
@@ -79,13 +79,13 @@ class Caffe2ReadPipeline(CommonPipeline):
         return self.base_define_graph(images, labels)
 
 class FileReadPipeline(CommonPipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
-            super(FileReadPipeline, self).__init__(batch_size, num_threads, device_id, prefetch, fp16, nhwc)
-            self.input = ops.FileReader(file_root = data_paths[0], shard_id = device_id, num_shards = num_gpus)
+    def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
+        super(FileReadPipeline, self).__init__(batch_size, num_threads, device_id, prefetch, fp16, nhwc)
+        self.input = ops.FileReader(file_root = data_paths[0], shard_id = device_id, num_shards = num_gpus)
 
-        def define_graph(self):
-            images, labels = self.input(name="Reader")
-            return self.base_define_graph(images, labels)
+    def define_graph(self):
+        images, labels = self.input(name="Reader")
+        return self.base_define_graph(images, labels)
 
 class TFRecordPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
@@ -94,8 +94,8 @@ class TFRecordPipeline(CommonPipeline):
         tfrecord_idx = sorted(glob.glob(data_paths[1]))
         self.input = ops.TFRecordReader(path = tfrecord,
                                         index_path = tfrecord_idx,
-					shard_id = device_id,
-					num_shards = num_gpus,
+                                        shard_id = device_id,
+                                        num_shards = num_gpus,
                                         features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                     "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
                                         })
@@ -133,6 +133,8 @@ parser.add_argument('--fp16', action='store_true',
                     help='Run fp16 pipeline')
 parser.add_argument('--nhwc', action='store_true',
                     help='Use NHWC data instead of default NCHW')
+parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
+                    help='Number of iterations to run (default: -1 - whole data set)')
 args = parser.parse_args()
 
 N = args.gpus             # number of GPUs
@@ -173,17 +175,20 @@ for pipe_name in test_data.keys():
                            num_gpus=N, data_paths=data_set, prefetch=PREFETCH, fp16=FP16, nhwc=NHWC) for n in range(N)]
         [pipe.build() for pipe in pipes]
 
-        iters = pipes[0].epoch_size("Reader")
-        assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
-        iters_tmp = iters
-        iters = iters // BATCH_SIZE
-        if iters_tmp != iters * BATCH_SIZE:
-            iters += 1
-        iters_tmp = iters
+        if args.iters < 0:
+            iters = pipes[0].epoch_size("Reader")
+            assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
+            iters_tmp = iters
+            iters = iters // BATCH_SIZE
+            if iters_tmp != iters * BATCH_SIZE:
+                iters += 1
+            iters_tmp = iters
 
-        iters = iters // N
-        if iters_tmp != iters * N:
-            iters += 1
+            iters = iters // N
+            if iters_tmp != iters * N:
+                iters += 1
+        else:
+            iters = args.iters
 
         print ("RUN {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
         print (data_set)
