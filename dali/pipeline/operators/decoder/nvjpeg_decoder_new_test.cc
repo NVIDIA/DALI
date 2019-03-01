@@ -28,7 +28,7 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold = 1000*1000) {
+  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold = 450*450) {
     hybrid_huffman_threshold_ = hybrid_huffman_threshold;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
@@ -53,7 +53,7 @@ TYPED_TEST_CASE(nvjpegDecodeNewTest, Types);
 
 
 /***********************************************
-************ Default JPEG decode **************
+**** Default JPEG decode (mix host/hybrid) *****
 ***********************************************/
 
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode) {
