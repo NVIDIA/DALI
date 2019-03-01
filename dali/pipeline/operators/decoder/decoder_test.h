@@ -22,7 +22,7 @@
 namespace dali {
 
 template <typename ImgType>
-class HostDecodeTestBase : public GenericDecoderTest<ImgType> {
+class DecodeTestBase : public GenericDecoderTest<ImgType> {
  public:
   void SetUp() override {
     GenericDecoderTest<ImgType>::SetUp();

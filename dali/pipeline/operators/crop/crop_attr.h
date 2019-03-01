@@ -36,7 +36,7 @@ class CropAttr {
     : spec__(spec)
     , batch_size__(spec__.GetArgument<int>("batch_size")) {
     vector<float> cropArgs = {0, 0};
-    if (spec.HasArgument("crop") {
+    if (spec.HasArgument("crop")) {
     	cropArgs = spec__.GetRepeatedArgument<float>("crop");
 
       DALI_ENFORCE(cropArgs[0] >= 0,
@@ -47,7 +47,7 @@ class CropAttr {
         "Crop width must be greater than zero. Received: " +
         std::to_string(cropArgs[1]));
     }
-      
+
     crop_height_.resize(batch_size__, static_cast<int>(cropArgs[0]));
     crop_width_.resize(batch_size__, static_cast<int>(cropArgs[1]));
     crop_x_norm_.resize(batch_size__, 0.0f);
