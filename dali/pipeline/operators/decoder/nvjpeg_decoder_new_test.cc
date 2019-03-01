@@ -23,11 +23,13 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
     return OpSpec("nvJPEGDecoderNew")
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
+      .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
       .AddInput("encoded", "cpu")
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(int num_threads) {
+  void JpegTestDecode(int num_threads, int hybrid_huffman_threshold = 1000*1000) {
+    hybrid_huffman_threshold_ = hybrid_huffman_threshold;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
   }
@@ -41,10 +43,17 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_tiffImgType , 0.7);
   }
+ private:
+  int hybrid_huffman_threshold_ = 1000*1000;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_CASE(nvjpegDecodeNewTest, Types);
+
+
+/***********************************************
+************ Default JPEG decode **************
+***********************************************/
 
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode) {
   this->JpegTestDecode(1);
@@ -62,6 +71,49 @@ TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4T) {
   this->JpegTestDecode(4);
 }
 
+/***********************************************
+******** Host huffman only JPEG decode *********
+***********************************************/
+// H*W never > threshold so host huffman decoder is always chosen
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecodeHostHuffman) {
+  this->JpegTestDecode(1, std::numeric_limits<int>::max());
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2THostHuffman) {
+  this->JpegTestDecode(2, std::numeric_limits<int>::max());
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3THostHuffman) {
+  this->JpegTestDecode(3, std::numeric_limits<int>::max());
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THostHuffman) {
+  this->JpegTestDecode(4, std::numeric_limits<int>::max());
+}
+
+/***********************************************
+******* Hybrid huffman only JPEG decode ********
+***********************************************/
+// H*W always > threshold so hybrid huffman decoder is always chosen
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecodeHybridHuffman) {
+  this->JpegTestDecode(1, 0);
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2THybridHuffman) {
+  this->JpegTestDecode(2, 0);
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3THybridHuffman) {
+  this->JpegTestDecode(3, 0);
+}
+
+TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THybridHuffman) {
+  this->JpegTestDecode(4, 0);
+}
+
+/***********************************************
+************* PNG fallback decode **************
+***********************************************/
 TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode) {
   this->PngTestDecode(1);
 }
@@ -78,6 +130,9 @@ TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode4T) {
   this->PngTestDecode(4);
 }
 
+/***********************************************
+************ TIFF fallback decode **************
+***********************************************/
 TYPED_TEST(nvjpegDecodeNewTest, TestSingleTiffDecode) {
   this->TiffTestDecode(1);
 }
