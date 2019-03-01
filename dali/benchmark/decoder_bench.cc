@@ -139,7 +139,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State&
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
       .AddArg("use_batched_decode", false)
-      .AddArg("cache_size", 1000000000)
+      .AddArg("cache_size", 1000)  // megabytes
       .AddArg("cache_threshold", 250*250*3)
       .AddArg("cache_type", "threshold")
       .AddArg("cache_debug", true)
@@ -164,7 +164,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& s
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
       .AddArg("use_batched_decode", false)
-      .AddArg("cache_size", 1000000000)
+      .AddArg("cache_size", 1000)  // megabytes
       .AddArg("cache_type", "largest")
       .AddArg("cache_debug", true)
       .AddInput("raw_jpegs", "cpu")

@@ -30,7 +30,7 @@ namespace dali {
 class DecoderCacheLargestOnly : public DecoderCacheBlob{
  public:
     inline DecoderCacheLargestOnly(std::size_t cache_size,
-                                   bool stats_enabled = true )
+                                   bool stats_enabled = false )
         : DecoderCacheBlob(cache_size, 0, stats_enabled) {
     }
 

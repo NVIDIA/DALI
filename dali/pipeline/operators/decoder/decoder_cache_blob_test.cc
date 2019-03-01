@@ -33,7 +33,7 @@ struct DecoderCacheBlobTest : public ::testing::Test {
   }
 
   void SetUpImpl(std::size_t cache_size, std::size_t image_size_threshold = 0) {
-    cache_.reset(new DecoderCacheBlob(cache_size, image_size_threshold));
+    cache_.reset(new DecoderCacheBlob(cache_size, image_size_threshold, false));
   }
 
   std::unique_ptr<DecoderCacheBlob> cache_;
@@ -68,6 +68,28 @@ TEST_F(DecoderCacheBlobTest, ErrorTooSmallCacheSize) {
   SetUpImpl(kValue1.size()-1);
   cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
   EXPECT_FALSE(cache_->IsCached(kKey1));
+}
+
+TEST_F(DecoderCacheBlobTest, AllocateMoreThan2000MB) {
+  std::size_t one_mb = 1024*1024;
+  std::size_t size = 3l*1024*one_mb;
+  SetUpImpl(size);
+  std::vector<uint8_t> data_1MB(one_mb, 0xFF);
+  std::size_t N = size / one_mb;
+  for (std::size_t i = 0; i < N + 10; i++) {
+    cache_->Add(
+      std::to_string(i) + "_mb",
+      &data_1MB[0], one_mb,
+      {static_cast<Index>(one_mb), 1, 1});
+  }
+
+  for (std::size_t i = 0; i < N; i++) {
+    EXPECT_TRUE(cache_->IsCached(std::to_string(i) + "_mb"));
+  }
+
+  for (std::size_t i = N; i < N + 10; i++) {
+    EXPECT_FALSE(cache_->IsCached(std::to_string(i) + "_mb"));
+  }
 }
 
 }  // namespace testing

@@ -41,7 +41,7 @@ This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
       16*1024*1024)
   .AddOptionalArg("cache_size",
-      R"code(Total size of the decoder cache in bytes. When provided, decoded
+      R"code(Total size of the decoder cache in megabytes. When provided, decoded
 images bigger than `cache_threshold` will be cached in memory.)code",
       0)
   .AddOptionalArg("cache_threshold",
@@ -53,8 +53,12 @@ images bigger than `cache_threshold` will be cached in memory.)code",
   .AddOptionalArg("cache_type",
       R"code(Choose cache type:
 `threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
+Warm up time for `threshold` policy is 1 epoch.
 `largest`: Store largest images that can fit the cache.
-default: `largest`)code",
+Warm up time for `largest` policy is 2 epochs
+default: `largest`.
+To take advantage of caching, it is recommended to use the option `stick_to_shard=True` with
+the reader operators, to limit the amount of unique images seen by the decoder in a multi node environment)code",
       std::string());
 
 }  // namespace dali

@@ -130,8 +130,9 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
       const std::string cache_type = spec.GetArgument<std::string>("cache_type");
-      const std::size_t cache_size = static_cast<std::size_t>(
+      const std::size_t cache_size_mb = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_size"));
+      const std::size_t cache_size = cache_size_mb * 1024 * 1024;
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
       const bool cache_debug = spec.GetArgument<bool>("cache_debug");

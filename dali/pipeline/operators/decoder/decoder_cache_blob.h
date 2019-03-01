@@ -32,7 +32,7 @@ class DecoderCacheBlob {
 
     inline DecoderCacheBlob(std::size_t cache_size,
                             std::size_t image_size_threshold,
-                            bool stats_enabled = true )
+                            bool stats_enabled = false )
         : cache_size_(cache_size)
         , image_size_threshold_(image_size_threshold)
         , stats_enabled_(stats_enabled) {
@@ -123,8 +123,6 @@ class DecoderCacheBlob {
     }
 
  protected:
-
-
     inline void print_stats() const {
         static std::mutex stats_mutex;
         std::lock_guard<std::mutex> lock(stats_mutex);

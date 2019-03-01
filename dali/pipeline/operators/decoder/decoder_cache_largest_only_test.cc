@@ -30,8 +30,8 @@ struct DecoderCacheLargestOnlyTest : public ::testing::Test {
     SetUpImpl((1<<9));
   }
 
-  void SetUpImpl(std::size_t cache_size, std::size_t image_size_threshold = 0) {
-    cache_.reset(new DecoderCacheLargestOnly(cache_size, image_size_threshold));
+  void SetUpImpl(std::size_t cache_size) {
+    cache_.reset(new DecoderCacheLargestOnly(cache_size, false));
 
     for (std::size_t i = 0; i <= 10; i++) {
       data_.push_back(
@@ -137,6 +137,38 @@ TEST_F(DecoderCacheLargestOnlyTest, CopyDataWorks) {
   std::vector<uint8_t> dst(4, 0x00);
   cache_->CopyData("4", &dst[0]);
   EXPECT_EQ(data_[4].second, dst);
+}
+
+TEST_F(DecoderCacheLargestOnlyTest, AllocateMoreThan2000MB) {
+  std::size_t one_mb = 1024*1024;
+  std::size_t size = 3l*1024*one_mb;
+  SetUpImpl(size);
+  std::vector<uint8_t> data_1MB(one_mb, 0xFF);
+  std::size_t N = size / one_mb;
+
+  // First observe
+  for (std::size_t i = 0; i < N + 10; i++) {
+    cache_->Add(
+      std::to_string(i) + "_mb",
+      &data_1MB[0], one_mb,
+      {static_cast<Index>(one_mb), 1, 1});
+  }
+
+  // Now cache
+  for (std::size_t i = 0; i < N + 10; i++) {
+    cache_->Add(
+      std::to_string(i) + "_mb",
+      &data_1MB[0], one_mb,
+      {static_cast<Index>(one_mb), 1, 1});
+  }
+
+  // Cache is ready here
+  for (std::size_t i = 0; i < N; i++) {
+    EXPECT_TRUE(cache_->IsCached(std::to_string(i) + "_mb"));
+  }
+  for (std::size_t i = N; i < N + 10; i++) {
+    EXPECT_FALSE(cache_->IsCached(std::to_string(i) + "_mb"));
+  }
 }
 
 }  // namespace testing
