@@ -54,11 +54,12 @@ struct StateNvJPEG {
   nvjpegJpegStream_t jpeg_stream;
 };
 
+template <typename T = int>
 struct EncodedImageInfo {
   bool nvjpeg_support;
-  int c;
-  int widths[NVJPEG_MAX_COMPONENT];
-  int heights[NVJPEG_MAX_COMPONENT];
+  T c;
+  T widths[NVJPEG_MAX_COMPONENT];
+  T heights[NVJPEG_MAX_COMPONENT];
   nvjpegChromaSubsampling_t subsampling;
 };
 
@@ -86,6 +87,7 @@ inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
       DALI_FAIL("Unknown output format");
   }
 }
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_

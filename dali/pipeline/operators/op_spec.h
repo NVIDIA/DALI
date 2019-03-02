@@ -291,14 +291,21 @@ class DLL_PUBLIC OpSpec {
     return GetArgument<T, std::vector<T>>(name, ws, idx);
   }
 
-  DLL_PUBLIC inline StrPair* mutable_input(int idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return &inputs_[idx];
+  DLL_PUBLIC OpSpec& ShareArguments(OpSpec& other) {
+    this->arguments_ = other.arguments_;
+    this->argument_inputs_ = other.argument_inputs_;
+    this->argument_inputs_indexes_ = other.argument_inputs_indexes_;
+    return *this;
   }
 
-  DLL_PUBLIC inline StrPair* mutable_output(int idx) {
+  DLL_PUBLIC inline StrPair& MutableInput(int idx) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    return inputs_[idx];
+  }
+
+  DLL_PUBLIC inline StrPair& MutableOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return &outputs_[idx];
+    return outputs_[idx];
   }
 
   DLL_PUBLIC string ToString() const {
