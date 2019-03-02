@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderGPUStage, nvJPEGDecoderGPUStage, GPU);
+DALI_REGISTER_OPERATOR(nvJPEGDecoderGPUStage, nvJPEGDecoderGPUStage, Mixed);
 
 DALI_SCHEMA(nvJPEGDecoderGPUStage)
   .DocStr(R"code(This operator is the GPU stage of nvJPEGDecoderNew, it is not supposed to be called separately.
