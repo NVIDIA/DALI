@@ -207,8 +207,6 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     DALI_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
   }
 
-
-
   // Verify and record the outputs of the op
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
