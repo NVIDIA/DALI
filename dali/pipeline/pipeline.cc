@@ -207,6 +207,38 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     DALI_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
   }
 
+  // TODO(spanev): make it as an arg of nvJPEGDecoderNew
+  const bool nvjpeg_splitting = spec.name() == "nvJPEGDecoderNew";
+
+#if 1
+  // nvJGPEGDecoder operator require a special case to be divided in two stages (CPU and Mixed-GPU)
+  if (nvjpeg_splitting) {
+    spec.set_name("nvJPEGDecoderCPUStage");
+    spec.SetArg("device", "cpu");
+
+    auto& op_output = spec.MutableOutput(0);
+    string op_output_name = op_output.first;
+
+    op_output.first = "nvJPEGCPUOutput0";
+    op_output.second = "cpu";
+    spec.AddOutput("nvJPEGCPUOutput1", "cpu");
+    spec.AddOutput("nvJPEGCPUOutput2", "cpu");
+
+    OpSpec nvJPEG_spec = OpSpec("nvJPEGDecoderGPUStage")
+      .AddArg("device", "mixed")
+      .AddInput(spec.OutputName(0), "cpu")
+      .AddInput(spec.OutputName(1), "cpu")
+      .AddInput(spec.OutputName(2), "cpu")
+      .AddOutput(op_output_name, "gpu")
+      .ShareArguments(spec);
+
+    this->op_specs_.push_back(make_pair(inst_name + "GPU", nvJPEG_spec));
+    // TODO(spanev): handle serialization for nvJPEGDecoderNew
+    this->op_specs_to_serialize_.push_back(true);
+  }
+#endif
+
+
   // Verify and record the outputs of the op
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
