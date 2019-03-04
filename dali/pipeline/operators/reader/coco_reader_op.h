@@ -46,7 +46,14 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     skip_empty_(spec.GetArgument<bool>("skip_empty")),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ParseAnnotationFiles();
-    loader_.reset(new FileLoader(spec, image_id_pairs_));
+
+    if (spec.HasArgument("file_list"))
+      loader_.reset(new FileLoader(spec));
+    else
+      loader_.reset(new FileLoader(
+        spec,
+        image_id_pairs_,
+        spec.GetArgument<bool>("shuffle_after_epoch")));
     parser_.reset(new COCOParser(spec, annotations_multimap_, save_img_ids_));
   }
 
