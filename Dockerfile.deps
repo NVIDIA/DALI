@@ -14,7 +14,7 @@ FROM ${FROM_IMAGE_NAME} as base
 
 # CUDA
 ARG USE_CUDA_VERSION=9
-FROM base as cuda9
+FROM base as cuda-9
 RUN CUDA_VERSION=9.0 && \
     CUDA_BUILD=9.0.176_384.81 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
@@ -30,7 +30,7 @@ RUN CUDA_VERSION=9.0 && \
     mv include/nvjpeg.h /usr/local/cuda/include/ && \
     rm -rf /cuda-linux64-nvjpeg;
 
-FROM base as cuda10
+FROM base as cuda-10
 RUN CUDA_VERSION=10.0 && \
     CUDA_BUILD=10.0.130_410.48 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
@@ -38,7 +38,7 @@ RUN CUDA_VERSION=10.0 && \
     ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
     rm -f cuda_${CUDA_BUILD}_linux; 
 
-FROM cuda${USE_CUDA_VERSION} as cuda
+FROM cuda-${USE_CUDA_VERSION} as cuda
 
 # Actual image
 FROM base
