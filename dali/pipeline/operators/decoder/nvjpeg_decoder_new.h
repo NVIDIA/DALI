@@ -45,6 +45,9 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
     output_shape_(batch_size_),
+    device_buffer_(num_threads_),
+    streams_(num_threads_),
+    events_(num_threads_),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
@@ -82,7 +85,12 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
-    NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_));
+    for (int i = 0; i < num_threads_; ++i) {
+      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
+      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+      CUDA_CALL(cudaEventCreate(&events_[i]));
+    }
+    CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
   virtual ~nvJPEGDecoderNew() noexcept(false) {
@@ -95,18 +103,23 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
-    NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_));
+    for (int i = 0; i < num_threads_; ++i) {
+      NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
+      CUDA_CALL(cudaEventDestroy(events_[i]));
+      CUDA_CALL(cudaStreamDestroy(streams_[i]));
+    }
+    CUDA_CALL(cudaEventDestroy(master_event_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    CPUStage(ws);
-    GPUStage(ws);
+    ParseImagesInfo(ws);
+    ProcessImages(ws);
   }
 
  protected:
-  void CPUStage(MixedWorkspace *ws) {
+  void ParseImagesInfo(MixedWorkspace *ws) {
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws->Input<CPUBackend>(0, i);
@@ -162,7 +175,9 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
       output_info_[i] = info;
     }
+  }
 
+  void ProcessImages(MixedWorkspace* ws) {
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
@@ -171,25 +186,48 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     }
     std::sort(image_order.begin(), image_order.end(),
               std::greater<std::pair<size_t, size_t>>());
-    // Running the CPU stage
+
+    auto& output = ws->Output<GPUBackend>(0);
+    TypeInfo type = TypeInfo::Create<uint8_t>();
+    output.set_type(type);
+    output.Resize(output_shape_);
+    output.SetLayout(DALI_NHWC);
+
+    CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
+    for (int i = 0; i < num_threads_; ++i) {
+      CUDA_CALL(cudaStreamWaitEvent(streams_[i], master_event_, 0));
+    }
+
     for (int idx = 0; idx < batch_size_; ++idx) {
       const int i = image_order[idx].second;
-      EncodedImageInfo& info = output_info_[i];
-      if (info.nvjpeg_support) {
-        const auto &in = ws->Input<CPUBackend>(0, i);
-        const auto file_name = in.GetSourceInfo();
-        thread_pool_.DoWorkWithID(std::bind(
-              [this, i, file_name](int idx, int tid) {
-                CPUSampleWorker(i, file_name);
-              }, i, std::placeholders::_1));
-      }
+
+      const auto &in = ws->Input<CPUBackend>(0, i);
+      const auto file_name = in.GetSourceInfo();
+      cudaStream_t stream = ws->stream();
+      thread_pool_.DoWorkWithID(std::bind(
+            [this, i, file_name, stream, &in, &output](int idx, int tid) {
+              SampleWorker(i, file_name, in.size(), tid,
+                              in.data<uint8_t>(), output.mutable_tensor<uint8_t>(i));
+            }, i, std::placeholders::_1));
     }
 
     thread_pool_.WaitForWork();
+    for (int i = 0; i < num_threads_; ++i) {
+      CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
+      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
+    }
   }
 
-  void CPUSampleWorker(int i, string file_name) {
+  void SampleWorker(int i, string file_name, int in_size, int tid,
+                    const uint8_t* input_data, uint8_t* output_data) {
     EncodedImageInfo& info = output_info_[i];
+
+    if (!info.nvjpeg_support) {
+      OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
+      CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
+      return;
+    }
+
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
                                               pinned_buffer_[i]));
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
@@ -205,45 +243,32 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
         NVJPEG_CALL_EX(ret, file_name);
       }
     }
-  }
 
-  void GPUStage(MixedWorkspace* ws) {
-    auto& output = ws->Output<GPUBackend>(0);
-    TypeInfo type = TypeInfo::Create<uint8_t>();
-    output.set_type(type);
-    output.Resize(output_shape_);
-    output.SetLayout(DALI_NHWC);
+    CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
 
-    for (int i = 0; i < batch_size_; i++) {
-      const EncodedImageInfo& info = output_info_[i];
-      auto *output_data = output.mutable_tensor<uint8_t>(i);
+    if (info.nvjpeg_support) {
+      nvjpegImage_t nvjpeg_image;
+      nvjpeg_image.channel[0] = output_data;
+      nvjpeg_image.pitch[0] = NumberOfChannels(output_image_type_) * info.widths[0];
 
-      if (info.nvjpeg_support) {
-        nvjpegImage_t nvjpeg_image;
-        nvjpeg_image.channel[0] = output_data;
-        nvjpeg_image.pitch[0] = NumberOfChannels(output_image_type_) * info.widths[0];
+      NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[i], device_buffer_[tid]));
 
-        NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[i], device_buffer_));
+      NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
+          handle_,
+          image_decoders_[i],
+          image_states_[i],
+          jpeg_streams_[i],
+          streams_[tid]));
 
-        NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
-            handle_,
-            image_decoders_[i],
-            image_states_[i],
-            jpeg_streams_[i],
-            ws->stream()));
-
-        NVJPEG_CALL(nvjpegDecodeJpegDevice(
-            handle_,
-            image_decoders_[i],
-            image_states_[i],
-            &nvjpeg_image,
-            ws->stream()));
-      } else {
-        auto& in = ws->Input<CPUBackend>(0, i);
-        const auto* input_data = in.data<uint8_t>();
-        const auto& file_name = in.GetSourceInfo();
-        OCVFallback(input_data, in.size(), output_data, ws->stream(), file_name);
-      }
+      NVJPEG_CALL(nvjpegDecodeJpegDevice(
+          handle_,
+          image_decoders_[i],
+          image_states_[i],
+          &nvjpeg_image,
+          streams_[tid]));
+    } else {
+      OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
+      CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
     }
   }
 
@@ -305,7 +330,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   std::vector<Dims> output_shape_;
 
   // GPU
-  nvjpegBufferDevice_t device_buffer_;
+  // We need one device_buffer per worker thread
+  std::vector<nvjpegBufferDevice_t> device_buffer_;
+  std::vector<cudaStream_t> streams_;
+  std::vector<cudaEvent_t> events_;
+  cudaEvent_t master_event_;
 
   ThreadPool thread_pool_;
 };
