@@ -142,11 +142,11 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
 
     for (attempt = 0; attempt < num_attempts_; ++attempt) {
       if (TryCrop(H, W,
-                  &params_->aspect_ratio_dis,
-                  &params_->area_dis,
-                  &params_->uniform,
-                  &params_->rand_gen,
-                  &crop)) {
+                  params_->aspect_ratio_dis,
+                  params_->area_dis,
+                  params_->uniform,
+                  params_->rand_gen,
+                  crop)) {
         break;
       }
     }

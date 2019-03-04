@@ -24,6 +24,7 @@ RandomCropGenerator::RandomCropGenerator(
     int64_t seed,
     int num_attempts)
   : aspect_ratio_dis_(aspect_ratio_range.first, aspect_ratio_range.second)
+  , inv_aspect_ratio_dis_(1/aspect_ratio_range.second, 1/aspect_ratio_range.first)
   , area_dis_(area_range.first, area_range.second)
   , uniform_(0.0f, 1.0f)
   , rand_gen_(seed)
@@ -37,19 +38,28 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
 
     for (int attempt = 0; attempt < num_attempts_; attempt++) {
         float scale = area_dis_(rand_gen_);
-        float ratio = aspect_ratio_dis_(rand_gen_);
-        float swap  = uniform_(rand_gen_);
+        bool swap = coin_flip_(rand_gen_);
 
         size_t original_area = H * W;
         float target_area = scale * original_area;
 
-        int w = static_cast<int>(
-            std::roundf(sqrtf(target_area * ratio)));
-        int h = static_cast<int>(
-            std::roundf(sqrtf(target_area / ratio)));
+        int w, h;
 
-        if (swap < 0.5f) {
-           std::swap(w, h);
+        // Uniform distribution is not suitable for aspect ratios. Here, we randomly
+        // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
+        // reciprocal aspect ratio ranges, such as 3/4..4/3
+        if (swap) {
+          float ratio = inv_aspect_ratio_dis_(rand_gen_);
+          w = static_cast<int>(
+              std::roundf(sqrtf(target_area / ratio)));
+          h = static_cast<int>(
+              std::roundf(sqrtf(target_area * ratio)));
+        } else {
+          float ratio = aspect_ratio_dis_(rand_gen_);
+          w = static_cast<int>(
+              std::roundf(sqrtf(target_area * ratio)));
+          h = static_cast<int>(
+              std::roundf(sqrtf(target_area / ratio)));
         }
 
         CropWindow crop;
