@@ -57,7 +57,7 @@ Output of the decoder is in `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("random_aspect_ratio",
-      R"code(Range from which to choose random aspect ratio.)code",
+      R"code(Range from which to choose random aspect ratio (width/height).)code",
       std::vector<float>{3./4., 4./3.})
   .AddOptionalArg("random_area",
       R"code(Range from which to choose random area factor `A`.

@@ -26,63 +26,89 @@ RandomCropGenerator::RandomCropGenerator(
   : aspect_ratio_dis_(aspect_ratio_range.first, aspect_ratio_range.second)
   , inv_aspect_ratio_dis_(1/aspect_ratio_range.second, 1/aspect_ratio_range.first)
   , area_dis_(area_range.first, area_range.second)
-  , uniform_(0.0f, 1.0f)
   , rand_gen_(seed)
   , seed_(seed)
   , num_attempts_(num_attempts) {
 }
 
 CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
-    DALI_ENFORCE(H > 0);
-    DALI_ENFORCE(W > 0);
+  CropWindow crop = {};
+  if (W <= 0 || H <= 0) {
+    return crop;
+  }
 
-    for (int attempt = 0; attempt < num_attempts_; attempt++) {
-        float scale = area_dis_(rand_gen_);
-        bool swap = coin_flip_(rand_gen_);
+  float min_wh_ratio = aspect_ratio_dis_.param().a();
+  float max_wh_ratio = aspect_ratio_dis_.param().b();
+  float max_hw_ratio = inv_aspect_ratio_dis_.param().b();
+  float min_area = W * H * area_dis_.a();
+  int maxW = std::max<int>(1, H * max_wh_ratio);
+  int maxH = std::max<int>(1, W * max_hw_ratio);
 
-        size_t original_area = H * W;
-        float target_area = scale * original_area;
+  // detect two impossible cases early
+  if (H * maxW < min_area) {  // image too wide
+    crop.h = H;
+    crop.w = maxW;
+  } else if (W * maxH < min_area) {  // image too tall
+    crop.w = W;
+    crop.h = maxH;
+  } else {
+    // it can still fail for very small images when size granularity matters
+    int attempts_left = num_attempts_;
+    for (; attempts_left > 0; attempts_left--) {
+      float scale = area_dis_(rand_gen_);
+      bool swap = coin_flip_(rand_gen_);
 
-        int w, h;
+      size_t original_area = H * W;
+      float target_area = scale * original_area;
 
-        // Uniform distribution is not suitable for aspect ratios. Here, we randomly
-        // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
-        // reciprocal aspect ratio ranges, such as 3/4..4/3
-        if (swap) {
-          float ratio = inv_aspect_ratio_dis_(rand_gen_);
-          w = static_cast<int>(
-              std::roundf(sqrtf(target_area / ratio)));
-          h = static_cast<int>(
-              std::roundf(sqrtf(target_area * ratio)));
-        } else {
-          float ratio = aspect_ratio_dis_(rand_gen_);
-          w = static_cast<int>(
-              std::roundf(sqrtf(target_area * ratio)));
-          h = static_cast<int>(
-              std::roundf(sqrtf(target_area / ratio)));
-        }
+      // Uniform distribution is not suitable for aspect ratios. Here, we randomly
+      // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
+      // reciprocal aspect ratio ranges, such as 3/4..4/3
+      if (swap) {
+        float ratio = inv_aspect_ratio_dis_(rand_gen_);
+        crop.w = static_cast<int>(
+            std::roundf(sqrtf(target_area / ratio)));
+        crop.h = static_cast<int>(
+            std::roundf(sqrtf(target_area * ratio)));
+      } else {
+        float ratio = aspect_ratio_dis_(rand_gen_);
+        crop.w = static_cast<int>(
+            std::roundf(sqrtf(target_area * ratio)));
+        crop.h = static_cast<int>(
+            std::roundf(sqrtf(target_area / ratio)));
+      }
+      if (crop.w < 1)
+        crop.w = 1;
+      if (crop.h < 1)
+        crop.h = 1;
 
-        CropWindow crop;
-        if (w > 0 && h > 0 && w <= W && h <= H) {
-            float rand_x = uniform_(rand_gen_);
-            float rand_y = uniform_(rand_gen_);
-
-            crop.w = w;
-            crop.h = h;
-            crop.x = static_cast<int>(rand_x * (W - w));
-            crop.y = static_cast<int>(rand_y * (H - h));
-            return crop;
-        }
+      float ratio = static_cast<float>(crop.w) / crop.h;
+      if (crop.w <= W && crop.h <= H && ratio >= min_wh_ratio && ratio <= max_wh_ratio)
+        break;
     }
 
-    // If kMaxAttempts were consumed, use default crop
-    int min_dim = H < W ? H : W;
-    CropWindow crop;
-    crop.w = min_dim;
-    crop.h = min_dim;
-    crop.x = (W - min_dim) / 2;
-    crop.y = (H - min_dim) / 2;
-    return crop;
+    if (attempts_left <= 0) {
+      float max_area = area_dis_.param().b() * W * H;
+      float ratio = static_cast<float>(W)/H;
+      if (ratio > max_wh_ratio) {
+        crop.h = H;
+        crop.w = maxW;
+      } else if (ratio < min_wh_ratio) {
+        crop.w = W;
+        crop.h = maxH;
+      } else {
+        crop.w = W;
+        crop.h = H;
+      }
+      float scale = std::min(1.0f, max_area / (crop.w * crop.h));
+      crop.w = std::max<int>(1, crop.w * sqrt(scale));
+      crop.h = std::max<int>(1, crop.h * sqrt(scale));
+    }
+  }
+
+  crop.x = std::uniform_int_distribution<int>(0, W - crop.w)(rand_gen_);
+  crop.y = std::uniform_int_distribution<int>(0, H - crop.h)(rand_gen_);
+  return crop;
 }
 
 CropWindow RandomCropGenerator::GenerateCropWindow(int H, int W) {
