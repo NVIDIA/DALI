@@ -40,11 +40,15 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  protected:
   virtual const OpSpec DecodingOp() const { return OpSpec(); }
 
+  inline uint32_t GetTestCheckType() const override {
+    return t_checkColorComp;  // + t_checkElements + t_checkAll + t_checkNoAssert;
+  }
+
   virtual void
     AddAdditionalInputs(
       vector<std::pair<string, TensorList<CPUBackend>*>>&) {}
 
-  void RunTestDecode(t_imgType imageType, float eps = 5e-2) {
+  void RunTestDecode(t_imgType imageType, float eps = 0.5) {
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
       case t_jpegImgType:
@@ -107,7 +111,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();
     this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
-    this->CheckBuffers(h * w * c, out.mutable_data<uint8>(), img, false);
+    this->CheckBuffers(h * w * c, out.mutable_data<uint8>(), img, false, nullptr, {h, w, c});
   }
 
   uint32_t GetImageLoadingFlags() const override {

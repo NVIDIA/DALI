@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include <memory>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/util/image.h"
@@ -125,11 +125,16 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
+    SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
   }
 
  protected:
+  virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
+    return {};
+  }
+
   void ParseImagesInfo(MixedWorkspace *ws) {
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
@@ -148,10 +153,17 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-                              static_cast<const uint8 *>(input_data), in_size);
+            static_cast<const uint8 *>(input_data), in_size);
           const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
+          auto crop_generator = GetCropWindowGenerator(i);
+          if (crop_generator) {
+            info.crop_window[0] = crop_generator(info.heights[0], info.widths[0]);
+            DALI_ENFORCE(info.crop_window[0].IsInRange(info.heights[0], info.widths[0]));
+            info.widths[0] = info.crop_window[0].w;
+            info.heights[0] = info.crop_window[0].h;
+          }
           info.nvjpeg_support = false;
           output_info_[i] = info;
         } catch (const std::runtime_error &e) {
@@ -166,10 +178,16 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           image_states_[i] = decoder_host_state_[i];
         }
 
-        /*
-        // TODO(spanev): add this function when integrating Crop
-        nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
-        */
+        auto crop_generator = GetCropWindowGenerator(i);
+        if (crop_generator) {
+          info.crop_window[0] = crop_generator(info.heights[0], info.widths[0]);
+          auto &crop_window = info.crop_window[0];
+          DALI_ENFORCE(crop_window.IsInRange(info.heights[0], info.widths[0]));
+          nvjpegDecodeParamsSetROI(decode_params_[i],
+            crop_window.x, crop_window.y, crop_window.w, crop_window.h);
+          info.widths[0] = crop_window.w;
+          info.heights[0] = crop_window.h;
+        }
       }
       const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
@@ -231,7 +249,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     EncodedImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
-      OCVFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
       return;
     }
 
@@ -288,7 +306,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           &nvjpeg_image,
           streams_[thread_id]));
     } else {
-      OCVFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
     }
   }
 
@@ -298,31 +316,30 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 
-  // Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
-  void OCVFallback(const uint8_t *data, int size,
-                   uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
-    const int c = (output_image_type_ == DALI_GRAY) ? 1 : 3;
-    auto decode_type = (output_image_type_ == DALI_GRAY) ? cv::IMREAD_GRAYSCALE
-                                                         : cv::IMREAD_COLOR;
-    cv::Mat input(1,
-                  size,
-                  CV_8UC1,
-                  reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
-    cv::Mat tmp = cv::imdecode(input, decode_type);
-
-    if (tmp.data == nullptr) {
-      DALI_FAIL("Unsupported image type: " + file_name);
+  void HostFallback(const uint8_t *data, int size,
+                    uint8_t *decoded_device_data,
+                    cudaStream_t s,
+                    std::string file_name,
+                    CropWindow crop_window = {}) {
+    std::unique_ptr<Image> img;
+    try {
+      img = ImageFactory::CreateImage(data, size, output_image_type_);
+      img->SetCropWindow(crop_window);
+      img->Decode();
+    } catch (std::runtime_error &e) {
+      DALI_FAIL(e.what() + ". File: " + file_name);
     }
+    const auto decoded = img->GetImage();
+    const auto hwc = img->GetImageDims();
+    const auto h = std::get<0>(hwc);
+    const auto w = std::get<1>(hwc);
+    const auto c = std::get<2>(hwc);
 
-    // Transpose BGR -> output_image_type_ if needed
-    if (IsColor(output_image_type_) && output_image_type_ != DALI_BGR) {
-      OpenCvColorConversion(DALI_BGR, tmp, output_image_type_, tmp);
-    }
-
-    CUDA_CALL(cudaMemcpyAsync(decoded_device_data,
-                              tmp.ptr(),
-                              tmp.rows * tmp.cols * c,
-                              cudaMemcpyHostToDevice, s));
+    CUDA_CALL(
+      cudaMemcpyAsync(decoded_device_data,
+                      decoded.get(),
+                      h*w*c,
+                      cudaMemcpyHostToDevice, s));
   }
 
   USE_OPERATOR_MEMBERS();

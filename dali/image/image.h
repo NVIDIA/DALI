@@ -76,6 +76,22 @@ class Image {
     crop_window_generator_ = crop_window_generator;
   }
 
+  inline void SetCropWindow(const CropWindow& crop_window) {
+    if (crop_window.IsEmpty())
+      return;
+    crop_window_generator_ = [crop_window](int H, int W) {
+      DALI_ENFORCE(crop_window.IsInRange(H, W),
+        "crop_window["
+        + std::to_string(crop_window.x)
+        + ", " + std::to_string(crop_window.y)
+        + ", " + std::to_string(crop_window.w)
+        + ", " + std::to_string(crop_window.h) + "]"
+        + " not valid from image dimensions [0, 0, "
+        + std::to_string(W) + ", " + std::to_string(H) + "]");
+      return crop_window;
+    };
+  }
+
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 

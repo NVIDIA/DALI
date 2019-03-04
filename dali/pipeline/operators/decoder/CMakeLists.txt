@@ -20,7 +20,8 @@ if (BUILD_NVJPEG)
     list(APPEND DALI_SRCS 
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api.cu"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop.cu"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_new.cu")
+      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice.cu"
+      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_random_crop.cu")
   else()
     list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cu")
   endif()
@@ -28,8 +29,9 @@ if (BUILD_NVJPEG)
     if (NVJPEG_DECOUPLED_API)
       list(APPEND DALI_TEST_SRCS 
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_new_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop_test.cc")
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_random_crop_test.cc")
     else()
       list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
     endif()
