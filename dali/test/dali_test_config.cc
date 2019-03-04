@@ -32,13 +32,15 @@ std::once_flag noninit_warning;
 
 
 const std::string &dali_extra_path() {
-  auto ptr = std::getenv("DALI_EXTRA_PATH");
-  if (!ptr) {
-    std::call_once(noninit_warning,
-                   []() { std::cerr << "DALI_EXTRA_PATH not initialized."; });
-    _dali_extra_path = ".";
-  } else {
-    _dali_extra_path = std::string(ptr);
+  if(_dali_extra_path.empty()) {
+    auto ptr = std::getenv("DALI_EXTRA_PATH");
+    if (!ptr) {
+      std::call_once(noninit_warning,
+                     []() { std::cerr << "DALI_EXTRA_PATH not initialized."; });
+      _dali_extra_path = ".";
+    } else {
+      _dali_extra_path = std::string(ptr);
+    }
   }
   return _dali_extra_path;
 }
