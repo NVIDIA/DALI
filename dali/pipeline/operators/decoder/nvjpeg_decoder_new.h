@@ -224,7 +224,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
     if (!info.nvjpeg_support) {
       OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
-      CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
       return;
     }
 
@@ -268,7 +267,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           streams_[tid]));
     } else {
       OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
-      CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
     }
   }
 
