@@ -146,7 +146,15 @@ class Crop : public Operator<Backend>, protected CropAttr {
       "Image dimensions for sample " + std::to_string(dataIdx)
       + " are smaller than the cropping window");
 
-    per_sample_crop_[threadIdx] = CalculateCropYX(spec_, ws, dataIdx, H, W);
+    auto &spec = OperatorBase::spec_;
+    auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, dataIdx);
+    auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, dataIdx);
+    per_sample_crop_[threadIdx] = CalculateCropYX(
+      crop_y_norm,
+      crop_x_norm,
+      crop_height_[dataIdx],
+      crop_width_[dataIdx],
+      H, W);
   }
 
   void Init(int size) {

@@ -98,28 +98,6 @@ class CropAttr {
     return std::make_pair(crop_y, crop_x);
   }
 
-  // TODO(janton) : remove this
-  /**
-   * @brief Calculate coordinate where the crop starts in pixels.
-   *
-   * @param spec
-   * @param ws
-   * @param imgIdx
-   * @param H
-   * @param W
-   * @return std::pair<int, int>
-   */
-  std::pair<int, int> CalculateCropYX(const OpSpec &spec,
-                                      const ArgumentWorkspace *ws,
-                                      const Index dataIdx, int H, int W) {
-    auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, dataIdx);
-    auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, dataIdx);
-    return CalculateCropYX(
-      crop_y_norm, crop_x_norm,
-      crop_height_[dataIdx], crop_width_[dataIdx],
-      H, W);
-  }
-
   std::vector<int> crop_height_;
   std::vector<int> crop_width_;
   std::vector<float> crop_x_norm_;
