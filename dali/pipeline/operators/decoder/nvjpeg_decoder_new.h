@@ -95,7 +95,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   }
 
   virtual ~nvJPEGDecoderNew() noexcept(false) {
-    thread_pool_.WaitForWork();
+    try {
+      thread_pool_.WaitForWork();
+    } catch (...) {
+      // As other images being process might fail, but we don't care
+    }
     for (int i = 0; i < batch_size_; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
@@ -136,7 +140,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                  jpeg_streams_[i]);
 
       EncodedImageInfo info;
-      if (ret != NVJPEG_STATUS_SUCCESS) {
+      info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
+      if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
                                            static_cast<const uint8 *>(input_data), in_size);
@@ -154,20 +159,18 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                        info.heights));
         NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
                                                      &info.c));
-        if (info.nvjpeg_support) {
-          if (ShouldBeHybrid(info)) {
-            image_decoders_[i] = decoder_huff_hybrid_;
-            image_states_[i] = decoder_huff_hybrid_state_[i];
-          } else {
-            image_decoders_[i] = decoder_huff_host_;
-            image_states_[i] = decoder_host_state_[i];
-          }
-
-          /*
-          // TODO(spanev): add this function when integrating Crop
-          nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
-          */
+        if (ShouldBeHybrid(info)) {
+          image_decoders_[i] = decoder_huff_hybrid_;
+          image_states_[i] = decoder_huff_hybrid_state_[i];
+        } else {
+          image_decoders_[i] = decoder_huff_host_;
+          image_states_[i] = decoder_host_state_[i];
         }
+
+        /*
+        // TODO(spanev): add this function when integrating Crop
+        nvjpegnvjpegDecodeParamsSetROI(decode_params_[pos], offset_x, offset_y, roi_w, roi_h);
+        */
       }
       const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
