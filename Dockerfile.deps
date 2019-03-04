@@ -20,7 +20,7 @@ RUN CUDA_VERSION=9.0 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
     chmod +x cuda_${CUDA_BUILD}_linux-run && \
     ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_${CUDA_BUILD}_linux-run;
+    rm -f cuda_${CUDA_BUILD}_linux-run; \
     # nvJpeg
     NVJPEG_VERSION=0.2.0 && \
     NVJPEG_BUILD=9.0-v${NVJPEG_VERSION} && \
