@@ -37,7 +37,7 @@ class DLL_PUBLIC CUStream {
   operator cudaStream_t();
 
  private:
-  bool created_;
+  bool valid_;
   cudaStream_t stream_;
 };
 

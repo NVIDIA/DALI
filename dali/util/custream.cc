@@ -17,7 +17,7 @@
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream) : created_{false}, stream_{0} {
+CUStream::CUStream(int device_id, bool default_stream) : valid_{false}, stream_{0} {
   if (!default_stream) {
     int orig_device;
     cudaGetDevice(&orig_device);
@@ -27,7 +27,7 @@ CUStream::CUStream(int device_id, bool default_stream) : created_{false}, stream
       cudaSetDevice(device_id);
     }
     CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-    created_ = true;
+    valid_ = true;
     if (set_device) {
       CUDA_CALL(cudaSetDevice(orig_device));
     }
@@ -36,24 +36,24 @@ CUStream::CUStream(int device_id, bool default_stream) : created_{false}, stream
 
 
 CUStream::~CUStream() {
-  if (created_) {
+  if (valid_) {
     CUDA_CALL(cudaStreamDestroy(stream_));
   }
 }
 
 
 CUStream::CUStream(CUStream &&other) :
-        created_{other.created_}, stream_{other.stream_} {
+        valid_{other.valid_}, stream_{other.stream_} {
   other.stream_ = 0;
-  other.created_ = false;
+  other.valid_ = false;
 }
 
 
 CUStream &CUStream::operator=(CUStream &&other) {
   stream_ = other.stream_;
-  created_ = other.created_;
+  valid_ = other.valid_;
   other.stream_ = 0;
-  other.created_ = false;
+  other.valid_ = false;
   return *this;
 }
 
