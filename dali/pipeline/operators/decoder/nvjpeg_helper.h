@@ -57,7 +57,6 @@ struct StateNvJPEG {
 struct EncodedImageInfo {
   bool nvjpeg_support;
   unsigned int c;
-  nvjpegChromaSubsampling_t subsampling;
   unsigned int widths[NVJPEG_MAX_COMPONENT];
   unsigned int heights[NVJPEG_MAX_COMPONENT];
 };
@@ -86,22 +85,6 @@ inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
       DALI_FAIL("Unknown output format");
   }
 }
-
-inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
-  switch (subsampling) {
-    case NVJPEG_CSS_444:
-    case NVJPEG_CSS_422:
-    case NVJPEG_CSS_420:
-    case NVJPEG_CSS_411:
-    case NVJPEG_CSS_410:
-    case NVJPEG_CSS_GRAY:
-    case NVJPEG_CSS_440:
-      return true;
-    default:
-      return false;
-  }
-}
-
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_HELPER_H_
