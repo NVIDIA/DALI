@@ -24,7 +24,7 @@ import os
 # -- Project information -----------------------------------------------------
 
 project = u'NVIDIA DALI'
-copyright = u'2018, NVIDIA Corporation'
+copyright = u'2018-2019, NVIDIA Corporation'
 author = u'NVIDIA Corporation'
 
 version_long = u'0.0.0'
