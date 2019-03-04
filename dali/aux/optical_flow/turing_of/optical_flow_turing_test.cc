@@ -30,9 +30,10 @@ constexpr float kFlowVectorEpsilon = 1.f / 32;
 }
 
 TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
+  // (In)sanity test
   using std::vector;
   vector<int16_t> test_data = {101, -32376, 676, 3453, -23188};
-  vector<float> ref_data = {3.15625f, -12.25f, 21.125f, 107.90625f, -299.375f};
+  vector<float> ref_data = {3.15625f, -1011.75f, 21.125f, 107.90625f, -724.625f};
   for (size_t i = 0; i < test_data.size(); i++) {
     EXPECT_NEAR(ref_data[i], kernel::decode_flow_component(test_data[i]), kFlowVectorEpsilon);
   }
