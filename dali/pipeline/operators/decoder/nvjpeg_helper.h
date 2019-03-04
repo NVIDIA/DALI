@@ -61,7 +61,7 @@ struct EncodedImageInfo {
   int widths[NVJPEG_MAX_COMPONENT];
   int heights[NVJPEG_MAX_COMPONENT];
   nvjpegChromaSubsampling_t subsampling;
-  CropWindow crop_window[NVJPEG_MAX_COMPONENT];
+  CropWindow crop_window;
 };
 
 inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {

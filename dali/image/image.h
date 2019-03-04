@@ -71,8 +71,7 @@ class Image {
  /**
   * Sets crop window generator
   */
-  inline void SetCropWindowGenerator(
-    const CropWindowGenerator& crop_window_generator) {
+  inline void SetCropWindowGenerator(const CropWindowGenerator& crop_window_generator) {
     crop_window_generator_ = crop_window_generator;
   }
 

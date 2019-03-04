@@ -150,6 +150,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                      info.widths, info.heights);
 
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
+      auto crop_generator = GetCropWindowGenerator(i);
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
@@ -157,14 +158,12 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
-          auto crop_generator = GetCropWindowGenerator(i);
           if (crop_generator) {
-            info.crop_window[0] = crop_generator(info.heights[0], info.widths[0]);
-            DALI_ENFORCE(info.crop_window[0].IsInRange(info.heights[0], info.widths[0]));
-            info.widths[0] = info.crop_window[0].w;
-            info.heights[0] = info.crop_window[0].h;
+            info.crop_window = crop_generator(info.heights[0], info.widths[0]);
+            DALI_ENFORCE(info.crop_window.IsInRange(info.heights[0], info.widths[0]));
+            info.widths[0] = info.crop_window.w;
+            info.heights[0] = info.crop_window.h;
           }
-          info.nvjpeg_support = false;
           output_info_[i] = info;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -178,10 +177,9 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           image_states_[i] = decoder_host_state_[i];
         }
 
-        auto crop_generator = GetCropWindowGenerator(i);
         if (crop_generator) {
-          info.crop_window[0] = crop_generator(info.heights[0], info.widths[0]);
-          auto &crop_window = info.crop_window[0];
+          info.crop_window = crop_generator(info.heights[0], info.widths[0]);
+          auto &crop_window = info.crop_window;
           DALI_ENFORCE(crop_window.IsInRange(info.heights[0], info.widths[0]));
           nvjpegDecodeParamsSetROI(decode_params_[i],
             crop_window.x, crop_window.y, crop_window.w, crop_window.h);
@@ -249,7 +247,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     EncodedImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name, info.crop_window);
       return;
     }
 
@@ -306,7 +304,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           &nvjpeg_image,
           streams_[thread_id]));
     } else {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name, info.crop_window);
     }
   }
 
@@ -320,7 +318,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                     uint8_t *decoded_device_data,
                     cudaStream_t s,
                     std::string file_name,
-                    CropWindow crop_window = {}) {
+                    CropWindow crop_window) {
     std::unique_ptr<Image> img;
     try {
       img = ImageFactory::CreateImage(data, size, output_image_type_);
