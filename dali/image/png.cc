@@ -52,8 +52,12 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
   // 1 byte : Compression method
   // 1 byte : Filter method
   // 1 byte : Interlace method
+
+  const auto W = ReadIntFromPNG(png_dimens + 8);
+  const auto H = ReadIntFromPNG(png_dimens + 12);
   // TODO(mszolucha): fill channels count
-  return std::make_tuple(ReadIntFromPNG(png_dimens + 8), ReadIntFromPNG(png_dimens + 12), 0);
+  const auto C = 0;
+  return std::make_tuple(H, W, C);
 }
 
 

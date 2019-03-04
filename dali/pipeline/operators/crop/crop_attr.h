@@ -37,7 +37,7 @@ class CropAttr {
     , batch_size__(spec__.GetArgument<int>("batch_size")) {
     vector<float> cropArgs = {0, 0};
     if (spec.HasArgument("crop")) {
-    	cropArgs = spec__.GetRepeatedArgument<float>("crop");
+      cropArgs = spec__.GetRepeatedArgument<float>("crop");
 
       DALI_ENFORCE(cropArgs[0] >= 0,
         "Crop height must be greater than zero. Received: " +
