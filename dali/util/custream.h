@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CU_STREAM_H
-#define DALI_CU_STREAM_H
+#ifndef DALI_UTIL_CUSTREAM_H_
+#define DALI_UTIL_CUSTREAM_H_
 
-#include "dali/common.h"
 #include <driver_types.h>
+#include "dali/common.h"
 
 namespace dali {
 
@@ -41,6 +41,6 @@ class DLL_PUBLIC CUStream {
   cudaStream_t stream_;
 };
 
-} // namespace dali
+}  // namespace dali
 
-#endif  // DALI_CU_STREAM_H
+#endif  // DALI_UTIL_CUSTREAM_H_
