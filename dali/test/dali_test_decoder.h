@@ -48,7 +48,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     AddAdditionalInputs(
       vector<std::pair<string, TensorList<CPUBackend>*>>&) {}
 
-  void RunTestDecode(t_imgType imageType, float eps = 0.5) {
+  void RunTestDecode(t_imgType imageType, float eps = 0.7) {
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
       case t_jpegImgType:
