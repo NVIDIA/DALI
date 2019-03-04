@@ -10,10 +10,10 @@
 #########################################################################################
 #ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
 ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
+ARG USE_CUDA_VERSION=9
 FROM ${FROM_IMAGE_NAME} as base
 
 # CUDA
-ARG USE_CUDA_VERSION=9
 FROM base as cuda-9
 RUN CUDA_VERSION=9.0 && \
     CUDA_BUILD=9.0.176_384.81 && \
