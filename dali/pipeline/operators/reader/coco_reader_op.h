@@ -49,8 +49,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     if (spec.HasArgument("file_list"))
       loader_.reset(new FileLoader(
-        spec, 
-        std::vector<std::pair<string,int>>(), 
+        spec,
+        std::vector<std::pair<string, int>>(),
         spec.GetArgument<bool>("shuffle_after_epoch")));
     else
       loader_.reset(new FileLoader(
