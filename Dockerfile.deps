@@ -10,8 +10,38 @@
 #########################################################################################
 #ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
 ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
-FROM ${FROM_IMAGE_NAME}
+FROM ${FROM_IMAGE_NAME} as Base
 
+# CUDA
+ARG USE_CUDA_VERSION=9
+FROM Base as Cuda9
+RUN CUDA_VERSION=9.0 && \
+    CUDA_BUILD=9.0.176_384.81 && \
+    curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
+    chmod +x cuda_${CUDA_BUILD}_linux-run && \
+    ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_${CUDA_BUILD}_linux-run;
+    # nvJpeg
+    NVJPEG_VERSION=0.2.0 && \
+    NVJPEG_BUILD=9.0-v${NVJPEG_VERSION} && \
+    curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
+    cd /cuda-linux64-nvjpeg/ && \
+    mv lib64/libnvjpeg*.a* /usr/local/cuda/lib/ && \
+    mv include/nvjpeg.h /usr/local/cuda/include/ && \
+    rm -rf /cuda-linux64-nvjpeg;
+
+FROM Base as Cuda10
+RUN CUDA_VERSION=10.0 && \
+    CUDA_BUILD=10.0.130_410.48 && \
+    curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
+    chmod +x cuda_${CUDA_BUILD}_linux && \
+    ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_${CUDA_BUILD}_linux; 
+
+FROM Cuda${USE_CUDA_VERSION} as Cuda
+
+# Actual image
+FROM Base
 # Install yum Dependencies
 RUN yum install -y zip wget yasm
 
@@ -107,37 +137,4 @@ RUN FFMPEG_VERSION=3.4.2 && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 
 # CUDA
-ARG USE_CUDA_VERSION=9
-
-# 9.x
-RUN if [ ${USE_CUDA_VERSION} == "9" ] ; then \
-    # CUDA sdk
-        CUDA_VERSION=9.0 && \
-        CUDA_BUILD=9.0.176_384.81 && \
-        curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
-        chmod +x cuda_${CUDA_BUILD}_linux-run && \
-        ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
-        rm -f cuda_${CUDA_BUILD}_linux-run; \
-    # nvJpeg
-        NVJPEG_VERSION=0.2.0 && \
-        NVJPEG_BUILD=9.0-v${NVJPEG_VERSION} && \
-        curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
-        cd /cuda-linux64-nvjpeg/ && \
-        mv lib64/libnvjpeg*.a* /usr/local/lib/ && \
-        mv include/nvjpeg.h /usr/local/include/ && \
-        rm -rf /cuda-linux64-nvjpeg; \
-# 10.x
-    elif [ ${USE_CUDA_VERSION} == "10" ] ; then \
-    # CUDA sdk
-        CUDA_VERSION=10.0 && \
-        CUDA_BUILD=10.0.130_410.48 && \
-        curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
-        chmod +x cuda_${CUDA_BUILD}_linux && \
-        ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
-        rm -f cuda_${CUDA_BUILD}_linux; \
-    # CUDA 10 has nvJpeg embedded, no need to download it separately
-    else \
-        echo "**************************************************************" && \
-        echo "Wrong value of 'USE_CUDA_VERSION', only 9 and 10 are supported" && \
-        echo "**************************************************************" && exit 1 ;\
-    fi
+COPY --from=Cuda /usr/local/cuda /usr/local/cuda
