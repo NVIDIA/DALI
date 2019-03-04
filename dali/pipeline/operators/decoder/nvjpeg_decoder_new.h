@@ -41,7 +41,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     image_states_(batch_size_),
     jpeg_streams_(batch_size_),
     decode_params_(batch_size_),
-    pinned_buffer_(batch_size_),
+    pinned_buffer_(num_threads_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
     output_shape_(batch_size_),
@@ -72,7 +72,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       // We want to use nvJPEG default pinned allocator
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
 
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_huff_host_,
@@ -86,6 +85,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
     for (int i = 0; i < num_threads_; ++i) {
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
       NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
       CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
       CUDA_CALL(cudaEventCreate(&events_[i]));
@@ -99,11 +99,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
-      NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
     for (int i = 0; i < num_threads_; ++i) {
+      NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
       NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
       CUDA_CALL(cudaEventDestroy(events_[i]));
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
@@ -229,7 +229,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     }
 
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
-                                              pinned_buffer_[i]));
+                                              pinned_buffer_[tid]));
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
                                               image_decoders_[i],
                                               image_states_[i],
