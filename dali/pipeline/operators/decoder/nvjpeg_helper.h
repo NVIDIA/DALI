@@ -21,6 +21,7 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -61,6 +62,7 @@ struct EncodedImageInfo {
   T widths[NVJPEG_MAX_COMPONENT];
   T heights[NVJPEG_MAX_COMPONENT];
   nvjpegChromaSubsampling_t subsampling;
+  CropWindow crop_window[NVJPEG_MAX_COMPONENT];
 };
 
 inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {

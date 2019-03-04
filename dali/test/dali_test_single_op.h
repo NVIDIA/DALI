@@ -31,6 +31,8 @@ namespace dali {
                                            // Use "" to make the output in stdout
 #endif
 
+#define SAVE_TMP_IMAGES 0
+
 namespace images {
 
 // TODO(janton): DALI-582 Using this order, breaks some tests
@@ -441,7 +443,23 @@ class DALISingleOpTest : public DALITest {
 
   template <typename T>
   int CheckBuffers(int lenRaster, const T *img1, const T *img2, bool checkAll,
-                   double *pMean = nullptr, const vector<Index> *shape = nullptr) const {
+                   double *pMean = nullptr, vector<Index> shape = {}) const {
+#if SAVE_TMP_IMAGES
+  if (!shape.empty()) {
+    static int i = 0;
+    int H = shape[0];
+    int W = shape[1];
+    int C = shape[2];
+    const int input_channel_flag = GetOpenCvChannelType(C);
+    const cv::Mat cv_img1 = CreateMatFromPtr(H, W, input_channel_flag, img1);
+    const cv::Mat cv_img2 = CreateMatFromPtr(H, W, input_channel_flag, img2);
+    std::cout << "Saving images #" << std::to_string(i) << std::endl;
+    cv::imwrite("tmp_img_" + std::to_string(i) + "_A.png", cv_img1);
+    cv::imwrite("tmp_img_" + std::to_string(i) + "_B.png", cv_img2);
+    i++;
+  }
+#endif
+
 #ifdef PIXEL_STAT_FILE
     static int imgNumb;
     FILE *file = strlen(PIXEL_STAT_FILE)? fopen(PIXEL_STAT_FILE".txt", imgNumb? "a" : "w") : NULL;
@@ -473,14 +491,14 @@ class DALISingleOpTest : public DALITest {
 
     const int length = lenRaster / jMax;
 
-    const int checkBest = shape? 1 : 0;
+    const bool checkBest = TestCheckType(t_checkBestMatch);
 
     int shiftHorFrom, shiftHorTo, shiftVertFrom, shiftVertTo;
     shiftHorFrom = shiftVertFrom = -checkBest;
     shiftHorTo = shiftVertTo = checkBest;
 
-    const auto H = checkBest? (*shape)[0] : 0;
-    const auto W = checkBest? (*shape)[1] : 0;
+    const auto H = checkBest ? shape[0] : 0;
+    const auto W = checkBest ? shape[1] : 0;
     int retValBest = -1;
     double bestMean = 100.;
 
@@ -636,7 +654,7 @@ class DALISingleOpTest : public DALITest {
   }
 
   void ReportTestFailure(double mean, int colorIdx, int idx = -1,
-                         const vector<Index> *pShape = nullptr) const {
+                         vector<Index> shape = {}) const {
     if (TestCheckType(t_checkNoAssert))
       cout << "\nTest warning:";
     else
@@ -648,8 +666,8 @@ class DALISingleOpTest : public DALITest {
     if (idx >= 0)
       cout << " element # " << idx;
 
-    if (pShape)
-      cout << " (h, w) = (" << (*pShape)[0] << ", " << (*pShape)[1] << ")";
+    if (!shape.empty())
+      cout << " (h, w) = (" << shape[0] << ", " << shape[1] << ")";
 
     cout << " mean = " << mean << " and it was expected to be <= " << eps_ << endl;
   }
@@ -672,10 +690,9 @@ class DALISingleOpTest : public DALITest {
 
     int failNumb = 0, colorIdx = 0;
     const bool checkAll = TestCheckType(t_checkAll);
+    const bool checkElements = TestCheckType(t_checkElements);
     double mean;
-    if (TestCheckType(t_checkElements)) {
-      // Checking for best match could be done only when images are compared separately
-      const bool checkBestMatch = TestCheckType(t_checkBestMatch);
+    if (checkElements) {
       // The the results are checked for each element separately
       for (size_t i = 0; i < t1->ntensor(); ++i) {
         const auto shape1 = t1->tensor_shape(i);
@@ -690,16 +707,16 @@ class DALISingleOpTest : public DALITest {
         if (floatType) {
           colorIdx = CheckBuffers<float>(lenBuffer,
                           (*t1).template tensor<float>(i), (*t2).template tensor<float>(i),
-                          checkAll, &mean, checkBestMatch? &shape1 : nullptr);
+                          checkAll, &mean, shape1);
         } else {
           colorIdx = CheckBuffers<unsigned char>(lenBuffer,
                           (*t1).template tensor<uint8>(i), (*t2).template tensor<uint8>(i),
-                          checkAll, &mean, checkBestMatch? &shape1 : nullptr);
+                          checkAll, &mean, shape1);
         }
 
         if (colorIdx >= 0) {
           // Test failed for colorIdx
-          ReportTestFailure(mean, colorIdx, i, &shape1);
+          ReportTestFailure(mean, colorIdx, i, shape1);
           failNumb++;
           if (!checkAll)
             break;

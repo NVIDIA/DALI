@@ -42,7 +42,7 @@ class SliceAttr {
     }
 
     void ProcessArguments(const SampleWorkspace *ws) {
-        DALI_ENFORCE( ws->NumInput() == 3,
+        DALI_ENFORCE(ws->NumInput() == 3,
             "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
 
         const auto &images = ws->Input<CPUBackend>(0);
@@ -56,7 +56,6 @@ class SliceAttr {
             crop_size.data<float>()[1],
             crop_begin.data<float>()[0],
             crop_begin.data<float>()[1]);
-
     }
 
     void ProcessArguments(MixedWorkspace *ws) {
@@ -107,8 +106,10 @@ class SliceAttr {
                 CropWindow crop_window;
                 crop_window.y = crop_y_norm_[data_idx] * H;
                 crop_window.x = crop_x_norm_[data_idx] * W;
-                crop_window.h = (crop_height_[data_idx] + crop_y_norm_[data_idx]) * H - crop_window.y;
-                crop_window.w = (crop_width_[data_idx] + crop_x_norm_[data_idx]) * W - crop_window.x;
+                crop_window.h =
+                    (crop_height_[data_idx] + crop_y_norm_[data_idx]) * H - crop_window.y;
+                crop_window.w =
+                    (crop_width_[data_idx] + crop_x_norm_[data_idx]) * W - crop_window.x;
                 DALI_ENFORCE(crop_window.IsInRange(H, W));
                 return crop_window;
             };

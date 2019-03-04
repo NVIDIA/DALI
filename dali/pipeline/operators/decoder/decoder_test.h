@@ -49,36 +49,36 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
   }
 
   inline uint32_t GetTestCheckType() const override {
-    return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
+    return t_checkColorComp;  // + t_checkElements + t_checkAll + t_checkNoAssert;
   }
 
-  inline void Run(t_imgType image_type) {
+  inline void Run(t_imgType image_type, double eps = 0.75) {
     SetImageType(image_type);
-    this->RunTestDecode(image_type_, 0.75);
+    this->RunTestDecode(image_type_, eps);
   }
 
   vector<TensorList<CPUBackend> *> Reference(
     const vector<TensorList<CPUBackend> *> &inputs,
     DeviceWorkspace *ws) override {
-  // single input - encoded images
-  // single output - decoded images
-  vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
-  const TensorList<CPUBackend> &encoded_data = *inputs[0];
-  const int c = this->GetNumColorComp();
+    // single input - encoded images
+    // single output - decoded images
+    vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
+    const TensorList<CPUBackend> &encoded_data = *inputs[0];
+    const int c = this->GetNumColorComp();
 
-  for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
-    auto *data = encoded_data.tensor<unsigned char>(i);
-    auto data_size = volume(encoded_data.tensor_shape(i));
-    this->DecodeImage(
-      data, data_size, c, this->ImageType(),
-      &out[i], GetCropWindowGenerator());
+    for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
+      auto *data = encoded_data.tensor<unsigned char>(i);
+      auto data_size = volume(encoded_data.tensor_shape(i));
+      this->DecodeImage(
+        data, data_size, c, this->ImageType(),
+        &out[i], GetCropWindowGenerator());
+    }
+
+    vector<TensorList<CPUBackend> *> outputs(1);
+    outputs[0] = new TensorList<CPUBackend>();
+    outputs[0]->Copy(out, 0);
+    return outputs;
   }
-
-  vector<TensorList<CPUBackend> *> outputs(1);
-  outputs[0] = new TensorList<CPUBackend>();
-  outputs[0]->Copy(out, 0);
-  return outputs;
-}
 
   t_imgType image_type_ = t_jpegImgType;
 };
