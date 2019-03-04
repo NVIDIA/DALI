@@ -31,19 +31,19 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
   void JpegTestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_jpegImgType, 0.7);
+    this->RunTestDecode(t_jpegImgType);
   }
 
   void PngTestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_pngImgType, 0.7);
+    this->RunTestDecode(t_pngImgType);
   }
 
   void TiffTestDecode(bool batched, int num_threads) {
     batched_ = batched;
     this->SetNumThreads(num_threads);
-    this->RunTestDecode(t_tiffImgType , 0.7);
+    this->RunTestDecode(t_tiffImgType);
   }
 
  private:

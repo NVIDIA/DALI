@@ -15,15 +15,15 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_RANDOM_CROP_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_RANDOM_CROP_H_
 
-#include "dali/pipeline/operators/decoder/nvjpeg_decoder.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_decoder_new.h"
 #include "dali/pipeline/operators/crop/random_crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
+class nvJPEGDecoderRandomCrop : public nvJPEGDecoderNew, public RandomCropAttr {
  public:
   explicit nvJPEGDecoderRandomCrop(const OpSpec& spec)
-    : nvJPEGDecoder(spec)
+    : nvJPEGDecoderNew(spec)
     , RandomCropAttr(spec)
   {}
 
@@ -32,7 +32,7 @@ class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
 
  protected:
-  inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return RandomCropAttr::GetCropWindowGenerator(data_idx);
   }
 };
