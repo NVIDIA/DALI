@@ -41,10 +41,10 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     image_states_(batch_size_),
     jpeg_streams_(batch_size_),
     decode_params_(batch_size_),
-    pinned_buffer_(num_threads_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
     output_shape_(batch_size_),
+    pinned_buffer_(num_threads_),
     device_buffer_(num_threads_),
     streams_(num_threads_),
     events_(num_threads_),
@@ -69,6 +69,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       NVJPEG_CALL(nvjpegDecodeParamsCreate(handle_, &decode_params_[i]));
       NVJPEG_CALL(nvjpegDecodeParamsSetOutputFormat(decode_params_[i],
                                                     GetFormat(output_image_type_)));
+      NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
 
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       // We want to use nvJPEG default pinned allocator
@@ -153,9 +154,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                        info.heights));
         NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
                                                      &info.c));
-        NVJPEG_CALL(nvjpegJpegStreamGetChromaSubsampling(jpeg_streams_[i],
-                                                         &info.subsampling));
-        info.nvjpeg_support = SupportedSubsampling(info.subsampling);
         if (info.nvjpeg_support) {
           if (ShouldBeHybrid(info)) {
             image_decoders_[i] = decoder_huff_hybrid_;
@@ -318,20 +316,23 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   nvjpegJpegDecoder_t decoder_huff_hybrid_;
 
   // CPU
+  // Per sample: lightweight
   std::vector<nvjpegJpegDecoder_t> image_decoders_;
   std::vector<nvjpegJpegState_t> image_states_;
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegDecodeParams_t> decode_params_;
-  std::vector<nvjpegBufferPinned_t> pinned_buffer_;
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
   std::vector<Dims> output_shape_;
+  // Per thread
+  std::vector<nvjpegBufferPinned_t> pinned_buffer_;
 
   // GPU
-  // We need one device_buffer per worker thread
+  // Per thread
   std::vector<nvjpegBufferDevice_t> device_buffer_;
   std::vector<cudaStream_t> streams_;
   std::vector<cudaEvent_t> events_;
+
   cudaEvent_t master_event_;
 
   ThreadPool thread_pool_;
