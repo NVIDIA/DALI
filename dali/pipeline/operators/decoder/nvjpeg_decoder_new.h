@@ -230,6 +230,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
                                               pinned_buffer_[tid]));
+
+    CUDA_CALL(cudaEventSynchronize(events_[tid]));
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
                                               image_decoders_[i],
                                               image_states_[i],
@@ -244,8 +246,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       }
     }
 
-    CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
-
     if (info.nvjpeg_support) {
       nvjpegImage_t nvjpeg_image;
       nvjpeg_image.channel[0] = output_data;
@@ -259,6 +259,10 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           image_states_[i],
           jpeg_streams_[i],
           streams_[tid]));
+
+      // Next sample processed in this thread has to know when H2D finished
+      CUDA_CALL(cudaEventRecord(events_[tid], streams_[tid]));
+
 
       NVJPEG_CALL(nvjpegDecodeJpegDevice(
           handle_,
