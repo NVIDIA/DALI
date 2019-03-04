@@ -69,9 +69,8 @@ class RandomBBoxCrop : public Operator<Backend> {
         aspect_ratio_bounds_{
             Bounds(spec.GetRepeatedArgument<float>("aspect_ratio"))},
         ltrb_{spec.GetArgument<bool>("ltrb")},
-        num_attempts_{spec.GetArgument<int>("num_attempts")}
-
-  {
+        num_attempts_{spec.GetArgument<int>("num_attempts")},
+        gen_(spec.GetArgument<int64_t>("seed")) {
     auto thresholds = spec.GetRepeatedArgument<float>("thresholds");
 
     DALI_ENFORCE(!thresholds.empty(),
@@ -90,8 +89,9 @@ class RandomBBoxCrop : public Operator<Backend> {
       sample_options_.push_back(std::make_pair(threshold, true));
     }
 
-    if (spec.GetArgument<bool>("allow_no_crop"))
+    if (spec.GetArgument<bool>("allow_no_crop")) {
       sample_options_.push_back(std::make_pair(0.f, false));
+    }
   }
 
   ~RandomBBoxCrop() override = default;
@@ -109,12 +109,12 @@ class RandomBBoxCrop : public Operator<Backend> {
   const std::pair<float, bool> SelectMinimumOverlap() {
     std::uniform_int_distribution<> sampler(
       0, static_cast<int>(sample_options_.size() - 1));
-    return sample_options_[sampler(rd_)];
+    return sample_options_[sampler(gen_)];
   }
 
   const float SampleCandidateDimension() {
-    std::uniform_real_distribution<> sampler(scaling_bounds_.min, scaling_bounds_.max);
-    return static_cast<float>(sampler(rd_));
+    std::uniform_real_distribution<float> sampler(scaling_bounds_.min, scaling_bounds_.max);
+    return sampler(gen_);
   }
 
   const bool ValidAspectRatio(float width, float height) const {
@@ -146,8 +146,8 @@ class RandomBBoxCrop : public Operator<Backend> {
     std::uniform_real_distribution<float> height_sampler(
       static_cast<float>(0.), 1 - scaled_height);
 
-    const auto left_offset = width_sampler(rd_);
-    const auto height_offset = height_sampler(rd_);
+    const auto left_offset = width_sampler(gen_);
+    const auto height_offset = height_sampler(gen_);
 
     return Crop::FromLtrb(
       left_offset,
@@ -188,10 +188,11 @@ class RandomBBoxCrop : public Operator<Backend> {
     if (!minimum_overlap.second)
       return ProspectiveCrop(true, Crop::FromLtrb(0, 0, 1, 1), bounding_boxes, labels);
 
+  std::uniform_real_distribution<float> float_dis_(scaling_bounds_.min, scaling_bounds_.max);
     for (int i = 0; i < num_attempts_; ++i) {
       // Image is HWC
-      const auto candidate_height = SampleCandidateDimension();
       const auto candidate_width = SampleCandidateDimension();
+      const auto candidate_height = SampleCandidateDimension();
 
       if (ValidAspectRatio(candidate_height, candidate_width)) {
         const auto candidate_crop =
@@ -223,7 +224,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   const int num_attempts_;
 
  private:
-  std::random_device rd_;
+  std::mt19937 gen_;
 };
 
 }  // namespace dali

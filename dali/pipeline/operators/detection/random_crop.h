@@ -33,17 +33,17 @@ class SSDRandomCrop : public Operator<Backend> {
   explicit inline SSDRandomCrop(const OpSpec &spec) :
     Operator<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
-    gen_(rd_()),
+    gen_(spec.GetArgument<int64_t>("seed")),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
-    sample_options_.push_back(SampleOption{true, 0});
+    sample_options_.push_back(SampleOption{false, -1.f});
     sample_options_.push_back(SampleOption{false, 0.1});
     sample_options_.push_back(SampleOption{false, 0.3});
     sample_options_.push_back(SampleOption{false, 0.5});
     sample_options_.push_back(SampleOption{false, 0.7});
     sample_options_.push_back(SampleOption{false, 0.9});
-    sample_options_.push_back(SampleOption{false, -1.f});
+    sample_options_.push_back(SampleOption{true, 0});
   }
 
   inline ~SSDRandomCrop() override = default;
@@ -82,7 +82,6 @@ class SSDRandomCrop : public Operator<Backend> {
   int num_attempts_;
 
   // RNG stuff
-  std::random_device rd_;
   std::mt19937 gen_;
   std::uniform_int_distribution<> int_dis_;
   std::uniform_real_distribution<float> float_dis_;
