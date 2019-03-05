@@ -73,7 +73,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
   const uint8_t *img = input.data<uint8_t>();
 
   // Crop
-  const cv::Mat cv_input_roi = CreateMatFromPtr(crop.h, crop.w,
+  /*const cv::Mat cv_input_roi = CreateMatFromPtr(crop.h, crop.w,
                                                 channel_flag,
                                                 img + crop.y*W*C + crop.x*C,
                                                 W*C);
@@ -85,7 +85,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
   int ocv_interp_type;
   DALI_ENFORCE(OCVInterpForDALIInterp(interp_type_, &ocv_interp_type) == DALISuccess,
       "Unknown interpolation type");
-  cv::resize(cv_input_roi, cv_output, cv::Size(newW, newH), 0, 0, ocv_interp_type);
+  cv::resize(cv_input_roi, cv_output, cv::Size(newW, newH), 0, 0, ocv_interp_type);*/
 }
 
 template<>

@@ -81,13 +81,13 @@ __device__ void LinearHorz(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     LinearHorz_Channels<static_channels>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_x0, scale,
       out, out_stride, in, in_stride, in_w,
       static_channels);
   ),  // NOLINT
   (
     LinearHorz_Channels<-1>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_x0, scale,
       out, out_stride, in, in_stride, in_w,
       channels);
   ));  // NOLINT

@@ -39,6 +39,12 @@ struct SeparableResamplingSetup {
     VertHorz
   };
 
+  enum BufferIdx : int {
+    IdxIn = 0,
+    IdxTmp = 1,
+    IdxOut = 2,
+  };
+
   /// Number of blocks per pass may differ depending on
   /// the image aspect ratio and block aspect ratio.
   struct BlockCount {
@@ -78,6 +84,14 @@ struct SeparableResamplingSetup {
 
   void SetupComputation(const TensorListShape<3> &in, const Params &params);
   void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
+
+  struct ROI {
+    int lo[2], hi[2];
+    int size(int dim) const { return hi[dim] - lo[dim]; }
+  };
+
+  void SetFilters(SampleDesc &desc, const ResamplingParams2D &params);
+  ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParams2D &params);
 };
 
 }  // namespace kernels

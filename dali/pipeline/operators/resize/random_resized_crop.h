@@ -24,6 +24,8 @@
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/util/random_crop_generator.h"
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/scratch.h"
 
 namespace dali {
 
@@ -97,6 +99,12 @@ class RandomResizedCrop : public Operator<Backend> {
 
   std::vector<float> aspect_ratio_range_;
   std::vector<float> area_range_;
+
+  struct KernelData {
+    kernels::KernelContext context;
+    kernels::ScratchpadAllocator scratch;
+  };
+  std::vector<KernelData> kernel_ctx_;
 };
 
 }  // namespace dali

@@ -254,13 +254,13 @@ __device__ void ResampleHorz(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     ResampleHorz_Channels<static_channels>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_x0, scale,
       out, out_stride, in, in_stride, in_w,
       static_channels, filter, support);
   ),  // NOLINT
   (
     ResampleHorz_Channels<-1>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_x0, scale,
       out, out_stride, in, in_stride, in_w,
       channels, filter, support);
   ));  // NOLINT
@@ -279,13 +279,13 @@ __device__ void ResampleVert(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     ResampleVert_Channels<static_channels>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_y0, scale,
       out, out_stride, in, in_stride, in_h,
       static_channels, filter, support);
   ),  // NOLINT
   (
     ResampleVert_Channels<-1>(
-      x0, x1, y0, y1, 0, scale,
+      x0, x1, y0, y1, src_y0, scale,
       out, out_stride, in, in_stride, in_h,
       channels, filter, support);
   ));  // NOLINT

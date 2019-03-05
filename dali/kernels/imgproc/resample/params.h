@@ -62,7 +62,16 @@ struct FilterDesc {
 
 struct ResamplingParams {
   FilterDesc min_filter, mag_filter;
-  int output_size;
+  int output_size = KeepOriginalSize;
+  // just a magic number that's
+  struct AxisROI {
+    AxisROI() = default;
+    AxisROI(float start, float end) : use_roi(true), start(start), end(end) {}
+    bool use_roi = false;
+    float start = 0;
+    float end = 0;
+  };
+  AxisROI roi = {};
 };
 
 using ResamplingParams2D = std::array<ResamplingParams, 2>;
