@@ -28,6 +28,7 @@
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 
+#define PINNED_DOUBLE_BUFFERING 1
 namespace dali {
 
 class nvJPEGDecoderNew : public Operator<MixedBackend> {
@@ -44,7 +45,12 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
     output_shape_(batch_size_),
+    #if PINNED_DOUBLE_BUFFERING
+    pinned_buffer_(num_threads_ * 2),
+    curr_pinned_buff_(num_threads_, 0),
+    #else
     pinned_buffer_(num_threads_),
+    #endif
     device_buffer_(num_threads_),
     streams_(num_threads_),
     events_(num_threads_),
@@ -85,8 +91,14 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
+#if PINNED_DOUBLE_BUFFERING
+    for (int i = 0; i < num_threads_ * 2; ++i) {
+#else
     for (int i = 0; i < num_threads_; ++i) {
+#endif
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
+    }
+    for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
       CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
       CUDA_CALL(cudaEventCreate(&events_[i]));
@@ -107,8 +119,15 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
+#if PINNED_DOUBLE_BUFFERING
+    for (int i = 0; i < num_threads_ * 2; ++i) {
+#else
     for (int i = 0; i < num_threads_; ++i) {
+#endif
       NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
+    }
+
+    for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
       CUDA_CALL(cudaEventDestroy(events_[i]));
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
@@ -228,10 +247,21 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       return;
     }
 
+#if PINNED_DOUBLE_BUFFERING
+    curr_pinned_buff_[tid] = (curr_pinned_buff_[tid] + 1) % 2;
+    const int buff_idx = tid + (curr_pinned_buff_[tid] * num_threads_);
+    NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
+                                              pinned_buffer_[buff_idx]));
+#else
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
                                               pinned_buffer_[tid]));
 
+#endif
+
+
+#if !PINNED_DOUBLE_BUFFERING
     CUDA_CALL(cudaEventSynchronize(events_[tid]));
+#endif
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
                                               image_decoders_[i],
                                               image_states_[i],
@@ -260,8 +290,10 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           jpeg_streams_[i],
           streams_[tid]));
 
+#if !PINNED_DOUBLE_BUFFERING
       // Next sample processed in this thread has to know when H2D finished
       CUDA_CALL(cudaEventRecord(events_[tid], streams_[tid]));
+#endif
 
 
       NVJPEG_CALL(nvjpegDecodeJpegDevice(
@@ -333,6 +365,9 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   std::vector<Dims> output_shape_;
   // Per thread
   std::vector<nvjpegBufferPinned_t> pinned_buffer_;
+#if PINNED_DOUBLE_BUFFERING
+  std::vector<uint8_t> curr_pinned_buff_;
+#endif
 
   // GPU
   // Per thread
