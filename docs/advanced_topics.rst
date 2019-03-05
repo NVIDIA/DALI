@@ -45,3 +45,12 @@ Prefetching queue depth
 
 The purpose of this functionality is to average the processing time between batches when the variation from batch to batch is high.
 DALI pipeline allows buffering one or more batches of data ahead. This becomes important when the data processing time between batches could vary a lot. Default prefetch depth is 2. The user can change this value using the ``prefetch_queue_depth`` pipeline argument. For example, if the variation is bigger then it is recommended to prefetch more ahead.
+
+C++ API
+-------
+
+.. note::
+
+  **This feature is not officially supported and may change without notice**
+
+The C++ API enables using DALI as a library from native applications. **The API is experimental, unstable and can change without notice**. Refer to ``PipelineTest`` family of tests for how to use the C++ API.
