@@ -144,7 +144,6 @@ def train(args):
     inv_map = {v: k for k, v in val_dataset.label_map.items()}
 
     avg_loss = 0.0
-    data_perf = AverageMeter()
     batch_perf = AverageMeter()
     end = time.time()
     train_start = end
@@ -165,7 +164,7 @@ def train(args):
         start_epoch_time = time.time()
         scheduler.step()
 
-        epoch_loop(train_loader, args, ssd300, data_perf, end,
+        epoch_loop(train_loader, args, ssd300, end,
                    loss_func, optimizer, iteration, avg_loss, batch_perf, epoch)
         torch.cuda.synchronize()
 
@@ -178,11 +177,15 @@ def train(args):
         except AttributeError:
             pass
 
-    print("Training end: Rank {:2d}, Data perf: {:3f} img/sec, Batch perf: {:3f} img/sec, Total time: {:3f} sec"
-          .format(args.local_rank, args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg, time.time() - train_start))
+    if args.local_rank == 0:
+        print("Training end: Average speed: {:3f} img/sec, Total time: {:3f} sec, Final accuracy: {:3f} mAP"
+          .format(
+              args.N_gpu * args.batch_size / batch_perf.avg, 
+              time.time() - train_start,
+              acc))
 
 
-def epoch_loop(train_loader, args, ssd300, data_perf, end, loss_func, optimizer, iteration, avg_loss, batch_perf, epoch):
+def epoch_loop(train_loader, args, ssd300, end, loss_func, optimizer, iteration, avg_loss, batch_perf, epoch):
     for nbatch, data in enumerate(train_loader):
         if args.data_pipeline == 'no_dali':
             (img, _, img_size, bbox, label) = data
@@ -207,8 +210,6 @@ def epoch_loop(train_loader, args, ssd300, data_perf, end, loss_func, optimizer,
             gloc = Variable(trans_bbox, requires_grad=False)
             glabel = Variable(label, requires_grad=False)
 
-            data_perf.update(time.time() - end)
-
             loss = loss_func(ploc, plabel, gloc, glabel)
 
             if args.fp16:
@@ -226,16 +227,17 @@ def epoch_loop(train_loader, args, ssd300, data_perf, end, loss_func, optimizer,
         optimizer.zero_grad()
         iteration += 1
 
-        batch_perf.update(time.time() - end)
+        if iteration > 5:
+            batch_perf.update(time.time() - end)
 
-        log_perf(args, iteration, loss, avg_loss, data_perf, batch_perf)
+            if args.local_rank == 0:
+                log_perf(epoch, args, iteration, loss, avg_loss, batch_perf)
 
         end = time.time()
         if iteration == 10 and epoch == 0:
-            data_perf.reset()
             batch_perf.reset()
 
 
-def log_perf(args, iteration, loss, avg_loss, data_perf, batch_perf):
-    print("Rank {:2d}, Iteration: {:3d}, Loss function: {:5.3f}, Average Loss: {:.3f}, Data perf: {:4f} img/sec, Batch perf: {:4f} img/sec, Avg Data perf: {:4f} img/sec, Avg Batch perf: {:4f} img/sec"
-          .format(args.local_rank, iteration, loss.item(), avg_loss, args.batch_size / data_perf.val, args.batch_size / batch_perf.val, args.batch_size / data_perf.avg, args.batch_size / batch_perf.avg), end="\r")
+def log_perf(epoch, args, iteration, loss, avg_loss, batch_perf):
+    print("Epoch {:2d}, Iteration: {:3d}, Loss function: {:5.3f}, Average Loss: {:.3f}, Speed: {:4f} img/sec, Avg speed: {:4f} img/sec"
+          .format(epoch, iteration, loss.item(), avg_loss, args.batch_size / batch_perf.val, args.batch_size / batch_perf.avg))

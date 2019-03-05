@@ -11,7 +11,7 @@ test_body() {
     pip install -I pycocotools
 
     # test code
-    python -m torch.distributed.launch --nproc_per_node=8 ./main.py --warmup 300 --bs 64 --fp16 --data=/data/coco/coco-2017/coco2017/ --epochs=1
+    python -m torch.distributed.launch --nproc_per_node=8 ./main.py --warmup 200 --bs 64 --data=/data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=3
 }
 
 source ../../../../qa/test_template.sh
