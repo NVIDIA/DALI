@@ -38,6 +38,8 @@ using SupportOutputType = shared_ptr<Tensor<Backend>>;
  */
 class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, SupportOutputType> {
  public:
+  using WorkspaceBase<SupportInputType, SupportOutputType>::input_t;
+  using WorkspaceBase<SupportInputType, SupportOutputType>::output_t;
   DLL_PUBLIC SupportWorkspace() {}
   DLL_PUBLIC ~SupportWorkspace() override = default;
 

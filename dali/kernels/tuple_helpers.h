@@ -159,6 +159,75 @@ constexpr auto apply_all(F &&f, Args&&... args)
   return apply(f, std::tuple_cat(as_tuple(args)...));
 }
 
+template <size_t total, typename Type, typename Tuple>
+struct tuple_index_impl;
+
+template <size_t total, typename Type, typename... Tail>
+struct tuple_index_impl<total, Type, std::tuple<Type, Tail...>>
+    : std::integral_constant<size_t, total> {};
+
+template <size_t total, typename Type, typename Head, typename... Tail>
+struct tuple_index_impl<total, Type, std::tuple<Head, Tail...>>
+    : tuple_index_impl<total + 1, Type, std::tuple<Tail...>> {};
+
+template <size_t total, typename Type>
+struct tuple_index_impl<total, Type, std::tuple<>> : std::integral_constant<size_t, total> {
+  static_assert(total < 0, "Type not found");
+};
+
+/**
+ * @brief Find index of first occurence of Type in std::tuple<Ts...>
+ *
+ * If Type is not present among Ts..., static_assert is invoked
+ */
+template <typename Type, typename Tuple>
+struct tuple_index : tuple_index_impl<0, Type, Tuple> {};
+
+/**
+ * @brief c++14's std::get<Type>(std::tuple<Types...> )
+ */
+template <class T, class... Types>
+T &get(std::tuple<Types...> &t) noexcept {
+  return std::get<tuple_index<T, std::tuple<Types...>>::value>(t);
+}
+
+template <class T, class... Types>
+T &&get(std::tuple<Types...> &&t) noexcept {
+  return std::get<tuple_index<T, std::tuple<Types...>>::value>(t);
+}
+
+template <class T, class... Types>
+const T &get(const std::tuple<Types...> &t) noexcept {
+  return std::get<tuple_index<T, std::tuple<Types...>>::value>(t);
+}
+
+template <class T, class... Types>
+const T &&get(const std::tuple<Types...> &&t) noexcept {
+  return std::get<tuple_index<T, std::tuple<Types...>>::value>(t);
+}
+
+
+template <template <int> class type_generator, typename Sequence>
+struct tuple_generator_type;
+
+template <template <int> class type_generator, int... sequence>
+struct tuple_generator_type<type_generator, detail::seq<sequence...>> {
+  using type = std::tuple<type_generator<sequence>...>;
+};
+
+/**
+ * @brief Generate tuple type using `type_generator` and `Sequence`.
+ *
+ * Used to generate tuple containing types that match values of some
+ * enumeration.
+ *
+ * @tparam type_generator Template taking int to produce a type
+ * @tparam Sequence
+ */
+template <template <int> class type_generator, typename Sequence>
+using tuple_generator_t = typename tuple_generator_type<type_generator, Sequence>::type;
+
+
 }  // namespace detail
 
 using detail::apply;

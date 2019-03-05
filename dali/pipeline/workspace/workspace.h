@@ -71,6 +71,12 @@ class ArgumentWorkspace {
 template <template<typename> class InputType, template<typename> class OutputType>
 class WorkspaceBase : public ArgumentWorkspace {
  public:
+  template <typename Backend>
+  using input_t = InputType<Backend>;
+
+  template <typename Backend>
+  using output_t = OutputType<Backend>;
+
   WorkspaceBase() {}
   ~WorkspaceBase() override = default;
 
