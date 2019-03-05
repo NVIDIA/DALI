@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include <utility>
 #include "dali/util/random_crop_generator.h"
 #include "dali/error_handling.h"
@@ -23,8 +24,8 @@ RandomCropGenerator::RandomCropGenerator(
     AreaRange area_range,
     int64_t seed,
     int num_attempts)
-  : aspect_ratio_dis_(aspect_ratio_range.first, aspect_ratio_range.second)
-  , inv_aspect_ratio_dis_(1/aspect_ratio_range.second, 1/aspect_ratio_range.first)
+  : aspect_ratio_range_(aspect_ratio_range)
+  , aspect_ratio_log_dis_(std::log(aspect_ratio_range.first), std::log(aspect_ratio_range.second))
   , area_dis_(area_range.first, area_range.second)
   , rand_gen_(seed)
   , seed_(seed)
@@ -37,9 +38,9 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
     return crop;
   }
 
-  float min_wh_ratio = aspect_ratio_dis_.param().a();
-  float max_wh_ratio = aspect_ratio_dis_.param().b();
-  float max_hw_ratio = inv_aspect_ratio_dis_.param().b();
+  float min_wh_ratio = aspect_ratio_range_.first;
+  float max_wh_ratio = aspect_ratio_range_.second;
+  float max_hw_ratio = 1 / aspect_ratio_range_.first;
   float min_area = W * H * area_dis_.a();
   int maxW = std::max<int>(1, H * max_wh_ratio);
   int maxH = std::max<int>(1, W * max_hw_ratio);
@@ -56,39 +57,28 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
     int attempts_left = num_attempts_;
     for (; attempts_left > 0; attempts_left--) {
       float scale = area_dis_(rand_gen_);
-      bool swap = coin_flip_(rand_gen_);
 
       size_t original_area = H * W;
       float target_area = scale * original_area;
 
-      // Uniform distribution is not suitable for aspect ratios. Here, we randomly
-      // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
-      // reciprocal aspect ratio ranges, such as 3/4..4/3
-      if (swap) {
-        float ratio = inv_aspect_ratio_dis_(rand_gen_);
-        crop.w = static_cast<int>(
-            std::roundf(sqrtf(target_area / ratio)));
-        crop.h = static_cast<int>(
-            std::roundf(sqrtf(target_area * ratio)));
-      } else {
-        float ratio = aspect_ratio_dis_(rand_gen_);
-        crop.w = static_cast<int>(
-            std::roundf(sqrtf(target_area * ratio)));
-        crop.h = static_cast<int>(
-            std::roundf(sqrtf(target_area / ratio)));
-      }
+      float ratio = std::exp(aspect_ratio_log_dis_(rand_gen_));
+      crop.w = static_cast<int>(
+          std::roundf(sqrtf(target_area * ratio)));
+      crop.h = static_cast<int>(
+          std::roundf(sqrtf(target_area / ratio)));
+
       if (crop.w < 1)
         crop.w = 1;
       if (crop.h < 1)
         crop.h = 1;
 
-      float ratio = static_cast<float>(crop.w) / crop.h;
+      ratio = static_cast<float>(crop.w) / crop.h;
       if (crop.w <= W && crop.h <= H && ratio >= min_wh_ratio && ratio <= max_wh_ratio)
         break;
     }
 
     if (attempts_left <= 0) {
-      float max_area = area_dis_.param().b() * W * H;
+      float max_area = area_dis_.b() * W * H;
       float ratio = static_cast<float>(W)/H;
       if (ratio > max_wh_ratio) {
         crop.h = H;
