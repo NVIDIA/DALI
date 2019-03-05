@@ -18,7 +18,8 @@
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream) : stream_{0} {
+CUStream::CUStream(int device_id, bool default_stream) :
+        stream_{0} {
   if (!default_stream) {
     DeviceGuard dg(device_id);
     CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
@@ -27,7 +28,13 @@ CUStream::CUStream(int device_id, bool default_stream) : stream_{0} {
 
 
 CUStream::~CUStream() {
-  CUDA_CALL(cudaStreamDestroy(stream_));
+  if (stream_ != 0) {
+    auto err = cudaStreamDestroy(stream_);
+    if (err != cudaSuccess) {
+      std::cerr << "Critical error in destroying stream: " << err << std::endl;
+      abort();
+    }
+  }
 }
 
 
@@ -38,8 +45,8 @@ CUStream::CUStream(CUStream &&other) :
 
 
 CUStream &CUStream::operator=(CUStream &&other) {
-  stream_ = other.stream_;
-  other.stream_ = 0;
+  std::swap(stream_, other.stream_);
+  other.~CUStream();
   return *this;
 }
 

@@ -32,8 +32,13 @@ class DeviceGuard {
   }
 
 
-  ~DeviceGuard() noexcept(false) {
-    CUDA_CALL(cudaSetDevice(original_device_));
+  ~DeviceGuard() {
+    auto err = cudaSetDevice(original_device_);
+    if (err != cudaSuccess) {
+      std::cerr << "Failed to recover from DeviceGuard: " << err << std::endl;
+      abort();
+    }
+
   }
 
 
