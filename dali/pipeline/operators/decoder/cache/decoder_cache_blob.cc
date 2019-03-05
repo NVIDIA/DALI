@@ -37,7 +37,7 @@ DecoderCacheBlob::DecoderCacheBlob(std::size_t cache_size,
     DALI_ENFORCE(buffer_ != nullptr);
     tail_ = buffer_.get();
     buffer_end_ = buffer_.get() + cache_size_;
-    LOG_LINE << "cache size is " << cache_size_ / 1000000 << " MB" << std::endl;
+    LOG_LINE << "cache size is " << cache_size_ / (1024*1024) << " MB" << std::endl;
 }
 
 DecoderCacheBlob::~DecoderCacheBlob() {

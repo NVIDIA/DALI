@@ -125,22 +125,21 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
     batched_output_(batch_size_),
-    thread_pool_(max_streams_,
-                 spec.GetArgument<int>("device_id"),
-                 true /* pin threads */) {
+    device_id_(spec.GetArgument<int>("device_id")),
+    thread_pool_(max_streams_, device_id_, true /* pin threads */) {
       const std::size_t cache_size_mb = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_size"));
       const std::size_t cache_size = cache_size_mb * 1024 * 1024;
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
       if (cache_size > 0 && cache_size >= cache_threshold) {
-        if (!DecoderCacheFactory::Instance().IsInitialized()) {
+        if (!DecoderCacheFactory::Instance(device_id_).IsInitialized()) {
           const std::string cache_type = spec.GetArgument<std::string>("cache_type");
           const bool cache_debug = spec.GetArgument<bool>("cache_debug");
-          DecoderCacheFactory::Instance().Init(
+          DecoderCacheFactory::Instance(device_id_).Init(
             cache_type, cache_size, cache_debug, cache_threshold );
         }
-        cache_ = DecoderCacheFactory::Instance().Get();
+        cache_ = DecoderCacheFactory::Instance(device_id_).Get();
       }
 
       // Setup the allocator struct to use our internal allocator
@@ -152,8 +151,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       streams_.reserve(max_streams_);
       states_.reserve(max_streams_);
       events_.reserve(max_streams_);
-
-      cudaGetDevice(&device_id_);
 
 #if defined(NVJPEG_LIBRARY_0_2_0)
       NVJPEG_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, &allocator, nullptr, 0, &handle_));
@@ -182,7 +179,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegDestroy(handle_));
 
     if (cache_)
-      DecoderCacheFactory::Instance().Destroy();
+      DecoderCacheFactory::Instance(device_id_).Destroy();
   }
 
   bool CacheLoad(const std::string& file_name,
@@ -524,11 +521,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   // output pointers
   vector<nvjpegImage_t> batched_output_;
 
-  // Thread pool
-  ThreadPool thread_pool_;
-
   // device id
   int device_id_;
+
+  // Thread pool
+  ThreadPool thread_pool_;
 
   std::shared_ptr<DecoderCache> cache_;
 };

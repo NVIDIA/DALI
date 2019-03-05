@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string>
+#include <map>
 #include <mutex>
 #include "dali/pipeline/operators/decoder/cache/decoder_cache.h"
 
@@ -24,9 +25,12 @@ namespace dali {
 
 class DLL_PUBLIC DecoderCacheFactory {
  public:
-   DLL_PUBLIC static inline DecoderCacheFactory& Instance() {
-      static DecoderCacheFactory instance;
-      return instance;
+   DLL_PUBLIC static inline DecoderCacheFactory& Instance(int device_id) {
+      static std::mutex __mutex;
+      using DeviceId = int;
+      static std::map<DeviceId, DecoderCacheFactory> __cache_factory_map;
+      std::unique_lock<std::mutex> lock(__mutex);
+      return __cache_factory_map[device_id];
    }
 
    DLL_PUBLIC std::shared_ptr<DecoderCache> Init(
