@@ -8,7 +8,6 @@
 ##     or by passing an argument of the form `--build-arg FROM_IMAGE_NAME=myimage:mytag`
 ##     to `docker build -f Dockerfile.deps ... .`
 #########################################################################################
-#ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
 ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
 ARG USE_CUDA_VERSION=9
 FROM ${FROM_IMAGE_NAME} as base
