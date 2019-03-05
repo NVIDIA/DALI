@@ -32,7 +32,7 @@ CUStream::~CUStream() {
     auto err = cudaStreamDestroy(stream_);
     if (err != cudaSuccess) {
       std::cerr << "Critical error in destroying stream: " << err << std::endl;
-      abort();
+      std::terminate();
     }
   }
 }

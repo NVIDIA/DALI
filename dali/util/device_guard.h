@@ -36,7 +36,7 @@ class DeviceGuard {
     auto err = cudaSetDevice(original_device_);
     if (err != cudaSuccess) {
       std::cerr << "Failed to recover from DeviceGuard: " << err << std::endl;
-      abort();
+      std::terminate();
     }
 
   }
