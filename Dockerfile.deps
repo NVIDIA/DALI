@@ -1,12 +1,11 @@
 #########################################################################################
 ##  Stage 1: build DALI dependencies
-##     We would prefer to use publicly maintained manylinux1 (CentOS 5 derivative), but
-##     there are CXX11 ABI problems with the rh-devtoolset2 included with it, so we
-##     have switched to a "manylinux3" base that is just a minimally altered manylinux1
-##     built from CentOS 7 (w/ devtoolset3) instead of CentOS 5.  You can switch back
-##     to manylinux1 (or any other base you like) by changing FROM_IMAGE_NAME below
-##     or by passing an argument of the form `--build-arg FROM_IMAGE_NAME=myimage:mytag`
-##     to `docker build -f Dockerfile.deps ... .`
+##     DALI is based on "manylinux3", which is our modification of manylinux1
+##     (CentOS 5 derivative). For building this docker image, manylinux3 has to
+##     be manually built. It is also possible to use other distros, but we don't
+##     officially support them.
+##     For instructions, how to build manylinux3 with our patch see:
+##     //DALI/docker/build.sh#L16
 #########################################################################################
 ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
 ARG USE_CUDA_VERSION=9
