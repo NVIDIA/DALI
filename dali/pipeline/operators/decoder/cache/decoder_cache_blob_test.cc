@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <memory>
-#include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
+#include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
 
 namespace dali {
 namespace testing {

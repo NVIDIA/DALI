@@ -17,7 +17,7 @@
 #include <utility>
 #include <memory>
 #include <string>
-#include "dali/pipeline/operators/decoder/decoder_cache_largest_only.h"
+#include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
 
 namespace dali {
 namespace testing {

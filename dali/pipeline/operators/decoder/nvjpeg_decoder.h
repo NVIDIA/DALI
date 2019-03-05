@@ -27,8 +27,7 @@
 #include <string>
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
-#include "dali/pipeline/operators/decoder/decoder_cache_largest_only.h"
+#include "dali/pipeline/operators/decoder/cache/decoder_cache_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/device_guard.h"
 #include "dali/util/image.h"
@@ -129,21 +128,19 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     thread_pool_(max_streams_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
-      const std::string cache_type = spec.GetArgument<std::string>("cache_type");
       const std::size_t cache_size_mb = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_size"));
       const std::size_t cache_size = cache_size_mb * 1024 * 1024;
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
-      const bool cache_debug = spec.GetArgument<bool>("cache_debug");
       if (cache_size > 0 && cache_size >= cache_threshold) {
-        if (cache_type == "threshold") {
-          cache_.reset(
-            new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
-        } else {
-          cache_.reset(
-            new DecoderCacheLargestOnly(cache_size, cache_debug));
+        if (!DecoderCacheFactory::Instance().IsInitialized()) {
+          const std::string cache_type = spec.GetArgument<std::string>("cache_type");
+          const bool cache_debug = spec.GetArgument<bool>("cache_debug");
+          DecoderCacheFactory::Instance().Init(
+            cache_type, cache_size, cache_debug, cache_threshold );
         }
+        cache_ = DecoderCacheFactory::Instance().Get();
       }
 
       // Setup the allocator struct to use our internal allocator
@@ -183,6 +180,34 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
     NVJPEG_CALL(nvjpegDestroy(handle_));
+
+    if (cache_)
+      DecoderCacheFactory::Instance().Destroy();
+  }
+
+  bool CacheLoad(const std::string& file_name,
+                 const Dims &expected_shape,
+                 uint8_t *output_data,
+                 cudaStream_t stream) {
+    if (!cache_ || file_name.empty() || !cache_->IsCached(file_name))
+      return false;
+
+    DALI_ENFORCE(cache_->GetShape(file_name) == expected_shape,
+      "Output shape does not match the dimensions of the cached image");
+    cache_->CopyData(file_name, output_data, stream);
+    return true;
+  }
+
+  bool CacheStore(const std::string& file_name,
+                  uint8_t* data,
+                  std::size_t data_size,
+                  const Dims& data_shape,
+                  cudaStream_t stream) {
+    if (!cache_ || file_name.empty() || cache_->IsCached(file_name))
+      return false;
+
+    cache_->Add(file_name, data, data_size, data_shape, stream);
+    return true;
   }
 
   using dali::OperatorBase::Run;
@@ -321,41 +346,28 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
         const auto &output_shape = output_shape_[j];
         auto info = output_info_[j];
 
-        thread_pool_.DoWorkWithID(std::bind(
-              [this, info, data, in_size, output_data, output_shape, file_name](int idx, int tid) {
-                const int stream_idx = tid;
-                const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
+        thread_pool_.DoWorkWithID(
+          [this, info, data, in_size, output_data, output_shape, file_name, j](int tid) {
+            int idx = j;
+            const int stream_idx = tid;
+            const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
 
-                if (cache_ && !file_name.empty() && cache_->IsCached(file_name)) {
-                  DALI_ENFORCE(cache_->GetShape(file_name) == output_shape,
-                    "Output shape does not match the dimensions of the cached image");
-                  cache_->CopyData(
-                    file_name,
-                    output_data,
-                    streams_[stream_idx]);
-                  return;
-                }
+            if (CacheLoad(file_name, output_shape, output_data, streams_[stream_idx]))
+              return;
 
-                DecodeSingleSample(
-                  idx,
-                  stream_idx,
-                  handle_,
-                  states_[stream_idx],
-                  info,
-                  data, in_size,
-                  output_data,
-                  streams_[stream_idx],
-                  file_name);
+            DecodeSingleSample(
+              idx,
+              stream_idx,
+              handle_,
+              states_[stream_idx],
+              info,
+              data, in_size,
+              output_data,
+              streams_[stream_idx],
+              file_name);
 
-                if (cache_ && !file_name.empty() && !cache_->IsCached(file_name)) {
-                  cache_->Add(
-                    file_name,
-                    output_data,
-                    output_data_size,
-                    output_shape,
-                    streams_[stream_idx]);
-                }
-              }, j, std::placeholders::_1));
+            CacheStore(file_name, output_data, output_data_size, output_shape, streams_[stream_idx]);
+          });
       }
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
@@ -518,7 +530,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   // device id
   int device_id_;
 
-  std::unique_ptr<DecoderCacheBlob> cache_;
+  std::shared_ptr<DecoderCache> cache_;
 };
 
 }  // namespace dali
