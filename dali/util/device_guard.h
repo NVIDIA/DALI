@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
-#define DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#ifndef DALI_UTIL_DEVICE_GUARD_H_
+#define DALI_UTIL_DEVICE_GUARD_H_
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -30,13 +30,17 @@ class DeviceGuard {
     CUDA_CALL(cudaGetDevice(&original_device_));
     CUDA_CALL(cudaSetDevice(new_device));
   }
+
+
   ~DeviceGuard() noexcept(false) {
     CUDA_CALL(cudaSetDevice(original_device_));
   }
+
+
  private:
   int original_device_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_UTIL_DEVICE_GUARD_H_
+#endif  // DALI_UTIL_DEVICE_GUARD_H_

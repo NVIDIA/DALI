@@ -14,46 +14,32 @@
 
 #include "dali/util/custream.h"
 #include "dali/util/cuda_utils.h"
+#include "dali/util/device_guard.h"
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream) : valid_{false}, stream_{0} {
+CUStream::CUStream(int device_id, bool default_stream) : stream_{0} {
   if (!default_stream) {
-    int orig_device;
-    cudaGetDevice(&orig_device);
-    auto set_device = false;
-    if (device_id >= 0 && orig_device != device_id) {
-      set_device = true;
-      cudaSetDevice(device_id);
-    }
+    DeviceGuard dg(device_id);
     CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-    valid_ = true;
-    if (set_device) {
-      CUDA_CALL(cudaSetDevice(orig_device));
-    }
   }
 }
 
 
 CUStream::~CUStream() {
-  if (valid_) {
-    CUDA_CALL(cudaStreamDestroy(stream_));
-  }
+  CUDA_CALL(cudaStreamDestroy(stream_));
 }
 
 
 CUStream::CUStream(CUStream &&other) :
-        valid_{other.valid_}, stream_{other.stream_} {
+        stream_{other.stream_} {
   other.stream_ = 0;
-  other.valid_ = false;
 }
 
 
 CUStream &CUStream::operator=(CUStream &&other) {
   stream_ = other.stream_;
-  valid_ = other.valid_;
   other.stream_ = 0;
-  other.valid_ = false;
   return *this;
 }
 
