@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OP_GRAPH_H_
-#define DALI_PIPELINE_OP_GRAPH_H_
+#ifndef DALI_PIPELINE_GRAPH_OP_GRAPH_H_
+#define DALI_PIPELINE_GRAPH_OP_GRAPH_H_
 
 #include <map>
 #include <unordered_set>
@@ -33,6 +33,7 @@ namespace dali {
 using OpNodeId = int64_t;
 using OpPartitionId = int64_t;
 using TensorNodeId = int64_t;
+using TensorPartitionId = int64_t;
 // using producer_edge_t = std::pair<OpNodeId, Index>;
 // using consumer_edge_t = std::pair<OpNodeId, Index>;
 
@@ -41,8 +42,24 @@ using TensorNodeId = int64_t;
 enum class StorageDevice {
   CPU = 0,
   GPU = 1,
-  COUNT = 2
+  COUNT = 2,
 };
+
+template <StorageDevice>
+struct storage_backend_type;
+
+template <>
+struct storage_backend_type<StorageDevice::CPU> {
+  using type = CPUBackend;
+};
+
+template <>
+struct storage_backend_type<StorageDevice::GPU> {
+  using type = GPUBackend;
+};
+
+template <StorageDevice device>
+using storage_backend_t = typename storage_backend_type<device>::type;
 
 struct OpNode {
   inline OpNode() {}
@@ -107,7 +124,7 @@ struct TensorNode {
 class DLL_PUBLIC OpGraph {
  public:
   DLL_PUBLIC inline OpGraph() {
-    node_partitions_.resize(static_cast<int>(OpType::COUNT));
+    op_partitions_.resize(static_cast<int>(OpType::COUNT));
   }
   DLL_PUBLIC inline ~OpGraph() = default;
 
@@ -141,7 +158,7 @@ class DLL_PUBLIC OpGraph {
    * @brief Returns the number of `op_type` ops in the graph.
    */
   DLL_PUBLIC inline Index NumOp(OpType op_type) const {
-    return node_partitions_[static_cast<int>(op_type)].size();
+    return op_partitions_[static_cast<int>(op_type)].size();
   }
 
   /**
@@ -149,7 +166,7 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC inline OpNodeId NodeId(OpType op_type, OpPartitionId partition_id) const {
     DALI_ENFORCE_VALID_INDEX(partition_id, NumOp(op_type));
-    return node_partitions_[static_cast<int>(op_type)][partition_id];
+    return op_partitions_[static_cast<int>(op_type)][partition_id];
   }
 
   // TODO(klecki) return a copy/const& to disallow modification
@@ -196,6 +213,22 @@ class DLL_PUBLIC OpGraph {
     DALI_ENFORCE_VALID_INDEX(id, tensor_nodes_.size());
     return tensor_nodes_[id];
   }
+
+  DLL_PUBLIC const TensorNodeId TensorId(const std::string& name) const {
+    auto it = tensor_name_to_id_.find(name);
+    DALI_ENFORCE(it != tensor_name_to_id_.end(),
+                 "Tensor with name " + name + " does not exist in graph.");
+    return it->second;
+  }
+
+  /**
+   * @brief Returns the Tensor node with the given name.
+   */
+  DLL_PUBLIC const TensorNode& Tensor(const std::string& name) const {
+    return tensor_nodes_[TensorId(name)];
+  }
+
+  DLL_PUBLIC std::vector<std::vector<TensorNodeId>> PartitionTensorByOpType() const;
 
   /**
    * @brief Returns the type (cpu, gpu, mixed) of the node
@@ -294,6 +327,9 @@ class DLL_PUBLIC OpGraph {
     ofs << "}\n";
   }
 
+  DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names);
+  DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(OpType stage);
+
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
  private:
@@ -307,7 +343,7 @@ class DLL_PUBLIC OpGraph {
    * Clears the partition vectors and readds all the nodes to proper partitions again,
    * storing new indexes.
    */
-  void Repartition();
+  void RepartitionOps();
 
   /**
    * @brief Adds new OpNode of `op_type` to op_nodes_ unified vector and to proper partition
@@ -327,7 +363,7 @@ class DLL_PUBLIC OpGraph {
 
   std::vector<OpNode> op_nodes_;
   std::vector<TensorNode> tensor_nodes_;
-  std::vector<std::vector<OpPartitionId>> node_partitions_;
+  std::vector<std::vector<OpNodeId>> op_partitions_;
 
   /**
    * @brief  Swap ids of two TensorNodes, and update all occurences in graph to not break
@@ -369,4 +405,4 @@ class DLL_PUBLIC OpGraph {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OP_GRAPH_H_
+#endif  // DALI_PIPELINE_GRAPH_OP_GRAPH_H_
