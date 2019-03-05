@@ -38,7 +38,6 @@ class DeviceGuard {
       std::cerr << "Failed to recover from DeviceGuard: " << err << std::endl;
       std::terminate();
     }
-
   }
 
 
