@@ -23,6 +23,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/common.h"
+#include "dali/util/random_crop_generator.h"
 
 namespace dali {
 
@@ -35,11 +36,11 @@ class RandomResizedCrop : public Operator<Backend> {
     num_attempts_(spec.GetArgument<int>("num_attempts")),
     interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, &size_, "size", 2);
-    GetSingleOrRepeatedArg(spec, &aspect_ratios_, "random_aspect_ratio", 2);
-    GetSingleOrRepeatedArg(spec, &area_, "random_area", 2);
-    DALI_ENFORCE(aspect_ratios_[0] <= aspect_ratios_[1],
+    GetSingleOrRepeatedArg(spec, &aspect_ratio_range_, "random_aspect_ratio", 2);
+    GetSingleOrRepeatedArg(spec, &area_range_, "random_area", 2);
+    DALI_ENFORCE(aspect_ratio_range_[0] <= aspect_ratio_range_[1],
         "Provided empty range");
-    DALI_ENFORCE(area_[0] <= area_[1],
+    DALI_ENFORCE(area_range_[0] <= area_range_[1],
         "Provided empty range");
     InitParams(spec);
   }
@@ -55,72 +56,47 @@ class RandomResizedCrop : public Operator<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
-  struct CropInfo {
-    int x, y;
-    int w, h;
+  struct Params {
+    void Initialize(
+        int num_gens,
+        int64_t seed,
+        const std::pair<float, float> &aspect_ratio_range,
+        const std::pair<float, float> &area_range,
+        int num_attempts) {
+      std::seed_seq seq{seed};
+      std::vector<int> seeds(num_gens);
+      seq.generate(seeds.begin(), seeds.end());
+
+      crop_gens.resize(num_gens);
+      for (int i = 0; i < num_gens; i++) {
+        crop_gens[i] = RandomCropGenerator(aspect_ratio_range, area_range, seeds[i], num_attempts);
+      }
+
+      crops.resize(num_gens);
+    }
+
+    std::vector<RandomCropGenerator> crop_gens;
+    std::vector<CropWindow> crops;
   };
 
-  void InitParams(const OpSpec &spec);
-
-  bool TryCrop(int H, int W,
-               std::uniform_real_distribution<float> &ratio_dis,
-               std::uniform_real_distribution<float> &area_dis,
-               std::uniform_real_distribution<float> &uniform,
-               std::mt19937 &gen,
-               CropInfo &crop) {
-      float scale = area_dis(gen);
-      bool swap   = uniform(gen) < 0.5f;
-
-      size_t original_area = H * W;
-      float target_area = scale * original_area;
-
-
-      int w, h;
-
-      // Uniform distribution is not suitable for aspect ratios. Here, we randomly
-      // draw either W/H or H/W aspec ratio which has a mean equal 1 for ranges with
-      // reciprocal aspect ratio ranges, such as 3/4..4/3
-      if (swap) {
-        auto param = ratio_dis.param();
-        decltype(param) inv_param(1/param.b(), 1/param.a());
-        float ratio = ratio_dis(gen, inv_param);
-        w = static_cast<int>(
-            std::roundf(sqrtf(target_area / ratio)));
-        h = static_cast<int>(
-            std::roundf(sqrtf(target_area * ratio)));
-      } else {
-        float ratio = ratio_dis(gen);
-        w = static_cast<int>(
-            std::roundf(sqrtf(target_area * ratio)));
-        h = static_cast<int>(
-            std::roundf(sqrtf(target_area / ratio)));
-      }
-
-      if (w <= W && h <= H) {
-        float rand_x = uniform(gen);
-        float rand_y = uniform(gen);
-
-        crop.w = w;
-        crop.h = h;
-        crop.x = static_cast<int>(rand_x * (W - w));
-        crop.y = static_cast<int>(rand_y * (H - h));
-        return true;
-      } else {
-        return false;
-      }
+  void InitParams(const OpSpec &spec) {
+    auto seed = spec.GetArgument<int64_t>("seed");
+    params_->Initialize(
+        batch_size_, seed,
+        { aspect_ratio_range_[0], aspect_ratio_range_[1] },
+        { area_range_[0], area_range_[1] },
+        num_attempts_);
   }
 
-  // To be filled by actual implementations
-  struct Params {};
 
   unique_ptr<Params> params_;
+  int num_attempts_;
 
   std::vector<int> size_;
-  int num_attempts_;
   DALIInterpType interp_type_;
 
-  std::vector<float> aspect_ratios_;
-  std::vector<float> area_;
+  std::vector<float> aspect_ratio_range_;
+  std::vector<float> area_range_;
 };
 
 }  // namespace dali

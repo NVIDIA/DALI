@@ -18,30 +18,9 @@
 
 #include "dali/util/npp.h"
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
+#include "dali/util/random_crop_generator.h"
 
 namespace dali {
-
-template<>
-struct RandomResizedCrop<GPUBackend>::Params {
-  std::mt19937 rand_gen;
-  std::uniform_real_distribution<float> aspect_ratio_dis;
-  std::uniform_real_distribution<float> area_dis;
-  std::uniform_real_distribution<float> uniform;
-
-  std::vector<CropInfo> crops;
-};
-
-template<>
-void RandomResizedCrop<GPUBackend>::InitParams(const OpSpec &spec) {
-  params_->rand_gen.seed(spec.GetArgument<int64_t>("seed"));
-  params_->aspect_ratio_dis = std::uniform_real_distribution<float>(aspect_ratios_[0],
-                                                                    aspect_ratios_[1]);
-  params_->area_dis = std::uniform_real_distribution<float>(area_[0],
-                                                            area_[1]);
-  params_->uniform = std::uniform_real_distribution<float>(0, 1);
-
-  params_->crops.resize(batch_size_);
-}
 
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx) {
@@ -66,7 +45,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   nppSetStream(ws->stream());
 
   for (int i = 0; i < batch_size_; ++i) {
-    const CropInfo &crop = params_->crops[i];
+    const CropWindow &crop = params_->crops[i];
     NppiRect in_roi, out_roi;
     in_roi.x = crop.x;
     in_roi.y = crop.y;
@@ -137,29 +116,7 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
     int H = input_shape[0];
     int W = input_shape[1];
 
-    CropInfo crop;
-    int attempt = 0;
-
-    for (attempt = 0; attempt < num_attempts_; ++attempt) {
-      if (TryCrop(H, W,
-                  params_->aspect_ratio_dis,
-                  params_->area_dis,
-                  params_->uniform,
-                  params_->rand_gen,
-                  crop)) {
-        break;
-      }
-    }
-
-    if (attempt == num_attempts_) {
-      int min_dim = H < W ? H : W;
-      crop.w = min_dim;
-      crop.h = min_dim;
-      crop.x = (W - min_dim) / 2;
-      crop.y = (H - min_dim) / 2;
-    }
-
-    params_->crops[i] = crop;
+    params_->crops[i] = params_->crop_gens[i].GenerateCropWindow(H, W);
   }
 }
 
