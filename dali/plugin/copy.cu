@@ -18,7 +18,7 @@
 #include "dali/plugin/copy.h"
 #include "dali/error_handling.h"
 #include "dali/util/user_stream.h"
-#include "dali/pipeline/util/device_guard.h"
+#include "dali/util/device_guard.h"
 
 namespace dali {
 

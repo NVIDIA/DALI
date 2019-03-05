@@ -30,7 +30,7 @@
 #include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
 #include "dali/pipeline/operators/decoder/decoder_cache_largest_only.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/util/device_guard.h"
+#include "dali/util/device_guard.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
