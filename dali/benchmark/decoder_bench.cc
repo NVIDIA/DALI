@@ -238,39 +238,6 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { 
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
-
-  // Build and run the pipeline
-  vector<std::pair<string, string>> outputs = {{"images", "cpu"}};
-  pipe.Build(outputs);
-
-  // Run once to allocate the memory
-  DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
-
-  while (st.KeepRunning()) {
-    if (st.iterations() == 1) {
-      // We will start he processing for the next batch
-      // immediately after issueing work to the gpu to
-      // pipeline the cpu/copy/gpu work
-      pipe.RunCPU();
-      pipe.RunGPU();
-    }
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
-
-    if (st.iterations() == st.max_iterations) {
-      // Block for the last batch to finish
-      pipe.Outputs(&ws);
-    }
-  }
-
-  // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
-  int num_batches = st.iterations() + 1;
-  st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
-      benchmark::Counter::kIsRate);
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, HostDecoderRandomCrop)->Iterations(100)
