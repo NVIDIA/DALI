@@ -118,7 +118,7 @@ test_data = {
             TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
             }
 
-parser = argparse.ArgumentParser(description='nvJPEG and HostDecoder RN50 dataset test')
+parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
                     help='number of GPUs (default: 1)')
 parser.add_argument('-b', '--batch', default=2048, type=int, metavar='N',
