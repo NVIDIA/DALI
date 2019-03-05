@@ -60,9 +60,20 @@ struct FilterDesc {
   float radius = 0;
 };
 
+/// @brief Resampling parameters for 1 dimension
 struct ResamplingParams {
   FilterDesc min_filter, mag_filter;
-  int output_size;
+  int output_size = KeepOriginalSize;
+
+  /// @brief 1D region of interest
+  struct ROI {
+    ROI() = default;
+    ROI(float start, float end) : use_roi(true), start(start), end(end) {}
+    bool use_roi = false;
+    float start = 0;
+    float end = 0;
+  };
+  ROI roi;
 };
 
 using ResamplingParams2D = std::array<ResamplingParams, 2>;

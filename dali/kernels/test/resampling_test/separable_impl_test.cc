@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <random>
 #include "dali/kernels/imgproc/resample/separable.h"
 #include "dali/kernels/test/test_tensors.h"
@@ -90,8 +91,6 @@ TEST(SeparableImpl, Setup) {
     };
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_EQ(in_tv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
-    EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
     EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
 
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
@@ -126,6 +125,29 @@ ResamplingTestBatch Batch1 = {
     "imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png",
     { 681, 960 }, gauss(12), 2
   }
+};
+
+ResamplingTestBatch CropBatch = {
+  {
+    "imgproc_test/dots.png", "imgproc_test/ref_out/dots_crop_2x2.png",
+    { 1.0f, 1.0f, 3.0f, 3.0f }, { 2, 2 }, nearest(), 0
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop.png",
+    { 100.0f, 300.0f, 200.0f, 400.0f }, { 200, 200 }, cubic(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop_flip.png",
+    { 200.0f, 300.0f, 100.0f, 400.0f }, { 200, 200 }, cubic(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop.png",
+    { 150.0f, 400.0f, 200.0f, 450.0f }, { 150, 200 }, lin(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop_flip.png",
+    { 150.0f, 450.0f, 200.0f, 400.0f }, { 150, 200 }, lin(), 1
+  },
 };
 
 
@@ -186,8 +208,10 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_EQ(in_tv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
-    EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
+    if (!params[i][0].roi.use_roi || !params[i][1].roi.use_roi) {
+      EXPECT_EQ(in_tv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
+      EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
+    }
     EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
 
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
@@ -290,15 +314,18 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
 #endif
       int start = inp_name.rfind(sep) + 1;
       std::string dif_name = inp_name.substr(start, ext - start) + "_dif"+inp_name.substr(ext);
+      std::string out_name = inp_name.substr(start, ext - start) + "_out"+inp_name.substr(ext);
       cv::imwrite(dif_name, 127 + tmp - cv_ref[i]);
+      cv::imwrite(out_name, tmp);
       return "Diff written to " + dif_name;
     }();
   }
 }
 
-
 INSTANTIATE_TEST_CASE_P(SingleImage, BatchResamplingTest, ::testing::Values(SingleImageBatch));
 INSTANTIATE_TEST_CASE_P(MultipleImages, BatchResamplingTest, ::testing::Values(Batch1));
+
+INSTANTIATE_TEST_CASE_P(Crop, BatchResamplingTest, ::testing::Values(CropBatch));
 
 }  // namespace resample_test
 }  // namespace kernels
