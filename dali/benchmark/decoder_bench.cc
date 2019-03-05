@@ -127,6 +127,34 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
       .AddOutput("images", "gpu"));
 }
 
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoder)->Iterations(500)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderNew)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoderNew")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddArg("max_streams", num_thread)
+      .AddArg("use_batched_decode", false)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderNew)->Iterations(500)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+
+
 BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
@@ -147,11 +175,12 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State&
       .AddOutput("images", "gpu"));
 }
 
+/*
 BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedThreshold)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
-
+*/
 BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
@@ -171,11 +200,12 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& s
       .AddOutput("images", "gpu"));
 }
 
+/*
 BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedLargest)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
-
+*/
 BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
@@ -192,11 +222,12 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { /
       .AddOutput("images", "gpu"));
 }
 
+/*
 BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderBatched)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
-
+*/
 BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
