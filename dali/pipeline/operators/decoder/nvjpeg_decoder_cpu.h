@@ -51,6 +51,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       NVJPEG_CALL(nvjpegDecodeParamsCreate(handle_, &decode_params_[i]));
       NVJPEG_CALL(nvjpegDecodeParamsSetOutputFormat(decode_params_[i],
                                                     GetFormat(output_image_type_)));
+      NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
     }
   }
 
@@ -103,34 +104,30 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                      info->heights));
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
-      NVJPEG_CALL(nvjpegJpegStreamGetChromaSubsampling(state_nvjpeg->jpeg_stream,
-                                                       &info->subsampling));
-      info->nvjpeg_support = SupportedSubsampling(info->subsampling);
-      if (info->nvjpeg_support) {
-        state_nvjpeg->nvjpeg_backend =
-                      ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
+      info->nvjpeg_support = true;
+      state_nvjpeg->nvjpeg_backend =
+                    ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
-        /* TODO(spanev): add this function when integrating Crop
-        nvjpegnvjpegDecodeParamsSetROI(decode_params_[i], offset_x, offset_y, roi_w, roi_h); */
+      /* TODO(spanev): add this function when integrating Crop
+      nvjpegnvjpegDecodeParamsSetROI(decode_params_[i], offset_x, offset_y, roi_w, roi_h); */
 
-        nvjpegJpegState_t state = GetNvjpegState(*state_nvjpeg);
-        NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state,
-                                                  state_nvjpeg->pinned_buffer));
-        nvjpegStatus_t ret = nvjpegDecodeJpegHost(
-            handle_,
-            GetDecoder(state_nvjpeg->nvjpeg_backend),
-            state,
-            decode_params_[data_idx],
-            state_nvjpeg->jpeg_stream);
-        if (ret != NVJPEG_STATUS_SUCCESS) {
-          if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
-            info->nvjpeg_support = false;
-          } else {
-            NVJPEG_CALL_EX(ret, file_name);
-          }
+      nvjpegJpegState_t state = GetNvjpegState(*state_nvjpeg);
+      NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state,
+                                                state_nvjpeg->pinned_buffer));
+      nvjpegStatus_t ret = nvjpegDecodeJpegHost(
+          handle_,
+          GetDecoder(state_nvjpeg->nvjpeg_backend),
+          state,
+          decode_params_[data_idx],
+          state_nvjpeg->jpeg_stream);
+      if (ret != NVJPEG_STATUS_SUCCESS) {
+        if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
+          info->nvjpeg_support = false;
         } else {
-          // TODO(spanev): free Output #2
+          NVJPEG_CALL_EX(ret, file_name);
         }
+      } else {
+        // TODO(spanev): free Output #2
       }
     }
     // finally OCV fallback

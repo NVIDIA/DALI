@@ -24,7 +24,7 @@ DALI_REGISTER_OPERATOR(nvJPEGDecoderSplitted, nvJPEGDecoderSplitted, Mixed);
 DALI_SCHEMA(nvJPEGDecoderSplitted)
   .DocStr(R"code(Decode JPEG images using the nvJPEG library.
 Output of the decoder is on the GPU and uses `HWC` ordering.)code")
-  .NumInput(3)
+  .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_type",
       R"code(The color space of output image.)code",
