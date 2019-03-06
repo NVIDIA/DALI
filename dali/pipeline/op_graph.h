@@ -32,6 +32,13 @@ namespace dali {
 
 using NodeID = int64_t;
 
+// What device is this tensor stored on
+enum class StorageDevice {
+  CPU = 0,
+  GPU = 1,
+  COUNT = 2
+};
+
 struct OpNode {
   inline OpNode() {}
   virtual ~OpNode() = default;
@@ -57,7 +64,7 @@ struct OpNode {
 struct TensorMeta {
   NodeID node;
   Index index;
-  bool is_cpu;
+  StorageDevice storage_device;
   bool is_support;
 };
 

@@ -84,6 +84,13 @@ OpType ParseOpType(const std::string &device) {
   DALI_FAIL("Unsupported device type: " + device + ".");
 }
 
+StorageDevice ParseStorageDevice(const std::string &io_device) {
+  if (io_device == "cpu") {
+    return StorageDevice::CPU;
+  }
+  return StorageDevice::GPU;
+}
+
 }  // namespace
 
 void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
@@ -169,7 +176,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     meta.node = new_node->id;
     meta.index = i;
     meta.is_support = spec.IsArgumentInput(i);
-    meta.is_cpu = spec.InputDevice(i) == "cpu" ? true : false;
+    meta.storage_device = ParseStorageDevice(spec.InputDevice(i));
 
     vector<TensorMeta> &consumer_info = tensor_consumers_[spec.Input(i)];
     consumer_info.push_back(meta);
@@ -184,7 +191,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     meta.node = new_node->id;
     meta.index = i;
     meta.is_support = spec.GetArgument<string>("device") == "support";
-    meta.is_cpu = spec.OutputDevice(i) == "cpu" ? true : false;
+    meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
 
     auto ret = tensor_producers_.insert({name, meta});
     DALI_ENFORCE(ret.second, "Operator '" + spec.name() +
@@ -444,12 +451,12 @@ OpNode& OpGraph::node(const std::string& name) {
 
 template <>
 bool OpGraph::TensorIsType<CPUBackend>(const string &name) {
-  return TensorSourceMeta(name).is_cpu;
+  return TensorSourceMeta(name).storage_device == StorageDevice::CPU;
 }
 
 template <>
 bool OpGraph::TensorIsType<GPUBackend>(const string &name) {
-  return !TensorSourceMeta(name).is_cpu;
+  return TensorSourceMeta(name).storage_device == StorageDevice::GPU;
 }
 
 }  // namespace dali

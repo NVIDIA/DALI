@@ -706,7 +706,7 @@ void Executor::SetupOutputQueuesForGraph() {
     }
 
     // Create the buffer and events
-    if (tensor_meta.is_cpu) {
+    if (tensor_meta.storage_device == StorageDevice::CPU) {
       DALI_ENFORCE(!tensor_meta.is_support,
           "Outputs of support ops cannot be outputs.");  // TODO(ptredak): lift this restriction
       cpu_outputs_.push_back(TensorListPool<CPUBackend>(
