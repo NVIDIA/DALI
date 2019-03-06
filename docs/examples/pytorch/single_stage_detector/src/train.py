@@ -144,6 +144,7 @@ def train(args):
     inv_map = {v: k for k, v in val_dataset.label_map.items()}
 
     avg_loss = 0.0
+    acc = 0
     batch_perf = AverageMeter()
     end = time.time()
     train_start = end
