@@ -55,28 +55,42 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-.. code-block:: bash
-
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali
-
-.. note::
-   nvidia-dali package contains prebuilt versions of the dali tensorflow plugin for several versions of tensorflow.
-   Since release 0.6.1 there is also a possibility to install dali tensorflow plugin for the currently installed version of tensorflow, thus allowing forward compatibility:
+For CUDA 9.0 based build issue:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
+
+For CUDA 10.0 based build issue:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
 
 .. note::
-Installing this package will install nvidia-dali and its dependencies if not already installed. The package tensorflow-gpu must be installed before attempting to install nvidia-dali-tf-plugin.
+   nvidia-dali package contains prebuilt versions of the DALI TensorFlow plugin for several versions of TensorFlow.
+   Since release 0.6.1 there is also a possibility to install dali TensorFlow plugin for the currently installed version of TensorFlow, thus allowing forward compatibility:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
+
+For CUDA 10.0 based build issue:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
 
 .. note::
-The package nvidia-dali-tf-plugin has a strict requirement with nvidia-dali as its exact same version. Thus, installing nvidia-dali-tf-plugin at its latest version will replace any older nvidia-dali versions already installed with the latest. To work with older versions of DALI, please provide the version explicitely to the pip install command.
+   Installing this package will install nvidia-dali and its dependencies if not already installed. The package tensorflow-gpu must be installed before attempting to install nvidia-dali-tf-plugin.
+
+.. note::
+   The package nvidia-dali-tf-plugin has a strict requirement with nvidia-dali as its exact same version. Thus, installing nvidia-dali-tf-plugin at its latest version will replace any older nvidia-dali versions already installed with the latest. To work with older versions of DALI, please provide the version explicitly to the pip install command.
 
 .. code-block:: bash
 
    OLDER_VERSION=0.6.1
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin==$OLDER_VERSION
 
 Compiling DALI from source (bare metal)
 ---------------------------------------
