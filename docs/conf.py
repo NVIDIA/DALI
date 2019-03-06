@@ -55,19 +55,19 @@ subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
 option_on = " selected"
 option_off = ""
 if "dev" in version_long:
-    release = option_off
-    master = option_on
+    release_opt = option_off
+    master_opt = option_on
     option_nr = 1
 else:
-    release = option_on
-    master = option_off
+    release_opt = option_on
+    master_opt = option_off
     option_nr = 0
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/"{1}>Current release</option>
     <option value="https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/"{2}>master (unstable)</option>
     <option value="https://docs.nvidia.com/deeplearning/sdk/dali-archived/index.html">Older releases</option>
-</select>""".format(option_nr, release, master)
+</select>""".format(option_nr, release_opt, master_opt)
 
 # -- General configuration ---------------------------------------------------
 
