@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_FACTORY_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_FACTORY_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_
 
 #include <memory>
 #include <string>
@@ -25,31 +25,31 @@ namespace dali {
 
 class DLL_PUBLIC DecoderCacheFactory {
  public:
-   DLL_PUBLIC static inline DecoderCacheFactory& Instance(int device_id) {
-      static std::mutex __mutex;
-      using DeviceId = int;
-      static std::map<DeviceId, DecoderCacheFactory> __cache_factory_map;
-      std::unique_lock<std::mutex> lock(__mutex);
-      return __cache_factory_map[device_id];
-   }
+  DLL_PUBLIC static inline DecoderCacheFactory& Instance(int device_id) {
+    static std::mutex __mutex;
+    using DeviceId = int;
+    static std::map<DeviceId, DecoderCacheFactory> __cache_factory_map;
+    std::unique_lock<std::mutex> lock(__mutex);
+    return __cache_factory_map[device_id];
+  }
 
-   DLL_PUBLIC std::shared_ptr<DecoderCache> Init(
-      const std::string& cache_policy,
-      std::size_t cache_size,
-      bool cache_debug = false,
-      std::size_t cache_threshold = 0);
+  DLL_PUBLIC std::shared_ptr<DecoderCache> Init(
+    const std::string& cache_policy,
+    std::size_t cache_size,
+    bool cache_debug = false,
+    std::size_t cache_threshold = 0);
 
-   DLL_PUBLIC void Destroy();
+  DLL_PUBLIC void Destroy();
 
-   DLL_PUBLIC std::shared_ptr<DecoderCache> Get() const;
+  DLL_PUBLIC std::shared_ptr<DecoderCache> Get() const;
 
-   DLL_PUBLIC bool IsInitialized() const;
+  DLL_PUBLIC bool IsInitialized() const;
 
  private:
-   mutable std::mutex mutex_;
-   std::shared_ptr<DecoderCache> cache_;
+  mutable std::mutex mutex_;
+  std::shared_ptr<DecoderCache> cache_;
 };
 
-}
+}  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_

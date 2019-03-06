@@ -12,44 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
 #include <gtest/gtest.h>
-#include <vector>
-#include <utility>
 #include <memory>
 #include <string>
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
+#include <utility>
+#include <vector>
 
 namespace dali {
 namespace testing {
 
 struct DecoderCacheLargestOnlyTest : public ::testing::Test {
-  DecoderCacheLargestOnlyTest() {
-  }
+  DecoderCacheLargestOnlyTest() {}
 
-  void SetUp() override {
-    SetUpImpl((1<<9));
-  }
+  void SetUp() override { SetUpImpl((1 << 9)); }
 
   void SetUpImpl(std::size_t cache_size) {
     cache_.reset(new DecoderCacheLargestOnly(cache_size, false));
 
     for (std::size_t i = 0; i <= 10; i++) {
-      data_.push_back(
-        {std::to_string(i), std::vector<uint8_t>(i, i%256)});
+      data_.push_back({std::to_string(i), std::vector<uint8_t>(i, i % 256)});
     }
   }
 
   void AddImage(std::size_t i) {
-    cache_->Add(
-      data_[i].first,
-      &data_[i].second[0],
-      data_[i].second.size(),
-      Dims{static_cast<Index>(data_[i].second.size()), 1, 1});
+    cache_->Add(data_[i].first, &data_[i].second[0], data_[i].second.size(),
+                Dims{static_cast<Index>(data_[i].second.size()), 1, 1});
   }
 
-  bool IsCached(std::size_t i) {
-    return cache_->IsCached(data_[i].first);
-  }
+  bool IsCached(std::size_t i) { return cache_->IsCached(data_[i].first); }
 
   std::unique_ptr<DecoderCacheLargestOnly> cache_;
 
@@ -140,26 +131,22 @@ TEST_F(DecoderCacheLargestOnlyTest, CopyDataWorks) {
 }
 
 TEST_F(DecoderCacheLargestOnlyTest, AllocateMoreThan2000MB) {
-  std::size_t one_mb = 1024*1024;
-  std::size_t size = 3l*1024*one_mb;
+  std::size_t one_mb = 1024 * 1024;
+  std::size_t size = 3l * 1024 * one_mb;
   SetUpImpl(size);
   std::vector<uint8_t> data_1MB(one_mb, 0xFF);
   std::size_t N = size / one_mb;
 
   // First observe
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(
-      std::to_string(i) + "_mb",
-      &data_1MB[0], one_mb,
-      {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
+                {static_cast<Index>(one_mb), 1, 1});
   }
 
   // Now cache
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(
-      std::to_string(i) + "_mb",
-      &data_1MB[0], one_mb,
-      {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
+                {static_cast<Index>(one_mb), 1, 1});
   }
 
   // Cache is ready here

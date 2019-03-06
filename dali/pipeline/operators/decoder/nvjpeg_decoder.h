@@ -137,7 +137,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           const std::string cache_type = spec.GetArgument<std::string>("cache_type");
           const bool cache_debug = spec.GetArgument<bool>("cache_debug");
           DecoderCacheFactory::Instance(device_id_).Init(
-            cache_type, cache_size, cache_debug, cache_threshold );
+            cache_type, cache_size, cache_debug, cache_threshold);
         }
         cache_ = DecoderCacheFactory::Instance(device_id_).Get();
       }
@@ -363,7 +363,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
               streams_[stream_idx],
               file_name);
 
-            CacheStore(file_name, output_data, output_data_size, output_shape, streams_[stream_idx]);
+            CacheStore(file_name, output_data, output_data_size, output_shape,
+              streams_[stream_idx]);
           });
       }
       // Make sure work is finished being submitted

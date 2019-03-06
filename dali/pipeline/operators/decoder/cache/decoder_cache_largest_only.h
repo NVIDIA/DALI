@@ -12,41 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_LARGEST_ONLY_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_LARGEST_ONLY_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_
 
-#include <unordered_set>
+#include <functional>
 #include <queue>
+#include <unordered_set>
 #include <utility>
 #include <vector>
-#include <functional>
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
 #include "dali/pipeline/data/tensor_list.h"  // needed for Dims
+#include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
 
 namespace dali {
 
 class DLL_PUBLIC DecoderCacheLargestOnly : public DecoderCacheBlob {
  public:
-    DLL_PUBLIC DecoderCacheLargestOnly(std::size_t cache_size,
-                                       bool stats_enabled = false);
+  DLL_PUBLIC DecoderCacheLargestOnly(std::size_t cache_size, bool stats_enabled = false);
 
-    DISABLE_COPY_MOVE_ASSIGN(DecoderCacheLargestOnly);
+  DISABLE_COPY_MOVE_ASSIGN(DecoderCacheLargestOnly);
 
-    void Add(const ImageKey& image_key,
-             const uint8_t *data, std::size_t data_size,
-             const Dims& data_shape,
-             cudaStream_t stream = 0) override;
+  void Add(const ImageKey& image_key, const uint8_t* data, std::size_t data_size,
+           const Dims& data_shape, cudaStream_t stream = 0) override;
+
  private:
-    using QueueElement = std::pair<std::size_t, ImageKey>;
-    std::priority_queue<
-        QueueElement,
-        std::vector<QueueElement>,
-        std::greater<QueueElement>> biggest_images_;
-    std::unordered_set<ImageKey> images_;
-    bool start_caching_ = false;
-    std::size_t biggest_images_total_ = 0;
+  using QueueElement = std::pair<std::size_t, ImageKey>;
+  std::priority_queue<QueueElement,
+      std::vector<QueueElement>,
+      std::greater<QueueElement>> biggest_images_;
+  std::unordered_set<ImageKey> images_;
+  bool start_caching_ = false;
+  std::size_t biggest_images_total_ = 0;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_LARGEST_ONLY_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_

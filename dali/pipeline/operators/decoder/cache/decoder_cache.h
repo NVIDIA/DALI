@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_DECODER_CACHE_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_H_
 
 #include <string>
 #include "dali/pipeline/data/tensor_list.h"  // needed for Dims
@@ -40,6 +40,6 @@ class DLL_PUBLIC DecoderCache {
                                 cudaStream_t stream = 0) = 0;
 };
 
-}
+}  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_DECODER_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_H_

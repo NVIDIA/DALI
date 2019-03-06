@@ -13,81 +13,78 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
-#include <stack>
 #include <functional>
-#include "dali/pipeline/data/tensor_list.h"  // needed for Dims
+#include <stack>
 #include "dali/error_handling.h"
+#include "dali/pipeline/data/tensor_list.h"  // needed for Dims
 
 namespace dali {
 
-DecoderCacheLargestOnly::DecoderCacheLargestOnly(std::size_t cache_size,
-                                                 bool stats_enabled)
-  : DecoderCacheBlob(cache_size, 0, stats_enabled)
-{
-}
+DecoderCacheLargestOnly::DecoderCacheLargestOnly(std::size_t cache_size, bool stats_enabled)
+    : DecoderCacheBlob(cache_size, 0, stats_enabled) {}
 
 void DecoderCacheLargestOnly::Add(const ImageKey& image_key,
                                   const uint8_t *data, std::size_t data_size,
                                   const Dims& data_shape,
                                   cudaStream_t stream) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    // If we haven't started caching
-    if (!start_caching_) {
-        // if we've already seen this image, start caching
-        start_caching_ = (images_.find(image_key) != images_.end());
-        // if we decided to start caching, prepare the data
-        if (start_caching_) {
-            // replace images_ with the biggest_images
-            // and clean unnecessary data structures
-            total_seen_images_ = images_.size();
-            images_.clear();
-            while (!biggest_images_.empty()) {
-                images_.insert(biggest_images_.top().second);
-                biggest_images_.pop();
-            }
-        } else {
-            // mark the image as seen
-            images_.insert(image_key);
+  std::unique_lock<std::mutex> lock(mutex_);
+  // If we haven't started caching
+  if (!start_caching_) {
+    // if we've already seen this image, start caching
+    start_caching_ = (images_.find(image_key) != images_.end());
+    // if we decided to start caching, prepare the data
+    if (start_caching_) {
+      // replace images_ with the biggest_images
+      // and clean unnecessary data structures
+      total_seen_images_ = images_.size();
+      images_.clear();
+      while (!biggest_images_.empty()) {
+        images_.insert(biggest_images_.top().second);
+        biggest_images_.pop();
+      }
+    } else {
+      // mark the image as seen
+      images_.insert(image_key);
 
-            const bool data_fits = (biggest_images_total_ + data_size <= cache_size_);
-            is_full = is_full || !data_fits;
-            // if there is enough space, store the image as one of biggest
-            if (data_fits) {
-                biggest_images_.push({data_size, image_key});
-                biggest_images_total_ += data_size;
-            } else if (data_size <= cache_size_) {
-                // If full, check whether the current image has higher priority
-                std::stack<QueueElement> to_be_discarded;
-                while (!biggest_images_.empty()
-                    && biggest_images_total_ + data_size > cache_size_
-                    && biggest_images_.top().first < data_size) {
-                    biggest_images_total_ -= biggest_images_.top().first;
-                    to_be_discarded.push(std::move(biggest_images_.top()));
-                    biggest_images_.pop();
-                }
-
-                // If we have enough space now, push the new image
-                if (biggest_images_total_ + data_size <= cache_size_) {
-                    biggest_images_.push({data_size, image_key});
-                    biggest_images_total_ += data_size;
-                }
-
-                // If there is extra space, push back the images we took out
-                while (!to_be_discarded.empty()) {
-                    if (biggest_images_total_ + to_be_discarded.top().first <= cache_size_) {
-                        biggest_images_total_ += to_be_discarded.top().first;
-                        biggest_images_.push(std::move(to_be_discarded.top()));
-                    }
-                    to_be_discarded.pop();
-                }
-            }
+      const bool data_fits = (biggest_images_total_ + data_size <= cache_size_);
+      is_full = is_full || !data_fits;
+      // if there is enough space, store the image as one of biggest
+      if (data_fits) {
+        biggest_images_.push({data_size, image_key});
+        biggest_images_total_ += data_size;
+      } else if (data_size <= cache_size_) {
+        // If full, check whether the current image has higher priority
+        std::stack<QueueElement> to_be_discarded;
+        while (!biggest_images_.empty()
+            && biggest_images_total_ + data_size > cache_size_
+            && biggest_images_.top().first < data_size) {
+          biggest_images_total_ -= biggest_images_.top().first;
+          to_be_discarded.push(std::move(biggest_images_.top()));
+          biggest_images_.pop();
         }
-    }
-    lock.unlock();
 
-    if (start_caching_ && images_.find(image_key) != images_.end()) {
-        DecoderCacheBlob::Add(image_key, data, data_size, data_shape, stream);
+        // If we have enough space now, push the new image
+        if (biggest_images_total_ + data_size <= cache_size_) {
+          biggest_images_.push({data_size, image_key});
+          biggest_images_total_ += data_size;
+        }
+
+        // If there is extra space, push back the images we took out
+        while (!to_be_discarded.empty()) {
+          if (biggest_images_total_ + to_be_discarded.top().first <= cache_size_) {
+            biggest_images_total_ += to_be_discarded.top().first;
+            biggest_images_.push(std::move(to_be_discarded.top()));
+          }
+          to_be_discarded.pop();
+        }
+      }
     }
+  }
+  lock.unlock();
+
+  if (start_caching_ && images_.find(image_key) != images_.end()) {
+    DecoderCacheBlob::Add(image_key, data, data_size, data_shape, stream);
+  }
 }
 
 }  // namespace dali

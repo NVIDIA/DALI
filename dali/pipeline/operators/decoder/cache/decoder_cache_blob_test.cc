@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
-#include <vector>
-#include <memory>
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
+#include <gtest/gtest.h>
+#include <memory>
+#include <vector>
 
 namespace dali {
 namespace testing {
@@ -25,12 +25,9 @@ const std::vector<uint8_t> kValue1(300, 0xAA);
 const Dims kDims1{100, 1, 3};
 
 struct DecoderCacheBlobTest : public ::testing::Test {
-  DecoderCacheBlobTest() {
-  }
+  DecoderCacheBlobTest() {}
 
-  void SetUp() override {
-    SetUpImpl((1<<9));
-  }
+  void SetUp() override { SetUpImpl((1 << 9)); }
 
   void SetUpImpl(std::size_t cache_size, std::size_t image_size_threshold = 0) {
     cache_.reset(new DecoderCacheBlob(cache_size, image_size_threshold, false));
@@ -54,9 +51,7 @@ TEST_F(DecoderCacheBlobTest, Add) {
 
 TEST_F(DecoderCacheBlobTest, ErrorGetNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_THROW(
-    cache_->CopyData(kKey1, &cachedData[0]),
-    std::runtime_error);
+  EXPECT_THROW(cache_->CopyData(kKey1, &cachedData[0]), std::runtime_error);
 }
 
 TEST_F(DecoderCacheBlobTest, AddExistingIgnored) {
@@ -65,22 +60,20 @@ TEST_F(DecoderCacheBlobTest, AddExistingIgnored) {
 }
 
 TEST_F(DecoderCacheBlobTest, ErrorTooSmallCacheSize) {
-  SetUpImpl(kValue1.size()-1);
+  SetUpImpl(kValue1.size() - 1);
   cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
   EXPECT_FALSE(cache_->IsCached(kKey1));
 }
 
 TEST_F(DecoderCacheBlobTest, AllocateMoreThan2000MB) {
-  std::size_t one_mb = 1024*1024;
-  std::size_t size = 3l*1024*one_mb;
+  std::size_t one_mb = 1024 * 1024;
+  std::size_t size = 3l * 1024 * one_mb;
   SetUpImpl(size);
   std::vector<uint8_t> data_1MB(one_mb, 0xFF);
   std::size_t N = size / one_mb;
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(
-      std::to_string(i) + "_mb",
-      &data_1MB[0], one_mb,
-      {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
+                {static_cast<Index>(one_mb), 1, 1});
   }
 
   for (std::size_t i = 0; i < N; i++) {
