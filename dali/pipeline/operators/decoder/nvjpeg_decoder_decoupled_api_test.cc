@@ -17,10 +17,10 @@
 namespace dali {
 
 template <typename ImgType>
-class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
+class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
  protected:
   const OpSpec DecodingOp() const override {
-    return OpSpec("nvJPEGDecoderNew")
+    return OpSpec("nvJPEGDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
@@ -49,26 +49,26 @@ class nvjpegDecodeNewTest : public GenericDecoderTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvjpegDecodeNewTest, Types);
+TYPED_TEST_CASE(nvjpegDecodeDecoupledAPITest, Types);
 
 
 /***********************************************
 **** Default JPEG decode (mix host/hybrid) *****
 ***********************************************/
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode) {
   this->JpegTestDecode(1);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode2T) {
   this->JpegTestDecode(2);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode3T) {
   this->JpegTestDecode(3);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode4T) {
   this->JpegTestDecode(4);
 }
 
@@ -76,19 +76,19 @@ TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4T) {
 ******** Host huffman only JPEG decode *********
 ***********************************************/
 // H*W never > threshold so host huffman decoder is always chosen
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecodeHostHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecodeHostHuffman) {
   this->JpegTestDecode(1, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2THostHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode2THostHuffman) {
   this->JpegTestDecode(2, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3THostHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode3THostHuffman) {
   this->JpegTestDecode(3, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THostHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode4THostHuffman) {
   this->JpegTestDecode(4, std::numeric_limits<unsigned int>::max());
 }
 
@@ -96,57 +96,57 @@ TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THostHuffman) {
 ******* Hybrid huffman only JPEG decode ********
 ***********************************************/
 // H*W always > threshold so hybrid huffman decoder is always chosen
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecodeHybridHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecodeHybridHuffman) {
   this->JpegTestDecode(1, 0);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode2THybridHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode2THybridHuffman) {
   this->JpegTestDecode(2, 0);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode3THybridHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode3THybridHuffman) {
   this->JpegTestDecode(3, 0);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleJPEGDecode4THybridHuffman) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleJPEGDecode4THybridHuffman) {
   this->JpegTestDecode(4, 0);
 }
 
 /***********************************************
 ************* PNG fallback decode **************
 ***********************************************/
-TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode) {
   this->PngTestDecode(1);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode2T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode2T) {
   this->PngTestDecode(2);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode3T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode3T) {
   this->PngTestDecode(3);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSinglePNGDecode4T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode4T) {
   this->PngTestDecode(4);
 }
 
 /***********************************************
 ************ TIFF fallback decode **************
 ***********************************************/
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleTiffDecode) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode) {
   this->TiffTestDecode(1);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleTiffDecode2T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode2T) {
   this->TiffTestDecode(2);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleTiffDecode3T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode3T) {
   this->TiffTestDecode(3);
 }
 
-TYPED_TEST(nvjpegDecodeNewTest, TestSingleTiffDecode4T) {
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 

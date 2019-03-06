@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_NEW_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_NEW_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_DECOUPLED_API_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_DECOUPLED_API_H_
 
 #include <nvjpeg.h>
 #include <functional>
@@ -30,9 +30,9 @@
 
 namespace dali {
 
-class nvJPEGDecoderNew : public Operator<MixedBackend> {
+class nvJPEGDecoder : public Operator<MixedBackend> {
  public:
-  explicit nvJPEGDecoderNew(const OpSpec& spec) :
+  explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
@@ -97,7 +97,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
-  virtual ~nvJPEGDecoderNew() noexcept(false) {
+  virtual ~nvJPEGDecoder() noexcept(false) {
     try {
       thread_pool_.WaitForWork();
     } catch (...) {
@@ -148,7 +148,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-                                           static_cast<const uint8 *>(input_data), in_size);
+                              static_cast<const uint8 *>(input_data), in_size);
           const auto dims = image->GetImageDims();
           info.heights[0] = std::get<0>(dims);
           info.widths[0] = std::get<1>(dims);
@@ -158,11 +158,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        // NVJPEG_CALL(nvjpegJpegStreamGetFrameDimensions(jpeg_streams_[i],
-        //                                               info.widths,
-        //                                               info.heights));
-        // NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
-        //                                             &info.c));
         if (ShouldBeHybrid(info)) {
           image_decoders_[i] = decoder_huff_hybrid_;
           image_states_[i] = decoder_huff_hybrid_state_[i];
@@ -291,8 +286,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   bool ShouldBeHybrid(EncodedImageInfo& info) {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
+
   /**
-   // Running the CPU stage
    * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
    */
   void OCVFallback(const uint8_t *data, int size,
@@ -361,4 +356,4 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_NEW_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_DECOUPLED_API_H_
