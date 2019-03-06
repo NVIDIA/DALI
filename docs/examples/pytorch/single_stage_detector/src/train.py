@@ -164,7 +164,7 @@ def train(args):
         start_epoch_time = time.time()
         scheduler.step()
 
-        epoch_loop(train_loader, args, ssd300, end,
+        epoch_loop(train_loader, args, ssd300, time.time(),
                    loss_func, optimizer, iteration, avg_loss, batch_perf, epoch)
         torch.cuda.synchronize()
 
@@ -225,17 +225,13 @@ def epoch_loop(train_loader, args, ssd300, end, loss_func, optimizer, iteration,
 
         optimizer.step()
         optimizer.zero_grad()
+
+        batch_perf.update(time.time() - end)
+        if args.local_rank == 0:
+            log_perf(epoch, args, iteration, loss, avg_loss, batch_perf)
+
         iteration += 1
-
-        if iteration > 5:
-            batch_perf.update(time.time() - end)
-
-            if args.local_rank == 0:
-                log_perf(epoch, args, iteration, loss, avg_loss, batch_perf)
-
         end = time.time()
-        if iteration == 10 and epoch == 0:
-            batch_perf.reset()
 
 
 def log_perf(epoch, args, iteration, loss, avg_loss, batch_perf):

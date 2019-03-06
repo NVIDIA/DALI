@@ -55,7 +55,10 @@ class COCOPipeline(Pipeline):
         self.slice = ops.Slice(device="cpu")
         self.twist = ops.ColorTwist(device="gpu")
         self.resize = ops.Resize(
-            device = "cpu", resize_x = 300, resize_y = 300)
+            device = "cpu", 
+            resize_x = 300, 
+            resize_y = 300,
+            min_filter = types.DALIInterpType.INTERP_TRIANGULAR)
 
         output_dtype = types.FLOAT16 if args.fp16 else types.FLOAT
 
