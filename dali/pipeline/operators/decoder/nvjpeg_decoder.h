@@ -195,16 +195,15 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     return true;
   }
 
-  bool CacheStore(const std::string& file_name,
+  void CacheStore(const std::string& file_name,
                   uint8_t* data,
                   std::size_t data_size,
                   const Dims& data_shape,
                   cudaStream_t stream) {
     if (!cache_ || file_name.empty() || cache_->IsCached(file_name))
-      return false;
+      return;
 
     cache_->Add(file_name, data, data_size, data_shape, stream);
-    return true;
   }
 
   using dali::OperatorBase::Run;
