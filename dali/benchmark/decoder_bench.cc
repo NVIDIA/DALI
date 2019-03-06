@@ -133,6 +133,29 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoder)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSplitted)(benchmark::State& st) { // NOLINT
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->DecoderPipelineTest(
+    st, batch_size, num_thread, "gpu",
+    OpSpec("nvJPEGDecoderSplitted")
+      .AddArg("device", "mixed")
+      .AddArg("output_type", img_type)
+      .AddArg("max_streams", num_thread)
+      .AddArg("hybrid_huffman_threshold", 1000*1000*1000)
+      .AddArg("use_batched_decode", false)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("images", "gpu"));
+}
+
+BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderSplitted)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+
 BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) { // NOLINT
   int batch_size = st.range(0);
   int num_thread = st.range(1);
