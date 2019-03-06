@@ -143,6 +143,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderNew)(benchmark::State& st) { // NO
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
+      .AddArg("hybrid_huffman_threshold", 1000*1000*1000)
       .AddArg("use_batched_decode", false)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "gpu"));

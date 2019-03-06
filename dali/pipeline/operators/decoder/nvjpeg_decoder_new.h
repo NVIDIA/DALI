@@ -28,7 +28,6 @@
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 
-#define PINNED_DOUBLE_BUFFERING 1
 namespace dali {
 
 class nvJPEGDecoderNew : public Operator<MixedBackend> {
@@ -40,17 +39,13 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     output_info_(batch_size_),
     image_decoders_(batch_size_),
     image_states_(batch_size_),
-    jpeg_streams_(batch_size_),
     decode_params_(batch_size_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
     output_shape_(batch_size_),
-    #if PINNED_DOUBLE_BUFFERING
+    jpeg_streams_(num_threads_ * 2),
     pinned_buffer_(num_threads_ * 2),
     curr_pinned_buff_(num_threads_, 0),
-    #else
-    pinned_buffer_(num_threads_),
-    #endif
     device_buffer_(num_threads_),
     streams_(num_threads_),
     events_(num_threads_),
@@ -77,7 +72,6 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                                     GetFormat(output_image_type_)));
       NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
 
-      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       // We want to use nvJPEG default pinned allocator
 
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
@@ -91,11 +85,8 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
-#if PINNED_DOUBLE_BUFFERING
     for (int i = 0; i < num_threads_ * 2; ++i) {
-#else
-    for (int i = 0; i < num_threads_; ++i) {
-#endif
+      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
     }
     for (int i = 0; i < num_threads_; ++i) {
@@ -113,17 +104,13 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       // As other images being process might fail, but we don't care
     }
     for (int i = 0; i < batch_size_; ++i) {
-      NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
     }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
-#if PINNED_DOUBLE_BUFFERING
     for (int i = 0; i < num_threads_ * 2; ++i) {
-#else
-    for (int i = 0; i < num_threads_; ++i) {
-#endif
+      NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
     }
 
@@ -151,14 +138,12 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
 
-      nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
-                                                 static_cast<const unsigned char*>(input_data),
-                                                 in_size,
-                                                 false,
-                                                 false,
-                                                 jpeg_streams_[i]);
-
       EncodedImageInfo info;
+      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
+                                     static_cast<const unsigned char*>(input_data), in_size,
+                                     &info.c, &info.subsampling,
+                                     info.widths, info.heights);
+
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
       if (!info.nvjpeg_support) {
         try {
@@ -173,11 +158,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        NVJPEG_CALL(nvjpegJpegStreamGetFrameDimensions(jpeg_streams_[i],
-                                                       info.widths,
-                                                       info.heights));
-        NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
-                                                     &info.c));
+        // NVJPEG_CALL(nvjpegJpegStreamGetFrameDimensions(jpeg_streams_[i],
+        //                                               info.widths,
+        //                                               info.heights));
+        // NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(jpeg_streams_[i],
+        //                                             &info.c));
         if (ShouldBeHybrid(info)) {
           image_decoders_[i] = decoder_huff_hybrid_;
           image_states_[i] = decoder_huff_hybrid_state_[i];
@@ -247,16 +232,17 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
       return;
     }
 
-#if PINNED_DOUBLE_BUFFERING
     curr_pinned_buff_[tid] = (curr_pinned_buff_[tid] + 1) % 2;
     const int buff_idx = tid + (curr_pinned_buff_[tid] * num_threads_);
+
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
                                               pinned_buffer_[buff_idx]));
-#else
-    NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
-                                              pinned_buffer_[tid]));
-
-#endif
+    NVJPEG_CALL(nvjpegJpegStreamParse(handle_,
+                                      static_cast<const unsigned char*>(input_data),
+                                      in_size,
+                                      false,
+                                      false,
+                                      jpeg_streams_[buff_idx]));
 
     CUDA_CALL(cudaEventSynchronize(events_[tid]));
 
@@ -264,7 +250,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
                                               image_decoders_[i],
                                               image_states_[i],
                                               decode_params_[i],
-                                              jpeg_streams_[i]);
+                                              jpeg_streams_[buff_idx]);
     // If image is somehow not supported try hostdecoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
@@ -281,13 +267,11 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
 
       NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[i], device_buffer_[tid]));
 
-// CUDA_CALL(cudaStreamSynchronize(streams_[tid]));
-
       NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
           handle_,
           image_decoders_[i],
           image_states_[i],
-          jpeg_streams_[i],
+          jpeg_streams_[buff_idx],
           streams_[tid]));
 
       // Next sample processed in this thread has to know when H2D finished
@@ -343,7 +327,7 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   // output colour format
   DALIImageType output_image_type_;
 
-  unsigned hybrid_huffman_threshold_;
+  int hybrid_huffman_threshold_;
 
   // Common
   // Storage for per-image info
@@ -355,16 +339,14 @@ class nvJPEGDecoderNew : public Operator<MixedBackend> {
   // Per sample: lightweight
   std::vector<nvjpegJpegDecoder_t> image_decoders_;
   std::vector<nvjpegJpegState_t> image_states_;
-  std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegDecodeParams_t> decode_params_;
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
   std::vector<Dims> output_shape_;
   // Per thread
+  std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegBufferPinned_t> pinned_buffer_;
-#if PINNED_DOUBLE_BUFFERING
   std::vector<uint8_t> curr_pinned_buff_;
-#endif
 
   // GPU
   // Per thread

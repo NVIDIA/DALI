@@ -56,9 +56,10 @@ struct StateNvJPEG {
 
 struct EncodedImageInfo {
   bool nvjpeg_support;
-  unsigned int c;
-  unsigned int widths[NVJPEG_MAX_COMPONENT];
-  unsigned int heights[NVJPEG_MAX_COMPONENT];
+  int c;
+  int widths[NVJPEG_MAX_COMPONENT];
+  int heights[NVJPEG_MAX_COMPONENT];
+  nvjpegChromaSubsampling_t subsampling;
 };
 
 inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
