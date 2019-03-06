@@ -133,13 +133,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       const std::size_t cache_threshold = static_cast<std::size_t>(
         spec.GetArgument<int>("cache_threshold"));
       if (cache_size > 0 && cache_size >= cache_threshold) {
-        if (!DecoderCacheFactory::Instance().IsInitialized(device_id_)) {
-          const std::string cache_type = spec.GetArgument<std::string>("cache_type");
-          const bool cache_debug = spec.GetArgument<bool>("cache_debug");
-          DecoderCacheFactory::Instance().Init(device_id_,
-            cache_type, cache_size, cache_debug, cache_threshold);
-        }
-        cache_ = DecoderCacheFactory::Instance().Get(device_id_);
+        const std::string cache_type = spec.GetArgument<std::string>("cache_type");
+        const bool cache_debug = spec.GetArgument<bool>("cache_debug");
+        cache_ = DecoderCacheFactory::Instance().Get(device_id_,
+          cache_type, cache_size, cache_debug, cache_threshold);
       }
 
       // Setup the allocator struct to use our internal allocator
@@ -177,9 +174,6 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
     NVJPEG_CALL(nvjpegDestroy(handle_));
-
-    if (cache_)
-      DecoderCacheFactory::Instance().Destroy(device_id_);
   }
 
   bool CacheLoad(const std::string& file_name,

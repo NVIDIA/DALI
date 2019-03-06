@@ -19,40 +19,52 @@
 
 namespace dali {
 
-std::shared_ptr<DecoderCache> DecoderCacheFactory::Init(int device_id,
-                                                        const std::string& cache_policy,
-                                                        std::size_t cache_size,
-                                                        bool cache_debug,
-                                                        std::size_t cache_threshold) {
+std::shared_ptr<DecoderCache> DecoderCacheFactory::Get(int device_id,
+                                                       const std::string& cache_policy,
+                                                       std::size_t cache_size,
+                                                       bool cache_debug,
+                                                       std::size_t cache_threshold) {
   std::lock_guard<std::mutex> lock(mutex_);
-  DALI_ENFORCE(caches_.find(device_id) == caches_.end(), "Cache already exists");
-  if (cache_policy == "threshold") {
-    caches_[device_id].reset(new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
-  } else if (cache_policy == "largest") {
-    caches_[device_id].reset(new DecoderCacheLargestOnly(cache_size, cache_debug));
-  } else {
-    DALI_FAIL("unexpected cache policy `" + cache_policy + "`");
+  const CacheParams params{cache_policy, cache_size, cache_debug, cache_threshold};
+  auto &instance = caches_[device_id];
+  auto cache = instance.cache.lock();
+  if (!cache) {
+    if (cache_policy == "threshold") {
+      cache.reset(new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
+    } else if (cache_policy == "largest") {
+      cache.reset(new DecoderCacheLargestOnly(cache_size, cache_debug));
+    } else {
+      DALI_FAIL("unexpected cache policy `" + cache_policy + "`");
+    }
+    caches_[device_id] = {cache, params};
+    return cache;
   }
-  return caches_[device_id];
+  DALI_ENFORCE(instance.params == params,
+     "Cache for device " + std::to_string(device_id)
+     + " was already initialized with other parameters");
+
+  cache = instance.cache.lock();
+  return cache;
 }
 
-std::shared_ptr<DecoderCache> DecoderCacheFactory::Get(int device_id) const {
+std::shared_ptr<DecoderCache> DecoderCacheFactory::Get(int device_id) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = caches_.find(device_id);
-  DALI_ENFORCE(it != caches_.end());
-  return it->second;
-}
-
-void DecoderCacheFactory::Destroy(int device_id) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  CheckWeakPtr(device_id);
   auto it = caches_.find(device_id);
   DALI_ENFORCE(it != caches_.end(), "Cache does not exist");
-  caches_.erase(it);
+  return it->second.cache.lock();
 }
 
-bool DecoderCacheFactory::IsInitialized(int device_id) const {
+bool DecoderCacheFactory::IsInitialized(int device_id) {
   std::lock_guard<std::mutex> lock(mutex_);
+  CheckWeakPtr(device_id);
   return caches_.find(device_id) != caches_.end();
+}
+
+void DecoderCacheFactory::CheckWeakPtr(int device_id) {
+  auto it = caches_.find(device_id);
+  if (it != caches_.end() && it->second.cache.expired())
+    caches_.erase(it);
 }
 
 }  // namespace dali
