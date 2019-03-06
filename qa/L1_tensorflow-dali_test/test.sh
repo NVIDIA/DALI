@@ -29,8 +29,6 @@ export PATH=$PATH:/usr/local/mpi/bin
 chmod +x /usr/local/mpi/bin/rsh_warn.sh
 echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
 
-# TODO(janton): remove explicit keras-preprocessing dependency when it is fixed
-pip install keras-preprocessing==1.0.5
 pip install tensorflow-gpu==1.10.0
 
 export HOROVOD_GPU_ALLREDUCE=NCCL
@@ -53,12 +51,14 @@ export OMPI_MCA_blt=self,sm,tcp
 test_body() {
     # test code
 
-
-    mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-        python -u resnet.py --layers=18 \
-        --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
-        --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
-        --batch=256 --dali_cpu --log_dir=dali_log
+    # TensorFlow supports only CUDA 9.0 now
+    if [ "${CUDA_VERSION}" == "90"]; then
+        mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
+            python -u resnet.py --layers=18 \
+            --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
+            --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
+            --batch=256 --dali_cpu --log_dir=dali_log
+    fi
 }
 
 source ../../../../qa/test_template.sh
