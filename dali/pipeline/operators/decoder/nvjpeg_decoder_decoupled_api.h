@@ -48,7 +48,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     curr_pinned_buff_(num_threads_, 0),
     device_buffer_(num_threads_),
     streams_(num_threads_),
-    events_(num_threads_ * 2),
+    events_(num_threads_),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
@@ -88,11 +88,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     for (int i = 0; i < num_threads_ * 2; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
-      CUDA_CALL(cudaEventCreate(&events_[i]));
     }
     for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
       CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+      CUDA_CALL(cudaEventCreate(&events_[i]));
     }
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
@@ -112,11 +112,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     for (int i = 0; i < num_threads_ * 2; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
-      CUDA_CALL(cudaEventDestroy(events_[i]));
     }
 
     for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
+      CUDA_CALL(cudaEventDestroy(events_[i]));
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
     CUDA_CALL(cudaEventDestroy(master_event_));
@@ -158,7 +158,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        if (ShouldUseHybridHuffman(info)) {
+        if (ShouldBeHybrid(info)) {
           image_decoders_[i] = decoder_huff_hybrid_;
           image_states_[i] = decoder_huff_hybrid_state_[i];
         } else {
@@ -212,33 +212,25 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     }
 
     thread_pool_.WaitForWork();
-    // record all the current streamed work
     for (int i = 0; i < num_threads_; ++i) {
       CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
-    }
-    // waiting all previous recorded events
-    for (int i = 0; i < num_threads_ * 2; ++i) {
       CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
     }
   }
 
-  // Per sample worker called in a thread of the thread pool.
-  // It decodes the encoded image `input_data` (host mem) into `output_data` (device mem) with
-  // nvJPEG. If nvJPEG can't handle the image, it falls back to DALI's HostDecoder implementation
-  // with libjpeg.
-  void SampleWorker(int sample_idx, string file_name, int in_size, int thread_id,
+  void SampleWorker(int i, string file_name, int in_size, int tid,
                     const uint8_t* input_data, uint8_t* output_data) {
-    EncodedImageInfo& info = output_info_[sample_idx];
+    EncodedImageInfo& info = output_info_[i];
 
     if (!info.nvjpeg_support) {
-      OCVFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
       return;
     }
 
-    curr_pinned_buff_[thread_id] = (curr_pinned_buff_[thread_id] + 1) % 2;
-    const int buff_idx = thread_id + (curr_pinned_buff_[thread_id] * num_threads_);
+    curr_pinned_buff_[tid] = (curr_pinned_buff_[tid] + 1) % 2;
+    const int buff_idx = tid + (curr_pinned_buff_[tid] * num_threads_);
 
-    NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[sample_idx],
+    NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[i],
                                               pinned_buffer_[buff_idx]));
     NVJPEG_CALL(nvjpegJpegStreamParse(handle_,
                                       static_cast<const unsigned char*>(input_data),
@@ -247,12 +239,12 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                       false,
                                       jpeg_streams_[buff_idx]));
 
-    CUDA_CALL(cudaEventSynchronize(events_[buff_idx]));
+    CUDA_CALL(cudaEventSynchronize(events_[tid]));
 
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
-                                              image_decoders_[sample_idx],
-                                              image_states_[sample_idx],
-                                              decode_params_[sample_idx],
+                                              image_decoders_[i],
+                                              image_states_[i],
+                                              decode_params_[i],
                                               jpeg_streams_[buff_idx]);
     // If image is somehow not supported try hostdecoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
@@ -268,37 +260,36 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       nvjpeg_image.channel[0] = output_data;
       nvjpeg_image.pitch[0] = NumberOfChannels(output_image_type_) * info.widths[0];
 
-      NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[sample_idx],
-                                                device_buffer_[thread_id]));
+      NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[i], device_buffer_[tid]));
 
       NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
           handle_,
-          image_decoders_[sample_idx],
-          image_states_[sample_idx],
+          image_decoders_[i],
+          image_states_[i],
           jpeg_streams_[buff_idx],
-          streams_[thread_id]));
+          streams_[tid]));
 
       // Next sample processed in this thread has to know when H2D finished
-      CUDA_CALL(cudaEventRecord(events_[buff_idx], streams_[thread_id]));
+      CUDA_CALL(cudaEventRecord(events_[tid], streams_[tid]));
 
       NVJPEG_CALL(nvjpegDecodeJpegDevice(
           handle_,
-          image_decoders_[sample_idx],
-          image_states_[sample_idx],
+          image_decoders_[i],
+          image_states_[i],
           &nvjpeg_image,
-          streams_[thread_id]));
+          streams_[tid]));
     } else {
-      OCVFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
+      OCVFallback(input_data, in_size, output_data, streams_[tid], file_name);
     }
   }
 
-  // Predicate to determine if the image should be decoded with the nvJPEG
-  // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
-  bool ShouldUseHybridHuffman(EncodedImageInfo& info) {
+  bool ShouldBeHybrid(EncodedImageInfo& info) {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 
-  // Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
+  /**
+   * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
+   */
   void OCVFallback(const uint8_t *data, int size,
                    uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
     const int c = (output_image_type_ == DALI_GRAY) ? 1 : 3;
@@ -347,7 +338,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
   std::vector<Dims> output_shape_;
-  // Per thread - double buffered
+  // Per thread
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegBufferPinned_t> pinned_buffer_;
   std::vector<uint8_t> curr_pinned_buff_;
