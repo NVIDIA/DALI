@@ -40,7 +40,7 @@ class ExternalSource : public Operator<Backend> {
     output_name_ = spec.Output(0);
   }
 
-  inline ~ExternalSource() = default;
+  inline ~ExternalSource() override = default;
 
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";

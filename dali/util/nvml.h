@@ -16,10 +16,14 @@
 #define DALI_UTIL_NVML_H_
 
 #include <nvml.h>
+#include <pthread.h>
+#include <sys/sysinfo.h>
 
 #include <mutex>
+#include <vector>
 
 #include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
 
 namespace dali {
@@ -43,16 +47,72 @@ inline void Init() {
 }
 
 /**
- * @brief Sets the CPU affinity for the calling thread
+ * @brief Gets the CPU affinity mask using NVML,
+ *        respecting previously set mask.
  */
-inline void SetCPUAffinity() {
-  std::lock_guard<std::mutex> lock(Mutex());
+inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   int device_idx;
   CUDA_CALL(cudaGetDevice(&device_idx));
 
+  // Get the ideal placement from NVML
+  size_t cpu_set_size = (num_cpus + 63) / 64;
+  std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
+  auto * nvml_mask = nvml_mask_container.data();
   nvmlDevice_t device;
   DALI_CALL(wrapNvmlDeviceGetHandleByIndex(device_idx, &device));
-  DALI_CALL(wrapNvmlDeviceSetCpuAffinity(device));
+  DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+
+  // Convert it to cpu_set_t
+  cpu_set_t nvml_set;
+  CPU_ZERO(&nvml_set);
+  const size_t n_bits = sizeof(unsigned long) * 8;  // NOLINT(runtime/int)
+  for (size_t i = 0; i < num_cpus; ++i) {
+    const size_t position = i % n_bits;
+    const size_t index = i / n_bits;
+    const unsigned long current_mask = 1ul << position;  // NOLINT(runtime/int)
+    const bool cpu_is_set = (nvml_mask[index] & current_mask) != 0;
+    if (cpu_is_set) {
+        CPU_SET(i, &nvml_set);
+    }
+  }
+
+  // Get the current affinity mask
+  cpu_set_t current_set;
+  CPU_ZERO(&current_set);
+  pthread_getaffinity_np(pthread_self(), sizeof(current_set), &current_set);
+
+  // AND masks
+  CPU_AND(mask, &nvml_set, &current_set);
+}
+
+/**
+ * @brief Sets the CPU affinity for the calling thread
+ */
+inline void SetCPUAffinity(int core = -1) {
+  std::lock_guard<std::mutex> lock(Mutex());
+
+  size_t num_cpus = get_nprocs_conf();
+
+  cpu_set_t requested_set;
+  CPU_ZERO(&requested_set);
+  if (core != -1) {
+    if (core < 0 || (size_t)core >= num_cpus) {
+      DALI_WARN("Requested setting affinity to core " + to_string(core) +
+                " but only " + to_string(num_cpus) + " cores available. " +
+                "Ignoring...");
+      GetNVMLAffinityMask(&requested_set, num_cpus);
+    } else {
+      CPU_SET(core, &requested_set);
+    }
+  } else {
+    GetNVMLAffinityMask(&requested_set, num_cpus);
+  }
+
+  // Set the affinity
+  int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
+  if (error != 0) {
+      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
+  }
 }
 
 inline void Shutdown() {
@@ -62,5 +122,15 @@ inline void Shutdown() {
 
 }  // namespace nvml
 }  // namespace dali
+
+#define NVML_CALL(code)                                    \
+  do {                                                     \
+    nvmlReturn_t status = code;                            \
+    if (status != NVML_SUCCESS) {                          \
+      dali::string error = dali::string("NVML error \"") + \
+        nvmlErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                    \
+    }                                                      \
+  } while (0)
 
 #endif  // DALI_UTIL_NVML_H_

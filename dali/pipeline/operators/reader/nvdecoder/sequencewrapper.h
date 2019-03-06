@@ -47,7 +47,7 @@ struct SequenceWrapper {
     if (started_) {
       CUDA_CALL(cudaEventDestroy(event_));
     }
-    CUDA_CALL(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming));
+    CUDA_CALL(cudaEventCreateWithFlags(&event_, cudaEventBlockingSync | cudaEventDisableTiming));
     started_ = false;
   }
 
@@ -73,13 +73,7 @@ struct SequenceWrapper {
     CUDA_CALL(cudaEventSynchronize(event_));
     LOG_LINE << event_ << " synchronized!" << std::endl;
   }
-  /*
-  Remove useless?
-  void wait(cudaStream_t stream) const {
-      wait_until_started_();
-      CUDA_CALL(cudaStreamWaitEvent(stream, event_, 0));
-  }
-  */
+
   Tensor<GPUBackend> sequence;
   int count;
   int height;

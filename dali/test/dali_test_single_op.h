@@ -15,15 +15,12 @@
 #ifndef DALI_TEST_DALI_TEST_SINGLE_OP_H_
 #define DALI_TEST_DALI_TEST_SINGLE_OP_H_
 
-#include "dali/test/dali_test.h"
-
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
+#include "dali/test/dali_test.h"
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
@@ -36,6 +33,8 @@ namespace dali {
 
 namespace images {
 
+// TODO(janton): DALI-582 Using this order, breaks some tests
+// ImageList(image_folder, {".jpg"})
 const vector<string> jpeg_test_images = {
   image_folder + "/420.jpg",
   image_folder + "/422.jpg",
@@ -50,25 +49,8 @@ const vector<string> jpeg_test_images = {
   image_folder + "/422-odd-width.jpg"
 };
 
-const vector<string> png_test_images = {
-  image_folder + "/png/000000000139.png",
-  image_folder + "/png/000000000285.png",
-  image_folder + "/png/000000000632.png",
-  image_folder + "/png/000000000724.png",
-  image_folder + "/png/000000000776.png",
-  image_folder + "/png/000000000785.png",
-  image_folder + "/png/000000000802.png",
-  image_folder + "/png/000000000872.png",
-  image_folder + "/png/000000000885.png",
-  image_folder + "/png/000000001000.png",
-  image_folder + "/png/000000001268.png"
-};
-
-const std::vector<std::string> tiff_test_images = {
-        image_folder + "/tiff/420.tiff",
-        image_folder + "/tiff/422.tiff",
-        image_folder + "/tiff/notif.tif",
-};
+const vector<string> png_test_images = ImageList(image_folder + "/png", {".png"});
+const vector<string> tiff_test_images = ImageList(image_folder + "/tiff", {".tiff", ".tif"});
 
 }  // namespace images
 
@@ -163,18 +145,18 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
  * to set up input data) and run operator, using one of RunOperator overloads.
  * @tparam ImgType @see DALIImageType
  */
-template<typename ImgType>
+template<typename ImgType, typename OutputImgType = ImgType>
 class DALISingleOpTest : public DALITest {
  public:
   inline void SetUp() override {
     DALITest::SetUp();
-    c_ = (IsColor(ImageType()) ? 3 : 1);
+    c_ = (IsColor(OutputImageType()) ? 3 : 1);
     jpegs_.clear();
 
     const auto flags = GetImageLoadingFlags();
 
     if (flags & t_loadJPEGs) {
-      LoadJPEGS(images::jpeg_test_images, &jpegs_);
+      LoadImages(images::jpeg_test_images, &jpegs_);
       if (flags & t_decodeJPEGs)
         DecodeImages(img_type_, jpegs_, &jpeg_decoded_, &jpeg_dims_);
     }
@@ -233,11 +215,15 @@ class DALISingleOpTest : public DALITest {
     pipeline_->AddOperator(spec);
   }
 
+  virtual void AddDefaultArgs(OpSpec& spec) {
+  }
+
   void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
                              const string &pInput = "input", const string &pOutput = "outputCPU") {
     OpSpec spec(descr.opName);
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
                             .AddInput(pInput, pDevice)
@@ -282,23 +268,23 @@ class DALISingleOpTest : public DALITest {
     // outputs_ contains map of idx -> (name, device)
     vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
 
-    TensorList<CPUBackend> calc_host, *calc_output = &calc_host;
+    std::unique_ptr<TensorList<CPUBackend>> calc_output(new TensorList<CPUBackend>());
     // get outputs from pipeline, copy to host if necessary
     for (size_t i = 0; i < output_indices.size(); ++i) {
       auto output_device = outputs_[i].second;
 
       if (output_device == "gpu") {
         // copy to host
-        calc_output->Copy(*ws->Output<GPUBackend>(output_indices[i]), nullptr);
+        calc_output->Copy(ws->Output<GPUBackend>(output_indices[i]), nullptr);
       } else {
-        calc_output = ws->Output<CPUBackend>(output_indices[i]);
+        calc_output->Copy(ws->Output<CPUBackend>(output_indices[i]), nullptr);
       }
 
       auto ref_output = res[i];
       calc_output->SetLayout(ref_output->GetLayout());
 
       // check calculated vs. reference answers
-      CheckTensorLists(calc_output, ref_output);
+      CheckTensorLists(calc_output.get(), ref_output);
     }
 
     for (auto *ref_output : res) {
@@ -346,6 +332,10 @@ class DALISingleOpTest : public DALITest {
 
   DALIImageType ImageType() const                 {
     return img_type_;
+  }
+
+  DALIImageType OutputImageType() const                 {
+    return output_img_type_;
   }
 
   void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
@@ -412,6 +402,7 @@ class DALISingleOpTest : public DALITest {
     OpSpec spec(DefaultSchema(descr.opName));
     if (descr.opAddImgType && !spec.HasArgument("image_type"))
       spec = spec.AddArg("image_type", ImageType());
+    AddDefaultArgs(spec);
 
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
@@ -436,6 +427,14 @@ class DALISingleOpTest : public DALITest {
     outputs[0] = new TensorList<CPUBackend>();
     outputs[0]->Copy(calcOutput, 0);
     return outputs;
+  }
+
+  template <typename T>
+  std::unique_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
+    std::unique_ptr<TensorList<CPUBackend>> output(new TensorList<CPUBackend>());
+    output->Copy(calcOutput, 0);
+
+    return output;
   }
 
   template <typename T>
@@ -469,6 +468,7 @@ class DALISingleOpTest : public DALITest {
 
     // use a Get mean, std-dev of difference separately for each color component
     const int jMax = TestCheckType(t_checkColorComp)?  c_ : 1;
+
     const int length = lenRaster / jMax;
 
     const int checkBest = shape? 1 : 0;
@@ -685,7 +685,6 @@ class DALISingleOpTest : public DALITest {
         }
 
         const int lenBuffer = shape1[0] * shape1[1] * shape1[2];
-
         if (floatType) {
           colorIdx = CheckBuffers<float>(lenBuffer,
                           (*t1).template tensor<float>(i), (*t2).template tensor<float>(i),
@@ -743,6 +742,7 @@ class DALISingleOpTest : public DALITest {
   double eps_ = 1e-4;
   uint32_t testCheckType_ = t_checkDefault;
   const DALIImageType img_type_ = ImgType::type;
+  const DALIImageType output_img_type_ = OutputImgType::type;
 
   // keep a copy of the creation OpSpec for reference
   OpSpec spec_;

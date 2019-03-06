@@ -45,13 +45,20 @@ struct ImageLabelWrapper {
 
 class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit inline FileLoader(const OpSpec& spec,
-      vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>())
+  explicit inline FileLoader(
+    const OpSpec& spec,
+    vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>(),
+    bool shuffle_after_epoch = false)
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
       image_label_pairs_(image_label_pairs),
-      current_index_(0) {
+      shuffle_after_epoch_(shuffle_after_epoch),
+      current_index_(0),
+      current_epoch_(0) {
     file_list_ = spec.GetArgument<string>("file_list");
+    mmap_reserver = FileStream::FileStreamMappinReserver(
+        static_cast<unsigned int>(initial_buffer_fill_));
+    copy_read_data_ = !mmap_reserver.CanShareMappedData();
 
     if (image_label_pairs_.empty()) {
       if (file_list_ == "") {
@@ -79,22 +86,39 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       std::mt19937 g(524287);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
-
-    current_index_ = start_index(shard_id_, num_shards_, Size());
+    Reset(true);
   }
 
-  void PrepareEmpty(ImageLabelWrapper *tesor) override;
-  void ReadSample(ImageLabelWrapper* tensor) override;
+  void PrepareEmpty(ImageLabelWrapper *tensor) override;
+  void ReadSample(ImageLabelWrapper *tensor) override;
 
   Index Size() override;
 
  protected:
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
+    }
+
+    current_epoch_++;
+
+    if (shuffle_after_epoch_) {
+      std::mt19937 g(524287 + current_epoch_);
+      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+    }
+  }
+
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
   using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
+  bool shuffle_after_epoch_;
   Index current_index_;
+  int current_epoch_;
+  FileStream::FileStreamMappinReserver mmap_reserver;
 };
 
 }  // namespace dali

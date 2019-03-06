@@ -1,0 +1,32 @@
+ARG BUILD_IMAGE_NAME
+ARG CUDA_IMAGE_NAME=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+FROM ${BUILD_IMAGE_NAME} AS builder
+FROM ${CUDA_IMAGE_NAME}
+
+ARG PYVER=2.7
+ENV PYVER=${PYVER}
+ARG PYV=27
+ENV PYV=${PYV}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        python$PYVER \
+        python$PYVER-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONIOENCODING utf-8
+ENV LC_ALL C.UTF-8
+RUN ln -s /usr/bin/python$PYVER /usr/bin/python && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
+
+# If installing multiple pips, install pip2 last so that pip == pip2 when done.
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py && \
+    rm get-pip.py
+
+COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
+COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
+
+RUN pip install /opt/dali/*.whl
+RUN pip show tensorflow-gpu && pip install /opt/dali/*.tar.gz || true

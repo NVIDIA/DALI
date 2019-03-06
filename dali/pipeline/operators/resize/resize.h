@@ -24,77 +24,96 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/fused/resize_crop_mirror.h"
+#include "dali/kernels/context.h"
+#include "dali/kernels/scratch.h"
+#include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
-
-typedef enum {
-  input_t,
-  output_t
-} io_type;
-
-typedef std::pair<int, int> resize_t;
-
-class ResizeAttr;
-typedef NppiPoint MirroringInfo;
-
-class ResizeParamDescr {
- public:
-  explicit ResizeParamDescr(ResizeAttr *pntr, NppiPoint *pOutResize = nullptr,
-                   MirroringInfo *pMirror = nullptr, size_t pTotalSize[] = nullptr,
-                   size_t batchSliceNumb = 0) :
-                        pResize_(pntr), pResizeParam_(pOutResize), pMirroring_(pMirror),
-                        pTotalSize_(pTotalSize), nBatchSlice_(batchSliceNumb) {}
-  ResizeAttr *pResize_;
-  NppiPoint *pResizeParam_;
-  MirroringInfo *pMirroring_;
-  size_t *pTotalSize_;
-  size_t nBatchSlice_;
-};
 
 class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
   explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
 
-  void SetSize(DALISize *in_size, const vector<Index> &shape, int idx,
-               DALISize *out_size, TransformMeta const * meta = nullptr) const;
-
-  inline vector<DALISize> &sizes(io_type type)            { return sizes_[type]; }
-  inline DALISize *size(io_type type, size_t idx)         { return sizes(type).data() + idx; }
-  void DefineCrop(DALISize *out_size, int *pCropX, int *pCropY, int idx = -1) const;
-  void MirrorNeeded(NppiPoint *pntr, int idx = -1) const  {
-      pntr->x = per_sample_meta_[idx].mirror;
-      pntr->y = 0;  // Vertical mirroring not yet implemented for ResizeCropMirror
+  void SetBatchSize(int batch_size) {
+    per_sample_meta_.reserve(batch_size);
   }
 
  protected:
-  uint ResizeInfoNeeded() const override                  { return 0; }
-
-  inline vector<const uint8*> *inputImages()              { return &input_ptrs_; }
-  inline vector<uint8 *> *outputImages()                  { return &output_ptrs_; }
+  uint ResizeInfoNeeded() const override { return 0; }
 
   // store per-thread data for same resize on multiple data
   std::vector<TransformMeta> per_sample_meta_;
-
-  vector<const uint8*> input_ptrs_;
-  vector<uint8*> output_ptrs_;
-
-  vector<DALISize> sizes_[2];
 };
 
 template <typename Backend>
 class Resize : public Operator<Backend>, protected ResizeAttr {
  public:
   explicit Resize(const OpSpec &spec);
-  virtual inline ~Resize()    { delete resizeParam_; }
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  vector<NppiPoint> *resizeParam_ = nullptr;
+  void SetupResamplingParams() {
+    DALIInterpType interp_min = DALIInterpType::DALI_INTERP_TRIANGULAR;
+    DALIInterpType interp_mag = DALIInterpType::DALI_INTERP_LINEAR;
+
+    const OpSpec &spec = this->spec_;  // avoid dependent name hell
+    if (spec.HasArgument("min_filter"))
+      interp_min = spec.GetArgument<DALIInterpType>("min_filter");
+    else if (spec.HasArgument("interp_type"))
+      interp_min = spec.GetArgument<DALIInterpType>("interp_type");
+
+    if (spec.HasArgument("mag_filter"))
+      interp_mag = spec.GetArgument<DALIInterpType>("mag_filter");
+    else if (spec.HasArgument("interp_type"))
+      interp_mag = spec.GetArgument<DALIInterpType>("interp_type");
+
+    min_filter_ = { interp2resample(interp_min), 0 };
+    mag_filter_ = { interp2resample(interp_mag), 0 };
+  }
+
+  kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
+    kernels::ResamplingParams2D params;
+    params[0].output_size = meta.rsz_h;
+    params[1].output_size = meta.rsz_w;
+    params[0].min_filter = params[1].min_filter = min_filter_;
+    params[0].mag_filter = params[1].mag_filter = mag_filter_;
+    return params;
+  }
+
+  kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
+#define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
+  return kernels::ResamplingFilterType::resample;
+
+    switch (interp) {
+      DALI_MAP_INTERP_TO_RESAMPLE(NN, Nearest);
+      DALI_MAP_INTERP_TO_RESAMPLE(LINEAR, Linear);
+      DALI_MAP_INTERP_TO_RESAMPLE(CUBIC, Cubic);
+      DALI_MAP_INTERP_TO_RESAMPLE(LANCZOS3, Lanczos3);
+      DALI_MAP_INTERP_TO_RESAMPLE(GAUSSIAN, Gaussian);
+      DALI_MAP_INTERP_TO_RESAMPLE(TRIANGULAR, Triangular);
+    default:
+      DALI_FAIL("Unknown interpolation type");
+    }
+#undef DALI_MAP_INTERP_TO_RESAMPLE
+  }
+
+  struct KernelData {
+    kernels::KernelContext context;
+    kernels::KernelRequirements requirements;
+    kernels::ScratchpadAllocator scratch_alloc;
+  };
+  std::vector<KernelData> kernel_data_;
+
+  kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
+  kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
+
+  vector<kernels::ResamplingParams2D> resample_params_;
   USE_OPERATOR_MEMBERS();
   bool save_attrs_;
   int outputs_per_idx_;
+  std::vector<Dims> out_shape_;
 };
 
 }  // namespace dali

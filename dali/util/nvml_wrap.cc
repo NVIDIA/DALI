@@ -32,8 +32,13 @@ static nvmlReturn_t (*nvmlInternalDeviceGetHandleByPciBusId)(const char* pciBusI
 static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex)(const int device_id,
                                                           nvmlDevice_t* device);
 static nvmlReturn_t (*nvmlInternalDeviceGetIndex)(nvmlDevice_t device, unsigned* index);
+
 static nvmlReturn_t (*nvmlInternalDeviceSetCpuAffinity)(nvmlDevice_t device);
 static nvmlReturn_t (*nvmlInternalDeviceClearCpuAffinity)(nvmlDevice_t device);
+static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
+                                                        unsigned int cpuSetSize,
+                                                        unsigned long* cpuSet);  // NOLINT(*)
+
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
 DALIError_t wrapSymbols(void) {
@@ -70,6 +75,7 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetIndex", nvmlInternalDeviceGetIndex);
   LOAD_SYM(nvmlhandle, "nvmlDeviceSetCpuAffinity", nvmlInternalDeviceSetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlDeviceClearCpuAffinity", nvmlInternalDeviceClearCpuAffinity);
+  LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
 
   symbolsLoaded = 1;
@@ -180,6 +186,22 @@ DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device) {
   nvmlReturn_t ret = nvmlInternalDeviceClearCpuAffinity(device);
   if (ret != NVML_SUCCESS) {
     DALI_FAIL("nvmlDeviceClearCpuAffinity() failed: " +
+      nvmlInternalErrorString(ret));
+    return DALIError;
+  }
+  return DALISuccess;
+}
+
+DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
+                                         unsigned int cpuSetSize,
+                                         unsigned long* cpuSet) {  // NOLINT(runtime/int)
+  if (nvmlInternalDeviceGetCpuAffinity == NULL) {
+    DALI_FAIL("lib wrapper not initialized.");
+    return DALIError;
+  }
+  nvmlReturn_t ret = nvmlInternalDeviceGetCpuAffinity(device, cpuSetSize, cpuSet);
+  if (ret != NVML_SUCCESS) {
+    DALI_FAIL("nvmlDeviceGetCpuAffinity() failed: " +
       nvmlInternalErrorString(ret));
     return DALIError;
   }

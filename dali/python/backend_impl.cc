@@ -27,6 +27,8 @@
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/copy.h"
+#include "dali/plugin/plugin_manager.h"
+#include "dali/util/half.hpp"
 
 namespace dali {
 namespace python {
@@ -114,7 +116,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
           }
-          size_t bytes = Product(i_shape) * info.itemsize;
+          size_t bytes = volume(i_shape) * info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;
@@ -219,7 +221,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             tensor_shape[i-1] = info.shape[i];
           }
           std::vector<Dims> i_shape(info.shape[0], tensor_shape);
-          size_t bytes = Product(tensor_shape)*i_shape.size()*info.itemsize;
+          size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride
           ssize_t dim_prod = 1;
@@ -352,8 +354,9 @@ void ExposeTensorList(py::module &m) { // NOLINT
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def("asCPU", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
+    .def("as_cpu", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
           TensorList<CPUBackend> * ret = new TensorList<CPUBackend>();
+          ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           ret->Copy(t, s);
@@ -434,6 +437,15 @@ static vector<string> GetRegisteredSupportOps() {
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
+
+static constexpr int GetCxx11AbiFlag() {
+#ifdef _GLIBCXX_USE_CXX11_ABI
+  return _GLIBCXX_USE_CXX11_ABI;
+#else
+  return 0;
+#endif
+}
+
 #ifdef DALI_BUILD_PROTO3
 typedef dali::TFRecordParser::FeatureType TFFeatureType;
 typedef dali::TFRecordParser::Feature TFFeature;
@@ -471,6 +483,10 @@ PYBIND11_MODULE(backend_impl, m) {
   // DALI Init function
   m.def("Init", &DALIInit);
 
+  m.def("LoadLibrary", &PluginManager::LoadLibrary);
+
+  m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
+
   // Types
   py::module types_m = m.def_submodule("types");
   types_m.doc() = "Datatypes and options used by DALI";
@@ -506,6 +522,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("RGB", DALI_RGB)
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
+    .value("YCbCr", DALI_YCbCr)
     .export_values();
 
   // DALIInterpType
@@ -513,12 +530,17 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_NN", DALI_INTERP_NN)
     .value("INTERP_LINEAR", DALI_INTERP_LINEAR)
     .value("INTERP_CUBIC", DALI_INTERP_CUBIC)
+    .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3)
+    .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR)
+    .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
     .export_values();
 
   // DALITensorLayout
   py::enum_<DALITensorLayout>(types_m, "DALITensorLayout", "Tensor layout")
     .value("NCHW", DALI_NCHW)
     .value("NHWC", DALI_NHWC)
+    .value("NFHWC", DALI_NFHWC)
+    .value("NFCHW", DALI_NFCHW)
     .value("SAME", DALI_SAME)
     .export_values();
 
@@ -605,9 +627,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;
@@ -620,9 +642,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.Output<CPUBackend>(i));
+              list.append(&ws.Output<CPUBackend>(i));
             } else {
-              list.append(ws.Output<GPUBackend>(i));
+              list.append(&ws.Output<GPUBackend>(i));
             }
           }
           return list;
@@ -738,7 +760,9 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
         "arg_name"_a,
         "local_only"_a = false)
-    .def("IsTensorArgument", &OpSchema::IsTensorArgument);
+    .def("IsTensorArgument", &OpSchema::IsTensorArgument)
+    .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
+    .def("AllowsSequences", &OpSchema::AllowsSequences);
 
   ExposeTensor(m);
   ExposeTensorList(m);

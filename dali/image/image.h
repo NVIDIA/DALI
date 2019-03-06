@@ -15,16 +15,27 @@
 #ifndef DALI_IMAGE_IMAGE_H_
 #define DALI_IMAGE_IMAGE_H_
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
+#include <functional>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
-
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
+static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
+                                              ".bmp", ".tif",  ".tiff"};
+
+DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
+
+using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
 
 class Image {
  public:
@@ -59,6 +70,14 @@ class Image {
    */
   DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims() const;
 
+ /**
+  * Sets crop window generator
+  */
+  inline void SetCropWindowGenerator(
+    const CropWindowGenerator& crop_window_generator) {
+    crop_window_generator_ = crop_window_generator;
+  }
+
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 
@@ -85,6 +104,13 @@ class Image {
 
   Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
+  /**
+   * Gets random crop generator
+   */
+  inline CropWindowGenerator GetCropWindowGenerator() const {
+    return crop_window_generator_;
+  }
+
  private:
   inline size_t dims_multiply() const {
     // There's no elegant way in C++11
@@ -97,6 +123,7 @@ class Image {
   const DALIImageType image_type_;
   bool decoded_ = false;
   ImageDims dims_;
+  CropWindowGenerator crop_window_generator_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 };
 

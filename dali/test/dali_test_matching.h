@@ -2,11 +2,13 @@
 #ifndef DALI_TEST_DALI_TEST_MATCHING_H_
 #define DALI_TEST_DALI_TEST_MATCHING_H_
 
-#include "dali/test/dali_test_single_op.h"
+#include <memory>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include <memory>
+
+#include "dali/common.h"
+#include "dali/test/dali_test_single_op.h"
 
 namespace dali {
 
@@ -16,10 +18,10 @@ typedef struct {
   double epsVal;
 } singleParamOpDescr;
 
-template <typename ImgType>
-class GenericMatchingTest : public DALISingleOpTest<ImgType> {
+template <typename ImgType, typename OutputImgType = ImgType>
+class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
  protected:
-  void RunTest(const opDescr &descr) {
+  virtual void RunTestImpl(const opDescr &descr) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
@@ -43,13 +45,13 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
 
   vector<TensorList<CPUBackend>*>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
-    if (OpType() == DALI_GPU)
-      return this->CopyToHost(*ws->Output<GPUBackend>(1));
+    if (GetOpType() == OpType::GPU)
+      return this->CopyToHost(ws->Output<GPUBackend>(1));
     else
-      return this->CopyToHost(*ws->Output<CPUBackend>(1));
+      return this->CopyToHost(ws->Output<CPUBackend>(1));
   }
 
-  uint32_t GetTestCheckType() const  override {
+  uint32_t GetTestCheckType() const override {
     return t_checkColorComp + t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
@@ -57,24 +59,24 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType> {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
     opDescr finalDesc(paramOp.opName, paramOp.epsVal, addImgType, &args);
-    RunTest(finalDesc);
+    RunTestImpl(finalDesc);
   }
 
   void RunTest(const char *opName, const OpArg params[] = nullptr,
                 int nParam = 0, bool addImgType = false, double eps = 0.001) {
     if (params && nParam > 0) {
       vector<OpArg> args(params, params + nParam);
-      RunTest(opDescr(opName, eps, addImgType, &args));
+      RunTestImpl(opDescr(opName, eps, addImgType, &args));
     } else {
-      RunTest(opDescr(opName, eps, addImgType, nullptr));
+      RunTestImpl(opDescr(opName, eps, addImgType, nullptr));
     }
   }
 
-  inline DALIOpType OpType() const                { return m_nOpType; }
-  inline void setOpType(DALIOpType opType)        { m_nOpType = opType; }
+  inline OpType GetOpType() const                { return op_type_; }
+  inline void SetOpType(OpType opType)        { op_type_ = opType; }
 
 
-  DALIOpType m_nOpType = DALI_GPU;
+  OpType op_type_ = OpType::GPU;
 };
 
 }  // namespace dali

@@ -14,7 +14,6 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 
-#include <cuda.h>
 #include <cuda_runtime.h>
 #include <nvml.h>
 #include <unistd.h>
@@ -30,71 +29,34 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/util/cucontext.h"
+#include "dali/util/dynlink_cuda.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream) : created_{false}, stream_{0} {
-  if (!default_stream) {
-    int orig_device;
-    cudaGetDevice(&orig_device);
-    auto set_device = false;
-    if (device_id >= 0 && orig_device != device_id) {
-      set_device = true;
-      cudaSetDevice(device_id);
-    }
-    CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-    created_ = true;
-    if (set_device) {
-      CUDA_CALL(cudaSetDevice(orig_device));
-    }
-  }
-}
-
-CUStream::~CUStream() {
-  if (created_) {
-    CUDA_CALL(cudaStreamDestroy(stream_));
-  }
-}
-
-CUStream::CUStream(CUStream&& other)
-    : created_{other.created_}, stream_{other.stream_}
-{
-  other.stream_ = 0;
-  other.created_ = false;
-}
-
-CUStream& CUStream::operator=(CUStream&& other) {
-  stream_ = other.stream_;
-  created_ = other.created_;
-  other.stream_ = 0;
-  other.created_ = false;
-  return *this;
-}
-
-
-CUStream::operator cudaStream_t() {
-  return stream_;
-}
-
 NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
-                     AVRational time_base)
-    : device_id_{device_id}, stream_{device_id, false}, codecpar_{codecpar},
-      device_{}, context_{}, parser_{}, decoder_{},
+                     AVRational time_base,
+                     DALIImageType image_type,
+                     DALIDataType dtype,
+                     bool normalized)
+    : device_id_(device_id), stream_(device_id, false), codecpar_(codecpar),
+      rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
+      device_(), context_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
-      recv_queue_{}, frame_queue_{}, output_queue_{},
-      current_recv_{}, textures_{}, done_{false}
-{
+      recv_queue_(), frame_queue_(), output_queue_(),
+      current_recv_(), textures_(), done_(false) {
   if (!codecpar) {
     // TODO(spanev) explicit handling
     return;
   }
 
-  CUDA_CALL(cuInit(0));
+  DALI_ENFORCE(cuInitChecked(),
+    "Failed to load libcuda.so. "
+    "Check your library paths and if NVIDIA driver is installed correctly.");
 
   CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
@@ -140,7 +102,7 @@ NvDecoder::~NvDecoder() {
     try {
       thread_convert_.join();
     } catch (const std::system_error& e) {
-      DALI_FAIL("System error joining thread: " + e.what());
+        // We should not throw here
     }
   }
 }
@@ -173,18 +135,18 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
   return 0;
 }
 
-int CUDAAPI NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
+int NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_sequence_(format);
 }
 
-int CUDAAPI NvDecoder::handle_decode(void* user_data,
+int NvDecoder::handle_decode(void* user_data,
                                             CUVIDPICPARAMS* pic_params) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_decode_(pic_params);
 }
 
-int CUDAAPI NvDecoder::handle_display(void* user_data,
+int NvDecoder::handle_display(void* user_data,
                                              CUVIDPARSERDISPINFO* disp_info) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_display_(disp_info);
@@ -467,11 +429,20 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                       frame.get_pitch(),
                                       input_width,
                                       input_height,
-                                      ScaleMethod_Linear);
+                                      ScaleMethod_Nearest);
+  if (dtype_ == DALI_UINT8) {
+    process_frame<uint8>(textures.chroma, textures.luma,
+                  sequence,
+                  output_idx, stream_,
+                  input_width, input_height,
+                  rgb_, normalized_);
+  } else {  // dtype_ == DALI_FLOAT
     process_frame<float>(textures.chroma, textures.luma,
                   sequence,
                   output_idx, stream_,
-                  input_width, input_height);
+                  input_width, input_height,
+                  rgb_, normalized_);
+  }
 
   frame_in_use_[frame.disp_info->picture_index] = false;
 }

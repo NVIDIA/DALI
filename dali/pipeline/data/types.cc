@@ -27,6 +27,7 @@
 
 
 #include "dali/pipeline/data/types.h"
+#include "dali/util/half.hpp"
 
 #include "dali/pipeline/data/backend.h"
 
@@ -35,28 +36,6 @@ std::mutex TypeTable::mutex_;
 std::unordered_map<std::type_index, DALIDataType> TypeTable::type_map_;
 std::unordered_map<size_t, TypeInfo> TypeTable::type_info_map_;
 int TypeTable::index_ = DALI_DATATYPE_END;
-
-template <>
-void TypeInfo::Construct<CPUBackend>(void *ptr, Index n) {
-  // Call our constructor function
-  constructor_(ptr, n);
-}
-
-template <>
-void TypeInfo::Construct<GPUBackend>(void *, Index) {
-  // NoOp. GPU types must not require constructor
-}
-
-template <>
-void TypeInfo::Destruct<CPUBackend>(void *ptr, Index n) {
-  // Call our destructor function
-  destructor_(ptr, n);
-}
-
-template <>
-void TypeInfo::Destruct<GPUBackend>(void *, Index) {
-  // NoOp. GPU types must not require destructor
-}
 
 template <>
 void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,

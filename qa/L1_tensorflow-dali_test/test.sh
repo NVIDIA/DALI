@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="opencv-python"
+pip_packages=""
 
 pushd ../..
 
@@ -29,6 +29,8 @@ export PATH=$PATH:/usr/local/mpi/bin
 chmod +x /usr/local/mpi/bin/rsh_warn.sh
 echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
 
+# TODO(janton): remove explicit keras-preprocessing dependency when it is fixed
+pip install keras-preprocessing==1.0.5
 pip install tensorflow-gpu==1.10.0
 
 export HOROVOD_GPU_ALLREDUCE=NCCL

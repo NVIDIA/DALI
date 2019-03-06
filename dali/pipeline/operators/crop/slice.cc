@@ -28,8 +28,12 @@ Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .EnforceInputLayout(DALI_NHWC)
-    .AddParent("Crop");
+    .AllowSequences()
+    .AddOptionalArg(
+        "image_type",
+        R"code(The color space of input and output image)code",
+        DALI_RGB, false)
+    .EnforceInputLayout(DALI_NHWC);
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
@@ -42,15 +46,22 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, unsigned int) {
 
   const auto &crop_size = ws->Input<CPUBackend>(2);
 
-  crop_width_[ws->data_idx()] =
-      static_cast<int>(crop_size.template data<float>()[0] * W);
-  crop_height_[ws->data_idx()] =
-      static_cast<int>(crop_size.template data<float>()[1] * H);
-
   per_sample_dimensions_[ws->thread_idx()] = std::make_pair(H, W);
 
-  const auto crop_y = static_cast<const int>(crop_begin.template data<float>()[1] * H);
   const auto crop_x = static_cast<const int>(crop_begin.template data<float>()[0] * W);
+  const auto crop_y = static_cast<const int>(crop_begin.template data<float>()[1] * H);
+
+  /*
+   * To decrease floating point error, first calculate the bounding box of crop and then
+   * calculate the width and height having left and top coordinates
+   */
+  auto crop_right_f = crop_size.template data<float>()[0] + crop_begin.template data<float>()[0];
+  auto crop_bottom_f = crop_size.template data<float>()[1] + crop_begin.template data<float>()[1];
+  auto crop_right = static_cast<const int>(crop_right_f * W);
+  auto crop_bottom = static_cast<const int>(crop_bottom_f * H);
+
+  crop_width_[ws->data_idx()] = crop_right - crop_x;
+  crop_height_[ws->data_idx()] = crop_bottom - crop_y;
 
   per_sample_crop_[ws->thread_idx()] = std::make_pair(crop_y, crop_x);
 }

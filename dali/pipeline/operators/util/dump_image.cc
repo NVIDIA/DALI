@@ -20,7 +20,7 @@ namespace dali {
 template<>
 void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
   auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
   DALI_ENFORCE(input.ndim() == 3,
       "Input images must have three dimensions.");
@@ -33,7 +33,7 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
       h, w, c, std::to_string(ws->data_idx()) + "-" + suffix_ + "-" + std::to_string(idx));
 
   // Forward the input
-  output->Copy(input, 0);
+  output.Copy(input, 0);
 }
 
 DALI_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);

@@ -15,8 +15,6 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_
 
-#include <cuda.h>
-
 extern "C" {
 #include <libavformat/avformat.h>
 }
@@ -34,14 +32,16 @@ extern "C" {
 #include <vector>
 
 #include "dali/util/cucontext.h"
+#include "dali/util/dynlink_cuda.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
+#include "dali/util/custream.h"
 
 struct AVPacket;
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 struct AVCodecParameters;
 using CodecParameters = AVCodecParameters;
 #else
@@ -56,22 +56,6 @@ struct FrameReq {
   int frame;
   int count;
 };
-
-class CUStream {
- public:
-  CUStream(int device_id, bool default_stream);
-  ~CUStream();
-  CUStream(const CUStream&) = delete;
-  CUStream& operator=(const CUStream&) = delete;
-  CUStream(CUStream&&);
-  CUStream& operator=(CUStream&&);
-  operator cudaStream_t();
-
- private:
-  bool created_;
-  cudaStream_t stream_;
-};
-
 
 enum ScaleMethod {
     /**
@@ -89,7 +73,10 @@ class NvDecoder {
  public:
   NvDecoder(int device_id,
             const CodecParameters* codecpar,
-            AVRational time_base);
+            AVRational time_base,
+            DALIImageType image_type,
+            DALIDataType dtype,
+            bool normalized);
 
   NvDecoder(const NvDecoder&) = default;
   NvDecoder(NvDecoder&&) = default;
@@ -99,9 +86,9 @@ class NvDecoder {
 
   bool initialized() const;
 
-  static int CUDAAPI handle_sequence(void* user_data, CUVIDEOFORMAT* format);
-  static int CUDAAPI handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
-  static int CUDAAPI handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
+  static int handle_sequence(void* user_data, CUVIDEOFORMAT* format);
+  static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
+  static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
   int decode_packet(AVPacket* pkt);
 
@@ -111,16 +98,16 @@ class NvDecoder {
 
   void finish();
 
- protected:
+ private:
   int decode_av_packet(AVPacket* pkt);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
-  const int device_id_;
-  CUStream stream_;
-  const CodecParameters* codecpar_;
 
- private:
+  int handle_sequence_(CUVIDEOFORMAT* format);
+  int handle_decode_(CUVIDPICPARAMS* pic_params);
+  int handle_display_(CUVIDPARSERDISPINFO* disp_info);
+
   class MappedFrame {
    public:
     MappedFrame();
@@ -166,6 +153,22 @@ class NvDecoder {
     TextureObject chroma;
   };
 
+  const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
+                                     uint16_t input_width, uint16_t input_height,
+                                     ScaleMethod scale_method);
+  void convert_frames_worker();
+  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
+                     int index);
+
+
+  const int device_id_;
+  CUStream stream_;
+  const CodecParameters* codecpar_;
+
+  bool rgb_;
+  DALIDataType dtype_;
+  bool normalized_;
+
   CUdevice device_;
   CUContext context_;
   CUVideoParser parser_;
@@ -196,17 +199,6 @@ class NvDecoder {
   volatile bool done_;
 
   std::thread thread_convert_;
-
-  int handle_sequence_(CUVIDEOFORMAT* format);
-  int handle_decode_(CUVIDPICPARAMS* pic_params);
-  int handle_display_(CUVIDPARSERDISPINFO* disp_info);
-
-  const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
-                                     uint16_t input_width, uint16_t input_height,
-                                       ScaleMethod scale_method);
-  void convert_frames_worker();
-  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                     int index);
 };
 
 }  // namespace dali

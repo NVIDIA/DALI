@@ -66,7 +66,7 @@ class Water : public DisplacementFilter<Backend, WaterAugment> {
   explicit Water(const OpSpec& spec)
     : DisplacementFilter<Backend, WaterAugment>(spec) {}
 
-  virtual ~Water() = default;
+  ~Water() override = default;
 };
 
 }  // namespace dali

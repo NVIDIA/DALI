@@ -18,6 +18,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -52,12 +53,13 @@ class DataReader : public Operator<Backend> {
   prefetch_ready_workers_(false),
   finished_(false),
   samples_processed_(0),
-  batch_stop_(false) {
+  batch_stop_(false),
+  prefetch_error_(nullptr) {
   }
 
-  virtual ~DataReader() noexcept {
+  ~DataReader() noexcept override {
     StopPrefetchThread();
-    for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
+    for (size_t i = 0; i < prefetched_batch_.size(); ++i) {
       // return unconsumed batches
       if (prefetched_batch_[i]) {
         loader_->ReturnTensor(prefetched_batch_[i]);
@@ -87,9 +89,10 @@ class DataReader : public Operator<Backend> {
       try {
         Prefetch();
       } catch (const std::exception& e) {
-        std::stringstream ss;
-        ss << "Prefetch Failed: " << e.what();
-        DALI_FAIL(ss.str());
+        prefetch_error_.reset(new std::string(e.what()));
+        prefetched_batch_ready_ = true;
+        consumer_.notify_all();
+        return;
       }
       // mark as ready
       prefetched_batch_ready_ = true;
@@ -151,7 +154,12 @@ class DataReader : public Operator<Backend> {
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
+        consumer_.wait(prefetch_lock, [this]() { return prefetched_batch_ready_; });
+
+        if (prefetch_error_) {
+          DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
+        }
+
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
 
@@ -189,55 +197,30 @@ class DataReader : public Operator<Backend> {
 
   // GPUBackend operators
   void Run(DeviceWorkspace* ws) override {
-    {
-      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-      StartPrefetchThread();
+    StartPrefetchThread();
 
-      if (batch_stop_) batch_stop_ = false;
+    // grab the actual prefetching lock
+    std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+
+    // Wait until prefetch is ready
+    consumer_.wait(prefetch_lock, [this]() { return prefetched_batch_ready_; });
+
+    if (prefetch_error_) {
+      DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
     }
 
-    {
-      // block all other worker threads from taking the prefetch-controller lock
-      std::unique_lock<std::mutex> worker_lock(worker_mutex_);
+    producer_.notify_one();
 
-      if (!prefetch_ready_workers_) {
-        // grab the actual prefetching lock
-        std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+    Operator<Backend>::Run(ws);
 
-        // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [&]() { return prefetched_batch_ready_; });
-        // signal the other workers we're ready
-        prefetch_ready_workers_ = true;
+    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
 
-        producer_.notify_one();
-      }
+    for (auto &sample : prefetched_batch_) {
+        loader_->ReturnTensor(sample);
     }
 
-    for (samples_processed_ = 0;
-         samples_processed_.load() < Operator<Backend>::batch_size_;
-         ++samples_processed_) {
-      // consume batch
-      Operator<Backend>::Run(ws);
-      loader_->ReturnTensor(prefetched_batch_[samples_processed_]);
-    }
-
-    // lock, check if batch is finished, notify
-    {
-      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-
-      // if we need to stop, stop.
-      if (batch_stop_) return;
-
-      // if we've consumed all samples in this batch, reset state and stop
-      if (samples_processed_.load() == Operator<Backend>::batch_size_) {
-        prefetch_ready_workers_ = false;
-        prefetched_batch_ready_ = false;
-        producer_.notify_one();
-        samples_processed_ = 0;
-        batch_stop_ = true;
-      }
-      return;
-    }
+    prefetched_batch_ready_ = false;
+    producer_.notify_one();
   }
 
 
@@ -272,6 +255,9 @@ class DataReader : public Operator<Backend> {
 
   // notify threads to stop processing
   std::atomic<bool> batch_stop_;
+
+  // set to error string when prefetch worker fails
+  std::unique_ptr<std::string> prefetch_error_;
 
   // Loader
   std::unique_ptr<Loader<Backend, LoadTarget>> loader_;

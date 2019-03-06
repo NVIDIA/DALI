@@ -43,7 +43,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     device_id_(device_id) {
   }
 
-  DLL_PUBLIC virtual ~AsyncPipelinedExecutor() {
+  DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();

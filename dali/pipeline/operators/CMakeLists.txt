@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(color)
+add_subdirectory(color_space)
 add_subdirectory(crop)
 add_subdirectory(decoder)
 add_subdirectory(detection)
@@ -20,10 +21,12 @@ add_subdirectory(displacement)
 add_subdirectory(fused)
 add_subdirectory(reader)
 add_subdirectory(resize)
+add_subdirectory(sequence)
 add_subdirectory(support)
 add_subdirectory(util)
 add_subdirectory(paste)
 add_subdirectory(geometric)
+add_subdirectory(transpose)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
@@ -38,3 +41,5 @@ if (BUILD_TEST)
   file(GLOB tmp *_test.cc)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
+
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)

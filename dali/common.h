@@ -15,10 +15,6 @@
 #ifndef DALI_COMMON_H_
 #define DALI_COMMON_H_
 
-#include <cuda_fp16.h>  // for __half & related methods
-#include <cuda_profiler_api.h>
-#include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
-
 #ifdef DALI_USE_NVTX
 #include "nvToolsExt.h"
 #endif
@@ -49,18 +45,43 @@ using std::unique_ptr;
 using std::vector;
 
 // Common types
-typedef uint8_t uint8;
-typedef int16_t int16;
-typedef int64_t int64;
-typedef uint64_t uint64;
-typedef int32_t int32;
-typedef uint32_t uint32_t;
+using uint8 = uint8_t;
+using int16 = int16_t;
+using int64 = int64_t;
+using uint64 = uint64_t;
+using int32 = int32_t;
+using uint32 = uint32_t;
 
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
-// Only supported on the GPU
-typedef __half float16;
+enum class OpType {
+  GPU = 0,
+  CPU = 1,
+  MIXED = 2,
+  SUPPORT = 3,
+  COUNT = 4
+};
+
+static std::string to_string(OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return "cpu";
+    case OpType::GPU:
+      return "gpu";
+    case OpType::MIXED:
+      return "mixed";
+    case OpType::SUPPORT:
+      return "support";
+    default:
+      return "<invalid>";
+  }
+}
+
+struct DALISize {
+    int width;
+    int height;
+};
 
 /**
  * @brief Supported interpolation types
@@ -68,13 +89,21 @@ typedef __half float16;
 enum DALIInterpType {
   DALI_INTERP_NN = 0,
   DALI_INTERP_LINEAR = 1,
-  DALI_INTERP_CUBIC = 2
+  DALI_INTERP_CUBIC = 2,
+  DALI_INTERP_LANCZOS3 = 3,
+  DALI_INTERP_TRIANGULAR = 4,
+  DALI_INTERP_GAUSSIAN = 5,
 };
 
 /**
  * @brief Supported image formats
  */
-enum DALIImageType { DALI_RGB = 0, DALI_BGR = 1, DALI_GRAY = 2 };
+enum DALIImageType {
+  DALI_RGB   = 0,
+  DALI_BGR   = 1,
+  DALI_GRAY  = 2,
+  DALI_YCbCr = 3
+};
 
 /**
  * @brief Supported tensor layouts
@@ -84,26 +113,17 @@ enum DALITensorLayout {
   DALI_NCHW  = 0,
   DALI_NHWC  = 1,
   DALI_NFHWC = 2,
-  DALI_SAME  = 3
+  DALI_NFCHW = 3,
+  DALI_SAME  = 4
 };
 
 inline bool IsColor(DALIImageType type) {
-  return type == DALI_RGB || type == DALI_BGR;
+  return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
-// Compatible wrapper for CUDA 8 which does not have builtin
-// static_cast<float16>
-template <typename dst>
-__device__ inline dst StaticCastGpu(float val) {
-  return static_cast<dst>(val);
+inline std::size_t NumberOfChannels(DALIImageType type) {
+  return IsColor(type) ? 3 : 1;
 }
-
-#if defined(__CUDACC__) && defined(CUDART_VERSION) && CUDART_VERSION < 9000
-template <>
-__device__ inline float16 StaticCastGpu(float val) {
-  return __float2half(static_cast<float>(val));
-}
-#endif  // defined(CUDART_VERSION) && CUDART_VERSION < 9000
 
 // Helper to delete copy constructor & copy-assignment operator
 #define DISABLE_COPY_MOVE_ASSIGN(name)   \
@@ -116,11 +136,6 @@ __device__ inline float16 StaticCastGpu(float val) {
 #define CONCAT_1(var1, var2) var1##var2
 #define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
 #define ANONYMIZE_VARIABLE(name) CONCAT_2(name, __LINE__)
-
-// Starts profiling DALI
-inline void DALIProfilerStart() { cudaProfilerStart(); }
-
-inline void DALIProfilerStop() { cudaProfilerStop(); }
 
 // Basic timerange for profiling
 struct TimeRange {
@@ -202,6 +217,8 @@ inline std::string to_string(const DALIImageType& im_type) {
       return "BGR";
     case DALI_GRAY:
       return "GRAY";
+    case DALI_YCbCr:
+      return "YCbCr";
     default:
       return "<unknown>";
   }
@@ -215,11 +232,39 @@ inline std::string to_string(const DALITensorLayout& layout) {
       return "NHWC";
     case DALI_NFHWC:
       return "NFHWC";
+    case DALI_NFCHW:
+      return "NFCHW";
     case DALI_SAME:
       return "SAME";
     default:
       return "<unknown>";
   }
+}
+
+inline DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
+  switch (sequence_layout) {
+    case DALI_NFHWC:
+      return DALI_NHWC;
+    case DALI_NFCHW:
+      return DALI_NCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return sequence_layout;
+  }
+}
+
+inline DALITensorLayout GetSequenceLayout(DALITensorLayout element_layout) {
+  switch (element_layout) {
+    case DALI_NHWC:
+      return DALI_NFHWC;
+    case DALI_NCHW:
+      return DALI_NFCHW;
+    default:  // if cannot produce anything meaningful, keep the same layout
+      return element_layout;
+  }
+}
+
+inline bool IsSequence(DALITensorLayout layout) {
+  return layout == DALI_NFHWC || layout == DALI_NFCHW;
 }
 
 template <typename T>
@@ -255,6 +300,16 @@ struct is_std_array : std::false_type {};
 template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
+std::vector<std::string> string_split(const std::string &s, const char delim);
+
 }  // namespace dali
+
+#define LOG_LINE \
+  if (0) \
+  std::cout << __FILE__ << ":" << __LINE__ << ": "
+
+#define ERROR_LOG \
+  if (1) \
+  std::cerr << __FILE__ << ":" << __LINE__ << ": "
 
 #endif  // DALI_COMMON_H_

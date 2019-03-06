@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "dali/common.h"
+#include "dali/image/image.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
 
@@ -28,8 +29,6 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
   DIR *dir = opendir(curr_dir_path.c_str());
 
   struct dirent *entry;
-
-  const std::vector<std::string> valid_extensions({".jpg", ".jpeg", ".png", ".bmp"});
 
   while ((entry = readdir(dir))) {
     std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
@@ -44,15 +43,8 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
     }
 #endif
     std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
-    std::string file_name_lowercase = std::string{entry->d_name};
-    std::transform(file_name_lowercase.begin(), file_name_lowercase.end(),
-                   file_name_lowercase.begin(), ::tolower);
-    for (const std::string& s : valid_extensions) {
-      size_t pos = file_name_lowercase.rfind(s);
-      if (pos != std::string::npos && pos + s.size() == file_name_lowercase.size()) {
-        file_label_pairs->push_back(std::make_pair(rel_path, label));
-        break;
-      }
+    if (HasKnownImageExtension(std::string(entry->d_name))) {
+      file_label_pairs->push_back(std::make_pair(rel_path, label));
     }
   }
   closedir(dir);
@@ -89,6 +81,8 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
       assemble_file_list(file_root, entry_name_list[dir_count], dir_count, &file_label_pairs);
   }
+  // sort file names as well
+  std::sort(file_label_pairs.begin(), file_label_pairs.end());
   printf("read %lu files from %lu directories\n", file_label_pairs.size(), entry_name_list.size());
 
   closedir(dir);
@@ -104,20 +98,26 @@ void FileLoader::ReadSample(ImageLabelWrapper* image_label) {
   auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
-  if (current_index_ == Size()) {
-    current_index_ = 0;
-  }
+  MoveToNextShard(current_index_);
 
-  auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first);
+  auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first, read_ahead_);
   Index image_size = current_image->Size();
 
-  // resize tensor to hold [image]
-  image_label->image.Resize({image_size});
+  if (copy_read_data_) {
+    image_label->image.Resize({image_size});
+    // copy the image
+    current_image->Read(image_label->image.mutable_data<uint8_t>(), image_size);
+  } else {
+    auto p = current_image->Get(image_size);
+    // Wrap the raw data in the Tensor object.
+    image_label->image.ShareData(p, image_size, {image_size});
 
-  // copy the image
-  current_image->Read(image_label->image.mutable_data<uint8_t>(), image_size);
+    TypeInfo type;
+    type.SetType<uint8_t>();
+    image_label->image.set_type(type);
+  }
+
   image_label->image.SetSourceInfo(image_pair.first);
-
   // close the file handle
   current_image->Close();
 

@@ -51,13 +51,13 @@ class NormalizePermute : public Operator<Backend> {
     for (auto &shape : output_shape_) shape = {C_, H_, W_};
   }
 
-  virtual inline ~NormalizePermute() = default;
+  inline ~NormalizePermute() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   template <typename OUT>
-  void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output);
+  void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output);
 
   template <typename OUT>
   void GPURunHelper(DeviceWorkspace *ws, const int idx);

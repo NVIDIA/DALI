@@ -65,12 +65,17 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-Execute the below command:
+Execute the below command CUDA 9.0 based build:
 
 .. code-block:: bash
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
+    
+For CUDA 10.0 based build use:
 
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
 
 .. note::
 
@@ -78,7 +83,13 @@ Execute the below command:
 
 .. code-block:: bash
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
+    
+For CUDA 10.0 based build execute:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
 
 
 Installing this package will install ``nvidia-dali`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
@@ -337,6 +348,7 @@ We appreciate feedback, questions or bug reports. When you need help with the co
 * **minimal**: Use as little code as possible that still produces the same problem.
 * **complete**: Provide all parts needed to reproduce the problem. Check if you can strip external dependency and still show the problem. The less time we spend on reproducing the problems, the more time we can dedicate  to the fixes.
 * **verifiable**: Test the code you are about to provide, to make sure that it reproduces the problem. Remove all other problems that are not related to your request.
+
 
 Contributors
 ------------

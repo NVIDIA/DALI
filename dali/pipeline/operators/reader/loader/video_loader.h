@@ -33,7 +33,7 @@ extern "C" {
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
-#include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
+#include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -44,7 +44,7 @@ av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
 }
 
 namespace dali {
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
 #else
 auto codecpar(AVStream* stream) -> decltype(stream->codec);
@@ -59,7 +59,7 @@ struct OpenFile {
   int vid_stream_idx_;
   int last_frame_;
 
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
   av_unique_ptr<AVBSFContext> bsf_ctx_;
 #else
   struct BSFDeleter {
@@ -103,46 +103,54 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
-      count_(spec.GetArgument<int>("count")),
+      count_(spec.GetArgument<int>("sequence_length")),
+      step_(spec.GetArgument<int>("step")),
       height_(0),
       width_(0),
+      image_type_(spec.GetArgument<DALIImageType>("image_type")),
+      dtype_(spec.GetArgument<DALIDataType>("dtype")),
+      normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
-      // TODO(spanev) handle device_id != 0
-      device_id_(0),
       codec_id_(0),
       done_(false) {
+      if (step_ < 0)
+        step_ = count_;
   }
 
   void init() {
+    DALI_ENFORCE(cuvidInitChecked(0),
+     "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
+     "If you are running in a Docker container, please refer "
+     "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
+
+    CUDA_CALL(cudaGetDevice(&device_id_));
+
     av_register_all();
 
-    // TODO(spanev) Implem several files handling
-    total_frame_count_ = get_or_open_file(filenames_[0]).frame_count_;
-
-    // TODO(spanev) to change after deciding what we want
-    int seq_per_epoch = total_frame_count_ / count_;
-    frame_starts_.resize(seq_per_epoch);
-    for (int i = 0; i < seq_per_epoch; ++i) {
-      frame_starts_[i] = i * count_;
+    for (size_t i = 0; i < filenames_.size(); ++i) {
+      int frame_count = get_or_open_file(filenames_[i]).frame_count_;
+      for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
+        frame_starts_.emplace_back(i, s);
+      }
     }
 
     if (shuffle_) {
-      // TODO(spanev) decide of a policy for multi-gpu here
+      // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(524287);
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 
-    current_frame_idx_ = 0;
+    Reset(true);
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
 
-  ~VideoLoader() noexcept {
+  ~VideoLoader() noexcept override {
     done_ = true;
     send_queue_.shutdown();
     if (vid_decoder_) {
@@ -152,8 +160,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       try {
         thread_file_reader_.join();
       } catch (const std::system_error& e) {
-        DALI_FAIL("System error joining thread: "
-                   + e.what());
+        // We should not throw here
       }
     }
   }
@@ -170,12 +177,24 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::pair<int, int> load_width_height(const std::string& filename);
 
  private:
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_frame_idx_ = 0;
+    }
+  }
   // Params
   int count_;
+  int step_;
   int output_height_;
   int output_width_;
   int height_;
   int width_;
+  DALIImageType image_type_;
+  DALIDataType dtype_;
+  bool normalized_;
+
   std::vector<std::string> filenames_;
 
   int device_id_;
@@ -189,9 +208,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   std::thread thread_file_reader_;
 
-  int total_frame_count_;
-  std::vector<int> frame_starts_;
-  unsigned current_frame_idx_;
+  // pair -> (filename index, frame index)
+  std::vector<std::pair<int, int>> frame_starts_;
+  Index current_frame_idx_;
 
   volatile bool done_;
 };

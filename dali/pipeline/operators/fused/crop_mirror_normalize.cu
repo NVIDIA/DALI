@@ -197,7 +197,7 @@ DALIError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_ba
 template<>
 template <typename OUT>
 void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
   if (output_layout_ == DALI_NCHW) {
     DALI_CALL((BatchedCropMirrorNormalizePermute<DALI_NCHW, OUT>(
             input_ptrs_gpu_.template data<const uint8*>(),
@@ -206,7 +206,7 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
             mirror_gpu_.template data<int>(),
             mean_.template data<float>(),
             inv_std_.template data<float>(),
-            output->template mutable_data<OUT>(),
+            output.template mutable_data<OUT>(),
             ws->stream())));
   } else {
     DALI_CALL((BatchedCropMirrorNormalizePermute<DALI_NHWC, OUT>(
@@ -216,27 +216,27 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
             mirror_gpu_.template data<int>(),
             mean_.template data<float>(),
             inv_std_.template data<float>(),
-            output->template mutable_data<OUT>(),
+            output.template mutable_data<OUT>(),
             ws->stream())));
   }
 }
 
 template<>
 template <typename OUT>
-void CropMirrorNormalize<GPUBackend>::ValidateHelper(TensorList<GPUBackend> *output) {
+void CropMirrorNormalize<GPUBackend>::ValidateHelper(TensorList<GPUBackend> &output) {
   // Validate parameters
   DALI_CALL(ValidateBatchedCropMirrorNormalizePermute(
           input_ptrs_.template mutable_data<const uint8*>(),
           input_strides_.template mutable_data<int>(),
           batch_size_, crop_h_, crop_w_, C_,
           mean_vec_.data(), inv_std_vec_.data(),
-          output->template mutable_data<OUT>()));
+          output.template mutable_data<OUT>()));
 }
 
 template<>
 void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()),
       "Expected input data as uint8.");
 
@@ -280,10 +280,10 @@ void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, co
   }
 
   // Resize the output data
-  output->Resize(output_shape);
+  output.Resize(output_shape);
 
   // Set the layout of the output data
-  output->SetLayout(output_layout_);
+  output.SetLayout(output_layout_);
 
   // Copy strides to gpu
   input_strides_gpu_.Copy(input_strides_, ws->stream());

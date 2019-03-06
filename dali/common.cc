@@ -15,4 +15,20 @@
 #include "dali/common.h"
 
 namespace dali {
+
+std::vector<std::string> string_split(const std::string &s, const char delim) {
+    std::vector<std::string> ret;
+    size_t pos = 0;
+    while (pos != std::string::npos) {
+        size_t newpos = s.find(delim, pos);
+        ret.push_back(s.substr(pos, newpos - pos));
+        if (newpos != std::string::npos) {
+            pos = newpos + 1;
+        } else {
+            pos = newpos;
+        }
+    }
+    return ret;
+}
+
 }  // namespace dali

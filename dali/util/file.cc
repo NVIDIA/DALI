@@ -20,12 +20,20 @@
 
 namespace dali {
 
-std::unique_ptr<FileStream> FileStream::Open(const std::string& uri) {
+std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_ahead) {
   if (uri.find("file://") == 0) {
     return std::unique_ptr<FileStream>(
-            new LocalFileStream(uri.substr(std::string("file://").size())));
+            new LocalFileStream(uri.substr(std::string("file://").size()), read_ahead));
   } else {
-    return std::unique_ptr<FileStream>(new LocalFileStream(uri));
+    return std::unique_ptr<FileStream>(new LocalFileStream(uri, read_ahead));
   }
 }
+
+bool FileStream::ReserveFileMappings(unsigned int num) {
+  return LocalFileStream::ReserveFileMappings(num);
+}
+void FileStream::FreeFileMappings(unsigned int num) {
+  LocalFileStream::FreeFileMappings(num);
+}
+
 }  // namespace dali

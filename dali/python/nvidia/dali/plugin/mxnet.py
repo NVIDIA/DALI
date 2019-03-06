@@ -75,13 +75,17 @@ class DALIGenericIterator(object):
     fill_last_batch : bool, optional, default = True
                       Whether to fill the last batch with the data from the
                       next epoch.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
     """
     def __init__(self,
                  pipelines,
                  output_map,
                  size,
                  data_layout='NCHW',
-                 fill_last_batch=True):
+                 fill_last_batch=True,
+                 auto_reset=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -90,6 +94,7 @@ class DALIGenericIterator(object):
         self._size = int(size)
         self._pipes = pipelines
         self._fill_last_batch = fill_last_batch
+        self._auto_reset = auto_reset
         # Build all pipelines
         for p in self._pipes:
             p.build()
@@ -133,6 +138,8 @@ class DALIGenericIterator(object):
             self._first_batch = None
             return batch
         if self._counter >= self._size:
+            if self._auto_reset:
+                self.reset()
             raise StopIteration
         # Gather outputs
         outputs = []
@@ -238,6 +245,8 @@ class DALIGenericIterator(object):
                 self._counter = self._counter % self._size
             else:
                 self._counter = 0
+            for p in self._pipes:
+                p.reset()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
@@ -281,6 +290,9 @@ class DALIClassificationIterator(DALIGenericIterator):
     fill_last_batch : bool, optional, default = True
                       Whether to fill the last batch with the data from the
                       next epoch.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
     """
     def __init__(self,
                  pipelines,
@@ -288,10 +300,12 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW',
-                 fill_last_batch=True):
+                 fill_last_batch=True,
+                 auto_reset=False):
         super(DALIClassificationIterator, self).__init__(pipelines,
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
                                                          size,
                                                          data_layout     = data_layout,
-                                                         fill_last_batch = fill_last_batch)
+                                                         fill_last_batch = fill_last_batch,
+                                                         auto_reset = auto_reset)

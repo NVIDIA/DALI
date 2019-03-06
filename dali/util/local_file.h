@@ -17,6 +17,7 @@
 
 #include <cstdio>
 #include <string>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/util/file.h"
@@ -25,8 +26,11 @@ namespace dali {
 
 class LocalFileStream : public FileStream {
  public:
-  explicit LocalFileStream(const std::string& path);
+  explicit LocalFileStream(const std::string& path, bool read_ahead);
   void Close() override;
+  shared_ptr<void> Get(size_t n_bytes) override;
+  static bool ReserveFileMappings(unsigned int num);
+  static void FreeFileMappings(unsigned int num);
   size_t Read(uint8_t * buffer, size_t n_bytes) override;
   void Seek(int64 pos) override;
   size_t Size() const override;
@@ -36,7 +40,11 @@ class LocalFileStream : public FileStream {
   }
 
  private:
-  FILE * fp_;
+  std::shared_ptr<void> p_;
+  size_t length_;
+  size_t pos_;
+  string path_;
+  bool read_ahead_whole_file_;
 };
 
 }  // namespace dali

@@ -26,15 +26,62 @@ namespace dali {
 
 class DLL_PUBLIC FileStream {
  public:
-  static std::unique_ptr<FileStream> Open(const std::string& uri);
+  class FileStreamMappinReserver {
+   public:
+    explicit FileStreamMappinReserver(unsigned int num):
+        reserved(0)  {
+      if (FileStream::ReserveFileMappings(num)) {
+        reserved = num;
+      }
+    }
+
+    FileStreamMappinReserver()
+        : FileStreamMappinReserver(0) {}
+
+    FileStreamMappinReserver(const FileStreamMappinReserver &) = delete;
+    FileStreamMappinReserver &operator=(const FileStreamMappinReserver &) = delete;
+
+    FileStreamMappinReserver(FileStreamMappinReserver &&other)
+        : FileStreamMappinReserver(other.reserved) {
+      other.reserved = 0;
+    }
+
+    FileStreamMappinReserver &operator=(FileStreamMappinReserver &&other) {
+      reserved = other.reserved;
+      other.reserved = 0;
+      return *this;
+    }
+
+    FileStreamMappinReserver &operator=(FileStreamMappinReserver &other) {
+      reserved = other.reserved;
+      other.reserved = 0;
+      return *this;
+    }
+
+    bool CanShareMappedData() {
+      return reserved != 0;
+    }
+    ~FileStreamMappinReserver() {
+      if (reserved) {
+        FileStream::FreeFileMappings(reserved);
+      }
+    }
+
+   private:
+     unsigned int reserved;
+  };
+  static std::unique_ptr<FileStream> Open(const std::string& uri, bool read_ahead);
 
   virtual void Close() = 0;
   virtual size_t Read(uint8_t * buffer, size_t n_bytes) = 0;
+  virtual shared_ptr<void>  Get(size_t n_bytes) = 0;
   virtual void Seek(int64 pos) = 0;
   virtual size_t Size() const = 0;
   virtual ~FileStream() {}
 
  protected:
+  static bool ReserveFileMappings(unsigned int num);
+  static void FreeFileMappings(unsigned int num);
   explicit FileStream(const std::string& path) :
     path_(path)
     {}

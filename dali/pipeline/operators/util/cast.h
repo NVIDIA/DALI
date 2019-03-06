@@ -27,7 +27,7 @@ class Cast : public Operator<Backend> {
     output_type_(spec.GetArgument<DALIDataType>("dtype"))
     {}
 
-  virtual inline ~Cast() = default;
+  inline ~Cast() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 

@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cuda.h>
-#include "dali/error_handling.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/util/cucontext.h"
+#include "dali/util/dynlink_cuda.h"
+
 
 namespace dali {
 
@@ -23,7 +24,9 @@ CUContext::CUContext() : context_{0}, initialized_{false} {
 
 CUContext::CUContext(CUdevice device, unsigned int flags)
     : device_{device}, context_{0}, initialized_{false} {
-    CUDA_CALL(cuInit(0));
+    DALI_ENFORCE(cuInitChecked(),
+        "Failed to load libcuda.so. "
+        "Check your library paths and if the driver is installed correctly.");
     CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device));
     push();
     CUdevice dev;

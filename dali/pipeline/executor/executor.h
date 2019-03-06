@@ -38,7 +38,7 @@ namespace dali {
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
- * buffers, so that we can produce data into one while the 
+ * buffers, so that we can produce data into one while the
  * other is in use by the user.
  */
 class DLL_PUBLIC Executor {
@@ -114,10 +114,12 @@ class DLL_PUBLIC Executor {
   template <typename Backend>
   class TensorListPool {
    public:
-    inline TensorListPool(int size, int batch_size, size_t bytes_hint) {
+    inline TensorListPool(int size, int batch_size, size_t bytes_hint, bool pinned = false) {
       for (int i = 0; i < size; ++i) {
         tls_.push_back(std::make_shared<TensorList<Backend>>());
-        tls_.back()->Resize({{batch_size*(Index)bytes_hint}});
+        tls_.back()->set_pinned(pinned);
+        if (pinned || std::is_same<Backend, GPUBackend>::value)
+          tls_.back()->reserve(batch_size*(Index)bytes_hint);
       }
     }
 

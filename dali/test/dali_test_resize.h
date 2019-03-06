@@ -19,7 +19,7 @@ template <typename ImgType>
 class GenericResizeTest : public DALISingleOpTest<ImgType> {
  public:
   vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) {
+  Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     const int c = this->GetNumColorComp();
     auto cv_type = (c == 3) ? CV_8UC3 : CV_8UC1;
 
@@ -31,7 +31,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     const uint resizeOptions = getResizeOptions();
 
     int resize_a = 0, resize_b = 0;
-    bool warp_resize = true;
+    bool warp_resize = true, resize_shorter = true;
     const OpSpec &spec = this->GetOperationSpec();
     const bool useExternSizes = (resizeOptions & t_externSizes) &&
                                 spec.GetArgument<bool>("save_attrs");
@@ -41,10 +41,15 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       resize_a = spec.GetArgument<float>("resize_x");
       warp_resize = resize_a != 0;
-      if (warp_resize)
+      if (warp_resize) {
         resize_b = spec.GetArgument<float>("resize_y");
-      else
+      } else {
         resize_a = spec.GetArgument<float>("resize_shorter");
+        if (resize_a == 0) {
+          resize_a = spec.GetArgument<float>("resize_longer");
+          resize_shorter = false;
+        }
+      }
     }
 
     int crop_h = 0, crop_w = 0;
@@ -62,7 +67,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       // determine resize parameters
       if (useExternSizes) {
-        const auto *t = ws->Output<CPUBackend>(1)->tensor<int>(i);
+        const auto *t = ws->Output<CPUBackend>(1).tensor<int>(i);
         rsz_h = t[0];
         rsz_w = t[1];
       } else {
@@ -71,11 +76,21 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
           rsz_h = resize_b;
         } else {
           if (H >= W) {
-            rsz_w = resize_a;
-            rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            if (resize_shorter) {
+              rsz_w = resize_a;
+              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            } else {
+              rsz_h = resize_a;
+              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            }
           } else {  // W > H
-            rsz_h = resize_a;
-            rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            if (resize_shorter) {
+              rsz_h = resize_a;
+              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+            } else {
+              rsz_w = resize_a;
+              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+            }
           }
         }
       }
@@ -84,7 +99,34 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
       // perform the resize
       cv::Mat rsz_img;
-      cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
+
+      if (getInterpType() == cv::INTER_NEAREST) {
+        // NN resampling with correct pixel center (unlike OpenCV)
+        rsz_img.create(rsz_h, rsz_w, input.type());
+        size_t elem_sz = rsz_img.elemSize();
+
+        float dy = 1.0f * input.rows / rsz_h;
+        float dx = 1.0f * input.cols / rsz_w;
+
+        float sy = 0.5f * dy;
+        for (int y = 0; y < rsz_h; y++, sy += dy) {
+          int srcy = floor(sy);
+          for (int x = 0; x < rsz_w; x++) {
+            // This is a bit lame - i.e. this reproduces exactly what we got in CPU ResampleNN.
+            // Proper solution would be to test the output and see if the output pixel is coming
+            // from a source pixel near the reference location - this would require rewriting the
+            // test from scratch for NN case, as it cannot be tested with a straightforward
+            // pixelwise comparison.
+            float sx = (x + 0.5f) * dx;
+            int srcx = floor(sx);
+            auto *dst = rsz_img.ptr<uint8_t>(y, x);
+            auto *src = input.ptr<uint8_t>(srcy, srcx);
+            memcpy(dst, src, elem_sz);
+          }
+        }
+      } else {
+        cv::resize(input, rsz_img, cv::Size(rsz_w, rsz_h), 0, 0, getInterpType());
+      }
 
       cv::Mat crop_img;
       cv::Mat const *finalImg = &rsz_img;

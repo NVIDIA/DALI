@@ -76,20 +76,14 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
     CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
     CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
 
     // Optional: debug printing
     lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
 
-    // work out how many entries to move forward to handle sharding
-    if (shard_id_ == 0) return;
-    int start_idx = start_index(shard_id_, num_shards_, Size());
-
-    for (int i = 0; i < start_idx; ++i) {
-      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
-      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
-    }
+    Reset(true);
   }
-  ~LMDBReader() {
+  ~LMDBReader() override {
     mdb_cursor_close(mdb_cursor_);
     mdb_dbi_close(mdb_env_, mdb_dbi_);
     mdb_txn_abort(mdb_transaction_);
@@ -99,12 +93,10 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
-    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    ++current_index_;
 
-    if (!ok) {
-      bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
-      DALI_ENFORCE(ok, "lmdb::SeekLMDB failed");
-    }
+    MoveToNextShard(current_index_);
 
     tensor->Resize({static_cast<Index>(value_.mv_size)});
     tensor->mutable_data<uint8_t>();
@@ -118,10 +110,23 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   Index Size() override {
-    return lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
+    return lmdb_size_;
   }
 
  private:
+  void Reset(bool wrap_to_shard) override {
+    // work out how many entries to move forward to handle sharding
+    current_index_ = start_index(shard_id_, num_shards_, Size());
+    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+    DALI_ENFORCE(ok, "lmdb::SeekLMDB to the beginning failed");
+
+    if (wrap_to_shard) {
+      for (size_t i = 0; i < current_index_; ++i) {
+        bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+        DALI_ENFORCE(ok, "lmdb::SeekLMDB to position " + to_string(current_index_) + " failed");
+      }
+    }
+  }
   using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
   using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
@@ -129,6 +134,8 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   MDB_cursor* mdb_cursor_;
   MDB_dbi mdb_dbi_;
   MDB_txn* mdb_transaction_;
+  size_t current_index_;
+  Index lmdb_size_;
 
   // values
   MDB_val key_, value_;

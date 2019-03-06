@@ -20,12 +20,12 @@ namespace dali {
 template<>
 void DumpImage<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
-  auto output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(idx);
 
   WriteHWCBatch(input, suffix_ + "-" + std::to_string(idx));
 
   // Forward the input
-  output->Copy(input, ws->stream());
+  output.Copy(input, ws->stream());
 }
 
 DALI_REGISTER_OPERATOR(DumpImage, DumpImage<GPUBackend>, GPU);

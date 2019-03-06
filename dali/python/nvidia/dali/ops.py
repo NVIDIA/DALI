@@ -17,9 +17,11 @@ import sys
 import copy
 from itertools import count
 from nvidia.dali import backend as b
-from nvidia.dali.tensor import TensorReference
+from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
+
+_blacklisted_ops = set(["MakeContiguous"])
 
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
@@ -37,12 +39,18 @@ def _docstring_generator(cls):
         op_dev.append("'mixed'")
     if op_name in __support_ops:
         op_dev.append("'support'")
-    pre_doc = "This is " + ", ".join(op_dev) + " operator\n\n"
+    pre_doc = "This is a " + ", ".join(op_dev) + " operator\n\n"
 
     schema = b.GetSchema(op_name)
-    ret = pre_doc
+    # insert tag to easily link to the operator
+    ret = '.. _' + op_name + ':\n\n'
+    ret += pre_doc
     ret += schema.Dox()
     ret += '\n'
+    if schema.IsSequenceOperator():
+        ret += "\nThis operator expects sequence inputs\n"
+    elif schema.AllowsSequences():
+        ret += "\nThis operator allows sequence inputs\n"
     ret += """
 Parameters
 ----------
@@ -93,13 +101,13 @@ class _OperatorInstance(object):
             self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
         if inputs:
-            if isinstance(inputs[0], TensorReference):
+            if isinstance(inputs[0], EdgeReference):
                 for inp in inputs:
-                    if not isinstance(inp, TensorReference):
+                    if not isinstance(inp, EdgeReference):
                         raise TypeError(
-                            "Expected inputs of type " +
-                            "TensorReference. Received " +
-                            "input type {}."
+                            ("Expected inputs of type " +
+                            "EdgeReference. Received " +
+                            "input type {}.")
                             .format(type(inp).__name__))
                     self._spec.AddInput(inp.name, inp.device)
             elif isinstance(inputs[0], list):
@@ -108,38 +116,38 @@ class _OperatorInstance(object):
                     for inp in inputs:
                         if not isinstance(inp, list):
                             raise TypeError(
-                                "Expected inputs of type list of " +
-                                "TensorReference. Received " +
-                                "input type {}."
+                                ("Expected inputs of type list of " +
+                                "EdgeReference. Received " +
+                                "input type {}.")
                                 .format(type(inp).__name__))
                         if len(inp) != length:
                             raise RuntimeError(
-                                    "Expected input lists " +
+                                    ("Expected input lists " +
                                     "to have the same length " +
                                     "({}). Received list of " +
-                                    "length {}."
+                                    "length {}.")
                                     .format(length, len(inp)))
-                        if not isinstance(inp[i], TensorReference):
+                        if not isinstance(inp[i], EdgeReference):
                             raise TypeError(
-                                "Expected inputs of type " +
-                                "TensorReference. Received " +
-                                "input type {}."
+                                ("Expected inputs of type " +
+                                "EdgeReference. Received " +
+                                "input type {}.")
                                 .format(type(inp[i]).__name__))
                         self._spec.AddInput(inp[i].name, inp[i].device)
                 self._spec.AddArg("num_input_sets", length)
             else:
                 raise TypeError(
-                    "Expected inputs of type TensorReference or list of " +
-                    "TensorReference. Received input type {}"
+                    ("Expected inputs of type EdgeReference or list of " +
+                    "EdgeReference. Received input type {}")
                     .format(type(inputs[0]).__name__))
         # Argument inputs
         for k in sorted(kwargs.keys()):
             if k not in ["name"]:
-                if not isinstance(kwargs[k], TensorReference):
+                if not isinstance(kwargs[k], EdgeReference):
                     raise TypeError(
-                            "Expected inputs of type " +
-                            "TensorReference. Received " +
-                            "input type {}"
+                            ("Expected inputs of type " +
+                            "EdgeReference. Received " +
+                            "input type {}")
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
@@ -158,7 +166,7 @@ class _OperatorInstance(object):
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = TensorReference(t_name, output_device, self)
+            t = EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             self.append_output(t)
 
@@ -230,8 +238,8 @@ def python_op_factory(name, op_device = "cpu"):
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
-                    "Operator {} expects [{}, " +
-                    "{}] inputs, but received {}"
+                    ("Operator {} expects [{}, " +
+                    "{}] inputs, but received {}")
                     .format(type(self).__name__,
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
@@ -247,17 +255,25 @@ def python_op_factory(name, op_device = "cpu"):
     Operator.__name__ = str(name)
     return Operator
 
-_cpugpu_ops = (set(b.RegisteredCPUOps())
-            .union(set(b.RegisteredGPUOps()))
-            .union(set(b.RegisteredMixedOps())))
-_support_ops = set(b.RegisteredSupportOps())
-for op_name in _cpugpu_ops:
-    setattr(sys.modules[__name__], op_name,
-            python_op_factory(op_name, op_device = "cpu"))
-# add support ops
-for op_name in _support_ops:
-    setattr(sys.modules[__name__], op_name,
-            python_op_factory(op_name, op_device = "support"))
+def _load_ops():
+    _cpugpu_ops = (set(b.RegisteredCPUOps())
+                .union(set(b.RegisteredGPUOps()))
+                .union(set(b.RegisteredMixedOps())))
+
+    _cpugpu_ops -= _blacklisted_ops
+
+    _support_ops = set(b.RegisteredSupportOps())
+    for op_name in _cpugpu_ops:
+        setattr(sys.modules[__name__], op_name,
+                python_op_factory(op_name, op_device = "cpu"))
+    # add support ops
+    for op_name in _support_ops:
+        setattr(sys.modules[__name__], op_name,
+                python_op_factory(op_name, op_device = "support"))
+_load_ops()
+
+def Reload():
+    _load_ops()
 
 # custom wrappers around ops
 
@@ -299,8 +315,8 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                "Operator {} expects [{}, " +
-                "{}] inputs, but received {}"
+                ("Operator {} expects [{}, " +
+                "{}] inputs, but received {}")
                 .format(type(self).__name__,
                         self._schema.MinNumInput(),
                         self._schema.MaxNumInput(),
@@ -312,7 +328,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         features = []
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
-            t = TensorReference(t_name, self._device, op_instance)
+            t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             outputs[feature_name] = t

@@ -126,15 +126,15 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto boxes = ReadBoxesFromInput(bboxes_input.data<float>(), num_boxes);
 
   // Create output
-  auto bboxes_output = ws->Output<CPUBackend>(0);
-  bboxes_output->set_type(bboxes_input.type());
-  bboxes_output->Resize({static_cast<int>(anchors_.size()), BoundingBox::kSize});
-  auto out_boxes = bboxes_output->mutable_data<float>();
+  auto &bboxes_output = ws->Output<CPUBackend>(0);
+  bboxes_output.set_type(bboxes_input.type());
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::kSize});
+  auto out_boxes = bboxes_output.mutable_data<float>();
 
-  auto labels_output = ws->Output<CPUBackend>(1);
-  labels_output->set_type(labels_input.type());
-  labels_output->Resize({static_cast<int>(anchors_.size())});
-  auto out_labels = labels_output->mutable_data<int>();
+  auto &labels_output = ws->Output<CPUBackend>(1);
+  labels_output.set_type(labels_input.type());
+  labels_output.Resize({static_cast<int>(anchors_.size())});
+  auto out_labels = labels_output.mutable_data<int>();
 
   WriteAnchorsToOutput(out_boxes, out_labels);
 
@@ -164,7 +164,7 @@ encoded box.")code")
             DALI_FLOAT_VEC)
     .AddOptionalArg(
         "criteria",
-        R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1. Default is 0.5.)code",
+        R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1.)code",
         0.5f, false);
 
 }  // namespace dali

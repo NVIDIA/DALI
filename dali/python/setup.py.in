@@ -15,16 +15,14 @@
 from setuptools import setup, find_packages
 
 setup(name='nvidia-dali',
-      description='NVIDIA DALI',
+      description='NVIDIA DALI for CUDA @CUDA_VERSION@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
       packages=find_packages(),
+      include_package_data=True,
       zip_safe=False,
-      package_data={
-          '': ['*.so','*.bin','Acknowledgements.txt','LICENSE','COPYRIGHT'],
-          },
       py_modules = [
           'rec2idx',
           ],

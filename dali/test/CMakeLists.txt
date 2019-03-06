@@ -13,7 +13,9 @@
 # limitations under the License.
 
 if (BUILD_TEST)
+  add_subdirectory(plugins)
+
   # get all the test srcs
-  file(GLOB tmp *_test.cc *.cu)
+  file(GLOB tmp *.cc *.cu *.h)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()

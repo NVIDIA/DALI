@@ -66,6 +66,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
+                          .AddArg("bytes_per_sample_hint", vector<int>{ 8, 8, 256, 128 })
                           .AddInput("boxes", "cpu")
                           .AddInput("labels", "cpu")
                           .AddOutput("begin", "cpu")
@@ -90,11 +91,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
 
-    auto images_cpu = this->CopyToHost(*ws.Output<GPUBackend>(0))[0];
-    images_cpu->SetLayout(ws.Output<GPUBackend>(0)->GetLayout());
+    auto images_cpu = this->CopyToHost(ws.Output<GPUBackend>(0))[0];
+    images_cpu->SetLayout(ws.Output<GPUBackend>(0).GetLayout());
 
-    auto boxes_cpu = this->CopyToHost(*ws.Output<GPUBackend>(1))[0];
-    boxes_cpu->SetLayout(ws.Output<GPUBackend>(1)->GetLayout());
+    auto boxes_cpu = this->CopyToHost(ws.Output<GPUBackend>(1))[0];
+    boxes_cpu->SetLayout(ws.Output<GPUBackend>(1).GetLayout());
 
     return {images_cpu, boxes_cpu};
   }
@@ -137,15 +138,15 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
 
-    return {ws.Output<CPUBackend>(0), ws.Output<CPUBackend>(1)};
+    return {&(ws.Output<CPUBackend>(0)), &(ws.Output<CPUBackend>(1))};
   }
 
   vector<TensorList<CPUBackend> *> Reference(
       const vector<TensorList<CPUBackend> *> &inputs,
       DeviceWorkspace *ws) override {
-    auto from = ws->Output<GPUBackend>(1);
-    auto reference = this->CopyToHost(*from);
-    reference[0]->SetLayout(from->GetLayout());
+    auto &from = ws->Output<GPUBackend>(1);
+    auto reference = this->CopyToHost(from);
+    reference[0]->SetLayout(from.GetLayout());
     return reference;
   }
 

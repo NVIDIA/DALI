@@ -74,7 +74,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     per_sample_dimensions_.resize(batch_size_);
   }
 
-  virtual inline ~CropMirrorNormalize() = default;
+  inline ~CropMirrorNormalize() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
@@ -87,7 +87,7 @@ class CropMirrorNormalize : public Operator<Backend> {
   void RunHelper(Workspace<Backend> *ws, const int idx);
 
   template <typename OUT>
-  void ValidateHelper(TensorList<Backend> *output);
+  void ValidateHelper(TensorList<Backend> &output);
 
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;

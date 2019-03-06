@@ -21,17 +21,16 @@
 #include <vector>
 #include <string>
 #include <random>
-#include <ctime>
+#include <chrono>
 
 #include "dali/common.h"
 #include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operators/util/external_source.h"
 #include "dali/pipeline/op_graph.h"
+
 
 namespace dali {
 
@@ -128,17 +127,21 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Sets the external input with the input name to the
-   * input data.
+   * @brief Helper function for the SetExternalInput.
    */
-  DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const TensorList<CPUBackend> &tl) {
+  template <typename T>
+  inline void SetExternalInputHelper(const string &name,
+      const T &tl) {
+    if (!graph_.TensorExists(name + "_cpu")) {
+      // Trying to set data for non existing node is a noop
+      return;
+    }
     NodeID node_id = graph_.TensorSourceID(name + "_cpu");
-    DALI_ENFORCE(graph_.NodeType(node_id) == DALI_CPU,
+    DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
         "Internal error setting external input data.");
 
-    int op_idx = graph_.NodeIdx(node_id);
-    auto *op_ptr = &graph_.cpu_op(op_idx);
+    auto &node = graph_.node(node_id);
+    auto *op_ptr = &node.InstantiateOperator();
     ExternalSource<CPUBackend> *source =
       dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
     DALI_ENFORCE(source != nullptr, "Input name '" +
@@ -151,18 +154,17 @@ class DLL_PUBLIC Pipeline {
    * input data.
    */
   DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const vector<Tensor<CPUBackend>> &tl) {
-    NodeID node_id = graph_.TensorSourceID(name + "_cpu");
-    DALI_ENFORCE(graph_.NodeType(node_id) == DALI_CPU,
-        "Internal error setting external input data.");
+      const TensorList<CPUBackend> &tl) {
+    SetExternalInputHelper(name, tl);
+  }
 
-    int op_idx = graph_.NodeIdx(node_id);
-    auto *op_ptr = &graph_.cpu_op(op_idx);
-    ExternalSource<CPUBackend> *source =
-      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
-    DALI_ENFORCE(source != nullptr, "Input name '" +
-        name + "' is not marked as an external input.");
-    source->SetDataSource(tl);
+  /**
+   * @brief Sets the external input with the input name to the
+   * input data.
+   */
+  DLL_PUBLIC inline void SetExternalInput(const string &name,
+      const vector<Tensor<CPUBackend>> &tl) {
+    SetExternalInputHelper(name, tl);
   }
 
   /**
@@ -304,7 +306,9 @@ class DLL_PUBLIC Pipeline {
       std::seed_seq ss{seed};
       ss.generate(seed_.begin(), seed_.end());
     } else {
-      std::seed_seq ss{time(0)};
+      using Clock = std::chrono::high_resolution_clock;
+      auto init_value = Clock::now().time_since_epoch().count();
+      std::seed_seq ss{init_value};
       ss.generate(seed_.begin(), seed_.end());
     }
   }
@@ -352,6 +356,8 @@ class DLL_PUBLIC Pipeline {
 
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec);
+
+  void PropagateMemoryHint(OpNode &node);
 
   const int MAX_SEEDS = 1024;
 

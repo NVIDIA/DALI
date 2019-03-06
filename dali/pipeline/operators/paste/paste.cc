@@ -38,6 +38,9 @@ Length of the tuple needs to be equal to `n_channels`.)code",
   .AddOptionalArg("paste_y",
       R"code(Vertical position of the paste in image coordinates (0.0 - 1.0))code",
       0.5f, true)
+  .AddOptionalArg("min_canvas_size",
+      R"code(Enforce minimum paste canvas dimension after scaling input size by ratio.)code",
+      0.0f, true)
   .EnforceInputLayout(DALI_NHWC);
 
 }  // namespace dali

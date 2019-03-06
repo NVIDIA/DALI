@@ -111,11 +111,12 @@ template <typename Out>
 void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
                                                 const int idx) {
   const auto &input = ws->Input<CPUBackend>(0);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
-  Out *output_ptr = output->template mutable_data<Out>();
+  Out *output_ptr = output.template mutable_data<Out>();
   const int stride = input.dim(1) * C_;
-  const int mirror_image = mirror_.template data<int>()[ws->data_idx()];
+  const int mirror_image = !has_mirror_ ? mirror_.data<int>()[0] :
+     spec_.GetArgument<int>("mirror", ws, ws->data_idx());
 
   CropMirrorNormalizePermuteKernel(
       C_, crop_h_, crop_w_, pad_, mirror_image, mean_.template data<float>(),
@@ -126,11 +127,6 @@ void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
 template <>
 void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(
     SampleWorkspace *ws) {
-  if (has_mirror_ && !ws->data_idx()) {
-    const Tensor<CPUBackend> &mirror = ws->ArgumentInput("mirror");
-    mirror_.Copy(mirror, 0);
-  }
-
   if (output_layout_ == DALI_SAME) {
     output_layout_ = ws->Input<CPUBackend>(0).GetLayout();
   }
@@ -144,11 +140,11 @@ template <>
 void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
                                                          const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
 
   DALITensorLayout outLayout;
-  output->Resize(GetOutShape(input.GetLayout(), &outLayout));
-  output->SetLayout(outLayout);
+  output.Resize(GetOutShape(input.GetLayout(), &outLayout));
+  output.SetLayout(outLayout);
 }
 
 template <>
@@ -157,7 +153,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws,
   DataDependentSetup(ws, idx);
 
   if (output_type_ == DALI_FLOAT16) {
-    RunHelper<half_float::half>(ws, idx);
+    RunHelper<float16_cpu>(ws, idx);
   } else if (output_type_ == DALI_FLOAT) {
     RunHelper<float>(ws, idx);
   } else if (output_type_ == DALI_UINT8) {

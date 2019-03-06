@@ -44,6 +44,8 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   Index Size() override {
     return 1;
   }
+
+  void Reset(bool wrap_to_shard) override {}
 };
 class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
@@ -53,7 +55,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
     loader_.reset(new DummyLoader(spec));
   }
 
-  ~DummyDataReader() {
+  ~DummyDataReader() override {
     DataReader<CPUBackend, Tensor<CPUBackend>>::StopPrefetchThread();
   }
   /*
@@ -71,7 +73,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   void RunImpl(SampleWorkspace* ws, int idx) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    ws->Output<CPUBackend>(0)->Copy(*prefetched_batch_[ws->data_idx()], 0);
+    ws->Output<CPUBackend>(0).Copy(*prefetched_batch_[ws->data_idx()], 0);
   }
 
  private:
@@ -139,7 +141,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    auto shape = ws.Output<CPUBackend>(0)->AsTensor()->shape();
+    auto shape = ws.Output<CPUBackend>(0).AsTensor()->shape();
     // We have NFHWC format
     const auto batch_size = shape[0];
     const auto frame_count = shape[1];
@@ -155,7 +157,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
       auto start_frame = (i * batch_size + sample) % (16 - 3 + 1);
       for (int frame = 0; frame < frame_count; frame++) {
         auto off = sample * seq_size + frame * frame_size;
-        auto val = ws.Output<CPUBackend>(0)->AsTensor()->data<uint8_t>()[off];
+        auto val = ws.Output<CPUBackend>(0).AsTensor()->data<uint8_t>()[off];
         decltype(val) expected = start_frame + frame;
         ASSERT_EQ(val, expected);
       }
@@ -163,6 +165,150 @@ TYPED_TEST(ReaderTest, SequenceTest) {
   }
 
   return;
+}
+
+class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+ public:
+  explicit TestLoader(const OpSpec& spec) :
+    Loader<CPUBackend, Tensor<CPUBackend>>(spec), current_index_(0) {}
+
+  void ReadSample(Tensor<CPUBackend> *t) override {
+    return;
+  }
+
+  Index Size() override {
+    return 10;
+  }
+
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
+    }
+  }
+
+  bool IsNextShard(Index current_index) override {
+    return Loader::IsNextShard(current_index);
+  }
+
+  void MoveToNextShard(Index current_index) override {
+    Loader::MoveToNextShard(current_index);
+  }
+
+  Index current_index_;
+};
+
+TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
+  TestLoader tl(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 0)
+      .AddArg("num_shards", 2)
+      .AddArg("stick_to_shard", false)
+      .AddArg("batch_size", 2));
+
+  ASSERT_EQ(tl.IsNextShard(0)            , false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() - 1), false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size())    , true);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() + 1), true);
+  tl.current_index_ = 1;
+  tl.Reset(true);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = 0;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size() / 2;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() / 2);
+
+  tl.current_index_ = tl.Size() - 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() - 1);
+
+  tl.current_index_ = tl.Size();
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size() + 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+}
+
+TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
+  TestLoader tl(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 0)
+      .AddArg("num_shards", 2)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2));
+
+  ASSERT_EQ(tl.IsNextShard(0)            , false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), true);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() - 1), true);
+  ASSERT_EQ(tl.IsNextShard(tl.Size())    , true);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() + 1), true);
+  tl.current_index_ = 1;
+  tl.Reset(true);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = 0;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size() / 2;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size() - 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size();
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+
+  tl.current_index_ = tl.Size() + 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, 0);
+}
+
+TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
+  TestLoader tl(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 1)
+      .AddArg("num_shards", 2)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2));
+
+  ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() - 1), false);
+  ASSERT_EQ(tl.IsNextShard(tl.Size())    , true);
+  ASSERT_EQ(tl.IsNextShard(tl.Size() + 1), true);
+  tl.current_index_ = 1;
+  tl.Reset(true);
+  ASSERT_EQ(tl.current_index_, tl.Size() / 2);
+
+  tl.current_index_ = tl.Size() / 2;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() / 2);
+
+  tl.current_index_ = tl.Size() - 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() - 1);
+
+  tl.current_index_ = tl.Size();
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() / 2);
+
+  tl.current_index_ = tl.Size() + 1;
+  tl.MoveToNextShard(tl.current_index_);
+  ASSERT_EQ(tl.current_index_, tl.Size() / 2);
 }
 
 };  // namespace dali

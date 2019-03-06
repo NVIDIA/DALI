@@ -28,6 +28,7 @@
 #include <unordered_map>
 
 #include "dali/common.h"
+#include "dali/util/cuda_utils.h"
 #include "dali/error_handling.h"
 
 // Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.
@@ -56,6 +57,35 @@
 
 namespace dali {
 
+namespace detail {
+
+typedef void (*Copier)(void *, const void*, Index);
+
+template <typename T>
+inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
+CopyFunc(void *dst, const void *src, Index n) {
+  // T is trivially copyable, we can copy using raw memcopy
+  std::memcpy(dst, src, n*sizeof(T));
+}
+
+template <typename T>
+inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
+CopyFunc(void *dst, const void *src, Index n) {
+  T *typed_dst = static_cast<T*>(dst);
+  const T* typed_src = static_cast<const T*>(src);
+  for (Index i = 0; i < n; ++i) {
+    // T is not trivially copyable, iterate and
+    // call the copy-assignment operator
+    typed_dst[i] = typed_src[i];
+  }
+}
+
+template <typename T>
+inline Copier GetCopier() {
+  return &CopyFunc<T>;
+}
+
+}  // namespace detail
 
 /**
  * @brief Enum identifiers for the different data types that
@@ -91,6 +121,19 @@ enum DALIDataType {
 // Dummy type to represent the invalid default state of dali types.
 struct NoType {};
 
+template <typename T>
+struct NormalizedType { using type = T; };
+
+// This way SetType<float16_cpu> will set SetType<float16>
+// As these types are compatible python wont need a special
+// case for float16_cpu
+template <>
+struct NormalizedType<float16_cpu> { using type = float16; };
+
+template <typename T>
+using normalize_t = typename NormalizedType<T>::type;
+
+
 // Stores the unqiue ID for a type and its size in bytes
 class DLL_PUBLIC TypeInfo {
  public:
@@ -105,14 +148,8 @@ class DLL_PUBLIC TypeInfo {
     return type;
   }
 
-  template <typename T>
+  template <typename T, typename U = normalize_t<T> >
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
-
-  template <typename Backend>
-  DLL_PUBLIC void Construct(void *ptr, Index n);
-
-  template <typename Backend>
-  DLL_PUBLIC void Destruct(void *ptr, Index n);
 
   template <typename DstBackend, typename SrcBackend>
   DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
@@ -139,48 +176,7 @@ class DLL_PUBLIC TypeInfo {
   }
 
  private:
-  template <typename T>
-  inline void ConstructorFunc(void *ptr, Index n) {
-    T *typed_ptr = static_cast<T*>(ptr);
-    for (Index i = 0; i < n; ++i) {
-      new (typed_ptr + i) T;
-    }
-  }
-
-  template <typename T>
-  inline void DestructorFunc(void *ptr, Index n) {
-    T *typed_ptr = static_cast<T*>(ptr);
-    for (Index i = 0; i < n; ++i) {
-      typed_ptr[i].~T();
-    }
-  }
-
-  template <typename T>
-  inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
-  CopyFunc(void *dst, const void *src, Index n) {
-    // T is trivially copyable, we can copy using raw memcopy
-    std::memcpy(dst, src, n*sizeof(T));
-  }
-
-  template <typename T>
-  inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
-  CopyFunc(void *dst, const void *src, Index n) {
-    T *typed_dst = static_cast<T*>(dst);
-    const T* typed_src = static_cast<const T*>(src);
-    for (Index i = 0; i < n; ++i) {
-      // T is not trivially copyable, iterate and
-      // call the copy-assignment operator
-      typed_dst[i] = typed_src[i];
-    }
-  }
-
-  typedef std::function<void (void*, Index)> Constructor;
-  typedef std::function<void (void*, Index)> Destructor;
-  typedef std::function<void (void *, const void*, Index)> Copier;
-
-  Constructor constructor_;
-  Destructor destructor_;
-  Copier copier_;
+  detail::Copier copier_;
 
   DALIDataType id_;
   size_t type_size_;
@@ -265,7 +261,7 @@ struct TypeNameHelper<std::array<T, N> > {
   }
 };
 
-template <typename T>
+template <typename, typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
   // explicitly setting its type size as 0
@@ -277,14 +273,8 @@ void TypeInfo::SetType(DALIDataType dtype) {
   }
   name_ = TypeTable::GetTypeName<T>();
 
-  // Get constructor/destructor/copier for this type
-  constructor_ = std::bind(&TypeInfo::ConstructorFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2);
-  destructor_ = std::bind(&TypeInfo::DestructorFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2);
-  copier_ = std::bind(&TypeInfo::CopyFunc<T>,
-      this, std::placeholders::_1, std::placeholders::_2,
-      std::placeholders::_3);
+  // Get copier for this type
+  copier_ = detail::GetCopier<T>();
 }
 
 inline std::string to_string(const DALIDataType& dtype) {
@@ -347,7 +337,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
  * type - DALIDataType
  * DType becomes a type corresponding to given DALIDataType
  */
-#define DALI_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
+#define DALI_TYPE_SWITCH_WITH_FP16_GPU(type, DType, ...) \
   switch (type) {                                    \
     case DALI_NO_TYPE:                               \
       DALI_FAIL("Invalid type.");                    \
@@ -402,6 +392,68 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
     default:                                         \
       DALI_FAIL("Unknown type");                     \
   }
+
+/**
+ * @brief Easily instantiate templates for all types
+ * type - DALIDataType
+ * DType becomes a type corresponding to given DALIDataType
+ */
+#define DALI_TYPE_SWITCH_WITH_FP16_CPU(type, DType, ...) \
+  switch (type) {                                    \
+    case DALI_NO_TYPE:                               \
+      DALI_FAIL("Invalid type.");                    \
+    case DALI_UINT8:                                 \
+      {                                              \
+        typedef uint8 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_INT16:                                 \
+      {                                              \
+        typedef int16 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_INT32:                                 \
+      {                                              \
+        typedef int32 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_INT64:                                 \
+      {                                              \
+        typedef int64 DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_FLOAT16:                               \
+      {                                              \
+        typedef float16_cpu DType;                   \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_FLOAT:                                 \
+      {                                              \
+        typedef float DType;                         \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_FLOAT64:                               \
+      {                                              \
+        typedef double DType;                        \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    case DALI_BOOL:                                  \
+      {                                              \
+        typedef bool DType;                          \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
+    default:                                         \
+      DALI_FAIL("Unknown type");                     \
+  }
+
 
 #define DALI_TYPE_SWITCH(type, DType, ...)           \
   switch (type) {                                    \

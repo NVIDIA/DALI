@@ -87,10 +87,10 @@ endif()
 # libjpeg-turbo
 ##################################################################
 if (BUILD_JPEG_TURBO)
-  find_package(JpegTurbo 1.5 REQUIRED)
-  include_directories(SYSTEM ${JpegTurbo_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${JpegTurbo_LIBRARY})
-  list(APPEND DALI_EXCLUDES libturbojpeg.a)
+  find_package(JPEG 62 REQUIRED) # 1.5.3 version
+  include_directories(SYSTEM ${JPEG_INCLUDE_DIR})
+  message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
+  list(APPEND DALI_LIBS ${JPEG_LIBRARY})
   add_definitions(-DDALI_USE_JPEG_TURBO)
 else()
   # Note: Support for disabling libjpeg-turbo is unofficial
@@ -100,8 +100,11 @@ endif()
 ##################################################################
 # OpenCV
 ##################################################################
-# For OpenCV 3.x, 'imdecode()' is in the imgcodecs library
-find_package(OpenCV 3.0 QUIET COMPONENTS core imgproc imgcodecs)
+# For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
+find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
+if(NOT OpenCV_FOUND)
+  find_package(OpenCV 3.0 QUIET COMPONENTS core imgproc imgcodecs)
+endif()
 if(NOT OpenCV_FOUND)
   # Note: OpenCV 2 support is unofficial
   # For OpenCV 2.x, image encode/decode functions are in highgui
@@ -110,8 +113,9 @@ endif()
 message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"2.0\")")
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
+message("OpenCV libraries: ${OpenCV_LIBRARIES}")
 list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;
-                          liblibwebp.a;libittnotify.a;liblibpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;
+                          liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;
                           liblibjpeg-turbo.a)
 
 ##################################################################
@@ -154,26 +158,36 @@ list(APPEND DALI_EXCLUDES libprotobuf.a)
 ##################################################################
 # FFmpeg
 ##################################################################
+
+include(CheckStructHasMember)
+include(CheckTypeSize)
+
+set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains FFmeg")
+
 find_package(PkgConfig REQUIRED)
 foreach(m avformat avcodec avfilter avutil)
-    string(TOUPPER ${m} M)
-    #pkg_check_modules(${m} REQUIRED IMPORTED_TARGET lib${m})
-    pkg_check_modules(${m} REQUIRED lib${m})
-    list(APPEND FFmpeg_LIBS ${m})
-    #list(APPEND FFmpeg_LIBS PkgConfig::${m})
+    # We do a find_library only if FFMPEG_ROOT_DIR is provided
+    if(NOT FFMPEG_ROOT_DIR)
+      string(TOUPPER ${m} M)
+      pkg_check_modules(${m} REQUIRED lib${m})
+      list(APPEND FFmpeg_LIBS ${m})
+    else()
+      find_library(FFmpeg_Lib ${m}
+            PATHS ${FFMPEG_ROOT_DIR}
+            PATH_SUFFIXES lib lib64
+            NO_DEFAULT_PATH)
+      list(APPEND FFmpeg_LIBS ${FFmpeg_Lib})
+      message(STATUS ${m})
+    endif()
 endforeach(m)
 
-# TODO check set(CMAKE_REQUIRED_INCLUDES ${avformat_INCLUDE_DIRS})
 include_directories(${avformat_INCLUDE_DIRS})
-# TODO check if set(CMAKE_REQUIRED_LIBRARIES ${avformat_LIBRARIES})
-# optional?
 list(APPEND DALI_LIBS ${avformat_LIBRARIES})
-# CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
+CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
 set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
-#check_type_size("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
+CHECK_TYPE_SIZE("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
 
-# nvcuvid cuda and nvidia-ml from the driver
-list(APPEND DALI_LIBS ${FFmpeg_LIBS} nvcuvid cuda)
+list(APPEND DALI_LIBS ${FFmpeg_LIBS})
 
 ##################################################################
 # Exclude stdlib

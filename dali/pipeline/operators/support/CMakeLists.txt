@@ -16,11 +16,10 @@ add_subdirectory(random)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
+file(GLOB tmp_test *_test.cc)
+remove(tmp "${tmp}" ${tmp_test})
 
-set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} ${tmp} PARENT_SCOPE)
 
 if (BUILD_TEST)
   # get all the test srcs

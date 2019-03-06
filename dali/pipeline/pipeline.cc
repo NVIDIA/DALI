@@ -20,8 +20,12 @@
 #include <functional>
 #include <memory>
 
+#include "dali/pipeline/executor/pipelined_executor.h"
+#include "dali/pipeline/executor/async_pipelined_executor.h"
+
 #include "dali/pipeline/operators/argument.h"
-#include "dali/pipeline/util/device_guard.h"
+#include "dali/pipeline/operators/common.h"
+#include "dali/util/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {
@@ -232,12 +236,49 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_to_serialize_.push_back(true);
 }
 
+inline int GetMemoryHint(OpSpec &spec, int index) {
+  if (!spec.HasArgument("bytes_per_sample_hint"))
+    return 0;
+  std::vector<int> hints;
+  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+
+  DALI_ENFORCE(index < static_cast<int>(hints.size()),
+               "Output index out of range: " + std::to_string(index));
+  return hints[index];
+}
+
+inline void SetMemoryHint(OpSpec &spec, int index, int value) {
+  std::vector<int> hints;
+  int no = spec.NumOutput();
+
+  DALI_ENFORCE(index < no, "Output index out of range: " +
+    std::to_string(index) + " >= " + std::to_string(no));
+
+  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", no);
+  hints[index] = value;
+  spec.SetArg("bytes_per_sample_hint", hints);
+}
+
+void Pipeline::PropagateMemoryHint(OpNode &node) {
+  assert(node.parents.size() == 1);
+  for (int inp_idx = 0; inp_idx < node.spec.NumRegularInput(); inp_idx++) {
+    auto input_name = node.spec.Input(inp_idx);
+    NodeID parent_node_id = graph_.TensorSourceID(input_name);
+    int idx = graph_.TensorIdxInSource(input_name);
+    auto &src = graph_.node(parent_node_id);
+    int hint = GetMemoryHint(src.spec, idx);
+    if (hint) {
+      // inp_idx == out_idx for MakeContiguous
+      SetMemoryHint(node.spec, inp_idx, hint);
+    }
+  }
+}
+
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DeviceGuard d(device_id_);
   output_names_ = output_names;
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
-
 
   // Creating the executor
   if (pipelined_execution_ && async_execution_) {
@@ -297,6 +338,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec);
+
         graph_.AddOp(spec, "__MakeContiguous_" + name);
 
         outputs.push_back("contiguous_" + name + "_" + device);
@@ -322,6 +364,15 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           "\". Valid options are \"cpu\" or \"gpu\"");
     }
   }
+
+  for (int i = 0; i < graph_.NumMixedOp(); i++) {
+    OpNode &node = graph_.mixed_node(i);
+    if (node.spec.name() == "MakeContiguous") {
+      PropagateMemoryHint(node);
+    }
+  }
+
+  graph_.InstantiateOperators();
 
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
@@ -395,14 +446,6 @@ void Pipeline::ReleaseOutputs() {
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
     int input_idx, OpSpec *spec) {
   if (!it->second.has_contiguous) {
-    // We check if the make contiguous op already exists
-    std::string op_name = "__MakeContiguous_" + it->first;
-    if (std::find_if(op_specs_.begin(), op_specs_.end(),
-          [&op_name] (const std::pair<string, OpSpec>& p) {
-                  return p.first == op_name;}) != op_specs_.end()) {
-      return;
-    }
-
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
       .AddArg("device", "mixed")
@@ -410,6 +453,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddOutput("contiguous_" + it->first, "cpu");
     this->op_specs_.push_back(make_pair("__MakeContiguous_" + it->first, make_contiguous_spec));
     this->op_specs_to_serialize_.push_back(false);
+    it->second.has_contiguous = true;
   }
 
   // Update the OpSpec to use the contiguous input
@@ -422,14 +466,6 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
-  // We check if the copy_to_dev op already exists
-  std::string op_name = "__Copy_" + it->first;
-  if (std::find_if(op_specs_.begin(), op_specs_.end(),
-        [&op_name] (const std::pair<string, OpSpec>& p) {
-                return p.first == op_name;}) != op_specs_.end()) {
-    return;
-  }
-
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
     .AddArg("device", "mixed")
@@ -437,14 +473,14 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddOutput(it->first, "gpu");
   this->op_specs_.push_back(make_pair("__Copy_" + it->first, copy_to_dev_spec));
   this->op_specs_to_serialize_.push_back(false);
+  it->second.has_gpu = true;
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec) {
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
-    .AddArg("bytes_per_sample_hint", bytes_per_sample_hint_)
-    .AddArg("seed", seed_[current_seed_])
-    .AddArg("device_id", device_id_);
+    .AddArg("device_id", device_id_)
+    .AddArgIfNotExisting("seed", seed_[current_seed_]);
   current_seed_ = (current_seed_+1) % MAX_SEEDS;
 }
 

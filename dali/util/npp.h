@@ -22,8 +22,6 @@
 
 namespace dali {
 
-typedef NppiSize DALISize;
-
 #if NPP_VERSION_MAJOR < 8
 #error "Only Support Cuda 8 or Higher"
 #elif NPP_VERSION_MAJOR == 8
@@ -337,5 +335,27 @@ static const char *nppErrorString(NppStatus error) {
 }
 
 }  // namespace dali
+
+// For checking npp return errors in dali library functions
+#define DALI_CHECK_NPP(code)                              \
+  do {                                                    \
+    NppStatus status = code;                              \
+    if (status != NPP_SUCCESS) {                          \
+    dali::string file = __FILE__;                         \
+      dali::string line = std::to_string(__LINE__);       \
+      dali::string error = "[" + file + ":" + line +      \
+        "]: NPP error \"" +                               \
+        nppErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                   \
+    }                                                     \
+  } while (0)
+
+template <typename T>
+NppiSize ToNppiSize(const T& size) {
+  NppiSize out;
+  out.width = size.width;
+  out.height = size.height;
+  return out;
+}
 
 #endif  // DALI_UTIL_NPP_H_

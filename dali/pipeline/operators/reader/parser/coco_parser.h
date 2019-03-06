@@ -52,44 +52,58 @@ using AnnotationMap = std::multimap<int, Annotation>;
 
 class COCOParser: public Parser<ImageLabelWrapper> {
  public:
-  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap)
+  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap,
+                      const bool& save_img_ids)
     : Parser<ImageLabelWrapper>(spec),
-    annotations_multimap_(annotations_multimap) {}
+    annotations_multimap_(annotations_multimap),
+    save_img_ids_(save_img_ids) {}
 
   void Parse(const ImageLabelWrapper& image_label, SampleWorkspace* ws) override {
     Index image_size = image_label.image.size();
-    auto *image_output = ws->Output<CPUBackend>(0);
-    auto *bbox_output = ws->Output<CPUBackend>(1);
-    auto *label_output = ws->Output<CPUBackend>(2);
+    auto &image_output = ws->Output<CPUBackend>(0);
+    auto &bbox_output = ws->Output<CPUBackend>(1);
+    auto &label_output = ws->Output<CPUBackend>(2);
     int image_id = image_label.label;
 
     auto range = annotations_multimap_.equal_range(image_id);
     auto n_bboxes = std::distance(range.first, range.second);
 
-    image_output->Resize({image_size});
-    image_output->mutable_data<uint8_t>();
-    bbox_output->Resize({n_bboxes, 4});
-    bbox_output->mutable_data<float>();
-    label_output->Resize({n_bboxes, 1});
-    label_output->mutable_data<int>();
+    image_output.Resize({image_size});
+    image_output.mutable_data<uint8_t>();
+    bbox_output.Resize({n_bboxes, 4});
+    bbox_output.mutable_data<float>();
+    label_output.Resize({n_bboxes, 1});
+    label_output.mutable_data<int>();
 
-    std::memcpy(image_output->raw_mutable_data(),
+
+    if (save_img_ids_) {
+      auto &image_id_output = ws->Output<CPUBackend>(3);
+      image_id_output.Resize({1});
+      image_id_output.mutable_data<int>();
+      std::memcpy(image_id_output.raw_mutable_data(),
+                &image_label.label,
+                sizeof(int));
+    }
+
+    std::memcpy(image_output.raw_mutable_data(),
                 image_label.image.raw_data(),
                 image_size);
+    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
 
     int stride = 0;
     for (auto it = range.first; it != range.second; ++it) {
       const Annotation& an = it->second;
       int i = std::distance(range.first, it);
       std::memcpy(
-          bbox_output->mutable_data<float>() + an.bbox.size() * i,
+          bbox_output.mutable_data<float>() + an.bbox.size() * i,
           an.bbox.data(),
           an.bbox.size() * sizeof (float));
-      label_output->mutable_data<int>()[i] = an.category_id;
+      label_output.mutable_data<int>()[i] = an.category_id;
     }
   }
 
   const AnnotationMap& annotations_multimap_;
+  const bool save_img_ids_;
 };
 
 }  // namespace dali

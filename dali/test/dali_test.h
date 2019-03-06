@@ -30,6 +30,7 @@
 #include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/util/image.h"
+#include "dali/util/ocv.h"
 
 namespace dali {
 
@@ -50,15 +51,17 @@ struct BGR {
 struct Gray {
   static const DALIImageType type = DALI_GRAY;
 };
+struct YCbCr {
+  static const DALIImageType type = DALI_YCbCr;
+};
 
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
  public:
   inline void SetUp() override {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
-    LoadImages(image_folder, &png_names_, &png_);
-    LoadImages(image_folder, &tiff_names_, &tiff_);
+    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    LoadImages(jpeg_names_, &jpegs_);
   }
 
   inline void TearDown() override {
@@ -75,28 +78,36 @@ class DALITest : public ::testing::Test {
   }
 
   void DecodeImage(const unsigned char *data, int data_size, int c,
-                   int img_type, Tensor<CPUBackend> *out,
-                   unsigned char *out_dataPntr = nullptr) const {
+                   DALIImageType img_type, Tensor<CPUBackend> *out,
+                   CropWindowGenerator crop_window_generator = {}) const {
     cv::Mat input(1, data_size, CV_8UC1, const_cast<unsigned char *>(data));
 
     cv::Mat tmp = cv::imdecode(
-        input, c == 1 ? CV_LOAD_IMAGE_GRAYSCALE : CV_LOAD_IMAGE_COLOR);
+        input, c == 1 ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
 
-    // if RGB needed, permute from BGR
-    cv::Mat out_img(tmp.rows, tmp.cols, c != 1 ? CV_8UC3 : CV_8UC1);
-    if (img_type == DALI_RGB) {
-      // Convert from BGR to RGB for verification
-      cv::cvtColor(tmp, out_img, CV_BGR2RGB);
+    if (crop_window_generator) {
+      cv::Mat cropped;
+      auto crop = crop_window_generator(tmp.rows, tmp.cols);
+      cv::Rect roi(crop.x, crop.y, crop.w, crop.h);
+      tmp(roi).copyTo(cropped);
+      tmp = cropped;
+    }
+
+    // if different image_type needed, permute from BGR
+    cv::Mat out_img(tmp.rows, tmp.cols, GetOpenCvChannelType(c));
+    if (IsColor(img_type) && img_type != DALI_BGR) {
+      // Convert from BGR to img_type for verification
+      OpenCvColorConversion(DALI_BGR, tmp, img_type, out_img);
     } else {
       out_img = tmp;
     }
 
     if (out) {
       out->Resize({tmp.rows, tmp.cols, c});
-      out_dataPntr = out->mutable_data<unsigned char>();
     }
 
-    std::memcpy(out_dataPntr, out_img.ptr(),
+    std::memcpy(out->mutable_data<unsigned char>(),
+                out_img.ptr(),
                 static_cast<size_t>(out_img.rows) * out_img.cols * c);
   }
 
@@ -105,7 +116,7 @@ class DALITest : public ::testing::Test {
                            vector<DimPair> *image_dims) {
     c_ = IsColor(type) ? 3 : 1;
     const int flag =
-        IsColor(type) ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE;
+        IsColor(type) ? cv::IMREAD_COLOR: cv::IMREAD_GRAYSCALE;
     const auto cType = IsColor(type) ? CV_8UC3 : CV_8UC1;
     const auto &encoded = imgs.data_;
     const auto &encoded_sizes = imgs.sizes_;
@@ -121,9 +132,9 @@ class DALITest : public ::testing::Test {
       const int h = (*image_dims)[i].h = img.rows;
       const int w = (*image_dims)[i].w = img.cols;
       cv::Mat out_img(h, w, cType);
-      if (type == DALI_RGB) {
-        // Convert from BGR to RGB for verification
-        cv::cvtColor(img, out_img, CV_BGR2RGB);
+      if (IsColor(type) && type != DALI_BGR) {
+        // Convert from BGR to type for verification
+        OpenCvColorConversion(DALI_BGR, img, type, out_img);
       } else {
         out_img = img;
       }
@@ -152,7 +163,7 @@ class DALITest : public ::testing::Test {
     tl->Resize(shape);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-                  images[i % images.size()], Product(tl->tensor_shape(i)));
+                  images[i % images.size()], volume(tl->tensor_shape(i)));
     }
   }
 
@@ -181,6 +192,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
+      tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
     }
   }
 
@@ -198,6 +210,7 @@ class DALITest : public ::testing::Test {
       ti = Tensor<CPUBackend>{};
       ti.Resize({data_sizes[i % nImgs]});
       ti.template mutable_data<uint8>();
+      ti.SetSourceInfo(imgs.filenames_[i % nImgs]);
 
       std::memcpy(ti.raw_mutable_data(), data[i % nImgs],
                   data_sizes[i % nImgs]);

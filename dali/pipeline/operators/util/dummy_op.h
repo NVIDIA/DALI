@@ -25,7 +25,7 @@ class DummyOp : public Operator<Backend> {
   inline explicit DummyOp(const OpSpec &spec) :
     Operator<Backend>(spec) {}
 
-  virtual inline ~DummyOp() = default;
+  inline ~DummyOp() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 

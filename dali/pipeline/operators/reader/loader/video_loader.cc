@@ -32,7 +32,7 @@ std::string av_err2str(int errnum) {
 }
 }
 
-#ifdef HAVE_AVSTREAM_CODECPAR
+#if HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar) {
   return stream->codecpar;
 }
@@ -94,17 +94,20 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
       codec_id_ = codec_id;
 
       if (vid_decoder_) {
-        throw std::logic_error("width and height not set, but we have a decoder?");
+        DALI_FAIL("Width and height not set, but we have a decoder?");
       }
       LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
 
       vid_decoder_ = std::unique_ptr<NvDecoder>{
           new NvDecoder(device_id_,
                         codecpar(stream),
-                        stream->time_base)};
+                        stream->time_base,
+                        image_type_,
+                        dtype_,
+                        normalized_)};
     } else {  // already opened a file
       if (!vid_decoder_) {
-          throw std::logic_error("width is already set but we don't have a vid_decoder_");
+          DALI_FAIL("width is already set but we don't have a vid_decoder_");
       }
 
       if (width_ != codecpar(stream)->width ||
@@ -125,8 +128,8 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
     file.frame_base_ = AVRational{stream->avg_frame_rate.den,
                                   stream->avg_frame_rate.num};
     file.frame_count_ = av_rescale_q(stream->duration,
-                                      stream->time_base,
-                                      file.frame_base_);
+                                     stream->time_base,
+                                     file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
       const char* filtername = nullptr;
@@ -136,7 +139,7 @@ OpenFile& VideoLoader::get_or_open_file(std::string filename) {
         filtername = "hevc_mp4toannexb";
       }
 
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
       auto bsf = av_bsf_get_by_name(filtername);
       if (!bsf) {
         DALI_FAIL("Error finding bit stream filter.");
@@ -299,7 +302,7 @@ void VideoLoader::read_file() {
 
       if (file.bsf_ctx_ && pkt->size > 0) {
         int ret;
-#ifdef HAVE_AVBSFCONTEXT
+#if HAVE_AVBSFCONTEXT
         auto raw_filtered_pkt = AVPacket{};
 
         if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {
@@ -439,16 +442,17 @@ void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
 
 void VideoLoader::ReadSample(SequenceWrapper* tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
-    push_sequence_to_read(filenames_[0], frame_starts_[current_frame_idx_], count_);
+    auto& fileidx_frame = frame_starts_[current_frame_idx_];
+    push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
     receive_frames(*tensor);
     tensor->wait();
-    if (++current_frame_idx_ >= frame_starts_.size()) {
-      current_frame_idx_ = 0;
-    }
+    ++current_frame_idx_;
+
+    MoveToNextShard(current_frame_idx_);
 }
 
 Index VideoLoader::Size() {
-    return static_cast<Index>(total_frame_count_);
+    return static_cast<Index>(frame_starts_.size());
 }
 
 }  // namespace dali

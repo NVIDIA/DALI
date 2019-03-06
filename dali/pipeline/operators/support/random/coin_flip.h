@@ -28,7 +28,7 @@ class CoinFlip : public Operator<SupportBackend> {
     dis_(spec.GetArgument<float>("probability")),
     rng_(spec.GetArgument<int64_t>("seed")) {}
 
-  virtual inline ~CoinFlip() = default;
+  inline ~CoinFlip() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(CoinFlip);
 

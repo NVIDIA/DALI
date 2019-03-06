@@ -33,7 +33,7 @@ class DumpImage : public Operator<Backend> {
         "CHW not supported yet.");
   }
 
-  virtual inline ~DumpImage() = default;
+  inline ~DumpImage() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;

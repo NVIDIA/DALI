@@ -9,7 +9,7 @@
 ##     to `docker build -f Dockerfile.deps ... .`
 #########################################################################################
 #ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux1_x86_64
-ARG FROM_IMAGE_NAME=gitlab-dl.nvidia.com:5005/dali/manylinux:manylinux3_x86_64
+ARG FROM_IMAGE_NAME=gitlab-master.nvidia.com:5005/dl/dali/manylinux:manylinux3_x86_64
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
@@ -52,26 +52,7 @@ RUN LMDB_VERSION=0.9.22 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /lmdb
 
-# OpenCV
-RUN OPENCV_VERSION=3.4.3 && \
-    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
-          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF \
-          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF .. && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /opencv-${OPENCV_VERSION}
-
 # libjpeg-turbo
-#
-# Note: the preceding OpenCV installation intentionally does NOT use libjpeg-turbo.
-# DALI will directly call libjpeg-turbo first, and if it fails, DALI will fall back
-# to OpenCV, which in turn will call its bundled (built-from-source) libjpeg.
-# To be extra sure OpenCV doesn't pick up libjpeg-turbo (in which case we'd have no
-# fallback), libjpeg-turbo is built and installed _after_ OpenCV.
-#
 RUN JPEG_TURBO_VERSION=1.5.3 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
@@ -80,6 +61,18 @@ RUN JPEG_TURBO_VERSION=1.5.3 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# OpenCV
+RUN OPENCV_VERSION=3.4.3 && \
+    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
+    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
+          -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
+          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
+          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF .. && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang
 RUN CLANG_VERSION=6.0.1 && \
@@ -93,7 +86,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FMpeg
 RUN FFMPEG_VERSION=3.4.2 && \
-    cd /tmp && wget -q http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
+    cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     cd ffmpeg-$FFMPEG_VERSION && \
@@ -112,24 +105,6 @@ RUN FFMPEG_VERSION=3.4.2 && \
       --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
-
-# cuda and nvcuvid libraries from the DRIVER
-RUN cd /tmp && \
-    DRIVER_VERSION=410.78 && \
-    wget -q http://us.download.nvidia.com/XFree86/Linux-x86_64/410.78/NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run && \
-    DRIVER=NVIDIA-Linux-x86_64-* && \
-    chmod +x ${DRIVER}.run && \
-    ./${DRIVER}.run -x && \
-    pushd ${DRIVER} && \
-    cp libnvcuvid.so* libcuda.so* libnvidia-fatbinaryloader.so* /usr/local/lib64 && \
-    ln -s /usr/local/lib64/libcuda.so.* /usr/local/lib64/libcuda.so.1 && \
-    ln -s /usr/local/lib64/libcuda.so.1 /usr/local/lib64/libcuda.so && \
-    ln -s /usr/local/lib64/libnvcuvid.so.* /usr/local/lib64/libnvcuvid.so.1 && \
-    ln -s /usr/local/lib64/libnvcuvid.so.1 /usr/local/lib64/libnvcuvid.so && \
-    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.so.* /usr/local/lib64/libnvidia-fatbinaryloader.1 && \
-    ln -s /usr/local/lib64/libnvidia-fatbinaryloader.1 /usr/local/lib64/libnvidia-fatbinaryloader.so && \
-    popd && \
-    rm -rf ${DRIVER}*
 
 # CUDA
 ARG USE_CUDA_VERSION=9

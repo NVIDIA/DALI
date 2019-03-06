@@ -44,7 +44,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  public:
   DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
 
-  DLL_PUBLIC ~SampleWorkspace() = default;
+  DLL_PUBLIC ~SampleWorkspace() override = default;
 
   /**
    * @brief Clears the contents of the workspaces, reseting it
@@ -70,7 +70,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
    * TensorList at index = `idx`.
    */
   template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>* Output(int idx);
+  DLL_PUBLIC Tensor<Backend>& Output(int idx);
 
   /**
    * @brief Returns the index of the sample that this workspace stores

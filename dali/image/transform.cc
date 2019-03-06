@@ -158,11 +158,23 @@ DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
   return DALISuccess;
 }
 
+inline bool SupportsSequence(const std::string &opname) {
+  if (opname == "CropCPUBackend") {
+    return true;
+  }
+  return false;
+}
+
 void CheckParam(const Tensor<CPUBackend> &input, const std::string &opName) {
-  DALI_ENFORCE(input.ndim() == 3);
+  const auto shape = input.shape();
+  if (SupportsSequence(opName)) {
+    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4);
+  } else {
+    DALI_ENFORCE(shape.size() == 3);
+  }
   DALI_ENFORCE(IsType<uint8>(input.type()),
                opName + " expects input data in uint8.");
-  DALI_ENFORCE(input.dim(2) == 1 || input.dim(2) == 3,
+  DALI_ENFORCE(shape.back() == 1 || shape.back() == 3,
                opName + " supports hwc rgb & grayscale inputs.");
 }
 

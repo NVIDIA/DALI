@@ -16,31 +16,11 @@
 #include <vector>
 #include <cmath>
 
+#include "dali/util/npp.h"
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
+#include "dali/util/random_crop_generator.h"
 
 namespace dali {
-
-template<>
-struct RandomResizedCrop<GPUBackend>::Params {
-  std::mt19937 rand_gen;
-  std::uniform_real_distribution<float> aspect_ratio_dis;
-  std::uniform_real_distribution<float> area_dis;
-  std::uniform_real_distribution<float> uniform;
-
-  std::vector<CropInfo> crops;
-};
-
-template<>
-void RandomResizedCrop<GPUBackend>::InitParams(const OpSpec &spec) {
-  params_->rand_gen.seed(spec.GetArgument<int64_t>("seed"));
-  params_->aspect_ratio_dis = std::uniform_real_distribution<float>(aspect_ratios_[0],
-                                                                    aspect_ratios_[1]);
-  params_->area_dis = std::uniform_real_distribution<float>(area_[0],
-                                                            area_[1]);
-  params_->uniform = std::uniform_real_distribution<float>(0, 1);
-
-  params_->crops.resize(batch_size_);
-}
 
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx) {
@@ -51,21 +31,21 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   const int newH = size_[0];
   const int newW = size_[1];
 
-  auto *output = ws->Output<GPUBackend>(idx);
-  output->set_type(input.type());
+  auto &output = ws->Output<GPUBackend>(idx);
+  output.set_type(input.type());
 
   std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
     const int C = input.tensor_shape(i)[2];
     output_shape[i] = {newH, newW, C};
   }
-  output->Resize(output_shape);
+  output.Resize(output_shape);
 
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws->stream());
 
   for (int i = 0; i < batch_size_; ++i) {
-    const CropInfo &crop = params_->crops[i];
+    const CropWindow &crop = params_->crops[i];
     NppiRect in_roi, out_roi;
     in_roi.x = crop.x;
     in_roi.y = crop.y;
@@ -80,7 +60,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
     const int W = input.tensor_shape(i)[1];  // HWC
     const int C = input.tensor_shape(i)[2];  // HWC
 
-    DALISize input_size, output_size;
+    NppiSize input_size, output_size;
 
     input_size.width = W;
     input_size.height = H;
@@ -98,7 +78,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
                                          W*C,
                                          input_size,
                                          in_roi,
-                                         output->mutable_tensor<uint8_t>(i),
+                                         output.mutable_tensor<uint8_t>(i),
                                          newW*C,
                                          output_size,
                                          out_roi,
@@ -109,7 +89,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
                                          W*C,
                                          input_size,
                                          in_roi,
-                                         output->mutable_tensor<uint8_t>(i),
+                                         output.mutable_tensor<uint8_t>(i),
                                          newW*C,
                                          output_size,
                                          out_roi,
@@ -136,29 +116,7 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
     int H = input_shape[0];
     int W = input_shape[1];
 
-    CropInfo crop;
-    int attempt = 0;
-
-    for (attempt = 0; attempt < num_attempts_; ++attempt) {
-      if (TryCrop(H, W,
-                  &params_->aspect_ratio_dis,
-                  &params_->area_dis,
-                  &params_->uniform,
-                  &params_->rand_gen,
-                  &crop)) {
-        break;
-      }
-    }
-
-    if (attempt == num_attempts_) {
-      int min_dim = H < W ? H : W;
-      crop.w = min_dim;
-      crop.h = min_dim;
-      crop.x = (W - min_dim) / 2;
-      crop.y = (H - min_dim) / 2;
-    }
-
-    params_->crops[i] = crop;
+    params_->crops[i] = params_->crop_gens[i].GenerateCropWindow(H, W);
   }
 }
 

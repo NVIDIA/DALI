@@ -69,17 +69,30 @@ class DALIGenericIterator(object):
                  Each name should be distinct
     size : int
            Epoch size.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
+    stop_at_epoch : bool, optional, default = False
+                 Whether to return a fraction of a full batch of data
+                 such that the total entries returned by the
+                 iterator == 'size'. Setting this flag to False will
+                 cause the iterator to return the first integer multiple
+                 of self._num_gpus * self.batch_size which exceeds 'size'.
     """
     def __init__(self,
                  pipelines,
                  output_map,
-                 size):
+                 size,
+                 auto_reset=False,
+                 stop_at_epoch=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self.batch_size = pipelines[0].batch_size
         self._size = int(size)
+        self._auto_reset = auto_reset
+        self._stop_at_epoch = stop_at_epoch
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -103,6 +116,8 @@ class DALIGenericIterator(object):
             self._first_batch = None
             return batch
         if self._counter >= self._size:
+            if self._auto_reset:
+                self.reset()
             raise StopIteration
         # Gather outputs
         outputs = []
@@ -162,6 +177,27 @@ class DALIGenericIterator(object):
         # Change index for double buffering
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
+
+        if (self._stop_at_epoch) and (self._counter > self._size):
+            # First calculate how much data is required to return exactly self._size entries.
+            diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+            # Figure out how many GPUs to grab from.
+            numGPUs_tograb = int(np.ceil(diff/self.batch_size))
+            # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
+            # bring us right up to self._size).
+            mod_diff = diff % self.batch_size
+            data_fromlastGPU = mod_diff if mod_diff else self.batch_size
+
+            # Grab the relevant data.
+            # 1) Grab everything from the relevant GPUs.
+            # 2) Grab the right data from the last GPU.
+            # 3) Append data together correctly and return.
+            output = [db[copy_db_index] for db in self._data_batches[0:numGPUs_tograb]]
+            output[-1] = output[-1].copy();
+            for category in self._output_categories:
+                output[-1][category] = output[-1][category][0:data_fromlastGPU]
+            return output
+
         return [db[copy_db_index] for db in self._data_batches]
 
     def next(self):
@@ -180,7 +216,12 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size:
-            self._counter = self._counter % self._size
+            if self._stop_at_epoch:
+                self._counter = 0
+            else:
+               self._counter = self._counter % self._size
+            for p in self._pipes:
+                p.reset()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
@@ -207,9 +248,21 @@ class DALIClassificationIterator(DALIGenericIterator):
                 List of pipelines to use
     size : int
            Epoch size.
+    auto_reset : bool, optional, default = False
+                 Whether the iterator resets itself for the next epoch
+                 or it requires reset() to be called separately.
+    stop_at_epoch : bool, optional, default = False
+                 Whether to return a fraction of a full batch of data
+                 such that the total entries returned by the
+                 iterator == 'size'. Setting this flag to False will
+                 cause the iterator to return the first integer multiple
+                 of self._num_gpus * self.batch_size which exceeds 'size'.
     """
     def __init__(self,
                  pipelines,
-                 size):
+                 size,
+                 auto_reset=False,
+                 stop_at_epoch=False):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size)
+                                                         size, auto_reset = auto_reset,
+                                                         stop_at_epoch = stop_at_epoch)

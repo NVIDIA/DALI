@@ -28,6 +28,7 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/meta.h"
+#include "dali/kernels/util.h"
 
 namespace dali {
 
@@ -39,7 +40,7 @@ template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() : meta_(DALI_NHWC) {}
-  inline ~Tensor() = default;
+  inline ~Tensor() override = default;
 
   /**
    *
@@ -88,6 +89,8 @@ class Tensor : public Buffer<Backend> {
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
     this->set_type(other.type());
+    this->SetLayout(other.GetLayout());
+    this->SetSourceInfo(other.GetSourceInfo());
     this->ResizeLike(other);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
@@ -101,6 +104,8 @@ class Tensor : public Buffer<Backend> {
     shape_ = other.tensor_shape(idx);
     device_ = other.device_id();
     this->set_type(other.type());
+    this->SetLayout(other.GetLayout());
+    this->SetSourceInfo(other.GetSourceInfo(idx));
     this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);
@@ -112,13 +117,13 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Resizes the buffer to fit `Product(shape)` elements.
+   * @brief Resizes the buffer to fit `volume(shape)` elements.
    * The underlying storage is only reallocated in the case that
    * the current buffer is not large enough for the requested
    * number of elements.
    */
   inline void Resize(const vector<Index> &shape) {
-    Index new_size = Product(shape);
+    Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
   }
@@ -153,7 +158,7 @@ class Tensor : public Buffer<Backend> {
 
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(idx);
-    size_ = Product(shape_);
+    size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
@@ -191,6 +196,56 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Wraps the raw allocation. The input pointer must not be nullptr.
    * if the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   *
+   * After wrapping the allocation, the Tensors size is set to dot product
+   * of shape vector, and its type is reset to NoType. Future calls to
+   * Resize or setting of the Tensor type will evaluate whether or not the
+   * current allocation is large enough to be used and proceed appropriately.
+   *
+   * The Tensor object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the Tensor.
+   */
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const vector<Index> &shape) {
+    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+
+    // Save our new pointer and bytes. Reset our type, shape, and size
+    data_ = ptr;
+    num_bytes_ = bytes;
+    type_ = TypeInfo::Create<NoType>();
+    Index new_size = volume(shape);
+    shape_ = shape;
+    size_ = new_size;
+
+    // If the input pointer stores a non-zero size allocation, mark
+    // that we are sharing our underlying data
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   *
+   * After wrapping the allocation, the Tensors size is set to dot product
+   * of shape vector, and its type is reset to NoType. Future calls to
+   * Resize or setting of the Tensor type will evaluate whether or not the
+   * current allocation is large enough to be used and proceed appropriately.
+   *
+   * The Tensor object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the Tensor.
+   */
+  inline void ShareData(void *ptr, size_t bytes, const vector<Index> &shape) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the Tensor is reset to a default
    * state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the Tensors size is set to 0, and its
@@ -204,18 +259,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
-
-    // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.reset(ptr, [](void *) {});
-    num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
-    shape_.clear();
-    size_ = 0;
-
-    // If the input pointer stores a non-zero size allocation, mark
-    // that we are sharing our underlying data
-    shares_data_ = num_bytes_ > 0 ? true : false;
+    ShareData(ptr, bytes, vector<Index>());
   }
 
   /**
@@ -238,7 +282,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(0);
     shape_.insert(shape_.begin(), tl->ntensor());
-    size_ = Product(shape_);
+    size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
@@ -248,7 +292,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline vector<Index> shape() const {
+  inline const vector<Index> &shape() const {
     return shape_;
   }
 

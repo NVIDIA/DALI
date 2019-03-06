@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <vector>
+#include <memory>
 
 #include "dali/pipeline/operators/reader/parser/sequence_parser.h"
 #include "dali/image/image_factory.h"
@@ -20,16 +21,23 @@
 namespace dali {
 
 void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
-  auto* sequence = ws->Output<CPUBackend>(0);
-  sequence->SetLayout(DALITensorLayout::DALI_NFHWC);
-  sequence->set_type(TypeInfo::Create<uint8_t>());
+  auto& sequence = ws->Output<CPUBackend>(0);
+  sequence.SetLayout(DALITensorLayout::DALI_NFHWC);
+  sequence.set_type(TypeInfo::Create<uint8_t>());
   Index seq_length = data.tensors.size();
 
   // Decode first frame, obtain it's size and allocate output
   {
-    auto img = ImageFactory::CreateImage(data.tensors[0].data<uint8_t>(), data.tensors[0].size(),
+    auto file_name = data.tensors[0].GetSourceInfo();
+    std::unique_ptr<Image> img;
+
+    try {
+      img = ImageFactory::CreateImage(data.tensors[0].data<uint8_t>(), data.tensors[0].size(),
                                          image_type_);
-    img->Decode();
+      img->Decode();
+    } catch(std::runtime_error &e) {
+      DALI_FAIL(e.what() + " File: " + file_name);
+    }
     const auto decoded = img->GetImage();
 
     const auto hwc = img->GetImageDims();
@@ -40,18 +48,24 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
 
     // Calculate shape of sequence tensor, that is Frames x (Frame Shape)
     auto seq_shape = std::vector<Index>{seq_length, h, w, c};
-    sequence->Resize(seq_shape);
+    sequence.Resize(seq_shape);
     // Take a view tensor for first frame and copy it to target sequence
-    auto view_0 = sequence->SubspaceTensor(0);
+    auto view_0 = sequence.SubspaceTensor(0);
     std::memcpy(view_0.raw_mutable_data(), decoded.get(), frame_size);
   }
 
   // Decode and copy rest of the frames
   for (Index frame = 1; frame < seq_length; frame++) {
-    auto view_tensor = sequence->SubspaceTensor(frame);
-    auto img = ImageFactory::CreateImage(data.tensors[frame].data<uint8_t>(),
+    auto view_tensor = sequence.SubspaceTensor(frame);
+    auto file_name = data.tensors[frame].GetSourceInfo();
+    std::unique_ptr<Image> img;
+    try {
+      img = ImageFactory::CreateImage(data.tensors[frame].data<uint8_t>(),
                                          data.tensors[frame].size(), image_type_);
-    img->Decode();
+      img->Decode();
+    } catch(std::runtime_error &e) {
+      DALI_FAIL(e.what() + " File: " + file_name);
+    }
     img->GetImage(view_tensor.mutable_data<uint8_t>());
     DALI_ENFORCE(view_tensor.shares_data(),
                  "Buffer view was invalidated after image decoding, frames do not match in "

@@ -26,6 +26,8 @@ option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG" ON)
 
+option(WERROR "Threat all warnings as errors" OFF)
+
 include(cmake/Utils.cmake)
 
 get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
@@ -43,24 +45,38 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 include(cmake/Dependencies.cmake)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  message(STATUS "Building in DEBUG mode")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -DDALI_DEBUG=1")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -g -G -DDALI_DEBUG=1")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDALI_DEBUG=0")
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DDALI_DEBUG=0")
-endif()
+
+# Debug flags
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -Og -DDALI_DEBUG=1")
+# Generate only line info for device as -G disables all optimizations and causes unit tests to fail
+set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
+
+# DevDebug flags - Use the "-G" for proper debug info for device code
+set(CMAKE_CXX_FLAGS_DEVDEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+string(REPLACE "-lineinfo" "-G" CUDA_NVCC_FLAGS_DEVDEBUG "${CUDA_NVCC_FLAGS_DEBUG}")
+
+# Release flags
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DDALI_DEBUG=0")
+set(CUDA_NVCC_FLAGS_RELEASE "${CUDA_NVCC_FLAGS_RELEASE} -DDALI_DEBUG=0")
+
+# Release with debug info flags
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g3")
+set(CUDA_NVCC_FLAGS_RELWITHDEBINFO "${CUDA_NVCC_FLAGS_RELWITHDEBINFO} -g -lineinfo")
+
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -O2 -fPIC -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
+
+if (WERROR)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wno-inconsistent-missing-override")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths
-  if (${CUDA_HOST_COMPILER} MATCHES "clang") 
+  if (${CUDA_HOST_COMPILER} MATCHES "clang")
     message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CUDA_HOST_COMPILER to gcc")
     execute_process(COMMAND which gcc OUTPUT_VARIABLE PATH_TO_GCC OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT PATH_TO_GCC)
@@ -71,19 +87,24 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 endif()
 
+# Discover what architectures does nvcc support
+include(cmake/CUDA_utils.cmake)
+CUDA_find_supported_arch_values(CUDA_supported_archs ${CUDA_known_archs})
+message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
+
+set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
+list(SORT CUDA_TARGET_ARCHS_SORTED)
+CUDA_find_supported_arch_values(CUDA_targeted_archs ${CUDA_TARGET_ARCHS_SORTED})
+message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
+if (NOT CUDA_targeted_archs)
+  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}}) is supported by nvcc, use one or more of: ${CUDA_supported_archs}")
+endif()
+
+CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_targeted_archs})
+message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
-  -gencode arch=compute_35,code=sm_35 \
-  -gencode arch=compute_50,code=sm_50 \
-  -gencode arch=compute_52,code=sm_52 \
-  -gencode arch=compute_60,code=sm_60 \
-  -gencode arch=compute_61,code=sm_61 ")
-if (${CUDA_VERSION_MAJOR} GREATER 8)
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} \
-      -gencode arch=compute_70,code=sm_70 \
-      -gencode arch=compute_70,code=compute_70")
-endif()
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
 
 # Project dir
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})

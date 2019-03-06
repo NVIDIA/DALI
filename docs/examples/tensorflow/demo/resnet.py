@@ -50,7 +50,6 @@ parser = argparse.ArgumentParser(formatter_class=formatter)
 parser.add_argument('--layers', default=50, type=int, required=True,
                     choices=[18, 34, 50, 101, 152],
                     help="""Number of resnet layers.""")
-
 args, flags = nvutils.parse_cmdline(default_args, parser)
 
 def resnet_bottleneck_v1(builder, inputs, depth, depth_bottleneck, stride,
@@ -112,4 +111,3 @@ nvutils.train(resnet_v1, args)
 
 if args['log_dir'] is not None and args['data_dir'] is not None:
     nvutils.validate(resnet_v1, args)
-

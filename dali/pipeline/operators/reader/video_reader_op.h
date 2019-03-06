@@ -28,9 +28,19 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   explicit VideoReader(const OpSpec &spec)
   : DataReader<GPUBackend, SequenceWrapper>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    count_(spec.GetArgument<int>("count")),
+    count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
-    output_scale_(spec.GetArgument<float>("scale")) {
+    output_scale_(spec.GetArgument<float>("scale")),
+    dtype_(spec.GetArgument<DALIDataType>("dtype")) {
+    DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
+
+    DALI_ENFORCE(image_type == DALI_RGB || image_type == DALI_YCbCr,
+                 "Image type must be RGB or YCbCr.");
+
+    DALI_ENFORCE(dtype_ == DALI_FLOAT || dtype_ == DALI_UINT8,
+                 "Data type must be FLOAT or UINT8.");
+
+
     // TODO(spanev): support rescale
       try {
         loader_.reset(new VideoLoader(spec, filenames_));
@@ -49,24 +59,32 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       }
   }
 
-  virtual inline ~VideoReader() = default;
+  inline ~VideoReader() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace *ws) {
-    auto* tl_sequence_output = ws->Output<GPUBackend>(0);
-    tl_sequence_output->set_type(TypeInfo::Create<float>());
-    tl_sequence_output->Resize(tl_shape_);
+  void SetupSharedSampleParams(DeviceWorkspace *ws) override {
   }
 
   void RunImpl(DeviceWorkspace *ws, const int idx) override {
-    const int data_idx = samples_processed_.load();
-    auto* input_sequence = prefetched_batch_[data_idx];
-    auto* tl_sequence_output = ws->Output<GPUBackend>(0);
-    auto* sequence_output = tl_sequence_output->mutable_tensor<float>(data_idx);
-    CUDA_CALL(cudaMemcpy(sequence_output,
-                         input_sequence->sequence.raw_data(),
-                         input_sequence->sequence.nbytes(),
-                         cudaMemcpyDeviceToDevice));
+    auto& tl_sequence_output = ws->Output<GPUBackend>(idx);
+    if (dtype_ == DALI_FLOAT) {
+      tl_sequence_output.set_type(TypeInfo::Create<float>());
+    } else {  // dtype_ == DALI_UINT8
+      tl_sequence_output.set_type(TypeInfo::Create<uint8>());
+    }
+
+    tl_sequence_output.Resize(tl_shape_);
+    tl_sequence_output.SetLayout(DALI_NFHWC);
+
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
+
+      auto* prefetched_sequence = prefetched_batch_[data_idx];
+      tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
+                                  prefetched_sequence->sequence.raw_data(),
+                                  prefetched_sequence->sequence.size(),
+                                  ws->stream());
+    }
   }
 
 
@@ -80,6 +98,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   float output_scale_;
 
   std::vector<std::vector<Index>> tl_shape_;
+
+  DALIDataType dtype_;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };

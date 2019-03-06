@@ -18,8 +18,8 @@ namespace dali {
 
   template<>
   void NormalizePermute<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto output = ws->Output<CPUBackend>(idx);
+    const auto &input = ws->Input<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
 
     DALI_ENFORCE(IsType<uint8>(input.type()));
     DALI_ENFORCE(input.ndim() == 3,
@@ -32,8 +32,8 @@ namespace dali {
         "Input image channels does not match output channels.");
 
     // Output is CHW
-    output->Resize({C_, H_, W_});
-    output->SetLayout(DALI_NCHW);
+    output.Resize({C_, H_, W_});
+    output.SetLayout(DALI_NCHW);
     if (output_type_ == DALI_FLOAT) {
       CPURunHelper<float>(input, output);
     } else {
@@ -44,9 +44,9 @@ namespace dali {
 template<>
 template <typename OUT>
 void NormalizePermute<CPUBackend>::CPURunHelper(const Tensor<CPUBackend> &input,
-                                                Tensor<CPUBackend> *output) {
+                                                Tensor<CPUBackend> &output) {
   const uint8 *in = input.template data<uint8>();
-  OUT *out = output->template mutable_data<OUT>();
+  OUT *out = output.template mutable_data<OUT>();
   float *mean = mean_.template mutable_data<float>();
   float *inv_std = inv_std_.template mutable_data<float>();
 

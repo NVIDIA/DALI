@@ -15,8 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_OPERATOR_H_
 #define DALI_PIPELINE_OPERATORS_OPERATOR_H_
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
+#include <memory>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -29,13 +32,6 @@
 #include "dali/pipeline/util/backend2workspace_map.h"
 
 namespace dali {
-
-enum DALIOpType {
-  DALI_GPU = 0,
-  DALI_CPU = 1,
-  DALI_MIXED = 2,
-  DALI_SUPPORT = 3
-};
 
 template <typename InputType>
 inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
@@ -73,9 +69,9 @@ inline void CheckInputLayouts(const DeviceWorkspace *ws, const OpSpec &spec) {
  *
  * OperatorBase defines the API used by the pipeline to execute operations.
  */
-class OperatorBase {
+class DLL_PUBLIC OperatorBase {
  public:
-  inline explicit OperatorBase(const OpSpec &spec) :
+  DLL_PUBLIC inline explicit OperatorBase(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads")),
     batch_size_(spec.GetArgument<int>("batch_size")),
     input_sets_(spec.GetArgument<int>("num_input_sets")) {
@@ -83,34 +79,34 @@ class OperatorBase {
     DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
 
-  virtual inline ~OperatorBase() noexcept(false)
+  DLL_PUBLIC virtual inline ~OperatorBase() noexcept(false)
   {}
 
   /**
    * @brief Executes the operator on a single sample on the CPU.
    */
-  virtual void Run(SampleWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(SampleWorkspace *ws) {
     DALI_FAIL("CPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  virtual void Run(DeviceWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(DeviceWorkspace *ws) {
     DALI_FAIL("GPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by operators interfacing with both CPU and GPU.
    */
-  virtual void Run(MixedWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(MixedWorkspace *ws) {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by support operators (RNG etc.).
    */
-  virtual void Run(SupportWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(SupportWorkspace *ws) {
     DALI_FAIL(name() + " is not a support operator!");
   }
 
@@ -119,7 +115,7 @@ class OperatorBase {
    * the name of the op as specified by the OpSpec it was constructed
    * from.
    */
-  virtual string name() const {
+  DLL_PUBLIC virtual string name() const {
     return spec_.name();
   }
 
@@ -127,11 +123,11 @@ class OperatorBase {
    * @brief For reader Ops, returns the size of the dataset
    * For all other Ops, returns -1
    */
-  virtual Index epoch_size() const {
+  DLL_PUBLIC virtual Index epoch_size() const {
     return -1;
   }
 
-  int GetNumInputSets() const {
+  DLL_PUBLIC int GetNumInputSets() const {
     return input_sets_;
   }
 
@@ -163,17 +159,23 @@ template <typename Backend>
 class Operator : public OperatorBase {
  public:
   inline explicit Operator(const OpSpec &spec) :
-    OperatorBase(spec)
+    OperatorBase(spec),
+    sequences_allowed_(SchemaRegistry::GetSchema(spec.name()).AllowsSequences())
   {}
 
-  virtual inline ~Operator() noexcept(false)
+  inline ~Operator() noexcept(false) override
   {}
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
+    std::vector<std::vector<int>> seq_sizes;
+    if (std::is_same<Backend, GPUBackend>::value) {
+        if (sequences_allowed_) {
+          Flatten(ws);
+        }
+    }
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
-
     for (int i = 0; i < input_sets_; ++i) {
       if (std::is_same<Backend, GPUBackend>::value) {
         // Before we start working on the next input set, we need
@@ -185,6 +187,11 @@ class Operator : public OperatorBase {
         SyncHelper(i, ws);
       }
       RunImpl(ws, i);
+    }
+    if (std::is_same<Backend, GPUBackend>::value) {
+      if (sequences_allowed_) {
+        Unflatten(ws);
+      }
     }
   }
 
@@ -199,6 +206,14 @@ class Operator : public OperatorBase {
    */
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
 
+  int SequenceSize(int idx = 0) {
+    DALI_ENFORCE(sequences_allowed_,
+      "This operator is not implemented for sequences. "
+      "Use AllowSequences() is OpSchema to enable it.");
+    DALI_ENFORCE_VALID_INDEX(idx, seq_sizes_.size());
+    return std::max(1, seq_sizes_[idx]);
+  }
+
  private:
   // SINFAE for Run is not possible as we want it to be virtual
   template <typename B = Backend>
@@ -212,6 +227,89 @@ class Operator : public OperatorBase {
   template <typename B = Backend>
   typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
   SyncHelper(int /*unused*/, Workspace<B> */*unused*/) {}
+
+  template <typename B = Backend>
+  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
+  Flatten(Workspace<Backend> *ws) {
+    seq_sizes_.clear();
+    seq_sizes_.resize(input_sets_, 0);
+    for (int i = 0; i < input_sets_; ++i) {
+      auto &input = ws->template MutableInput<Backend>(i);
+      const std::vector<Dims>& old_shapes = input.shape();
+      DALITensorLayout layout = input.GetLayout();
+      if (IsSequence(layout)) {
+        // size of seq is the first dim in each tensor
+        seq_sizes_[i] = old_shapes[0][0];
+
+        std::vector<Dims> new_shapes;
+        for (const Dims &old_shape : old_shapes) {
+          // batch of sequences of different size not implemented
+          DALI_ENFORCE(seq_sizes_[i] == old_shape[0],
+            "Operator " + spec_.name() + " expects a batch of sequences of same length.");
+          // getting only the need 3 dimensions
+          Dims new_shape(old_shape.begin() + 1, old_shape.end());
+          for (int s = 0; s < seq_sizes_[i]; ++s) {
+            new_shapes.emplace_back(new_shape);
+          }
+        }
+        input.Resize(new_shapes);
+        input.SetLayout(GetElementLayout(input.GetLayout()));
+      }
+    }
+  }
+
+  template <typename B = Backend>
+  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
+  Flatten(Workspace<B> */*unused*/) {}
+
+
+  template <typename B = Backend>
+  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
+  Unflatten(Workspace<Backend> *ws) {
+    for (int idx = 0; idx < input_sets_; ++idx) {
+      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+      if (seq_sizes_[idx] > 0) {
+        auto &input = ws->template MutableInput<Backend>(idx);
+        auto &output = ws->template Output<Backend>(idx);
+        const std::vector<Dims>& old_shapes_input = input.shape();
+        const std::vector<Dims>& old_shapes_output = output.shape();
+        std::vector<Dims> new_shapes_input;
+        std::vector<Dims> new_shapes_output;
+        for (unsigned int i = 0; i < old_shapes_input.size(); i += seq_sizes_[idx]) {
+          {
+            Dims shape_input;
+            shape_input.reserve(old_shapes_input[i].size() + 1);
+            shape_input.push_back(static_cast<Index>(seq_sizes_[idx]));
+            shape_input.insert(shape_input.end(),
+                               old_shapes_input[i].begin(),
+                               old_shapes_input[i].end());
+            new_shapes_input.push_back(std::move(shape_input));
+          }
+          {
+            Dims shape_output;
+            shape_output.reserve(old_shapes_output[i].size() + 1);
+            shape_output.push_back(static_cast<Index>(seq_sizes_[idx]));
+            shape_output.insert(shape_output.end(),
+                                old_shapes_output[i].begin(),
+                                old_shapes_output[i].end());
+            new_shapes_output.push_back(std::move(shape_output));
+          }
+        }
+        input.Resize(new_shapes_input);
+        output.Resize(new_shapes_output);
+        input.SetLayout(GetSequenceLayout(input.GetLayout()));
+        output.SetLayout(GetSequenceLayout(output.GetLayout()));
+      }
+    }
+  }
+
+  template <typename B = Backend>
+  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
+  Unflatten(Workspace<B> */*unused*/) {}
+
+  bool sequences_allowed_;
+  // store size of each sequence for each input set
+  std::vector<int> seq_sizes_;
 };
 
 template<>
@@ -221,7 +319,7 @@ class Operator<MixedBackend> : public OperatorBase {
     OperatorBase(spec)
   {}
 
-  virtual inline ~Operator() noexcept(false)
+  inline ~Operator() noexcept(false) override
   {}
 
   using OperatorBase::Run;
@@ -240,21 +338,23 @@ DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
   static int ANONYMIZE_VARIABLE(OpName) =                       \
     DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();               \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,                 \
-      device##Operator, dali::OperatorBase, #device)
+      device##Operator, ::dali::OperatorBase, #device)
 
 class ResizeParamDescr;
 
-void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> *output,
+void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output,
                            const char *pOpName = NULL,
                            const uint8 **pInRaster = NULL, uint8 **ppOutRaster = NULL,
                            vector<DALISize> *pSizes = NULL, const DALISize *out_size = NULL);
-bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> *output,
+bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> &output,
                            size_t batch_size, bool reshapeBatch = false,
                            vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
                            vector<DALISize> *pSizes = NULL, ResizeParamDescr *pResizeParam = NULL);
 void CollectPointersForExecution(size_t batch_size,
                                  const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-                                 TensorList<GPUBackend> *output, vector<uint8 *> *outPtrs);
+                                 TensorList<GPUBackend> &output, vector<uint8 *> *outPtrs);
+
+DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);
 
 }  // namespace dali
 

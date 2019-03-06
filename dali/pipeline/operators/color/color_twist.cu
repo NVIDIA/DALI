@@ -26,8 +26,8 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color augmentations accept only uint8 tensors");
-  auto output = ws->Output<GPUBackend>(idx);
-  output->ResizeLike(input);
+  auto &output = ws->Output<GPUBackend>(idx);
+  output.ResizeLike(input);
 
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws->stream());
@@ -41,21 +41,21 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
         augments_[j]->Prepare(i, spec_, ws);
         (*augments_[j])(m);
       }
-      DALISize size;
+      NppiSize size;
       size.height = input.tensor_shape(i)[0];
       size.width = input.tensor_shape(i)[1];
       const int nStep = C_ * size.width;  // W * C
       colorTwistFunc twist_func = C_ == 3 ? nppiColorTwist32f_8u_C3R : nppiColorTwist32f_8u_C1R;
       DALI_CHECK_NPP(twist_func(input.tensor<uint8_t>(i),
                                 nStep,
-                                output->mutable_tensor<uint8_t>(i),
+                                output.mutable_tensor<uint8_t>(i),
                                 nStep,
                                 size,
                                 matrix));
     } else {
-      CUDA_CALL(cudaMemcpyAsync(output->raw_mutable_tensor(i),
+      CUDA_CALL(cudaMemcpyAsync(output.raw_mutable_tensor(i),
                                 input.raw_tensor(i),
-                                Product(input.tensor_shape(i)),
+                                volume(input.tensor_shape(i)),
                                 cudaMemcpyDefault,
                                 ws->stream()));
     }

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/executor/executor.h"
-
 #include <algorithm>
 #include <iterator>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/operators/common.h"
 
 namespace dali {
 
@@ -30,8 +30,12 @@ void Executor::SetCompletionCallback(ExecutorCallback cb) {
 void Executor::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
+  graph->InstantiateOperators();  // ..if not done already
+
   output_names_ = output_names;
   graph_ = graph;
+
+  DeviceGuard g(device_id_);
 
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
@@ -74,8 +78,9 @@ void Executor::RunCPU() {
   free_queue_.pop();
   lock.unlock();
 
-  // Run the support ops
+  DeviceGuard g(device_id_);
 
+  // Run the support ops
   try {
     WorkspaceBlob &wsb = wss_[queue_idx];
     for (int i = 0; i < graph_->NumSupportOp(); ++i) {
@@ -136,6 +141,7 @@ void Executor::RunMixed() {
   int queue_idx = mixed_work_queue_.front();
   mixed_work_queue_.pop();
   lock.unlock();
+  DeviceGuard g(device_id_);
 
   WorkspaceBlob &wsb = wss_[queue_idx];
 
@@ -173,6 +179,7 @@ void Executor::RunGPU() {
   int queue_idx = gpu_work_queue_.front();
   gpu_work_queue_.pop();
   gpu_lock.unlock();
+  DeviceGuard g(device_id_);
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -211,10 +218,10 @@ void Executor::RunGPU() {
 
       // Record events for each output requested by the user
       cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx);
-      if (graph_->NodeType(src_id) == DALI_MIXED) {
+      if (graph_->NodeType(src_id) == OpType::MIXED) {
         auto &ws = wsb.mixed_op_data[src_idx];
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
-      } else if (graph_->NodeType(src_id) == DALI_GPU) {
+      } else if (graph_->NodeType(src_id) == OpType::GPU) {
         auto &ws = wsb.gpu_op_data[src_idx];
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else {
@@ -267,6 +274,7 @@ void Executor::Outputs(DeviceWorkspace *ws) {
 
 void Executor::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
+  DeviceGuard g(device_id_);
   ws->Clear();
 
   if (exec_error_) {
@@ -371,6 +379,8 @@ void Executor::PruneUnusedGraphNodes() {
 }
 
 void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
+
   // Clear any old data setup
   wsb->Clear();
 
@@ -391,8 +401,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       // Get each regular input and add them to this op's workspace.
 
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
-      DALI_ENFORCE(parent_op_type == DALI_SUPPORT,
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::SUPPORT,
           "Executor encountered support op with non-support input.");
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
@@ -417,8 +427,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
       // Get each regular input and add them to this op's workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
-      DALI_ENFORCE(parent_op_type == DALI_CPU,
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::CPU,
           "Executor encountered cpu op with non-cpu input.");
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
@@ -432,8 +442,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     for (const auto &arg_pair : node.spec.ArgumentInputs()) {
       // Get each argument input and add them to this op's workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(arg_pair.second));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
-      DALI_ENFORCE(parent_op_type == DALI_SUPPORT,
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::SUPPORT,
           "Executor encountered argument input produced by non-cpu op.");
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(arg_pair.second));
@@ -468,8 +478,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
       // Go get each set of input Tensors and add
       // them to this mixed ops workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
-      DALI_ENFORCE(parent_op_type == DALI_CPU,
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::CPU,
           "Executor encountered mixed op with non-cpu input.");
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
@@ -506,11 +516,11 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
       // Get each input and add them to this GPU op's workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(j));
 
-      if (parent_op_type == DALI_MIXED) {
+      if (parent_op_type == OpType::MIXED) {
         MixedWorkspace &src_ws = wsb->mixed_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           const auto input = src_ws.SharedCPUOutput(input_src_idx);
@@ -521,7 +531,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
         } else {
           DALI_FAIL("Executor encountered gpu op with non-cpu/gpu input.");
         }
-      } else if (parent_op_type == DALI_GPU) {
+      } else if (parent_op_type == OpType::GPU) {
         DeviceWorkspace &src_ws = wsb->gpu_op_data[parent_idx];
         if (node.spec.InputDevice(j) == "cpu") {
           // Note: This path should currently never occur, as we
@@ -543,8 +553,8 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     for (const auto &arg_pair : node.spec.ArgumentInputs()) {
       // Get each argument input and add them to this op's workspace.
       NodeID parent_node_id = graph_->TensorSourceID(node.spec.Input(arg_pair.second));
-      DALIOpType parent_op_type = graph_->NodeType(parent_node_id);
-      DALI_ENFORCE(parent_op_type == DALI_SUPPORT,
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::SUPPORT,
           "Executor encountered argument input produced by non-cpu op.");
       int parent_idx = graph_->NodeIdx(parent_node_id);
       int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(arg_pair.second));
@@ -570,11 +580,27 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
 
 void Executor::PresizeData(WorkspaceBlob *wsb) {
   TimeRange tr("[Executor] PresizeData");
+  DeviceGuard g(device_id_);
+
+  auto mem_hints = [&](OpNode &node) {
+    std::vector<int> hints;
+    int noutputs = node.spec.NumOutput();
+    GetSingleOrRepeatedArg(node.spec, &hints, "bytes_per_sample_hint", noutputs);
+    for (auto &h : hints) {
+      if (h == 0)
+        h = this->bytes_per_sample_hint_;
+    }
+    return hints;
+  };
+
   // Note: At some point our graph has source nodes that
   // only have outputs (data readers or external inputs).
   // Thus, the set of all outputs buffers in our workspaces
   // represents all the unique buffers in our graph.
-  for (auto &ws : wsb->cpu_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumCPUOp(); op_idx++) {
+    auto &ws = wsb->cpu_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->cpu_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
       DALI_ENFORCE(ws.NumOutputAtIdx(i) == batch_size_, "Executor "
           "encountered cpu op workspace where the number of tensors "
@@ -582,44 +608,54 @@ void Executor::PresizeData(WorkspaceBlob *wsb) {
       DALI_ENFORCE(ws.OutputIsType<CPUBackend>(i), "Executor "
           "encountered cpu op with non-cpu output.");
       for (int j = 0; j < ws.NumOutputAtIdx(i); ++j) {
-        Tensor<CPUBackend> *tensor = ws.Output<CPUBackend>(i, j);
-        // We set the type of the tensor to uint8 temporarily
-        tensor->mutable_data<uint8>();
-        tensor->Resize({(Index)bytes_per_sample_hint_});
+        Tensor<CPUBackend> &tensor = ws.Output<CPUBackend>(i, j);
+        Index hint = hints[i];
+        if (tensor.is_pinned() && hint) {
+          tensor.reserve(hint);
+        }
       }
     }
   }
 
-  for (auto &ws : wsb->mixed_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumMixedOp(); op_idx++) {
+    auto &ws = wsb->mixed_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->mixed_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
+      Index hint = hints[i];
       if (ws.OutputIsType<CPUBackend>(i)) {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
+        }
       } else {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.reserve(hint*batch_size_);
       }
     }
   }
 
-  for (auto &ws : wsb->gpu_op_data) {
+  for (int op_idx = 0; op_idx < graph_->NumGPUOp(); op_idx++) {
+    auto &ws = wsb->gpu_op_data[op_idx];
+    std::vector<int> hints = mem_hints(graph_->gpu_node(op_idx));
+
     for (int i = 0; i < ws.NumOutput(); ++i) {
+      Index hint = hints[i];
       if (ws.OutputIsType<GPUBackend>(i)) {
-        TensorList<GPUBackend> *tl = ws.Output<GPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<GPUBackend> &tl = ws.Output<GPUBackend>(i);
+        tl.reserve(hint*batch_size_);
       } else {
-        TensorList<CPUBackend> *tl = ws.Output<CPUBackend>(i);
-        tl->mutable_data<uint8>();
-        tl->Resize({{(Index)bytes_per_sample_hint_*batch_size_}});
+        TensorList<CPUBackend> &tl = ws.Output<CPUBackend>(i);
+        if (tl.is_pinned()) {
+          tl.reserve(hint*batch_size_);
+        }
       }
     }
   }
 }
 
 void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
   auto mixed_op_stream = stream_pool_.GetStream();
   for (int i = 0; i < graph_->NumMixedOp(); ++i) {
     // We assign unique stream to mixed ops.
@@ -643,7 +679,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
     ws.set_stream(gpu_op_stream);
     const OpNode& node = graph_->gpu_node(i);
     for (const auto& p : node.parents) {
-      if (graph_->NodeType(p) == DALI_MIXED) {
+      if (graph_->NodeType(p) == OpType::MIXED) {
         // We need to block on this op's event to
         // make sure that we respect the dependency
         int parent_op_idx = graph_->NodeIdx(p);
@@ -655,6 +691,7 @@ void Executor::SetupStreamsForGraph(WorkspaceBlob *wsb) {
 }
 
 void Executor::SetupOutputQueuesForGraph() {
+  DeviceGuard g(device_id_);
   // Allocate output TensorList pools for each output
   for (auto &name : output_names_) {
     auto tensor_meta = graph_->TensorSourceMeta(name);
@@ -669,7 +706,7 @@ void Executor::SetupOutputQueuesForGraph() {
     }
 
     // Create the buffer and events
-    if (tensor_meta.is_cpu) {
+    if (tensor_meta.storage_device == StorageDevice::CPU) {
       DALI_ENFORCE(!tensor_meta.is_support,
           "Outputs of support ops cannot be outputs.");  // TODO(ptredak): lift this restriction
       cpu_outputs_.push_back(TensorListPool<CPUBackend>(
@@ -699,6 +736,7 @@ void Executor::SetupOutputQueuesForGraph() {
 }
 
 void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
+  DeviceGuard g(device_id_);
   // For each output, we need to hookup the next buffer
   // to the desired output workspaces, and also the
   // input workspaces of later ops that use them
@@ -707,14 +745,14 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     NodeID node_id = info.prod_and_idx.first;
     int output_idx = info.prod_and_idx.second;
     // Contiguous CPU outputs come from mixed or GPU ops
-    DALI_ENFORCE(graph_->NodeType(node_id) == DALI_MIXED ||
-                 graph_->NodeType(node_id) == DALI_GPU);
+    DALI_ENFORCE(graph_->NodeType(node_id) == OpType::MIXED ||
+                 graph_->NodeType(node_id) == OpType::GPU);
 
-    if (graph_->NodeType(node_id) == DALI_MIXED) {
+    if (graph_->NodeType(node_id) == OpType::MIXED) {
       int mixed_op_id = graph_->NodeIdx(node_id);
       wsb->mixed_op_data[mixed_op_id].SetOutput(
           output_idx, cpu_outputs_[i].Get(queue_idx));
-    } else {  // DALI_GPU
+    } else {  // OpType::GPU
       int gpu_op_id = graph_->NodeIdx(node_id);
       wsb->gpu_op_data[gpu_op_id].SetOutput(output_idx,
           cpu_outputs_[i].Get(queue_idx));
@@ -723,7 +761,7 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       int input_idx = info.con_and_idx[j].second;
-      DALI_ENFORCE(graph_->NodeType(node_id) == DALI_GPU);
+      DALI_ENFORCE(graph_->NodeType(node_id) == OpType::GPU);
 
       int gpu_op_id = graph_->NodeIdx(node_id);
       wsb->gpu_op_data[gpu_op_id].SetInput(
@@ -736,11 +774,11 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     NodeID node_id = info.prod_and_idx.first;
     int output_idx = info.prod_and_idx.second;
 
-    if (graph_->NodeType(node_id) == DALI_MIXED) {
+    if (graph_->NodeType(node_id) == OpType::MIXED) {
       int mixed_op_id = graph_->NodeIdx(node_id);
       wsb->mixed_op_data[mixed_op_id].SetOutput(output_idx,
           gpu_outputs_[i].Get(queue_idx));
-    } else if (graph_->NodeType(node_id) == DALI_GPU) {
+    } else if (graph_->NodeType(node_id) == OpType::GPU) {
       int gpu_op_id = graph_->NodeIdx(node_id);
       wsb->gpu_op_data[gpu_op_id].SetOutput(output_idx,
           gpu_outputs_[i].Get(queue_idx));
@@ -752,7 +790,7 @@ void Executor::SetOutputBuffersForIter(int queue_idx, WorkspaceBlob *wsb) {
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       int input_idx = info.con_and_idx[j].second;
-      DALI_ENFORCE(graph_->NodeType(node_id) == DALI_GPU);
+      DALI_ENFORCE(graph_->NodeType(node_id) == OpType::GPU);
 
       int gpu_op_id = graph_->NodeIdx(node_id);
       wsb->gpu_op_data[gpu_op_id].SetInput(input_idx,

@@ -14,20 +14,26 @@
 
 # Set variables used by subdirectories
 set(DALI_SRCS)
+set(DALI_OPERATOR_SRCS)
 set(DALI_TEST_SRCS)
 set(DALI_BENCHMARK_SRCS)
 set(DALI_TF_SRCS)
+
+set(dali_lib "dali")
+set(dali_operator_lib "dali_operators")
+set(dali_kernel_lib "dali_kernels")
+set(dali_kernel_test_lib "dali_kernel_test")
 
 ################################################
 # Build libdali
 ################################################
 add_subdirectory(image)
+add_subdirectory(kernels)
 add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
-
-set(dali_lib "dali")
+add_subdirectory(aux)
 
 # Collect source files for dali
 file(GLOB tmp *.cc)
@@ -44,19 +50,29 @@ endif()
 set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
 if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PRIVATE in front of it 
+  # So this is a workaround to append PRIVATE in front of it
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
+cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
+target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}")
+
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
 # Options for using Dockerfile FFmpeg version
 target_compile_definitions(${dali_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
 target_compile_definitions(${dali_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
 
+target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
+
 # Define symbol version script for libdali.so
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(dali_lib_exports "lib${dali_lib}.map")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
+target_link_libraries(${dali_lib} PRIVATE ${dali_operator_lib})
+# link whole content of dali_operator_lib into dali_lib
+target_link_libraries(${dali_lib} PRIVATE "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_operator_lib}> -Wl,--no-whole-archive")
+
 target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
 add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
 add_dependencies(${dali_lib} ${dali_lib_exports})
@@ -70,9 +86,13 @@ target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
-# install libdali to build dir
+# install libdali to the wheel dir
 set_target_properties(${dali_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/
+)
+
+set_target_properties(${dali_operator_lib} PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
 # filter all *.h which don't have 'test' in name, create pairs 'src dst' string with sed and call xargs
@@ -80,11 +100,11 @@ set_target_properties(${dali_lib} PROPERTIES
 add_custom_target(install_headers ALL
     DEPENDS ${dali_lib}
 )
-  
+
 add_custom_command(
     TARGET install_headers
     COMMAND find ${CMAKE_CURRENT_LIST_DIR} -regex ".*\\\\.h" | grep --invert test
-    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${CMAKE_BINARY_DIR}/include/dali\\2,'
+    | sed -r 's,\(^${CMAKE_CURRENT_LIST_DIR}\)\(.*\),\\1\\2 ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/include/dali\\2,'
     | xargs -n 2 install -D
   )
 
@@ -92,6 +112,8 @@ add_custom_command(
 # Build test suite
 ################################################
 if (BUILD_TEST)
+  set(TEST_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+
   # get all test srcs
   add_subdirectory(test)
 
@@ -100,13 +122,18 @@ if (BUILD_TEST)
 
   # Link to the dali lib
   message(STATUS "Adding dependencies to ${test_main_bin}: '${dali_lib}'")
-  add_dependencies(${test_main_bin} ${dali_lib})
+  add_dependencies(${test_main_bin} ${dali_lib} ${dali_kernel_test_lib} ${dali_kernel_lib})
 
   # We'll have to add dependency libs
-  target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS} ${dali_lib} gtest)
+  target_link_libraries(${test_main_bin} PRIVATE
+    "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_kernel_test_lib}> -Wl,--no-whole-archive"
+    "${dali_kernel_test_lib}"
+    "${DALI_LIBS}"
+    "${dali_lib}"
+    "gtest")
 
   set_target_properties(${test_main_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 endif()
 
 
@@ -137,12 +164,12 @@ endif()
 if (BUILD_TENSORFLOW)
 
   add_subdirectory(tensorflow)
- 
+
   # get default TF installation path
    execute_process(
      COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
      OUTPUT_VARIABLE DIST_PACKAGES_DIR)
- 
+
   set(TF_PATHS)
   set(TF_VER)
   # obtain custom versions of TF we want to build aganist

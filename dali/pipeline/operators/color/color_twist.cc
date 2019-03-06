@@ -106,7 +106,7 @@ Values >= 0 are accepted. For example:
 template <>
 void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-  auto output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   const auto &input_shape = input.shape();
 
   CheckParam(input, "Color augmentation");
@@ -115,10 +115,10 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto W = input_shape[1];
   const auto C = input_shape[2];
 
-  output->ResizeLike(input);
+  output.ResizeLike(input);
 
   auto pImgInp = input.template data<uint8>();
-  auto pImgOut = output->template mutable_data<uint8>();
+  auto pImgOut = output.template mutable_data<uint8>();
 
   if (!augments_.empty()) {
     float matrix[nDim][nDim];

@@ -33,13 +33,13 @@ in the image coordinate system (i.e. 0.0-1.0))code")
     .NumOutput(1)
     .AddOptionalArg(kCoordinatesTypeArgName,
                     R"code(True, for two-point (ltrb).
-False for for width-height representation. Default: False)code",
+False for for width-height representation.)code",
                     false, false)
     .AddOptionalArg(kHorizontalArgName,
-                    R"code(Perform flip along horizontal axis. Default: 1)code",
+                    R"code(Perform flip along horizontal axis.)code",
                     1, true)
     .AddOptionalArg(kVerticalArgName,
-                    R"code(Perform flip along vertical axis. Default: 0)code",
+                    R"code(Perform flip along vertical axis.)code",
                     0, true);
 
 BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
@@ -65,14 +65,14 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws, const int idx) {
           ? spec_.GetArgument<int>(kHorizontalArgName, ws, ws->data_idx())
           : spec_.GetArgument<int>(kHorizontalArgName);
 
-  auto *output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(idx);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
   //      explicitly is required for further processing
   //      It can also be achieved with mutable_data<>()
   //      function.
-  output->set_type(TypeInfo::Create<float>());
-  output->ResizeLike(input);
-  auto output_data = output->mutable_data<float>();
+  output.set_type(TypeInfo::Create<float>());
+  output.ResizeLike(input);
+  auto output_data = output.mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
     auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i])
