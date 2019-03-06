@@ -319,6 +319,9 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
   .AddOptionalArg("save_img_ids",
       R"code(If true, image IDs will also be returned.)code",
       false)
+  .AddOptionalArg("shuffle_after_epoch",
+      R"code(If true, reader shuffles whole dataset after each epoch.)code",
+      false)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
