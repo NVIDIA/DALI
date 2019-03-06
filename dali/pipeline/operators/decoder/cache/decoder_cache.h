@@ -15,29 +15,32 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_H_
 
+#include <cuda_runtime.h>
 #include <string>
-#include "dali/pipeline/data/tensor_list.h"  // needed for Dims
+#include "dali/api_helper.h"
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 
 class DLL_PUBLIC DecoderCache {
  public:
     using ImageKey = std::string;
+    using ImageShape = kernels::TensorShape<3>;
 
     DLL_PUBLIC virtual ~DecoderCache() = default;
 
     DLL_PUBLIC virtual bool IsCached(const ImageKey& image_key) const = 0;
 
-    DLL_PUBLIC virtual const Dims& GetShape(const ImageKey& image_key) const = 0;
+    DLL_PUBLIC virtual const ImageShape& GetShape(const ImageKey& image_key) const = 0;
 
     DLL_PUBLIC virtual void CopyData(const ImageKey& image_key,
                                      void* destination_buffer,
-                                     cudaStream_t stream = 0) const = 0;
+                                     cudaStream_t stream) const = 0;
 
     DLL_PUBLIC virtual void Add(const ImageKey& image_key,
-                                const uint8_t *data, std::size_t data_size,
-                                const Dims& data_shape,
-                                cudaStream_t stream = 0) = 0;
+                                const uint8_t *data,
+                                const ImageShape& data_shape,
+                                cudaStream_t stream) = 0;
 };
 
 }  // namespace dali

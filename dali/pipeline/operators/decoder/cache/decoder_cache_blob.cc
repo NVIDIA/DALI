@@ -19,6 +19,7 @@
 #include "dali/error_handling.h"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/span.h"
+#include "dali/pipeline/data/backend.h"
 
 namespace dali {
 
@@ -46,7 +47,7 @@ bool DecoderCacheBlob::IsCached(const ImageKey& image_key) const {
   return cache_.find(image_key) != cache_.end();
 }
 
-const Dims& DecoderCacheBlob::GetShape(const ImageKey& image_key) const {
+const DecoderCache::ImageShape& DecoderCacheBlob::GetShape(const ImageKey& image_key) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto it = cache_.find(image_key);
   DALI_ENFORCE(it != cache_.end(), "cache entry [" + image_key + "] not found");
@@ -69,8 +70,10 @@ void DecoderCacheBlob::CopyData(const ImageKey& image_key, void* destination_buf
   if (stats_enabled_) stats_[image_key].reads++;
 }
 
-void DecoderCacheBlob::Add(const ImageKey& image_key, const uint8_t* data, std::size_t data_size,
-                           const Dims& data_shape, cudaStream_t stream) {
+void DecoderCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
+                           const ImageShape& data_shape, cudaStream_t stream) {
+  const std::size_t data_size = volume(data_shape);
+
   if (stats_enabled_) stats_[image_key].decodes++;
 
   if (data_size < image_size_threshold_) return;
@@ -115,8 +118,8 @@ void DecoderCacheBlob::print_stats() const {
     out << "image[" << elem.first << "] : is_cached[" << static_cast<int>(elem.second.is_cached)
         << "] decodes[" << elem.second.decodes << "] reads[" << elem.second.reads << "]";
     if (elem.second.is_cached) {
-      Dims dims = GetShape(elem.first);
-      out << " dims[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      auto shape = GetShape(elem.first);
+      out << " shape[" << shape[0] << ", " << shape[1] << ", " << shape[2] << "]";
     }
     out << std::endl;
   }

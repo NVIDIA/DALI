@@ -24,9 +24,10 @@ DecoderCacheLargestOnly::DecoderCacheLargestOnly(std::size_t cache_size, bool st
     : DecoderCacheBlob(cache_size, 0, stats_enabled) {}
 
 void DecoderCacheLargestOnly::Add(const ImageKey& image_key,
-                                  const uint8_t *data, std::size_t data_size,
-                                  const Dims& data_shape,
+                                  const uint8_t *data,
+                                  const ImageShape& data_shape,
                                   cudaStream_t stream) {
+  const std::size_t data_size = volume(data_shape);
   std::unique_lock<std::mutex> lock(mutex_);
   // If we haven't started caching
   if (!start_caching_) {
@@ -83,7 +84,7 @@ void DecoderCacheLargestOnly::Add(const ImageKey& image_key,
   lock.unlock();
 
   if (start_caching_ && images_.find(image_key) != images_.end()) {
-    DecoderCacheBlob::Add(image_key, data, data_size, data_shape, stream);
+    DecoderCacheBlob::Add(image_key, data, data_shape, stream);
   }
 }
 

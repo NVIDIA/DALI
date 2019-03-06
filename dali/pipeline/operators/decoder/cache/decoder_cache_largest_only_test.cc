@@ -36,8 +36,8 @@ struct DecoderCacheLargestOnlyTest : public ::testing::Test {
   }
 
   void AddImage(std::size_t i) {
-    cache_->Add(data_[i].first, &data_[i].second[0], data_[i].second.size(),
-                Dims{static_cast<Index>(data_[i].second.size()), 1, 1});
+    cache_->Add(data_[i].first, &data_[i].second[0],
+                {static_cast<int64_t>(data_[i].second.size()), 1, 1}, 0);
   }
 
   bool IsCached(std::size_t i) { return cache_->IsCached(data_[i].first); }
@@ -126,7 +126,7 @@ TEST_F(DecoderCacheLargestOnlyTest, CopyDataWorks) {
   EXPECT_TRUE(IsCached(4));
 
   std::vector<uint8_t> dst(4, 0x00);
-  cache_->CopyData("4", &dst[0]);
+  cache_->CopyData("4", &dst[0], 0);
   EXPECT_EQ(data_[4].second, dst);
 }
 
@@ -139,14 +139,14 @@ TEST_F(DecoderCacheLargestOnlyTest, AllocateMoreThan2000MB) {
 
   // First observe
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
-                {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0],
+                {static_cast<Index>(one_mb), 1, 1}, 0);
   }
 
   // Now cache
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
-                {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0],
+                {static_cast<Index>(one_mb), 1, 1}, 0);
   }
 
   // Cache is ready here

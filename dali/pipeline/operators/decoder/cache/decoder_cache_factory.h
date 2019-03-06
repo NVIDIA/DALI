@@ -25,29 +25,27 @@ namespace dali {
 
 class DLL_PUBLIC DecoderCacheFactory {
  public:
-  DLL_PUBLIC static inline DecoderCacheFactory& Instance(int device_id) {
-    static std::mutex __mutex;
-    using DeviceId = int;
-    static std::map<DeviceId, DecoderCacheFactory> __cache_factory_map;
-    std::unique_lock<std::mutex> lock(__mutex);
-    return __cache_factory_map[device_id];
+  DLL_PUBLIC static DecoderCacheFactory& Instance() {
+    static DecoderCacheFactory instance;
+    return instance;
   }
 
   DLL_PUBLIC std::shared_ptr<DecoderCache> Init(
+    int device_id,
     const std::string& cache_policy,
     std::size_t cache_size,
     bool cache_debug = false,
     std::size_t cache_threshold = 0);
 
-  DLL_PUBLIC void Destroy();
+  DLL_PUBLIC void Destroy(int device_id);
 
-  DLL_PUBLIC std::shared_ptr<DecoderCache> Get() const;
+  DLL_PUBLIC std::shared_ptr<DecoderCache> Get(int device_id) const;
 
-  DLL_PUBLIC bool IsInitialized() const;
+  DLL_PUBLIC bool IsInitialized(int device_id) const;
 
  private:
   mutable std::mutex mutex_;
-  std::shared_ptr<DecoderCache> cache_;
+  std::map<int, std::shared_ptr<DecoderCache>> caches_;
 };
 
 }  // namespace dali

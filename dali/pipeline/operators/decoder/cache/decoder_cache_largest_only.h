@@ -22,6 +22,7 @@
 #include <vector>
 #include "dali/pipeline/data/tensor_list.h"  // needed for Dims
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
+#include "dali/common.h"
 
 namespace dali {
 
@@ -31,8 +32,8 @@ class DLL_PUBLIC DecoderCacheLargestOnly : public DecoderCacheBlob {
 
   DISABLE_COPY_MOVE_ASSIGN(DecoderCacheLargestOnly);
 
-  void Add(const ImageKey& image_key, const uint8_t* data, std::size_t data_size,
-           const Dims& data_shape, cudaStream_t stream = 0) override;
+  void Add(const ImageKey& image_key, const uint8_t* data, const ImageShape& data_shape,
+           cudaStream_t stream) override;
 
  private:
   using QueueElement = std::pair<std::size_t, ImageKey>;

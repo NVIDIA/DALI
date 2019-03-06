@@ -22,7 +22,9 @@ namespace testing {
 
 const char kKey1[] = "file1.jpg";
 const std::vector<uint8_t> kValue1(300, 0xAA);
-const Dims kDims1{100, 1, 3};
+const DecoderCache::ImageShape kShape1{100, 1, 3};
+
+static_assert(sizeof(size_t) > 4, "size_t too small");
 
 struct DecoderCacheBlobTest : public ::testing::Test {
   DecoderCacheBlobTest() {}
@@ -42,26 +44,26 @@ TEST_F(DecoderCacheBlobTest, EmptyCache) {
 
 TEST_F(DecoderCacheBlobTest, Add) {
   EXPECT_FALSE(cache_->IsCached(kKey1));
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_TRUE(cache_->IsCached(kKey1));
   std::vector<uint8_t> cachedData(kValue1.size());
-  cache_->CopyData(kKey1, &cachedData[0]);
+  cache_->CopyData(kKey1, &cachedData[0], 0);
   EXPECT_EQ(kValue1, cachedData);
 }
 
 TEST_F(DecoderCacheBlobTest, ErrorGetNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_THROW(cache_->CopyData(kKey1, &cachedData[0]), std::runtime_error);
+  EXPECT_THROW(cache_->CopyData(kKey1, &cachedData[0], 0), std::runtime_error);
 }
 
 TEST_F(DecoderCacheBlobTest, AddExistingIgnored) {
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
 }
 
 TEST_F(DecoderCacheBlobTest, ErrorTooSmallCacheSize) {
   SetUpImpl(kValue1.size() - 1);
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_FALSE(cache_->IsCached(kKey1));
 }
 
@@ -72,8 +74,8 @@ TEST_F(DecoderCacheBlobTest, AllocateMoreThan2000MB) {
   std::vector<uint8_t> data_1MB(one_mb, 0xFF);
   std::size_t N = size / one_mb;
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0], one_mb,
-                {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0],
+                {static_cast<Index>(one_mb), 1, 1}, 0);
   }
 
   for (std::size_t i = 0; i < N; i++) {

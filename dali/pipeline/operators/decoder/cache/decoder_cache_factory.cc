@@ -12,42 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_factory.h"
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
 #include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
 
 namespace dali {
 
-std::shared_ptr<DecoderCache> DecoderCacheFactory::Init(const std::string& cache_policy,
+std::shared_ptr<DecoderCache> DecoderCacheFactory::Init(int device_id,
+                                                        const std::string& cache_policy,
                                                         std::size_t cache_size,
                                                         bool cache_debug,
                                                         std::size_t cache_threshold) {
   std::lock_guard<std::mutex> lock(mutex_);
-  DALI_ENFORCE(cache_ == nullptr, "Cache already exists");
+  DALI_ENFORCE(caches_.find(device_id) == caches_.end(), "Cache already exists");
   if (cache_policy == "threshold") {
-    cache_.reset(new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
+    caches_[device_id].reset(new DecoderCacheBlob(cache_size, cache_threshold, cache_debug));
   } else if (cache_policy == "largest") {
-    cache_.reset(new DecoderCacheLargestOnly(cache_size, cache_debug));
+    caches_[device_id].reset(new DecoderCacheLargestOnly(cache_size, cache_debug));
   } else {
     DALI_FAIL("unexpected cache policy `" + cache_policy + "`");
   }
-  return cache_;
+  return caches_[device_id];
 }
 
-std::shared_ptr<DecoderCache> DecoderCacheFactory::Get() const {
+std::shared_ptr<DecoderCache> DecoderCacheFactory::Get(int device_id) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return cache_;
+  auto it = caches_.find(device_id);
+  DALI_ENFORCE(it != caches_.end());
+  return it->second;
 }
 
-void DecoderCacheFactory::Destroy() {
+void DecoderCacheFactory::Destroy(int device_id) {
   std::lock_guard<std::mutex> lock(mutex_);
-  DALI_ENFORCE(cache_ != nullptr, "Cache does not exist");
-  cache_.reset();
+  auto it = caches_.find(device_id);
+  DALI_ENFORCE(it != caches_.end(), "Cache does not exist");
+  caches_.erase(it);
 }
 
-bool DecoderCacheFactory::IsInitialized() const {
+bool DecoderCacheFactory::IsInitialized(int device_id) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return cache_ != nullptr;
+  return caches_.find(device_id) != caches_.end();
 }
 
 }  // namespace dali

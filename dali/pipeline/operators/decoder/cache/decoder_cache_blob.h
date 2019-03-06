@@ -37,16 +37,16 @@ class DLL_PUBLIC DecoderCacheBlob : public DecoderCache {
 
     bool IsCached(const ImageKey& image_key) const override;
 
-    const Dims& GetShape(const ImageKey& image_key) const override;
+    const ImageShape& GetShape(const ImageKey& image_key) const override;
 
     void CopyData(const ImageKey& image_key,
                   void* destination_buffer,
-                  cudaStream_t stream = 0) const override;
+                  cudaStream_t stream) const override;
 
     void Add(const ImageKey& image_key,
-             const uint8_t *data, std::size_t data_size,
-             const Dims& data_shape,
-             cudaStream_t stream = 0) override;
+             const uint8_t *data,
+             const ImageShape& data_shape,
+             cudaStream_t stream) override;
 
  protected:
     void print_stats() const;
@@ -63,7 +63,7 @@ class DLL_PUBLIC DecoderCacheBlob : public DecoderCache {
 
     struct DecodedImage {
         span<uint8_t, dynamic_extent> data;
-        Dims dims;
+        ImageShape dims;
 
         inline bool operator==(const DecodedImage& oth) const {
             return data == oth.data
