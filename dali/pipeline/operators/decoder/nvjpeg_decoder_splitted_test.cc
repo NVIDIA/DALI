@@ -111,7 +111,7 @@ TYPED_TEST(nvjpegDecodeSplittedTest, TestSingleJPEGDecode3THybridHuffman) {
 TYPED_TEST(nvjpegDecodeSplittedTest, TestSingleJPEGDecode4THybridHuffman) {
   this->JpegTestDecode(4, 0);
 }
-#if 0
+
 /***********************************************
 ************* PNG fallback decode **************
 ***********************************************/
@@ -149,5 +149,4 @@ TYPED_TEST(nvjpegDecodeSplittedTest, TestSingleTiffDecode3T) {
 TYPED_TEST(nvjpegDecodeSplittedTest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
-#endif
 }  // namespace dali

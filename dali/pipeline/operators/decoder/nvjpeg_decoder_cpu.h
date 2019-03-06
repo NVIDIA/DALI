@@ -87,14 +87,21 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                 false,
                                                 false,
                                                 state_nvjpeg->jpeg_stream);
-    if (ret != NVJPEG_STATUS_SUCCESS) {
+    info->nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
+    if (!info->nvjpeg_support) {
       try {
         const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data),
                                                      in_size);
         const auto dims = image->GetImageDims();
         info->heights[0] = std::get<0>(dims);
         info->widths[0] = std::get<1>(dims);
-        info->nvjpeg_support = false;
+        auto& out = ws->Output<CPUBackend>(2);
+        out.set_type(TypeInfo::Create<uint8_t>());
+        const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
+        out.Resize({info->heights[0], info->widths[0], c});
+        auto *output_data = out.mutable_data<uint8_t>();
+
+        OCVFallback(input_data, in_size, output_data, file_name);
       } catch (const std::runtime_error &e) {
         DALI_FAIL(e.what() + "File: " + file_name);
       }
@@ -104,7 +111,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                      info->heights));
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
-      info->nvjpeg_support = true;
       state_nvjpeg->nvjpeg_backend =
                     ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
@@ -129,16 +135,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       } else {
         // TODO(spanev): free Output #2
       }
-    }
-    // finally OCV fallback
-    if (!info->nvjpeg_support) {
-      auto& out = ws->Output<CPUBackend>(2);
-      out.set_type(TypeInfo::Create<uint8_t>());
-      const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
-      out.Resize({info->heights[0], info->heights[1], c});
-      auto *output_data = out.mutable_data<uint8_t>();
-
-      OCVFallback(input_data, in_size, output_data, file_name);
     }
   }
 
