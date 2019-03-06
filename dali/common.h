@@ -55,6 +55,29 @@ using uint32 = uint32_t;
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
+enum class OpType {
+  GPU = 0,
+  CPU = 1,
+  MIXED = 2,
+  SUPPORT = 3,
+  COUNT = 4
+};
+
+static std::string to_string(OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return "cpu";
+    case OpType::GPU:
+      return "gpu";
+    case OpType::MIXED:
+      return "mixed";
+    case OpType::SUPPORT:
+      return "support";
+    default:
+      return "<invalid>";
+  }
+}
+
 struct DALISize {
     int width;
     int height;

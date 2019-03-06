@@ -374,7 +374,7 @@ TEST_F(ExecutorTest, TestRunBasicGraph) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -421,7 +421,7 @@ TEST_F(ExecutorTest, TestRunBasicGraphWithCB) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_);
@@ -479,7 +479,7 @@ TEST_F(ExecutorTest, TestPrefetchedExecution) {
   exe.Build(&graph, outputs);
 
   // Set the data for the external source
-  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(&graph.cpu_op(0));
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend>*>(graph.cpu_node(0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   this->MakeJPEGBatch(&tl, this->batch_size_*2);

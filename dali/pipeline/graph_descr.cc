@@ -71,6 +71,19 @@ void CheckOpConstraints(const OpSpec &spec) {
       + " outputs, but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");
 }
 
+OpType ParseOpType(const std::string &device) {
+  if (device == "gpu") {
+    return OpType::GPU;
+  } else if (device == "cpu") {
+    return OpType::CPU;
+  } else if (device == "mixed") {
+    return OpType::MIXED;
+  } else if (device == "support") {
+    return OpType::SUPPORT;
+  }
+  DALI_FAIL("Unsupported device type: " + device + ".");
+}
+
 }  // namespace
 
 void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
@@ -78,44 +91,55 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
   CheckOpConstraints(spec);
 
   string device = spec.GetArgument<string>("device");
+  auto op_type = ParseOpType(device);
   OpNode *new_node;
-  if (device == "cpu") {
-    // Enforce graph constraints
-    DALI_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
-    DALI_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
+  switch (op_type) {
+    case OpType::CPU: {
+      // Enforce graph constraints
+      DALI_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
+      DALI_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
 
-    cpu_nodes_.resize(cpu_nodes_.size()+1);
-    OpNode &cpu_node = cpu_nodes_.back();
-    id_to_node_map_.push_back({DALI_CPU, cpu_nodes_.size()-1});
+      cpu_nodes_.resize(cpu_nodes_.size()+1);
+      OpNode &cpu_node = cpu_nodes_.back();
+      id_to_node_map_.push_back({OpType::CPU, cpu_nodes_.size()-1});
 
-    new_node = &cpu_node;
-  } else if (device == "gpu") {
-    gpu_nodes_.resize(gpu_nodes_.size()+1);
-    OpNode &gpu_node = gpu_nodes_.back();
-    id_to_node_map_.push_back({DALI_GPU, gpu_nodes_.size()-1});
+      new_node = &cpu_node;
+      break;
+    }
+    case OpType::GPU: {
+      gpu_nodes_.resize(gpu_nodes_.size()+1);
+      OpNode &gpu_node = gpu_nodes_.back();
+      id_to_node_map_.push_back({OpType::GPU, gpu_nodes_.size()-1});
 
-    new_node = &gpu_node;
-  } else if (device == "mixed") {
-    // Enforce graph constraints
-    DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
+      new_node = &gpu_node;
+      break;
+    }
+    case OpType::MIXED: {
+      // Enforce graph constraints
+      DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
 
-    mixed_nodes_.resize(mixed_nodes_.size()+1);
-    OpNode &mixed_node = mixed_nodes_.back();
-    id_to_node_map_.push_back({DALI_MIXED, mixed_nodes_.size()-1});
+      mixed_nodes_.resize(mixed_nodes_.size()+1);
+      OpNode &mixed_node = mixed_nodes_.back();
+      id_to_node_map_.push_back({OpType::MIXED, mixed_nodes_.size()-1});
 
-    new_node = &mixed_node;
-  } else if (device == "support") {
-    // Enforce graph constraints
-    DALI_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
+      new_node = &mixed_node;
+      break;
+    }
+    case OpType::SUPPORT: {
+      // Enforce graph constraints
+      DALI_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
 
-    support_nodes_.resize(support_nodes_.size()+1);
-    OpNode &support_node = support_nodes_.back();
-    id_to_node_map_.push_back({DALI_SUPPORT, support_nodes_.size() - 1});
+      support_nodes_.resize(support_nodes_.size()+1);
+      OpNode &support_node = support_nodes_.back();
+      id_to_node_map_.push_back({OpType::SUPPORT, support_nodes_.size() - 1});
 
-    new_node = &support_node;
-  } else {
-    DALI_FAIL("Invalid device argument \"" + device +
-        "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
+      new_node = &support_node;
+      break;
+    }
+    default:
+      DALI_FAIL("Invalid device argument \"" + device +
+          "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
+      break;
   }
 
   // Add node meta-data and add to the list of nodes
@@ -323,7 +347,7 @@ void OpGraph::RemoveOp(NodeID id) {
   // to fill the gap.
   //
   auto type_and_idx = id_to_node_map_[id];
-  DALIOpType type = type_and_idx.first;
+  OpType type = type_and_idx.first;
   int idx = type_and_idx.second;
   id_to_node_map_.erase(id_to_node_map_.begin() + id);
 
@@ -331,7 +355,7 @@ void OpGraph::RemoveOp(NodeID id) {
   // We will then need to update the id map entry for
   // all nodes of this type that follow the deleted node
   switch (type) {
-  case DALI_CPU:
+  case OpType::CPU:
     cpu_nodes_.erase(cpu_nodes_.begin() + idx);
 
     for (size_t i = idx; i < cpu_nodes_.size(); ++i) {
@@ -339,7 +363,7 @@ void OpGraph::RemoveOp(NodeID id) {
       id_to_node_map_[cpu_node.id].second = i;
     }
     break;
-  case DALI_GPU:
+  case OpType::GPU:
     gpu_nodes_.erase(gpu_nodes_.begin() + idx);
 
     for (size_t i = idx; i < gpu_nodes_.size(); ++i) {
@@ -347,7 +371,7 @@ void OpGraph::RemoveOp(NodeID id) {
       id_to_node_map_[gpu_node.id].second = i;
     }
     break;
-  case DALI_MIXED:
+  case OpType::MIXED:
     mixed_nodes_.erase(mixed_nodes_.begin() + idx);
 
     for (size_t i = idx; i < mixed_nodes_.size(); ++i) {
@@ -355,13 +379,16 @@ void OpGraph::RemoveOp(NodeID id) {
       id_to_node_map_[mixed_node.id].second = i;
     }
     break;
-  case DALI_SUPPORT:
+  case OpType::SUPPORT:
     support_nodes_.erase(support_nodes_.begin() + idx);
 
     for (size_t i = idx; i < support_nodes_.size(); ++i) {
       OpNode &support_node = this->support_node(i);
       id_to_node_map_[support_node.id].second = i;
     }
+    break;
+  default:
+    DALI_FAIL("Invalid OpType");
   }
 }
 
@@ -370,16 +397,16 @@ OpNode& OpGraph::node(NodeID id) {
   auto idx_pair = id_to_node_map_[id];
 
   switch (idx_pair.first) {
-  case DALI_CPU:
+  case OpType::CPU:
     return cpu_nodes_[idx_pair.second];
     break;
-  case DALI_GPU:
+  case OpType::GPU:
     return gpu_nodes_[idx_pair.second];
     break;
-  case DALI_MIXED:
+  case OpType::MIXED:
     return mixed_nodes_[idx_pair.second];
     break;
-  case DALI_SUPPORT:
+  case OpType::SUPPORT:
     return support_nodes_[idx_pair.second];
     break;
   default:
