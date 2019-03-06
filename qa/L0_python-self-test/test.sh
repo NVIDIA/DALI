@@ -11,6 +11,7 @@ test_body() {
     nosetests --verbose test_pipeline.py
     nosetests --verbose test_plugin_manager.py
 
+    # DISABLED FAILING TESTS DUE TO RANDOM FAILS IN THE CI
     # python test_random_bbcrop.py -i 300
     # python test_RN50_data_pipeline.py -i 10
 
