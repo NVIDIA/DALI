@@ -25,9 +25,10 @@ namespace dali {
 namespace kernels {
 
 struct FilterWindow;
+struct ResamplingFilter;
 
 void InitializeResamplingFilter(int32_t *out_indices, float *out_coeffs, int out_size,
-                                float srcx0, float scale, const FilterWindow &filter);
+                                float srcx0, float scale, const ResamplingFilter &filter);
 
 template <int static_channels, bool clamp_left, bool clamp_right, typename Out, typename In>
 void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns,

@@ -14,6 +14,7 @@
 
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -27,28 +28,26 @@ namespace dali {
 namespace kernels {
 
 template <typename Function>
-__device__ inline void InitFilter(ResamplingFilter &filter, Function F) {
-  int i = threadIdx.x + blockIdx.x*blockDim.x;
-  if (i > filter.num_coeffs)
-    return;
-  filter.coeffs[i] = F(i);
+inline void InitFilter(ResamplingFilter &filter, Function F) {
+  for (int i = 0; i < filter.num_coeffs; i++)
+    filter.coeffs[i] = F(i);
 }
 
-__global__ void InitGaussianFilter(ResamplingFilter filter) {
+void InitGaussianFilter(ResamplingFilter filter) {
   InitFilter(filter, [&](int i) {
     float x = 4 * (i - (filter.num_coeffs-1)*0.5f) / (filter.num_coeffs-1);
     return expf(-x*x);
   });
 }
 
-__global__ void InitLanczosFilter(ResamplingFilter filter, float a) {
+void InitLanczosFilter(ResamplingFilter filter, float a) {
   InitFilter(filter, [&](int i) {
     float x = 2 * a * (i - (filter.num_coeffs-1)*0.5f) / (filter.num_coeffs-1);
     return LanczosWindow(x, a);
   });
 }
 
-__global__ void InitCubicFilter(ResamplingFilter filter) {
+void InitCubicFilter(ResamplingFilter filter) {
   InitFilter(filter, [&](int i) {
     float x = 4 * (i - (filter.num_coeffs-1)*0.5f) / (filter.num_coeffs-1);
     return CubicWindow(x);
@@ -62,7 +61,7 @@ enum FilterIdx {
   Idx_Cubic
 };
 
-void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
+void InitFilters(ResamplingFilters &filters, AllocType alloc) {
   const int lanczos_resolution = 32;
   const int lanczos_a = 3;
   const int triangular_size = 3;
@@ -71,7 +70,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
-  filters.filter_data = memory::alloc_unique<float>(AllocType::Unified, total_size);
+  filters.filter_data = memory::alloc_unique<float>(alloc, total_size);
 
   auto add_filter = [&](int size) {
     float *base = filters.filters.empty()
@@ -89,15 +88,14 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   auto *tri_coeffs = filters.filters[Idx_Triangular].coeffs;
   tri_coeffs[0] = 0;
   tri_coeffs[1] = 1;
-  tri_coeffs[0] = 0;
+  tri_coeffs[2] = 0;
 
-  InitGaussianFilter<<<1, gaussian_size, 0, stream>>>(filters.filters[Idx_Gaussian]);
-  InitLanczosFilter<<<1, lanczos_size, 0, stream>>>(filters.filters[Idx_Lanczos3], lanczos_a);
-  InitCubicFilter<<<1, cubic_size, 0, stream>>>(filters.filters[Idx_Cubic]);
+  InitGaussianFilter(filters.filters[Idx_Gaussian]);
+  InitLanczosFilter(filters.filters[Idx_Lanczos3], lanczos_a);
+  InitCubicFilter(filters.filters[Idx_Cubic]);
 
   filters[2].rescale(6);
   filters[3].rescale(4);
-  cudaStreamSynchronize(stream);
 }
 
 ResamplingFilter ResamplingFilters::Cubic() const noexcept {
@@ -121,22 +119,39 @@ ResamplingFilter ResamplingFilters::Triangular(float radius) const noexcept {
 }
 
 
-static std::unordered_map<int, std::weak_ptr<ResamplingFilters>> filters;
+static std::vector<std::weak_ptr<ResamplingFilters>> filters;
+static std::shared_ptr<ResamplingFilters> cpu_filters;
 static std::mutex filter_mutex;
 
-std::shared_ptr<ResamplingFilters> GetResamplingFilters(cudaStream_t stream) {
+std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
   std::lock_guard<std::mutex> lock(filter_mutex);
   int device = 0;
   if (cudaGetDevice(&device) != cudaSuccess)
     return nullptr;
 
+  if (filters.empty()) {
+    int count;
+    cudaGetDeviceCount(&count);
+    filters.resize(count);
+  }
+
   auto ptr = filters[device].lock();
   if (!ptr) {
     ptr = std::make_shared<ResamplingFilters>();
-    InitFilters(*ptr, stream);
+    InitFilters(*ptr, AllocType::Unified);
     filters[device] = ptr;
   }
   return ptr;
+}
+
+
+std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    cpu_filters = std::make_shared<ResamplingFilters>();
+    InitFilters(*cpu_filters, AllocType::Host);
+  });
+  return cpu_filters;
 }
 
 }  // namespace kernels

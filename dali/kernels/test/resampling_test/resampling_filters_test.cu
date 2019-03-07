@@ -22,9 +22,9 @@ namespace dali {
 namespace kernels {
 
 TEST(ResamplingFilters, GetFilters) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   EXPECT_NE(filters, nullptr);
-  auto filters2 = GetResamplingFilters(0);
+  auto filters2 = GetResamplingFilters();
   EXPECT_EQ(filters, filters2);
 }
 
@@ -39,7 +39,7 @@ __global__ void GetFilterValues(float *out, ResamplingFilter filter,
 // DISABLED: this 'test' is only for eyeballing the filters; it hardly tests anything,
 //           but would flood the output with a lot of numbers.
 TEST(ResamplingFilters, DISABLED_PrintFilters) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ASSERT_NE(filters, nullptr);
   for (auto &f : filters->filters) {
     for (int i = 0; i < f.num_coeffs; i++)
@@ -50,7 +50,7 @@ TEST(ResamplingFilters, DISABLED_PrintFilters) {
 
 
 TEST(ResamplingFilters, TestTriangular) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ASSERT_NE(filters, nullptr);
   int radius = 64;
   auto f = filters->Triangular(radius);
@@ -67,7 +67,7 @@ TEST(ResamplingFilters, TestTriangular) {
 }
 
 TEST(ResamplingFilters, Gaussian) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ASSERT_NE(filters, nullptr);
   int radius = 64;
   const float sigma = radius / (2 * sqrt(2));
@@ -87,7 +87,7 @@ TEST(ResamplingFilters, Gaussian) {
 }
 
 TEST(ResamplingFilters, Lanczos3) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ASSERT_NE(filters, nullptr);
   int radius = 3*64;
   auto f = filters->Lanczos3();
@@ -106,7 +106,7 @@ TEST(ResamplingFilters, Lanczos3) {
 }
 
 TEST(ResamplingFilters, Cubic) {
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ASSERT_NE(filters, nullptr);
   int radius = 64;
   auto f = filters->Cubic();

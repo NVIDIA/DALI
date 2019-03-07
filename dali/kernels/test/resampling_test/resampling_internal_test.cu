@@ -90,7 +90,7 @@ TEST(Resample, HorizontalGaussian) {
 
   copy(img_in, img);  // NOLINT
 
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ResamplingFilter filter = (*filters)[1];
 
   int radius = 40;
@@ -139,7 +139,7 @@ TEST(Resample, VerticalGaussian) {
 
   copy(img_in, img);  // NOLINT
 
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ResamplingFilter filter = (*filters)[1];
 
   int radius = 40;
@@ -416,7 +416,7 @@ class ResamplingTest : public ::testing::Test {
 TEST_F(ResamplingTest, ResampleGauss) {
   SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
   float sigmaY = (1/ScaleY() - 0.3f) / sqrt(2);
   auto fx = filters->Gaussian(sigmaX);
@@ -431,7 +431,7 @@ TEST_F(ResamplingTest, ResampleGauss) {
 TEST_F(ResamplingTest, ResampleVHGauss) {
   SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
   float sigmaY = (1/ScaleY() - 0.3f) / sqrt(2);
   auto fx = filters->Gaussian(sigmaX);
@@ -448,7 +448,7 @@ TEST_F(ResamplingTest, SeparableTriangular) {
   SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_PIL.png");
   SetOutputSize(300, 300);
 
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   auto fx = filters->Triangular(1 / ScaleX());
   auto fy = filters->Triangular(1 / ScaleY());
 
@@ -461,7 +461,7 @@ TEST_F(ResamplingTest, SeparableTriangular) {
 
 TEST_F(ResamplingTest, GaussianBlur) {
   SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png");
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   float sigmaX = 6.0f / sqrt(2);
   float sigmaY = 6.0f / sqrt(2);
 
@@ -475,7 +475,7 @@ TEST_F(ResamplingTest, GaussianBlur) {
 TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
   SetSource("imgproc_test/alley.png", nullptr);
 
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   for (int i = 0; i < 10; i++) {
     float sigmaX = powf(1.10f, i) * 0.5f;
     float sigmaY = powf(1.10f, i) * 0.5f;
@@ -494,7 +494,7 @@ TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
 TEST_F(ResamplingTest, Lanczos3) {
   SetSource("imgproc_test/score.png", "imgproc_test/ref_out/score_lanczos3.png");
   SetScale(5, 5);
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ResamplingFilter f = filters->Lanczos3();
   SetFilters(f, f);
   Prepare();
@@ -506,7 +506,7 @@ TEST_F(ResamplingTest, Lanczos3) {
 TEST_F(ResamplingTest, DISABLED_Cubic) {
   SetSource("imgproc_test/score.png", "imgproc_test/ref_out/score_cubic.png");
   SetOutputSize(200, 93);
-  auto filters = GetResamplingFilters(0);
+  auto filters = GetResamplingFilters();
   ResamplingFilter f = filters->Cubic();
   SetFilters(f, f);
   Prepare();

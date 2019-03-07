@@ -39,7 +39,7 @@ struct SeparableResamplingGPUImpl : Interface {
   using SampleDesc = SeparableResamplingSetup::SampleDesc;
 
   /// Generates and stores resampling setup
-  SeparableResamplingSetup setup;
+  BatchResamplingSetup setup;
 
   using IntermediateElement = float;
   using Intermediate = OutListGPU<IntermediateElement, 3>;
@@ -48,12 +48,12 @@ struct SeparableResamplingGPUImpl : Interface {
   Intermediate intermediate;
 
   void Initialize(KernelContext &context) {
-    setup.Initialize(context.gpu.stream);
+    setup.Initialize();
   }
 
   virtual KernelRequirements Setup(KernelContext &context, const Input &in, const Params &params) {
     Initialize(context);
-    setup.SetupComputation(in.shape, params);
+    setup.SetupBatch(in.shape, params);
     // this will allocate and calculate offsets
     intermediate = { nullptr, setup.intermediate_shape };
 

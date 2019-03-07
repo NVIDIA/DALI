@@ -18,8 +18,7 @@
 namespace dali {
 namespace kernels {
 
-inline ResamplingFilter GetResamplingFilter(
-    const ResamplingFilters *filters, const FilterDesc &params) noexcept {
+ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
     case ResamplingFilterType::Linear:
       return filters->Triangular(1);
@@ -37,19 +36,18 @@ inline ResamplingFilter GetResamplingFilter(
 }
 
 void SeparableResamplingSetup::SetFilters(SampleDesc &desc, const ResamplingParams2D &params) {
-  const auto &out_shape = desc.shapes[IdxOut];
   for (int axis = 0; axis < 2; axis++) {
     float in_size;
     if (params[axis].roi.use_roi) {
       in_size = std::abs(params[axis].roi.end - params[axis].roi.start);
     } else {
-      in_size = desc.shapes[IdxIn][axis];
+      in_size = desc.in_shape()[axis];
     }
 
-    auto fdesc = out_shape[axis] < in_size ? params[axis].min_filter
-                                           : params[axis].mag_filter;
+    auto fdesc = desc.out_shape()[axis] < in_size ? params[axis].min_filter
+                                                  : params[axis].mag_filter;
     if (fdesc.radius == 0)
-      fdesc.radius = DefaultFilterRadius(fdesc.type, in_size, out_shape[axis]);
+      fdesc.radius = DefaultFilterRadius(fdesc.type, in_size, desc.out_shape()[axis]);
     desc.filter_type[axis] = fdesc.type;
     auto &filter = desc.filter[axis];
     filter = GetResamplingFilter(filters.get(), fdesc);
@@ -67,10 +65,10 @@ SeparableResamplingSetup::ROI SeparableResamplingSetup::ComputeScaleAndROI(
       roi_end = params[axis].roi.end;
     } else {
       roi_start = 0;
-      roi_end = desc.shapes[IdxIn][axis];
+      roi_end = desc.in_shape()[axis];
     }
     desc.origin[axis] = roi_start;
-    desc.scale[axis] = (roi_end-roi_start) / desc.shapes[IdxOut][axis];
+    desc.scale[axis] = (roi_end-roi_start) / desc.out_shape()[axis];
 
     auto &filter = desc.filter[axis];
 
@@ -84,17 +82,83 @@ SeparableResamplingSetup::ROI SeparableResamplingSetup::ComputeScaleAndROI(
       lo = roi_end - filter.anchor;
       hi = roi_start - filter.anchor + support;
     }
-    roi.lo[axis] = std::max<int>(0, std::min<int>(desc.shapes[IdxIn][axis], std::floor(lo)));
-    roi.hi[axis] = std::max<int>(0, std::min<int>(desc.shapes[IdxIn][axis], std::floor(hi)));
+    roi.lo[axis] = std::max<int>(0, std::min<int>(desc.in_shape()[axis], std::floor(lo)));
+    roi.hi[axis] = std::max<int>(0, std::min<int>(desc.in_shape()[axis], std::floor(hi)));
   }
 
   return roi;
 }
 
-void SeparableResamplingSetup::SetupComputation(
+void SeparableResamplingSetup::SetupSample(
+    SampleDesc &desc,
+    const TensorShape<3> &in_shape,
+    const ResamplingParams2D &params) {
+  int H = in_shape[0];
+  int W = in_shape[1];
+  int C = in_shape[2];
+  int out_H = params[0].output_size;
+  int out_W = params[1].output_size;
+
+  if (out_H == KeepOriginalSize) out_H = H;
+  if (out_W == KeepOriginalSize) out_W = W;
+
+  desc.in_shape() = {{ H, W }};
+  desc.out_shape() = {{ out_H, out_W }};
+  SetFilters(desc, params);
+  ROI roi = ComputeScaleAndROI(desc, params);
+
+  int size_vert = roi.size(1) * out_H;
+  int size_horz = roi.size(0) * out_W;
+  int filter_support[2] = {
+    std::max(1, desc.filter[0].support()),
+    std::max(1, desc.filter[1].support())
+  };
+
+  int compute_vh = size_vert * filter_support[0] + out_W * out_H * filter_support[1];
+  int compute_hv = size_horz * filter_support[1] + out_W * out_H * filter_support[0];
+
+  // ...maybe fine tune the size/compute weights?
+  const float size_weight = 3;
+  float cost_vert = size_weight*size_vert + compute_vh;
+  float cost_horz = size_weight*size_horz + compute_hv;
+
+  int tmp_H, tmp_W;
+  if (cost_vert < cost_horz) {
+    desc.order = VertHorz;
+    tmp_H = out_H;
+    tmp_W = roi.size(1);
+    desc.block_count.pass[0] = (out_H + block_size.y - 1) / block_size.y;
+    desc.block_count.pass[1] = (out_W + block_size.x - 1) / block_size.x;
+  } else {
+    desc.order = HorzVert;
+    tmp_H = roi.size(0);
+    tmp_W = out_W;
+    desc.block_count.pass[0] = (out_W + block_size.x - 1) / block_size.x;
+    desc.block_count.pass[1] = (out_H + block_size.y - 1) / block_size.y;
+  }
+  desc.tmp_shape() = {{ tmp_H, tmp_W }};
+
+  for (int stage = 0; stage < 3; stage++) {
+    desc.strides[stage] = desc.shapes[stage][1] * C;
+    desc.offsets[stage] = 0;
+  }
+  desc.channels = C;
+
+  if (desc.order == VertHorz) {
+    desc.origin[1] -= roi.lo[1];
+    desc.in_offset() += roi.lo[1] * desc.channels;
+    desc.in_shape()[1] = roi.size(1);
+  } else {
+    desc.origin[0] -= roi.lo[0];
+    desc.in_offset() += roi.lo[0] * desc.in_stride();
+    desc.in_shape()[0] = roi.size(0);
+  }
+}
+
+void BatchResamplingSetup::SetupBatch(
     const TensorListShape<3> &in, const Params &params) {
   if (!filters)
-    Initialize(0);
+    Initialize();
 
   int N = in.num_samples();
   assert(params.size() == static_cast<size_t>(N));
@@ -110,75 +174,22 @@ void SeparableResamplingSetup::SetupComputation(
 
   for (int i = 0; i < N; i++) {
     SampleDesc &desc = sample_descs[i];
-    auto ts_in = in.tensor_shape_span(i);
-    int H = ts_in[0];
-    int W = ts_in[1];
-    int C = ts_in[2];
-    int out_H = params[i][0].output_size;
-    int out_W = params[i][1].output_size;
-
-    if (out_H == KeepOriginalSize) out_H = H;
-    if (out_W == KeepOriginalSize) out_W = W;
-
-    auto ts_out = output_shape.tensor_shape_span(i);
-    ts_out[0] = out_H;
-    ts_out[1] = out_W;
-    ts_out[2] = C;
-
-    desc.shapes[IdxIn] = {{ H, W }};
-    desc.shapes[IdxOut] = {{ out_H, out_W }};
-    SetFilters(desc, params[i]);
-    ROI roi = ComputeScaleAndROI(desc, params[i]);
-
-    int size_vert = roi.size(1) * out_H;
-    int size_horz = roi.size(0) * out_W;
-    int filter_support[2] = {
-      std::max(1, desc.filter[0].support()),
-      std::max(1, desc.filter[1].support())
-    };
-
-    int compute_vh = size_vert * filter_support[0] + out_W * out_H * filter_support[1];
-    int compute_hv = size_horz * filter_support[1] + out_W * out_H * filter_support[0];
-
-    // ...maybe fine tune the size/compute weights?
-    const float size_weight = 3;
-    float cost_vert = size_weight*size_vert + compute_vh;
-    float cost_horz = size_weight*size_horz + compute_hv;
+    auto ts_in = in.tensor_shape(i);
+    SetupSample(desc, ts_in, params[i]);
 
     auto ts_tmp = intermediate_shape.tensor_shape_span(i);
-    if (cost_vert < cost_horz) {
-      sample_descs[i].order = VertHorz;
-      ts_tmp[0] = out_H;
-      ts_tmp[1] = roi.size(1);
-      desc.block_count.pass[0] = (out_H + block_size.y - 1) / block_size.y;
-      desc.block_count.pass[1] = (out_W + block_size.x - 1) / block_size.x;
-    } else {
-      sample_descs[i].order = HorzVert;
-      ts_tmp[0] = roi.size(0);
-      ts_tmp[1] = out_W;
-      desc.block_count.pass[0] = (out_W + block_size.x - 1) / block_size.x;
-      desc.block_count.pass[1] = (out_H + block_size.y - 1) / block_size.y;
-    }
-    ts_tmp[2] = C;
-    desc.shapes[IdxTmp] = {{ static_cast<int>(ts_tmp[0]), static_cast<int>(ts_tmp[1]) }};
+    ts_tmp[0] = desc.tmp_shape()[0];
+    ts_tmp[1] = desc.tmp_shape()[1];
+    ts_tmp[2] = desc.channels;
 
-    for (int stage = 0; stage < 3; stage++)
-      desc.strides[stage] = desc.shapes[stage][1] * C;
-    desc.channels = C;
+    auto ts_out = output_shape.tensor_shape_span(i);
+    ts_out[0] = desc.out_shape()[0];
+    ts_out[1] = desc.out_shape()[1];
+    ts_out[2] = desc.channels;
 
-    desc.offsets[IdxIn] = in_offset;
-    desc.offsets[IdxTmp] = tmp_offset;
-    desc.offsets[IdxOut] = out_offset;
-
-    if (desc.order == VertHorz) {
-      desc.origin[1] -= roi.lo[1];
-      desc.offsets[IdxIn] += roi.lo[1] * desc.channels;
-      desc.shapes[IdxIn][1] = roi.size(1);
-    } else {
-      desc.origin[0] -= roi.lo[0];
-      desc.offsets[IdxIn] += roi.lo[0] * desc.strides[IdxIn];
-      desc.shapes[IdxIn][0] = roi.size(0);
-    }
+    desc.in_offset() += in_offset;
+    desc.tmp_offset() += tmp_offset;
+    desc.out_offset() += out_offset;
 
     in_offset  += volume(ts_in);
     tmp_offset += volume(ts_tmp);
@@ -190,7 +201,7 @@ void SeparableResamplingSetup::SetupComputation(
   intermediate_size = tmp_offset;
 }
 
-void SeparableResamplingSetup::InitializeSampleLookup(
+void BatchResamplingSetup::InitializeSampleLookup(
     const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup) {
   assert(sample_lookup.shape[0] >= total_blocks.pass[0] + total_blocks.pass[1]);
   int block = 0;

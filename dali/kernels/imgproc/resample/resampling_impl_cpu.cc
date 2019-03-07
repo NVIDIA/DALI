@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <cmath>
-#include "dali/kernels/imgproc/resample/resampling_windows.h"
+#include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_impl_cpu.h"
 
 namespace dali {
@@ -21,7 +21,7 @@ namespace kernels {
 
 void InitializeResamplingFilter(
     int32_t *out_indices, float *out_coeffs, int out_size,
-    float srcx_0, float scale, const FilterWindow &filter) {
+    float srcx_0, float scale, const ResamplingFilter &filter) {
 
   srcx_0 += 0.5f * scale - 0.5f - filter.anchor;
   int support = filter.support();
@@ -34,7 +34,7 @@ void InitializeResamplingFilter(
     float sum = 0;
     int k = 0;
     for (int k = 0; k < support; k++) {
-      float c = filter(f0 + k);
+      float c = filter((f0 + k) * filter.scale);
       out_coeffs[support * x + k] = c;
       sum += c;
     }
