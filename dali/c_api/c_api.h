@@ -76,6 +76,48 @@ extern "C" {
   DLL_PUBLIC int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n);
 
   /**
+   * @brief Return the shape of the 'k' output tensor from tensor list
+   * stored at position `n` in the pipeline.
+   * This function may only be called after
+   * calling Output function.
+   * @remarks Caller is responsible to 'free' the memory returned
+   */
+  DLL_PUBLIC int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
+
+  /**
+   * @brief Return the number of tensors in the tensor list
+   * stored at position `n` in the pipeline.
+   */
+  DLL_PUBLIC size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n);
+
+  /**
+   * @brief Return the number of all elements in the tensor list
+   * stored at position `n` in the pipeline.
+   */
+  DLL_PUBLIC size_t daliNumElements(daliPipelineHandle* pipe_handle, int n);
+
+  /**
+   * @brief Return the size of the tensor list
+   * stored at position `n` in the pipeline.
+   */
+  DLL_PUBLIC size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n);
+
+  /**
+   * @brief Return maximum number of dimensions from all tensors
+   * from the tensor list stored at position `n` in the pipeline.
+   */
+  DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n);
+
+  /**
+   * @brief Copy the output tensor list stored
+   * at position `n` in the pipeline.
+   * dst_type (0 - CPU, 1 - GPU)
+   * @remarks Tensor list doesn't need to be dense
+   */
+  DLL_PUBLIC void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
+                                          device_type_t dst_type);
+
+  /**
    * @brief Returns number of DALI pipeline outputs
    */
   DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle);
@@ -83,6 +125,7 @@ extern "C" {
    * @brief Copy the output tensor stored
    * at position `n` in the pipeline.
    * dst_type (0 - CPU, 1 - GPU)
+   * @remarks If the output is tensor list then it need to be dense
    */
   DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
                                           device_type_t dst_type);

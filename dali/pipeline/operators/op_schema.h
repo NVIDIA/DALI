@@ -41,9 +41,11 @@ class DLL_PUBLIC OpSchema {
   OpSchema &operator=(OpSchema &&) = default;
 
   DLL_PUBLIC explicit inline OpSchema(const std::string &name)
-    : name_(name),
-      allow_multiple_input_sets_(false),
-      enforce_layout_(false) {
+    : name_(name)
+    , allow_multiple_input_sets_(false)
+    , enforce_layout_(false)
+    , allow_sequences_(false)
+    , is_sequence_operator_(false) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
@@ -63,7 +65,9 @@ class DLL_PUBLIC OpSchema {
     internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
     internal_arguments_unq_.push_back(std::move(v));
 
-    AddOptionalArg("seed", "Random seed", 1234);
+    AddOptionalArg("seed", "Random seed (If not provided it will be populated based "
+      "on the global seed of the pipeline)", -1);
+
     AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
       "per sample. The memory will be preallocated if it uses GPU or page-locked memory", 0);
   }
@@ -150,6 +154,22 @@ class DLL_PUBLIC OpSchema {
    */
   DLL_PUBLIC inline OpSchema& AllowMultipleInputSets() {
     allow_multiple_input_sets_ = true;
+    return *this;
+  }
+
+  /**
+   * @brief Notes that this operator expects sequence inputs exclusively
+   */
+  DLL_PUBLIC inline OpSchema& SequenceOperator() {
+    is_sequence_operator_ = true;
+    return *this;
+  }
+
+  /**
+   * @brief Notes that sequences can be used with this op
+   */
+  DLL_PUBLIC inline OpSchema& AllowSequences() {
+    allow_sequences_ = true;
     return *this;
   }
 
@@ -263,6 +283,14 @@ class DLL_PUBLIC OpSchema {
     return layout_;
   }
 
+  DLL_PUBLIC inline bool IsSequenceOperator() const {
+    return is_sequence_operator_;
+  }
+
+  DLL_PUBLIC inline bool AllowsSequences() const {
+    return allow_sequences_;
+  }
+
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
@@ -325,6 +353,9 @@ class DLL_PUBLIC OpSchema {
 
   bool enforce_layout_;
   DALITensorLayout layout_;
+
+  bool allow_sequences_;
+  bool is_sequence_operator_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

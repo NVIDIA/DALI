@@ -88,6 +88,7 @@ class COCOParser: public Parser<ImageLabelWrapper> {
     std::memcpy(image_output.raw_mutable_data(),
                 image_label.image.raw_data(),
                 image_size);
+    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
 
     int stride = 0;
     for (auto it = range.first; it != range.second; ++it) {

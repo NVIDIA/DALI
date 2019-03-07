@@ -12,15 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <signal.h>
+#include <cstring>
 #include "dali/pipeline/init.h"
-
+#include "dali/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
 
+#if DALI_DEBUG
+
+namespace {
+
+void signal_handler(int sig) {
+  std::cerr << "Error: signal " << strsignal(sig) << ":"
+            << GetStacktrace() << std::endl;
+  exit(1);
+}
+
+void subscribe_signals() {
+  signal(SIGTERM, signal_handler);
+  signal(SIGKILL, signal_handler);
+  signal(SIGSEGV, signal_handler);
+}
+
+}  // namespace
+
+#endif
+
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator) {
+#if DALI_DEBUG
+  subscribe_signals();
+#endif
   InitializeBackends(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
 }
 

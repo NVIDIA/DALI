@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 # List of currently used arch values
 set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75")
+
+set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
 
 # Find if passing `flags` to nvcc producess success or failure
 # Unix only

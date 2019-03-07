@@ -72,7 +72,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       auto& encoded_feature = example.features().feature().at(name);
       if (f.HasShape() && f.GetType() != FeatureType::string) {
         if (f.Shape().empty()) {
-        output.Resize({1});
+          output.Resize({1});
         } else {
           output.Resize(f.Shape());
         }
@@ -87,7 +87,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
           break;
         case FeatureType::string:
-          if (!f.HasShape() || Product(f.Shape()) > 1) {
+          if (!f.HasShape() || volume(f.Shape()) > 1) {
             DALI_FAIL("Tensors of strings are not supported.");
           }
           output.Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
@@ -104,6 +104,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.float_list().value().size()*sizeof(float));
           break;
       }
+      output.SetSourceInfo(data.GetSourceInfo());
     }
   }
 

@@ -20,6 +20,14 @@
 namespace dali {
 namespace kernels {
 
+static_assert(compile_time_size_impl<int[41]>::value == 41, "Unexpected value");
+static_assert(compile_time_size_impl<std::array<uint16_t, 123>>::value == 123,
+  "Unexpected array size");
+static_assert(compile_time_size_impl<TensorShape<9>>::value == 9,
+  "Unexpected tensor shape size");
+static_assert(compile_time_size_impl<TensorShape<>>::value == DynamicDimensions,
+  "Unexpected tensor shape size");
+
 TEST(TensorShapeTest, DefaultStaticShapeConstructor) {
   TensorShape<0> zero_tensor;
   ASSERT_EQ(zero_tensor.size(), 0);

@@ -53,7 +53,8 @@ class Loader {
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")),
-      read_ahead_(options.GetArgument<bool>("read_ahead")) {
+      read_ahead_(options.GetArgument<bool>("read_ahead")),
+      stick_to_shard_(options.GetArgument<bool>("stick_to_shard")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -167,6 +168,20 @@ class Loader {
   virtual Index Size() = 0;
 
  protected:
+  virtual void MoveToNextShard(Index current_index) {
+    if (IsNextShard(current_index)) {
+      Reset(stick_to_shard_);
+    }
+  }
+  // Reset reader to the first sample
+  virtual void Reset(bool wrap_to_shard) = 0;
+
+  // Check if given reader moved to the next shard
+  virtual inline bool IsNextShard(Index current_index) {
+     return current_index >= Size() ||
+            (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
+            current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
+  }
   std::vector<LoadTarget*> sample_buffer_;
 
   std::list<LoadTarget*> empty_tensors_;
@@ -195,6 +210,9 @@ class Loader {
   bool copy_read_data_;
   // if accessed files should be loaded into memory in advance at the first access
   bool read_ahead_;
+  // if reader for the given GPU should read over and over the same shard or should go through
+  // whole data set
+  bool stick_to_shard_;
 };
 
 };  // namespace dali

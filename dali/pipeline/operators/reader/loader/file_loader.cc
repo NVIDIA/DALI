@@ -98,9 +98,7 @@ void FileLoader::ReadSample(ImageLabelWrapper* image_label) {
   auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
-  if (current_index_ == Size()) {
-    current_index_ = 0;
-  }
+  MoveToNextShard(current_index_);
 
   auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first, read_ahead_);
   Index image_size = current_image->Size();

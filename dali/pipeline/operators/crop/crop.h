@@ -17,74 +17,23 @@
 
 #include <utility>
 #include <vector>
-
+#include <tuple>
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
+#include "dali/pipeline/operators/crop/crop_attr.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
-/**
- * @brief Crop parameter and input size handling.
- *
- * Responsible for accessing image type, starting points and size of crop area.
- */
-class CropAttr {
- protected:
-  explicit inline CropAttr(const OpSpec &spec)
-      : image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        C_(IsColor(image_type_) ? 3 : 1),
-        batch_size_{spec.GetArgument<int>("batch_size")} {
-    if (spec.name() != "Resize") {
-      vector<float> cropArgs = spec.GetRepeatedArgument<float>("crop");
-
-      DALI_ENFORCE(cropArgs[0] >= 0, "Crop height must be greater than zero. Received: " +
-                                         std::to_string(cropArgs[0]));
-      DALI_ENFORCE(cropArgs[1] >= 0, "Crop width must be greater than zero. Received: " +
-                                         std::to_string(cropArgs[1]));
-
-      crop_height_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[0]));
-      crop_width_ = std::vector<int>(batch_size_, static_cast<int>(cropArgs[1]));
-    }
-  }
-
-  /**
-   * @brief Calculate coordinate where the crop starts in pixels.
-   *
-   * TODO(klecki) this should produce (crop_[0] * W, crop_[1] * H) and is broken, (FIXME)
-   *
-   * @param spec
-   * @param ws
-   * @param imgIdx
-   * @param H
-   * @param W
-   * @return std::pair<int, int>
-   */
-  std::pair<int, int> SetCropXY(const OpSpec &spec, const ArgumentWorkspace *ws,
-                                const Index dataIdx, int H, int W);
-
-  /**
-   * @brief Enforce that all shapes match
-   *
-   * @param ws
-   * @return const vector<Index> One matching shape for all inputs
-   */
-  virtual const vector<Index> CheckShapes(const SampleWorkspace *ws);
-
-  vector<int> crop_height_;
-  vector<int> crop_width_;
-
-  const DALIImageType image_type_;
-  const int C_;
-  const int batch_size_;
-};
-
 template <typename Backend>
 class Crop : public Operator<Backend>, protected CropAttr {
  public:
-  explicit inline Crop(const OpSpec &spec) : Operator<Backend>(spec), CropAttr(spec) {
+  explicit inline Crop(const OpSpec &spec)
+    : Operator<Backend>(spec)
+    , CropAttr(spec)
+    , C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
     // Resize per-image data
     crop_offsets_.resize(batch_size_);
     input_ptrs_.Resize({batch_size_});
@@ -164,28 +113,40 @@ class Crop : public Operator<Backend>, protected CropAttr {
   // Output data layout
   DALITensorLayout output_layout_;
 
+  const int C_;
+
   USE_OPERATOR_MEMBERS();
 
  private:
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
 
+  inline static std::tuple<Index, Index, Index> GetHWC(const vector<Index> &shape) {
+    if (shape.size() == 3) {
+      return std::make_tuple(shape[0], shape[1], shape[2]);
+    } else if (shape.size() == 4) {
+      return std::make_tuple(shape[1], shape[2], shape[3]);
+    }
+    DALI_FAIL("Expected 3-dimensional or 4-dimensional input");
+  }
+
   void SetupSharedSampleParams(const ArgumentWorkspace *ws,
                                const vector<Index> &inputShape, int threadIdx,
                                int dataIdx) {
-    DALI_ENFORCE(inputShape.size() == 3, "Expects 3-dimensional image input.");
-
-    const int H = inputShape[0];
-    const int W = inputShape[1];
+    Index H, W, C;
+    std::tie(H, W, C) = GetHWC(inputShape);
 
     per_sample_dimensions_[threadIdx] = std::make_pair(H, W);
 
-    int C = inputShape[2];
     DALI_ENFORCE(C == C_,
-                 "Input channel dimension does not match "
-                 "the output image type. Expected input with " +
-                     to_string(C_) + " channels, got " + to_string(C) + ".");
+      "Input channel dimension does not match "
+      "the output image type. Expected input with " +
+      to_string(C_) + " channels, got " + to_string(C) + ".");
 
-    per_sample_crop_[threadIdx] = SetCropXY(spec_, ws, dataIdx, H, W);
+    DALI_ENFORCE(H >= crop_height_[dataIdx] && W >= crop_width_[dataIdx],
+      "Image dimensions for sample " + std::to_string(dataIdx)
+      + " are smaller than the cropping window");
+
+    per_sample_crop_[threadIdx] = CalculateCropYX(spec_, ws, dataIdx, H, W);
   }
 
   void Init(int size) {
@@ -195,20 +156,19 @@ class Crop : public Operator<Backend>, protected CropAttr {
     output_layout_ = DALI_SAME;
   }
 
-  void CallRunHelper(Workspace<Backend> *ws, int idx) {
-    if (output_type_ == DALI_FLOAT) {
-      RunHelper<float>(ws, idx);
-    } else if (output_type_ == DALI_UINT8) {
-      RunHelper<unsigned char>(ws, idx);
-    } else if (output_type_ == DALI_INT16) {
-      RunHelper<int16>(ws, idx);
-    } else if (output_type_ == DALI_INT32) {
-      RunHelper<int>(ws, idx);
-    } else if (output_type_ == DALI_INT64) {
-      RunHelper<int64>(ws, idx);
-    } else {
-      DALI_FAIL("Unsupported output type.");
+  /**
+   * @brief Enforce that all shapes match
+   *
+   * @param ws
+   * @return const vector<Index> One matching shape for all inputs
+   */
+  virtual const std::vector<Index> CheckShapes(const SampleWorkspace *ws) {
+    const auto &input = ws->Input<CPUBackend>(0);
+    // enforce that all shapes match
+    for (int i = 1; i < ws->NumInput(); ++i) {
+      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
     }
+    return input.shape();
   }
 };
 

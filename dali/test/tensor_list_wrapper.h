@@ -76,13 +76,13 @@ class TensorListWrapper {
 
 
   const TensorList<GPUBackend>& gpu() const noexcept {
-    ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", *gpu_;
+    ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<GPUBackend>", *gpu_;
     return *gpu_;
   }
 
-  template <typename Backend>
-  std::unique_ptr<TensorList<Backend>> CopyTo() const {
-    std::unique_ptr<TensorList<Backend>> result(new TensorList<Backend>());
+  template <typename DestinationBackend>
+  std::unique_ptr<TensorList<DestinationBackend>> CopyTo() const {
+    std::unique_ptr<TensorList<DestinationBackend>> result(new TensorList<DestinationBackend>());
     ASSERT_NE(has_cpu(), has_gpu())
         << "Should contain TensorList from exactly one backend", nullptr;
     if (has_cpu()) {
@@ -114,7 +114,7 @@ inline const TensorList<CPUBackend> *TensorListWrapper::get() const {
 
 template<>
 inline const TensorList<GPUBackend> *TensorListWrapper::get() const {
-  ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<CPUBackend>", nullptr;
+  ASSERT_TRUE(gpu_) << "This wrapper doesn't contain TensorList<GPUBackend>", nullptr;
   return gpu_;
 }
 

@@ -15,6 +15,7 @@
 #ifndef  DALI_PIPELINE_DATA_VIEWS_H_
 #define  DALI_PIPELINE_DATA_VIEWS_H_
 
+#include <string>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -72,15 +73,18 @@ kernels::TensorShape<ndim> tensor_shape(const TensorList<Backend> &tl) {
   return out;
 }
 
+
 /// @brief Returns an equivalent tensor list shape for a tensor.
 ///        Outermost dimension is converted into sample index.
-template <int ndim, typename Backend>
+template<int ndim, typename Backend>
 kernels::TensorShape<ndim> tensor_shape(const Tensor<Backend> &tl) {
   const auto &tshape = tl.shape();
   kernels::TensorShape<ndim> out;
   int dim = tshape.size();
   if (ndim != kernels::DynamicDimensions) {
-    DALI_ENFORCE(dim == ndim, "Input has a wrong number of dimensions");
+    DALI_ENFORCE(dim == ndim,
+                 "Input has a wrong number of dimensions:"
+                 " (" + to_string(dim) + ") vs (" + to_string(ndim) + ")");
   } else {
     out.resize(dim);
   }

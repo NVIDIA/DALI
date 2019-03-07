@@ -163,6 +163,17 @@ void BbVerify(TensorListWrapper input, TensorListWrapper output, Arguments args)
   }
 }
 
+std::vector<Arguments> arguments = {
+        {{"horizontal", 1}, {"vertical", 0}},
+        {{"horizontal", 0}, {"vertical", 1}},
+        {{"horizontal", 0}, {"vertical", 0}},
+};
+
+std::vector<Arguments> devices = {
+        {{"device", std::string{"cpu"}}},
+        {{"device", std::string{"gpu"}}},
+};
+
 }  // namespace
 
 class BbFlipTest : public testing::DaliOperatorTest {
@@ -172,16 +183,7 @@ class BbFlipTest : public testing::DaliOperatorTest {
   }
 };
 
-std::vector<Arguments> arguments = {
-        {{"horizontal", 1}, {"vertical", 0}},
-        {{"horizontal", 0}, {"vertical", 1}},
-        {{"horizontal", 0}, {"vertical", 0}},
-};
 
-std::vector<Arguments> devices = {
-    {{"device", std::string{"cpu"}}},
-    {{"device", std::string{"gpu"}}},
-};
 
 TEST_P(BbFlipTest, WhRoisTest) {
   constexpr bool ltrb = false;

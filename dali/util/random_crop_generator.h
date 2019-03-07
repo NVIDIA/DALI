@@ -28,20 +28,22 @@ using AreaRange = std::pair<float, float>;
 
 class DLL_PUBLIC RandomCropGenerator {
  public:
-  RandomCropGenerator(AspectRatioRange aspect_ratio_range,
-                      AreaRange area_range,
-                      int64_t seed = time(0),
-                      int num_attempts_ = 10);
+  explicit DLL_PUBLIC RandomCropGenerator(
+    AspectRatioRange aspect_ratio_range = { 3.0f/4, 4.0f/3 },
+    AreaRange area_range = { 0.08, 1 },
+    int64_t seed = time(0),
+    int num_attempts_ = 10);
 
   DLL_PUBLIC CropWindow GenerateCropWindow(int H, int W);
   DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(int H, int W, std::size_t N);
-
  private:
   CropWindow GenerateCropWindowImpl(int H, int W);
 
-  std::uniform_real_distribution<float> aspect_ratio_dis_;
+  AspectRatioRange aspect_ratio_range_;
+  // Aspect ratios are uniformly distributed on logarithmic scale.
+  // This provides natural symmetry and smoothness of the distribution.
+  std::uniform_real_distribution<float> aspect_ratio_log_dis_;
   std::uniform_real_distribution<float> area_dis_;
-  std::uniform_real_distribution<float> uniform_;
   std::mt19937 rand_gen_;
   int64_t seed_;
   int num_attempts_;

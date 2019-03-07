@@ -238,6 +238,7 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
                const Arguments &operator_arguments, const VerifySingleIo &verify) {
     std::string op_backend = detail::GetOpDevice(operator_arguments);
     const auto batch_size = input.has_cpu() ? input.cpu().ntensor() : input.gpu().ntensor();
+    ASSERT_GT(batch_size, 0) << "Looks like there ain't no tensors in input";
     auto pipeline = CreatePipeline(batch_size, num_threads_);
     if (input) {
       AddInputToPipeline(*pipeline, input);

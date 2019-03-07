@@ -52,7 +52,7 @@ struct TestOpArgToStringImpl<std::string> {
 };
 
 template <typename T>
-struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
+struct TestOpArgToStringImpl<T, if_iterable<T, void>> {
   static std::string to_string(const T& val) {
     std::stringstream ss;
     if (val.size() == 0) {
@@ -60,7 +60,7 @@ struct TestOpArgToStringImpl<T, kernels::if_iterable<T, void>> {
     } else {
       ss << "[ ";
     }
-    using element_type = kernels::element_t<T>;
+    using element_type = element_t<T>;
     bool first = true;
     for (const auto& e : val) {
       if (!first) {

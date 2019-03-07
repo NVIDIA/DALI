@@ -33,7 +33,8 @@ class DALIBenchmark : public benchmark::Fixture {
  public:
   DALIBenchmark() {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
+    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    LoadImages(jpeg_names_, &jpegs_);
   }
 
   ~DALIBenchmark() override = default;
@@ -61,6 +62,7 @@ class DALIBenchmark : public benchmark::Fixture {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
           jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
+      tl->SetSourceInfo(i, jpeg_names_[i % nImgs] + "_" + std::to_string(i));
     }
   }
 

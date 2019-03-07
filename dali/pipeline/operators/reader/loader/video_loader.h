@@ -138,14 +138,14 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     }
 
     if (shuffle_) {
-      // TODO(spanev) decide of a policy for multi-gpu here
+      // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(524287);
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 
-    current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+    Reset(true);
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
@@ -177,6 +177,13 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::pair<int, int> load_width_height(const std::string& filename);
 
  private:
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_frame_idx_ = 0;
+    }
+  }
   // Params
   int count_;
   int step_;

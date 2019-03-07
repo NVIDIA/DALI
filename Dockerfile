@@ -27,7 +27,7 @@ RUN if [ ${PYV} != "37" ] ; then \
         pip install tensorflow-gpu==1.12rc2 --target /tensorflow/1_12 && \
         pip install tf-nightly-gpu --target /tensorflow/nightly; \
     else \
-        # only nightly buidl of TF supports python 3.7 at that time
+        # only nightly build of TF supports python 3.7 at that time
         pip install tf-nightly-gpu; \
     fi && \
     rm -rf /root/.cache/pip/
@@ -59,13 +59,13 @@ RUN pip wheel -v dali/python \
         --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
         --build-option --plat-name=manylinux1_x86_64 \
         --build-option --build-number=${NVIDIA_BUILD_ID} && \
-    ../dali/python/bundle-wheel.sh nvidia_dali-*.whl && \
+    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl && \
     UNZIP_PATH="$(mktemp -d)" && \
-    unzip /wheelhouse/nvidia_dali-*.whl -d $UNZIP_PATH && \
+    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
     python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
     rm -rf $UNZIP_PATH
 
 RUN pushd dali/python/tf_plugin/ && \
     python setup.py sdist && \
-    mv dist/nvidia-dali-tf-plugin-*.tar.gz /wheelhouse/ && \
+    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
     popd

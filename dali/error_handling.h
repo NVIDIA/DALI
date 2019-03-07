@@ -66,7 +66,7 @@ inline string BuildErrorString(string statement, string file, int line) {
   return error;
 }
 
-#if DALI_USE_STACKTRACE && DALI_DEBUG
+#if DALI_USE_STACKTRACE
 inline void ltrim(std::string *s) {
     s->erase(s->begin(), std::find_if(s->begin(), s->end(), [](int ch) {
         return !std::isspace(ch);

@@ -38,6 +38,7 @@ extern "C" {
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
+#include "dali/util/custream.h"
 
 struct AVPacket;
 #if HAVE_AVSTREAM_CODECPAR
@@ -55,22 +56,6 @@ struct FrameReq {
   int frame;
   int count;
 };
-
-class CUStream {
- public:
-  CUStream(int device_id, bool default_stream);
-  ~CUStream();
-  CUStream(const CUStream&) = delete;
-  CUStream& operator=(const CUStream&) = delete;
-  CUStream(CUStream&&);
-  CUStream& operator=(CUStream&&);
-  operator cudaStream_t();
-
- private:
-  bool created_;
-  cudaStream_t stream_;
-};
-
 
 enum ScaleMethod {
     /**

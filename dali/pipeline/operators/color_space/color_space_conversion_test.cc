@@ -32,7 +32,7 @@ typedef ::testing::Types<RGB, Gray, YCbCr> ConvertibleToBGR;
 TYPED_TEST_CASE(ColorSpaceConversionToBGRTest, ConvertibleToBGR);
 
 TYPED_TEST(ColorSpaceConversionToBGRTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 1e-1);
+  this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<BGR, Gray, YCbCr> ConvertibleToRGB;

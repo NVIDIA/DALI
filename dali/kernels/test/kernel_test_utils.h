@@ -39,9 +39,9 @@ struct SimpleKernelTestBase {
   using Arg = typename std::tuple_element<i, kernels::kernel_args<Kernel>>::type;
 
   template <int i>
-  using InputElement = typename std::remove_const<kernels::element_t<Input<i>>>::type;
+  using InputElement = typename std::remove_const<element_t<Input<i>>>::type;
   template <int i>
-  using OutputElement = kernels::element_t<Output<i>>;
+  using OutputElement = element_t<Output<i>>;
 };
 
 }  // namespace testing

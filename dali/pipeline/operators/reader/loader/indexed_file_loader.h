@@ -38,9 +38,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
 
   void ReadSample(Tensor<CPUBackend>* tensor) override {
-    if (current_index_ == indices_.size()) {
-      Reset();
-    }
+    MoveToNextShard(current_index_);
+
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
@@ -103,24 +102,27 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
     std::vector<std::string> index_uris = options.GetRepeatedArgument<std::string>("index_path");
     ReadIndexFile(index_uris);
-    size_t num_indices = indices_.size();
-    current_index_ = start_index(shard_id_, num_shards_, num_indices);
-    int64 seek_pos, size;
-    std::tie(seek_pos, size, current_file_index_) = indices_[current_index_];
-    current_file_ = FileStream::Open(uris_[current_file_index_], read_ahead_);
-    current_file_->Seek(seek_pos);
+    DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
+    current_file_index_ = INVALID_INDEX;
+    Reset(true);
 
     mmap_reserver = FileStream::FileStreamMappinReserver(uris_.size());
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
   }
 
-  void Reset() {
-    current_index_ = 0;
+  void Reset(bool wrap_to_shard) override {
     int64 seek_pos, size;
     size_t file_index;
+    if (wrap_to_shard) {
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
+    }
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
-      current_file_->Close();
+      if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {
+        current_file_->Close();
+      }
       current_file_ = FileStream::Open(uris_[file_index], read_ahead_);
       current_file_index_ = file_index;
     }
@@ -133,6 +135,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   size_t current_file_index_;
   std::unique_ptr<FileStream> current_file_;
   FileStream::FileStreamMappinReserver mmap_reserver;
+  static constexpr int INVALID_INDEX = -1;
 };
 
 }  // namespace dali

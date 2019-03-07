@@ -93,8 +93,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         stride_(spec.GetArgument<int32_t>("stride")),
         streams_(filesystem::GatherExtractedStreams(file_root_)),
         sequences_(detail::GenerateSequences(streams_, sequence_length_, step_, stride_)),
-        total_size_(sequences_.size()),
-        current_sequence_(0) {
+        total_size_(sequences_.size()) {
     DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");
@@ -102,11 +101,13 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         static_cast<unsigned int>(initial_buffer_fill_) * sequence_length_);
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
     if (shuffle_) {
+      // TODO(spanev) decide of a policy for multi-gpu here
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(524287);
       std::shuffle(sequences_.begin(), sequences_.end(), g);
     }
+    Reset(true);
   }
 
   void PrepareEmpty(TensorSequence *tensor) override;
@@ -114,6 +115,13 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   Index Size() override;
 
  private:
+  void Reset(bool wrap_to_shard) override {
+    if (wrap_to_shard) {
+      current_sequence_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_sequence_ = 0;
+    }
+  }
   // TODO(klecki) For now sequence is <directory, image list> pair, later it
   // will be a video file
 

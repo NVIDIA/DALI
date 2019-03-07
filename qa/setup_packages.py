@@ -19,23 +19,24 @@ except ImportError:
 # put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
 packages = {"numpy" : ["1.11.1"],
             "opencv-python" : ["3.1.0"],
-            "mxnet-cu90" : ["1.3.0"],
-            "tensorflow-gpu" : ["1.7", "1.11", "1.12.0rc2"],
-            "torch" : ["http://download.pytorch.org/whl/cu90/torch-0.4.0-{0}.whl"],
-            "keras-preprocessing" : ["1.0.5"] # TODO(janton): remove when keras-preprocessing is fixed
+            "mxnet-cu90" : ["1.4.0"],
+            "mxnet-cu100" : ["1.4.0"],
+            "tensorflow-gpu" : ["1.7", "1.11", "1.12.0"],
+            "torch" : ["http://download.pytorch.org/whl/{cuda_v}/torch-1.0.0-{0}.whl"]
             }
 parser = argparse.ArgumentParser(description='Env setup helper')
 parser.add_argument('--list', '-l', help='list configs', action='store_true', default=False)
 parser.add_argument('--num', '-n', help='return number of all configurations possible', action='store_true', default=False)
 parser.add_argument('--install', '-i', dest='install', type=int, help="get Nth configuration", default=-1)
 parser.add_argument('--remove', '-r', dest='remove', help="list packages to remove", action='store_true', default=False)
+parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to use")
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
 args = parser.parse_args()
 
-def get_pyvers_name(name):
+def get_pyvers_name(name, cuda):
     for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
         v = "-".join(v)
-        v = name.format(v)
+        v = name.format(v, cuda_v = cuda)
         request = Request(v)
         request.get_method = lambda : 'HEAD'
         try:
@@ -45,17 +46,17 @@ def get_pyvers_name(name):
              pass
     return ""
 
-def print_configs():
+def print_configs(cuda):
     for key in packages.keys():
         print (key + ":")
         for val in packages[key]:
             if val == None:
                 val = "Default"
             elif 'http' in val:
-                val = get_pyvers_name(val)
+                val = get_pyvers_name(val, cuda)
             print ('\t' + val)
 
-def print_install(variant, use):
+def print_install(variant, use, cuda):
     ret = []
     for key in packages.keys():
         if key not in use:
@@ -65,7 +66,7 @@ def print_install(variant, use):
         if val == None:
             ret.append(key)
         elif 'http' in val:
-            ret.append(get_pyvers_name(val))
+            ret.append(get_pyvers_name(val, cuda))
         else:
             ret.append(key + "==" + val)
         variant = variant // len(packages[key])
@@ -94,7 +95,7 @@ def cal_num_of_configs(use):
 def main():
     global args
     if args.list:
-        print_configs()
+        print_configs(args.cuda)
     elif args.num:
         print (cal_num_of_configs(args.use) - 1)
     elif args.remove:
@@ -102,7 +103,7 @@ def main():
     elif args.install >= 0:
         if args.install > cal_num_of_configs(args.use):
             args.install = 1
-        print (print_install(args.install, args.use))
+        print (print_install(args.install, args.use, "cu" + args.cuda))
 
 if __name__ == "__main__":
     main()

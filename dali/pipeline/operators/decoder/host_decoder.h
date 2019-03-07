@@ -18,7 +18,7 @@
 #include "dali/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
-
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -29,12 +29,15 @@ class HostDecoder : public Operator<CPUBackend> {
           output_type_(spec.GetArgument<DALIImageType>("output_type")),
           c_(IsColor(output_type_) ? 3 : 1) {}
 
-
   inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) override;
+
+  virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
+    return {};
+  }
 
   DALIImageType output_type_;
   int c_;

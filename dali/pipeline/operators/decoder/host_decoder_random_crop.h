@@ -15,15 +15,14 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
 
-#include <memory>
 #include "dali/common.h"
-#include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/decoder/host_decoder.h"
 
 namespace dali {
 
 class RandomCropGenerator;
 
-class HostDecoderRandomCrop : public Operator<CPUBackend> {
+class HostDecoderRandomCrop : public HostDecoder {
  public:
   explicit HostDecoderRandomCrop(const OpSpec &spec);
 
@@ -31,14 +30,12 @@ class HostDecoderRandomCrop : public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) override;
+  inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+    return crop_window_generator_;
+  }
 
-  DALIImageType output_type_;
-  int c_;
-
-  int64_t seed_;
-  int num_attempts_;
-  std::shared_ptr<RandomCropGenerator> random_crop_generator_;
+ private:
+  CropWindowGenerator crop_window_generator_;
 };
 
 }  // namespace dali

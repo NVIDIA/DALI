@@ -19,7 +19,7 @@ from sys import argv
 import subprocess
 
 def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
-    # Gather all libs that may be linked wiht 'lib' and don't need to be bundled
+    # Gather all libs that may be linked with 'lib' and don't need to be bundled
     # Entries from 'lib' key in allowed_libs should cover all 'lib*' libs
     # Empty key is used for all libs
     allowed_libs_to_check = []

@@ -15,6 +15,7 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
 #define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
 
+#include <vector>
 #include "dali/kernels/tensor_view.h"
 #include "dali/aux/optical_flow/optical_flow_adapter.h"
 
@@ -25,17 +26,47 @@ namespace optical_flow {
  * Stub implementation for OpticalFlow.
  * All it does is assign two values: 666.f and 333.f to output_image
  */
-class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter {
+template<typename ComputeBackend>
+class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
+  using StorageBackend = typename OpticalFlowAdapter<ComputeBackend>::StorageBackend;
  public:
-  explicit OpticalFlowStub(OpticalFlowParams params);
+  explicit OpticalFlowStub(OpticalFlowParams params) :
+          OpticalFlowAdapter<ComputeBackend>(params) {}
 
-  void CalcOpticalFlow(TV<detail::Backend, const uint8_t, 3> reference_image,
-                       TV<detail::Backend, const uint8_t, 3> input_image,
-                       TV<detail::Backend, float, 3> output_image,
-                       TV<detail::Backend, const float, 3> external_hints) override;
 
-  static constexpr float kStubValue = 666.f;
+  void CalcOpticalFlow(TensorView<StorageBackend, const uint8_t, 3> reference_image,
+                       TensorView<StorageBackend, const uint8_t, 3> input_image,
+                       TensorView<StorageBackend, float, 3> output_image,
+                       TensorView<StorageBackend, const float, 3> external_hints) override;
+
+
+  static constexpr float kStubValue = 666.f;  /// Stub output value for Optical Flow
 };
+
+
+template<>
+inline void OpticalFlowStub<kernels::ComputeCPU>::CalcOpticalFlow(
+        dali::kernels::TensorView<dali::kernels::StorageCPU, const uint8_t, 3> reference_image,
+        dali::kernels::TensorView<dali::kernels::StorageCPU, const uint8_t, 3> input_image,
+        dali::kernels::TensorView<dali::kernels::StorageCPU, float, 3> output_image,
+        dali::kernels::TensorView<dali::kernels::StorageCPU, const float, 3> external_hints) {
+  auto ptr = output_image.data;
+  ptr[0] = kStubValue;
+  ptr[1] = kStubValue / 2;
+}
+
+
+template<>
+inline void OpticalFlowStub<kernels::ComputeGPU>::CalcOpticalFlow(
+        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> reference_image,
+        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> input_image,
+        dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
+        dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
+  auto ptr = output_image.data;
+  std::vector<float> data = {kStubValue, kStubValue / 2};
+  CUDA_CALL(cudaMemcpy(ptr, data.data(), data.size() * sizeof(float), cudaMemcpyHostToDevice));
+}
+
 
 }  // namespace optical_flow
 }  // namespace dali

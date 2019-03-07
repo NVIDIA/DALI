@@ -5370,10 +5370,8 @@ _HEADERS_CONTAINING_TEMPLATES = (
     )
 
 _HEADERS_MAYBE_TEMPLATES = (
-    ('<algorithm>', ('copy', 'max', 'min', 'min_element', 'sort',
-                     'transform',
-                    )),
-    ('<utility>', ('forward', 'make_pair', 'move', 'swap')),
+    ('<algorithm>', ('min_element',)),
+    ('<utility>', ('forward', 'make_pair', 'move')),
     )
 
 _RE_PATTERN_STRING = re.compile(r'\bstring\b')

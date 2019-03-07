@@ -69,6 +69,8 @@ REGISTER_OP("Dali")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
   .Attr("prefetch_queue_depth: int = 2")
+  .Attr("sparse: list(bool) = []")
+  .Attr("batch_size: int = -1")
   .Output("data: dtypes")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
   // To prevent replacing DALI op with constant tensor during TF constant folding process
@@ -106,24 +108,35 @@ class DaliOp : public tf::OpKernel {
 
     int num_threads;
     int device_id;
+    int batch_size;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("dtypes", &types_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+    OP_REQUIRES_OK(context, context->GetAttr("sparse", &sparse_));
+    OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
 
-    // TF doing constant propagation runs all operators on the GPU first, so we need to provide
+    // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
     this->device_type_ = (context->device_type() == "CPU") ?
                           device_type_t::CPU : device_type_t::GPU;
+    if (std::any_of(sparse_.begin(), sparse_.end(), [] (const bool &v) {return v;}) &&
+        this->device_type_ == device_type_t::GPU) {
+      OP_REQUIRES_OK(context, tf::errors::Internal("Cannot output sparse tensors on the GPU"));
+    }
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
+
+    if (batch_size < 0) {
+      batch_size = shapes_[0].dim_size(0);
+    }
 
     TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
-                   shapes_[0].dim_size(0),
+                   batch_size,
                    num_threads,
                    device_id,
                    prefetch_queue_depth_));
@@ -163,46 +176,106 @@ class DaliOp : public tf::OpKernel {
 
     tf::OpOutputList outputs;
     std::vector<tf::Tensor*> data_output_tensors;
-    data_output_tensors.resize(daliGetNumOutput(&pipe_handle_));
+    // each sparse tensor need 3 tensors in total - values, indices and shape
+    unsigned additional_sparse_tensors = std::accumulate(sparse_.begin(), sparse_.end(), 0) * 2;
+    unsigned dali_num_out = daliGetNumOutput(&pipe_handle_);
+    data_output_tensors.resize(dali_num_out + additional_sparse_tensors);
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
-    for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
-      tf::TensorShape data_output_shape;
-      TF_DALI_CALL(
-        data_output_shape = DaliToShape(AutoCPtr<int64_t>(
-            daliShapeAt(&pipe_handle_, i)) ));
-      // If tensor has shape provided it need to match
-      OP_REQUIRES(context, shapes_[i].dims() <= 0 || data_output_shape == shapes_[i],
-      tf::errors::InvalidArgument("DALI pipeline output shape at " + std::to_string(i) +
-                                  " " + data_output_shape.DebugString() + " != "
-                                  + shapes_[i].DebugString() + " plugin `shapes` argument"));
-      OP_REQUIRES_OK(context, outputs.allocate(i, data_output_shape, &data_output_tensors[i]));
-    }
 
-    int64_t allocate_time =  std::chrono::duration_cast<std::chrono::microseconds>(
-                             Clock::now() - s).count();
-
-    s = Clock::now();
-    for (unsigned i = 0; i < data_output_tensors.size(); ++i) {
+    for (unsigned i = 0, j = 0; i < dali_num_out; ++i, ++j) {
+      bool should_be_sparse_tensor = i < sparse_.size() && sparse_[i];
+      unsigned elms = 0;
+      unsigned dims = 0;
+      std::vector<tf::int64> max_dims;
+      if (!should_be_sparse_tensor) {
+        tf::TensorShape data_output_shape;
+        TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
+                     daliShapeAt(&pipe_handle_, i))));
+        // If tensor has shape provided it need to match
+        OP_REQUIRES(context, shapes_[i].dims() <= 0 || data_output_shape == shapes_[i],
+        tf::errors::InvalidArgument("DALI pipeline output shape at " + std::to_string(i) +
+                                    " " + data_output_shape.DebugString() + " != "
+                                    + shapes_[i].DebugString() + " plugin `shapes` argument"));
+        OP_REQUIRES_OK(context, outputs.allocate(j, data_output_shape, &data_output_tensors[j]));
+      } else {
+        elms = daliNumTensors(&pipe_handle_, i);
+        // maximum number of dimension + one additional to hold tensor list number
+        dims = daliMaxDimTensors(&pipe_handle_, i) + 1;
+        max_dims.resize(dims, 0);
+        // first dim is number of elements in the tensor list
+        max_dims[0] = elms;
+        tf::TensorShape data_output_shape;
+        tf::int64 total_elms = 0;
+        TF_DALI_CALL(total_elms = daliNumElements(&pipe_handle_, i));
+        OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({total_elms, dims}),
+                                                 &data_output_tensors[j]));
+        tf::Tensor* out_tensor = data_output_tensors[j];
+        auto p_out_indices = out_tensor->flat<tf::int64>().data();
+        for (unsigned n = 0; n < elms; ++n) {
+          TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
+                       daliShapeAtSample(&pipe_handle_, i, n))));
+          // it seems that num_elements() return 1 for empty tensors
+          if (data_output_shape.dims() == 0) {
+            continue;
+          }
+          // squeeze
+          if (data_output_shape.dim_size(data_output_shape.dims() - 1) == 1) {
+            data_output_shape.RemoveLastDims(1);
+          }
+          for (unsigned elm_idx = 0; elm_idx < data_output_shape.num_elements(); ++elm_idx) {
+            unsigned idx_val = elm_idx;
+            // first value of indices is tensor index
+            *p_out_indices = n;
+            ++p_out_indices;
+            for (unsigned k = 0; k < dims - 1; ++k, ++p_out_indices) {
+              const int dims_idx = k - (dims - 1 - data_output_shape.dims());
+              // if current element has less dims than max then set first idices to 0
+              if (k + data_output_shape.dims() < dims - 1) {
+                *p_out_indices = 0;
+              } else {
+                max_dims[k + 1] = std::max(max_dims[k + 1], data_output_shape.dim_size(dims_idx));
+                if (dims_idx < data_output_shape.dims() - 1) {
+                  *p_out_indices = idx_val / data_output_shape.dim_size(dims_idx + 1);
+                  idx_val %= data_output_shape.dim_size(dims_idx + 1);
+                } else {
+                  *p_out_indices = idx_val;
+                }
+              }
+            }
+          }
+        }
+        ++j;
+        // allocate output
+        OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({total_elms}),
+                                                 &data_output_tensors[j]));
+      }
       void *dst = nullptr;
-      switch (types_[i]) {
+      tf::Tensor* out_tensor = data_output_tensors[j];
+      if (daliTensorSize(&pipe_handle_, i) > out_tensor->TotalBytes()) {
+        context->CtxFailure(__FILE__, __LINE__,
+            tf::errors::InvalidArgument("Output " + std::to_string(i) +
+              " has bigger size than allocated by TensorFlow - check if type requested matches" +
+              " with one produced by the DALI pipeline"));
+      }
+      switch (types_[j]) {
         case tf::DT_HALF:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint16_t>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<uint16_t>().data());
           break;
         case tf::DT_FLOAT:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<float>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<float>().data());
           break;
         case tf::DT_UINT8:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<uint8_t>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<uint8_t>().data());
           break;
         case tf::DT_INT16:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int16_t>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<int16_t>().data());
           break;
         case tf::DT_INT32:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<int32_t>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<int32_t>().data());
           break;
         case tf::DT_INT64:
-              dst = reinterpret_cast<void*>(data_output_tensors[i]->flat<tf::int64>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<tf::int64>().data());
           break;
         default:
           context->CtxFailure(__FILE__, __LINE__,
@@ -210,7 +283,21 @@ class DaliOp : public tf::OpKernel {
                                         "for tensor " + std::to_string(i)));
           break;
       }
-      TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
+      if (!should_be_sparse_tensor) {
+        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
+      } else {
+        // copy values
+        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_));
+        ++j;
+        // copy out shape
+        OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({dims}),
+                                                 &data_output_tensors[j]));
+        auto out_tensor = data_output_tensors[j];
+        auto out_shape = out_tensor->flat<tf::int64>().data();
+        for (unsigned k = 0; k < dims; ++k) {
+          out_shape[k] = max_dims[k];
+        }
+      }
     }
     int64_t copy_time =  std::chrono::duration_cast<std::chrono::microseconds>(
                            Clock::now() - s).count();
@@ -227,8 +314,7 @@ class DaliOp : public tf::OpKernel {
                            Clock::now() - total_s).count();
 
     LOG_LINE << "[TIMES] TOTAL " << total_time << " RUN " << run_time
-      << " - OUTPUT " << output_time << " - ALLOC " << allocate_time
-      << " - COPY " << copy_time << std::endl;
+      << " - OUTPUT " << output_time << " - ALLOC + COPY " << copy_time << std::endl;
   }
 
  private:
@@ -238,6 +324,7 @@ class DaliOp : public tf::OpKernel {
   int device_id_;
   int prefetch_queue_depth_;
   device_type_t device_type_;
+  std::vector<bool> sparse_;
 };
 
 using tf::int64;

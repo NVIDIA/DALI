@@ -64,7 +64,7 @@ class TensorListTest : public DALITest {
     Index offset = 0;
     for (auto &tmp : shape) {
       offsets->push_back(offset);
-      offset += Product(tmp);
+      offset += volume(tmp);
     }
 
     // Resize the buffer
@@ -115,7 +115,7 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   Index size = 0;
   for (auto &tmp : shape) {
     offsets.push_back(size);
-    size += Product(tmp);
+    size += volume(tmp);
   }
 
   // Validate the internals
@@ -142,7 +142,7 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   Index size = 0;
   for (auto& tmp : shape) {
     offsets.push_back(size);
-    size += Product(tmp);
+    size += volume(tmp);
   }
 
   // Verify the internals
@@ -183,7 +183,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   Index size = 0;
   for (auto &tmp : shape) {
     offsets.push_back(size);
-    size += Product(tmp);
+    size += volume(tmp);
   }
 
   // Verify the internals
@@ -228,7 +228,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   Index size = 0;
   for (auto &tmp : shape) {
     offsets.push_back(size);
-    size += Product(tmp);
+    size += volume(tmp);
   }
 
   // Verify the internals
@@ -332,7 +332,7 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
     Index offset = 0;
     for (auto &tmp : shape) {
       offsets.push_back(offset);
-      offset += Product(tmp);
+      offset += volume(tmp);
     }
   }
 

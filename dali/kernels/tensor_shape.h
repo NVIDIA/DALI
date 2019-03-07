@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,21 +26,6 @@
 
 namespace dali {
 namespace kernels {
-
-/// @brief Returns the product of all elements in shape
-/// @param shape - shape of a tensor whose elements we count
-template <typename T>
-inline int64_t volume(const T &shape) {
-  int n = shape.size();
-  if (n < 1) {
-    return 0;
-  }
-  int64_t v = shape[0];
-  for (int i = 1; i < n; i++) {
-    v *= shape[i];
-  }
-  return v;
-}
 
 constexpr int DynamicDimensions = -1;
 constexpr int InferDimensions = -2;
@@ -316,6 +301,30 @@ TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<l
   return result;
 }
 
+/// @brief Appends a scalar to a shape
+template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+TensorShape<out_dim> shape_cat(const TensorShape<ndim> &left, int64_t right) {
+  TensorShape<out_dim> result;
+  result.resize(left.size() + 1);
+  for (int i = 0; i < left.size(); i++) {
+    result[i] = left[i];
+  }
+  result[left.size()] = right;
+  return result;
+}
+
+/// @brief Prepends a scalar to a shape
+template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+TensorShape<out_dim> shape_cat(int64_t left, const TensorShape<ndim> &right) {
+  TensorShape<out_dim> result;
+  result.resize(right.size() + 1);
+  result[0] = left;
+  for (int i = 0; i < right.size(); i++) {
+    result[i+1] = right[i];
+  }
+  return result;
+}
+
 /// @brief Flatten list of shapes into contigous vector
 template <int sample_ndim>
 typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>::type
@@ -431,7 +440,7 @@ struct TensorListShapeBase {
       return {};
 
     Derived ret;
-    int dim = dali::kernels::size(ss);
+    int dim = dali::size(ss);
     ret.set_sample_dim(dim);
     ret.shapes.resize(dim * num_samples);
 
@@ -447,6 +456,15 @@ struct TensorListShapeBase {
     }
 
     return ret;
+  }
+
+  void resize(int num_samples) {
+    shapes.resize(num_samples * sample_dim());
+  }
+
+  void resize(int num_samples, int dim) {
+    set_sample_dim(dim);
+    shapes.resize(num_samples * sample_ndim);
   }
 
  protected:
@@ -672,6 +690,21 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
 }
 
 /// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
+///        are described by tls. Offsets are calculated as number of elements of each tensors.
+///
+/// @param offsets - receives the result; the size of the output is tls.num_samples()+1 - the last
+///                  [i] is an offset to sample `i`, [i+1] is an offset one past sample `i`.
+template <int sample_ndim, typename Offset>
+void calculate_offsets(std::vector<Offset> &offsets, const TensorListShape<sample_ndim> &tls) {
+  offsets.resize(tls.size() + 1);
+  offsets[0] = 0;
+  for (int i = 0; i < tls.size(); i++) {
+    auto sample_shape_span = tls.tensor_shape_span(i);
+    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
+  }
+}
+
+/// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
 ///        are described by tls. Offsets are calculated as number of elements of each tensors
 ///
 /// @return std::vector<ptrdiff_t> containing tls.size() + 1 elements,
@@ -679,12 +712,7 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
 template <int sample_ndim>
 std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
   std::vector<ptrdiff_t> offsets;
-  offsets.resize(tls.size() + 1);
-  offsets[0] = 0;
-  for (int i = 0; i < tls.size(); i++) {
-    auto sample_shape_span = tls.tensor_shape_span(i);
-    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
-  }
+  calculate_offsets(offsets, tls);
   return offsets;
 }
 

@@ -55,7 +55,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     } else {
       CUDA_CALL(cudaMemcpyAsync(output.raw_mutable_tensor(i),
                                 input.raw_tensor(i),
-                                Product(input.tensor_shape(i)),
+                                volume(input.tensor_shape(i)),
                                 cudaMemcpyDefault,
                                 ws->stream()));
     }

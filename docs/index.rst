@@ -6,14 +6,16 @@
 NVIDIA DALI documentation
 =========================
 
-.. include:: ../README.rst
-   :start-after: overview-begin-marker-do-not-remove
-   :end-before: overview-end-marker-do-not-remove
-
 .. ifconfig:: "dev" in release
 
    .. warning::
       You are currently viewing unstable developer preview of the documentation. To see the documentation for the latest stable release click `here <https://docs.nvidia.com/deeplearning/sdk/index.html#data-loading>`_
+
+.. include:: ../README.rst
+   :start-after: overview-begin-marker-do-not-remove
+   :end-before: overview-end-marker-do-not-remove
+
+This library is open sourced and it is available in the `NVIDIA GitHub repository <https://github.com/NVIDIA/DALI>`_.
 
 .. toctree::
    :hidden:
@@ -30,6 +32,7 @@ NVIDIA DALI documentation
    framework_plugins
    api
    supported_ops
+   advanced_topics
 
 Indices and tables
 ==================

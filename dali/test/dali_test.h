@@ -60,9 +60,8 @@ class DALITest : public ::testing::Test {
  public:
   inline void SetUp() override {
     rand_gen_.seed(time(nullptr));
-    LoadJPEGS(image_folder, &jpeg_names_, &jpegs_);
-    LoadImages(image_folder, &png_names_, &png_);
-    LoadImages(image_folder, &tiff_names_, &tiff_);
+    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    LoadImages(jpeg_names_, &jpegs_);
   }
 
   inline void TearDown() override {
@@ -164,7 +163,7 @@ class DALITest : public ::testing::Test {
     tl->Resize(shape);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-                  images[i % images.size()], Product(tl->tensor_shape(i)));
+                  images[i % images.size()], volume(tl->tensor_shape(i)));
     }
   }
 
@@ -193,6 +192,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
+      tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
     }
   }
 
@@ -210,6 +210,7 @@ class DALITest : public ::testing::Test {
       ti = Tensor<CPUBackend>{};
       ti.Resize({data_sizes[i % nImgs]});
       ti.template mutable_data<uint8>();
+      ti.SetSourceInfo(imgs.filenames_[i % nImgs]);
 
       std::memcpy(ti.raw_mutable_data(), data[i % nImgs],
                   data_sizes[i % nImgs]);

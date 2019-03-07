@@ -37,7 +37,7 @@ template <>
 void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
     auto &input = ws->Input<GPUBackend>(idx);
     auto output_shape = detail::GetOutputShape(input, element_map_);
-    auto element_layout = detail::GetElementLayout(input.GetLayout());
+    auto element_layout = GetElementLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
     int output_offset = idx * elements_per_sample;
     auto data_type = input.type();
@@ -50,7 +50,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
 
         for (unsigned int i = 0; i < input.ntensor(); i++) {
             const auto& tensor_shape = input.tensor_shape(i);
-            auto element_size = Product(tensor_shape.begin()+1, tensor_shape.end());
+            auto element_size = volume(tensor_shape.begin()+1, tensor_shape.end());
             auto input_offset_bytes = element * element_size * data_type.size();
 
             data_type.Copy<GPUBackend, GPUBackend>(

@@ -41,6 +41,7 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
     image.Resize({static_cast<Index>(datum.data().size())});
     std::memcpy(image.mutable_data<uint8_t>(), datum.data().data(),
                 datum.data().size()*sizeof(uint8_t));
+    image.SetSourceInfo(data.GetSourceInfo());
   }
 };
 

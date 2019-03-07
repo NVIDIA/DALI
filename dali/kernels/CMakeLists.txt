@@ -16,6 +16,7 @@ project(kernels)
 
 add_subdirectory(test)
 add_subdirectory(common)
+add_subdirectory(imgproc)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)
