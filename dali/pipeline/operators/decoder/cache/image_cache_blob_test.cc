@@ -12,75 +12,70 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operators/decoder/cache/image_cache_blob.h"
 #include <gtest/gtest.h>
-#include <vector>
 #include <memory>
-#include "dali/pipeline/operators/decoder/decoder_cache_blob.h"
+#include <vector>
 
 namespace dali {
 namespace testing {
 
 const char kKey1[] = "file1.jpg";
 const std::vector<uint8_t> kValue1(300, 0xAA);
-const Dims kDims1{100, 1, 3};
+const ImageCache::ImageShape kShape1{100, 1, 3};
 
-struct DecoderCacheBlobTest : public ::testing::Test {
-  DecoderCacheBlobTest() {
-  }
+static_assert(sizeof(size_t) > 4, "size_t too small");
 
-  void SetUp() override {
-    SetUpImpl((1<<9));
-  }
+struct ImageCacheBlobTest : public ::testing::Test {
+  ImageCacheBlobTest() {}
+
+  void SetUp() override { SetUpImpl((1 << 9)); }
 
   void SetUpImpl(std::size_t cache_size, std::size_t image_size_threshold = 0) {
-    cache_.reset(new DecoderCacheBlob(cache_size, image_size_threshold, false));
+    cache_.reset(new ImageCacheBlob(cache_size, image_size_threshold, false));
   }
 
-  std::unique_ptr<DecoderCacheBlob> cache_;
+  std::unique_ptr<ImageCacheBlob> cache_;
 };
 
-TEST_F(DecoderCacheBlobTest, EmptyCache) {
+TEST_F(ImageCacheBlobTest, EmptyCache) {
   EXPECT_FALSE(cache_->IsCached(kKey1));
 }
 
-TEST_F(DecoderCacheBlobTest, Add) {
+TEST_F(ImageCacheBlobTest, Add) {
   EXPECT_FALSE(cache_->IsCached(kKey1));
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_TRUE(cache_->IsCached(kKey1));
   std::vector<uint8_t> cachedData(kValue1.size());
-  cache_->CopyData(kKey1, &cachedData[0]);
+  EXPECT_TRUE(cache_->Read(kKey1, &cachedData[0], kShape1, 0));
   EXPECT_EQ(kValue1, cachedData);
 }
 
-TEST_F(DecoderCacheBlobTest, ErrorGetNonExistent) {
+TEST_F(ImageCacheBlobTest, ErrorReadNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_THROW(
-    cache_->CopyData(kKey1, &cachedData[0]),
-    std::runtime_error);
+  EXPECT_FALSE(cache_->Read(kKey1, &cachedData[0], kShape1, 0));
 }
 
-TEST_F(DecoderCacheBlobTest, AddExistingIgnored) {
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+TEST_F(ImageCacheBlobTest, AddExistingIgnored) {
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
 }
 
-TEST_F(DecoderCacheBlobTest, ErrorTooSmallCacheSize) {
-  SetUpImpl(kValue1.size()-1);
-  cache_->Add(kKey1, &kValue1[0], kValue1.size(), kDims1);
+TEST_F(ImageCacheBlobTest, ErrorTooSmallCacheSize) {
+  SetUpImpl(kValue1.size() - 1);
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_FALSE(cache_->IsCached(kKey1));
 }
 
-TEST_F(DecoderCacheBlobTest, AllocateMoreThan2000MB) {
-  std::size_t one_mb = 1024*1024;
-  std::size_t size = 3l*1024*one_mb;
+TEST_F(ImageCacheBlobTest, AllocateMoreThan2000MB) {
+  std::size_t one_mb = 1024 * 1024;
+  std::size_t size = 3l * 1024 * one_mb;
   SetUpImpl(size);
   std::vector<uint8_t> data_1MB(one_mb, 0xFF);
   std::size_t N = size / one_mb;
   for (std::size_t i = 0; i < N + 10; i++) {
-    cache_->Add(
-      std::to_string(i) + "_mb",
-      &data_1MB[0], one_mb,
-      {static_cast<Index>(one_mb), 1, 1});
+    cache_->Add(std::to_string(i) + "_mb", &data_1MB[0],
+                {static_cast<Index>(one_mb), 1, 1}, 0);
   }
 
   for (std::size_t i = 0; i < N; i++) {
@@ -90,6 +85,14 @@ TEST_F(DecoderCacheBlobTest, AllocateMoreThan2000MB) {
   for (std::size_t i = N; i < N + 10; i++) {
     EXPECT_FALSE(cache_->IsCached(std::to_string(i) + "_mb"));
   }
+}
+
+TEST_F(ImageCacheBlobTest, DifferentExpectedShape) {
+  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
+  EXPECT_TRUE(cache_->IsCached(kKey1));
+  std::vector<uint8_t> cachedData(kValue1.size());
+  ImageCache::ImageShape wrong_shape = {1200, 1, 4};
+  EXPECT_THROW(cache_->Read(kKey1, &cachedData[0], wrong_shape, 0), std::runtime_error);
 }
 
 }  // namespace testing
