@@ -15,15 +15,15 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_RANDOM_CROP_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_RANDOM_CROP_H_
 
-#include "dali/pipeline/operators/decoder/nvjpeg_decoder_new.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 #include "dali/pipeline/operators/crop/random_crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderRandomCrop : public nvJPEGDecoderNew, public RandomCropAttr {
+class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
  public:
   explicit nvJPEGDecoderRandomCrop(const OpSpec& spec)
-    : nvJPEGDecoderNew(spec)
+    : nvJPEGDecoder(spec)
     , RandomCropAttr(spec)
   {}
 
