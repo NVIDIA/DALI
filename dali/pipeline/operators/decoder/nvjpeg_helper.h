@@ -54,7 +54,7 @@ struct StateNvJPEG {
   nvjpegJpegStream_t jpeg_stream;
 };
 
-template <typename T = int>
+template <typename T>
 struct EncodedImageInfo {
   bool nvjpeg_support;
   T c;

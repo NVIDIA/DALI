@@ -29,6 +29,8 @@
 
 namespace dali {
 
+using ImageInfo = EncodedImageInfo<unsigned int>;
+
 class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
  public:
   explicit nvJPEGDecoderCPUStage(const OpSpec& spec) :
@@ -76,7 +78,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     // Output #1 contains nvJPEG state, buffer and information
     // Output #3 optionally contains OpenCV if nvJPEG cannot decode the sample
 
-    EncodedImageInfo* info;
+    ImageInfo* info;
     StateNvJPEG* state_nvjpeg;
     std::tie(info, state_nvjpeg) = InitAndGet(ws->Output<CPUBackend>(0),
                                               ws->Output<CPUBackend>(1));
@@ -141,14 +143,14 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
  protected:
   USE_OPERATOR_MEMBERS();
 
-  inline std::pair<EncodedImageInfo*, StateNvJPEG*>
+  inline std::pair<ImageInfo*, StateNvJPEG*>
   InitAndGet(Tensor<CPUBackend>& info_tensor, Tensor<CPUBackend>& state_tensor) {
     if (info_tensor.size() == 0) {
       TypeInfo type;
       // we need to set a arbitrary to be able to access to call raw_data()
       type.SetType<uint8_t>();
 
-      std::shared_ptr<EncodedImageInfo> info_p(new EncodedImageInfo());
+      std::shared_ptr<ImageInfo> info_p(new ImageInfo());
       info_tensor.ShareData(info_p, 1, {1});
       info_tensor.set_type(type);
 
@@ -174,12 +176,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       state_tensor.set_type(type);
     }
 
-    EncodedImageInfo* info = reinterpret_cast<EncodedImageInfo*>(info_tensor.raw_mutable_data());
+    ImageInfo* info = reinterpret_cast<ImageInfo*>(info_tensor.raw_mutable_data());
     StateNvJPEG* nvjpeg_state = reinterpret_cast<StateNvJPEG*>(state_tensor.raw_mutable_data());
     return std::make_pair(info, nvjpeg_state);
   }
 
-  bool ShouldBeHybrid(EncodedImageInfo& info) const {
+  bool ShouldBeHybrid(ImageInfo& info) const {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 

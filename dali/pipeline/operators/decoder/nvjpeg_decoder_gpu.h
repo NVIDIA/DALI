@@ -25,6 +25,8 @@
 
 namespace dali {
 
+using ImageInfo = EncodedImageInfo<unsigned int>;
+
 class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
  public:
   explicit nvJPEGDecoderGPUStage(const OpSpec& spec) :
@@ -60,7 +62,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     for (int i = 0; i < batch_size_; i++) {
       const auto& info_tensor = ws->Input<CPUBackend>(0, i);
       const auto& state_tensor = ws->Input<CPUBackend>(1, i);
-      const EncodedImageInfo* info;
+      const ImageInfo* info;
       std::tie(info, std::ignore) = GetInfoState(info_tensor, state_tensor);
       int c = NumberOfChannels(output_image_type_);
       output_shape[i] = Dims({info->heights[0], info->widths[0], c});
@@ -79,7 +81,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
       const auto& info_tensor = ws->Input<CPUBackend>(0, i);
       const auto& state_tensor = ws->Input<CPUBackend>(1, i);
-      const EncodedImageInfo* info;
+      const ImageInfo* info;
       const StateNvJPEG* nvjpeg_state;
       std::tie(info, nvjpeg_state) = GetInfoState(info_tensor, state_tensor);
 
@@ -125,10 +127,10 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
  protected:
   USE_OPERATOR_MEMBERS();
 
-  inline std::pair<const EncodedImageInfo*, const StateNvJPEG*>
+  inline std::pair<const ImageInfo*, const StateNvJPEG*>
   GetInfoState(const Tensor<CPUBackend>& info_tensor, const Tensor<CPUBackend>& state_tensor) {
-    const EncodedImageInfo* info =
-          reinterpret_cast<const EncodedImageInfo*>(info_tensor.raw_data());
+    const ImageInfo* info =
+          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
     const StateNvJPEG* nvjpeg_state =
           reinterpret_cast<const StateNvJPEG*>(state_tensor.raw_data());
     return std::make_pair(info, nvjpeg_state);
