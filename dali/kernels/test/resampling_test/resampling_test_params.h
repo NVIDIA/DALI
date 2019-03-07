@@ -72,6 +72,32 @@ struct ResamplingTestEntry {
     params[1].mag_filter = params[1].min_filter = fx;
   }
 
+  ResamplingTestEntry(std::string input,
+                      std::string reference,
+                      std::array<float, 4> ROI_LTRB,
+                      std::array<int, 2> sizeWH,
+                      FilterDesc filter,
+                      double epsilon = 1)
+    : ResamplingTestEntry(
+        std::move(input), std::move(reference),
+        ROI_LTRB, sizeWH, filter, filter, epsilon) {}
+
+  ResamplingTestEntry(std::string input,
+                      std::string reference,
+                      std::array<float, 4> ROI_LTRB,
+                      std::array<int, 2> sizeWH,
+                      FilterDesc fx,
+                      FilterDesc fy,
+                      double epsilon = 1)
+    : input(std::move(input)), reference(std::move(reference)), epsilon(epsilon) {
+    params[0].output_size = sizeWH[1];
+    params[1].output_size = sizeWH[0];
+    params[0].roi = { ROI_LTRB[1], ROI_LTRB[3] };
+    params[0].mag_filter = params[0].min_filter = fy;
+    params[1].mag_filter = params[1].min_filter = fx;
+    params[1].roi = { ROI_LTRB[0], ROI_LTRB[2] };
+  }
+
   std::string input, reference;
   ResamplingParams2D params;
   double epsilon = 1;
