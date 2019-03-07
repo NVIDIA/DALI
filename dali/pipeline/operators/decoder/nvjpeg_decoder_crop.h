@@ -16,15 +16,15 @@
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CROP_H_
 
 #include <vector>
-#include "dali/pipeline/operators/decoder/nvjpeg_decoder_new.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 #include "dali/pipeline/operators/crop/crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderCrop : public nvJPEGDecoderNew, protected CropAttr {
+class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
  public:
   explicit nvJPEGDecoderCrop(const OpSpec& spec)
-    : nvJPEGDecoderNew(spec)
+    : nvJPEGDecoder(spec)
     , CropAttr(spec) {
   }
 
