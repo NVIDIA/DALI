@@ -76,7 +76,7 @@ class Image {
   }
 
   inline void SetCropWindow(const CropWindow& crop_window) {
-    if (crop_window.IsEmpty())
+    if (!crop_window)
       return;
     crop_window_generator_ = [crop_window](int H, int W) {
       DALI_ENFORCE(crop_window.IsInRange(H, W),
