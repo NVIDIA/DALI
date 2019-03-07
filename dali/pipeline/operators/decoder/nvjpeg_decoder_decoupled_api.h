@@ -315,7 +315,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   bool ShouldUseHybridHuffman(ImageInfo& info) {
     auto &roi = info.crop_window;
     if (roi) {
-      return (roi.x + roi.w) * (roi.y + roi.h) > hybrid_huffman_threshold_;
+      return info.widths[0] * (roi.y + roi.h) > hybrid_huffman_threshold_;
     }
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
