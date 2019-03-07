@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_FACTORY_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_FACTORY_H_
 
 #include <memory>
 #include <string>
 #include <map>
 #include <mutex>
-#include "dali/pipeline/operators/decoder/cache/decoder_cache.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache.h"
 
 namespace dali {
 
-class DLL_PUBLIC DecoderCacheFactory {
+class DLL_PUBLIC ImageCacheFactory {
  public:
-  DLL_PUBLIC static DecoderCacheFactory& Instance() {
-    static DecoderCacheFactory instance;
+  DLL_PUBLIC static ImageCacheFactory& Instance() {
+    static ImageCacheFactory instance;
     return instance;
   }
 
@@ -37,7 +37,7 @@ class DLL_PUBLIC DecoderCacheFactory {
    * Will fail if the cache was already allocated but with different
    * parameters
    */
-  DLL_PUBLIC std::shared_ptr<DecoderCache> Get(
+  DLL_PUBLIC std::shared_ptr<ImageCache> Get(
     int device_id,
     const std::string& cache_policy,
     std::size_t cache_size,
@@ -48,12 +48,15 @@ class DLL_PUBLIC DecoderCacheFactory {
    * @brief Get the already allocated cache
    * Will fail if cache was not allocated
    */
-  DLL_PUBLIC std::shared_ptr<DecoderCache> Get(int device_id);
+  DLL_PUBLIC std::shared_ptr<ImageCache> Get(int device_id);
 
+  /**
+   * @brief Check whether the cache for a given device id is already initialized
+   */
   DLL_PUBLIC bool IsInitialized(int device_id);
 
  private:
-  void CheckWeakPtr(int device_id);
+  bool CheckWeakPtr(int device_id);
 
   mutable std::mutex mutex_;
 
@@ -72,7 +75,7 @@ class DLL_PUBLIC DecoderCacheFactory {
   };
 
   struct CacheInstance {
-    std::weak_ptr<DecoderCache> cache;
+    std::weak_ptr<ImageCache> cache;
     CacheParams params;
   };
   std::map<int, CacheInstance> caches_;
@@ -80,4 +83,4 @@ class DLL_PUBLIC DecoderCacheFactory {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_FACTORY_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_FACTORY_H_

@@ -12,25 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_LARGEST_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_LARGEST_H_
 
 #include <functional>
 #include <queue>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "dali/pipeline/data/tensor_list.h"  // needed for Dims
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_blob.h"
 #include "dali/common.h"
 
 namespace dali {
 
-class DLL_PUBLIC DecoderCacheLargestOnly : public DecoderCacheBlob {
+class DLL_PUBLIC ImageCacheLargest : public ImageCacheBlob {
  public:
-  DLL_PUBLIC DecoderCacheLargestOnly(std::size_t cache_size, bool stats_enabled = false);
+  DLL_PUBLIC ImageCacheLargest(std::size_t cache_size, bool stats_enabled = false);
 
-  DISABLE_COPY_MOVE_ASSIGN(DecoderCacheLargestOnly);
+  DISABLE_COPY_MOVE_ASSIGN(ImageCacheLargest);
 
   void Add(const ImageKey& image_key, const uint8_t* data, const ImageShape& data_shape,
            cudaStream_t stream) override;
@@ -47,4 +46,4 @@ class DLL_PUBLIC DecoderCacheLargestOnly : public DecoderCacheBlob {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_LARGEST_ONLY_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_LARGEST_H_

@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_largest_only.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_largest.h"
 #include <functional>
 #include <stack>
 #include "dali/error_handling.h"
-#include "dali/pipeline/data/tensor_list.h"  // needed for Dims
 
 namespace dali {
 
-DecoderCacheLargestOnly::DecoderCacheLargestOnly(std::size_t cache_size, bool stats_enabled)
-    : DecoderCacheBlob(cache_size, 0, stats_enabled) {}
+ImageCacheLargest::ImageCacheLargest(std::size_t cache_size, bool stats_enabled)
+    : ImageCacheBlob(cache_size, 0, stats_enabled) {}
 
-void DecoderCacheLargestOnly::Add(const ImageKey& image_key,
+void ImageCacheLargest::Add(const ImageKey& image_key,
                                   const uint8_t *data,
                                   const ImageShape& data_shape,
                                   cudaStream_t stream) {
@@ -84,7 +83,7 @@ void DecoderCacheLargestOnly::Add(const ImageKey& image_key,
   lock.unlock();
 
   if (start_caching_ && images_.find(image_key) != images_.end()) {
-    DecoderCacheBlob::Add(image_key, data, data_shape, stream);
+    ImageCacheBlob::Add(image_key, data, data_shape, stream);
   }
 }
 

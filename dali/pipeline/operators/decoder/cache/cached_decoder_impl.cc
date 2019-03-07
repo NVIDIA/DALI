@@ -13,51 +13,36 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_factory.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_factory.h"
 #include "dali/error_handling.h"
 
 namespace dali {
 
-CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec, bool should_init_cache)
-  : device_id_(spec.GetArgument<int>("device_id")) {
-  if (should_init_cache) {
-    const std::size_t cache_size_mb = static_cast<std::size_t>(spec.GetArgument<int>("cache_size"));
-    const std::size_t cache_size = cache_size_mb * 1024 * 1024;
-    const std::size_t cache_threshold =
-        static_cast<std::size_t>(spec.GetArgument<int>("cache_threshold"));
-    if (cache_size > 0 && cache_size >= cache_threshold) {
-      const std::string cache_type = spec.GetArgument<std::string>("cache_type");
-      const bool cache_debug = spec.GetArgument<bool>("cache_debug");
-      cache_ = DecoderCacheFactory::Instance().Get(device_id_,
-        cache_type, cache_size, cache_debug, cache_threshold);
-    }
-  } else {
-    // OpSpec does not provide cache arguments so we will use this cache as a reader only
-    // Assuming the cache was already allocated
-    // TODO(janton) : check whether the order of creation of operators is deterministic
-    //                If not we need to use std::future or something here
-    DALI_ENFORCE(DecoderCacheFactory::Instance().IsInitialized(device_id_),
-        "Device cache for device id `" + std::to_string(device_id_)
-        + "` was not initialized");
-    cache_ = DecoderCacheFactory::Instance().Get(device_id_);
+CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
+    : device_id_(spec.GetArgument<int>("device_id")) {
+  const std::size_t cache_size_mb = static_cast<std::size_t>(spec.GetArgument<int>("cache_size"));
+  const std::size_t cache_size = cache_size_mb * 1024 * 1024;
+  const std::size_t cache_threshold =
+      static_cast<std::size_t>(spec.GetArgument<int>("cache_threshold"));
+  if (cache_size > 0 && cache_size >= cache_threshold) {
+    const std::string cache_type = spec.GetArgument<std::string>("cache_type");
+    const bool cache_debug = spec.GetArgument<bool>("cache_debug");
+    cache_ = ImageCacheFactory::Instance().Get(
+      device_id_, cache_type, cache_size, cache_debug, cache_threshold);
   }
 }
 
 bool CachedDecoderImpl::CacheLoad(const std::string& file_name,
-                                  const DecoderCache::ImageShape& expected_shape,
+                                  const ImageCache::ImageShape& expected_shape,
                                   uint8_t* output_data,
                                   cudaStream_t stream) {
-  if (!cache_ || file_name.empty() || !cache_->IsCached(file_name))
+  if (!cache_ || file_name.empty())
     return false;
-
-  DALI_ENFORCE(cache_->GetShape(file_name) == expected_shape,
-    "Output shape does not match the dimensions of the cached image");
-  cache_->CopyData(file_name, output_data, stream);
-  return true;
+  return cache_->Read(file_name, output_data, expected_shape, stream);
 }
 
 void CachedDecoderImpl::CacheStore(const std::string& file_name, uint8_t* data,
-                                   const DecoderCache::ImageShape& data_shape,
+                                   const ImageCache::ImageShape& data_shape,
                                    cudaStream_t stream) {
   if (!cache_ || file_name.empty() || cache_->IsCached(file_name))
     return;

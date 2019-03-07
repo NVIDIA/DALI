@@ -18,7 +18,7 @@
 #include <cuda_runtime_api.h>
 #include <string>
 #include <memory>
-#include "dali/pipeline/operators/decoder/cache/decoder_cache.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache.h"
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
@@ -27,26 +27,24 @@ class CachedDecoderImpl {
  public:
   /**
    * @params spec: to determine all the cache parameters
-   * @params should_init_cache: if set to false, we expect the cache to be already
-   *                            initialized and we just use it
    */
-  explicit CachedDecoderImpl(const OpSpec& spec, bool should_init_cache);
+  explicit CachedDecoderImpl(const OpSpec& spec);
   virtual ~CachedDecoderImpl() = default;
 
   virtual bool CacheLoad(
     const std::string& file_name,
-    const DecoderCache::ImageShape &expected_shape,
+    const ImageCache::ImageShape &expected_shape,
     uint8_t *output_data,
     cudaStream_t stream);
 
   void CacheStore(
     const std::string& file_name,
     uint8_t* data,
-    const DecoderCache::ImageShape& data_shape,
+    const ImageCache::ImageShape& data_shape,
     cudaStream_t stream);
 
  private:
-  std::shared_ptr<DecoderCache> cache_;
+  std::shared_ptr<ImageCache> cache_;
   int device_id_;
 };
 

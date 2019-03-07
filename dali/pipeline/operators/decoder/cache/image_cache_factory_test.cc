@@ -12,29 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_factory.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_factory.h"
 #include <gtest/gtest.h>
 #include <memory>
 
 namespace dali {
 namespace testing {
 
-struct DecoderCacheFactoryTest : public ::testing::Test {
-  DecoderCacheFactoryTest() {}
+struct ImageCacheFactoryTest : public ::testing::Test {
+  ImageCacheFactoryTest() {}
 
   void SetUp() override {}
 };
 
-TEST_F(DecoderCacheFactoryTest, Init) {
-  auto &factory = DecoderCacheFactory::Instance();
+TEST_F(ImageCacheFactoryTest, Init) {
+  auto &factory = ImageCacheFactory::Instance();
   ASSERT_FALSE(factory.IsInitialized(0));
   auto cache = factory.Get(0, "threshold", 1*1024*1024, true, 1024);
   EXPECT_NE(nullptr, cache);
   EXPECT_TRUE(factory.IsInitialized(0));
 }
 
-TEST_F(DecoderCacheFactoryTest, TwoDifferentDevices) {
-  auto &factory = DecoderCacheFactory::Instance();
+TEST_F(ImageCacheFactoryTest, TwoDifferentDevices) {
+  auto &factory = ImageCacheFactory::Instance();
   ASSERT_FALSE(factory.IsInitialized(0));
   ASSERT_FALSE(factory.IsInitialized(1));
   auto cache0 = factory.Get(0, "threshold", 1*1024*1024, true, 1024);
@@ -45,8 +45,8 @@ TEST_F(DecoderCacheFactoryTest, TwoDifferentDevices) {
   EXPECT_TRUE(factory.IsInitialized(1));
 }
 
-TEST_F(DecoderCacheFactoryTest, Lifetime) {
-  auto &factory = DecoderCacheFactory::Instance();
+TEST_F(ImageCacheFactoryTest, Lifetime) {
+  auto &factory = ImageCacheFactory::Instance();
   ASSERT_FALSE(factory.IsInitialized(0));
   ASSERT_FALSE(factory.IsInitialized(1));
   {
@@ -62,8 +62,8 @@ TEST_F(DecoderCacheFactoryTest, Lifetime) {
   EXPECT_FALSE(factory.IsInitialized(0));
 }
 
-TEST_F(DecoderCacheFactoryTest, Collision) {
-  auto &factory = DecoderCacheFactory::Instance();
+TEST_F(ImageCacheFactoryTest, Collision) {
+  auto &factory = ImageCacheFactory::Instance();
   ASSERT_FALSE(factory.IsInitialized(0));
   ASSERT_FALSE(factory.IsInitialized(1));
 
@@ -80,8 +80,8 @@ TEST_F(DecoderCacheFactoryTest, Collision) {
   EXPECT_TRUE(factory.IsInitialized(0));
 }
 
-TEST_F(DecoderCacheFactoryTest, GetAndRefCount) {
-  auto &factory = DecoderCacheFactory::Instance();
+TEST_F(ImageCacheFactoryTest, GetAndRefCount) {
+  auto &factory = ImageCacheFactory::Instance();
   ASSERT_FALSE(factory.IsInitialized(0));
   ASSERT_FALSE(factory.IsInitialized(1));
 

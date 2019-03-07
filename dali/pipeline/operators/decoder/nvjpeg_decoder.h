@@ -119,7 +119,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
-    CachedDecoderImpl(spec, true /* should_init_cache */),
+    CachedDecoderImpl(spec),
     max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
     output_shape_(batch_size_),
@@ -492,7 +492,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Thread pool
   ThreadPool thread_pool_;
 
-  std::shared_ptr<DecoderCache> cache_;
+  std::shared_ptr<ImageCache> cache_;
 };
 
 }  // namespace dali

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_BLOB_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_BLOB_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_BLOB_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_BLOB_H_
 
 #include <fstream>
 #include <mutex>
@@ -21,27 +21,28 @@
 #include "dali/kernels/span.h"
 #include "dali/error_handling.h"
 #include "dali/kernels/alloc.h"
-#include "dali/pipeline/operators/decoder/cache/decoder_cache.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache.h"
 
 namespace dali {
 
-class DLL_PUBLIC DecoderCacheBlob : public DecoderCache {
+class DLL_PUBLIC ImageCacheBlob : public ImageCache {
  public:
-    DLL_PUBLIC DecoderCacheBlob(std::size_t cache_size,
-                                std::size_t image_size_threshold,
-                                bool stats_enabled = false);
+    DLL_PUBLIC ImageCacheBlob(std::size_t cache_size,
+                              std::size_t image_size_threshold,
+                              bool stats_enabled = false);
 
-    ~DecoderCacheBlob() override;
+    ~ImageCacheBlob() override;
 
-    DISABLE_COPY_MOVE_ASSIGN(DecoderCacheBlob);
+    DISABLE_COPY_MOVE_ASSIGN(ImageCacheBlob);
 
     bool IsCached(const ImageKey& image_key) const override;
 
-    const ImageShape& GetShape(const ImageKey& image_key) const override;
+    bool Read(const ImageKey& image_key,
+              void* destination_data,
+              const ImageShape& expected_shape,
+              cudaStream_t stream) const override;
 
-    void CopyData(const ImageKey& image_key,
-                  void* destination_buffer,
-                  cudaStream_t stream) const override;
+    const ImageShape& GetShape(const ImageKey& image_key) const override;
 
     void Add(const ImageKey& image_key,
              const uint8_t *data,
@@ -93,4 +94,4 @@ class DLL_PUBLIC DecoderCacheBlob : public DecoderCache {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_DECODER_CACHE_BLOB_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_CACHE_IMAGE_CACHE_BLOB_H_

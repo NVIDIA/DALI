@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/cache/decoder_cache_blob.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_blob.h"
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
@@ -23,9 +23,9 @@
 
 namespace dali {
 
-DecoderCacheBlob::DecoderCacheBlob(std::size_t cache_size,
-                                   std::size_t image_size_threshold,
-                                   bool stats_enabled)
+ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
+                               std::size_t image_size_threshold,
+                               bool stats_enabled)
     : cache_size_(cache_size)
     , image_size_threshold_(image_size_threshold)
     , stats_enabled_(stats_enabled) {
@@ -38,51 +38,53 @@ DecoderCacheBlob::DecoderCacheBlob(std::size_t cache_size,
   LOG_LINE << "cache size is " << cache_size_ / (1024 * 1024) << " MB" << std::endl;
 }
 
-DecoderCacheBlob::~DecoderCacheBlob() {
+ImageCacheBlob::~ImageCacheBlob() {
   if (stats_enabled_ && images_seen() > 0) print_stats();
 }
 
-bool DecoderCacheBlob::IsCached(const ImageKey& image_key) const {
+bool ImageCacheBlob::IsCached(const ImageKey& image_key) const {
   std::lock_guard<std::mutex> lock(mutex_);
   return cache_.find(image_key) != cache_.end();
 }
 
-const DecoderCache::ImageShape& DecoderCacheBlob::GetShape(const ImageKey& image_key) const {
+const ImageCache::ImageShape& ImageCacheBlob::GetShape(const ImageKey& image_key) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto it = cache_.find(image_key);
   DALI_ENFORCE(it != cache_.end(), "cache entry [" + image_key + "] not found");
   return it->second.dims;
 }
 
-void DecoderCacheBlob::CopyData(const ImageKey& image_key, void* destination_buffer,
-                                cudaStream_t stream) const {
+bool ImageCacheBlob::Read(const ImageKey& image_key,
+                          void* destination_buffer,
+                          const ImageShape& expected_shape,
+                          cudaStream_t stream) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  LOG_LINE << "CopyData: image_key[" << image_key << "]" << std::endl;
+  LOG_LINE << "Read: image_key[" << image_key << "]" << std::endl;
   DALI_ENFORCE(!image_key.empty());
   DALI_ENFORCE(destination_buffer != nullptr);
   const auto it = cache_.find(image_key);
-  DALI_ENFORCE(it != cache_.end(), "cache entry [" + image_key + "] not found");
+  if (it == cache_.end())
+    return false;
+  DALI_ENFORCE(expected_shape == it->second.dims);
   const auto& data = it->second.data;
   DALI_ENFORCE(data.data() < tail_);
   DALI_ENFORCE(data.data() + data.size() <= tail_);
   MemCopy(destination_buffer, data.data(), data.size(), stream);
-
   if (stats_enabled_) stats_[image_key].reads++;
+  return true;
 }
 
-void DecoderCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
-                           const ImageShape& data_shape, cudaStream_t stream) {
-  const std::size_t data_size = volume(data_shape);
-
-  if (stats_enabled_) stats_[image_key].decodes++;
-
-  if (data_size < image_size_threshold_) return;
-
-  if (IsCached(image_key)) return;
-
+void ImageCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
+                         const ImageShape& data_shape, cudaStream_t stream) {
   std::lock_guard<std::mutex> lock(mutex_);
-  LOG_LINE << "Add: image_key[" << image_key << "]" << std::endl;
+
+  const std::size_t data_size = volume(data_shape);
+  if (stats_enabled_) stats_[image_key].decodes++;
+  if (data_size < image_size_threshold_) return;
   DALI_ENFORCE(!image_key.empty());
+
+  if (cache_.find(image_key) != cache_.end())
+    return;
 
   if (bytes_left() < data_size) {
     LOG_LINE << "WARNING: not enough space in cache. Ignore" << std::endl;
@@ -96,7 +98,7 @@ void DecoderCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
   if (stats_enabled_) stats_[image_key].is_cached = true;
 }
 
-void DecoderCacheBlob::print_stats() const {
+void ImageCacheBlob::print_stats() const {
   static std::mutex stats_mutex;
   std::lock_guard<std::mutex> lock(stats_mutex);
   std::size_t images_cached = 0;
