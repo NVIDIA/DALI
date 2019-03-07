@@ -27,8 +27,6 @@ class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
     , RandomCropAttr(spec)
   {}
 
-  ~nvJPEGDecoderRandomCrop() noexcept(false) override = default;
-
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
 
  protected:

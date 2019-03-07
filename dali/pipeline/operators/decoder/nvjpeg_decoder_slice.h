@@ -28,8 +28,6 @@ class nvJPEGDecoderSlice : public nvJPEGDecoder, public SliceAttr {
     , SliceAttr(spec)
   {}
 
-  ~nvJPEGDecoderSlice() noexcept(false) override = default;
-
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderSlice);
 
  protected:
