@@ -260,7 +260,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     ImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name, info.crop_window);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name,
+                   info.crop_window);
       return;
     }
 
@@ -317,7 +318,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           &nvjpeg_image,
           streams_[thread_id]));
     } else {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name, info.crop_window);
+      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name,
+                   info.crop_window);
     }
   }
 
