@@ -16,15 +16,15 @@
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_SLICE_H_
 
 #include <vector>
-#include "dali/pipeline/operators/decoder/nvjpeg_decoder_new.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 #include "dali/pipeline/operators/crop/slice_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderSlice : public nvJPEGDecoderNew, public SliceAttr {
+class nvJPEGDecoderSlice : public nvJPEGDecoder, public SliceAttr {
  public:
   explicit nvJPEGDecoderSlice(const OpSpec& spec)
-    : nvJPEGDecoderNew(spec)
+    : nvJPEGDecoder(spec)
     , SliceAttr(spec)
   {}
 
@@ -36,7 +36,7 @@ class nvJPEGDecoderSlice : public nvJPEGDecoderNew, public SliceAttr {
   using OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
     SliceAttr::ProcessArguments(ws);
-    nvJPEGDecoderNew::Run(ws);
+    nvJPEGDecoder::Run(ws);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

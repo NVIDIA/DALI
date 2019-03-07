@@ -28,6 +28,6 @@ DALI_SCHEMA(nvJPEGDecoderSlice)
   Output of the decoder is in `HWC` ordering.)code")
   .NumInput(3)
   .NumOutput(1)
-  .AddParent("nvJPEGDecoderNew");
+  .AddParent("nvJPEGDecoder");
 
 }  // namespace dali
