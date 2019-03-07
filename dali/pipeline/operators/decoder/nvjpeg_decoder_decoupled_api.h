@@ -48,7 +48,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     curr_pinned_buff_(num_threads_, 0),
     device_buffer_(num_threads_),
     streams_(num_threads_),
-    events_(num_threads_),
+    events_(num_threads_ * 2),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
@@ -88,11 +88,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     for (int i = 0; i < num_threads_ * 2; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &pinned_buffer_[i]));
+      CUDA_CALL(cudaEventCreate(&events_[i]));
     }
     for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
       CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
-      CUDA_CALL(cudaEventCreate(&events_[i]));
     }
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
@@ -112,11 +112,11 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     for (int i = 0; i < num_threads_ * 2; ++i) {
       NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
       NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
+      CUDA_CALL(cudaEventDestroy(events_[i]));
     }
 
     for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
-      CUDA_CALL(cudaEventDestroy(events_[i]));
       CUDA_CALL(cudaStreamDestroy(streams_[i]));
     }
     CUDA_CALL(cudaEventDestroy(master_event_));
@@ -212,8 +212,12 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     }
 
     thread_pool_.WaitForWork();
+    // record all the current streamed work
     for (int i = 0; i < num_threads_; ++i) {
       CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
+    }
+    // waiting all previous recorded events
+    for (int i = 0; i < num_threads_ * 2; ++i) {
       CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
     }
   }
@@ -243,7 +247,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
                                       false,
                                       jpeg_streams_[buff_idx]));
 
-    CUDA_CALL(cudaEventSynchronize(events_[thread_id]));
+    CUDA_CALL(cudaEventSynchronize(events_[buff_idx]));
 
     nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
                                               image_decoders_[sample_idx],
@@ -275,7 +279,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           streams_[thread_id]));
 
       // Next sample processed in this thread has to know when H2D finished
-      CUDA_CALL(cudaEventRecord(events_[thread_id], streams_[thread_id]));
+      CUDA_CALL(cudaEventRecord(events_[buff_idx], streams_[thread_id]));
 
       NVJPEG_CALL(nvjpegDecodeJpegDevice(
           handle_,
@@ -343,7 +347,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
   std::vector<Dims> output_shape_;
-  // Per thread
+  // Per thread - double buffered
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
   std::vector<nvjpegBufferPinned_t> pinned_buffer_;
   std::vector<uint8_t> curr_pinned_buff_;
