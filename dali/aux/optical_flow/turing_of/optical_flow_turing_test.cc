@@ -20,6 +20,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <opencv2/opencv.hpp>
 
 namespace dali {
 namespace optical_flow {
@@ -29,6 +30,7 @@ namespace {
 constexpr float kFlowVectorEpsilon = 1.f / 32;
 }
 
+
 TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
   // (In)sanity test
   using std::vector;
@@ -37,6 +39,44 @@ TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
   for (size_t i = 0; i < test_data.size(); i++) {
     EXPECT_NEAR(ref_data[i], kernel::decode_flow_component(test_data[i]), kFlowVectorEpsilon);
   }
+}
+
+
+TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
+  std::vector<uint8_t> data = {
+          73, 5, 47, 71, 30, 1,
+          80, 41, 60, 60, 85, 41,
+          55, 66, 4, 94, 59, 47,
+          64, 83, 96, 61, 30, 95,
+          88, 95, 63, 96, 78, 16,
+          81, 89, 81, 2, 18, 35,
+  };
+  std::vector<uint8_t> reference = {
+          255, 73, 5, 47, 255, 71, 30, 1, 0, 0,
+          255, 80, 41, 60, 255, 60, 85, 41, 0, 0,
+          255, 55, 66, 4, 255, 94, 59, 47, 0, 0,
+          255, 64, 83, 96, 255, 61, 30, 95, 0, 0,
+          255, 88, 95, 63, 255, 96, 78, 16, 0, 0,
+          255, 81, 89, 81, 255, 2, 18, 35, 0, 0,
+  };
+  size_t width = 6, pitch = 10, height = 6;
+
+  uint8_t *input, *tested;
+  CUDA_CALL(cudaMallocManaged(&input, data.size()));
+  CUDA_CALL(cudaMallocManaged(&tested, reference.size()));
+  CUDA_CALL(cudaMemcpy(input, data.data(), data.size(), cudaMemcpyDefault));
+
+  kernel::BgrToAbgr(input, tested, pitch, width, height);
+  cudaDeviceSynchronize();
+
+  for (size_t i = 0; i < reference.size(); i++) {
+    EXPECT_EQ(reference[i], tested[i]) << "Failed on index: " << i;
+  }
+
+
+  CUDA_CALL(cudaFree(tested));
+  CUDA_CALL(cudaFree(input));
+
 }
 
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/error_handling.h"
 
 namespace dali {
 namespace optical_flow {
@@ -37,8 +38,33 @@ DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, siz
 }
 
 
+__global__ void
+BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
+  size_t x = 3 * threadIdx.x + blockIdx.x * blockDim.x;
+  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  if (x >= width || y >= height) return;
+  size_t in_idx = x + width * y;
+  size_t out_idx = (x / 3) * 4 + pitch * y;
+  output[out_idx] = 255;
+  output[out_idx + 1] = input[in_idx];
+  output[out_idx + 2] = input[in_idx + 1];
+  output[out_idx + 3] = input[in_idx + 2];
+}
+
+
+void BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
+  DALI_ENFORCE(pitch >= width / 3 * 4);
+  size_t blx = 3, bly = 1;
+  dim3 block_dim(blx, bly);
+  dim3 grid_dim(std::ceil(static_cast<float>(width) / blx),
+                std::ceil(static_cast<float>(height) / bly));
+  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
+}
+
+
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
                           size_t height) {
+  DALI_ENFORCE(pitch >= width);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(std::ceil(static_cast<float>(width) / kBlockSize),
                 std::ceil(static_cast<float>(height) / kBlockSize));

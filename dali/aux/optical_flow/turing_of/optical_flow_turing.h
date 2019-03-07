@@ -22,9 +22,28 @@ namespace dali {
 namespace optical_flow {
 namespace kernel {
 
+/**
+ * Converts BGR image to ABGR image. Optionally puts it in strided memory
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch In bytes
+ * @param width In bytes
+ * @param height
+ */
+DLL_PUBLIC void
+BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height);
+
+/**
+ * Decodes components of flow vector and unstrides memory
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch In bytes
+ * @param width In bytes
+ * @param height
+ */
 DLL_PUBLIC void
 DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
-                     size_t num_values);
+                     size_t height);
 
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
