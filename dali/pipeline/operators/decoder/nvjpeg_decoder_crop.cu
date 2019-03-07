@@ -44,6 +44,6 @@ Actual position is calculated as `crop_y = crop_y_norm * (H - crop_H)`,
 where `crop_y_norm` is the normalized position, `H` is the height of the image
 and `crop_H` is the height of the cropping window)code",
     0.5f, true)
-  .AddParent("nvJPEGDecoderNew");
+  .AddParent("nvJPEGDecoder");
 
 }  // namespace dali
