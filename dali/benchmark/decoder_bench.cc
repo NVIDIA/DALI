@@ -122,7 +122,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLIN
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
-      .AddArg("hybrid_huffman_threshold", 1000*1000*1000)
+      .AddArg("hybrid_huffman_threshold", std::numeric_limits<int>::max())
       .AddArg("use_batched_decode", false)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "gpu"));
