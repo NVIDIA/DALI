@@ -38,7 +38,7 @@ if(NVJPEG_FOUND)
   set(CMAKE_REQUIRED_LIBRARIES ${NVJPEG_LIBRARY} "dl" "-pthread" "rt" "-L${CUDA_TOOLKIT_ROOT_DIR}/lib64" "-lcudart_static" "-lculibos")
   check_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
 
-  check_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_NEW_API)
+  check_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
 
   mark_as_advanced(NVJPEG_ROOT_DIR NVJPEG_LIBRARY_RELEASE NVJPEG_LIBRARY_DEBUG)
 endif()

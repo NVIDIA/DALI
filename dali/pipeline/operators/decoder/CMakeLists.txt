@@ -14,13 +14,13 @@
 
 # Get all the source files and dump test files
 if (BUILD_NVJPEG)
-  if (NVJPEG_NEW_API)
+  if (NVJPEG_DECOUPLED_API)
     list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api.cu")
   else()
     list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cu")
   endif()
   if (BUILD_TEST)
-    if (NVJPEG_NEW_API)
+    if (NVJPEG_DECOUPLED_API)
       list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api_test.cc")
     else()
       list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
