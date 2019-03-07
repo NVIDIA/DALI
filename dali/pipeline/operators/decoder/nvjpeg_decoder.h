@@ -306,7 +306,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         const auto *data = in.data<uint8_t>();
         auto *output_data = output.mutable_tensor<uint8_t>(j);
         const auto &dims = output_shape_[j];
-        const kernels::TensorShape<3> output_shape{dims[0], dims[1], dims[2]};
+        const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(

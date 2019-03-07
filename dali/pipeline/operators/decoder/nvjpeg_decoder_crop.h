@@ -28,8 +28,6 @@ class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
     , CropAttr(spec) {
   }
 
-  ~nvJPEGDecoderCrop() noexcept(false) override = default;
-
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCrop);
 
  protected:

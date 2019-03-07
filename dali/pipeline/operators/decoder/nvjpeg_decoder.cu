@@ -56,7 +56,6 @@ images bigger than `cache_threshold` will be cached in memory.)code",
 Warm up time for `threshold` policy is 1 epoch.
 `largest`: Store largest images that can fit the cache.
 Warm up time for `largest` policy is 2 epochs
-default: `largest`.
 To take advantage of caching, it is recommended to use the option `stick_to_shard=True` with
 the reader operators, to limit the amount of unique images seen by the decoder in a multi node environment)code",
       std::string());
