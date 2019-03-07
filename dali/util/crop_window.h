@@ -28,8 +28,8 @@ struct CropWindow {
       : x(0), y(0), w(0), h(0)
     {}
 
-    inline bool IsEmpty() const {
-      return w == 0 || h == 0;
+    operator bool() const {
+      return w > 0 && h > 0;
     }
 
     inline bool operator==(const CropWindow& oth) const {

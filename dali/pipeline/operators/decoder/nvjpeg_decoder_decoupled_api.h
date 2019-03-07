@@ -313,6 +313,10 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   // Predicate to determine if the image should be decoded with the nvJPEG
   // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
   bool ShouldUseHybridHuffman(ImageInfo& info) {
+    auto &roi = info.crop_window;
+    if (roi) {
+      return (roi.x + roi.w) * (roi.y + roi.h) > hybrid_huffman_threshold_;
+    }
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 
