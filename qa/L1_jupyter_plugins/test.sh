@@ -26,7 +26,7 @@ test_body() {
                    --to notebook --inplace --execute \
                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                    --ExecutePreprocessor.timeout=600 {}
-    find */* -name "main.py" | xargs -i python${PYVER:0:1} {} -t
+    python${PYVER:0:1} pytorch/resnet50/main.py -t
 }
 
 source ../../qa/test_template.sh
