@@ -69,7 +69,7 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   const int gaussian_size = 65;
   const int cubic_size = 129;
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
-  const int total_size = triangular_size + gaussian_size + lanczos_size;
+  const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
   filters.filter_data = memory::alloc_unique<float>(AllocType::Unified, total_size);
 
@@ -83,6 +83,8 @@ void InitFilters(ResamplingFilters &filters, cudaStream_t stream) {
   add_filter(gaussian_size);
   add_filter(lanczos_size);
   add_filter(cubic_size);
+  assert(filters.filters.back().coeffs + filters.filters.back().num_coeffs -
+         filters.filter_data.get() <= total_size);
 
   auto *tri_coeffs = filters.filters[Idx_Triangular].coeffs;
   tri_coeffs[0] = 0;
