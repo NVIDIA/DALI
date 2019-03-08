@@ -36,8 +36,14 @@ class CropAttr {
     : spec__(spec)
     , batch_size__(spec__.GetArgument<int>("batch_size")) {
     vector<float> cropArgs = {0, 0};
-    if (spec.HasArgument("crop")) {
-      cropArgs = spec__.GetRepeatedArgument<float>("crop");
+    bool has_crop_arg = spec__.HasArgument("crop");
+    bool has_crop_w_arg = spec__.HasArgument("crop_w");
+    bool has_crop_h_arg = spec__.HasArgument("crop_h");
+    if (has_crop_arg) {
+      DALI_ENFORCE(!has_crop_h_arg && !has_crop_w_arg,
+        "crop argument is not compatible with crop_h, crop_w");
+
+      cropArgs = spec.GetRepeatedArgument<float>("crop");
 
       DALI_ENFORCE(cropArgs[0] >= 0,
         "Crop height must be greater than zero. Received: " +
@@ -46,6 +52,9 @@ class CropAttr {
       DALI_ENFORCE(cropArgs[1] >= 0,
         "Crop width must be greater than zero. Received: " +
         std::to_string(cropArgs[1]));
+    } else {
+      DALI_ENFORCE(has_crop_w_arg && has_crop_h_arg,
+        "Both crop_w and crop_h arguments must be provided");
     }
 
     crop_height_.resize(batch_size__, static_cast<int>(cropArgs[0]));
@@ -59,6 +68,8 @@ class CropAttr {
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
       crop_x_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_x", ws, data_idx);
       crop_y_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_y", ws, data_idx);
+      crop_width_[data_idx] = spec__.GetArgument<int>("crop_w", ws, data_idx);
+      crop_height_[data_idx] = spec__.GetArgument<int>("crop_h", ws, data_idx);
 
       crop_window_generators_[data_idx] =
         [this, data_idx](int H, int W) {
@@ -88,9 +99,13 @@ class CropAttr {
                                       int crop_H, int crop_W,
                                       int H, int W) {
     DALI_ENFORCE(crop_y_norm >= 0.f && crop_y_norm <= 1.f,
-                "Crop coordinates need to be in range [0.0, 1.0]");
+      "Crop coordinates need to be in range [0.0, 1.0]");
     DALI_ENFORCE(crop_x_norm >= 0.f && crop_x_norm <= 1.f,
-                "Crop coordinates need to be in range [0.0, 1.0]");
+      "Crop coordinates need to be in range [0.0, 1.0]");
+    DALI_ENFORCE(crop_W > 0 && crop_W <= W,
+      "Invalid crop_width: " + std::to_string(crop_W) + ", image_width: " + std::to_string(W));
+    DALI_ENFORCE(crop_H > 0 && crop_H <= H,
+      "Invalid crop_heigth: " + std::to_string(crop_H) + ", image_heigth: " + std::to_string(H));
 
     const int crop_y = crop_y_norm * (H - crop_H);
     const int crop_x = crop_x_norm * (W - crop_W);
@@ -108,6 +123,7 @@ class CropAttr {
   OpSpec spec__;
   std::size_t batch_size__;
 };
+
 
 }  // namespace dali
 
