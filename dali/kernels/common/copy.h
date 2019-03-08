@@ -16,38 +16,40 @@
 #define DALI_KERNELS_COMMON_COPY_H_
 
 #include <cuda_runtime.h>
-#include "dali/kernels/tensor_view.h"
+#include <cstring>
 #include "dali/kernels/backend_tags.h"
+#include "dali/kernels/tensor_view.h"
 
 namespace dali {
 namespace kernels {
 
-template <typename Storage1, typename T1, int ndim1, typename Storage2, typename T2, int ndim2>
-void copy(const TensorView<Storage1, T1, ndim1> &out,
-          const TensorView<Storage2, T2, ndim2> &in,
-          cudaStream_t stream = 0) {
-  static_assert(sizeof(T1) == sizeof(T2), "Tensor elements must be of equal size!");
-  static_assert(!std::is_const<T1>::value, "Cannot copy to a tensor of const elements!");
-  assert(in.shape == out.shape);
-
-  if (!is_gpu_accessible<Storage1>::value) {
-    if (is_cpu_accessible<Storage2>::value) {
-      if (is_gpu_accessible<Storage2>::value)
+template <typename StorageOut, typename StorageIn>
+void copy(void* out, const void* in, std::size_t N, cudaStream_t stream = 0) {
+  if (!is_gpu_accessible<StorageOut>::value) {
+    if (is_cpu_accessible<StorageIn>::value) {
+      if (is_gpu_accessible<StorageIn>::value)
         cudaStreamSynchronize(stream);  // or cudaDeviceSynchronize?
-      memcpy(out.data, in.data, in.num_elements() * sizeof(T1));
+      std::memcpy(out, in, N);
     } else {
-      cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T1),
-                      cudaMemcpyDeviceToHost, stream);
+      cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToHost, stream);
     }
   } else {
-    if (is_gpu_accessible<Storage2>::value) {
-      cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T1),
-                      cudaMemcpyDeviceToDevice, stream);
+    if (is_gpu_accessible<StorageIn>::value) {
+      cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToDevice, stream);
     } else {
-      cudaMemcpyAsync(out.data, in.data, in.num_elements() * sizeof(T1),
-                      cudaMemcpyHostToDevice, stream);
+      cudaMemcpyAsync(out, in, N, cudaMemcpyHostToDevice, stream);
     }
   }
+}
+
+template <typename StorageOut, typename TOut, int NDimOut,
+          typename StorageIn, typename TIn, int NDimIn>
+void copy(const TensorView<StorageOut, TOut, NDimIn>& out,
+          const TensorView<StorageIn, TIn, NDimOut>& in, cudaStream_t stream = 0) {
+  static_assert(sizeof(TOut) == sizeof(TIn), "Tensor elements must be of equal size!");
+  static_assert(!std::is_const<TOut>::value, "Cannot copy to a tensor of const elements!");
+  assert(in.shape == out.shape);
+  copy<StorageOut, StorageIn>(out.data, in.data, in.num_elements() * sizeof(TOut), stream);
 }
 
 }  // namespace kernels

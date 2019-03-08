@@ -76,7 +76,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
     // Output #0 contains general infomation about the sample
     // Output #1 contains nvJPEG state, buffer and information
-    // Output #3 optionally contains OpenCV if nvJPEG cannot decode the sample
+    // Output #2 optionally contains OpenCV if nvJPEG cannot decode the sample
 
     ImageInfo* info;
     StateNvJPEG* state_nvjpeg;
@@ -90,6 +90,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                 false,
                                                 state_nvjpeg->jpeg_stream);
     info->nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
+    auto crop_generator = GetCropWindowGenerator(data_idx);
     if (!info->nvjpeg_support) {
       try {
         const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data),
@@ -97,14 +98,21 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         const auto dims = image->GetImageDims();
         info->heights[0] = std::get<0>(dims);
         info->widths[0] = std::get<1>(dims);
+        if (crop_generator) {
+          info->crop_window = crop_generator(info->heights[0], info->widths[0]);
+          DALI_ENFORCE(info->crop_window.IsInRange(info->heights[0], info->widths[0]));
+          info->widths[0] = info->crop_window.w;
+          info->heights[0] = info->crop_window.h;
+        }
         auto& out = ws->Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
         const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
         out.Resize({info->heights[0], info->widths[0], c});
         auto *output_data = out.mutable_data<uint8_t>();
 
-        OCVFallback(input_data, in_size, output_data, file_name);
-      } catch (const std::runtime_error &e) {
+        HostFallback<kernels::StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
+                                          file_name, info->crop_window);
+      } catch (const std::runtime_error& e) {
         DALI_FAIL(e.what() + "File: " + file_name);
       }
     } else {
@@ -116,8 +124,15 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       state_nvjpeg->nvjpeg_backend =
                     ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
-      /* TODO(spanev): add this function when integrating Crop
-      nvjpegnvjpegDecodeParamsSetROI(decode_params_[i], offset_x, offset_y, roi_w, roi_h); */
+      if (crop_generator) {
+        info->crop_window = crop_generator(info->heights[0], info->widths[0]);
+        auto &crop_window = info->crop_window;
+        DALI_ENFORCE(crop_window.IsInRange(info->heights[0], info->widths[0]));
+        nvjpegDecodeParamsSetROI(decode_params_[data_idx],
+          crop_window.x, crop_window.y, crop_window.w, crop_window.h);
+        info->widths[0] = crop_window.w;
+        info->heights[0] = crop_window.h;
+      }
 
       nvjpegJpegState_t state = GetNvjpegState(*state_nvjpeg);
       NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state,
@@ -142,6 +157,10 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
  protected:
   USE_OPERATOR_MEMBERS();
+
+  virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
+    return {};
+  }
 
   inline std::pair<ImageInfo*, StateNvJPEG*>
   InitAndGet(Tensor<CPUBackend>& info_tensor, Tensor<CPUBackend>& state_tensor) {
@@ -195,34 +214,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         DALI_FAIL("Unknown nvjpegBackend_t " + std::to_string(backend));
         return nullptr;
     }
-  }
-
-  /**
-   * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
-   */
-  void OCVFallback(const uint8_t* data, int size,
-                   uint8_t *decoded_host_data, string file_name) {
-    const int c = (output_image_type_ == DALI_GRAY) ? 1 : 3;
-    auto decode_type = (output_image_type_ == DALI_GRAY) ? cv::IMREAD_GRAYSCALE
-                                                         : cv::IMREAD_COLOR;
-    cv::Mat input(1,
-                  size,
-                  CV_8UC1,
-                  reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
-    cv::Mat tmp = cv::imdecode(input, decode_type);
-
-    if (tmp.data == nullptr) {
-      DALI_FAIL("Unsupported image type: " + file_name);
-    }
-
-    // Transpose BGR -> output_image_type_ if needed
-    if (IsColor(output_image_type_) && output_image_type_ != DALI_BGR) {
-      OpenCvColorConversion(DALI_BGR, tmp, output_image_type_, tmp);
-    }
-
-    std::memcpy(decoded_host_data,
-                tmp.ptr(),
-                tmp.rows * tmp.cols * c);
   }
 
   // output colour format

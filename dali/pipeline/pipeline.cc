@@ -120,9 +120,23 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   //               - make it as an arg of nvJPEGDecoderNew
 
   // nvJGPEGDecoder operator require a special case to be divided in two stages (CPU and Mixed-GPU)
-  const bool nvjpeg_splitting = spec.name() == "nvJPEGDecoderSplitted";
-  if (nvjpeg_splitting) {
-    AddSplittedNvJpegDecoder(spec, inst_name);
+  std::string fullname = spec.name();
+  // TODO(janton): make this cleaner and smarter
+  if (fullname == "nvJPEGDecoderSplitted") {
+    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStage",
+                             "nvJPEGDecoderGPUStage");
+    return;
+  } else if (fullname == "nvJPEGDecoderSplittedCrop") {
+    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageCrop",
+                             "nvJPEGDecoderGPUStage");
+    return;
+  } else if (fullname == "nvJPEGDecoderSplittedSlice") {
+    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageSlice",
+                             "nvJPEGDecoderGPUStage");
+    return;
+  } else if (fullname == "nvJPEGDecoderSplittedRandomCrop") {
+    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageRandomCrop",
+                             "nvJPEGDecoderGPUStage");
     return;
   }
 #endif
@@ -250,8 +264,11 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_to_serialize_.push_back(true);
 }
 
-inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec &spec, const std::string& inst_name) {
-  spec.set_name("nvJPEGDecoderCPUStage");
+inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec& spec, const std::string& inst_name,
+                                               const std::string& full_name,
+                                               const std::string& cpu_stage_name,
+                                               const std::string& gpu_stage_name) {
+  spec.set_name(cpu_stage_name);
   spec.SetArg("device", "cpu");
 
   auto& op_output = spec.MutableOutput(0);
@@ -262,7 +279,7 @@ inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec &spec, const std::string& 
   spec.AddOutput("nvJPEGCPUOutput1", "cpu");
   spec.AddOutput("nvJPEGCPUOutput2", "cpu");
 
-  OpSpec gpu_spec = OpSpec("nvJPEGDecoderGPUStage")
+  OpSpec gpu_spec = OpSpec(gpu_stage_name)
     .ShareArguments(spec)
     .AddInput(spec.OutputName(0), "cpu")
     .AddInput(spec.OutputName(1), "cpu")
