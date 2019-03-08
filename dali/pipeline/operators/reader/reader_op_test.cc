@@ -111,13 +111,12 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   pipe.Build(outputs);
 
   DeviceWorkspace ws;
-  for (int i=0; i < 5; ++i) {
+  for (int i=0; i < 10; ++i) {
     printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
-
   return;
 }
 

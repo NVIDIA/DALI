@@ -58,11 +58,12 @@ bool IsPinned(SupportWorkspace::output_t<Backend> &t) {
 
 template <typename Backend>
 bool IsPinned(HostWorkspace::output_t<Backend> &t) {
-  bool is_pinned = true;
   for (auto &tensor_ptr : t) {
-    is_pinned = is_pinned && tensor_ptr->is_pinned();
+    if(!tensor_ptr->is_pinned()) {
+      return false;
+    }
   }
-  return is_pinned;
+  return true;
 }
 
 // Device is the same as Mixed
@@ -133,7 +134,7 @@ constexpr StorageDevice GetStorageDevice(size_t storage_idx) {
 // so we have a unifided place that can own any of this type.
 // Additionally, we use order of those types deifned by GetTensorStoreIndex
 // We have 4 workspaces with two possible Backends, obtatining 8 types
-// TODO(klecki): this can be clearer as
+// This can be clearer as
 // std::tuple<DeviceOutputType<CPUBackend>, DeviceOutputType<GPUBackend>,
 //            HostOutputType<CPUBackend>, ...
 // but that way we ensure correct order of types and not use 8 static_asserts
