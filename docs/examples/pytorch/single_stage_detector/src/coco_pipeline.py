@@ -24,7 +24,7 @@ class COCOPipeline(Pipeline):
             batch_size=args.batch_size, 
             device_id=args.local_rank,
             num_threads=args.num_workers, 
-            seed = seed)
+            seed=seed)
 
         try:
             shard_id = torch.distributed.get_rank()
@@ -32,14 +32,15 @@ class COCOPipeline(Pipeline):
             shard_id = 0
 
         self.input = ops.COCOReader(
-            file_root = args.train_coco_root, 
-            annotations_file = args.train_annotate, 
+            file_root=args.train_coco_root, 
+            annotations_file=args.train_annotate, 
             skip_empty=True,
-            shard_id = shard_id, 
-            num_shards = args.N_gpu, 
+            shard_id=shard_id, 
+            num_shards=args.N_gpu, 
             ratio=True, 
             ltrb=True, 
-            random_shuffle=True)
+            random_shuffle=True,
+            shuffle_after_epoch=True)
 
         self.decode = ops.HostDecoder(device="cpu", output_type=types.RGB)
 
@@ -55,10 +56,10 @@ class COCOPipeline(Pipeline):
         self.slice = ops.Slice(device="cpu")
         self.twist = ops.ColorTwist(device="gpu")
         self.resize = ops.Resize(
-            device = "cpu", 
-            resize_x = 300, 
-            resize_y = 300,
-            min_filter = types.DALIInterpType.INTERP_TRIANGULAR)
+            device="cpu", 
+            resize_x=300, 
+            resize_y=300,
+            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
         output_dtype = types.FLOAT16 if args.fp16 else types.FLOAT
 
@@ -77,8 +78,8 @@ class COCOPipeline(Pipeline):
         self.rng2 = ops.Uniform(range=[0.875, 1.125])
         self.rng3 = ops.Uniform(range=[-0.5, 0.5])
 
-        self.flip = ops.Flip(device = "cpu")
-        self.bbflip = ops.BbFlip(device = "cpu", ltrb=True)
+        self.flip = ops.Flip(device="cpu")
+        self.bbflip = ops.BbFlip(device="cpu", ltrb=True)
         self.flip_coin = ops.CoinFlip(probability=0.5)
 
         self.box_encoder = ops.BoxEncoder(
@@ -99,8 +100,8 @@ class COCOPipeline(Pipeline):
         crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
         images = self.slice(images, crop_begin, crop_size)
 
-        images = self.flip(images, horizontal = coin_rnd)
-        bboxes = self.bbflip(bboxes, horizontal = coin_rnd)
+        images = self.flip(images, horizontal=coin_rnd)
+        bboxes = self.bbflip(bboxes, horizontal=coin_rnd)
         images = self.resize(images)
         images = images.gpu()
         images = self.twist(

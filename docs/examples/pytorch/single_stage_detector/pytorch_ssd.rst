@@ -70,7 +70,7 @@ All arguments with descriptions you can find in table below:
 +---------------------------------------------+-----------------------------------------+
 | --momentum MOMENTUM                         | momentum argument for SGD optimizer     |
 +---------------------------------------------+-----------------------------------------+
-| --weight-decay WEIGHT_DECAY                 | weight decay                            |
+| --weight-decay WEIGHT_DECAY                 | weight decay value                      |
 +---------------------------------------------+-----------------------------------------+
 | --warmup WARMUP                             | number of warmup iterations             |
 +---------------------------------------------+-----------------------------------------+

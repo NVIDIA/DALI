@@ -29,7 +29,7 @@ def make_parser():
     parser.add_argument('--momentum', '-m', type=float, default=0.9,
                         help='momentum argument for SGD optimizer')
     parser.add_argument('--weight-decay', '--wd', type=float, default=0.0005,
-                        help='momentum argument for SGD optimizer')
+                        help='weight decay value')
     parser.add_argument('--warmup', type=int, default=None)
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--fp16', action='store_true')
