@@ -80,12 +80,17 @@ class Pipeline(object):
         self._first_iter = True
         self._last_iter = False
         self._batches_to_consume = 0
+        self._cpu_batches_to_consume = 0
+        self._gpu_batches_to_consume = 0
         self._prepared = False
         self._names_and_devices = None
         self._exec_async = exec_async
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
+        self._exec_separated = False
+        self._cpu_queue_size = prefetch_queue_depth
+        self._gpu_queue_size = prefetch_queue_depth
 
     @property
     def batch_size(self):
@@ -133,6 +138,8 @@ class Pipeline(object):
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams)
+        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
+        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         outputs = self.define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
@@ -189,6 +196,55 @@ class Pipeline(object):
         self._prepared = True
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
+
+    def set_execution_types(self, exec_pipelined = True, exec_separated = False, exec_async = True):
+        """Set execution characteristics for this Pipeline.
+
+        Must be invoked before pipeline is built.
+        Parameters
+        ----------
+        `exec_pipelined` : bool, optional, default = True
+                        Whether to execute the pipeline in a way that enables
+                        overlapping CPU and GPU computation, typically resulting
+                        in faster execution speed, but larger memory consumption.
+        `exec_separated` : bool, optional, default =  False
+                        Whether to use executor with separate queue sizes for
+                        each stage, allowing to prefetch more data for certain stages.
+        `exec_async` : bool, optional, default = True
+                    Whether to execute the pipeline asynchronously.
+                    This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
+                    run asynchronously with respect to the calling Python thread.
+                    In order to synchronize with the pipeline one needs to call
+                    :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
+        """
+
+        if self._built:
+            raise RuntimeError("Alterations to the pipeline after "
+                "\"build()\" has been called are not allowed - cannot change execution type.")
+        self._exec_pipelined = exec_pipelined
+        self._exec_separated = exec_separated
+        self._exec_async = exec_async
+
+    def set_queue_sizes(self, cpu_queue_size = 2, gpu_queue_size = 2):
+        """Set queue sizes for Pipeline using Separated Queues.
+
+        Must be invoked before pipeline `build()`, and after execution is set for separted,
+        what can be done using: `pipeline.set_execution_types(exec_separated = True)`.
+        Parameters
+        ----------
+        `cpu` : int, optional, default = 2
+             Queue size for CPU stage.
+        `gpu` : int, optional, default = 2
+             Queue size for GPU stage.
+        """
+        if self._built:
+            raise RuntimeError("Alterations to the pipeline after "
+                "\"build()\" has been called are not allowed - cannot set queue sizes.")
+        if not self._exec_separated:
+            raise RuntimeError("Setting queue sizes for non-separated execution is not allowed")
+        self._cpu_queue_size = cpu_queue_size
+        self._gpu_queue_size = gpu_queue_size
+
     def build(self):
         """Build the pipeline.
 
@@ -229,13 +285,18 @@ class Pipeline(object):
         """Run CPU portion of the pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        self._pipe.RunCPU()
+        if not self._last_iter:
+            self._pipe.RunCPU()
+            self._cpu_batches_to_consume += 1
 
     def _run_gpu(self):
         """Run GPU portion of the pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        self._pipe.RunGPU()
+        if self._cpu_batches_to_consume > 0:
+            self._pipe.RunGPU()
+            self._cpu_batches_to_consume -= 1
+            self._gpu_batches_to_consume += 1
 
     def outputs(self):
         """Returns the outputs of the pipeline and releases previous buffer.
@@ -243,10 +304,11 @@ class Pipeline(object):
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
         reached its end - usually when iter_setup cannot produce any more data"""
-        if self._batches_to_consume == 0:
+        if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
             raise StopIteration
         self._release_outputs()
         self._batches_to_consume -= 1
+        self._gpu_batches_to_consume -= 1
         return self._share_outputs()
 
     def _share_outputs(self):
@@ -293,9 +355,12 @@ class Pipeline(object):
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if self._first_iter and self._exec_pipelined:
+            if self._exec_separated:
+                self._fill_separated_queues()
+            else:
+                for i in range(self._prefetch_queue_depth):
+                    self._start_run()
             self._first_iter = False
-            for i in range(self._prefetch_queue_depth):
-                self._start_run()
 
     def _start_run(self):
         """Start running the pipeline without waiting for its results.
@@ -305,11 +370,42 @@ class Pipeline(object):
         try:
             if not self._last_iter:
                 self.iter_setup()
-                self._run_cpu()
-                self._run_gpu()
                 self._batches_to_consume += 1
+            self._run_cpu()
+            self._run_gpu()
         except StopIteration:
             self._last_iter = True
+
+    def _run_up_to(self, stage_name):
+        """Call the `_run_X` up to `stage_name` (inclusive).
+        """
+        try:
+            if not self._last_iter:
+                self.iter_setup()
+                self._batches_to_consume += 1
+                self._run_cpu()
+                if stage_name == "cpu":
+                    return
+                self._run_gpu()
+                if stage_name == "gpu":
+                    return
+        except StopIteration:
+            self._last_iter = True
+
+
+    def _fill_separated_queues(self):
+        """When using separated execution fill each of the prefetch queues
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if not self._first_iter:
+            raise RuntimeError("Queues can be filled only on first iteration.")
+        if not self._exec_separated:
+            raise RuntimeError("This function should be only used with separated execution.")
+        for i in range(self._gpu_queue_size):
+            self._run_up_to("gpu")
+        for i in range(self._cpu_queue_size):
+            self._run_up_to("cpu")
 
     def serialize(self):
         """Serialize the pipeline to a Protobuf string."""
@@ -336,6 +432,9 @@ class Pipeline(object):
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams)
+
+        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
+        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._prepared = True
         self._pipe.Build()
         self._built = True
