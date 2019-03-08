@@ -134,7 +134,7 @@ void Executor::RunCPU() {
 }
 
 void Executor::RunMixed() {
-  TimeRange tr("[Executor] RunMixed");
+  TimeRange tr("[Executor] RunMixed", TimeRange::kOrange);
   std::unique_lock<std::mutex> lock(mixed_mutex_);
   DALI_ENFORCE(!mixed_work_queue_.empty(), "Mixed work "
       "queue empty. Did you call RunCPU prior to RunMixed?");
@@ -172,7 +172,7 @@ void Executor::RunMixed() {
 }
 
 void Executor::RunGPU() {
-  TimeRange tr("[Executor] RunGPU");
+  TimeRange tr("[Executor] RunGPU", TimeRange::knvGreen);
   std::unique_lock<std::mutex> gpu_lock(gpu_mutex_);
   DALI_ENFORCE(!gpu_work_queue_.empty(), "GPU work queue "
       "empty. Did you call RunMixed prior to RunGPU?");
