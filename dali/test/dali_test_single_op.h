@@ -81,7 +81,7 @@ typedef enum {
 
 typedef struct {
   const char *m_Name;
-  const char *m_val;
+  std::string m_val;
   const DALIDataType type;
 } OpArg;
 
@@ -273,11 +273,12 @@ class DALISingleOpTest : public DALITest {
     for (size_t i = 0; i < output_indices.size(); ++i) {
       auto output_device = outputs_[i].second;
 
+      auto idx = output_indices[i];
       if (output_device == "gpu") {
         // copy to host
-        calc_output->Copy(ws->Output<GPUBackend>(output_indices[i]), nullptr);
+        calc_output->Copy(ws->Output<GPUBackend>(idx), nullptr);
       } else {
-        calc_output->Copy(ws->Output<CPUBackend>(output_indices[i]), nullptr);
+        calc_output->Copy(ws->Output<CPUBackend>(idx), nullptr);
       }
 
       auto ref_output = res[i];
@@ -287,8 +288,9 @@ class DALISingleOpTest : public DALITest {
       CheckTensorLists(calc_output.get(), ref_output);
     }
 
-    for (auto *ref_output : res) {
+    for (auto *&ref_output : res) {
       delete ref_output;
+      ref_output = nullptr;
     }
   }
 
@@ -366,14 +368,14 @@ class DALISingleOpTest : public DALITest {
       return *spec;
 
     for (auto param : *args) {
-      auto val = param.m_val;
-      auto name = param.m_Name;
+      const auto &val = param.m_val;
+      const auto &name = param.m_Name;
       switch (param.type) {
         case DALI_INT32:
-          spec->AddArg(name, strtol(val, nullptr, 10));
+          spec->AddArg(name, strtol(val.c_str(), nullptr, 10));
           break;
         case DALI_FLOAT:
-          spec->AddArg(name, strtof(val, nullptr));
+          spec->AddArg(name, strtof(val.c_str(), nullptr));
           break;
         case DALI_STRING:
           spec->AddArg(name, val);
@@ -385,10 +387,10 @@ class DALISingleOpTest : public DALITest {
           break;
         }
         case DALI_FLOAT_VEC:
-          StringToVector<float>(name, val, spec, param.type);
+          StringToVector<float>(name, val.c_str(), spec, param.type);
           break;
         case DALI_INT_VEC:
-          StringToVector<int>(name, val, spec, param.type);
+          StringToVector<int>(name, val.c_str(), spec, param.type);
           break;
         default: DALI_FAIL("Unknown type of parameters \"" + std::string(val) + "\" "
                            "used for \"" + std::string(name) + "\"");

@@ -17,8 +17,10 @@
 
 #include <string>
 
-#define ENUM_TO_STRING(val) \
-  std::to_string(static_cast<std::underlying_type<decltype(val)>::type>(val)).c_str()
+template <typename Enum>
+std::string EnumToString(Enum value) {
+  return std::to_string(static_cast<typename std::underlying_type<Enum>::type>(value));
+}
 
 namespace dali {
 

@@ -11,11 +11,14 @@
 
 namespace dali {
 
-typedef struct {
-  const char *opName;
+struct SingleParamOpDescr {
+  SingleParamOpDescr() = default;
+  SingleParamOpDescr(const char *name, OpArg &&arg, double eps = 0)  // NOLINT
+  : opName(name), opArg(std::move(arg)), epsVal(eps) {}
+  const char *opName = nullptr;
   OpArg opArg;
-  double epsVal;
-} singleParamOpDescr;
+  double epsVal = 0;
+};
 
 template <typename ImgType>
 class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
@@ -155,7 +158,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
            t_checkElements;  // + t_checkAll + t_checkNoAssert;
   }
 
-  void RunBBoxesCPU(const singleParamOpDescr &paramOp, bool addImgType = false,
+  void RunBBoxesCPU(const SingleParamOpDescr &paramOp, bool addImgType = false,
                     bool ltrb = true) {
     vector<OpArg> args;
     args.push_back(paramOp.opArg);
