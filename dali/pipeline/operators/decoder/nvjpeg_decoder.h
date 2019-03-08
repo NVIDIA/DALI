@@ -28,7 +28,6 @@
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/device_guard.h"
 #include "dali/util/image.h"
@@ -62,13 +61,15 @@ namespace dali {
 
 namespace memory {
 
-inline int DeviceNew(void **ptr, size_t size) {
+int DeviceNew(void **ptr, size_t size) {
   *ptr = GPUBackend::New(size, false);
+
   return 0;
 }
 
-inline int DeviceDelete(void *ptr) {
+int DeviceDelete(void *ptr) {
   GPUBackend::Delete(ptr, 0, false);
+
   return 0;
 }
 
@@ -172,7 +173,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    SetupSharedSampleParams(ws);
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
@@ -191,12 +191,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       EncodedImageInfo info;
 
       // Get necessary image information
-      nvjpegStatus_t ret = nvjpegGetImageInfo(
-        handle_,
-        static_cast<const unsigned char*>(data), in_size,
-        &info.c, &info.subsampling,
-        info.widths, info.heights);
-
+      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
+                                     static_cast<const unsigned char*>(data), in_size,
+                                     &info.c, &info.subsampling,
+                                     info.widths, info.heights);
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
@@ -343,7 +341,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
     }
   }
-
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
   struct EncodedImageInfo {
@@ -369,8 +366,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                     cudaStream_t stream,
                     string file_name) {
     if (!info.nvjpeg_support) {
-      HostFallback<kernels::StorageGPU>(data, in_size, output_image_type_, output, stream,
-                                        file_name, {});
+      OCVFallback(data, in_size, output, stream, file_name);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
@@ -391,8 +387,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // If image is somehow not supported try hostdecoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
-        HostFallback<kernels::StorageGPU>(data, in_size, output_image_type_, output, stream,
-                                          file_name, {});
+        OCVFallback(data, in_size, output, stream, file_name);
         CUDA_CALL(cudaStreamSynchronize(stream));
         return;
       } else {
@@ -423,8 +418,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                               cudaStream_t stream,
                               string file_name) {
     if (!info.nvjpeg_support) {
-      HostFallback<kernels::StorageGPU>(data, in_size, output_image_type_, output, stream,
-                                        file_name, {});
+      OCVFallback(data, in_size, output, stream, file_name);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return;
     }
@@ -436,6 +430,35 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                        nvjpeg_image_idx,
                                        thread_idx,
                                        stream), file_name);
+  }
+
+  /**
+   * Fallback to openCV's cv::imdecode for all images nvjpeg can't handle
+   */
+  void OCVFallback(const uint8_t* data, int size,
+                   uint8_t *decoded_device_data, cudaStream_t s, string file_name) {
+    const int c = (output_type_ == DALI_GRAY) ? 1 : 3;
+    auto decode_type = (output_type_ == DALI_GRAY) ? cv::IMREAD_GRAYSCALE
+                                                   : cv::IMREAD_COLOR;
+    cv::Mat input(1,
+                  size,
+                  CV_8UC1,
+                  reinterpret_cast<unsigned char*>(const_cast<uint8_t*>(data)));
+    cv::Mat tmp = cv::imdecode(input, decode_type);
+
+    if (tmp.data == nullptr) {
+      DALI_FAIL("Unsupported image type: " + file_name);
+    }
+
+    // Transpose BGR -> output_type_ if needed
+    if (IsColor(output_type_) && output_type_ != DALI_BGR) {
+      OpenCvColorConversion(DALI_BGR, tmp, output_type_, tmp);
+    }
+
+    CUDA_CALL(cudaMemcpyAsync(decoded_device_data,
+                              tmp.ptr(),
+                              tmp.rows * tmp.cols * c,
+                              cudaMemcpyHostToDevice, s));
   }
 
   nvjpegHandle_t handle_;
