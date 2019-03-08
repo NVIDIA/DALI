@@ -19,7 +19,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStage, nvJPEGDecoderCPUStage, CPU);
 
 DALI_SCHEMA(nvJPEGDecoderCPUStage)
-  .DocStr(R"code(This operator is the CPU stage of nvJPEGDecoderNew, it is not supposed to be called separately.
+  .DocStr(R"code(This operator is the CPU stage of nvJPEGDecoder, it is not supposed to be called separately.
 It is automatically inserted during the pipeline creation.)code")
   .NumInput(1)
   .NumOutput(3)

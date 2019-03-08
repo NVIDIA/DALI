@@ -61,13 +61,15 @@ namespace dali {
 
 namespace memory {
 
-inline int DeviceNew(void **ptr, size_t size) {
+int DeviceNew(void **ptr, size_t size) {
   *ptr = GPUBackend::New(size, false);
+
   return 0;
 }
 
-inline int DeviceDelete(void *ptr) {
+int DeviceDelete(void *ptr) {
   GPUBackend::Delete(ptr, 0, false);
+
   return 0;
 }
 
@@ -171,7 +173,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    SetupSharedSampleParams(ws);
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
@@ -190,12 +191,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       EncodedImageInfo info;
 
       // Get necessary image information
-      nvjpegStatus_t ret = nvjpegGetImageInfo(
-        handle_,
-        static_cast<const unsigned char*>(data), in_size,
-        &info.c, &info.subsampling,
-        info.widths, info.heights);
-
+      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
+                                     static_cast<const unsigned char*>(data), in_size,
+                                     &info.c, &info.subsampling,
+                                     info.widths, info.heights);
       // Fallback for png
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
@@ -342,7 +341,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
     }
   }
-
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
 
   struct EncodedImageInfo {

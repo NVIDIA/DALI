@@ -360,7 +360,10 @@ class DLL_PUBLIC Pipeline {
   void PropagateMemoryHint(OpNode &node);
 
   // Helper for nvJPEGDecoder splitted special handling
-  inline void AddSplittedNvJpegDecoder(OpSpec &spec, const std::string& inst_name);
+  inline void AddSplittedNvJpegDecoder(OpSpec &spec, const std::string &inst_name,
+                                       const std::string &full_name,
+                                       const std::string &cpu_stage_name,
+                                       const std::string &gpu_stage_name);
 
   const int MAX_SEEDS = 1024;
 

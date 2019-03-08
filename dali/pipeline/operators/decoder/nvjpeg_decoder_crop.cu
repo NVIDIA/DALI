@@ -24,26 +24,7 @@ DALI_SCHEMA(nvJPEGDecoderCrop)
 Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg(
-    "crop",
-    R"code(Size of the cropped image, specified as a pair `(crop_H, crop_W)`.
-If only a single value `c` is provided, the resulting crop will be square
-with size `(c,c)`)code",
-    std::vector<float>{0.f, 0.f})
-  .AddOptionalArg(
-    "crop_pos_x",
-    R"code(Normalized horizontal position of the crop (0.0 - 1.0).
-Actual position is calculated as `crop_x = crop_x_norm * (W - crop_W)`,
-where `crop_x_norm` is the normalized position, `W` is the width of the image
-and `crop_W` is the width of the cropping window)code",
-    0.5f, true)
-  .AddOptionalArg(
-    "crop_pos_y",
-    R"code(Normalized vertical position of the crop (0.0 - 1.0).
-Actual position is calculated as `crop_y = crop_y_norm * (H - crop_H)`,
-where `crop_y_norm` is the normalized position, `H` is the height of the image
-and `crop_H` is the height of the cropping window)code",
-    0.5f, true)
-  .AddParent("nvJPEGDecoder");
+  .AddParent("nvJPEGDecoder")
+  .AddParent("CropAttr");
 
 }  // namespace dali
