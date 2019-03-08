@@ -471,10 +471,7 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
     OpNode &node = graph_->Node(OpType::MIXED, i);
     MixedWorkspace &ws = wsb->mixed_op_data[i];
 
-    // Mixed ops do not take argument tensors (at least for now)
-    DALI_ENFORCE(node.spec.NumRegularInput() == node.spec.NumInput());
-
-    for (int j = 0; j < node.spec.NumInput(); ++j) {
+    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
       // Go get each set of input Tensors and add
       // them to this mixed ops workspace.
       OpNodeId parent_node_id = graph_->TensorSourceID(node.spec.Input(j));
@@ -495,6 +492,21 @@ void Executor::SetupDataForGraph(WorkspaceBlob *wsb) {
         }
       }
       ws.AddInput(input);
+    }
+
+    // Add argument tensors
+    for (const auto &arg_pair : node.spec.ArgumentInputs()) {
+      // Get each argument input and add them to this op's workspace.
+      OpNodeId parent_node_id = graph_->TensorSourceID(node.spec.Input(arg_pair.second));
+      OpType parent_op_type = graph_->NodeType(parent_node_id);
+      DALI_ENFORCE(parent_op_type == OpType::SUPPORT,
+          "Executor encountered argument input produced by non-cpu op.");
+      int parent_idx = graph_->NodeIdx(parent_node_id);
+      int input_src_idx = graph_->TensorIdxInSource(node.spec.Input(arg_pair.second));
+
+      SupportWorkspace &src_ws = wsb->support_op_data[parent_idx];
+      const auto input = src_ws.SharedCPUOutput(input_src_idx);
+      ws.AddArgumentInput(input, arg_pair.first);
     }
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
