@@ -1,7 +1,68 @@
 import torch
 import torch.nn as nn
-from base_model import ResNet34
-from mlperf_compliance import mlperf_log
+from torchvision.models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+
+def _ModifyConvStrideDilation(conv, stride=(1, 1), padding=None):
+    conv.stride = stride
+
+    if padding is not None:
+        conv.padding = padding
+
+def _ModifyBlock(block, bottleneck=False, **kwargs):
+    for m in list(block.children()):
+        if bottleneck:
+           _ModifyConvStrideDilation(m.conv2, **kwargs)
+        else:
+           _ModifyConvStrideDilation(m.conv1, **kwargs)
+
+        if m.downsample is not None:
+            # need to make sure no padding for the 1x1 residual connection
+            _ModifyConvStrideDilation(list(m.downsample.children())[0], **kwargs)
+
+class ResNet18(nn.Module):
+    def __init__(self):
+        super().__init__()
+        rn18 = resnet18(pretrained=True)
+
+        # discard last Resnet block, avrpooling and classification FC
+        # layer1 = up to and including conv3 block
+        self.layer1 = nn.Sequential(*list(rn18.children())[:6])
+        # layer2 = conv4 block only
+        self.layer2 = nn.Sequential(*list(rn18.children())[6:7])
+
+        # modify conv4 if necessary
+        # Always deal with stride in first block
+        modulelist = list(self.layer2.children())
+        _ModifyBlock(modulelist[0], stride=(1,1))
+
+    def forward(self, data):
+        layer1_activation = self.layer1(data)
+        x = layer1_activation
+        layer2_activation = self.layer2(x)
+
+        # Only need the output of conv4
+        return [layer2_activation]
+
+class ResNet34(nn.Module):
+    def __init__(self):
+        super().__init__()
+        rn34 = resnet34(pretrained=True)
+
+        # discard last Resnet block, avrpooling and classification FC
+        self.layer1 = nn.Sequential(*list(rn34.children())[:6])
+        self.layer2 = nn.Sequential(*list(rn34.children())[6:7])
+        # modify conv4 if necessary
+        # Always deal with stride in first block
+        modulelist = list(self.layer2.children())
+        _ModifyBlock(modulelist[0], stride=(1,1))
+
+
+    def forward(self, data):
+        layer1_activation = self.layer1(data)
+        x = layer1_activation
+        layer2_activation = self.layer2(x)
+
+        return [layer2_activation]
 
 class SSD300(nn.Module):
     """
@@ -19,13 +80,9 @@ class SSD300(nn.Module):
 
         if backbone == 'resnet34':
             self.model = ResNet34()
-            mlperf_log.ssd_print(key=mlperf_log.BACKBONE, value='resnet34')
             out_channels = 256
             out_size = 38
             self.out_chan = [out_channels, 512, 512, 256, 256, 256]
-            mlperf_log.ssd_print(key=mlperf_log.LOC_CONF_OUT_CHANNELS,
-                                 value=self.out_chan)
-
         else:
             raise ValueError('Invalid backbone chosen')
 
@@ -35,8 +92,6 @@ class SSD300(nn.Module):
         # classifer 1, 2, 3, 4, 5 ,6
 
         self.num_defaults = [4, 6, 6, 6, 4, 4]
-        mlperf_log.ssd_print(key=mlperf_log.NUM_DEFAULTS_PER_CELL,
-                             value=self.num_defaults)
         self.loc = []
         self.conf = []
 
@@ -146,4 +201,74 @@ class SSD300(nn.Module):
 
         # For SSD 300, shall return nbatch x 8732 x {nlabels, nlocs} results
         return locs, confs
-    
+
+
+class Loss(nn.Module):
+    """
+        Implements the loss as the sum of the followings:
+        1. Confidence Loss: All labels, with hard negative mining
+        2. Localization Loss: Only on positive labels
+        Suppose input dboxes has the shape 8732x4
+    """
+
+    def __init__(self, dboxes):
+        super(Loss, self).__init__()
+        self.scale_xy = 1.0/dboxes.scale_xy
+        self.scale_wh = 1.0/dboxes.scale_wh
+
+        self.sl1_loss = nn.SmoothL1Loss(reduce=False)
+        self.dboxes = nn.Parameter(dboxes(order="xywh").transpose(0, 1).unsqueeze(dim = 0),
+            requires_grad=False)
+        # Two factor are from following links
+        # http://jany.st/post/2017-11-05-single-shot-detector-ssd-from-scratch-in-tensorflow.html
+        self.con_loss = nn.CrossEntropyLoss(reduce=False)
+
+    def _loc_vec(self, loc):
+        """
+            Generate Location Vectors
+        """
+        gxy = self.scale_xy*(loc[:, :2, :] - self.dboxes[:, :2, :])/self.dboxes[:, 2:, ]
+        gwh = self.scale_wh*(loc[:, 2:, :]/self.dboxes[:, 2:, :]).log()
+
+        return torch.cat((gxy, gwh), dim=1).contiguous()
+
+    def forward(self, ploc, plabel, gloc, glabel):
+        """
+            ploc, plabel: Nx4x8732, Nxlabel_numx8732
+                predicted location and labels
+
+            gloc, glabel: Nx4x8732, Nx8732
+                ground truth location and labels
+        """
+
+        mask = glabel > 0
+        pos_num = mask.sum(dim=1)
+
+        vec_gd = self._loc_vec(gloc)
+
+        # sum on four coordinates, and mask
+        sl1 = self.sl1_loss(ploc, vec_gd).sum(dim=1)
+        sl1 = (mask.float()*sl1).sum(dim=1)
+
+        # hard negative mining
+        con = self.con_loss(plabel, glabel)
+
+        # postive mask will never selected
+        con_neg = con.clone()
+        con_neg[mask] = 0
+        _, con_idx = con_neg.sort(dim=1, descending=True)
+        _, con_rank = con_idx.sort(dim=1)
+
+        # number of negative three times positive
+        neg_num = torch.clamp(3*pos_num, max=mask.size(1)).unsqueeze(-1)
+        neg_mask = con_rank < neg_num
+
+        closs = (con*(mask.float() + neg_mask.float())).sum(dim=1)
+
+        # avoid no object detected
+        total_loss = sl1 + closs
+        num_mask = (pos_num > 0).float()
+        pos_num = pos_num.float().clamp(min=1e-6)
+
+        ret = (total_loss*num_mask/pos_num).mean(dim=0)
+        return ret

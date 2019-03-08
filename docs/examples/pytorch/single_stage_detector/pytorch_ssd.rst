@@ -6,11 +6,11 @@ Scott Reed, Cheng-Yang Fu, Alexander C. Berg as `SSD: Single Shot MultiBox Detec
 
 Code is based on `MLPerf example <https://github.com/mlperf/training/tree/master/single_stage_detector/ssd>`_ and has been modified to use DALI. 
 
-To run use following command:
+To run training on 8 GPUs using half-precission with COCO 2017 dataset under ``/coco`` use following command:
 
 .. code-block:: bash
 
-   python train.py
+   python -m torch.distributed.launch --nproc_per_node=8 ./main.py --warmup 300 --bs 64 --fp16 --data /coco/
 
 
 Requirements
@@ -38,16 +38,14 @@ Usage
 
 .. code-block:: bash
 
-  python train.py [-h] [--data DATA] [--epochs EPOCHS] [--batch-size BATCH_SIZE]
-                  [--seed SEED] [--threshold THRESHOLD] [--iteration ITERATION]
-                  [--checkpoint CHECKPOINT] [--no-save]
-                  [--evaluation [EVALUATION [EVALUATION ...]]]
-
-For example, if you have COCO data in ``/data/coco2017`` and wish to train for 80 epochs you could use:
-
-  .. code-block:: bash
-
-    python train.py --data=/data/coco2017 --epochs=80
+  usage: main.py [-h] --data DATA [--epochs EPOCHS] [--batch-size BATCH_SIZE]
+                [--eval-batch-size EVAL_BATCH_SIZE] [--seed SEED]
+                [--evaluation [EVALUATION [EVALUATION ...]]]
+                [--multistep [MULTISTEP [MULTISTEP ...]]]
+                [--learning-rate LEARNING_RATE] [--momentum MOMENTUM]
+                [--weight-decay WEIGHT_DECAY] [--warmup WARMUP]
+                [--num-workers NUM_WORKERS] [--fp16] [--local_rank LOCAL_RANK]
+                [--data_pipeline {dali,no_dali}]
 
 All arguments with descriptions you can find in table below:
 
@@ -64,13 +62,23 @@ All arguments with descriptions you can find in table below:
 +---------------------------------------------+-----------------------------------------+
 | --seed SEED, -s SEED                        | manually set random seed for torch      |
 +---------------------------------------------+-----------------------------------------+
-| --threshold THRESHOLD, -t THRESHOLD         | stop training early at threshold        |
+| --evaluation [EVALUATION [EVALUATION ...]]  | epochs at which to evaluate             |
 +---------------------------------------------+-----------------------------------------+
-| --iteration ITERATION                       | iteration to start from                 |
+| --multistep [MULTISTEP [MULTISTEP ...]]     | epochs at which to decay learning rate  |
 +---------------------------------------------+-----------------------------------------+
-| --checkpoint CHECKPOINT                     | path to model checkpoint file           |
+| --learning-rate LEARNING_RATE               | learning rate                           |
 +---------------------------------------------+-----------------------------------------+
-| --no-save                                   | save model checkpoints                  |
+| --momentum MOMENTUM                         | momentum argument for SGD optimizer     |
 +---------------------------------------------+-----------------------------------------+
-| --evaluation [EVALUATION [EVALUATION ...]]  | iterations at which to evaluate         |
+| --weight-decay WEIGHT_DECAY                 | weight decay value                      |
++---------------------------------------------+-----------------------------------------+
+| --warmup WARMUP                             | number of warmup iterations             |
++---------------------------------------------+-----------------------------------------+
+| --num-workers NUM_WORKERS                   | number of worker threads                |
++---------------------------------------------+-----------------------------------------+
+| --fp16                                      | use half precission                     |
++---------------------------------------------+-----------------------------------------+
+| --local_rank LOCAL_RANK                     | local rank of current process           |
++---------------------------------------------+-----------------------------------------+
+| --data_pipeline {dali,no_dali}              | data pipeline to use for training       |
 +---------------------------------------------+-----------------------------------------+
