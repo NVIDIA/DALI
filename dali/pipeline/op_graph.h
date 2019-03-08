@@ -30,7 +30,12 @@
 
 namespace dali {
 
-using NodeID = int64_t;
+using OpNodeId = int64_t;
+using OpPartitionId = int64_t;
+using TensorNodeId = int64_t;
+// using producer_edge_t = std::pair<OpNodeId, Index>;
+// using consumer_edge_t = std::pair<OpNodeId, Index>;
+
 
 // What device is this tensor stored on
 enum class StorageDevice {
@@ -53,27 +58,47 @@ struct OpNode {
   }
 
   std::unique_ptr<OperatorBase> op;
-  NodeID id;
+  OpNodeId id;
   OpSpec spec;
-  std::set<NodeID> parents, children;
+  std::set<OpNodeId> parents, children;
+
+  // parent and children tensors indexed by our inputs and outputs
+  std::vector<TensorNodeId> parent_tensors, children_tensors;
+
   std::string instance_name;
+  OpType op_type;
+  OpPartitionId partition_index;
 };
 
 // Stores meta-data about a tensor and how it
 // is used by a producer/consumer node.
 struct TensorMeta {
-  NodeID node;
+  OpNodeId node;
   Index index;
   StorageDevice storage_device;
   bool is_support;
 };
+
+using producer_edge_t = TensorMeta;
+using consumer_edge_t = TensorMeta;
+
+// Second type of graph nodes.
+struct TensorNode {
+  TensorNodeId id;
+  std::string name;  // TODO(klecki): not happy about all the strings
+  producer_edge_t producer;
+  // order of consumers is arbitrary
+  std::vector<consumer_edge_t> consumers;
+};
+
+
 
 /**
  * @brief Stores all meta-data about a graph of operations to be run
  * keeps track of useful meta-data about consumers/producers of
  * different intermediates.
  *
- * Operators in the graph have a global NodeID that is assigned in
+ * Operators in the graph have a global OpNodeId that is assigned in
  * the order ops are added to the graph. Operators also have an
  * index within the set of ops of its type (cpu, mixed, gpu).
  * This enables us to iterate over select portions of the graph, or
@@ -81,7 +106,9 @@ struct TensorMeta {
  */
 class DLL_PUBLIC OpGraph {
  public:
-  DLL_PUBLIC inline OpGraph() {}
+  DLL_PUBLIC inline OpGraph() {
+    node_partitions_.resize(static_cast<int>(OpType::COUNT));
+  }
   DLL_PUBLIC inline ~OpGraph() = default;
 
   /**
@@ -90,73 +117,50 @@ class DLL_PUBLIC OpGraph {
   DLL_PUBLIC void AddOp(const OpSpec &spec, const std::string& name);
 
   /**
-   * @brief Removes the node with the specified NodeID from
+   * @brief Removes the node with the specified OpNodeId from
    * the graph. Fails if the removal would produce an invalid
    * graph.
    */
-  DLL_PUBLIC void RemoveOp(NodeID id);
+  DLL_PUBLIC void RemoveOp(OpNodeId id);
 
   /**
    * @brief Returns the total number of ops in the graph.
    */
   DLL_PUBLIC inline Index NumOp() const {
-    return NumCPUOp() + NumGPUOp() + NumMixedOp() + NumSupportOp();
+    return op_nodes_.size();
   }
 
   /**
-   * @brief Returns the number of cpu ops in the graph.
+   * @brief Returns the total number of tensors in the graph.
    */
-  DLL_PUBLIC inline Index NumCPUOp() const { return cpu_nodes_.size(); }
-
-  /**
-   * @brief Returns the number of gpu ops in the graph.
-   */
-  DLL_PUBLIC inline Index NumGPUOp() const { return gpu_nodes_.size(); }
-
-  /**
-   * @brief Returns the number of mixed ops in the graph.
-   */
-  DLL_PUBLIC inline Index NumMixedOp() const { return mixed_nodes_.size(); }
-
-  /**
-   * @brief Returns the number of support ops in the graph.
-   */
-  DLL_PUBLIC inline Index NumSupportOp() const { return support_nodes_.size(); }
-
-  /**
-   * @brief Returns the node object for the `idx`-th cpu op that
-   * was added to the graph.
-   */
-  DLL_PUBLIC inline OpNode& cpu_node(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)cpu_nodes_.size());
-    return cpu_nodes_[idx];
+  DLL_PUBLIC inline Index NumTensor() const {
+    return tensor_nodes_.size();
   }
 
   /**
-   * @brief Returns the node object for the `idx`-th gpu op that
-   * was added to the graph.
+   * @brief Returns the number of `op_type` ops in the graph.
    */
-  DLL_PUBLIC inline OpNode& gpu_node(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)gpu_nodes_.size());
-    return gpu_nodes_[idx];
+  DLL_PUBLIC inline Index NumOp(OpType op_type) const {
+    return node_partitions_[static_cast<int>(op_type)].size();
   }
 
   /**
-   * @brief Returns the node object for the `idx`-th mixed op that
-   * was added to the graph.
+   * @brief Returns the unique NodeId for partition_id among nodes of op_type
    */
-  DLL_PUBLIC inline OpNode& mixed_node(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)mixed_nodes_.size());
-    return mixed_nodes_[idx];
+  DLL_PUBLIC inline OpNodeId NodeId(OpType op_type, OpPartitionId partition_id) const {
+    DALI_ENFORCE_VALID_INDEX(partition_id, NumOp(op_type));
+    return node_partitions_[static_cast<int>(op_type)][partition_id];
   }
 
-  /**
-   * @brief Returns the node object for the `idx`-th support op that
-   * was added to the graph.
-   */
-  DLL_PUBLIC inline OpNode& support_node(Index idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, (Index)support_nodes_.size());
-    return support_nodes_[idx];
+  // TODO(klecki) return a copy/const& to disallow modification
+  DLL_PUBLIC inline OpNode& Node(OpType op_type, OpPartitionId partition_id) {
+    auto node_id = NodeId(op_type, partition_id);
+    return op_nodes_[node_id];
+  }
+
+  DLL_PUBLIC inline const OpNode& Node(OpType op_type, OpPartitionId partition_id) const {
+    auto node_id = NodeId(op_type, partition_id);
+    return op_nodes_[node_id];
   }
 
   /**
@@ -165,29 +169,50 @@ class DLL_PUBLIC OpGraph {
    * index as argument so should not be used in performance
    * critical section of the code.
    */
-  DLL_PUBLIC OpNode& node(const std::string& name);
+  DLL_PUBLIC OpNode& Node(const std::string& name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
    */
-  DLL_PUBLIC OpNode& node(NodeID id);
+  DLL_PUBLIC OpNode& Node(OpNodeId id) {
+    DALI_ENFORCE_VALID_INDEX(id, op_nodes_.size());
+    return op_nodes_[id];
+  }
+
+  /**
+   * @brief Returns the graph node with the given index in the graph.
+   */
+  DLL_PUBLIC const OpNode& Node(OpNodeId id) const {
+    DALI_ENFORCE_VALID_INDEX(id, op_nodes_.size());
+    return op_nodes_[id];
+  }
+
+  DLL_PUBLIC TensorNode& Tensor(TensorNodeId id) {
+    DALI_ENFORCE_VALID_INDEX(id, tensor_nodes_.size());
+    return tensor_nodes_[id];
+  }
+
+  DLL_PUBLIC const TensorNode& Tensor(TensorNodeId id) const {
+    DALI_ENFORCE_VALID_INDEX(id, tensor_nodes_.size());
+    return tensor_nodes_[id];
+  }
 
   /**
    * @brief Returns the type (cpu, gpu, mixed) of the node
    * at the given index.
    */
-  DLL_PUBLIC inline OpType NodeType(NodeID id) const {
-    DALI_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
-    return id_to_node_map_[id].first;
+  DLL_PUBLIC inline OpType NodeType(OpNodeId id) const {
+    DALI_ENFORCE_VALID_INDEX(id, (Index)op_nodes_.size());
+    return op_nodes_[id].op_type;
   }
 
   /**
    * @brief Returns the index of the node with the specified id
    * among nodes of its type.
    */
-  DLL_PUBLIC inline Index NodeIdx(NodeID id) const {
-    DALI_ENFORCE_VALID_INDEX(id, (Index)id_to_node_map_.size());
-    return id_to_node_map_[id].second;
+  DLL_PUBLIC inline Index NodeIdx(OpNodeId id) const {
+    DALI_ENFORCE_VALID_INDEX(id, (Index)op_nodes_.size());
+    return op_nodes_[id].partition_index;
   }
 
   /**
@@ -195,25 +220,25 @@ class DLL_PUBLIC OpGraph {
    * with the given name and its producer node.
    */
   DLL_PUBLIC inline TensorMeta TensorSourceMeta(const string &name) const {
-    auto it = tensor_producers_.find(name);
-    DALI_ENFORCE(it != tensor_producers_.end(), "Tensor with name \"" +
+    auto it = tensor_name_to_id_.find(name);
+    DALI_ENFORCE(it != tensor_name_to_id_.end(), "Tensor with name \"" +
         name + "\" has no known source.");
-    return it->second;
+    return tensor_nodes_[it->second].producer;
   }
 
   /**
    * @brief Checks if given Tensor already exists in the graph
    */
   DLL_PUBLIC inline bool TensorExists(const string &name) {
-    auto it = tensor_producers_.find(name);
-    return it != tensor_producers_.end();
+    auto it = tensor_name_to_id_.find(name);
+    return it != tensor_name_to_id_.end();
   }
 
   /**
    * @brief Returns the id of the op that produces the tensor with
    * the given name.
    */
-  DLL_PUBLIC inline NodeID TensorSourceID(const string &name) {
+  DLL_PUBLIC inline OpNodeId TensorSourceID(const string &name) {
     return TensorSourceMeta(name).node;
   }
 
@@ -237,57 +262,20 @@ class DLL_PUBLIC OpGraph {
    * consume the tensor with the input name.
    */
   DLL_PUBLIC inline vector<TensorMeta> TensorConsumerMeta(const string &name) const {
-    auto it = tensor_consumers_.find(name);
-    if (it == tensor_consumers_.end()) {
+    auto it = tensor_name_to_id_.find(name);
+    if (it == tensor_name_to_id_.end()) {
       // If we have no entries for this tensors consumers,
       // we just return an empty vector
       return vector<TensorMeta>{};
     }
-    return it->second;
+    return tensor_nodes_[it->second].consumers;
   }
-
-
-  /**
-   * @brief Returns the OpNode at idx from the id to node
-   * map.
-   */
-  DLL_PUBLIC const OpNode& GetNodeForIdx(int idx) const {
-    OpType type = id_to_node_map_[idx].first;
-    Index index = id_to_node_map_[idx].second;
-    switch (type) {
-    case OpType::CPU:
-      return cpu_nodes_[index];
-    case OpType::GPU:
-      return gpu_nodes_[index];
-    case OpType::MIXED:
-      return mixed_nodes_[index];
-    case OpType::SUPPORT:
-      return support_nodes_[index];
-    default:
-      string str_error = "No Node for index " + to_string(idx);
-      DALI_FAIL(str_error);
-    }
-  }
-
-
 
   /**
    * @brief Helper function for saving graph to DOT file
    */
-  DLL_PUBLIC void GenerateDOTFromGraph(const OpNode& current_node, std::ofstream& ofs) {
-    if (current_node.children.empty()
-        || visited_nodes_.find(current_node.id) != visited_nodes_.end()) {
-      ofs << current_node.instance_name << "\n";
-      return;
-    }
-    visited_nodes_.insert(current_node.id);
-    for (auto node_id : current_node.children) {
-        ofs << current_node.instance_name;
-        ofs << " -> ";
-        OpNode& child_node = node(node_id);
-        GenerateDOTFromGraph(child_node, ofs);
-    }
-  }
+  DLL_PUBLIC void GenerateDOTFromGraph(std::ofstream& ofs, bool show_tensors, bool show_ids,
+                                       bool use_colors);
 
   /**
    * @brief Instantiates the operators based on OpSpecs in nodes
@@ -298,33 +286,85 @@ class DLL_PUBLIC OpGraph {
    * @brief Save graph in DOT directed graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveToDotFile(const string filename) {
+  DLL_PUBLIC void SaveToDotFile(const string filename, bool show_tensors = false,
+                                bool show_ids = false, bool use_colors = false) {
     std::ofstream ofs(filename);
     ofs << "digraph graphname {\n";
-    const OpNode& current_node = GetNodeForIdx(0);
-    GenerateDOTFromGraph(current_node, ofs);
+    GenerateDOTFromGraph(ofs, show_tensors, show_ids, use_colors);
     ofs << "}\n";
-    visited_nodes_.clear();
   }
 
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
  private:
-  vector<OpNode> cpu_nodes_;
-  vector<OpNode> gpu_nodes_;
-  vector<OpNode> mixed_nodes_;
-  vector<OpNode> support_nodes_;
+  // Should be called only once for each tensor
+  void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
+                            bool show_ids);
 
-  // Stores a mapping from NodeIDs to a pair where the first
-  // element indicates what type of node it is,  and the second
-  // is the index of the op within the specified vector.
-  vector<std::pair<OpType, Index>> id_to_node_map_;
+  /**
+   * @brief Recalculate OpNodes partitioning
+   *
+   * Clears the partition vectors and readds all the nodes to proper partitions again,
+   * storing new indexes.
+   */
+  void Repartition();
 
-  std::map<string, TensorMeta> tensor_producers_;
-  std::map<string, vector<TensorMeta>> tensor_consumers_;
+  /**
+   * @brief Adds new OpNode of `op_type` to op_nodes_ unified vector and to proper partition
+   * storing its spec and instance_name. OpNode are given consecutive ids.
+   *
+   * @return Reference to the newly added OpNode.
+   */
+  OpNode& PlaceNewOp(OpType op_type, OpSpec op_spec, std::string instance_name);
 
-  // For the graph traversal
-  std::unordered_set<NodeID> visited_nodes_;
+  /**
+   * @brief Creates new tensor node with conscutive id.
+   *
+   * @return Reference to the newly added tensor node.
+   */
+  TensorNode& PlaceNewTensor();
+
+
+  std::vector<OpNode> op_nodes_;
+  std::vector<TensorNode> tensor_nodes_;
+  std::vector<std::vector<OpPartitionId>> node_partitions_;
+
+  /**
+   * @brief  Swap ids of two TensorNodes, and update all occurences in graph to not break
+   * any edges.
+   *
+   * @param left_id
+   * @param right_id
+   */
+  void SwapTensorNodes(TensorNodeId left_id, TensorNodeId right_id);
+
+  /**
+   * @brief Remove consumerless TensorNode from graph.
+   *
+   * Order of other TensorNodes is preserved, with dense indexing.
+   * @param id
+   */
+  void RemoveTensorNode(TensorNodeId id);
+
+  /**
+   * @brief Swap ids of two OpNodes, and update all occurences in graph to not break
+   * any edges.
+   *
+   * @param left_id
+   * @param right_id
+   */
+  void SwapOpNodes(OpNodeId left_id, OpNodeId right_id);
+
+  /**
+   * @brief Remove OpNode from graph
+   *
+   * Removed OpNode should not have any children, order of other OpNodes is preserved
+   * with dense indexing
+   * @param id
+   */
+  void RemoveOpNode(OpNodeId id);
+
+  std::map<std::string, TensorNodeId> tensor_name_to_id_;
 };
 
 }  // namespace dali

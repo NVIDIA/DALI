@@ -47,12 +47,12 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
   // Make a set of the outputs names for quick lookup
   std::set<string> output_set(output_names_.begin(), output_names_.end());
 
-  for (int i = 0; i < graph_->NumSupportOp(); ++i) {
+  for (int i = 0; i < graph_->NumOp(OpType::SUPPORT); ++i) {
     // Find all outputs of the support stage. An output is
     // a tensor that is used by an op in a later stage.
     // Do not include CPU ops inputs, since those are run
     // synchronously with support ops
-    OpNode &node = graph_->support_node(i);
+    OpNode &node = graph_->Node(OpType::SUPPORT, i);
     std::vector<int> hints = GetMemoryHints(node.spec);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
@@ -90,10 +90,10 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     }
   }
 
-  for (int i = 0; i < graph_->NumCPUOp(); ++i) {
+  for (int i = 0; i < graph_->NumOp(OpType::CPU); ++i) {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
-    OpNode &node = graph_->cpu_node(i);
+    OpNode &node = graph_->Node(OpType::CPU, i);
     std::vector<int> hints = GetMemoryHints(node.spec);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
@@ -112,7 +112,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         if (type != OpType::CPU) {
           // We've located a tensor that is an output of
           // the stage.
-          auto &consumer = graph_->node(meta.node);
+          auto &consumer = graph_->Node(meta.node);
           has_gpu_consumer =
               has_gpu_consumer ||
               type == OpType::GPU ||
@@ -137,10 +137,10 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     }
   }
 
-  for (int i = 0; i < graph_->NumMixedOp(); ++i) {
+  for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
     // Find all outputs of the mixed stage. An output
     // is a tensor that is used by an op in a later stage.
-    OpNode &node = graph_->mixed_node(i);
+    OpNode &node = graph_->Node(OpType::MIXED, i);
     std::vector<int> hints = GetMemoryHints(node.spec);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
@@ -203,7 +203,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
   for (size_t i = 0; i < support_stage_outputs_.size(); ++i) {
     auto &tvp = support_stage_outputs_[i];
     auto &info = support_stage_output_info_[i];
-    NodeID node_id = info.prod_and_idx.first;
+    OpNodeId node_id = info.prod_and_idx.first;
     DALI_ENFORCE(graph_->NodeType(node_id) == OpType::SUPPORT);
 
     int support_op_id = graph_->NodeIdx(node_id);
@@ -213,7 +213,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
-      const OpNode& op_node = graph_->GetNodeForIdx(node_id);
+      const OpNode& op_node = graph_->Node(node_id);
       int child_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
       const OpSpec& spec = op_node.spec;
@@ -234,7 +234,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
   for (size_t i = 0; i < cpu_stage_outputs_.size(); ++i) {
     auto &tvp = cpu_stage_outputs_[i];
     auto &info = cpu_stage_output_info_[i];
-    NodeID node_id = info.prod_and_idx.first;
+    OpNodeId node_id = info.prod_and_idx.first;
     DALI_ENFORCE(graph_->NodeType(node_id) == OpType::CPU);
 
     int cpu_op_id = graph_->NodeIdx(node_id);
@@ -249,7 +249,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
         int input_idx = info.con_and_idx[j].second;
         wsb->mixed_op_data[mixed_op_id].SetInput(
           input_idx, tvp.Get(queue_idx));
-        const OpNode &node = graph_->mixed_node(mixed_op_id);
+        const OpNode &node = graph_->Node(OpType::MIXED, mixed_op_id);
         std::vector<int> hints = GetMemoryHints(node.spec);
         // Use pinned memory only when it is useful
         if (node.spec.name() == "MakeContiguous" &&
@@ -278,7 +278,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
   for (size_t i = 0; i < mixed_stage_cpu_outputs_.size(); ++i) {
     auto &tlp = mixed_stage_cpu_outputs_[i];
     auto &info = mixed_stage_cpu_output_info_[i];
-    NodeID node_id = info.prod_and_idx.first;
+    OpNodeId node_id = info.prod_and_idx.first;
     DALI_ENFORCE(graph_->NodeType(node_id) == OpType::MIXED);
 
     int mixed_op_id = graph_->NodeIdx(node_id);
@@ -301,7 +301,7 @@ void PipelinedExecutor::SetStageOutputsForIter(
   for (size_t i = 0; i < mixed_stage_gpu_outputs_.size(); ++i) {
     auto &tlp = mixed_stage_gpu_outputs_[i];
     auto &info = mixed_stage_gpu_output_info_[i];
-    NodeID node_id = info.prod_and_idx.first;
+    OpNodeId node_id = info.prod_and_idx.first;
     DALI_ENFORCE(graph_->NodeType(node_id) == OpType::MIXED);
 
     int mixed_op_id = graph_->NodeIdx(node_id);

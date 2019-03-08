@@ -263,9 +263,9 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
   assert(node.parents.size() == 1);
   for (int inp_idx = 0; inp_idx < node.spec.NumRegularInput(); inp_idx++) {
     auto input_name = node.spec.Input(inp_idx);
-    NodeID parent_node_id = graph_.TensorSourceID(input_name);
+    OpNodeId parent_node_id = graph_.TensorSourceID(input_name);
     int idx = graph_.TensorIdxInSource(input_name);
-    auto &src = graph_.node(parent_node_id);
+    auto &src = graph_.Node(parent_node_id);
     int hint = GetMemoryHint(src.spec, idx);
     if (hint) {
       // inp_idx == out_idx for MakeContiguous
@@ -365,8 +365,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     }
   }
 
-  for (int i = 0; i < graph_.NumMixedOp(); i++) {
-    OpNode &node = graph_.mixed_node(i);
+  for (int i = 0; i < graph_.NumOp(OpType::MIXED); i++) {
+    OpNode &node = graph_.Node(OpType::MIXED, i);
     if (node.spec.name() == "MakeContiguous") {
       PropagateMemoryHint(node);
     }
@@ -573,20 +573,20 @@ string Pipeline::SerializeToProtobuf() const {
 }
 
 OpNode * Pipeline::GetOperatorNode(const std::string& name) {
-  return &(graph_.node(name));
+  return &(graph_.Node(name));
 }
 
 std::map<std::string, Index> Pipeline::EpochSize() {
   std::map<std::string, Index> ret;
-  for (Index i = 0; i < graph_.NumCPUOp(); ++i) {
-    const OpNode& current = graph_.cpu_node(i);
+  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::CPU, i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));
     }
   }
-  for (Index i = 0; i < graph_.NumGPUOp(); ++i) {
-    const OpNode& current = graph_.gpu_node(i);
+  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::GPU, i);
     Index epoch_size = current.op->epoch_size();
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));

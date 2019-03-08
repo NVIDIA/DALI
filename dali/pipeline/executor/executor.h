@@ -160,8 +160,8 @@ class DLL_PUBLIC Executor {
 
   // Meta-data about our stage outputs for fast lookup
   using OutputInfo = struct {
-    std::pair<NodeID, int> prod_and_idx;
-    vector<std::pair<NodeID, int>> con_and_idx;
+    std::pair<OpNodeId, int> prod_and_idx;
+    vector<std::pair<OpNodeId, int>> con_and_idx;
   };
   vector<OutputInfo> cpu_output_info_, gpu_output_info_;
 
