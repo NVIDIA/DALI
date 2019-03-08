@@ -613,6 +613,17 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p) {
           p->Build();
           })
+    .def("SetExecutionTypes",
+        [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
+          p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
+        },
+        "exec_pipelined"_a = true,
+        "exec_separated"_a = false,
+        "exec_async"_a = true)
+    .def("SetQueueSizes",
+        [](Pipeline *p, int cpu_size, int gpu_size) {
+          p->SetQueueSizes(cpu_size, gpu_size);
+        })
     .def("SetOutputNames",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
           p->SetOutputNames(outputs);
