@@ -40,6 +40,9 @@ class SampleWorkspace;
  */
 class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:
+  using WorkspaceBase<HostInputType, HostOutputType>::input_t;
+  using WorkspaceBase<HostInputType, HostOutputType>::output_t;
+
   DLL_PUBLIC inline HostWorkspace() {}
   DLL_PUBLIC inline ~HostWorkspace() override = default;
 

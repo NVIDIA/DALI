@@ -24,6 +24,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "dali/api_helper.h"
@@ -301,6 +302,9 @@ template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
 std::vector<std::string> string_split(const std::string &s, const char delim);
+
+template <bool Value, typename Type = void>
+using enable_if_t = typename std::enable_if<Value, Type>::type;
 
 }  // namespace dali
 
