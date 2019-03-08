@@ -38,6 +38,14 @@ class nvJPEGDecoderSplitted : public Operator<MixedBackend> {
   }
 };
 
+class nvJPEGDecoderSplittedRandomCrop : public Operator<MixedBackend> {
+ public:
+  explicit nvJPEGDecoderSplittedRandomCrop(const OpSpec& spec) :
+    Operator<MixedBackend>(spec) {}
+  using dali::OperatorBase::Run;
+  void Run(MixedWorkspace *ws) override {}
+};
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_SPLITTED_H_

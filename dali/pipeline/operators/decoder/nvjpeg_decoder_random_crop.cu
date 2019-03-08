@@ -26,16 +26,7 @@ DALI_SCHEMA(nvJPEGDecoderRandomCrop)
 Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("random_aspect_ratio",
-      R"code(Range from which to choose random aspect ratio.)code",
-      std::vector<float>{3./4., 4./3.})
-  .AddOptionalArg("random_area",
-      R"code(Range from which to choose random area factor `A`.
-The cropped image's area will be equal to `A` * original image's area.)code",
-      std::vector<float>{0.08, 1.0})
-  .AddOptionalArg("num_attempts",
-      R"code(Maximum number of attempts used to choose random area and aspect ratio.)code",
-      10)
-  .AddParent("nvJPEGDecoder");
+  .AddParent("nvJPEGDecoder")
+  .AddParent("RandomCropAttr");
 
 }  // namespace dali

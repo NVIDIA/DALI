@@ -249,8 +249,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     ImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name,
-                   info.crop_window);
+      HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
+                                        streams_[thread_id], file_name, info.crop_window);
       return;
     }
 
@@ -307,8 +307,8 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
           &nvjpeg_image,
           streams_[thread_id]));
     } else {
-      HostFallback(input_data, in_size, output_data, streams_[thread_id], file_name,
-                   info.crop_window);
+      HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
+                                        streams_[thread_id], file_name, info.crop_window);
     }
   }
 
@@ -322,31 +322,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 
-  void HostFallback(const uint8_t *data, int size,
-                    uint8_t *decoded_device_data,
-                    cudaStream_t s,
-                    std::string file_name,
-                    CropWindow crop_window) {
-    std::unique_ptr<Image> img;
-    try {
-      img = ImageFactory::CreateImage(data, size, output_image_type_);
-      img->SetCropWindow(crop_window);
-      img->Decode();
-    } catch (std::runtime_error &e) {
-      DALI_FAIL(e.what() + ". File: " + file_name);
-    }
-    const auto decoded = img->GetImage();
-    const auto hwc = img->GetImageDims();
-    const auto h = std::get<0>(hwc);
-    const auto w = std::get<1>(hwc);
-    const auto c = std::get<2>(hwc);
 
-    CUDA_CALL(
-      cudaMemcpyAsync(decoded_device_data,
-                      decoded.get(),
-                      h*w*c,
-                      cudaMemcpyHostToDevice, s));
-  }
 
   USE_OPERATOR_MEMBERS();
   nvjpegHandle_t handle_;
