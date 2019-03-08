@@ -38,6 +38,18 @@ and `crop_W` is the width of the cropping window)code",
 Actual position is calculated as `crop_y = crop_y_norm * (H - crop_H)`,
 where `crop_y_norm` is the normalized position, `H` is the height of the image
 and `crop_H` is the height of the cropping window)code",
-        0.5f, true);
+        0.5f, true)
+    .AddOptionalArg(
+        "crop_w",
+        R"code(cropping window height (in pixels).
+If provided, `crop_h` should be provided as well. Providing `crop_w`, `crop_h` is incompatible with
+providing fixed crop window dimensions (argument `crop`))code",
+        0.0f, true)
+    .AddOptionalArg(
+        "crop_h",
+        R"code(cropping window height (in pixels).
+If provided, `crop_w` should be provided as well. Providing `crop_w`, `crop_h` is incompatible with
+providing fixed crop window dimensions (argument `crop`))code",
+        0.0f, true);
 
 }  // namespace dali

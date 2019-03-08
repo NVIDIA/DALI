@@ -89,20 +89,27 @@ void Crop<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
 
 template <>
 void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+  CropAttr::ProcessArguments(ws);
   const auto &input = ws->Input<GPUBackend>(0);
   const int sequence_size = SequenceSize(0);
   const int total_batch_size = batch_size_ * sequence_size;
   if (sequence_size > 1) {
     per_sample_crop_.resize(total_batch_size);
     per_sample_dimensions_.resize(total_batch_size);
-    std::vector<int> new_crop_height_(total_batch_size);
-    std::vector<int> new_crop_width_(total_batch_size);
+    std::vector<int> new_crop_height(total_batch_size);
+    std::vector<int> new_crop_width(total_batch_size);
+    std::vector<float> new_crop_y_norm(total_batch_size);
+    std::vector<float> new_crop_x_norm(total_batch_size);
     for (int i = 0; i < total_batch_size; ++i) {
-      new_crop_height_[i] = crop_height_[i / sequence_size];
-      new_crop_width_[i] = crop_width_[i / sequence_size];
+      new_crop_height[i] = crop_height_[i / sequence_size];
+      new_crop_width[i] = crop_width_[i / sequence_size];
+      new_crop_y_norm[i] = crop_y_norm_[i / sequence_size];
+      new_crop_x_norm[i] = crop_x_norm_[i / sequence_size];
     }
-    crop_height_ = new_crop_height_;
-    crop_width_ = new_crop_width_;
+    crop_height_ = new_crop_height;
+    crop_width_ = new_crop_width;
+    crop_y_norm_ = new_crop_y_norm;
+    crop_x_norm_ = new_crop_x_norm;
   }
 
   if (output_type_ == DALI_NO_TYPE) output_type_ = input.type().id();
