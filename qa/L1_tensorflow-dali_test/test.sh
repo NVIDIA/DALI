@@ -1,6 +1,12 @@
 #!/bin/bash -e
 pip_packages=""
 
+
+# TensorFlow supports only CUDA 9.0 now
+if [ "${CUDA_VERSION}" != "90" ]; then
+    exit 0
+fi
+
 pushd ../..
 
 cd docs/examples/tensorflow/demo
@@ -50,15 +56,11 @@ export OMPI_MCA_blt=self,sm,tcp
 
 test_body() {
     # test code
-
-    # TensorFlow supports only CUDA 9.0 now
-    if [ "${CUDA_VERSION}" == "90"]; then
-        mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-            python -u resnet.py --layers=18 \
-            --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
-            --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
-            --batch=256 --dali_cpu --log_dir=dali_log
-    fi
+    mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
+        python -u resnet.py --layers=18 \
+        --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
+        --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
+        --batch=256 --dali_cpu --log_dir=dali_log
 }
 
 source ../../../../qa/test_template.sh
