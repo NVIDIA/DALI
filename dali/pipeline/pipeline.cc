@@ -257,10 +257,11 @@ inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec &spec, const std::string& 
   auto& op_output = spec.MutableOutput(0);
   string op_output_name = op_output.first;
 
-  op_output.first = "nvJPEGCPUOutput0";
+  const std::string mangled_outputname("nvJPEGCPUOutput" + inst_name);
+  op_output.first = mangled_outputname + "0";
   op_output.second = "cpu";
-  spec.AddOutput("nvJPEGCPUOutput1", "cpu");
-  spec.AddOutput("nvJPEGCPUOutput2", "cpu");
+  spec.AddOutput(mangled_outputname + "1", "cpu");
+  spec.AddOutput(mangled_outputname + "2", "cpu");
 
   OpSpec gpu_spec = OpSpec("nvJPEGDecoderGPUStage")
     .ShareArguments(spec)

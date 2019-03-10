@@ -61,9 +61,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
       const auto& info_tensor = ws->Input<CPUBackend>(0, i);
-      const auto& state_tensor = ws->Input<CPUBackend>(1, i);
-      const ImageInfo* info;
-      std::tie(info, std::ignore) = GetInfoState(info_tensor, state_tensor);
+      const ImageInfo* info =
+          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
       int c = NumberOfChannels(output_image_type_);
       output_shape[i] = Dims({info->heights[0], info->widths[0], c});
       image_order[i] = std::make_pair(volume(output_shape[i]), i);
@@ -76,16 +75,16 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
 
-    for (int idx = 0; idx < batch_size_; idx++) {
-      const int i = image_order[idx].second;
+    for (auto& size_idx : image_order) {
+      const int sample_idx = size_idx.second;
 
-      const auto& info_tensor = ws->Input<CPUBackend>(0, i);
-      const auto& state_tensor = ws->Input<CPUBackend>(1, i);
+      const auto& info_tensor = ws->Input<CPUBackend>(0, sample_idx);
+      const auto& state_tensor = ws->Input<CPUBackend>(1, sample_idx);
       const ImageInfo* info;
       const StateNvJPEG* nvjpeg_state;
       std::tie(info, nvjpeg_state) = GetInfoState(info_tensor, state_tensor);
 
-      auto *output_data = output.mutable_tensor<uint8_t>(i);
+      auto *output_data = output.mutable_tensor<uint8_t>(sample_idx);
       if (info->nvjpeg_support) {
         nvjpegImage_t nvjpeg_image;
         nvjpeg_image.channel[0] = output_data;
@@ -113,9 +112,9 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
       } else {
         // Fallback was handled by CPU op and wrote OpenCV ouput in Input #2
         // we just need to copy to device
-        auto& in = ws->Input<CPUBackend>(2, i);
+        auto& in = ws->Input<CPUBackend>(2, sample_idx);
         const auto *input_data = in.data<uint8_t>();
-        auto *output_data = output.mutable_tensor<uint8_t>(i);
+        auto *output_data = output.mutable_tensor<uint8_t>(sample_idx);
         CUDA_CALL(cudaMemcpyAsync(output_data,
                     input_data,
                     info->heights[0] * info->widths[0] * NumberOfChannels(output_image_type_),

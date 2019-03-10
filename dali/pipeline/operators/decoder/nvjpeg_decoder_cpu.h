@@ -76,7 +76,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
     // Output #0 contains general infomation about the sample
     // Output #1 contains nvJPEG state, buffer and information
-    // Output #3 optionally contains OpenCV if nvJPEG cannot decode the sample
+    // Output #2 optionally contains OpenCV if nvJPEG cannot decode the sample
 
     ImageInfo* info;
     StateNvJPEG* state_nvjpeg;
