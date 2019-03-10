@@ -218,5 +218,33 @@ TEST(TensorListView, uniform_list_shape) {
   EXPECT_EQ(infer2, dyn);
 }
 
+namespace {
+template<typename T, size_t N>
+void Verify(const T* data, std::array<long int, N> dims, int idx) {
+  auto f = std::accumulate(dims.begin() + 1, dims.end(), 1, std::multiplies<int>());
+  for (int i = 0; i < f; i++) {
+    EXPECT_EQ(idx * f + i, data[i]) << "Failed on idx: " + std::to_string(i);
+  }
+}
+
+}  // namespace
+
+TEST(TensorViewTest, OustDimensionTest) {
+ using namespace std;
+ constexpr size_t kNDims = 4;
+ array<long int, kNDims> dims = {4,1,2,3};
+ vector<int> data(accumulate(dims.begin(), dims.end(), 1, multiplies<int>()), 0);
+ {
+   int idx = 0;
+   for_each(data.begin(), data.end(), [&](int &val) { val += idx++; });
+ }
+ auto tv = make_tensor_cpu<kNDims>(data.data(), dims);
+ for (int i = 0; i < dims[0]; i++) {
+   auto ret = oust_dimension(tv, static_cast<size_t>(i));
+   Verify(ret.data, dims, i);
+ }
+
+}
+
 }  // namespace kernels
 }  // namespace dali
