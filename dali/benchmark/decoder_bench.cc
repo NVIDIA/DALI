@@ -92,7 +92,7 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -111,7 +111,7 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoder)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -133,7 +133,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoder)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSplitted)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSplitted)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -156,7 +156,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderSplitted)->Iterations(100)
 ->Apply(PipeArgs);
 
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -181,7 +181,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedThreshold)->Iterations(100
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -205,7 +205,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedLargest)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -226,7 +226,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderBatched)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -245,7 +245,7 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoderRandomCrop)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -265,7 +265,7 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoderCrop)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -311,7 +311,7 @@ BENCHMARK_REGISTER_F(DecoderBench, HostDecoderSlice)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderRandomCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderRandomCrop)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -330,7 +330,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderRandomCrop)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCrop)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCrop)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -350,7 +350,7 @@ BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCrop)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) { // NOLINT
+BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
