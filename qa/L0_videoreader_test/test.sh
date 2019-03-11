@@ -24,10 +24,36 @@ do
     ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${splitted[0]}_$i.${splitted[1]} 
 done
 
+cd superres_pytorch
+
+DATA_DIR=data_dir/720p/scenes
+# Creating simple working env for PyTorch SuperRes example
+mkdir -p $DATA_DIR/train/
+mkdir -p $DATA_DIR/val/
+
+
+cp ../video_files/* $DATA_DIR/train/
+cp ../video_files/* $DATA_DIR/val/
+
+# Download pre-trained FlowNet2.0
+git clone https://github.com/NVIDIA/flownet2-pytorch
+
+# add weights link
+
+cd ..
+
 test_body() {
     # test code
+    # First running simple code
     python video_example.py
+
     nosetests --verbose ../../../dali/test/python/test_video_pipeline.py
+
+    cd superres_pytorch
+
+    python main.py --loader DALI --rank 0 --batchsize 2 --frames 3 --root $DATA_DIR --world_size 1 --is_cropped --max_iter 100 --min_lr 0.0001 --max_lr 0.001 --crop_size 512 960
+
+    cd ..
 }
 
 source ../../../qa/test_template.sh
