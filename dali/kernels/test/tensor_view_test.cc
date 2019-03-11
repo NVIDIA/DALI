@@ -29,25 +29,27 @@ TEST(ShapeDimTest, Value) {
   EXPECT_EQ(ShapeDim(x3), 4);
 }
 
+
 TEST(CompileTimeSize, DimInference) {
   std::array<int, 3> a;
   const auto *pa = &a;
   static_assert(compile_time_size<decltype(a)>::value == static_cast<int>(a.size()),
-    "Compile-time size of an std-array should match its size argument");
+                "Compile-time size of an std-array should match its size argument");
   static_assert(compile_time_size<decltype(*pa)>::value == static_cast<int>(a.size()),
-    "Compile-time size of an std-array should match its size argument");
+                "Compile-time size of an std-array should match its size argument");
 
   int x[4];
   static_assert(compile_time_size<decltype(x)>::value == 4,
-    "Compile-time size of an array should should match its ndim");
-  const int y[5] = { 9, 8, 7, 6, 5 };  // check that the  trait can strip const qualifier
+                "Compile-time size of an array should should match its ndim");
+  const int y[5] = {9, 8, 7, 6, 5};  // check that the  trait can strip const qualifier
   static_assert(compile_time_size<decltype(y)>::value == 5,
-    "Compile-time size of an array should should match its ndim");
+                "Compile-time size of an array should should match its ndim");
 
   volatile TensorShape<6> t;  // to check that the trait can strip volatile qualifier
   static_assert(compile_time_size<decltype(t)>::value == 6,
-    "Compile-time of a static-ndim TensorShape should match its ndim");
+                "Compile-time of a static-ndim TensorShape should match its ndim");
 }
+
 
 TEST(TensorViewTest, StaticConstructors) {
   TensorView<EmptyBackendTag, int, 4> empty_static_dim{};
@@ -55,8 +57,9 @@ TEST(TensorViewTest, StaticConstructors) {
   EXPECT_EQ(empty_static_dim.shape, TensorShape<4>());
 }
 
+
 TEST(TensorViewTest, Conversions) {
-  TensorView<EmptyBackendTag, int, 4> static_dim{static_cast<int*>(nullptr), {1, 2, 3, 4}};
+  TensorView<EmptyBackendTag, int, 4> static_dim{static_cast<int *>(nullptr), {1, 2, 3, 4}};
   ASSERT_EQ(static_dim.dim(), 4);
   // Allowed conversions
   TensorView<EmptyBackendTag, int, DynamicDimensions> dynamic_dim{static_dim};
@@ -66,20 +69,22 @@ TEST(TensorViewTest, Conversions) {
   EXPECT_EQ(static_dim_2.shape, static_dim.shape);
   EXPECT_EQ(static_dim_2.shape, dynamic_dim.shape);
 
-  dynamic_dim = TensorView<EmptyBackendTag, int, 2>{static_cast<int*>(nullptr), {1, 2}};
+  dynamic_dim = TensorView<EmptyBackendTag, int, 2>{static_cast<int *>(nullptr), {1, 2}};
   ASSERT_EQ(dynamic_dim.dim(), 2);
 }
 
+
 TEST(TensorViewTest, Addressing) {
-  TensorView<EmptyBackendTag, int, 3> tv{static_cast<int*>(nullptr), {4, 100, 50}};
-  EXPECT_EQ(tv(0, 0, 0), static_cast<int*>(nullptr));
-  EXPECT_EQ(tv(0, 0, 1), static_cast<int*>(nullptr) + 1);
-  EXPECT_EQ(tv(0, 1, 0), static_cast<int*>(nullptr) + 50);
-  EXPECT_EQ(tv(1, 0, 0), static_cast<int*>(nullptr) + 5000);
-  EXPECT_EQ(tv(1, 1, 1), static_cast<int*>(nullptr) + 5051);
-  EXPECT_EQ(tv(1, 1), static_cast<int*>(nullptr) + 5050);
+  TensorView<EmptyBackendTag, int, 3> tv{static_cast<int *>(nullptr), {4, 100, 50}};
+  EXPECT_EQ(tv(0, 0, 0), static_cast<int *>(nullptr));
+  EXPECT_EQ(tv(0, 0, 1), static_cast<int *>(nullptr) + 1);
+  EXPECT_EQ(tv(0, 1, 0), static_cast<int *>(nullptr) + 50);
+  EXPECT_EQ(tv(1, 0, 0), static_cast<int *>(nullptr) + 5000);
+  EXPECT_EQ(tv(1, 1, 1), static_cast<int *>(nullptr) + 5051);
+  EXPECT_EQ(tv(1, 1), static_cast<int *>(nullptr) + 5050);
   // EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000); // TODO - this is ambigous
 }
+
 
 TEST(TensorViewTest, TypePromotion) {
   TensorView<EmptyBackendTag, int, 3> tv{nullptr, {1, 2, 3}};
@@ -112,9 +117,10 @@ TEST(TensorViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.shape.shape.data(), ptr) << "Move is broken - a copy appeared somewhere.";
 }
 
+
 TEST(TensorListViewTest, Constructor) {
   TensorListView<EmptyBackendTag, int, 3> tlv{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+          static_cast<int *>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
   ASSERT_EQ(tlv.size(), 4);
   ASSERT_EQ(tlv.sample_dim(), 3);
   TensorListView<EmptyBackendTag, int> tlv_dynamic(tlv);
@@ -122,19 +128,21 @@ TEST(TensorListViewTest, Constructor) {
   ASSERT_EQ(tlv_dynamic.sample_dim(), 3);
 }
 
+
 TEST(TensorListViewTest, OperatorSubscript) {
   TensorListView<EmptyBackendTag, int, 3> tlv{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+          static_cast<int *>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
   EXPECT_EQ(tlv[0].shape.size(), 3);
-  EXPECT_EQ(tlv[0].data, static_cast<int*>(nullptr));
-  EXPECT_EQ(tlv[1].data, static_cast<int*>(nullptr) + 4 * 100 * 50);
-  EXPECT_EQ(tlv[2].data, static_cast<int*>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5);
-  EXPECT_EQ(tlv[3].data, static_cast<int*>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
+  EXPECT_EQ(tlv[0].data, static_cast<int *>(nullptr));
+  EXPECT_EQ(tlv[1].data, static_cast<int *>(nullptr) + 4 * 100 * 50);
+  EXPECT_EQ(tlv[2].data, static_cast<int *>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5);
+  EXPECT_EQ(tlv[3].data, static_cast<int *>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
 }
+
 
 TEST(TensorListViewTest, ObtainingTensorViewFromStatic) {
   TensorListView<EmptyBackendTag, int, 3> tlv_static{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+          static_cast<int *>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
 
   auto t0 = tlv_static[0];
   static_assert(std::is_same<decltype(t0), TensorView<EmptyBackendTag, int, 3>>::value,
@@ -144,30 +152,33 @@ TEST(TensorListViewTest, ObtainingTensorViewFromStatic) {
                 "Wrong type");
   auto t2 = tlv_static.tensor_view<DynamicDimensions>(2);
   static_assert(
-      std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
-      "Wrong type");
+          std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
+          "Wrong type");
   EXPECT_EQ(t2.dim(), 3);
 }
 
+
 TEST(TensorListViewTest, ObtainingTensorViewFromDynamic) {
   TensorListView<EmptyBackendTag, int> tlv_dynamic{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+          static_cast<int *>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
   auto t0 = tlv_dynamic[0];
   static_assert(
-      std::is_same<decltype(t0), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
-      "Wrong type");
+          std::is_same<decltype(t0), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
+          "Wrong type");
   auto t1 = tlv_dynamic.tensor_view<3>(1);
   static_assert(std::is_same<decltype(t1), TensorView<EmptyBackendTag, int, 3>>::value,
                 "Wrong type");
   auto t2 = tlv_dynamic.tensor_view<DynamicDimensions>(2);
   static_assert(
-      std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
-      "Wrong type");
+          std::is_same<decltype(t2), TensorView<EmptyBackendTag, int, DynamicDimensions>>::value,
+          "Wrong type");
   EXPECT_EQ(t2.dim(), 3);
 }
 
+
 TEST(TensorListViewTest, TypePromotion) {
-  TensorListShape<3> shape({ { 1, 2, 3}, {4, 5, 6 } });
+  TensorListShape<3> shape({{1, 2, 3},
+                            {4, 5, 6}});
   TensorListView<EmptyBackendTag, int, 3> tv{nullptr, shape};
   TensorListView<EmptyBackendTag, const int, 3> tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
@@ -198,13 +209,14 @@ TEST(TensorListViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.shape.shapes.data(), ptr) << "Move is broken - a copy appeared somewhere.";
 }
 
+
 TEST(TensorListView, uniform_list_shape) {
   int N = 11;
-  TensorListShape<> dyn =  uniform_list_shape(N, { 640, 480, 3 });
-  TensorListShape<3> stat = uniform_list_shape<3>(N, { 640, 480, 3 });
+  TensorListShape<> dyn = uniform_list_shape(N, {640, 480, 3});
+  TensorListShape<3> stat = uniform_list_shape<3>(N, {640, 480, 3});
 
-  int size_c[] = { 640, 480, 3 };
-  std::array<int64_t, 3> size_a = { 640, 480, 3 };
+  int size_c[] = {640, 480, 3};
+  std::array<int64_t, 3> size_a = {640, 480, 3};
   TensorShape<3> ref(640, 480, 3);
 
   TensorListShape<3> infer1 = uniform_list_shape<3>(N, size_c);
@@ -218,32 +230,30 @@ TEST(TensorListView, uniform_list_shape) {
   EXPECT_EQ(infer2, dyn);
 }
 
+
 namespace {
+
 template<typename T, size_t N>
-void Verify(const T* data, std::array<long int, N> dims, int idx) {
-  auto f = std::accumulate(dims.begin() + 1, dims.end(), 1, std::multiplies<int>());
-  for (int i = 0; i < f; i++) {
-    EXPECT_EQ(idx * f + i, data[i]) << "Failed on idx: " + std::to_string(i);
+void VerifySubtensor(const T *data, std::array<long int, N> dims, int idx) {
+  auto subtensor_volume = volume(dims.begin() + 1, dims.end());
+  for (int i = 0; i < subtensor_volume; i++) {
+    EXPECT_EQ(idx * subtensor_volume + i, data[i]) << "Failed at idx: " << idx << " offset " << i;
   }
 }
 
 }  // namespace
 
-TEST(TensorViewTest, OustDimensionTest) {
- using namespace std;
- constexpr size_t kNDims = 4;
- array<long int, kNDims> dims = {4,1,2,3};
- vector<int> data(accumulate(dims.begin(), dims.end(), 1, multiplies<int>()), 0);
- {
-   int idx = 0;
-   for_each(data.begin(), data.end(), [&](int &val) { val += idx++; });
- }
- auto tv = make_tensor_cpu<kNDims>(data.data(), dims);
- for (int i = 0; i < dims[0]; i++) {
-   auto ret = oust_dimension(tv, static_cast<size_t>(i));
-   Verify(ret.data, dims, i);
- }
-
+TEST(TensorViewTest, SubtensorTest) {
+  using namespace std;  // NOLINT
+  constexpr size_t kNDims = 4;
+  array<long int, kNDims> dims = {4, 1, 2, 3};
+  vector<int> data(volume(dims), 0);
+  iota(data.begin(), data.end(), 0);
+  auto tv = make_tensor_cpu<kNDims>(data.data(), dims);
+  for (int i = 0; i < dims[0]; i++) {
+    auto ret = subtensor(tv, static_cast<size_t>(i));
+    VerifySubtensor(ret.data, dims, i);
+  }
 }
 
 }  // namespace kernels

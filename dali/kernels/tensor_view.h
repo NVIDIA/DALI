@@ -416,7 +416,7 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
 
 
 /**
- * @brief Remove outer-most dimension
+ * @brief Get a subtensor by slicing along outermost dimension at index `idx`
  * 
  * @details Produces tensor, for which number of dimensions is reduced by 1.
  * Removed dimension is outer-most (e.g. for shape {3,2,4,6} produces {2,4,6}).
@@ -424,19 +424,18 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
  * Data is not copied.
  *
  * Example:
- * tv.data  = [[1, 2, 3], [4, 5, 6]]
- * tv.shape = [2, 3]
- * oust_dimension(tv, 1) -> [4, 5, 6]
+ * tv.data = [[1, 2, 3], [4, 5, 6]]       (shape: [2, 3])
+ * oust_dimension(tv, 1) -> [4, 5, 6]     (shape: [3])
  *
  * @param source Source TensorView
- * @param dim_idx Index of dimension, from which data is extracted
+ * @param idx Index inside dimension, along which data is extracted
  * @return TensorView with reduced dimensionality
  */
 template<typename StorageBackend, typename DataType, int ndims>
 TensorView<StorageBackend, DataType, ndims - 1>
-oust_dimension(TensorView<StorageBackend, DataType, ndims> source, size_t dim_idx) {
+subtensor(TensorView<StorageBackend, DataType, ndims> source, size_t idx) {
   TensorShape<ndims - 1> shape = source.shape.template last<ndims - 1>();
-  DataType *data = source.data + dim_idx * volume(shape);
+  DataType *data = source.data + idx * volume(shape);
   return make_tensor<StorageBackend>(data, shape);
 }
 
