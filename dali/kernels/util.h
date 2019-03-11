@@ -177,6 +177,33 @@ constexpr volume_t<Extent> volume(Extent single_dim) {
   return single_dim;
 }
 
+/// @brief Test if any of the values in the variadic template boolean values list is true
+template <bool... values>
+struct any_of : std::false_type {};
+template <bool... tail>
+struct any_of<true, tail...> : std::true_type {};
+template <bool... tail>
+struct any_of<false, tail...> : any_of<tail...> {};
+
+static_assert(any_of<false, true, false>::value,
+              "Should return true_type when one of the values is true.");
+static_assert(!any_of<false, false, false>::value,
+              "Should return false_type when all the values are false.");
+
+
+/// @brief Test if all the values in the variadic template boolean values list are true
+template <bool... values>
+struct all_of : std::true_type {};
+template <bool... tail>
+struct all_of<false, tail...> : std::false_type {};
+template <bool... tail>
+struct all_of<true, tail...> : all_of<tail...> {};
+
+static_assert(all_of<true, true, true>::value,
+              "Should return true_type when all the values are true.");
+static_assert(!all_of<true, false, true>::value,
+              "Should return false_type when any of the values is false.");
+
 }  // namespace dali
 
 #endif  // DALI_KERNELS_UTIL_H_
