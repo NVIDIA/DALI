@@ -30,19 +30,14 @@ struct SampleBlockInfo {
   int sample, block_in_sample;
 };
 
-/// @brief Builds and maintains resampling setup
-struct SeparableResamplingSetup {
-  using Params = std::vector<ResamplingParams2D>;
+ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params);
 
+/// @brief Builds and maintains resampling setup
+class SeparableResamplingSetup {
+ public:
   enum ProcessingOrder : int {
     HorzVert,
     VertHorz
-  };
-
-  enum BufferIdx : int {
-    IdxIn = 0,
-    IdxTmp = 1,
-    IdxOut = 2,
   };
 
   /// Number of blocks per pass may differ depending on
@@ -58,6 +53,27 @@ struct SeparableResamplingSetup {
     DeviceArray<int, 3>       strides;
     DeviceArray<DevShape, 3>  shapes;
 
+    DevShape &in_shape() { return shapes[0]; }
+    const DevShape &in_shape() const { return shapes[0]; }
+    DevShape &tmp_shape() { return shapes[1]; }
+    const DevShape &tmp_shape() const { return shapes[1]; }
+    DevShape &out_shape() { return shapes[2]; }
+    const DevShape &out_shape() const { return shapes[2]; }
+
+    int  &in_stride()       { return strides[0]; }
+    int   in_stride() const { return strides[0]; }
+    int &tmp_stride()       { return strides[1]; }
+    int  tmp_stride() const { return strides[1]; }
+    int &out_stride()       { return strides[2]; }
+    int  out_stride() const { return strides[2]; }
+
+    ptrdiff_t  &in_offset()       { return offsets[0]; }
+    ptrdiff_t   in_offset() const { return offsets[0]; }
+    ptrdiff_t &tmp_offset()       { return offsets[1]; }
+    ptrdiff_t  tmp_offset() const { return offsets[1]; }
+    ptrdiff_t &out_offset()       { return offsets[2]; }
+    ptrdiff_t  out_offset() const { return offsets[2]; }
+
     DeviceArray<float, 2> origin, scale;
 
     ProcessingOrder order;
@@ -68,23 +84,20 @@ struct SeparableResamplingSetup {
     BlockCount block_count;
   };
 
-  static_assert(std::is_pod<SampleDesc>::value,
-    "Internal error! Something crept into SampleDesc and made it non-POD");
+  void SetupSample(SampleDesc &desc,
+                   const TensorShape<3> &in_shape,
+                   const ResamplingParams2D &params);
 
-  std::vector<SampleDesc> sample_descs;
-  TensorListShape<3> output_shape, intermediate_shape;
-  size_t intermediate_size;
-  BlockCount total_blocks;
-  int2 block_size = { 32, 24 };
-
-  std::shared_ptr<ResamplingFilters> filters;
-  void Initialize(cudaStream_t stream) {
-    filters = GetResamplingFilters(stream);
+  void Initialize() {
+    filters = GetResamplingFilters();
+  }
+  void InitializeCPU() {
+    filters = GetResamplingFiltersCPU();
   }
 
-  void SetupComputation(const TensorListShape<3> &in, const Params &params);
-  void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
+  int2 block_size = { 32, 24 };
 
+ protected:
   struct ROI {
     int lo[2], hi[2];
     int size(int dim) const { return hi[dim] - lo[dim]; }
@@ -92,6 +105,24 @@ struct SeparableResamplingSetup {
 
   void SetFilters(SampleDesc &desc, const ResamplingParams2D &params);
   ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParams2D &params);
+
+  std::shared_ptr<ResamplingFilters> filters;
+
+  static_assert(std::is_pod<SampleDesc>::value,
+    "Internal error! Something crept into SampleDesc and made it non-POD");
+};
+
+class BatchResamplingSetup : public SeparableResamplingSetup {
+ public:
+  using Params = std::vector<ResamplingParams2D>;
+
+  std::vector<SampleDesc> sample_descs;
+  TensorListShape<3> output_shape, intermediate_shape;
+  size_t intermediate_size;
+  BlockCount total_blocks;
+
+  void SetupBatch(const TensorListShape<3> &in, const Params &params);
+  void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
 };
 
 }  // namespace kernels

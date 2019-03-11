@@ -41,7 +41,7 @@ struct ResamplingFilter {
   }
 
   __host__ __device__ int support() const {
-    return ceilf(num_coeffs / scale);
+    return ceilf((num_coeffs-1) / scale);
   }
 
   __host__ __device__ float operator()(float x) const {
@@ -84,7 +84,8 @@ struct ResamplingFilters {
   }
 };
 
-std::shared_ptr<ResamplingFilters> GetResamplingFilters(cudaStream_t stream);
+std::shared_ptr<ResamplingFilters> GetResamplingFilters();
+std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU();
 
 }  // namespace kernels
 }  // namespace dali

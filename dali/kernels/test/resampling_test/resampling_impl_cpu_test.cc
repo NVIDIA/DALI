@@ -16,7 +16,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include "dali/kernels/test/test_data.h"
 #include "dali/kernels/test/tensor_test_utils.h"
-#include "dali/kernels/imgproc/resample/resampling_windows.h"
+#include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_impl_cpu.h"
 #include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/tensor_shape_print.h"
@@ -29,7 +29,7 @@ TEST(ResampleCPU, FilterSymmetry) {
   int in_w = 10;
   float scale = static_cast<float>(in_w) / w;
   float sx0 = 0;
-  auto filter = GaussianFilter(2);
+  auto filter = GetResamplingFiltersCPU()->Gaussian(1.99f/(2*sqrt(2)));
   int support = filter.support();
   ASSERT_GE(support, 4) << "Gaussian filter with radius 2 must have support of at least 4";
   std::vector<float> coeffs(w * support);
@@ -60,7 +60,7 @@ TEST(ResampleCPU, TriangularFilter) {
   int in_w = 479;
   float scale = static_cast<float>(in_w) / w;
   float sx0 = 0;
-  auto filter = TriangularFilter(scale);
+  auto filter = GetResamplingFiltersCPU()->Triangular(scale);
   int support = filter.support();
   ASSERT_EQ(support, 11);
   std::vector<float> coeffs(w * support);
@@ -88,6 +88,20 @@ TEST(ResampleCPU, TriangularFilter) {
     EXPECT_LT(coeffs[i*support + support - 1], slope) << "Filter misses a contributing pixel";
     EXPECT_EQ(idx[i] + max_k, src_i) << "Filter maximum expected to coincide with NN pixel";
   }
+
+  if (HasFailure()) {
+    std::cout << "Anchor: " << filter.anchor << "\n";
+    std::cout << "Support: " << filter.support() << "\n";
+    for (int i = 0; i < w; i++) {
+      float src = (i + 0.5f) * scale;
+      int src_i = floorf(src);
+      std::cout << i << " -> " << src << "  [";
+      for (int k = 0; k < support; k++) {
+        std::cout << " " << coeffs[i*support + k];
+      }
+      std::cout << "]\n";
+    }
+  }
 }
 
 TEST(ResampleCPU, Horizontal) {
@@ -103,7 +117,7 @@ TEST(ResampleCPU, Horizontal) {
   cv::Mat out_img(img.rows, out_w, img.type());
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
-  auto filter = GaussianFilter(40);
+  auto filter = GetResamplingFiltersCPU()->Gaussian(40/(2*sqrt(2)));
   int support = filter.support();
   std::vector<float> coeffs(out_w * support);
   std::vector<int> idx(out_w);
@@ -129,7 +143,7 @@ TEST(ResampleCPU, Vertical) {
   cv::Mat out_img(out_h, img.cols, img.type());
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
-  auto filter = GaussianFilter(40);
+  auto filter = GetResamplingFiltersCPU()->Gaussian(40/(2*sqrt(2)));
   int support = filter.support();
   std::vector<float> coeffs(out_h * support);
   std::vector<int> idx(out_h);
@@ -206,8 +220,9 @@ TEST(ResampleCPU, Linear) {
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
   auto tmp_tensor = view_as_tensor<float, 3>(tmp_img);
 
-  auto filter = LinearFilter();
+  auto filter = GetResamplingFiltersCPU()->Triangular(1);
   int support = filter.support();
+  ASSERT_EQ(support, 2);
   std::vector<float> coeffs(std::max(out_h, out_w) * support);
   std::vector<int> idx(std::max(out_h, out_w));
   InitializeResamplingFilter(idx.data(), coeffs.data(), out_h, 0, scaley, filter);
