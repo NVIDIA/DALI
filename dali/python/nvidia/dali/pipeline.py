@@ -88,9 +88,9 @@ class Pipeline(object):
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
-        self._exec_separated = False
-        self._cpu_queue_size = prefetch_queue_depth
-        self._gpu_queue_size = prefetch_queue_depth
+        self._exec_separated = True
+        self._cpu_queue_size = 7
+        self._gpu_queue_size = 4
 
     @property
     def batch_size(self):
