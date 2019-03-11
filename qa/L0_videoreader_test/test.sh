@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages="nose numpy"
+pip_packages="nose numpy torch torchvision scikit-image tensorboardX"
 
 apt-get update
 apt-get install -y wget ffmpeg
