@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 #include <gtest/gtest.h>
 

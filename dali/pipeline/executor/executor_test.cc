@@ -40,15 +40,15 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   }
 
   vector<HostWorkspace> CPUData(Executor *exe, int idx) const {
-    return exe->wss_[idx].cpu_op_data;
+    return std::get<static_cast<int>(OpType::CPU)>(exe->wss_[idx].op_data);
   }
 
   vector<MixedWorkspace> MixedData(Executor *exe, int idx) const {
-    return exe->wss_[idx].mixed_op_data;
+    return std::get<static_cast<int>(OpType::MIXED)>(exe->wss_[idx].op_data);
   }
 
   vector<DeviceWorkspace> GPUData(Executor *exe, int idx) const {
-    return exe->wss_[idx].gpu_op_data;
+    return std::get<static_cast<int>(OpType::GPU)>(exe->wss_[idx].op_data);
   }
 
   void VerifyDecode(const uint8 *img, int h, int w, int img_id) const {

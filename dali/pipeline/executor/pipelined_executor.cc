@@ -35,13 +35,6 @@ void PipelinedExecutor::Build(OpGraph *graph, vector<string> output_names) {
   }
 }
 
-std::vector<int> PipelinedExecutor::GetMemoryHints(const OpSpec &spec) {
-  std::vector<int> hints;
-  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
-  std::replace(hints.begin(), hints.end(), 0, static_cast<int>(bytes_per_sample_hint_));
-  return hints;
-}
-
 void PipelinedExecutor::SetupStageOutputsForGraph() {
   DeviceGuard g(device_id_);
   // Make a set of the outputs names for quick lookup
@@ -53,7 +46,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Do not include CPU ops inputs, since those are run
     // synchronously with support ops
     OpNode &node = graph_->Node(OpType::SUPPORT, i);
-    std::vector<int> hints = GetMemoryHints(node.spec);
+    std::vector<int> hints = GetMemoryHints(node);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
@@ -62,13 +55,11 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       DALI_ENFORCE(graph_->TensorIsType<CPUBackend>(tensor_name));
       if (output_set.count(tensor_name) != 0) continue;
 
-      vector<TensorMeta> consumer_meta =
-        graph_->TensorConsumerMeta(tensor_name);
+      vector<TensorMeta> consumer_meta = graph_->TensorConsumerMeta(tensor_name);
       bool found_stage_boundary = false;
       for (auto &meta : consumer_meta) {
-        const auto& node_type = graph_->NodeType(meta.node);
-        if (node_type != OpType::SUPPORT &&
-            node_type != OpType::CPU) {
+        const auto &node_type = graph_->NodeType(meta.node);
+        if (node_type != OpType::SUPPORT && node_type != OpType::CPU) {
           // We've located a tensor that is an output of
           // the stage.
           found_stage_boundary = true;
@@ -79,8 +70,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         info.prod_and_idx = std::make_pair(node.id, j);
         support_stage_output_info_.push_back(info);
         support_stage_outputs_.push_back(
-            TensorPool<CPUBackend>(
-                queue_depth_, batch_size_, hints[j]));
+            TensorPool<CPUBackend>(queue_depth_, batch_size_, hints[j]));
         for (auto &meta : consumer_meta) {
           OutputInfo &info = support_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
@@ -94,7 +84,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Find all outputs of the cpu stage. An output is
     // a tensor that is used by an op in a later stage.
     OpNode &node = graph_->Node(OpType::CPU, i);
-    std::vector<int> hints = GetMemoryHints(node.spec);
+    std::vector<int> hints = GetMemoryHints(node);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
@@ -103,8 +93,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       DALI_ENFORCE(graph_->TensorIsType<CPUBackend>(tensor_name));
       if (output_set.count(tensor_name) != 0) continue;
 
-      vector<TensorMeta> consumer_meta =
-        graph_->TensorConsumerMeta(tensor_name);
+      vector<TensorMeta> consumer_meta = graph_->TensorConsumerMeta(tensor_name);
       bool found_stage_boundary = false;
       bool has_gpu_consumer = false;
       for (auto &meta : consumer_meta) {
@@ -114,10 +103,8 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
           // the stage.
           auto &consumer = graph_->Node(meta.node);
           has_gpu_consumer =
-              has_gpu_consumer ||
-              type == OpType::GPU ||
-              (consumer.spec.name() == "MakeContiguous" &&
-              consumer.spec.OutputDevice(0) == "gpu");
+              has_gpu_consumer || type == OpType::GPU ||
+              (consumer.spec.name() == "MakeContiguous" && consumer.spec.OutputDevice(0) == "gpu");
           found_stage_boundary = true;
         }
       }
@@ -126,8 +113,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
         info.prod_and_idx = std::make_pair(node.id, j);
         cpu_stage_output_info_.push_back(info);
         cpu_stage_outputs_.push_back(
-            TensorVectorPool<CPUBackend>(
-                queue_depth_, batch_size_, hints[j], has_gpu_consumer));
+            TensorVectorPool<CPUBackend>(queue_depth_, batch_size_, hints[j], has_gpu_consumer));
         for (auto &meta : consumer_meta) {
           OutputInfo &info = cpu_stage_output_info_.back();
           auto tmp = std::make_pair(meta.node, meta.index);
@@ -141,7 +127,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
     // Find all outputs of the mixed stage. An output
     // is a tensor that is used by an op in a later stage.
     OpNode &node = graph_->Node(OpType::MIXED, i);
-    std::vector<int> hints = GetMemoryHints(node.spec);
+    std::vector<int> hints = GetMemoryHints(node);
 
     for (int j = 0; j < node.spec.NumOutput(); ++j) {
       // If this tensor is a pipeline output, its
@@ -149,8 +135,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
       string tensor_name = node.spec.Output(j);
       if (output_set.count(tensor_name) != 0) continue;
 
-      vector<TensorMeta> consumer_meta =
-        graph_->TensorConsumerMeta(tensor_name);
+      vector<TensorMeta> consumer_meta = graph_->TensorConsumerMeta(tensor_name);
       bool has_info_object = false;
 
       if (graph_->TensorIsType<CPUBackend>(tensor_name)) {
@@ -164,8 +149,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
 
               mixed_stage_cpu_output_info_.push_back(info);
               mixed_stage_cpu_outputs_.push_back(
-                  TensorListPool<CPUBackend>(
-                      queue_depth_, batch_size_, hints[j], pinned));
+                  TensorListPool<CPUBackend>(queue_depth_, batch_size_, hints[j], pinned));
               has_info_object = true;
             }
 
@@ -182,8 +166,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
               info.prod_and_idx = std::make_pair(node.id, j);
               mixed_stage_gpu_output_info_.push_back(info);
               mixed_stage_gpu_outputs_.push_back(
-                  TensorListPool<GPUBackend>(
-                      queue_depth_, batch_size_, hints[j]));
+                  TensorListPool<GPUBackend>(queue_depth_, batch_size_, hints[j]));
               has_info_object = true;
             }
 
@@ -197,8 +180,7 @@ void PipelinedExecutor::SetupStageOutputsForGraph() {
   }
 }
 
-void PipelinedExecutor::SetStageOutputsForIter(
-    int queue_idx, WorkspaceBlob *wsb) {
+void PipelinedExecutor::SetStageOutputsForIter(int queue_idx, WorkspaceBlob *wsb) {
   DeviceGuard g(device_id_);
   for (size_t i = 0; i < support_stage_outputs_.size(); ++i) {
     auto &tvp = support_stage_outputs_[i];
@@ -208,25 +190,25 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int support_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    wsb->support_op_data[support_op_id].SetOutput(
-        output_idx, tvp.Get(queue_idx));
+    get_workspace<OpType::SUPPORT>(wsb->op_data, support_op_id)
+        .SetOutput(output_idx, tvp.Get(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
-      const OpNode& op_node = graph_->Node(node_id);
+      const OpNode &op_node = graph_->Node(node_id);
       int child_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
-      const OpSpec& spec = op_node.spec;
+      const OpSpec &spec = op_node.spec;
       std::string arg_name = spec.ArgumentInputName(input_idx);
       if (graph_->NodeType(node_id) == OpType::MIXED) {
-        wsb->mixed_op_data[child_op_id].SetArgumentInput(
-          tvp.Get(queue_idx), arg_name);
+        get_workspace<OpType::MIXED>(wsb->op_data, child_op_id)
+            .SetArgumentInput(tvp.Get(queue_idx), arg_name);
       } else if (graph_->NodeType(node_id) == OpType::GPU) {
-        wsb->gpu_op_data[child_op_id].SetArgumentInput(
-          tvp.Get(queue_idx), arg_name);
+        get_workspace<OpType::GPU>(wsb->op_data, child_op_id)
+            .SetArgumentInput(tvp.Get(queue_idx), arg_name);
       } else {
-        wsb->cpu_op_data[child_op_id].SetArgumentInput(
-          tvp.Get(queue_idx), arg_name);
+        get_workspace<OpType::CPU>(wsb->op_data, child_op_id)
+            .SetArgumentInput(tvp.Get(queue_idx), arg_name);
       }
     }
   }
@@ -239,23 +221,22 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int cpu_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    wsb->cpu_op_data[cpu_op_id].SetOutput(
-        output_idx, tvp.Get(queue_idx));
+    get_workspace<OpType::CPU>(wsb->op_data, cpu_op_id)
+        .SetOutput(output_idx, tvp.Get(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
       if (graph_->NodeType(node_id) == OpType::MIXED) {
         int mixed_op_id = graph_->NodeIdx(node_id);
         int input_idx = info.con_and_idx[j].second;
-        wsb->mixed_op_data[mixed_op_id].SetInput(
-          input_idx, tvp.Get(queue_idx));
+        get_workspace<OpType::MIXED>(wsb->op_data, mixed_op_id)
+            .SetInput(input_idx, tvp.Get(queue_idx));
         const OpNode &node = graph_->Node(OpType::MIXED, mixed_op_id);
-        std::vector<int> hints = GetMemoryHints(node.spec);
+        std::vector<int> hints = GetMemoryHints(node);
         // Use pinned memory only when it is useful
-        if (node.spec.name() == "MakeContiguous" &&
-            node.spec.NumOutput() == 1 &&
+        if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
             node.spec.OutputDevice(0) == "gpu") {
-          for (auto& v : tvp.Get(queue_idx)) {
+          for (auto &v : tvp.Get(queue_idx)) {
             if (!v->is_pinned()) {
               auto capacity = std::max<size_t>(v->capacity(), hints[0]);
               v->free();
@@ -267,10 +248,10 @@ void PipelinedExecutor::SetStageOutputsForIter(
       } else if (graph_->NodeType(node_id) == OpType::CPU) {
         int cpu_op_id = graph_->NodeIdx(node_id);
         int input_idx = info.con_and_idx[j].second;
-        wsb->cpu_op_data[cpu_op_id].SetInput(
-          input_idx, tvp.Get(queue_idx));
+        get_workspace<OpType::CPU>(wsb->op_data, cpu_op_id)
+            .SetInput(input_idx, tvp.Get(queue_idx));
       } else {
-          DALI_FAIL("Internal error - found non-CPU/mixed consumer");
+        DALI_FAIL("Internal error - found non-CPU/mixed consumer");
       }
     }
   }
@@ -283,8 +264,8 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int mixed_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    wsb->mixed_op_data[mixed_op_id].SetOutput(
-        output_idx, tlp.Get(queue_idx));
+    get_workspace<OpType::MIXED>(wsb->op_data, mixed_op_id)
+        .SetOutput(output_idx, tlp.Get(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
@@ -292,11 +273,10 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
       int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
-      wsb->gpu_op_data[gpu_op_id].SetInput(
-          input_idx, tlp.Get(queue_idx));
+      get_workspace<OpType::GPU>(wsb->op_data, gpu_op_id)
+          .SetInput(input_idx, tlp.Get(queue_idx));
     }
   }
-
 
   for (size_t i = 0; i < mixed_stage_gpu_outputs_.size(); ++i) {
     auto &tlp = mixed_stage_gpu_outputs_[i];
@@ -306,8 +286,8 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
     int mixed_op_id = graph_->NodeIdx(node_id);
     int output_idx = info.prod_and_idx.second;
-    wsb->mixed_op_data[mixed_op_id].SetOutput(
-        output_idx, tlp.Get(queue_idx));
+    get_workspace<OpType::MIXED>(wsb->op_data, mixed_op_id)
+        .SetOutput(output_idx, tlp.Get(queue_idx));
 
     for (size_t j = 0; j < info.con_and_idx.size(); ++j) {
       node_id = info.con_and_idx[j].first;
@@ -315,8 +295,8 @@ void PipelinedExecutor::SetStageOutputsForIter(
 
       int gpu_op_id = graph_->NodeIdx(node_id);
       int input_idx = info.con_and_idx[j].second;
-      wsb->gpu_op_data[gpu_op_id].SetInput(
-          input_idx, tlp.Get(queue_idx));
+      get_workspace<OpType::GPU>(wsb->op_data, gpu_op_id)
+          .SetInput(input_idx, tlp.Get(queue_idx));
     }
   }
 }

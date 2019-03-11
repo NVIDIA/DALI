@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <algorithm>
 
-#include "dali/pipeline/op_graph.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operators/op_schema.h"
 
@@ -43,14 +43,15 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
+// TODO(klecki): Graph creation is not a place to check OpSpec?
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
 
-  bool allows_multiple_inputs = schema.AllowsMultipleInputSets();
+  bool allows_multiple_inputs_sets = schema.AllowsMultipleInputSets();
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 
   int num_input_sets = 1;
-  if (allows_multiple_inputs) {
+  if (allows_multiple_inputs_sets) {
     num_input_sets = spec.GetArgument<int>("num_input_sets");
   } else {
     DALI_ENFORCE(spec.GetArgument<int>("num_input_sets") == 1,
@@ -104,7 +105,7 @@ OpNode& OpGraph::PlaceNewOp(OpType op_type, OpSpec op_spec, std::string instance
   node.op_type = op_type;
   auto new_partition_id = NumOp(op_type);
   node.partition_index = new_partition_id;
-  node_partitions_[static_cast<int>(op_type)].push_back(node.id);
+  op_partitions_[static_cast<int>(op_type)].push_back(node.id);
   return node;
 }
 
@@ -120,6 +121,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
   string device = spec.GetArgument<string>("device");
   auto op_type = ParseOpType(device);
+  // TODO(klecki): refactor this out
   switch (op_type) {
     case OpType::CPU: {
       // Enforce graph constraints
@@ -216,7 +218,7 @@ void OpGraph::InstantiateOperators() {
   OpType order[] = {OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU};
 
   for (auto op_type : order) {
-    for (auto op_id : node_partitions_[static_cast<int>(op_type)]) {
+    for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
       op_nodes_[op_id].InstantiateOperator();
     }
   }
@@ -406,18 +408,29 @@ void OpGraph::RemoveOp(OpNodeId id) {
   }
 
   RemoveOpNode(id);
-  Repartition();
+  // Just recalculate, do not try to fix
+  RepartitionOps();
 }
 
-void OpGraph::Repartition() {
-  for (auto & p : node_partitions_) {
+void OpGraph::RepartitionOps() {
+  for (auto & p : op_partitions_) {
     p.clear();
   }
   for (auto &node : op_nodes_) {
     auto new_partition_id = NumOp(node.op_type);
     node.partition_index = new_partition_id;
-    node_partitions_[static_cast<int>(node.op_type)].push_back(node.id);
+    op_partitions_[static_cast<int>(node.op_type)].push_back(node.id);
   }
+}
+
+std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const {
+  std::vector<std::vector<TensorNodeId>> out;
+  out.resize(static_cast<int>(OpType::COUNT));
+  for (auto &tensor : tensor_nodes_) {
+    auto producer_op_type = Node(tensor.producer.node).op_type;
+    out[static_cast<int>(producer_op_type)].push_back(tensor.id);
+  }
+  return out;
 }
 
 // TODO(klecki): get rid of string indexing
@@ -515,6 +528,32 @@ void OpGraph::GenerateDOTFromGraph(const TensorNode &current_node, std::ofstream
       PrintTo(ofs, child_op, show_ids) << "[label=" << edge.index << "];\n";
   }
 }
+
+std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names) {
+  std::vector<TensorNodeId> result;
+  for (const auto& out : output_names) {
+    result.push_back(TensorId(out));
+  }
+  return result;
+}
+
+std::vector<TensorNodeId> OpGraph::GetStageOutputs(OpType stage) {
+  std::vector<TensorNodeId> result;
+  for (const auto& tensor : tensor_nodes_) {
+    // Check if the tensor is produced in current stage
+    if (Node(tensor.producer.node).op_type == stage) {
+      for (auto cons_edge : tensor.consumers) {
+        // We found a consumer from different stage, this tensor is a stage output
+        if (Node(cons_edge.node).op_type != stage) {
+          result.push_back(tensor.id);
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
 
 template <>
 bool OpGraph::TensorIsType<CPUBackend>(const string &name) {
