@@ -54,7 +54,7 @@ class ExternalSource : public Operator<Backend> {
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
-    std::unique_lock<std::mutex> lock(m_);
+    std::unique_lock<std::mutex> lock(busy_m_);
     cv_.wait(lock,  [this]{return !this->busy_;});
     tl_data_.Copy(tl, 0);
     data_in_tl_ = true;
@@ -70,7 +70,7 @@ class ExternalSource : public Operator<Backend> {
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
 
-    std::unique_lock<std::mutex> lock(m_);
+    std::unique_lock<std::mutex> lock(busy_m_);
     cv_.wait(lock,  [this]{return !this->busy_;});
 
     t_data_.resize(t.size());
@@ -91,11 +91,11 @@ class ExternalSource : public Operator<Backend> {
   std::vector<Tensor<Backend>> t_data_;
   bool data_in_tl_;
 
-  std::atomic<int> samples_processed_;
+  int samples_processed_;
 
   bool busy_;
   std::condition_variable cv_;
-  std::mutex m_;
+  std::mutex busy_m_;
   std::mutex samples_processed_m_;
 };
 

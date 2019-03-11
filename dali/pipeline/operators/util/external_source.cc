@@ -29,10 +29,13 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     output.Copy(data, stream);
   }
 
-  std::unique_lock<std::mutex> l(samples_processed_m_);
+  std::lock_guard<std::mutex> l(samples_processed_m_);
   if (++samples_processed_ >= batch_size_) {
     samples_processed_ = 0;
-    busy_ = false;
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      busy_ = false;
+    }
     cv_.notify_one();
   }
 }

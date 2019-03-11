@@ -22,7 +22,10 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 
   auto &output = ws->Output<GPUBackend>(idx);
   output.Copy(tl_data_, (ws->has_stream() ? ws->stream() : 0));
-  busy_ = false;
+  {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    busy_ = false;
+  }
   cv_.notify_all();
 }
 
