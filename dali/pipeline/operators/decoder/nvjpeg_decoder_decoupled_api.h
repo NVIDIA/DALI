@@ -108,28 +108,24 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       // As other images being process might fail, but we don't care
     }
 
-    try {
-      for (int i = 0; i < batch_size_; ++i) {
-        NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
-        NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
-      }
-      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
-      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
-      for (int i = 0; i < num_threads_ * 2; ++i) {
-        NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
-        NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
-        CUDA_CALL(cudaEventDestroy(events_[i]));
-      }
-
-      for (int i = 0; i < num_threads_; ++i) {
-        NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
-        CUDA_CALL(cudaStreamDestroy(streams_[i]));
-      }
-      CUDA_CALL(cudaEventDestroy(master_event_));
-      NVJPEG_CALL(nvjpegDestroy(handle_));
-    } catch (...) {
-      std::terminate();
+    for (int i = 0; i < batch_size_; ++i) {
+      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
+      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
     }
+    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
+    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
+    for (int i = 0; i < num_threads_ * 2; ++i) {
+      NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
+      NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
+      CUDA_CALL(cudaEventDestroy(events_[i]));
+    }
+
+    for (int i = 0; i < num_threads_; ++i) {
+      NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
+      CUDA_CALL(cudaStreamDestroy(streams_[i]));
+    }
+    CUDA_CALL(cudaEventDestroy(master_event_));
+    NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
   using dali::OperatorBase::Run;

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 
 namespace dali {
