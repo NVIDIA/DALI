@@ -73,14 +73,12 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
     EXPECT_EQ(reference[i], tested[i]) << "Failed on index: " << i;
   }
 
-
   CUDA_CALL(cudaFree(tested));
   CUDA_CALL(cudaFree(input));
-
 }
 
 
-TEST(OpticalFlowTuringTest, CudaDecodeFlowVectorTest) {
+TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   using std::ifstream;
   using std::string;
   using std::vector;
