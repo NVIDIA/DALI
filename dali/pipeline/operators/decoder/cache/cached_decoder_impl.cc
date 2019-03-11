@@ -49,4 +49,26 @@ void CachedDecoderImpl::CacheStore(const std::string& file_name, uint8_t* data,
   cache_->Add(file_name, data, data_shape, stream);
 }
 
+DALI_SCHEMA(CachedDecoderAttr)
+  .DocStr(R"code(Attributes for cached decoder.)code")
+  .AddOptionalArg("cache_size",
+      R"code(Total size of the decoder cache in megabytes. When provided, decoded
+images bigger than `cache_threshold` will be cached in memory.)code",
+      0)
+  .AddOptionalArg("cache_threshold",
+      R"code(Size threshold (in bytes) for images to be cached.)code",
+      0)
+  .AddOptionalArg("cache_debug",
+      R"code(Print debug information about decoder cache.)code",
+      false)
+  .AddOptionalArg("cache_type",
+      R"code(Choose cache type:
+`threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
+Warm up time for `threshold` policy is 1 epoch.
+`largest`: Store largest images that can fit the cache.
+Warm up time for `largest` policy is 2 epochs
+To take advantage of caching, it is recommended to use the option `stick_to_shard=True` with
+the reader operators, to limit the amount of unique images seen by the decoder in a multi node environment)code",
+      std::string());
+
 }  // namespace dali
