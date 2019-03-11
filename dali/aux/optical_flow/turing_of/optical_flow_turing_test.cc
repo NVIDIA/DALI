@@ -77,7 +77,7 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
   CUDA_CALL(cudaFree(input));
 }
 
-
+// DISABLED due to lack of test data. Enable on next possible chance
 TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   using std::ifstream;
   using std::string;
