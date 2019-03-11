@@ -15,12 +15,12 @@
 #include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
 #include <dali/test/dali_test_config.h>
 #include <dali/util/cuda_utils.h>
+#include <opencv2/opencv.hpp>
 #include <cuda_runtime.h>
 #include <gtest/gtest.h>
 #include <fstream>
 #include <vector>
 #include <string>
-#include <opencv2/opencv.hpp>
 
 namespace dali {
 namespace optical_flow {
