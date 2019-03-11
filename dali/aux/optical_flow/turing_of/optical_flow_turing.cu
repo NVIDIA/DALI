@@ -23,6 +23,17 @@ namespace {
 
 constexpr size_t kBlockSize = 32;
 
+/**
+ * Calculating number of blocks
+ * @param length In bytes
+ * @param block_size
+ * @return
+ */
+inline size_t num_blocks(size_t length, size_t block_size) {
+  // Calculating ceil for ints
+  return (length + block_size - 1) / block_size;
+}
+
 }  // namespace
 
 
@@ -55,10 +66,8 @@ BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 void BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
   DALI_ENFORCE(pitch >= width / 3 * 4);
-  // Block size adjusted to match transaction on memory (128 bytes)
-  dim3 block_dim(128, 8);
-  dim3 grid_dim(std::ceil(static_cast<float>(width) / block_dim.x),
-                std::ceil(static_cast<float>(height) / block_dim.y));
+  dim3 block_dim(kBlockSize, kBlockSize);
+  dim3 grid_dim(num_blocks(width, block_dim.x), num_blocks(height, block_dim.y));
   BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width / 3, height);
 }
 
@@ -67,8 +76,7 @@ void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, siz
                           size_t height) {
   DALI_ENFORCE(pitch >= width);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(std::ceil(static_cast<float>(width) / kBlockSize),
-                std::ceil(static_cast<float>(height) / kBlockSize));
+  dim3 grid_dim(num_blocks(width, block_dim.x),num_blocks(height, block_dim.y));
   DecodeFlowComponentKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
 }
 
