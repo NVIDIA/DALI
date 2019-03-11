@@ -234,7 +234,7 @@ TEST(TensorListView, uniform_list_shape) {
 namespace {
 
 template<typename T, size_t N>
-void VerifySubtensor(const T *data, std::array<long int, N> dims, int idx) {
+void VerifySubtensor(const T *data, std::array<int64_t, N> dims, int idx) {
   auto subtensor_volume = volume(dims.begin() + 1, dims.end());
   for (int i = 0; i < subtensor_volume; i++) {
     EXPECT_EQ(idx * subtensor_volume + i, data[i]) << "Failed at idx: " << idx << " offset " << i;
@@ -246,7 +246,7 @@ void VerifySubtensor(const T *data, std::array<long int, N> dims, int idx) {
 TEST(TensorViewTest, SubtensorTest) {
   using namespace std;  // NOLINT
   constexpr size_t kNDims = 4;
-  array<long int, kNDims> dims = {4, 1, 2, 3};
+  array<int64_t, kNDims> dims = {4, 1, 2, 3};
   vector<int> data(volume(dims), 0);
   iota(data.begin(), data.end(), 0);
   auto tv = make_tensor_cpu<kNDims>(data.data(), dims);
