@@ -13,45 +13,50 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/decoder/decoder_test.h"
+#include "dali/util/random_crop_generator.h"
 
 namespace dali {
 
 template <typename ImgType>
-class nvJpegDecoderSplittedCropTest : public DecodeTestBase<ImgType> {
+class nvJpegDecoderSplitRandomCropTest : public DecodeTestBase<ImgType> {
+ public:
+  nvJpegDecoderSplitRandomCropTest()
+    : random_crop_generator(
+      new RandomCropGenerator(aspect_ratio_range, area_range, seed)) {
+  }
+
  protected:
   const OpSpec DecodingOp() const override {
-    return this->GetOpSpec("nvJPEGDecoderSplittedCrop", "mixed")
-      .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W});
+    return this->GetOpSpec("nvJPEGDecoderRandomCrop", "mixed")
+      .AddArg("seed", seed)
+      .AddArg("split_stages", true);
   }
 
   CropWindowGenerator GetCropWindowGenerator() const override {
-    return [this] (int H, int W) {
-      CropWindow crop_window;
-      crop_window.h = crop_H;
-      crop_window.w = crop_W;
-      crop_window.y = 0.5f * (H - crop_window.h);
-      crop_window.x = 0.5f * (W - crop_window.w);
-      return crop_window;
-    };
+    return std::bind(
+      &RandomCropGenerator::GenerateCropWindow,
+      random_crop_generator,
+      std::placeholders::_1, std::placeholders::_2);
   }
 
-  int crop_H = 224, crop_W = 200;
+  int64_t seed = 1212334;
+  AspectRatioRange aspect_ratio_range{3.0f/4.0f, 4.0f/3.0f};
+  AreaRange area_range{0.08f, 1.0f};
+  std::shared_ptr<RandomCropGenerator> random_crop_generator;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvJpegDecoderSplittedCropTest, Types);
+TYPED_TEST_CASE(nvJpegDecoderSplitRandomCropTest, Types);
 
-TYPED_TEST(nvJpegDecoderSplittedCropTest, JpegDecode) {
+TYPED_TEST(nvJpegDecoderSplitRandomCropTest, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplittedCropTest, PngDecode) {
+TYPED_TEST(nvJpegDecoderSplitRandomCropTest, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplittedCropTest, TiffDecode) {
-  this->crop_H = 100;
-  this->crop_W = 90;
+TYPED_TEST(nvJpegDecoderSplitRandomCropTest, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 
