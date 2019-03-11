@@ -212,7 +212,7 @@ class DALISingleOpTest : public DALITest {
     for (int i = 0; i < spec.NumOutput(); ++i)
       outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
 
-    pipeline_->AddOperator(spec);
+    pipeline_->AddOperator(spec, spec.name());
   }
 
   virtual void AddDefaultArgs(OpSpec& spec) {
