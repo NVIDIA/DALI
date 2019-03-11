@@ -115,6 +115,18 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
 
+#if 1
+  // TODO(spanev): - nvJPEGDecoderSplitted by nvJPEGDecoderNew
+  //               - make it as an arg of nvJPEGDecoderNew
+
+  // nvJGPEGDecoder operator require a special case to be divided in two stages (CPU and Mixed-GPU)
+  const bool nvjpeg_splitting = spec.name() == "nvJPEGDecoderSplitted";
+  if (nvjpeg_splitting) {
+    AddSplittedNvJpegDecoder(spec, inst_name);
+    return;
+  }
+#endif
+
   // Validate op device
   string device = spec.GetArgument<string>("device");
   DALI_ENFORCE(device == "cpu" ||
@@ -195,6 +207,8 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     DALI_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
   }
 
+
+
   // Verify and record the outputs of the op
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
@@ -234,6 +248,32 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   // Take a copy of the passed OpSpec for serialization purposes
   this->op_specs_.push_back(make_pair(inst_name, spec));
   this->op_specs_to_serialize_.push_back(true);
+}
+
+inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec &spec, const std::string& inst_name) {
+  spec.set_name("nvJPEGDecoderCPUStage");
+  spec.SetArg("device", "cpu");
+
+  auto& op_output = spec.MutableOutput(0);
+  string op_output_name = op_output.first;
+
+  const std::string mangled_outputname("nvJPEGCPUOutput" + inst_name);
+  op_output.first = mangled_outputname + "0";
+  op_output.second = "cpu";
+  spec.AddOutput(mangled_outputname + "1", "cpu");
+  spec.AddOutput(mangled_outputname + "2", "cpu");
+
+  OpSpec gpu_spec = OpSpec("nvJPEGDecoderGPUStage")
+    .ShareArguments(spec)
+    .AddInput(spec.OutputName(0), "cpu")
+    .AddInput(spec.OutputName(1), "cpu")
+    .AddInput(spec.OutputName(2), "cpu")
+    .AddOutput(op_output_name, "gpu");
+  gpu_spec.SetArg("device", "mixed");
+
+  // TODO(spanev): handle serialization for nvJPEGDecoderNew
+  this->AddOperator(spec, inst_name);
+  this->AddOperator(gpu_spec, inst_name + "_gpu");
 }
 
 inline int GetMemoryHint(OpSpec &spec, int index) {
@@ -457,11 +497,11 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
   }
 
   // Update the OpSpec to use the contiguous input
-  auto input_strs = spec->mutable_input(input_idx);
-  DALI_ENFORCE(input_strs->first == it->first, "Input at index " +
+  auto& input_strs = spec->MutableInput(input_idx);
+  DALI_ENFORCE(input_strs.first == it->first, "Input at index " +
       std::to_string(input_idx) + " does not match input iterator "
-      "name (" + input_strs->first + " v. " + it->first + ").");
-  input_strs->first = "contiguous_" + input_strs->first;
+      "name (" + input_strs.first + " v. " + it->first + ").");
+  input_strs.first = "contiguous_" + input_strs.first;
 }
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {

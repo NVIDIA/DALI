@@ -30,6 +30,8 @@
 
 namespace dali {
 
+using ImageInfo = EncodedImageInfo<int>;
+
 class nvJPEGDecoder : public Operator<MixedBackend> {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
@@ -138,7 +140,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
 
-      EncodedImageInfo info;
+      ImageInfo info;
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
@@ -228,7 +230,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
   // with libjpeg.
   void SampleWorker(int sample_idx, string file_name, int in_size, int thread_id,
                     const uint8_t* input_data, uint8_t* output_data) {
-    EncodedImageInfo& info = output_info_[sample_idx];
+    ImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
       OCVFallback(input_data, in_size, output_data, streams_[thread_id], file_name);
@@ -294,7 +296,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   // Predicate to determine if the image should be decoded with the nvJPEG
   // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
-  bool ShouldUseHybridHuffman(EncodedImageInfo& info) {
+  bool ShouldUseHybridHuffman(ImageInfo& info) {
     return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
   }
 
@@ -335,7 +337,7 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
 
   // Common
   // Storage for per-image info
-  std::vector<EncodedImageInfo> output_info_;
+  std::vector<ImageInfo> output_info_;
   nvjpegJpegDecoder_t decoder_huff_host_;
   nvjpegJpegDecoder_t decoder_huff_hybrid_;
 
