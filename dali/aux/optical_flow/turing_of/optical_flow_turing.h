@@ -23,7 +23,7 @@ namespace optical_flow {
 namespace kernel {
 
 /**
- * Converts BGR image to ABGR image. Optionally puts it in strided memory
+ * Converts BGR image to ABGR image and puts it in strided memory
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch In bytes

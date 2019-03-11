@@ -21,7 +21,7 @@ namespace dali {
 namespace testing {
 
 /**
- * Returns value to DALI_extra repository
+ * Returns path to DALI_extra repository
  */
 const std::string &dali_extra_path();
 
