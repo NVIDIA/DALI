@@ -60,7 +60,6 @@ TEST_P(ResamplingTestCPU, Impl) {
   resample.Run(context, out_tensor, in_tensor, param.params);
 
   Check(out_tensor, ref_tensor, EqualEps(param.epsilon));
-  // cv::imwrite("separable_NN_4x4.png", out_mat);
 }
 
 TEST_P(ResamplingTestCPU, KernelAPI) {
@@ -88,7 +87,14 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
   Kernel::Run(context, out_tensor, in_tensor, param.params);
 
   Check(out_tensor, ref_tensor, EqualEps(param.epsilon));
-  // cv::imwrite("separable_NN_4x4.png", out_mat);
+
+  if (HasFailure()) {
+    cv::Mat mat(out_tensor.shape[0], out_tensor.shape[1], CV_8UC3, out_tensor.data);
+    auto name = param.reference;
+    name = name.substr(name.rfind('/')+1);
+    auto out_name = name.substr(0, name.find('.')) + "_out.png";
+    cv::imwrite(out_name, mat);
+  }
 }
 
 static std::vector<ResamplingTestEntry> ResampleTests = {
@@ -118,7 +124,33 @@ static std::vector<ResamplingTestEntry> ResampleTests = {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(AllImages, ResamplingTestCPU, ::testing::ValuesIn(ResampleTests));
+static std::vector<ResamplingTestEntry> CropResampleTests = {
+  {
+    "imgproc_test/dots.png", "imgproc_test/ref_out/dots_crop_2x2.png",
+    { 1.0f, 1.0f, 3.0f, 3.0f }, { 2, 2 }, nearest(), 0
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop.png",
+    { 100.0f, 300.0f, 200.0f, 400.0f }, { 200, 200 }, cubic(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop_flip.png",
+    { 200.0f, 300.0f, 100.0f, 400.0f }, { 200, 200 }, cubic(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop.png",
+    { 150.0f, 400.0f, 200.0f, 450.0f }, { 150, 200 }, lin(), 1
+  },
+  {
+    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop_flip.png",
+    { 150.0f, 450.0f, 200.0f, 400.0f }, { 150, 200 }, lin(), 1
+  },
+};
+
+
+
+INSTANTIATE_TEST_CASE_P(Basic, ResamplingTestCPU, ::testing::ValuesIn(ResampleTests));
+INSTANTIATE_TEST_CASE_P(Crop , ResamplingTestCPU, ::testing::ValuesIn(CropResampleTests));
 
 
 }  // namespace resample_test
