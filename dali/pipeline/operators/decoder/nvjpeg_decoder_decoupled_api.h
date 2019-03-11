@@ -23,6 +23,7 @@
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
@@ -32,10 +33,11 @@ namespace dali {
 
 using ImageInfo = EncodedImageInfo<int>;
 
-class nvJPEGDecoder : public Operator<MixedBackend> {
+class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
+    CachedDecoderImpl(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     output_info_(batch_size_),
@@ -99,12 +101,13 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
-  virtual ~nvJPEGDecoder() noexcept(false) {
+  ~nvJPEGDecoder() noexcept override {
     try {
       thread_pool_.WaitForWork();
     } catch (...) {
       // As other images being process might fail, but we don't care
     }
+
     for (int i = 0; i < batch_size_; ++i) {
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
       NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
@@ -206,11 +209,19 @@ class nvJPEGDecoder : public Operator<MixedBackend> {
       const auto &in = ws->Input<CPUBackend>(0, i);
       const auto file_name = in.GetSourceInfo();
       cudaStream_t stream = ws->stream();
-      thread_pool_.DoWorkWithID(std::bind(
-            [this, i, file_name, stream, &in, &output](int idx, int tid) {
-              SampleWorker(i, file_name, in.size(), tid,
-                              in.data<uint8_t>(), output.mutable_tensor<uint8_t>(i));
-            }, i, std::placeholders::_1));
+      auto *output_data = output.mutable_tensor<uint8_t>(i);
+      auto dims = output_shape_[i];
+      ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
+      thread_pool_.DoWorkWithID(
+        [this, i, file_name, stream, &in, output_data, shape](int tid) {
+          if (CacheLoad(file_name, shape, output_data, stream))
+            return;
+
+          SampleWorker(i, file_name, in.size(), tid,
+            in.data<uint8_t>(), output_data);
+
+          CacheStore(file_name, output_data, shape, stream);
+        });
     }
 
     thread_pool_.WaitForWork();

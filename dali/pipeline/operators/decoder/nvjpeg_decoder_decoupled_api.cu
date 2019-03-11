@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 
 namespace dali {
@@ -40,7 +41,7 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
       R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024);
+      16*1024*1024)
+  .AddParent("CachedDecoderAttr");
 
 }  // namespace dali
-
