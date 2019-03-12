@@ -55,7 +55,7 @@ class CropAttr {
       DALI_ENFORCE(crop_w >= 0,
         "Crop width must be greater than zero. Received: " +
         std::to_string(crop_w));
-    } else {
+    } else if (has_crop_h_arg || has_crop_w_arg) {
       DALI_ENFORCE(has_crop_w_arg && has_crop_h_arg,
         "Both crop_w and crop_h arguments must be provided");
     }

@@ -144,7 +144,11 @@ class Crop : public Operator<Backend>, protected CropAttr {
 
     DALI_ENFORCE(H >= crop_height_[dataIdx] && W >= crop_width_[dataIdx],
       "Image dimensions for sample " + std::to_string(dataIdx)
-      + " are smaller than the cropping window");
+      + " (" + std::to_string(H)
+      + ", " + std::to_string(W) + ")"
+      + " are smaller than the cropping window"
+      + " (" + std::to_string(crop_height_[dataIdx])
+      + ", " + std::to_string(crop_width_[dataIdx]) + ")");
 
     per_sample_crop_[threadIdx] = CalculateCropYX(
       crop_y_norm_[dataIdx],
