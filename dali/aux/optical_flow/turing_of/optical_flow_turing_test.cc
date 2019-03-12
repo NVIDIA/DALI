@@ -59,7 +59,7 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
           255, 88, 95, 63, 255, 96, 78, 16, 0, 0,
           255, 81, 89, 81, 255, 2, 18, 35, 0, 0,
   };
-  size_t width = 6, pitch = 10, height = 6;
+  size_t width = 2, pitch = 10, height = 6;
 
   uint8_t *input, *tested;
   CUDA_CALL(cudaMallocManaged(&input, data.size()));

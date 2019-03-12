@@ -22,6 +22,11 @@ namespace kernel {
 namespace {
 
 constexpr size_t kBlockSize = 32;
+constexpr int kBgrBytesPerPixel = 3;
+constexpr int kAbgrBytesPerPixel = 4;
+constexpr int kBytesPerEncodedFlowComponent=sizeof(int16_t);
+constexpr int kBytesPerDecodedFlowComponent=sizeof(float);
+
 
 /**
  * Calculating number of blocks
@@ -55,8 +60,8 @@ BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
   if (x >= width_px || y >= height) return;
-  size_t in_idx = 3 * x + 3 * width_px * y;
-  size_t out_idx = 4 * x + pitch * y;
+  size_t in_idx = kBgrBytesPerPixel * x + kBgrBytesPerPixel * width_px * y;
+  size_t out_idx = kAbgrBytesPerPixel * x + pitch * y;
   output[out_idx] = 255;
   output[out_idx + 1] = input[in_idx];
   output[out_idx + 2] = input[in_idx + 1];
@@ -65,19 +70,19 @@ BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 
 void BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
-  DALI_ENFORCE(pitch >= width * 4 / 3);
+  DALI_ENFORCE(pitch >= kAbgrBytesPerPixel*width);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(width, block_dim.x), num_blocks(height, block_dim.y));
-  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width / 3, height);
+  dim3 grid_dim(num_blocks(kAbgrBytesPerPixel*width, block_dim.x), num_blocks(height, block_dim.y));
+  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
 }
 
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
                           size_t height) {
-  DALI_ENFORCE(pitch >= width);
+  DALI_ENFORCE(pitch >= 2*kBytesPerDecodedFlowComponent*width);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(width, block_dim.x),num_blocks(height, block_dim.y));
-  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
+  dim3 grid_dim(num_blocks(kDecodedFlowBytesPerPixel*width, block_dim.x),num_blocks(height, block_dim.y));
+  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>(input, output, pitch, kBytesPerDecodedFlowComponent*width, height);
 }
 
 }  // namespace kernel
