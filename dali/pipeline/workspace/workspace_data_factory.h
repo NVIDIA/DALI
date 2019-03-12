@@ -59,7 +59,7 @@ bool IsPinned(SupportWorkspace::output_t<Backend> &t) {
 template <typename Backend>
 bool IsPinned(HostWorkspace::output_t<Backend> &t) {
   for (auto &tensor_ptr : t) {
-    if(!tensor_ptr->is_pinned()) {
+    if (!tensor_ptr->is_pinned()) {
       return false;
     }
   }

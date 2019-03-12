@@ -460,7 +460,6 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
 class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
  protected:
-
   uint32_t GetImageLoadingFlags() const override {
     return t_loadJPEGs + t_decodeJPEGs;
   }
@@ -472,7 +471,6 @@ class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
   }
 
   void CheckResults(Pipeline &pipe, int batch_size, int Iter) {
-
     DeviceWorkspace ws;
     pipe.Outputs(&ws);
     ASSERT_EQ(ws.NumOutput(), 1);
@@ -548,88 +546,6 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
   pipe.Build(outputs);
   ASSERT_THROW(pipe.SetQueueSizes(2, 2, 2), std::runtime_error);
 }
-
-// TEST_F(PrefetchedPipelineTest, TestSeparatedExecution) {
-//   // Test coprime queue sizes
-//   constexpr int N = 5;
-//   constexpr int CPU = N, MIXED = 4, GPU = 3;
-//   // this->set_batch_size(this->batch_size_);
-//   int batch_size = this->batch_size_;
-//   this->SetEps(1.6);
-
-//   Pipeline pipe(batch_size, 4, 0);
-//   // Cannot test async while setting external input - need to make sure that
-//   pipe.SetExecutionTypes(true, true, true);
-//   // Test coprime queue sizes
-//   pipe.SetQueueSizes(CPU, MIXED, GPU);
-//   pipe.AddExternalInput("data");
-
-//   pipe.AddOperator(OpSpec("HostDecoder")
-//           .AddArg("device", "cpu")
-//           .AddInput("data", "cpu")
-//           .AddOutput("images", "cpu"));
-
-//   pipe.AddOperator(OpSpec("Copy")
-//           .AddArg("device", "gpu")
-//           .AddInput("images", "gpu")
-//           .AddOutput("final_images", "gpu"));
-
-//   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
-//   pipe.Build(outputs);
-
-//   TensorList<CPUBackend> tl;
-//   this->MakeJPEGBatch(&tl, batch_size * N);
-
-//   // Split the batch into 5
-//   std::array<TensorList<CPUBackend>, N> splited_tl;
-//   std::array<std::vector<Dims>, N> shapes;
-//   for (int i = 0; i < N; i++) {
-//     shapes[i].resize(batch_size);
-//     for (int j = 0; j < batch_size; j++) {
-//       shapes[i][j] = tl.tensor_shape(i * batch_size + j);
-//     }
-//     splited_tl[i].Resize(shapes[i]);
-//   }
-
-//   for (int i = 0; i < N; i++) {
-//     for (int j = 0; j < batch_size; j++) {
-//       std::memcpy(
-//         splited_tl[i].template mutable_tensor<uint8>(j),
-//         tl.template tensor<uint8>(i * batch_size + j),
-//         volume(tl.tensor_shape(i * batch_size + j)));
-//     }
-//   }
-
-//   // Run separated queues
-//   for (int i = 0; i < CPU; i++) {
-//     pipe.SetExternalInput("data", splited_tl[i]);
-//     pipe.RunCPU();
-//   }
-
-//   for (int i = 0; i < MIXED; i++) {
-//     pipe.RunMixed();
-//   }
-
-//   for (int i = 0; i < GPU; i++) {
-//     pipe.RunGPU();
-//   }
-
-//   // Verify that first `GPU` sets of results are correct
-//   for (int i = 0; i < GPU; i++) {
-//     CheckResults(pipe, batch_size, i);
-//   }
-
-//   // Run the rest
-//   for (int i = MIXED; i < N; i++) {
-//     pipe.RunMixed();
-//   }
-
-//   for (int i = GPU; i < N; i++) {
-//     pipe.RunGPU();
-//     // Consume as soon as they appear
-//     CheckResults(pipe, batch_size, i);
-//   }
-// }
 
 TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes

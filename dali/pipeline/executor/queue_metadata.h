@@ -85,10 +85,7 @@ static OpType PreviousStage(OpType op) {
 }
 
 static bool HasPreviousStage(OpType op) {
-  if (op == OpType::SUPPORT) {
-    return false;
-  }
-  return true;
+  return op != OpType::SUPPORT;
 }
 
 static OpType NextStage(OpType op) {
@@ -105,10 +102,7 @@ static OpType NextStage(OpType op) {
 }
 
 static bool HasNextStage(OpType op) {
-  if (op == OpType::GPU) {
-    return false;
-  }
-  return true;
+  return op != OpType::GPU;
 }
 
 

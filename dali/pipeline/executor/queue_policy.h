@@ -76,12 +76,11 @@ struct UniformQueuePolicy {
         free_cond_.wait(lock);
       }
       if (exec_error_) {
-        return QueueIdxs{-1};  // We return antyhing due to exec error
+        return QueueIdxs{-1};  // We return anything due to exec error
       }
       int queue_idx = free_queue_.front();
       free_queue_.pop();
       return QueueIdxs{queue_idx};
-      // lock.unlock();
     }
 
     std::unique_lock<std::mutex> lock(stage_work_mutex_[static_cast<int>(stage)]);
@@ -191,7 +190,6 @@ struct SeparateQueuePolicy {
       if (exec_error_) {
         return QueueIdxs{-1};
       }
-      // result[static_cast<OpType>(previous_stage)] = stage_ready_[previous_stage].front();
       // We fill the information about all the previous stages herew
       result = stage_ready_[previous_stage].front();
       stage_ready_[previous_stage].pop();

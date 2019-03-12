@@ -90,9 +90,6 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const 
   // stage_output_events_.resize(stages_count);
   for (int stage = 0; stage < stages_count; stage++) {
     stage_outputs_[stage] = graph.GetStageOutputs(static_cast<OpType>(stage));
-    // for (auto tid : stage_outputs_[stage]) {
-
-    // }
   }
 }
 
@@ -115,13 +112,9 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
           }
         }
 
-        if (gpu_consumers == 0) {
-          // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
-          result[tid] = 1;
-        } else {
-          // We buffer for a pair of CPU x GPU
-          result[tid] = stage_queue_depths_[stage];
-        }
+        // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
+        // otherwise we buffer for a pair of CPU x GPU
+        result[tid] = gpu_consumers == 0 ? 1 : stage_queue_depths_[stage];
       }
 
     } else {

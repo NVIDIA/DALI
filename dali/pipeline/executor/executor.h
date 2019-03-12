@@ -80,12 +80,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        // queue_depth_(prefetch_queue_depth),
         stream_pool_(max_num_stream, true),
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
-        cb_(nullptr),
+        callback_(nullptr),
         queue_sizes_(prefetch_queue_depth) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
@@ -93,16 +92,15 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     // TODO(klecki) This should be moved to children
     if (QueuePolicy::IsUniformPolicy()) {
       // synchronous with CPU, we buffer for the GPU
-      stage_queue_depths_[static_cast<int>(OpType::SUPPORT)] = prefetch_queue_depth.gpu_size;
+      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.gpu_size;
     } else {
       // For non-uniform case we buffer for CPU x Mixed x GPU triple.
-      stage_queue_depths_[static_cast<int>(OpType::SUPPORT)] = prefetch_queue_depth.cpu_size *
-                                                               prefetch_queue_depth.mixed_size *
-                                                               prefetch_queue_depth.gpu_size;
+      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.cpu_size *
+                                    prefetch_queue_depth.mixed_size * prefetch_queue_depth.gpu_size;
     }
-    stage_queue_depths_[static_cast<int>(OpType::CPU)] = prefetch_queue_depth.cpu_size;
-    stage_queue_depths_[static_cast<int>(OpType::MIXED)] = prefetch_queue_depth.mixed_size;
-    stage_queue_depths_[static_cast<int>(OpType::GPU)] = prefetch_queue_depth.gpu_size;
+    QueueDepth(OpType::CPU) = prefetch_queue_depth.cpu_size;
+    QueueDepth(OpType::MIXED) = prefetch_queue_depth.mixed_size;
+    QueueDepth(OpType::GPU) = prefetch_queue_depth.gpu_size;
   }
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
@@ -133,6 +131,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    const OpGraph &graph);
 
   void SetupOutputQueuesForGraph();
+
+  int &QueueDepth(OpType stage);
 
   class EventList {
    public:
@@ -189,7 +189,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   std::vector<std::string> errors_;
   std::mutex errors_mutex_;
   bool exec_error_;
-  ExecutorCallback cb_;
+  ExecutorCallback callback_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
@@ -200,7 +200,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
-  cb_ = cb;
+  callback_ = cb;
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -235,8 +235,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
-    mixed_op_events_ = CreateEventsForMixedOps(
-        event_pool_, *graph_, stage_queue_depths_[static_cast<int>(OpType::MIXED)]);
+    mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, QueueDepth(OpType::MIXED));
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);
@@ -449,8 +448,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   previous_gpu_queue_idx_ = queue_idx[OpType::GPU];
 
   // call any registered previously callback
-  if (cb_) {
-    cb_();
+  if (callback_) {
+    callback_();
   }
 }
 
@@ -566,8 +565,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
   }
 
   // If we've pruned the entire graph, something has gone wrong
-  DALI_ENFORCE(graph_->NumOp() > 0, "No output names match "
-      "data produced by the pipeline.");
+  DALI_ENFORCE(graph_->NumOp() > 0, "No output names match data produced by the pipeline.");
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -582,7 +580,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
     if (tensor.producer.storage_device == StorageDevice::GPU) {
       auto parent_type = graph.Node(tensor.producer.node).op_type;
       gpu_output_events_.push_back(
-          EventList(stage_queue_depths_[static_cast<int>(parent_type)], &event_pool_));
+          EventList(QueueDepth(parent_type), &event_pool_));
     } else {
       gpu_output_events_.push_back(EventList());
     }
@@ -598,7 +596,7 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
   for (auto id : output_ids) {
     auto &tensor = graph.Tensor(id);
     auto parent_type =  graph.Node(tensor.producer.node).op_type;
-    result[id] = stage_queue_depths_[static_cast<int>(parent_type)];
+    result[id] = QueueDepth(parent_type);
   }
   return result;
 }
@@ -676,6 +674,11 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetMemoryHints(const Op
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
   QueuePolicy::InitializeQueues(stage_queue_depths_);
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+int &Executor<WorkspacePolicy, QueuePolicy>::QueueDepth(OpType stage) {
+  return stage_queue_depths_[static_cast<int>(stage)];
 }
 
 

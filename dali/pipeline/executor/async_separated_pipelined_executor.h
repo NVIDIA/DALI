@@ -24,10 +24,10 @@
 namespace dali {
 
 /**
- * @brief This executor uses worker threads to pipelined the
- * issue of cpu, mixed, and gpu work. Calls the RunCPU,
- * RunMixed, and RunGPU are all asynchronous, and results
- * are retrieved by calling Outputs, which manages all
+ * @brief This executor uses worker threads to pipeline the
+ * issuing of CPU, Mixed an GPU stages. Calls to RunCPU,
+ * RunMixed, and RunGPU are all asynchronous.
+ * Results are retrieved by calling Outputs, which manages all
  * needed synchronization.
  */
 class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExecutor {
@@ -59,9 +59,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   }
 
   DLL_PUBLIC void Init() override {
-    if (!cpu_thread_.WaitForInit()
-        || !mixed_thread_.WaitForInit()
-        || !gpu_thread_.WaitForInit()) {
+    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() || !gpu_thread_.WaitForInit()) {
       cpu_thread_.ForceStop();
       mixed_thread_.ForceStop();
       gpu_thread_.ForceStop();

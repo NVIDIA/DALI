@@ -59,9 +59,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   }
 
   DLL_PUBLIC void Init() override {
-    if (!cpu_thread_.WaitForInit()
-        || !mixed_thread_.WaitForInit()
-        || !gpu_thread_.WaitForInit()) {
+    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() || !gpu_thread_.WaitForInit()) {
       cpu_thread_.ForceStop();
       mixed_thread_.ForceStop();
       gpu_thread_.ForceStop();

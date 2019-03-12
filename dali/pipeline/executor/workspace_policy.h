@@ -163,6 +163,56 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
   return ws;
 }
 
+/**
+ * @brief Policy that is responsible for providing executor with workspaces used
+ * during RunX() functions.
+ */
+// struct WS_Policy {
+//   // Type trait describing how will the workspace be returned (usually by copy or by ref)
+//   template <OpType op_type>
+//   using ws_t = ...;
+//
+//   // Initialize state of Workspace Storage
+//   void InitializeWorkspaceStore(const OpGraph &graph,
+//                                 const std::vector<tensor_data_store_queue_t>
+//                                 &tensor_to_store_queue, cudaStream_t mixed_op_stream,
+//                                 cudaStream_t gpu_op_stream, const
+//                                 std::vector<std::vector<cudaEvent_t>> &mixed_op_events, const
+//                                 QueueSizes idxs);
+//   /**
+//    * @brief Get the Workpsace for given `op_type` stage, when executing queue indexes `idx` part
+//    * of job, needed to execute node with `partition_idx` in stage `op_type`.
+//    * @tparam op_type Stage
+//    * @param idxs
+//    * @param graph
+//    * @param partition_idx Index of the OpNode in its `op_type` partition of graph
+//    * @return Corresponding workspace for that operator/OpNode
+//    */
+//   template <OpType op_type>
+//   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
+//
+//   /**
+//    * @brief Get the Workpsace for given `op_type` stage, when executing queue indexes `idx` part
+//    * of job, needed to execute the `node`.
+//    *
+//    * @tparam op_type
+//    * @param idxs
+//    * @param graph
+//    * @param node OpNode for which we return the workspac
+//    * @return Corresponding workspace for that operator/OpNode
+//    */
+//   template <OpType op_type>
+//   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
+// };
+
+/**
+ * @brief Just In Time Workspace Policy
+ *
+ * When requested, returns a copy of a new workspaces, filling it on the fly with
+ * existing inputs, outputs, streams and events.
+ *
+ * Intended to be used with SeparateQueuePolicy
+ */
 struct JIT_WS_Policy {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type>;
@@ -180,16 +230,14 @@ struct JIT_WS_Policy {
   }
 
   template <OpType op_type>
-  op_type_to_workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
-                                               OpPartitionId partition_idx) {
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
     return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx),
                                     tensor_to_store_queue_, mixed_op_stream_, gpu_op_stream_,
                                     mixed_op_events_, idxs);
   }
 
   template <OpType op_type>
-  op_type_to_workspace_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
-                                               const OpNode &node) {
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     return CreateWorkspace<op_type>(graph, node, tensor_to_store_queue_, mixed_op_stream_,
@@ -204,6 +252,13 @@ struct JIT_WS_Policy {
   QueueSizes queue_sizes_;
 };
 
+/**
+ * @brief Ahead Of Time Workspace Policy
+ *
+ * Creates all required workspaces during InitializeWorkspaceStore,
+ * and provides references to the as required.
+ * Inteded to be used with UniforQueuePolicy.
+ */
 struct AOT_WS_Policy {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
@@ -223,15 +278,14 @@ struct AOT_WS_Policy {
   }
 
   template <OpType op_type>
-  op_type_to_workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
                                                 OpPartitionId partition_idx) {
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     return ws_vec[partition_idx];
   }
 
   template <OpType op_type>
-  op_type_to_workspace_t<op_type> &GetWorkspace(QueueIdxs idxs, const OpGraph &graph,
-                                                const OpNode &node) {
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
