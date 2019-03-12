@@ -125,7 +125,9 @@ struct UniformQueuePolicy {
   void ReleaseOutputIdxs() {
     // Mark the last in-use buffer as free and signal
     // to waiting threads
-    if (!in_use_queue_.empty()) {  // TODO(klecki): in_use_queue should be guarded
+    // TODO(klecki): in_use_queue should be guarded, but we assume it is used only in synchronous
+    // python calls
+    if (!in_use_queue_.empty()) {
       std::unique_lock<std::mutex> lock(free_mutex_);
       free_queue_.push(in_use_queue_.front());
       in_use_queue_.pop();
@@ -250,7 +252,9 @@ struct SeparateQueuePolicy {
     }
     auto output_idx = ready_output_queue_.front();
     ready_output_queue_.pop();
-    in_use_queue_.push(output_idx);  // TODO(klecki) -this may cause some problems!!!
+    // TODO(klecki): in_use_queue should be guarded, but we assume it is used only in synchronous
+    // python calls
+    in_use_queue_.push(output_idx);
     ready_lock.unlock();
     return output_idx;
   }
@@ -261,7 +265,9 @@ struct SeparateQueuePolicy {
     if (!in_use_queue_.empty()) {
       auto mixed_idx = static_cast<int>(OpType::MIXED);
       auto gpu_idx = static_cast<int>(OpType::GPU);
-      auto processed = in_use_queue_.front();  // TODO(klecki): this should be guarded as well
+      // TODO(klecki): in_use_queue should be guarded, but we assume it is used only in synchronous
+      // python calls
+      auto processed = in_use_queue_.front();
       in_use_queue_.pop();
       {
         std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
