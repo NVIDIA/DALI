@@ -79,7 +79,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
       auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
 
-      auto* prefetched_sequence = prefetched_batch_[data_idx];
+      auto* prefetched_sequence = GetSample(data_idx);
       tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
                                   prefetched_sequence->sequence.raw_data(),
                                   prefetched_sequence->sequence.size(),

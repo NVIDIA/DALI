@@ -21,7 +21,7 @@ namespace dali {
 void SequenceReader::RunImpl(SampleWorkspace* ws, const int i) {
   const int idx = ws->data_idx();
 
-  auto* sequence = prefetched_batch_[idx];
+  auto* sequence = GetSample(idx);
 
   parser_->Parse(*sequence, ws);
 }

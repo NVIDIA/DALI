@@ -23,14 +23,14 @@ namespace dali {
 class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper>(spec, 2) {
     loader_.reset(new FileLoader(spec));
   }
 
   void RunImpl(SampleWorkspace *ws, const int i) override {
     const int idx = ws->data_idx();
 
-    auto* image_label = prefetched_batch_[idx];
+    auto* image_label = GetSample(idx);
 
     // copy from raw_data -> outputs directly
     auto &image_output = ws->Output<CPUBackend>(0);
