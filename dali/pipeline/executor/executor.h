@@ -283,7 +283,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   } catch (std::runtime_error &e) {
     exec_error_ = true;
     QueuePolicy::SignalError();
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
@@ -320,7 +320,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   } catch (std::runtime_error& e) {
     exec_error_ = true;
     QueuePolicy::SignalError();
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
@@ -356,7 +356,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   } catch (std::runtime_error &e) {
     exec_error_ = true;
     QueuePolicy::SignalError();
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
@@ -430,7 +430,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   } catch (std::runtime_error &e) {
     exec_error_ = true;
     QueuePolicy::SignalError();
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
@@ -471,7 +471,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   ws->Clear();
 
   if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
   }
@@ -479,7 +479,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   auto output_idx = QueuePolicy::UseOutputIdxs();
 
   if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    std::unique_lock<std::mutex> errors_lock(errors_mutex_);
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
   }

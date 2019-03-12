@@ -83,7 +83,7 @@ struct UniformQueuePolicy {
       return QueueIdxs{queue_idx};
     }
 
-    std::unique_lock<std::mutex> lock(stage_work_mutex_[static_cast<int>(stage)]);
+    std::lock_guard<std::mutex> lock(stage_work_mutex_[static_cast<int>(stage)]);
     auto queue_idx = stage_work_queue_[static_cast<int>(stage)].front();
     stage_work_queue_[static_cast<int>(stage)].pop();
     return QueueIdxs{queue_idx};
@@ -92,16 +92,17 @@ struct UniformQueuePolicy {
   void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
     if (HasNextStage(stage)) {
       auto next_stage = NextStage(stage);
-      std::unique_lock<std::mutex> lock(stage_work_mutex_[static_cast<int>(next_stage)]);
+      std::lock_guard<std::mutex> lock(stage_work_mutex_[static_cast<int>(next_stage)]);
       stage_work_queue_[static_cast<int>(next_stage)].push(idxs[stage]);
     }
   }
 
   void QueueOutputIdxs(QueueIdxs idxs) {
     // We have to give up the elements to be occupied
-    std::unique_lock<std::mutex> lock(ready_mutex_);
-    ready_queue_.push(idxs[OpType::GPU]);
-    lock.unlock();
+    {
+      std::lock_guard<std::mutex> lock(ready_mutex_);
+      ready_queue_.push(idxs[OpType::GPU]);
+    }
     ready_cond_.notify_all();
   }
 
@@ -128,10 +129,11 @@ struct UniformQueuePolicy {
     // TODO(klecki): in_use_queue should be guarded, but we assume it is used only in synchronous
     // python calls
     if (!in_use_queue_.empty()) {
-      std::unique_lock<std::mutex> lock(free_mutex_);
-      free_queue_.push(in_use_queue_.front());
-      in_use_queue_.pop();
-      lock.unlock();
+      {
+        std::lock_guard<std::mutex> lock(free_mutex_);
+        free_queue_.push(in_use_queue_.front());
+        in_use_queue_.pop();
+      }
       free_cond_.notify_one();
     }
   }
@@ -223,7 +225,7 @@ struct SeparateQueuePolicy {
       }
     }
     {
-      std::unique_lock<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
+      std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
       // stage_ready_[current_stage].push(idxs[stage]);
       // Store the idxs up to the point of stage that we processed
       stage_ready_[current_stage].push(idxs);
@@ -232,9 +234,10 @@ struct SeparateQueuePolicy {
   }
 
   void QueueOutputIdxs(QueueIdxs idxs) {
-    std::unique_lock<std::mutex> ready_output_lock(ready_output_mutex_);
-    ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
-    ready_output_lock.unlock();
+    {
+      std::lock_guard<std::mutex> ready_output_lock(ready_output_mutex_);
+      ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
+    }
     ready_output_cv_.notify_all();
 
     // In case of GPU we release also the Support Op
@@ -270,12 +273,12 @@ struct SeparateQueuePolicy {
       auto processed = in_use_queue_.front();
       in_use_queue_.pop();
       {
-        std::unique_lock<std::mutex> lock(stage_free_mutex_[mixed_idx]);
+        std::lock_guard<std::mutex> lock(stage_free_mutex_[mixed_idx]);
         stage_free_[mixed_idx].push(processed.mixed);
       }
       stage_free_cv_[mixed_idx].notify_one();
       {
-        std::unique_lock<std::mutex> lock(stage_free_mutex_[gpu_idx]);
+        std::lock_guard<std::mutex> lock(stage_free_mutex_[gpu_idx]);
         stage_free_[gpu_idx].push(processed.gpu);
       }
       stage_free_cv_[gpu_idx].notify_one();
@@ -297,7 +300,7 @@ struct SeparateQueuePolicy {
     auto released_stage = static_cast<int>(stage);
     // We release the consumed buffer
     {
-      std::unique_lock<std::mutex> free_lock(stage_free_mutex_[released_stage]);
+      std::lock_guard<std::mutex> free_lock(stage_free_mutex_[released_stage]);
       stage_free_[released_stage].push(idxs[stage]);
     }
     // We freed buffer, so we notfiy the released stage it can continue it's work
