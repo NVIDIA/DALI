@@ -35,7 +35,6 @@ void AsyncPipelinedExecutor::RunCPU() {
           mixed_work_cv_.notify_all();
           return;
         }
-
         PipelinedExecutor::RunCPU();
 
         // Mark that there is now mixed work to do

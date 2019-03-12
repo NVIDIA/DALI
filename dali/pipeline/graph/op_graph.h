@@ -169,7 +169,6 @@ class DLL_PUBLIC OpGraph {
     return op_partitions_[static_cast<int>(op_type)][partition_id];
   }
 
-  // TODO(klecki) return a copy/const& to disallow modification
   DLL_PUBLIC inline OpNode& Node(OpType op_type, OpPartitionId partition_id) {
     auto node_id = NodeId(op_type, partition_id);
     return op_nodes_[node_id];

@@ -84,11 +84,12 @@ static constexpr bool allows_tensor_input(StorageDevice device) {
   return is_in_array(device, parent_constraints<op_type>::allowed_input_tensors, 0);
 }
 
-std::vector<int> ArgumentInputConstraints();
-std::vector<std::set<OpType>> ParentOpTypeConstraints();
+
+DLL_PUBLIC std::vector<int> ArgumentInputConstraints();
+DLL_PUBLIC std::vector<std::set<OpType>> ParentOpTypeConstraints();
 
 // NB: we could collect all the errors in graph before reporting them to user
-void CheckGraphConstraints(const OpGraph &op_graph);
+DLL_PUBLIC void CheckGraphConstraints(const OpGraph &op_graph);
 
 }  // namespace dali
 

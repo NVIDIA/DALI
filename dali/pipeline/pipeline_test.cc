@@ -24,6 +24,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/util/copy.h"
 #include "dali/test/dali_test.h"
+#include "dali/test/dali_test_decoder.h"
 #include "dali/util/image.h"
 
 namespace dali {
@@ -455,5 +456,180 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   ASSERT_EQ(original_graph.Node(3).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
   ASSERT_NE(original_graph.Node(0).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
 }
+
+
+class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
+ protected:
+  uint32_t GetImageLoadingFlags() const override {
+    return t_loadJPEGs + t_decodeJPEGs;
+  }
+
+  void SetUp() override {
+    DALISingleOpTest::SetUp();
+    batch_size_ = 5;
+    // set_batch_size(jpegs_.nImages());
+  }
+
+  void CheckResults(Pipeline &pipe, int batch_size, int Iter) {
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    ASSERT_EQ(ws.NumOutput(), 1);
+    ASSERT_EQ(ws.NumInput(), 0);
+    ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+    TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
+    for (int j = 0; j < batch_size; ++j) {
+      this->VerifyDecode(
+          res1.template tensor<uint8>(j),
+          res1.tensor_shape(j)[0],
+          res1.tensor_shape(j)[1], (Iter * batch_size + j));
+    }
+  }
+
+  void VerifyDecode(const uint8 *img, int h, int w, int img_id) const {
+    // Although MakeJPEGBatch() allows us to create arbitrary big data set,
+    // by cyclically repeating the images, VerifyDecode does not, and we
+    // must handle the wrap-around ourselves.
+    const int total_images = jpegs_.nImages();
+
+    // Load the image to host
+    uint8 *host_img = new uint8[h*w*c_];
+    CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
+
+#if DALI_DEBUG
+    WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
+#endif
+    GenericDecoderTest::VerifyDecode(host_img, h, w, jpegs_, img_id % total_images);
+    delete [] host_img;
+  }
+
+  int batch_size_, num_threads_ = 1;
+};
+
+TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
+  Pipeline pipe(this->batch_size_, 4, 0);
+  // By default we are non-separated execution
+  ASSERT_THROW(pipe.SetQueueSizes(5, 3), std::runtime_error);
+}
+
+TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
+  Pipeline pipe(this->batch_size_, 4, 0);
+  pipe.AddExternalInput("data");
+  pipe.AddOperator(OpSpec("HostDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu"));
+
+  pipe.AddOperator(OpSpec("Copy")
+          .AddArg("device", "gpu")
+          .AddInput("images", "gpu")
+          .AddOutput("final_images", "gpu"));
+
+  vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
+  pipe.Build(outputs);
+  ASSERT_THROW(pipe.SetExecutionTypes(), std::runtime_error);
+}
+
+TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
+  Pipeline pipe(this->batch_size_, 4, 0);
+  pipe.AddExternalInput("data");
+  pipe.AddOperator(OpSpec("HostDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu"));
+
+  pipe.AddOperator(OpSpec("Copy")
+          .AddArg("device", "gpu")
+          .AddInput("images", "gpu")
+          .AddOutput("final_images", "gpu"));
+
+  vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
+  pipe.Build(outputs);
+  ASSERT_THROW(pipe.SetQueueSizes(2, 2), std::runtime_error);
+}
+
+TEST_F(PrefetchedPipelineTest, TestFillQueues) {
+  // Test coprime queue sizes
+  constexpr int CPU = 5, GPU = 3;
+  constexpr int N = CPU + GPU + 5;
+  // this->set_batch_size(this->batch_size_);
+  int batch_size = this->batch_size_;
+  this->SetEps(1.6);
+
+  Pipeline pipe(batch_size, 4, 0);
+  // Cannot test async while setting external input - need to make sure that
+  pipe.SetExecutionTypes(true, true, true);
+  // Test coprime queue sizes
+  pipe.SetQueueSizes(CPU, GPU);
+  pipe.AddExternalInput("data");
+
+  pipe.AddOperator(OpSpec("HostDecoder")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("images", "cpu"));
+
+  pipe.AddOperator(OpSpec("Copy")
+          .AddArg("device", "gpu")
+          .AddInput("images", "gpu")
+          .AddOutput("final_images", "gpu"));
+
+  vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
+  pipe.Build(outputs);
+
+  TensorList<CPUBackend> tl;
+  this->MakeJPEGBatch(&tl, batch_size * N);
+
+  // Split the batch into 5
+  std::array<TensorList<CPUBackend>, N> splited_tl;
+  std::array<std::vector<Dims>, N> shapes;
+  for (int i = 0; i < N; i++) {
+    shapes[i].resize(batch_size);
+    for (int j = 0; j < batch_size; j++) {
+      shapes[i][j] = tl.tensor_shape(i * batch_size + j);
+    }
+    splited_tl[i].Resize(shapes[i]);
+  }
+
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < batch_size; j++) {
+      std::memcpy(
+        splited_tl[i].template mutable_tensor<uint8>(j),
+        tl.template tensor<uint8>(i * batch_size + j),
+        volume(tl.tensor_shape(i * batch_size + j)));
+    }
+  }
+
+  // Fill queues in the same way as Python - this would be the first pipe.run()
+  for (int i = 0; i < GPU; i++) {
+    pipe.SetExternalInput("data", splited_tl[i]);
+    pipe.RunCPU();
+    pipe.RunGPU();
+  }
+  // We run CPU stage additional `CPU`-times, to fill the output queue
+  for (int i = GPU; i < GPU + CPU; i++) {
+    pipe.SetExternalInput("data", splited_tl[i]);
+    pipe.RunCPU();
+  }
+
+  // Now we interleave the calls to Outputs() and Run() for the rest of the batch
+  int obtained_outputs = 0;
+  for (int i = GPU + CPU; i < N; i++) {
+    CheckResults(pipe, batch_size, obtained_outputs++);
+    pipe.SetExternalInput("data", splited_tl[i]);
+    pipe.RunCPU();
+    pipe.RunGPU();
+  }
+
+  // We consumed all the data and have it in the Pipeline, now we need to run
+  // Mixed and GPU stage to consume what was produced by the CPU
+  for (int i = 0; i < CPU; i++) {
+    CheckResults(pipe, batch_size, obtained_outputs++);
+    pipe.RunGPU();
+  }
+  // Now we consule what we buffered in the beggining
+  for (int i = 0; i < GPU; i++) {
+    CheckResults(pipe, batch_size, obtained_outputs++);
+  }
+}
+
 
 }  // namespace dali

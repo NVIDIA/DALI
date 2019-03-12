@@ -20,8 +20,10 @@
 #include <functional>
 #include <memory>
 
-#include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
+#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/executor_factory.h"
+#include "dali/pipeline/executor/pipelined_executor.h"
 
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/common.h"
@@ -58,11 +60,10 @@ namespace dali {
     }
   }
 
-  Pipeline::Pipeline(const string &serialized_pipe,
-      int batch_size, int num_threads, int device_id,
-      bool pipelined_execution, int prefetch_queue_depth,
-      bool async_execution, size_t bytes_per_sample_hint,
-      bool set_affinity, int max_num_stream) : built_(false) {
+  Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
+                     bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
+                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream)
+      : built_(false), separated_execution_(false) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
 
@@ -87,11 +88,12 @@ namespace dali {
     Init(this->batch_size_, this->num_threads_,
          this->device_id_, def.seed(),
          pipelined_execution,
+         separated_execution_,  // We use false as default for now
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
          max_num_stream,
-         prefetch_queue_depth);
+         QueueSizes{prefetch_queue_depth});
 
     // from serialized pipeline, construct new pipeline
     // All external inputs
@@ -328,26 +330,10 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
-  // Creating the executor
-  if (pipelined_execution_ && async_execution_) {
-    executor_.reset(new AsyncPipelinedExecutor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-    executor_->Init();
-  } else if (pipelined_execution_) {
-    executor_.reset(new PipelinedExecutor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  } else if (async_execution_) {
-    DALI_FAIL("Not implemented.");
-  } else {
-    executor_.reset(new Executor(
-            batch_size_, num_threads_,
-            device_id_, bytes_per_sample_hint_,
-            set_affinity_, max_num_stream_, prefetch_queue_depth_));
-  }
+  executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
+                          num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
+                          max_num_stream_, prefetch_queue_depth_);
+  executor_->Init();
 
   // Creating the graph
   for (auto& name_op_spec : op_specs_) {
@@ -431,21 +417,20 @@ void Pipeline::SetOutputNames(vector<std::pair<string, string>> output_names) {
   output_names_ = output_names;
 }
 
-
 void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
   executor_->RunCPU();
-  executor_->RunMixed();
 }
 
 void Pipeline::RunGPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
+  executor_->RunMixed();
   executor_->RunGPU();
 }
 
-void Pipeline::SetCompletionCallback(Executor::ExecutorCallback cb) {
+void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
   executor_->SetCompletionCallback(cb);
 }
 
