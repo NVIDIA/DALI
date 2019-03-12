@@ -74,7 +74,7 @@ DLL_PUBLIC void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffi
 template <typename T>
 int outHWCImage(const vector<T> &tmp, int h, int w, int c,
                 int i, int j, int k, float bias, float scale) {
-  return static_cast<int>(tmp[i*w*c + j*c + k]*scale + bias);
+  return static_cast<int>(static_cast<float>(tmp[i*w*c + j*c + k])*scale + bias);
 }
 
 template <typename T>
@@ -83,7 +83,7 @@ int outCHWImage(const vector<T> &tmp, int h, int w, int c,
   return static_cast<int>(tmp[k*h*w + i*w + j]*scale + bias);
 }
 
-typedef int (*outFunc)(const vector<double> &tmp, int h, int w, int c,
+typedef int (*outFunc)(const vector<uint8_t> &tmp, int h, int w, int c,
                        int i, int j, int k, float bias, float scale);
 
 /**
@@ -98,18 +98,10 @@ void WriteImageScaleBias(const T *img, int h, int w,
   DALI_ENFORCE(w >= 0);
   DALI_ENFORCE(c >= 0);
   CUDA_CALL(cudaDeviceSynchronize());
-  Tensor<GPUBackend> tmp_gpu, double_gpu;
-  tmp_gpu.Resize({h, w, c});
-  tmp_gpu.template mutable_data<T>();  // make sure the buffer is allocated
-  double_gpu.Resize({h, w, c});
 
-  // Copy the data and convert to double
-  MemCopy(tmp_gpu.template mutable_data<T>(), img, tmp_gpu.nbytes());
-  Convert(tmp_gpu.template data<T>(), tmp_gpu.size(), double_gpu.template mutable_data<double>());
-
-  vector<double> tmp(h * w * c, 0);
-  MemCopy(tmp.data(), double_gpu.template data<double>(), double_gpu.nbytes());
-  CUDA_CALL(cudaDeviceSynchronize());
+  vector<uint8_t> cpu_vector(h * w * c, 0);
+  MemCopy(cpu_vector.data(), img, cpu_vector.size(), 0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   std::ofstream file(file_name + ".ppm");
   DALI_ENFORCE(file.is_open());
 
@@ -120,7 +112,7 @@ void WriteImageScaleBias(const T *img, int h, int w,
   for (int i = 0; i < h; ++i) {
     for (int j = 0; j < w; ++j) {
       for (int k = 0; k < c; ++k) {
-        file << (*pFunc)(tmp, h, w, c, i, j, k, bias, scale) << " ";
+        file << (*pFunc)(cpu_vector, h, w, c, i, j, k, bias, scale) << " ";
       }
     }
     file << endl;
