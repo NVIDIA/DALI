@@ -109,7 +109,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
                          inwidth * sizeof(int16_t), inheight, cudaMemcpyDefault));
   CUDA_CALL(cudaMallocManaged(&outcuda, ref_data.size() * sizeof(float)));
   kernel::DecodeFlowComponents(static_cast<int16_t *> (incuda), outcuda,
-                               inpitch / sizeof(int16_t), inwidth, inheight);
+                               inpitch, inwidth, inheight);
   CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {
     EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon) << "Failed on idx: " << i;

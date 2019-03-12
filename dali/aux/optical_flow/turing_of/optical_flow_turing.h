@@ -27,22 +27,22 @@ namespace kernel {
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch Stride within output memory layout. In bytes.
- * @param width In pixels.
+ * @param width_px In pixels.
  * @param height
  */
 DLL_PUBLIC void
-BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height);
+BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
 
 /**
  * Decodes components of flow vector and unstrides memory
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch Stride within input memory layout. In bytes.
- * @param width In pixels.
+ * @param width_px In pixels.
  * @param height
  */
 DLL_PUBLIC void
-DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
+DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                      size_t height);
 
 

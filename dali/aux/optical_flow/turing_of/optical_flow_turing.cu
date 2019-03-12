@@ -24,8 +24,8 @@ namespace {
 constexpr size_t kBlockSize = 32;
 constexpr int kBgrBytesPerPixel = 3;
 constexpr int kAbgrBytesPerPixel = 4;
-constexpr int kBytesPerEncodedFlowComponent=sizeof(int16_t);
-constexpr int kBytesPerDecodedFlowComponent=sizeof(float);
+constexpr int kBytesPerEncodedFlowComponent = sizeof(int16_t);
+constexpr int kBytesPerDecodedFlowComponent = sizeof(float);
 
 
 /**
@@ -39,18 +39,31 @@ inline size_t num_blocks(size_t length, size_t block_size) {
   return (length + block_size - 1) / block_size;
 }
 
+/**
+ * Calculate value in strided buffer according to (x, y) coordinates
+ * @param buffer
+ * @param x In pixels
+ * @param y In pixels
+ * @param pitch Stride, in bytes
+ * @return Value at given coordinates
+ */
+template<typename T>
+__host__ __device__ constexpr T &pitch_xy(T *buffer, ptrdiff_t x, ptrdiff_t y, ptrdiff_t pitch) {
+  return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(buffer) + pitch * y)[x];
+}
+
 }  // namespace
 
 
 __global__ void
-DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, size_t width,
+DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, size_t width_px,
                           size_t height) {
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
-  if (x >= width || y >= height) return;
-  size_t inidx = x + pitch * y;
-  size_t outidx = x + width * y;
-  output[outidx] = decode_flow_component(input[inidx]);
+  if (x >= width_px || y >= height) return;
+  auto value_in = pitch_xy(input, x, y, pitch);
+  size_t outidx = x + width_px * y;
+  output[outidx] = decode_flow_component(value_in);
 }
 
 
@@ -69,20 +82,24 @@ BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 }
 
 
-void BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
-  DALI_ENFORCE(pitch >= kAbgrBytesPerPixel*width);
+void
+BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
+  DALI_ENFORCE(pitch >= kAbgrBytesPerPixel * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(kAbgrBytesPerPixel*width, block_dim.x), num_blocks(height, block_dim.y));
-  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width, height);
+  dim3 grid_dim(num_blocks(kAbgrBytesPerPixel * width_px, block_dim.x),
+                num_blocks(height, block_dim.y));
+  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
 }
 
 
-void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width,
+void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                           size_t height) {
-  DALI_ENFORCE(pitch >= 2*kBytesPerDecodedFlowComponent*width);
+  DALI_ENFORCE(pitch >= 2 * kBytesPerDecodedFlowComponent * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(kDecodedFlowBytesPerPixel*width, block_dim.x),num_blocks(height, block_dim.y));
-  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>(input, output, pitch, kBytesPerDecodedFlowComponent*width, height);
+  dim3 grid_dim(num_blocks(kBytesPerDecodedFlowComponent * width_px, block_dim.x),
+                num_blocks(height, block_dim.y));
+  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>
+  (input, output, pitch, kBytesPerEncodedFlowComponent * width_px, height);
 }
 
 }  // namespace kernel
