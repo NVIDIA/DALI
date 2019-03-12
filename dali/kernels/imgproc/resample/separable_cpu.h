@@ -113,35 +113,48 @@ struct SeparableResampleCPU  {
            const Input &input,
            const ResamplingParams2D &params) {
     auto &desc = setup.desc;
+
+    auto in_ROI = as_surface_HWC(input);
+    in_ROI.width  = desc.in_shape()[1];
+    in_ROI.height = desc.in_shape()[0];
+    in_ROI.data  += desc.in_offset();
+
+    auto out_ROI = as_surface_HWC(output);
+    out_ROI.width  = desc.out_shape()[1];
+    out_ROI.height = desc.out_shape()[0];
+    out_ROI.data  += desc.out_offset();
+
     if (setup.IsPureNN(desc)) {
-      ResampleNN(as_surface_HWC(output), as_surface_HWC(input),
+      ResampleNN(out_ROI, in_ROI,
                  desc.origin[1], desc.origin[0], desc.scale[1], desc.scale[0]);
     } else {
       TensorShape<3> tmp_shape = { desc.tmp_shape()[0], desc.tmp_shape()[1], desc.channels };
       auto tmp = context.scratchpad->AllocTensor<AllocType::Host, float, 3>(tmp_shape);
 
+      auto tmp_surf = as_surface_HWC(tmp);
+
       void *filter_mem = context.scratchpad->Allocate<int32_t>(AllocType::Host,
         setup.memory.coeffs_size + setup.memory.indices_size);
 
       if (desc.order == setup.VertHorz) {
-        ResamplePass<0, float, InputElement>(tmp, input, filter_mem);
-        ResamplePass<1, OutputElement, float>(output, tmp, filter_mem);
+        ResamplePass<0, float, InputElement>(tmp_surf, in_ROI, filter_mem);
+        ResamplePass<1, OutputElement, float>(out_ROI, tmp_surf, filter_mem);
       } else {
-        ResamplePass<1, float, InputElement>(tmp, input, filter_mem);
-        ResamplePass<0, OutputElement, float>(output, tmp, filter_mem);
+        ResamplePass<1, float, InputElement>(tmp_surf, in_ROI, filter_mem);
+        ResamplePass<0, OutputElement, float>(out_ROI, tmp_surf, filter_mem);
       }
     }
   }
 
   template <int axis, typename PassOutput, typename PassInput>
-  void ResamplePass(const OutTensorCPU<PassOutput, 3> &out,
-                    const InTensorCPU<PassInput, 3> &in,
+  void ResamplePass(const Surface2D<PassOutput> &out,
+                    const Surface2D<const PassInput> &in,
                     void *mem) {
     auto &desc = setup.desc;
 
     if (desc.filter_type[axis] == ResamplingFilterType::Nearest) {
       // use specialized NN resampling pass - should be faster
-      ResampleNN(as_surface_HWC(out), as_surface_HWC(in),
+      ResampleNN(out, in,
         desc.origin[1], desc.origin[0],
         (axis == 1 ? desc.scale[1] : 1.0f), (axis == 0 ? desc.scale[0] : 1.0f));
     } else {
@@ -152,7 +165,7 @@ struct SeparableResampleCPU  {
       InitializeResamplingFilter(indices, coeffs, desc.out_shape()[axis],
                                  desc.origin[axis], desc.scale[axis], desc.filter[axis]);
 
-      ResampleAxis(as_surface_HWC(out), as_surface_HWC(in), indices, coeffs, support, axis);
+      ResampleAxis(out, in, indices, coeffs, support, axis);
     }
   }
 

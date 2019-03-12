@@ -28,6 +28,28 @@ struct Surface2D {
   __host__ __device__ constexpr T &operator()(int x, int y, int c = 0) const {
     return data[y * row_stride + x * pixel_stride + c * channel_stride];
   }
+
+  /// @brief Provides implicit _reference_ cast to surface of type const T,
+  ///        if T is not already const
+  ///
+  /// @remarks The template magic is a workaround to avoid conversion to self
+  ///          when T is already const
+  template <typename U = T,
+            typename V = typename std::enable_if<!std::is_const<U>::value, const U>::type>
+  __host__ __device__ operator Surface2D<V>&() {
+    return *reinterpret_cast<Surface2D<V>*>(this);
+  }
+
+  /// @brief Provides implicit _reference_ cast to surface of type const T,
+  ///        if T is not already const
+  ///
+  /// @remarks The template magic is a workaround to avoid conversion to self
+  ///          when T is already const
+  template <typename U = T,
+            typename V = typename std::enable_if<!std::is_const<U>::value, const U>::type>
+  __host__ __device__ constexpr operator const Surface2D<V>&() const {
+    return *reinterpret_cast<const Surface2D<V>*>(this);
+  }
 };
 
 template <typename T, typename Storage>
