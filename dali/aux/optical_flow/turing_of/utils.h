@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTILS_H
-#define DALI_UTILS_H
+#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
+#define DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
 
-#define TURING_OF_API_CALL(nvOFAPI)                                              \
-    do                                                                           \
-    {                                                                            \
-        NV_OF_STATUS errorCode = nvOFAPI;                                        \
-        if (errorCode != NV_OF_SUCCESS)                                          \
-        {                                                                        \
-            std::ostringstream errorLog;                                         \
-            errorLog << #nvOFAPI << " returned error: "<<errorCode<<std::endl;   \
-            DALI_FAIL(errorLog.str());                                           \
-        }                                                                        \
+#define TURING_OF_API_CALL(nvOFAPI)                                                  \
+    do                                                                               \
+    {                                                                                \
+        NV_OF_STATUS errorCode = nvOFAPI;                                            \
+        if (errorCode != NV_OF_SUCCESS) {                                            \
+            std::ostringstream errorLog;                                             \
+            errorLog << #nvOFAPI << " returned error: " << errorCode << std::endl;   \
+            DALI_FAIL(errorLog.str());                                               \
+        }                                                                            \
     } while (0)
 
-#endif  // DALI_UTILS_H
+#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_

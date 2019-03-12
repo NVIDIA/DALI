@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "optical_flow_turing.h"
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 #include <dlfcn.h>
 
 
@@ -23,7 +23,6 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
                                      size_t height, size_t channels) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
         channels_(channels), device_(), context_(), stream_(0, true) {
-
 //  DALI_ENFORCE(channels_ == 1 || channels_ == 4, "Image can be either ABGR8 or Grayscale8");
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
@@ -66,11 +65,10 @@ void OpticalFlowTuring::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> input_image,
         dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
         dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
-
-  kernel::RgbToRgba(input_image.data, (uint8_t *) inbuf_->GetPtr(), inbuf_->GetStride().x,
-                    width_, height_);
-  kernel::RgbToRgba(reference_image.data, (uint8_t *) refbuf_->GetPtr(), refbuf_->GetStride().x,
-                    width_, height_);
+  kernel::RgbToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
+                    inbuf_->GetStride().x, width_, height_);
+  kernel::RgbToRgba(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
+                    refbuf_->GetStride().x, width_, height_);
   cudaStreamSynchronize(stream_);
 
 
@@ -79,7 +77,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
   cudaStreamSynchronize(stream_);
 
-  kernel::DecodeFlowComponents((int16_t *) outbuf_->GetPtr(), output_image.data,
+  kernel::DecodeFlowComponents(reinterpret_cast<int16_t *>(outbuf_->GetPtr()), output_image.data,
                                outbuf_->GetStride().x, outbuf_->GetDescriptor().width,
                                outbuf_->GetDescriptor().height);
 }

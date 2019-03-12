@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPTICAL_FLOW_BUFFER_H
-#define DALI_OPTICAL_FLOW_BUFFER_H
+#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
 
 #include <third_party/turing_of/nvOpticalFlowCuda.h>
 #include <sstream>
-#include <dali/error_handling.h>
-#include "utils.h"
+#include "dali/error_handling.h"
+#include "dali/aux/optical_flow/turing_of/utils.h"
 
 namespace dali {
 namespace optical_flow {
@@ -34,7 +34,6 @@ class OpticalFlowBuffer {
                     NV_OF_BUFFER_USAGE usage, NV_OF_BUFFER_FORMAT format) :
           turing_of_(function_list),
           descriptor_(GenerateBufferDescriptor(width, height, format, usage)) {
-
     // Buffer alloc
     TURING_OF_API_CALL(
             turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_, kBufferType, &handle_));
@@ -47,8 +46,10 @@ class OpticalFlowBuffer {
     stride_ = {stride_info.strideInfo[0].strideXInBytes, stride_info.strideInfo[0].strideYInBytes};
   }
 
-  OpticalFlowBuffer(const OpticalFlowBuffer&)=delete;
-  void operator=(const OpticalFlowBuffer&)=delete;
+
+  OpticalFlowBuffer(const OpticalFlowBuffer &) = delete;
+
+  void operator=(const OpticalFlowBuffer &) = delete;
 
 
   ~OpticalFlowBuffer() {
@@ -100,9 +101,8 @@ class OpticalFlowBuffer {
   NvOFGPUBufferHandle handle_;
   CUdeviceptr ptr_;
   Stride stride_;
-
 };
 
-}
-}
-#endif //DALI_OPTICAL_FLOW_BUFFER_H
+}  // namespace optical_flow
+}  // namespace dali
+#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
