@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <opencv2/opencv.hpp>
 #include <cuda_runtime.h>
+#include "dali/util/cuda_utils.h"
+#include <opencv2/opencv.hpp>
 #include <gtest/gtest.h>
 #include <fstream>
 #include <vector>
@@ -25,7 +26,6 @@
 #include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/util/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {
@@ -137,7 +137,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
 }
 
 
-TEST(OpticalFlowTuringTest, DISABLED_Test) {
+TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
