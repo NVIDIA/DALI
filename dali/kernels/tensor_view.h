@@ -415,30 +415,37 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
 }
 
 
-/**
- * @brief Get a subtensor by slicing along outermost dimension at index `idx`
- * 
- * @details Produces tensor, for which number of dimensions is reduced by 1.
- * Removed dimension is outer-most (e.g. for shape {3,2,4,6} produces {2,4,6}).
- * Data inside the tensor is extracted according to provided index.
- * Data is not copied.
- *
- * Example:
- * tv.data = [[1, 2, 3], [4, 5, 6]]       (shape: [2, 3])
- * oust_dimension(tv, 1) -> [4, 5, 6]     (shape: [3])
- *
- * @param source Source TensorView
- * @param idx Index inside dimension, along which data is extracted
- * @return TensorView with reduced dimensionality
- */
+/// @brief Get a subtensor by slicing along outermost dimension at index `idx`
+///
+/// @details Produces tensor, for which number of dimensions is reduced by 1.
+/// Removed dimension is outer-most (e.g. for shape {3,2,4,6} produces {2,4,6}).
+/// Data inside the tensor is extracted according to provided index.
+/// Data is not copied.
+///
+/// Example:
+/// tv.data = [[1, 2, 3], [4, 5, 6]]       (shape: [2, 3])
+/// oust_dimension(tv, 1) -> [4, 5, 6]     (shape: [3])
+///
+/// @param source Source TensorView
+/// @param idx Index inside dimension, along which data is extracted
+/// @return TensorView with reduced dimensionality
 template<typename StorageBackend, typename DataType, int ndims>
 TensorView<StorageBackend, DataType, ndims - 1>
-subtensor(TensorView<StorageBackend, DataType, ndims> source, size_t idx) {
+subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t idx) {
   TensorShape<ndims - 1> shape = source.shape.template last<ndims - 1>();
   DataType *data = source.data + idx * volume(shape);
   return make_tensor<StorageBackend>(data, shape);
 }
 
+
+/// @brief Overload for Dynamic TensorView
+template<typename StorageBackend, typename DataType>
+TensorView<StorageBackend, DataType, DynamicDimensions>
+subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_t idx) {
+  TensorShape<DynamicDimensions> shape = source.shape.last(source.dim() - 1);
+  DataType *data = source.data + idx * volume(shape);
+  return make_tensor<StorageBackend>(data, shape);
+}
 
 }  // namespace kernels
 
