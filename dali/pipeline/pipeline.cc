@@ -338,7 +338,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
   separated_execution_ = true;
-  prefetch_queue_depth_ = {7, 4};
+  prefetch_queue_depth_ = {7, 2};
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
                           max_num_stream_, prefetch_queue_depth_);

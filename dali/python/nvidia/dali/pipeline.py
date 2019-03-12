@@ -90,7 +90,7 @@ class Pipeline(object):
         self._max_streams = max_streams
         self._exec_separated = True
         self._cpu_queue_size = 7
-        self._gpu_queue_size = 4
+        self._gpu_queue_size = 2
 
     @property
     def batch_size(self):
