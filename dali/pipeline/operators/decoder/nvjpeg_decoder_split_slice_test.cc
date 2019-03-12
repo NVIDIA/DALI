@@ -17,9 +17,9 @@
 namespace dali {
 
 template <typename ImgType>
-class nvJpegDecoderSplittedSliceTest : public DecodeTestBase<ImgType> {
+class nvJpegDecoderSplitSliceTest : public DecodeTestBase<ImgType> {
  public:
-  nvJpegDecoderSplittedSliceTest() {
+  nvJpegDecoderSplitSliceTest() {
   }
 
  protected:
@@ -49,7 +49,8 @@ class nvJpegDecoderSplittedSliceTest : public DecodeTestBase<ImgType> {
   }
 
   const OpSpec DecodingOp() const override {
-    return this->GetOpSpec("nvJPEGDecoderSplittedSlice", "mixed")
+    return this->GetOpSpec("nvJPEGDecoderSlice", "mixed")
+      .AddArg("split_stages", true)
       .AddInput("begin", "cpu")
       .AddInput("crop", "cpu");
   }
@@ -70,17 +71,17 @@ class nvJpegDecoderSplittedSliceTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvJpegDecoderSplittedSliceTest, Types);
+TYPED_TEST_CASE(nvJpegDecoderSplitSliceTest, Types);
 
-TYPED_TEST(nvJpegDecoderSplittedSliceTest, JpegDecode) {
+TYPED_TEST(nvJpegDecoderSplitSliceTest, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplittedSliceTest, PngDecode) {
+TYPED_TEST(nvJpegDecoderSplitSliceTest, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplittedSliceTest, TiffDecode) {
+TYPED_TEST(nvJpegDecoderSplitSliceTest, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 

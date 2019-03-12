@@ -111,35 +111,25 @@ namespace dali {
     }
   }
 
+static bool has_prefix(const std::string &operator_name, const std::string& prefix) {
+  if (operator_name.size() < prefix.size()) return false;
+  return std::equal(operator_name.begin(), operator_name.begin() + prefix.size(),
+                    prefix.begin());
+}
+
 void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
 
-#if 1
-  // TODO(spanev): - nvJPEGDecoderSplitted by nvJPEGDecoderNew
-  //               - make it as an arg of nvJPEGDecoderNew
-
-  // nvJGPEGDecoder operator require a special case to be divided in two stages (CPU and Mixed-GPU)
-  std::string fullname = spec.name();
-  // TODO(janton): make this cleaner and smarter
-  if (fullname == "nvJPEGDecoderSplitted") {
-    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStage",
-                             "nvJPEGDecoderGPUStage");
-    return;
-  } else if (fullname == "nvJPEGDecoderSplittedCrop") {
-    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageCrop",
-                             "nvJPEGDecoderGPUStage");
-    return;
-  } else if (fullname == "nvJPEGDecoderSplittedSlice") {
-    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageSlice",
-                             "nvJPEGDecoderGPUStage");
-    return;
-  } else if (fullname == "nvJPEGDecoderSplittedRandomCrop") {
-    AddSplittedNvJpegDecoder(spec, inst_name, fullname, "nvJPEGDecoderCPUStageRandomCrop",
-                             "nvJPEGDecoderGPUStage");
+  // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
+  auto operator_name = spec.name();
+  if (has_prefix(operator_name, "nvJPEGDecoder") &&
+      operator_name.find("CPUStage") == std::string::npos &&
+      operator_name.find("GPUStage") == std::string::npos &&
+      spec.GetArgument<bool>("split_stages")) {
+    AddSplitNvJPEGDecoder(spec, inst_name);
     return;
   }
-#endif
 
   // Validate op device
   string device = spec.GetArgument<string>("device");
@@ -262,23 +252,26 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_to_serialize_.push_back(true);
 }
 
-inline void Pipeline::AddSplittedNvJpegDecoder(OpSpec& spec, const std::string& inst_name,
-                                               const std::string& full_name,
-                                               const std::string& cpu_stage_name,
-                                               const std::string& gpu_stage_name) {
+inline void Pipeline::AddSplitNvJPEGDecoder(OpSpec &spec, const std::string& inst_name) {
+  std::string operator_name = spec.name();
+  std::string prefix = "nvJPEGDecoder";
+  DALI_ENFORCE(has_prefix(operator_name, prefix));
+  auto suffix = operator_name.substr(prefix.size());
+
+  std::string cpu_stage_name = "nvJPEGDecoderCPUStage" + suffix;
   spec.set_name(cpu_stage_name);
   spec.SetArg("device", "cpu");
 
   auto& op_output = spec.MutableOutput(0);
   string op_output_name = op_output.first;
 
-  const std::string mangled_outputname("nvJPEGCPUOutput" + inst_name);
+  const std::string mangled_outputname(cpu_stage_name + inst_name);
   op_output.first = mangled_outputname + "0";
   op_output.second = "cpu";
   spec.AddOutput(mangled_outputname + "1", "cpu");
   spec.AddOutput(mangled_outputname + "2", "cpu");
 
-  OpSpec gpu_spec = OpSpec(gpu_stage_name)
+  OpSpec gpu_spec = OpSpec("nvJPEGDecoderGPUStage")
     .ShareArguments(spec)
     .AddInput(spec.OutputName(0), "cpu")
     .AddInput(spec.OutputName(1), "cpu")
