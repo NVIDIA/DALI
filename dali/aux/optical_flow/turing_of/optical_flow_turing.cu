@@ -22,10 +22,6 @@ namespace kernel {
 namespace {
 
 constexpr size_t kBlockSize = 32;
-constexpr int kBgrBytesPerPixel = 3;
-constexpr int kAbgrBytesPerPixel = 4;
-constexpr int kBytesPerEncodedFlowComponent = sizeof(int16_t);
-constexpr int kBytesPerDecodedFlowComponent = sizeof(float);
 
 
 /**
@@ -70,13 +66,14 @@ DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, siz
 
 
 __global__ void
-ReshapeToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
-                    size_t height) {
+RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
+                size_t height) {
+  constexpr size_t in_channels = 3, out_channels = 4;
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
   if (x >= width_px || y >= height) return;
-  size_t in_idx = kBgrBytesPerPixel * x + kBgrBytesPerPixel * width_px * y;
-  size_t out_idx = kAbgrBytesPerPixel * x + pitch * y;
+  size_t in_idx = in_channels * x + in_channels * width_px * y;
+  size_t out_idx = out_channels * x + pitch * y;
   output[out_idx] = input[in_idx];
   output[out_idx + 1] = input[in_idx + 1];
   output[out_idx + 2] = input[in_idx + 2];
@@ -85,23 +82,23 @@ ReshapeToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t 
 
 
 void
-RgbToArgb(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
+ConvertToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
   DALI_ENFORCE(pitch >= kAbgrBytesPerPixel * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(kAbgrBytesPerPixel * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
-  ReshapeToRgbaKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
+  RgbToRgbaKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
 }
 
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                           size_t height) {
-  DALI_ENFORCE(pitch >= 2 * kBytesPerDecodedFlowComponent * width_px);
+  DALI_ENFORCE(pitch >= 2 * sizeof(float) * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(kBytesPerDecodedFlowComponent * width_px, block_dim.x),
+  dim3 grid_dim(num_blocks(sizeof(float) * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
   DecodeFlowComponentKernel<<<grid_dim, block_dim>>>
-          (input, output, pitch, kBytesPerEncodedFlowComponent * width_px, height);
+          (input, output, pitch, sizeof(int16_t) * width_px, height);
 }
 
 }  // namespace kernel

@@ -23,7 +23,7 @@ namespace optical_flow {
 namespace kernel {
 
 /**
- * Converts BGR image to ABGR image and puts it in strided memory
+ * Converts image to RGBA and puts it in strided memory
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch Stride within output memory layout. In bytes.
@@ -31,7 +31,7 @@ namespace kernel {
  * @param height
  */
 DLL_PUBLIC void
-RgbToArgb(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
+ConvertToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
 
 /**
  * Decodes components of flow vector and unstrides memory

@@ -66,7 +66,7 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
   CUDA_CALL(cudaMallocManaged(&tested, reference.size()));
   CUDA_CALL(cudaMemcpy(input, data.data(), data.size(), cudaMemcpyDefault));
 
-  kernel::RgbToArgb(input, tested, pitch, width, height);
+  kernel::ConvertToRgba(input, tested, pitch, width, height);
   cudaDeviceSynchronize();
 
   for (size_t i = 0; i < reference.size(); i++) {
