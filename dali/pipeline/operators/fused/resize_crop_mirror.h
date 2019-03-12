@@ -113,8 +113,16 @@ class ResizeCropMirrorAttr : protected CropAttr {
       }
     }
 
-    if (flag & t_crop)
-      meta.crop = CalculateCropYX(spec, ws, index, meta.rsz_h, meta.rsz_w);
+    if (flag & t_crop) {
+      auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, index);
+      auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, index);
+      meta.crop = CalculateCropYX(
+        crop_y_norm,
+        crop_x_norm,
+        crop_height_[index],
+        crop_width_[index],
+        meta.rsz_h, meta.rsz_w);
+    }
 
     if (flag & t_mirrorHor) {
       // Set mirror parameters

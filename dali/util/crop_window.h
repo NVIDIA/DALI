@@ -20,6 +20,18 @@ namespace dali {
 struct CropWindow {
     int x, y, w, h;
 
+    CropWindow(int _x, int _y, int _w, int _h)
+      : x(_x), y(_y), w(_w), h(_h)
+    {}
+
+    CropWindow()
+      : x(0), y(0), w(0), h(0)
+    {}
+
+    operator bool() const {
+      return w > 0 && h > 0;
+    }
+
     inline bool operator==(const CropWindow& oth) const {
       return x == oth.x
           && y == oth.y
@@ -42,6 +54,8 @@ struct CropWindow {
           && y+h <= H;
     }
 };
+
+using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
 
 }  // namespace dali
 

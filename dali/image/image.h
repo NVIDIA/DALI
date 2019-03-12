@@ -35,8 +35,6 @@ static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
 
 DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
 
-using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
-
 class Image {
  public:
   /**
@@ -73,9 +71,24 @@ class Image {
  /**
   * Sets crop window generator
   */
-  inline void SetCropWindowGenerator(
-    const CropWindowGenerator& crop_window_generator) {
+  inline void SetCropWindowGenerator(const CropWindowGenerator& crop_window_generator) {
     crop_window_generator_ = crop_window_generator;
+  }
+
+  inline void SetCropWindow(const CropWindow& crop_window) {
+    if (!crop_window)
+      return;
+    crop_window_generator_ = [crop_window](int H, int W) {
+      DALI_ENFORCE(crop_window.IsInRange(H, W),
+        "crop_window["
+        + std::to_string(crop_window.x)
+        + ", " + std::to_string(crop_window.y)
+        + ", " + std::to_string(crop_window.w)
+        + ", " + std::to_string(crop_window.h) + "]"
+        + " not valid from image dimensions [0, 0, "
+        + std::to_string(W) + ", " + std::to_string(H) + "]");
+      return crop_window;
+    };
   }
 
   virtual ~Image() = default;
