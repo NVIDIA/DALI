@@ -59,10 +59,7 @@ class DataReader : public Operator<Backend> {
   producer_cycle_(false),
   samples_processed_(0),
   batch_stop_(false),
-  prefetch_error_(nullptr) {
-
-    cout << "DataReader ctor\n";
-  }
+  prefetch_error_(nullptr) {}
 
   ~DataReader() noexcept override {
     StopPrefetchThread();
@@ -74,13 +71,12 @@ class DataReader : public Operator<Backend> {
         }
       }
     }
-    cout << "DataReader dtor\n";
   }
 
   // perform the prefetching operation
   virtual void Prefetch() {
     // We actually prepare the next batch
-    std::cout << "Prefetching in queue #" << curr_batch_producer_ << "\n";
+    TimeRange tr("Prefetching for " + to_string(curr_batch_producer_), TimeRange::kRed);
     prefetched_batch_queue_[curr_batch_producer_].reserve(Operator<Backend>::batch_size_);
     prefetched_batch_queue_[curr_batch_producer_].clear();
 
@@ -92,11 +88,12 @@ class DataReader : public Operator<Backend> {
 
   // Main prefetch work loop
   void PrefetchWorker() {
-    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+    {
+      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
 
-    // if a result is already ready, wait until it's consumed
-    producer_.wait(lock, [&]() { return !IsFull(); });
-
+      // if a result is already ready, wait until it's consumed
+      producer_.wait(lock, [&]() { return !IsFull(); });
+    }
     while (!finished_) {
       try {
         Prefetch();
@@ -106,15 +103,17 @@ class DataReader : public Operator<Backend> {
         consumer_.notify_all();
         return;
       }
-      // notify the consumer of a result ready to consume
-      curr_batch_producer_ = NextIdx(curr_batch_producer_, producer_cycle_);
 
-      cout << "Notifying consumer" << endl;
-      consumer_.notify_all();
+      {
+        std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+        // notify the consumer of a result ready to consume
+        curr_batch_producer_ = NextIdx(curr_batch_producer_, producer_cycle_);
 
-      // wait until the result is consumed
-      producer_.wait(lock, [&]() { return finished_ || !IsFull(); });
-      cout << "Producer notified!\n";
+        consumer_.notify_all();
+
+        // wait until the result is consumed
+        producer_.wait(lock, [&]() { return finished_ || !IsFull(); });
+      }
     }
   }
 
@@ -133,12 +132,8 @@ class DataReader : public Operator<Backend> {
   void StopPrefetchThread() {
     if (prefetch_thread_.get()) {
       {
-        cout << "Will lock in dtor\n";
         std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-
-        cout << "Waiting \n";
         consumer_.wait(lock, [this]() { return finished_ || !IsEmpty(); });
-        cout << "Should be here\n";
         finished_ = true;
       }
       // notify the prefetcher to stop
@@ -167,14 +162,11 @@ class DataReader : public Operator<Backend> {
 
       if (!prefetch_ready_workers_) {
         // grab the actual prefetching lock
+        TimeRange tr("CONSUMER " + to_string(curr_batch_consumer_) +  " waiting", TimeRange::kMagenta);
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
-        std::cout << "waitining for prefetched worker...\n";
-        std::cout << finished_ << " " << IsEmpty() << endl;
         consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsEmpty(); });
-        std::cout << finished_ << " " << IsEmpty() << endl;
-        cout << "Consumer notified! Now consuming " << curr_batch_consumer_ << "\n";
 
         if (prefetch_error_) {
           DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
@@ -182,9 +174,10 @@ class DataReader : public Operator<Backend> {
 
         // signal the other workers we're ready
         prefetch_ready_workers_ = true;
-        //producer_.notify_one();
       }
     }
+
+    TimeRange tr("Consuming " + to_string(curr_batch_consumer_), TimeRange::kViolet);
 
     // consume batch
     Operator<Backend>::Run(ws);
@@ -205,7 +198,6 @@ class DataReader : public Operator<Backend> {
       if (samples_processed_.load() == Operator<Backend>::batch_size_) {
         prefetch_ready_workers_ = false;
         curr_batch_consumer_ = NextIdx(curr_batch_consumer_, consumer_cycle_);
-        std::cout << "Notifiying producer... " << samples_processed_ << "\n";
 
         producer_.notify_one();
         samples_processed_ = 0;
