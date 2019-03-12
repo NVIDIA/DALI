@@ -28,4 +28,14 @@ TYPED_TEST(CropTest, CropVector) {
   this->RunTest({"Crop", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
 }
 
+TYPED_TEST(CropTest, CropSingleDim) {
+  this->RunTest({"Crop", {"crop", "224", DALI_FLOAT_VEC}}, addImageType);
+}
+
+TYPED_TEST(CropTest, CropWH) {
+  const OpArg params[] = {{"crop_h", "224", DALI_FLOAT},
+                          {"crop_w", "256", DALI_FLOAT}};
+  this->RunTest("Crop", params, 2, addImageType);
+}
+
 }  // namespace dali
