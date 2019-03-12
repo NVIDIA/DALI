@@ -218,5 +218,44 @@ TEST(TensorListView, uniform_list_shape) {
   EXPECT_EQ(infer2, dyn);
 }
 
+namespace {
+
+template<typename DataType, typename Iterable>
+void VerifySubtensor(const DataType *data, Iterable dims, int idx) {
+  auto subtensor_volume = volume(dims.begin() + 1, dims.end());
+  for (int i = 0; i < subtensor_volume; i++) {
+    EXPECT_EQ(idx * subtensor_volume + i, data[i]) << "Failed at idx: " << idx << " offset " << i;
+  }
+}
+
+}  // namespace
+
+
+TEST(TensorViewTest, StaticSubtensorTest) {
+  using namespace std;  // NOLINT
+  constexpr size_t kNDims = 4;
+  array<int64_t, kNDims> dims = {4, 1, 2, 3};
+  vector<int> data(volume(dims), 0);
+  iota(data.begin(), data.end(), 0);
+  auto tv = make_tensor_cpu<kNDims>(data.data(), dims);
+  for (int i = 0; i < dims[0]; i++) {
+    auto ret = subtensor(tv, i);
+    VerifySubtensor(ret.data, dims, i);
+  }
+}
+
+
+TEST(TensorViewTest, DynamicSubtensorTest) {
+  using namespace std;  // NOLINT
+  vector<int64_t> dims = {4, 1, 2, 3};
+  vector<int> data(volume(dims), 0);
+  iota(data.begin(), data.end(), 0);
+  auto tv = make_tensor_cpu<-1>(data.data(), dims);
+  for (int i = 0; i < dims[0]; i++) {
+    auto ret = subtensor(tv, i);
+    VerifySubtensor(ret.data, dims, i);
+  }
+}
+
 }  // namespace kernels
 }  // namespace dali
