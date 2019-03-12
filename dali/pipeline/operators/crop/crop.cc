@@ -103,7 +103,7 @@ void Crop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
     const auto &input = ws->Input<CPUBackend>(0);
     output_type_ = input.type().id();
   }
-
+  CropAttr::ProcessArguments(ws);
   SetupSharedSampleParams(ws, CheckShapes(ws), ws->thread_idx(),
                           ws->data_idx());
 }
