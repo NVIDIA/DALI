@@ -15,6 +15,8 @@
 #ifndef DALI_UTIL_CROP_WINDOW_H_
 #define DALI_UTIL_CROP_WINDOW_H_
 
+#include <functional>
+
 namespace dali {
 
 struct CropWindow {
