@@ -247,7 +247,7 @@ TEST(TensorViewTest, StaticSubtensorTest) {
 
 TEST(TensorViewTest, DynamicSubtensorTest) {
   using namespace std;  // NOLINT
-  vector<int64_t> dims = {4, 1, 2, 3};
+  vector<int64_t> dims = {4, 2, 1, 2, 3};
   vector<int> data(volume(dims), 0);
   iota(data.begin(), data.end(), 0);
   auto tv = make_tensor_cpu<-1>(data.data(), dims);

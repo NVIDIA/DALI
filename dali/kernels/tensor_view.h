@@ -442,7 +442,7 @@ subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t pos) {
 template<typename StorageBackend, typename DataType>
 TensorView<StorageBackend, DataType, DynamicDimensions>
 subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_t pos) {
-  TensorShape<DynamicDimensions> shape = source.shape.last(source.dim() - 1);
+  auto shape = source.shape.last(source.dim() - 1);
   DataType *data = source.data + pos * volume(shape);
   return make_tensor<StorageBackend>(data, std::move(shape));
 }
