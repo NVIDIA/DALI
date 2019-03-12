@@ -49,8 +49,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
                                 NV_OF_BUFFER_FORMAT_ABGR8));
   outbuf_.reset(
           new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
-                                NV_OF_BUFFER_USAGE_OUTPUT,
-                                NV_OF_BUFFER_FORMAT_SHORT2));
+                                NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
 }
 
 
@@ -68,35 +67,21 @@ void OpticalFlowTuring::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
         dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
 
+  kernel::RgbToRgba(input_image.data, (uint8_t *) inbuf_->GetPtr(), inbuf_->GetStride().x,
+                    width_, height_);
+  kernel::RgbToRgba(reference_image.data, (uint8_t *) refbuf_->GetPtr(), refbuf_->GetStride().x,
+                    width_, height_);
+  cudaStreamSynchronize(stream_);
 
-  auto w = width_ * sizeof(uint8_t) * 4;
-//  CUDA_CALL(cudaMemcpy2DAsync((void *) inbuf_->GetPtr(), inbuf_->GetStride().x,input_image.data, w, w, height_, cudaMemcpyDefault));
-//  CUDA_CALL(cudaMemcpy2DAsync((void *) refbuf_->GetPtr(), refbuf_->GetStride().x,reference_image.data, w, w, height_, cudaMemcpyDefault));
-  kernel::RgbToRgba(input_image.data, (uint8_t *) inbuf_->GetPtr(), inbuf_->GetStride().x, width_, height_);
-  kernel::RgbToRgba(reference_image.data, (uint8_t*) refbuf_->GetPtr(), refbuf_->GetStride().x, width_, height_);
 
-//  cudaStreamSynchronize(stream_);
-//  cudaDeviceSynchronize();
-//  kernel::PrintPtr((uint8_t *) inbuf_->GetPtr());
-//  kernel::PrintPtr((uint8_t *) refbuf_->GetPtr());
-  cudaDeviceSynchronize();
-//
   auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle());
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
-//  cudaStreamSynchronize(stream_);
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
-  cudaDeviceSynchronize();
-//    DownloadData(*outbuf_, output_image.data, width_*4, height_, static_cast<CUcontext >(context_), output_stream_);
-//  cudaStreamSynchronize(stream_);
-
+  cudaStreamSynchronize(stream_);
 
   kernel::DecodeFlowComponents((int16_t *) outbuf_->GetPtr(), output_image.data,
                                outbuf_->GetStride().x, outbuf_->GetDescriptor().width,
                                outbuf_->GetDescriptor().height);
-//  cudaDeviceSynchronize();
-//  kernel::PrintPtr((int16_t *) outbuf_->GetPtr());
-//  cudaDeviceSynchronize();
-
 }
 
 
