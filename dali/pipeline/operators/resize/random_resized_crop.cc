@@ -43,6 +43,12 @@ DALI_SCHEMA(RandomResizedCrop)
   .EnforceInputLayout(DALI_NHWC);
 
 template<>
+void RandomResizedCrop<CPUBackend>::BackendInit() {
+  Initialize(num_threads_);
+  out_shape_.resize(num_threads_);
+}
+
+template<>
 void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx) {
   auto &input = ws->Input<CPUBackend>(idx);
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
@@ -56,27 +62,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
 
   auto &output = ws->Output<CPUBackend>(idx);
 
-  output.set_type(input.type());
-  output.Resize({newH, newW, C});
-
-  const CropWindow &crop = params_->crops[ws->data_idx()];
-  int channel_flag = C == 3 ? CV_8UC3 : CV_8UC1;
-  const uint8_t *img = input.data<uint8_t>();
-
-  // Crop
-  const cv::Mat cv_input_roi = CreateMatFromPtr(crop.h, crop.w,
-                                                channel_flag,
-                                                img + crop.y*W*C + crop.x*C,
-                                                W*C);
-
-  cv::Mat cv_output = CreateMatFromPtr(newH, newW,
-                                       channel_flag,
-                                       output.mutable_data<uint8_t>());
-
-  int ocv_interp_type;
-  DALI_ENFORCE(OCVInterpForDALIInterp(interp_type_, &ocv_interp_type) == DALISuccess,
-      "Unknown interpolation type");
-  cv::resize(cv_input_roi, cv_output, cv::Size(newW, newH), 0, 0, ocv_interp_type);
+  RunCPU(output, input, ws->thread_idx());
 }
 
 template<>
@@ -90,7 +76,8 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws)
   int W = input_shape[1];
   int id = ws->data_idx();
 
-  params_->crops[id] = params_->crop_gens[id].GenerateCropWindow(H, W);
+  params_.crops[id] = params_.crop_gens[id].GenerateCropWindow(H, W);
+  resample_params_[ws->thread_idx()] = CalcResamplingParams(id);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<CPUBackend>, CPU);

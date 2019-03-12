@@ -19,7 +19,6 @@
 
 #include "dali/pipeline/operators/resize/resize.h"
 #include "dali/kernels/static_switch.h"
-#include "dali/kernels/imgproc/resample.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
@@ -30,7 +29,7 @@ Resize<GPUBackend>::Resize(const OpSpec &spec) : Operator<GPUBackend>(spec), Res
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
   ResizeAttr::SetBatchSize(batch_size_);
-  kernel_data_.resize(1);
+  InitializeGPU();
   resample_params_.resize(batch_size_);
   SetupResamplingParams();
 }
@@ -55,42 +54,12 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   SetupResamplingParams();
 }
 
-template <int ndim>
-void ToDimsVec(std::vector<Dims> &dims_vec, const kernels::TensorListShape<ndim> &tls) {
-  const int dim = tls.sample_dim();
-  const int N = tls.num_samples();
-  dims_vec.resize(N);
-
-  for (int i = 0; i < N; i++) {
-    dims_vec[i].resize(dim);
-
-    for (int j = 0; j < dim; j++)
-      dims_vec[i][j] = tls.tensor_shape_span(i)[j];
-  }
-}
-
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
   const auto &input = ws->Input<GPUBackend>(idx);
-  auto &kdata = kernel_data_.front();
-
-  kdata.context.gpu.stream = ws->stream();
-  kdata.requirements = Kernel::GetRequirements(
-      kdata.context,
-      view<const uint8_t, 3>(input),
-      resample_params_);
-  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
-
   auto &output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
-  ToDimsVec(out_shape_, kdata.requirements.output_shapes[0]);
-  output.Resize(out_shape_);
 
-  auto scratchpad = kdata.scratch_alloc.GetScratchpad();
-  kdata.context.scratchpad = &scratchpad;
-  auto in_view = view<const uint8_t, 3>(input);
-  auto out_view = view<uint8_t, 3>(output);
-  Kernel::Run(kdata.context, out_view, in_view, resample_params_);
+  RunGPU(output, input, ws->stream());
 
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {
@@ -102,10 +71,11 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     }
 
     attr_output_cpu.Resize(resize_shape);
+    auto in_shape = list_shape<3>(input);
 
-    for (int i = 0; i < in_view.num_samples(); ++i) {
+    for (int i = 0; i < in_shape.num_samples(); ++i) {
       int *t = attr_output_cpu.mutable_tensor<int>(i);
-      auto sample_shape = in_view.shape.tensor_shape_span(i);
+      auto sample_shape = in_shape.tensor_shape_span(i);
       t[0] = sample_shape[0];
       t[1] = sample_shape[1];
     }
