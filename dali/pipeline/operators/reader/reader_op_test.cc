@@ -111,8 +111,28 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   pipe.Build(outputs);
 
   DeviceWorkspace ws;
-  for (int i=0; i < 10; ++i) {
-    printf(" ======= ITER %d ======\n", i);
+  for (int i=0; i < 5; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  }
+
+  return;
+}
+
+TYPED_TEST(ReaderTest, PrefetchQueueTest) {
+  Pipeline pipe(128, 1, 0);
+
+  pipe.AddOperator(
+      OpSpec("DummyDataReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("prefetch_queue_depth", 3));
+
+  std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
+  pipe.Build(outputs);
+
+  DeviceWorkspace ws;
+  for (int i=0; i < 5; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
@@ -136,7 +156,6 @@ TYPED_TEST(ReaderTest, SequenceTest) {
 
   DeviceWorkspace ws;
   for (int i = 0; i < 4; ++i) {
-    printf(" ======= ITER %d ======\n", i);
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);

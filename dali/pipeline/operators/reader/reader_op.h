@@ -47,12 +47,12 @@ namespace dali {
 template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
-  inline explicit DataReader(const OpSpec& spec, int prefetch_queue_depth = 3) :
+  inline explicit DataReader(const OpSpec& spec) :
     Operator<Backend>(spec),
   prefetch_ready_workers_(false),
   finished_(false),
-  prefetch_queue_depth_(prefetch_queue_depth),
-  prefetched_batch_queue_(prefetch_queue_depth),
+  prefetch_queue_depth_(spec.GetArgument<int>("prefeth_queue_depth")),
+  prefetched_batch_queue_(prefetch_queue_depth_),
   curr_batch_consumer_(0),
   curr_batch_producer_(0),
   consumer_cycle_(false),
@@ -162,7 +162,8 @@ class DataReader : public Operator<Backend> {
 
       if (!prefetch_ready_workers_) {
         // grab the actual prefetching lock
-        TimeRange tr("CONSUMER " + to_string(curr_batch_consumer_) +  " waiting", TimeRange::kMagenta);
+        TimeRange tr("CONSUMER " + to_string(curr_batch_consumer_) +  " waiting",
+                     TimeRange::kMagenta);
         std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
 
         // Wait until prefetch is ready
@@ -246,7 +247,6 @@ class DataReader : public Operator<Backend> {
   }
 
  protected:
-
   int NextIdx(int curr_batch, bool& cycle) {
     if (curr_batch == prefetch_queue_depth_ - 1)
       cycle = !cycle;
@@ -286,7 +286,6 @@ class DataReader : public Operator<Backend> {
   int curr_batch_producer_;
   bool consumer_cycle_;
   bool producer_cycle_;
-  // TODO(spanev): implem double buffering of prefetched_batch_queue_;
 
   // keep track of how many samples have been processed
   // over all threads.

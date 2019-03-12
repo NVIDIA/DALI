@@ -23,7 +23,7 @@ namespace dali {
 class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper>(spec, 2) {
+    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     loader_.reset(new FileLoader(spec));
   }
 

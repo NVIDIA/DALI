@@ -35,7 +35,10 @@ accuracy in some cases)code", false)
   .AddOptionalArg("read_ahead",
       R"code(Whether accessed data should be read ahead. In case of big files like LMDB,
 RecordIO or TFRecord it will slow down first access but will decrease the time of all following
-accesses.)code", false);
+accesses.)code", false)
+  .AddOptionalArg("prefeth_queue_depth",
+      R"code(Specifies the depth of the batches prefetched by the internal Loader. When the pipeline
+is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1);
 
 
 size_t start_index(const size_t shard_id,
