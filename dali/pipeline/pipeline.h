@@ -216,17 +216,16 @@ class DLL_PUBLIC Pipeline {
    * Must be called before Build()
    *
    * @param cpu_size
-   * @param mixed_size
    * @param gpu_size
    */
-  DLL_PUBLIC void SetQueueSizes(int cpu_size, int mixed_size, int gpu_size) {
-    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    DALI_ENFORCE(separated_execution_ || (cpu_size == mixed_size && mixed_size == gpu_size),
+  DLL_PUBLIC void SetQueueSizes(int cpu_size, int gpu_size) {
+    DALI_ENFORCE(!built_,
+                 "Alterations to the pipeline after "
+                 "\"Build()\" has been called are not allowed - cannot set queue sizes.");
+    DALI_ENFORCE(separated_execution_ || (cpu_size == gpu_size),
                  "Setting different queue sizes for non-separated execution is not allowed");
-    DALI_ENFORCE(cpu_size > 0 && mixed_size > 0 && gpu_size > 0,
-                 "Only positive queue sizes allowed");
-    prefetch_queue_depth_ = QueueSizes(cpu_size, mixed_size, gpu_size);
+    DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
+    prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
 
   /*

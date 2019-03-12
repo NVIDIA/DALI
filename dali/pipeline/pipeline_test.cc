@@ -508,7 +508,7 @@ class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
 TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
   Pipeline pipe(this->batch_size_, 4, 0);
   // By default we are non-separated execution
-  ASSERT_THROW(pipe.SetQueueSizes(5, 4, 3), std::runtime_error);
+  ASSERT_THROW(pipe.SetQueueSizes(5, 3), std::runtime_error);
 }
 
 TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
@@ -544,12 +544,12 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
-  ASSERT_THROW(pipe.SetQueueSizes(2, 2, 2), std::runtime_error);
+  ASSERT_THROW(pipe.SetQueueSizes(2, 2), std::runtime_error);
 }
 
 TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes
-  constexpr int CPU = 5, MIXED = 3, GPU = 3;
+  constexpr int CPU = 5, GPU = 3;
   constexpr int N = CPU + GPU + 5;
   // this->set_batch_size(this->batch_size_);
   int batch_size = this->batch_size_;
@@ -559,7 +559,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Cannot test async while setting external input - need to make sure that
   pipe.SetExecutionTypes(true, true, true);
   // Test coprime queue sizes
-  pipe.SetQueueSizes(CPU, MIXED, GPU);
+  pipe.SetQueueSizes(CPU, GPU);
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(OpSpec("HostDecoder")

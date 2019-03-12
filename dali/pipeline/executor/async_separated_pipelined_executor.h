@@ -35,7 +35,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(
       int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
       bool set_affinity = false, int max_num_stream = -1,
-      QueueSizes prefetch_queue_depth = QueueSizes{2, 2, 2})
+      QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
                                    set_affinity, max_num_stream, prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),
@@ -80,9 +80,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       SeparatedPipelinedExecutor::Outputs(ws);
     } catch (std::runtime_error &e) {
       exec_error_ = true;
-      // TODO(klecki): SIGNAL ERROR and wake who needs to be woken
-      // mixed_work_cv_.notify_all();
-      // gpu_work_cv_.notify_all();
+      SignalError();
       throw std::runtime_error(std::string(e.what()));
     } catch (...) {
       throw std::runtime_error("Unknown critical error in pipeline");

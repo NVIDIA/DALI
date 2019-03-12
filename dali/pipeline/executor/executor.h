@@ -76,7 +76,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1,
-                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2, 2})
+                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
@@ -94,12 +94,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       // synchronous with CPU, we buffer for the GPU
       QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.gpu_size;
     } else {
-      // For non-uniform case we buffer for CPU x Mixed x GPU triple.
-      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.cpu_size *
-                                    prefetch_queue_depth.mixed_size * prefetch_queue_depth.gpu_size;
+      // For non-uniform case we buffer for CPU x GPU pair.
+      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.cpu_size * prefetch_queue_depth.gpu_size;
     }
     QueueDepth(OpType::CPU) = prefetch_queue_depth.cpu_size;
-    QueueDepth(OpType::MIXED) = prefetch_queue_depth.mixed_size;
+    // Mixed and GPU are bound together due to being outputs
+    QueueDepth(OpType::MIXED) = prefetch_queue_depth.gpu_size;
     QueueDepth(OpType::GPU) = prefetch_queue_depth.gpu_size;
   }
 
