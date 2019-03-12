@@ -415,7 +415,7 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
 }
 
 
-/// @brief Get a subtensor by slicing along outermost dimension at index `idx`
+/// @brief Get a subtensor by slicing along outermost dimension at position `pos`
 ///
 /// @details Produces tensor, for which number of dimensions is reduced by 1.
 /// Removed dimension is outer-most (e.g. for shape {3,2,4,6} produces {2,4,6}).
@@ -431,9 +431,9 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
 /// @return TensorView with reduced dimensionality
 template<typename StorageBackend, typename DataType, int ndims>
 TensorView<StorageBackend, DataType, ndims - 1>
-subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t idx) {
+subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t pos) {
   TensorShape<ndims - 1> shape = source.shape.template last<ndims - 1>();
-  DataType *data = source.data + idx * volume(shape);
+  DataType *data = source.data + pos * volume(shape);
   return make_tensor<StorageBackend>(data, shape);
 }
 
@@ -441,9 +441,9 @@ subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t idx) {
 /// @brief Overload for Dynamic TensorView
 template<typename StorageBackend, typename DataType>
 TensorView<StorageBackend, DataType, DynamicDimensions>
-subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_t idx) {
+subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_t pos) {
   TensorShape<DynamicDimensions> shape = source.shape.last(source.dim() - 1);
-  DataType *data = source.data + idx * volume(shape);
+  DataType *data = source.data + pos * volume(shape);
   return make_tensor<StorageBackend>(data, shape);
 }
 
