@@ -83,9 +83,10 @@ RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 void
 ConvertToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
-  DALI_ENFORCE(pitch >= 3 * width_px);
+  constexpr int out_channels = 4;
+  DALI_ENFORCE(pitch >= out_channels * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(kAbgrBytesPerPixel * width_px, block_dim.x),
+  dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
   RgbToRgbaKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
 }
