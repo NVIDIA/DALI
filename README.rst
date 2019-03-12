@@ -362,6 +362,56 @@ Install Python bindings
 
 .. installation-end-marker-do-not-remove
 
+
+Testing Dali build
+^^^^^^^^^^^^^^^^^^
+For the purpose of testing Dali, we maintain DALI_extra_ repository, where all testing data can be found.
+Should you want to run tests for Dali build, please obtain DALI_extra_ and put path to root repo folder
+into ``DALI_EXTRA_PATH`` environment variable. Dali testing module reads it during runtime and runs
+tests using provided path.
+
+.. code-block:: bash
+
+   export DALI_EXTRA_PATH=/opt/dali_extra
+   ./dali_test.bin
+
+.. note::
+
+   DALI_extra is not required for building Dali from source.
+
+.. _DALI_extra: https://github.com/NVIDIA/DALI_extra
+
+----
+
+Compiling DALI from source (Docker)
+-----------------------------------
+
+Prerequisites
+^^^^^^^^^^^^^
+
+.. |docker link| replace:: **Docker**
+.. _docker link: https://docs.docker.com/install/
+
+.. table::
+   :align: center
+
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | Linux x64                              |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |docker link|_                         | Follow installation guide and manual at the link (version 17.05 or later is required).      |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+
+Building Docker image
+^^^^^^^^^^^^^^^^^^^^^
+
+Change directory (``cd``) into Docker directory and run ``./build.sh``. If needed, set the following environment variables:
+
+* PYVER - Python version. Default is ``2.7``.
+* CUDA_VERSION - CUDA toolkit version. Default is ``10``.
+* NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
+* CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under ``DALI/```. Default is ``NO``.
+* CREATE_WHL - Create a wheel also. Default is ``YES``.
+
 ----
 
 Getting started
