@@ -47,7 +47,7 @@ DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t w
 
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
-  return value / 32.f;
+  return value * (1 / 32.f);
 }
 
 }  // namespace kernel
