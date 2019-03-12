@@ -39,17 +39,19 @@ inline size_t num_blocks(size_t length, size_t block_size) {
   return (length + block_size - 1) / block_size;
 }
 
+
 /**
- * Calculate value in strided buffer according to (x, y) coordinates
+ * Access a value at given (x, y) coordinates in a strided 2D array
  * @param buffer
  * @param x In pixels
  * @param y In pixels
- * @param pitch Stride, in bytes
+ * @param pitch_bytes Offset, in bytes, between consecutive rows of the array
  * @return Value at given coordinates
  */
 template<typename T>
-__host__ __device__ constexpr T &pitch_xy(T *buffer, ptrdiff_t x, ptrdiff_t y, ptrdiff_t pitch) {
-  return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(buffer) + pitch * y)[x];
+__host__ __device__ constexpr T &
+pitch_xy(T *buffer, ptrdiff_t x, ptrdiff_t y, ptrdiff_t pitch_bytes) {
+  return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(buffer) + pitch_bytes * y)[x];
 }
 
 }  // namespace
@@ -68,27 +70,27 @@ DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, siz
 
 
 __global__ void
-BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
-                size_t height) {
+ReshapeToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
+                    size_t height) {
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
   if (x >= width_px || y >= height) return;
   size_t in_idx = kBgrBytesPerPixel * x + kBgrBytesPerPixel * width_px * y;
   size_t out_idx = kAbgrBytesPerPixel * x + pitch * y;
-  output[out_idx] = 255;
-  output[out_idx + 1] = input[in_idx];
-  output[out_idx + 2] = input[in_idx + 1];
-  output[out_idx + 3] = input[in_idx + 2];
+  output[out_idx] = input[in_idx];
+  output[out_idx + 1] = input[in_idx + 1];
+  output[out_idx + 2] = input[in_idx + 2];
+  output[out_idx + 3] = 255;
 }
 
 
 void
-BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
+RgbToArgb(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
   DALI_ENFORCE(pitch >= kAbgrBytesPerPixel * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(kAbgrBytesPerPixel * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
-  BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
+  ReshapeToRgbaKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
 }
 
 
@@ -99,7 +101,7 @@ void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, siz
   dim3 grid_dim(num_blocks(kBytesPerDecodedFlowComponent * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
   DecodeFlowComponentKernel<<<grid_dim, block_dim>>>
-  (input, output, pitch, kBytesPerEncodedFlowComponent * width_px, height);
+          (input, output, pitch, kBytesPerEncodedFlowComponent * width_px, height);
 }
 
 }  // namespace kernel

@@ -52,12 +52,12 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
           81, 89, 81, 2, 18, 35,
   };
   std::vector<uint8_t> reference = {
-          255, 73, 5, 47, 255, 71, 30, 1, 0, 0,
-          255, 80, 41, 60, 255, 60, 85, 41, 0, 0,
-          255, 55, 66, 4, 255, 94, 59, 47, 0, 0,
-          255, 64, 83, 96, 255, 61, 30, 95, 0, 0,
-          255, 88, 95, 63, 255, 96, 78, 16, 0, 0,
-          255, 81, 89, 81, 255, 2, 18, 35, 0, 0,
+          73, 5, 47, 255, 71, 30, 1, 255, 0, 0,
+          80, 41, 60, 255, 60, 85, 41, 255, 0, 0,
+          55, 66, 4, 255, 94, 59, 47, 255, 0, 0,
+          64, 83, 96, 255, 61, 30, 95, 255, 0, 0,
+          88, 95, 63, 255, 96, 78, 16, 255, 0, 0,
+          81, 89, 81, 255, 2, 18, 35, 255, 0, 0,
   };
   size_t width = 2, pitch = 10, height = 6;
 
@@ -66,7 +66,7 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
   CUDA_CALL(cudaMallocManaged(&tested, reference.size()));
   CUDA_CALL(cudaMemcpy(input, data.data(), data.size(), cudaMemcpyDefault));
 
-  kernel::BgrToAbgr(input, tested, pitch, width, height);
+  kernel::RgbToArgb(input, tested, pitch, width, height);
   cudaDeviceSynchronize();
 
   for (size_t i = 0; i < reference.size(); i++) {

@@ -31,7 +31,7 @@ namespace kernel {
  * @param height
  */
 DLL_PUBLIC void
-BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
+RgbToArgb(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
 
 /**
  * Decodes components of flow vector and unstrides memory
