@@ -82,7 +82,7 @@ RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 
 void
-ConvertToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
+RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
   constexpr int out_channels = 4;
   DALI_ENFORCE(pitch >= out_channels * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
