@@ -94,7 +94,7 @@ RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, 
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                           size_t height) {
-  DALI_ENFORCE(pitch >= 2 * sizeof(float) * width_px);
+//  DALI_ENFORCE(pitch >= 2 * sizeof(float) * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(sizeof(float) * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));

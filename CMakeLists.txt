@@ -47,7 +47,7 @@ include(cmake/Dependencies.cmake)
 # add more flags after they are populated by find_package from Dependencies.cmake
 
 # Debug flags
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -Og -DDALI_DEBUG=1")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -DDALI_DEBUG=1")
 # Generate only line info for device as -G disables all optimizations and causes unit tests to fail
 set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
 

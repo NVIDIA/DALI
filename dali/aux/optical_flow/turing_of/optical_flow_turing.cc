@@ -85,6 +85,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
 //  cudaStreamSynchronize(stream_);
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
+  cudaDeviceSynchronize();
 //    DownloadData(*outbuf_, output_image.data, width_*4, height_, static_cast<CUcontext >(context_), output_stream_);
 //  cudaStreamSynchronize(stream_);
 
