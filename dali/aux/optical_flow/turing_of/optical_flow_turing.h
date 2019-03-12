@@ -17,6 +17,12 @@
 
 #include <cuda_runtime.h>
 #include "dali/common.h"
+#include <dali/aux/optical_flow/optical_flow_adapter.h>
+#include <third_party/turing_of/nvOpticalFlowCuda.h>
+#include <third_party/turing_of/nvOpticalFlowCommon.h>
+#include <dali/util/cucontext.h>
+#include <dali/util/custream.h>
+#include <dali/aux/optical_flow/turing_of/optical_flow_buffer.h>
 
 namespace dali {
 namespace optical_flow {
@@ -52,6 +58,46 @@ inline __host__ __device__ float decode_flow_component(int16_t value) {
 
 }  // namespace kernel
 
+class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
+ public:
+  OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels);
+
+
+  virtual ~OpticalFlowTuring();
+
+
+  void CalcOpticalFlow(TensorView<StorageBackend, const uint8_t, 3> reference_image,
+                       TensorView<StorageBackend, const uint8_t, 3> input_image,
+                       TensorView<StorageBackend, float, 3> output_image,
+                       TensorView<StorageBackend, const float, 3> external_hints = TensorView<StorageBackend, const float, 3>()) override;
+
+
+ private:
+  void SetInitParams(OpticalFlowParams api_params);
+
+
+  NV_OF_EXECUTE_INPUT_PARAMS
+  GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle);
+
+
+  NV_OF_EXECUTE_OUTPUT_PARAMS GenerateExecuteOutParams(NvOFGPUBufferHandle out_handle);
+
+
+  void LoadTuringOpticalFlow(const std::string &library_path);
+
+
+  const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
+
+  const size_t width_, height_, channels_;
+  CUdevice device_;
+  dali::CUContext context_;
+  dali::CUStream stream_;
+  NvOFHandle of_handle_;
+  NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
+  NV_OF_INIT_PARAMS of_params_;
+  std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_;
+
+};
 
 }  // namespace optical_flow
 }  // namespace dali

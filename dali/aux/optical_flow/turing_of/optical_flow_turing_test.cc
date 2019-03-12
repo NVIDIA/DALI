@@ -21,6 +21,9 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <dali/kernels/alloc.h>
+#include <dali/kernels/test/mat2tensor.h>
+#include <dali/kernels/common/copy.h>
 
 namespace dali {
 namespace optical_flow {
@@ -118,6 +121,86 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   CUDA_CALL(cudaFree(outcuda));
 }
 
+std::tuple<kernels::TensorView<kernels::StorageGPU, uint8_t, 3>,
+        kernels::memory::KernelUniquePtr<uint8_t>>
+mat_to_tensor(cv::Mat &mat) {
+  auto tvcpu = kernels::view_as_tensor<uint8_t, 3>(mat);
+  auto mem = kernels::memory::alloc_unique<uint8_t>(kernels::AllocType::Unified,
+                                                    mat.cols * mat.rows * mat.channels());
+  auto tvgpu = kernels::make_tensor_gpu<3>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+  kernels::copy(tvgpu, tvcpu);
+  return std::forward_as_tuple(tvgpu, std::move(mem));
+
+}
+
+TEST(OpticalFlowTuringTest, Test) {
+  using namespace std;
+
+  auto test_data_path = dali::testing::dali_extra_path()+"/db/optical_flow/slow_preset/";
+
+  // Reference
+  auto matref = cv::imread(test_data_path + string("frame_reference.png"));
+  cv::cvtColor(matref, matref, CV_BGR2RGB);
+  assert(matref.isContinuous() && matref.channels() == 3);
+  auto ref = mat_to_tensor(matref);
+  auto tvref = get<0>(ref);
+  auto memref = (uint8_t *) get<1>(ref).get();
+
+  ifstream refimg("/tmp/sample.data");
+  vector<int> reference_img;
+  copy(istream_iterator<int>(refimg),
+       istream_iterator<int>(),
+       back_inserter(reference_img));
+
+
+
+  // Input
+  auto matin = cv::imread(test_data_path + string("frame_input.png"));
+  cv::cvtColor(matin, matin, CV_BGR2RGB);
+  assert(matin.isContinuous() && matin.channels() == 3);
+  auto in = mat_to_tensor(matin);
+  auto tvin = get<0>(in);
+  auto memin = (uint8_t *) get<1>(in).get();
+
+  ASSERT_EQ(matref.size, matin.size) << "Sizes of test data don't match";
+  auto width = matref.cols;
+  auto height = matref.rows;
+  auto channels = matref.channels();
+
+
+  // Output
+  auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
+                                                     width / 4 * height  / 4 * 2);
+  auto tvout = kernels::make_tensor_gpu<3>(memout.get(), {height / 4, width / 4, 2});
+
+  OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false};
+  OpticalFlowTuring of(params, width, height, channels);
+
+  of.CalcOpticalFlow(tvref, tvin, tvout);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  ifstream reffile(test_data_path+"decoded_flow_vector.dat");
+  vector<float> reference_data;
+  copy(istream_iterator<float>(reffile),
+       istream_iterator<float>(),
+       back_inserter(reference_data));
+
+  ASSERT_EQ(reference_data.size(), tvout.num_elements());
+  auto p = reference_data.data();
+  auto r= tvout.data;
+  for(size_t i=0;i<reference_data.size();i++){
+    EXPECT_EQ(p[i], r[i]) << "Failed at idx: " << i;
+  }
+
+//  MakeColorWheel();
+//  cv::Mat view = cv::Mat::zeros(HEIGHT  /4,WIDTH/4,CV_8UC3);
+//  auto ptr = view.data;
+//  for(int i=0;i<view.rows*view.cols;i++){
+//    ComputeColor(tvout.data[2*i], tvout.data[2*i+1],  &ptr[i*3]);
+//  }
+//  cv::imwrite("/tmp/output.jpg", view);
+
+}
 
 }  // namespace testing
 }  // namespace optical_flow
