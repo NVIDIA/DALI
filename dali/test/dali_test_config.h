@@ -19,20 +19,12 @@
 
 namespace dali {
 namespace testing {
-namespace program_options {
 
 /**
- * Parses entry values of C++ executable and stores them internally.
- * You can access these values using functions below.
- */
-void parse_program_options(int argc, const char **argv);
-
-/**
- * Returns value passed using "--dali_extra_path" flag
+ * Returns path to DALI_extra repository
  */
 const std::string &dali_extra_path();
 
-}  // namespace program_options
 }  // namespace testing
 }  // namespace dali
 

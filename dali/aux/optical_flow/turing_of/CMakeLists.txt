@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(turing_of)
-
-file(GLOB tmp *.cc)
+file(GLOB tmp *.cc *.cu)
 set(DALI_SRCS ${DALI_SRCS} ${tmp})
 file(GLOB tmp *_test.cc)
 remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
@@ -25,3 +23,4 @@ if (BUILD_TEST)
   file(GLOB tmp *_test.cc)
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
+
