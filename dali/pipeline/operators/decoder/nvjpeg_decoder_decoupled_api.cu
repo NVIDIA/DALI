@@ -42,6 +42,9 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
       16*1024*1024)
+  .AddOptionalArg("split_stages",
+      R"code(Split into separated CPU stage and GPU stage operators)code",
+      false)
   .AddParent("CachedDecoderAttr");
 
 }  // namespace dali

@@ -26,8 +26,7 @@ if (BUILD_NVJPEG)
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_crop.cc"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_slice.cc"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_random_crop.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_gpu.cu"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_splitted.cu")
+      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_gpu.cu")
   else()
     list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cu")
   endif()
@@ -38,9 +37,10 @@ if (BUILD_NVJPEG)
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_random_crop_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_splitted_crop_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_splitted_slice_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_splitted_random_crop_test.cc")
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_crop_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_slice_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_random_crop_test.cc")
     else()
       list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
     endif()
