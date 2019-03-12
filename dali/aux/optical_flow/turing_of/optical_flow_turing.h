@@ -26,7 +26,7 @@ namespace kernel {
  * Converts BGR image to ABGR image and puts it in strided memory
  * @param input
  * @param output User is responsible for allocation of output
- * @param pitch In bytes
+ * @param pitch Stride within output memory layout. In bytes.
  * @param width In bytes
  * @param height
  */
@@ -37,7 +37,7 @@ BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, siz
  * Decodes components of flow vector and unstrides memory
  * @param input
  * @param output User is responsible for allocation of output
- * @param pitch In bytes
+ * @param pitch Stride within input memory layout. In bytes.
  * @param width In bytes
  * @param height
  */

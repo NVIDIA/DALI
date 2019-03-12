@@ -108,7 +108,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   CUDA_CALL(cudaMemcpy2D(incuda, inpitch, test_data.data(), inwidth * sizeof(int16_t),
                          inwidth * sizeof(int16_t), inheight, cudaMemcpyDefault));
   CUDA_CALL(cudaMallocManaged(&outcuda, ref_data.size() * sizeof(float)));
-  kernel::DecodeFlowComponents(reinterpret_cast<int16_t *> (incuda), outcuda,
+  kernel::DecodeFlowComponents(static_cast<int16_t *> (incuda), outcuda,
                                inpitch / sizeof(int16_t), inwidth, inheight);
   CUDA_CALL(cudaDeviceSynchronize());
   for (size_t i = 0; i < ref_data.size(); i++) {

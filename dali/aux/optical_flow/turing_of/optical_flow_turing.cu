@@ -65,7 +65,7 @@ BgrToAbgrKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 
 void BgrToAbgr(const uint8_t *input, uint8_t *output, size_t pitch, size_t width, size_t height) {
-  DALI_ENFORCE(pitch >= width / 3 * 4);
+  DALI_ENFORCE(pitch >= width * 4 / 3);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(width, block_dim.x), num_blocks(height, block_dim.y));
   BgrToAbgrKernel<<<grid_dim, block_dim>>>(input, output, pitch, width / 3, height);
