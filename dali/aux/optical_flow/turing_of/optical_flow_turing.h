@@ -23,7 +23,7 @@ namespace optical_flow {
 namespace kernel {
 
 /**
- * Converts image to RGBA and puts it in strided memory
+ * Converts RGB image to RGBA and puts it in strided memory
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch Stride within output memory layout. In bytes.
