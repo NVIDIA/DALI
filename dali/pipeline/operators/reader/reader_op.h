@@ -47,28 +47,22 @@ namespace dali {
 template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
-  inline explicit DataReader(const OpSpec& spec) :
-    Operator<Backend>(spec),
-  prefetch_ready_workers_(false),
-  finished_(false),
-  prefetch_queue_depth_(spec.GetArgument<int>("prefeth_queue_depth")),
-  prefetched_batch_queue_(prefetch_queue_depth_),
-  curr_batch_consumer_(0),
-  curr_batch_producer_(0),
-  consumer_cycle_(false),
-  producer_cycle_(false),
-  samples_processed_(0),
-  batch_stop_(false),
-  prefetch_error_(nullptr) {}
+  inline explicit DataReader(const OpSpec& spec)
+      : Operator<Backend>(spec),
+        finished_(false),
+        prefetch_queue_depth_(spec.GetArgument<int>("prefeth_queue_depth")),
+        prefetched_batch_queue_(prefetch_queue_depth_),
+        curr_batch_consumer_(0),
+        curr_batch_producer_(0),
+        consumer_cycle_(false),
+        producer_cycle_(false),
+        samples_processed_(0) {}
 
   ~DataReader() noexcept override {
     StopPrefetchThread();
-    for (auto p_b : prefetched_batch_queue_) {
-      for (size_t i = 0; i < p_b.size(); ++i) {
-        // return unconsumed batches
-        if (p_b[i]) {
-          loader_->ReturnTensor(p_b[i]);
-        }
+    for (auto &batch : prefetched_batch_queue_) {
+      for (auto &sample : batch) {
+        if (sample) loader_->ReturnTensor(sample);
       }
     }
   }
@@ -76,226 +70,168 @@ class DataReader : public Operator<Backend> {
   // perform the prefetching operation
   virtual void Prefetch() {
     // We actually prepare the next batch
-    TimeRange tr("Prefetching for " + to_string(curr_batch_producer_), TimeRange::kRed);
-    prefetched_batch_queue_[curr_batch_producer_].reserve(Operator<Backend>::batch_size_);
-    prefetched_batch_queue_[curr_batch_producer_].clear();
-
+    TimeRange tr("DataReader::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
+    auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+    curr_batch.reserve(Operator<Backend>::batch_size_);
+    curr_batch.clear();
     for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
-      auto* t = loader_->ReadOne();
-      prefetched_batch_queue_[curr_batch_producer_].push_back(t);
+      curr_batch.push_back(loader_->ReadOne());
     }
   }
 
   // Main prefetch work loop
   void PrefetchWorker() {
-    {
-      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-
-      // if a result is already ready, wait until it's consumed
-      producer_.wait(lock, [&]() { return !IsFull(); });
-    }
+    ProducerWait();
     while (!finished_) {
       try {
         Prefetch();
       } catch (const std::exception& e) {
-        prefetch_error_.reset(new std::string(e.what()));
-        finished_ = true;
-        consumer_.notify_all();
+        ProducerStop(std::current_exception());
         return;
       }
-
-      {
-        std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-        // notify the consumer of a result ready to consume
-        curr_batch_producer_ = NextIdx(curr_batch_producer_, producer_cycle_);
-
-        consumer_.notify_all();
-
-        // wait until the result is consumed
-        producer_.wait(lock, [&]() { return finished_ || !IsFull(); });
-      }
+      ProducerAdvanceQueue();
+      ProducerWait();
     }
   }
 
   // to be called in constructor
   void StartPrefetchThread() {
-    {
-      // if thread hasn't been started yet, start it
-      if (!prefetch_thread_.get()) {
-        prefetch_thread_.reset(
-            new std::thread([this] { this->PrefetchWorker(); }));
-      }
-    }
+    std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
+    // if thread hasn't been started yet, start it
+    if (prefetch_thread_.joinable()) return;
+    prefetch_thread_ = std::thread(&DataReader::PrefetchWorker, this);
   }
 
   // to be called in destructor
   void StopPrefetchThread() {
-    if (prefetch_thread_.get()) {
-      {
-        std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-        consumer_.wait(lock, [this]() { return finished_ || !IsEmpty(); });
-        finished_ = true;
-      }
-      // notify the prefetcher to stop
+    ProducerStop();
+    if (prefetch_thread_.joinable()) {
       producer_.notify_one();
       // join the prefetch thread and destroy it
-      prefetch_thread_->join();
-      prefetch_thread_.reset();
-
-    } else {
-      finished_ = true;
+      prefetch_thread_.join();
+      prefetch_thread_ = {};
     }
   }
 
   // CPUBackend operators
   void Run(SampleWorkspace* ws) override {
-    {
-      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-      StartPrefetchThread();
+    // If necessary start prefetching thread and wait for a consumable batch
+    StartPrefetchThread();
+    ConsumerWait();
 
-      if (batch_stop_) batch_stop_ = false;
-    }
-
-    {
-      // block all other worker threads from taking the prefetch-controller lock
-      std::unique_lock<std::mutex> worker_lock(worker_mutex_);
-
-      if (!prefetch_ready_workers_) {
-        // grab the actual prefetching lock
-        TimeRange tr("CONSUMER " + to_string(curr_batch_consumer_) +  " waiting",
-                     TimeRange::kMagenta);
-        std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
-
-        // Wait until prefetch is ready
-        consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsEmpty(); });
-
-        if (prefetch_error_) {
-          DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
-        }
-
-        // signal the other workers we're ready
-        prefetch_ready_workers_ = true;
-      }
-    }
-
-    TimeRange tr("Consuming " + to_string(curr_batch_consumer_), TimeRange::kViolet);
-
-    // consume batch
+    // consume sample
+    TimeRange tr("DataReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
     Operator<Backend>::Run(ws);
-
-    loader_->ReturnTensor(prefetched_batch_queue_[curr_batch_consumer_][ws->data_idx()]);
-    prefetched_batch_queue_[curr_batch_consumer_][ws->data_idx()] = nullptr;
-
+    auto &sample = prefetched_batch_queue_[curr_batch_consumer_][ws->data_idx()];
+    loader_->ReturnTensor(sample);
+    sample = nullptr;
     samples_processed_++;
 
-    // lock, check if batch is finished, notify
-    {
-      std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-
-      // if we need to stop, stop.
-      if (batch_stop_) return;
-
-      // if we've consumed all samples in this batch, reset state and stop
-      if (samples_processed_.load() == Operator<Backend>::batch_size_) {
-        prefetch_ready_workers_ = false;
-        curr_batch_consumer_ = NextIdx(curr_batch_consumer_, consumer_cycle_);
-
-        producer_.notify_one();
-        samples_processed_ = 0;
-        batch_stop_ = true;
-      }
-      return;
+    // if we've processed the whole batch, notify it
+    if (samples_processed_.load() == Operator<Backend>::batch_size_) {
+      samples_processed_ = 0;
+      ConsumerAdvanceQueue();
     }
   }
 
   // GPUBackend operators
   void Run(DeviceWorkspace* ws) override {
+    // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
+    ConsumerWait();
 
-    // grab the actual prefetching lock
-    std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
-
-    // Wait until prefetch is ready
-    consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsEmpty(); });
-
-    if (prefetch_error_) {
-      DALI_FAIL("Prefetching failed: " + dali::string(*prefetch_error_));
-    }
-
-    producer_.notify_one();
-
+    // Consume batch
     Operator<Backend>::Run(ws);
-
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-
     for (auto &sample : prefetched_batch_queue_[curr_batch_consumer_]) {
-        loader_->ReturnTensor(sample);
+      loader_->ReturnTensor(sample);
     }
 
-    curr_batch_consumer_ = NextIdx(curr_batch_consumer_, consumer_cycle_);
-    producer_.notify_one();
+    // Notify we have consumed a batch
+    ConsumerAdvanceQueue();
   }
-
 
   Index epoch_size() const override {
     return loader_->Size();
   }
-
 
   LoadTarget* GetSample(int sample_idx) {
     return prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
   }
 
  protected:
-  int NextIdx(int curr_batch, bool& cycle) {
-    if (curr_batch == prefetch_queue_depth_ - 1)
-      cycle = !cycle;
-    return (curr_batch + 1) % prefetch_queue_depth_;
+  void ProducerStop(std::exception_ptr error = nullptr) {
+    std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
+    finished_ = true;
+    if (error) prefetch_error_ = error;
+    consumer_.notify_all();
   }
 
-  bool IsEmpty() {
+  void ProducerAdvanceQueue() {
+    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+    AdvanceIndex(curr_batch_producer_, producer_cycle_);
+    consumer_.notify_all();
+  }
+
+  void ProducerWait() {
+    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+    producer_.wait(lock, [&]() { return finished_ || !IsPrefetchQueueFull(); });
+  }
+
+  void ConsumerWait() {
+    TimeRange tr("DataReader::ConsumerWait #" + to_string(curr_batch_consumer_),
+                 TimeRange::kMagenta);
+    std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+    consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsPrefetchQueueEmpty(); });
+    if (prefetch_error_) std::rethrow_exception(prefetch_error_);
+  }
+
+  void ConsumerAdvanceQueue() {
+    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
+    AdvanceIndex(curr_batch_consumer_, consumer_cycle_);
+    producer_.notify_one();
+  }
+
+  void AdvanceIndex(int& index, bool& cycle) {
+    index = (index + 1) % prefetch_queue_depth_;
+    if (index == 0) cycle = !cycle;
+  }
+
+  bool IsPrefetchQueueEmpty() {
     return curr_batch_producer_ == curr_batch_consumer_
-           && consumer_cycle_ == producer_cycle_;
+        && consumer_cycle_ == producer_cycle_;
   }
 
-  bool IsFull() {
+  bool IsPrefetchQueueFull() {
     return curr_batch_producer_ == curr_batch_consumer_
-           && consumer_cycle_ != producer_cycle_;
+        && consumer_cycle_ != producer_cycle_;
   }
 
-  std::unique_ptr<std::thread> prefetch_thread_;
+  std::thread prefetch_thread_;
 
   // mutex to control access to the producer
   std::mutex prefetch_access_mutex_;
-  std::mutex worker_mutex_;
 
   // signals for producer and consumer
   std::condition_variable producer_, consumer_;
-  std::condition_variable worker_threads_;
-
-  // signal that a complete batch has been prefetched
-  std::atomic<bool> prefetch_ready_workers_;
 
   // signal that the prefetch thread has finished
   std::atomic<bool> finished_;
 
   // prefetched batch
   int prefetch_queue_depth_;
-  std::vector<std::vector<LoadTarget*>> prefetched_batch_queue_;
+  using BatchQueueElement = std::vector<LoadTarget*>;
+  std::vector<BatchQueueElement> prefetched_batch_queue_;
   int curr_batch_consumer_;
   int curr_batch_producer_;
   bool consumer_cycle_;
   bool producer_cycle_;
 
-  // keep track of how many samples have been processed
-  // over all threads.
+  // keep track of how many samples have been processed over all threads.
   std::atomic<int> samples_processed_;
 
-  // notify threads to stop processing
-  std::atomic<bool> batch_stop_;
-
-  // set to error string when prefetch worker fails
-  std::unique_ptr<std::string> prefetch_error_;
+  // stores any catched exceptions in the prefetch worker
+  std::exception_ptr prefetch_error_;
 
   // Loader
   std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
