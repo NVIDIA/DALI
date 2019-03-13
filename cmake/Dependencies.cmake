@@ -43,6 +43,10 @@ if (BUILD_NVJPEG)
   if (${NVJPEG_LIBRARY_0_2_0})
     add_definitions(-DNVJPEG_LIBRARY_0_2_0)
   endif()
+
+  if (${NVJPEG_DECOUPLED_API})
+    add_definitions(-DNVJPEG_DECOUPLED_API)
+  endif()
 else()
   # Note: Support for disabling nvJPEG is unofficial
   message(STATUS "Building WITHOUT nvJPEG")
