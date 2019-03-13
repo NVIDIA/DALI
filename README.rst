@@ -135,7 +135,7 @@ Change directory (``cd``) into Docker directory and run ``./build.sh``. If neede
 * PYVER - Python version. Default is ``2.7``.
 * CUDA_VERSION - CUDA toolkit version (9.0 or 10.0). Default is ``10``.
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
-* CREATE_WHL - Create a standallone wheel. Default is ``YES``.
+* CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 
 ----
