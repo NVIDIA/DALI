@@ -66,7 +66,7 @@ class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecoderSliceTest, Types);
+TYPED_TEST_SUITE(HostDecoderSliceTest, Types);
 
 TYPED_TEST(HostDecoderSliceTest, JpegDecode) {
   this->Run(t_jpegImgType);

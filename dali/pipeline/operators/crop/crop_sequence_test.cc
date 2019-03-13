@@ -120,7 +120,7 @@ using CPU_ValidCropArgs = ValidCropArgs<CPUBackend>;
 
 template < typename T>
 using CropSequenceTest_GPU_Valid = CropSequenceTest<T>;
-TYPED_TEST_CASE(CropSequenceTest_GPU_Valid, GPU_ValidCropArgs);
+TYPED_TEST_SUITE(CropSequenceTest_GPU_Valid, GPU_ValidCropArgs);
 
 TYPED_TEST(CropSequenceTest_GPU_Valid, test_valid_crop_gpu) {
     this->Run();
@@ -128,7 +128,7 @@ TYPED_TEST(CropSequenceTest_GPU_Valid, test_valid_crop_gpu) {
 
 template < typename T>
 using CropSequenceTest_CPU_Valid = CropSequenceTest<T>;
-TYPED_TEST_CASE(CropSequenceTest_CPU_Valid, CPU_ValidCropArgs);
+TYPED_TEST_SUITE(CropSequenceTest_CPU_Valid, CPU_ValidCropArgs);
 
 TYPED_TEST(CropSequenceTest_CPU_Valid, test_valid_crop_cpu) {
     this->Run();
@@ -144,7 +144,7 @@ using CPU_InvalidCropArgs = InvalidCropArgs<CPUBackend>;
 
 template < typename T>
 using CropSequenceTest_GPU_Invalid = CropSequenceTest<T>;
-TYPED_TEST_CASE(CropSequenceTest_GPU_Invalid, GPU_InvalidCropArgs);
+TYPED_TEST_SUITE(CropSequenceTest_GPU_Invalid, GPU_InvalidCropArgs);
 
 TYPED_TEST(CropSequenceTest_GPU_Invalid, invalid_arguments) {
     EXPECT_THROW(
@@ -154,7 +154,7 @@ TYPED_TEST(CropSequenceTest_GPU_Invalid, invalid_arguments) {
 
 template < typename T>
 using CropSequenceTest_CPU_Invalid = CropSequenceTest<T>;
-TYPED_TEST_CASE(CropSequenceTest_CPU_Invalid, CPU_InvalidCropArgs);
+TYPED_TEST_SUITE(CropSequenceTest_CPU_Invalid, CPU_InvalidCropArgs);
 
 TYPED_TEST(CropSequenceTest_CPU_Invalid, invalid_arguments) {
     EXPECT_THROW(

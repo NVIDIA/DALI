@@ -39,7 +39,7 @@ class HostDecoderCropTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecoderCropTest, Types);
+TYPED_TEST_SUITE(HostDecoderCropTest, Types);
 
 TYPED_TEST(HostDecoderCropTest, JpegDecode) {
   this->Run(t_jpegImgType);

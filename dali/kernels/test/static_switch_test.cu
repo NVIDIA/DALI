@@ -33,7 +33,7 @@ struct StaticSwitch_NVCC : testing::Test {};
 }  // namespace
 
 typedef testing::Types<int, float, double> MyTypes;
-TYPED_TEST_CASE(StaticSwitch_NVCC, MyTypes);
+TYPED_TEST_SUITE(StaticSwitch_NVCC, MyTypes);
 
 TYPED_TEST(StaticSwitch_NVCC, TypeSwitch) {
   using T = gtest_TypeParam_;

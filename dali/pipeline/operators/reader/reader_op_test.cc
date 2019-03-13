@@ -98,7 +98,7 @@ class ReaderTest : public DALITest {
 
 typedef ::testing::Types<CPUBackend> TestTypes;
 
-TYPED_TEST_CASE(ReaderTest, TestTypes);
+TYPED_TEST_SUITE(ReaderTest, TestTypes);
 
 TYPED_TEST(ReaderTest, SimpleTest) {
   Pipeline pipe(128, 1, 0);

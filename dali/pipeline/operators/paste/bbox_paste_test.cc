@@ -137,7 +137,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
 };
 
 typedef ::testing::Types<std::true_type, std::false_type> Types;
-TYPED_TEST_CASE(BBoxPasteTest, Types);
+TYPED_TEST_SUITE(BBoxPasteTest, Types);
 
 TYPED_TEST(BBoxPasteTest, Identity) {
   this->input_ = this->RandomBoxes(10, 100);

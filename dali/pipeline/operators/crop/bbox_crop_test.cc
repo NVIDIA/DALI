@@ -20,7 +20,7 @@ template <typename ImgType>
 class RandomBBoxCropTest : public GenericBBoxesTest<ImgType> {};
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(RandomBBoxCropTest, Types);
+TYPED_TEST_SUITE(RandomBBoxCropTest, Types);
 
 const bool addImageType = true;
 

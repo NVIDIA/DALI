@@ -22,7 +22,7 @@ class CropCastPermuteTest : public GenericMatchingTest<ImgType> {};
 
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(CropCastPermuteTest, Types);
+TYPED_TEST_SUITE(CropCastPermuteTest, Types);
 
 const bool addImageType = true;
 

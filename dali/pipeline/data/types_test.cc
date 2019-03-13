@@ -70,7 +70,7 @@ typedef ::testing::Types<uint8,
                          std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>
                          > TestTypes;
 
-TYPED_TEST_CASE(TypesTest, TestTypes);
+TYPED_TEST_SUITE(TypesTest, TestTypes);
 
 TYPED_TEST(TypesTest, TestRegisteredType) {
   typedef TypeParam T;

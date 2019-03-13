@@ -21,7 +21,7 @@ class ColorTest : public GenericMatchingTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB> Types;
-TYPED_TEST_CASE(ColorTest, Types);
+TYPED_TEST_SUITE(ColorTest, Types);
 
 TYPED_TEST(ColorTest, Brightness) {
   this->RunTest({"Brightness", {"brightness", "3.", DALI_FLOAT}, 1e-4});

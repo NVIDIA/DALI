@@ -25,7 +25,7 @@ class HostDecodeTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(HostDecodeTest, Types);
+TYPED_TEST_SUITE(HostDecodeTest, Types);
 
 TYPED_TEST(HostDecodeTest, JpegDecode) {
   this->Run(t_jpegImgType);

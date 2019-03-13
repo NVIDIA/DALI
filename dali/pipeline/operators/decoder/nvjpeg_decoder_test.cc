@@ -51,7 +51,7 @@ class nvjpegDecodeTest : public GenericDecoderTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvjpegDecodeTest, Types);
+TYPED_TEST_SUITE(nvjpegDecodeTest, Types);
 
 TYPED_TEST(nvjpegDecodeTest, TestSingleJPEGDecode) {
   this->JpegTestDecode(false, 1);

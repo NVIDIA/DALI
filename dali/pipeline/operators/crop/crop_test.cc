@@ -20,7 +20,7 @@ template <typename ImgType>
 class CropTest : public GenericMatchingTest<ImgType> {};
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(CropTest, Types);
+TYPED_TEST_SUITE(CropTest, Types);
 
 const bool addImageType = true;
 

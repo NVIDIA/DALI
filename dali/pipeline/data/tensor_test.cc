@@ -51,7 +51,7 @@ class TensorTest : public DALITest {
 
 typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
-TYPED_TEST_CASE(TensorTest, Backends);
+TYPED_TEST_SUITE(TensorTest, Backends);
 
 // Sharing data from a raw pointer resets a Tensor to
 // and invalid state (no type). To get to a valid state

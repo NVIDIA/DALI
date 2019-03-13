@@ -50,7 +50,7 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvjpegDecodeSplitTest, Types);
+TYPED_TEST_SUITE(nvjpegDecodeSplitTest, Types);
 
 
 /***********************************************
