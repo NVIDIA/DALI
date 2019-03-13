@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
+//#include <dynlink_cuda.h>
 #include "dali/util/cuda_utils.h"
 #include <opencv2/opencv.hpp>
 #include <gtest/gtest.h>
@@ -136,8 +137,8 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   CUDA_CALL(cudaFree(outcuda));
 }
 
-
-TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
+// DISABLED due to lack of test data. Enable on next possible chance
+TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
@@ -187,13 +188,9 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
   for (size_t i = 0; i < distances.size(); i++) {
     distances[i] = abs(reference_data[i] - tvout.data[i]);
   }
-  float mean = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
-  float sqdiff = accumulate(distances.begin(), distances.end(), 0.f,
-                            [mean](float acc, float val) -> float {
-                                return acc + (val - mean) * (val - mean);
-                            });
-  auto mse = sqdiff / distances.size();
-  float stddev = sqrt(sqdiff / distances.size());
+  float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
+  // Expecting, that average error would be less than 0.5[px]
+  ASSERT_GT(0.5, mean_err);
 }
 
 }  // namespace testing
