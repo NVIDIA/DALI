@@ -95,7 +95,7 @@ TEST_P(OpticalFlowTest, StubImplementationTest) {
 }
 
 
-INSTANTIATE_TEST_CASE_P(OpticalFlowStubImplementationsTest, OpticalFlowTest,
+INSTANTIATE_TEST_SUITE_P(OpticalFlowStubImplementationsTest, OpticalFlowTest,
                         ::testing::ValuesIn(testing::cartesian({device_gpu}, arguments)));
 
 }  // namespace testing

@@ -322,10 +322,10 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
   }
 }
 
-INSTANTIATE_TEST_CASE_P(SingleImage, BatchResamplingTest, ::testing::Values(SingleImageBatch));
-INSTANTIATE_TEST_CASE_P(MultipleImages, BatchResamplingTest, ::testing::Values(Batch1));
+INSTANTIATE_TEST_SUITE_P(SingleImage, BatchResamplingTest, ::testing::Values(SingleImageBatch));
+INSTANTIATE_TEST_SUITE_P(MultipleImages, BatchResamplingTest, ::testing::Values(Batch1));
 
-INSTANTIATE_TEST_CASE_P(Crop, BatchResamplingTest, ::testing::Values(CropBatch));
+INSTANTIATE_TEST_SUITE_P(Crop, BatchResamplingTest, ::testing::Values(CropBatch));
 
 }  // namespace resample_test
 }  // namespace kernels

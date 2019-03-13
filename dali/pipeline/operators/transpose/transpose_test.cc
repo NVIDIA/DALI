@@ -201,11 +201,11 @@ TEST_P(TransposeTestRank5, TransposeRank5) {
   this->RunTest(GetInput(5).get(), tlout, args, TransposeVerify);
 }
 
-INSTANTIATE_TEST_CASE_P(TransposeRank3Suite, TransposeTestRank3,
+INSTANTIATE_TEST_SUITE_P(TransposeRank3Suite, TransposeTestRank3,
                         ::testing::ValuesIn(cartesian(devices, GetPermutations(3))));
-INSTANTIATE_TEST_CASE_P(TransposeRank4Suite, TransposeTestRank4,
+INSTANTIATE_TEST_SUITE_P(TransposeRank4Suite, TransposeTestRank4,
                         ::testing::ValuesIn(cartesian(devices, GetPermutations(4))));
-INSTANTIATE_TEST_CASE_P(TransposeRank5Suite, TransposeTestRank5,
+INSTANTIATE_TEST_SUITE_P(TransposeRank5Suite, TransposeTestRank5,
                         ::testing::ValuesIn(cartesian(devices, GetPermutations(5))));
 
 }  // namespace dali
