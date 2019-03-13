@@ -85,9 +85,8 @@ def test_pipeline_separated_exec_setup():
         def iter_setup(self):
             pass
 
-    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
-    pipe.set_execution_types(exec_separated=True)
-    pipe.set_queue_sizes(5, 3)
+    pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,
+                      prefetch_queue_sizes = {"cpu_size": 5, "gpu_size": 3})
     pipe.build()
     out = pipe.run()
     assert(out[0].is_dense_tensor())

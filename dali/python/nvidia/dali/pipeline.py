@@ -24,47 +24,56 @@ class Pipeline(object):
     Parameters
     ----------
     `batch_size` : int, optional, default = -1
-                   Batch size of the pipeline. Negative values for this parameter
-                   are invalid - the default value may only be used with
-                   serialized pipeline (the value stored in serialized pipeline
-                   is used instead).
+        Batch size of the pipeline. Negative values for this parameter
+        are invalid - the default value may only be used with
+        serialized pipeline (the value stored in serialized pipeline
+        is used instead).
     `num_threads` : int, optional, default = -1
-                    Number of CPU threads used by the pipeline.
-                    Negative values for this parameter are invalid - the default
-                    value may only be used with serialized pipeline (the value
-                    stored in serialized pipeline is used instead).
+        Number of CPU threads used by the pipeline.
+        Negative values for this parameter are invalid - the default
+        value may only be used with serialized pipeline (the value
+        stored in serialized pipeline is used instead).
     `device_id` : int, optional, default = -1
-                  Id of GPU used by the pipeline.
-                  Negative values for this parameter are invalid - the default
-                  value may only be used with serialized pipeline (the value
-                  stored in serialized pipeline is used instead).
+        Id of GPU used by the pipeline.
+        Negative values for this parameter are invalid - the default
+        value may only be used with serialized pipeline (the value
+        stored in serialized pipeline is used instead).
     `seed` : int, optional, default = -1
-             Seed used for random number generation. Leaving the default value
-             for this parameter results in random seed.
+        Seed used for random number generation. Leaving the default value
+        for this parameter results in random seed.
     `exec_pipelined` : bool, optional, default = True
-                       Whether to execute the pipeline in a way that enables
-                       overlapping CPU and GPU computation, typically resulting
-                       in faster execution speed, but larger memory consumption.
+        Whether to execute the pipeline in a way that enables
+        overlapping CPU and GPU computation, typically resulting
+        in faster execution speed, but larger memory consumption.
     `exec_async` : bool, optional, default = True
-                   Whether to execute the pipeline asynchronously.
-                   This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
-                   run asynchronously with respect to the calling Python thread.
-                   In order to synchronize with the pipeline one needs to call
-                   :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
+        Whether to execute the pipeline asynchronously.
+        This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
+        run asynchronously with respect to the calling Python thread.
+        In order to synchronize with the pipeline one needs to call
+        :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
     `bytes_per_sample` : int, optional, default = 0
-                         A hint for DALI for how much memory to use for its tensors.
+        A hint for DALI for how much memory to use for its tensors.
     `set_affinity` : bool, optional, default = False
-                     Whether to set CPU core affinity to the one closest to the
-                     GPU being used.
+        Whether to set CPU core affinity to the one closest to the
+        GPU being used.
     `max_streams` : int, optional, default = -1
-                    Limit the number of CUDA streams used by the executor.
-                    Value of -1 does not impose a limit.
-                    This parameter is currently unused (and behavior of
-                    unrestricted number of streams is assumed).
-    `prefetch_queue_depth`: int, optional, default = 2
-                            Depth of the executor pipeline. Deeper pipeline makes DALI
-                            more resistant to uneven execution time of each batch, but it
-                            also consumes more memory for internal buffers.
+        Limit the number of CUDA streams used by the executor.
+        Value of -1 does not impose a limit.
+        This parameter is currently unused (and behavior of
+        unrestricted number of streams is assumed).
+    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
+        Depth of the executor pipeline. Deeper pipeline makes DALI
+        more resistant to uneven execution time of each batch, but it
+        also consumes more memory for internal buffers.
+        Specifying a dict:
+        ``{ "cpu_size": x, "gpu_size": y }``
+        instead of integer will cause the pipeline to use separated
+        queues executor, with buffer queue size `x` for cpu stage
+        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
+        and `exec_pipelined` are set to `False`.
+        Executor will buffer cpu and gpu stages separatelly,
+        and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
+        is issued.
     """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -75,7 +84,6 @@ class Pipeline(object):
         self._device_id = device_id
         self._seed = seed
         self._exec_pipelined = exec_pipelined
-        self._prefetch_queue_depth = prefetch_queue_depth
         self._built = False
         self._first_iter = True
         self._last_iter = False
@@ -88,9 +96,18 @@ class Pipeline(object):
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
-        self._exec_separated = False
-        self._cpu_queue_size = prefetch_queue_depth
-        self._gpu_queue_size = prefetch_queue_depth
+        if type(prefetch_queue_depth) is dict:
+            self._exec_separated = True
+            self._cpu_queue_size = prefetch_queue_depth["cpu_queue_size"]
+            self._gpu_queue_size = prefetch_queue_depth["gpu_queue_size"]
+            self._prefetch_queue_depth = self._cpu_queue_size  # dummy value, that will be ignored
+        elif type(prefetch_queue_depth) is int:
+            self._exec_separated = False
+            self._prefetch_queue_depth = prefetch_queue_depth
+            self._cpu_queue_size = prefetch_queue_depth
+            self._gpu_queue_size = prefetch_queue_depth
+        else:
+            raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
 
     @property
     def batch_size(self):
@@ -118,7 +135,7 @@ class Pipeline(object):
         Parameters
         ----------
         name : str, optional, default = None
-               The reader which should be used to obtain epoch size.
+            The reader which should be used to obtain epoch size.
         """
 
         if not self._built:
@@ -195,55 +212,6 @@ class Pipeline(object):
             self._pipe.AddOperator(op.spec, op.name)
         self._prepared = True
         self._names_and_devices = [(e.name, e.device) for e in outputs]
-
-
-    def set_execution_types(self, exec_pipelined = True, exec_separated = False, exec_async = True):
-        """Set execution characteristics for this Pipeline.
-
-        Must be invoked before pipeline is built.
-        Parameters
-        ----------
-        `exec_pipelined` : bool, optional, default = True
-                        Whether to execute the pipeline in a way that enables
-                        overlapping CPU and GPU computation, typically resulting
-                        in faster execution speed, but larger memory consumption.
-        `exec_separated` : bool, optional, default =  False
-                        Whether to use executor with separate queue sizes for
-                        each stage, allowing to prefetch more data for certain stages.
-        `exec_async` : bool, optional, default = True
-                    Whether to execute the pipeline asynchronously.
-                    This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
-                    run asynchronously with respect to the calling Python thread.
-                    In order to synchronize with the pipeline one needs to call
-                    :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
-        """
-
-        if self._built:
-            raise RuntimeError("Alterations to the pipeline after "
-                "\"build()\" has been called are not allowed - cannot change execution type.")
-        self._exec_pipelined = exec_pipelined
-        self._exec_separated = exec_separated
-        self._exec_async = exec_async
-
-    def set_queue_sizes(self, cpu_queue_size = 2, gpu_queue_size = 2):
-        """Set queue sizes for Pipeline using Separated Queues.
-
-        Must be invoked before pipeline `build()`, and after execution is set for separted,
-        what can be done using: `pipeline.set_execution_types(exec_separated = True)`.
-        Parameters
-        ----------
-        `cpu` : int, optional, default = 2
-             Queue size for CPU stage.
-        `gpu` : int, optional, default = 2
-             Queue size for GPU stage.
-        """
-        if self._built:
-            raise RuntimeError("Alterations to the pipeline after "
-                "\"build()\" has been called are not allowed - cannot set queue sizes.")
-        if not self._exec_separated:
-            raise RuntimeError("Setting queue sizes for non-separated execution is not allowed")
-        self._cpu_queue_size = cpu_queue_size
-        self._gpu_queue_size = gpu_queue_size
 
     def build(self):
         """Build the pipeline.
@@ -432,7 +400,6 @@ class Pipeline(object):
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams)
-
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._prepared = True

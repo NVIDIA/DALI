@@ -87,7 +87,6 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const 
   Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
   constexpr auto stages_count = static_cast<int>(OpType::COUNT);
   stage_outputs_.resize(stages_count);
-  // stage_output_events_.resize(stages_count);
   for (int stage = 0; stage < stages_count; stage++) {
     stage_outputs_[stage] = graph.GetStageOutputs(static_cast<OpType>(stage));
   }
