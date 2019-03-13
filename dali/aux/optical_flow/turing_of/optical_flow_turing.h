@@ -15,7 +15,7 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 #define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 
-#include <host_defines.h>
+#include <cuda_runtime.h>
 #include "dali/common.h"
 
 namespace dali {
