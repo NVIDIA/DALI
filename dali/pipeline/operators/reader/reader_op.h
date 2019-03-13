@@ -62,7 +62,8 @@ class DataReader : public Operator<Backend> {
     StopPrefetchThread();
     for (auto &batch : prefetched_batch_queue_) {
       for (auto &sample : batch) {
-        if (sample) loader_->ReturnTensor(sample);
+        if (sample)
+          loader_->ReturnTensor(sample);
       }
     }
   }
@@ -161,15 +162,20 @@ class DataReader : public Operator<Backend> {
 
  protected:
   void ProducerStop(std::exception_ptr error = nullptr) {
-    std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
-    finished_ = true;
-    if (error) prefetch_error_ = error;
+    {
+      std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
+      finished_ = true;
+      if (error)
+        prefetch_error_ = error;
+    }
     consumer_.notify_all();
   }
 
   void ProducerAdvanceQueue() {
-    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-    AdvanceIndex(curr_batch_producer_, producer_cycle_);
+    {
+      std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
+      AdvanceIndex(curr_batch_producer_, producer_cycle_);
+    }
     consumer_.notify_all();
   }
 
@@ -187,8 +193,10 @@ class DataReader : public Operator<Backend> {
   }
 
   void ConsumerAdvanceQueue() {
-    std::unique_lock<std::mutex> lock(prefetch_access_mutex_);
-    AdvanceIndex(curr_batch_consumer_, consumer_cycle_);
+    {
+      std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
+      AdvanceIndex(curr_batch_consumer_, consumer_cycle_);
+    }
     producer_.notify_one();
   }
 
