@@ -50,7 +50,7 @@ class DataReader : public Operator<Backend> {
   inline explicit DataReader(const OpSpec& spec)
       : Operator<Backend>(spec),
         finished_(false),
-        prefetch_queue_depth_(spec.GetArgument<int>("prefeth_queue_depth")),
+        prefetch_queue_depth_(spec.GetArgument<int>("prefetch_queue_depth")),
         prefetched_batch_queue_(prefetch_queue_depth_),
         curr_batch_consumer_(0),
         curr_batch_producer_(0),

@@ -36,7 +36,7 @@ accuracy in some cases)code", false)
       R"code(Whether accessed data should be read ahead. In case of big files like LMDB,
 RecordIO or TFRecord it will slow down first access but will decrease the time of all following
 accesses.)code", false)
-  .AddOptionalArg("prefeth_queue_depth",
+  .AddOptionalArg("prefetch_queue_depth",
       R"code(Specifies the number of batches prefetched by the internal Loader. To be increased when pipeline
 processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1);
 
