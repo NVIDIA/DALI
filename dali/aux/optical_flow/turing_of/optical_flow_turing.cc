@@ -19,6 +19,22 @@
 namespace dali {
 namespace optical_flow {
 
+namespace {
+
+void VerifySupport(NV_OF_STATUS status) {
+  switch(status) {
+    case NV_OF_SUCCESS:
+      return;
+    case NV_OF_ERR_OF_NOT_AVAILABLE:
+    case NV_OF_ERR_UNSUPPORTED_DEVICE:
+      throw unsupported_exception();
+    default:
+      DALI_FAIL("Optical flow failed, code: " + std::to_string(status));
+  }
+}
+
+}  // namespace
+
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
                                      size_t height, size_t channels) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
@@ -38,7 +54,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
 
   TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(ctx, &of_handle_));
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
-  TURING_OF_API_CALL(turing_of_.nvOFInit(of_handle_, &of_params_));
+  VerifySupport(turing_of_.nvOFInit(of_handle_, &of_params_));
 
   inbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,

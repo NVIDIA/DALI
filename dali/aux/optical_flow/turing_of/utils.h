@@ -15,6 +15,8 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
 #define DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
 
+#include <third_party/turing_of/nvOpticalFlowCommon.h>
+
 #define TURING_OF_API_CALL(nvOFAPI)                                                  \
     do                                                                               \
     {                                                                                \

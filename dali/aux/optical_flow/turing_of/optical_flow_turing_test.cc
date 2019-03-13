@@ -169,9 +169,13 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
 
   OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false};
-  OpticalFlowTuring of(params, width, height, channels);
-  of.CalcOpticalFlow(tvref, tvin, tvout);
-  CUDA_CALL(cudaDeviceSynchronize());
+  try {
+    OpticalFlowTuring of(params, width, height, channels));
+    of.CalcOpticalFlow(tvref, tvin, tvout);
+    CUDA_CALL(cudaDeviceSynchronize());
+  } catch (unsupported_exception&) {
+    GTEST_SKIP() << "Test skipped due to module unavailability";
+  }
 
   // Read reference data
   ifstream reffile(test_data_path + "decoded_flow_vector.dat");
