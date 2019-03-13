@@ -37,16 +37,15 @@ accuracy in some cases)code", false)
 RecordIO or TFRecord it will slow down first access but will decrease the time of all following
 accesses.)code", false)
   .AddOptionalArg("prefeth_queue_depth",
-      R"code(Specifies the depth of the batches prefetched by the internal Loader. When the pipeline
-is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1);
-
+      R"code(Specifies the number of batches prefetched by the internal Loader. To be increased when pipeline
+processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,
                    const size_t size) {
   const size_t remainder = size % shard_num;
   if (shard_id < remainder) {
-    return (size / shard_num) *shard_id + shard_id;
+    return (size / shard_num) * shard_id + shard_id;
   } else {
     return (size / shard_num) * shard_id + remainder;
   }
