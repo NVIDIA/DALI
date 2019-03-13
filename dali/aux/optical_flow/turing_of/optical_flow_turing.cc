@@ -23,7 +23,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
                                      size_t height, size_t channels) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
         channels_(channels), device_(), context_(), stream_(0, true) {
-//  DALI_ENFORCE(channels_ == 1 || channels_ == 4, "Image can be either ABGR8 or Grayscale8");
+  DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
   int device_id;
