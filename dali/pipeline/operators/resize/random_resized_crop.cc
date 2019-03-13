@@ -28,18 +28,11 @@ DALI_SCHEMA(RandomResizedCrop)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddOptionalArg("interp_type",
-      R"code(Type of interpolation used. Use `min_filter` and `mag_filter` to specify
-      different filtering for downscaling and upscaling.)code",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("mag_filter", "Filter used when scaling up",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("min_filter", "Filter used when scaling down",
-      DALI_INTERP_TRIANGULAR)
   .AddArg("size",
       R"code(Size of resized image.)code",
       DALI_INT_VEC)
   .AddParent("RandomCropAttr")
+  .AddParent("ResamplingFilterAttr")
   .EnforceInputLayout(DALI_NHWC);
 
 template<>

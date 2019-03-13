@@ -33,7 +33,9 @@ DALI_SCHEMA(ResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .AddParent("Crop")
+  .AddOptionalArg("interp_type",  // TODO(michalz): Replace with ResamplingFilterAttr when ready
+      R"code(Type of interpolation used.)code",
+      DALI_INTERP_LINEAR)  .AddParent("Crop")
   .AddParent("ResizeCropMirrorAttr")
   .EnforceInputLayout(DALI_NHWC);
 

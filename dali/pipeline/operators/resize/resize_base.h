@@ -25,13 +25,18 @@
 
 namespace dali {
 
-class ResizeBase {
+class DLL_PUBLIC ResamplingFilterAttr {
  public:
-  DLL_PUBLIC static void GetResamplingFilters(
-      kernels::FilterDesc &min_filter,
-      kernels::FilterDesc &mag_filter,
-      const OpSpec &spec);
+  DLL_PUBLIC ResamplingFilterAttr(const OpSpec &spec);
 
+  /// Filter used when downscaling
+  kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
+  /// Filter used when upscaling
+  kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
+};
+
+class DLL_PUBLIC ResizeBase {
+ public:
   struct KernelData {
     kernels::KernelContext context;
     kernels::KernelRequirements requirements;

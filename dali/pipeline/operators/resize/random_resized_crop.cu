@@ -24,7 +24,7 @@ namespace dali {
 
 template<>
 void RandomResizedCrop<GPUBackend>::BackendInit() {
-  kernel_data_.resize(1);
+  InitializeGPU();
 }
 
 template<>

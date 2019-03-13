@@ -47,17 +47,16 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
 };
 
 template <typename Backend>
-class Resize : public Operator<Backend>, protected ResizeAttr, protected ResizeBase {
+class Resize : public Operator<Backend>
+             , protected ResizeBase
+             , protected ResizeAttr
+             , protected ResamplingFilterAttr {
  public:
   explicit Resize(const OpSpec &spec);
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
-
-  void SetupResamplingParams() {
-    GetResamplingFilters(min_filter_, mag_filter_, spec_);
-  }
 
   kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
     kernels::ResamplingParams2D params;
@@ -67,9 +66,6 @@ class Resize : public Operator<Backend>, protected ResizeAttr, protected ResizeB
     params[0].mag_filter = params[1].mag_filter = mag_filter_;
     return params;
   }
-
-  kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
-  kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
 
   USE_OPERATOR_MEMBERS();
   bool save_attrs_;

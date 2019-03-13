@@ -36,9 +36,18 @@ inline kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
 #undef DALI_MAP_INTERP_TO_RESAMPLE
 }
 
-void ResizeBase::GetResamplingFilters(kernels::FilterDesc &min_filter,
-                                      kernels::FilterDesc &mag_filter,
-                                      const OpSpec &spec) {
+DALI_SCHEMA(ResamplingFilterAttr)
+  .DocStr(R"code(Resampling filter attribute placeholder)code")
+  .AddOptionalArg("interp_type",
+      R"code(Type of interpolation used. Use `min_filter` and `mag_filter` to specify
+      different filtering for downscaling and upscaling.)code",
+      DALI_INTERP_LINEAR)
+  .AddOptionalArg("mag_filter", "Filter used when scaling up",
+      DALI_INTERP_LINEAR)
+  .AddOptionalArg("min_filter", "Filter used when scaling down",
+      DALI_INTERP_TRIANGULAR);
+
+ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
   DALIInterpType interp_min = DALIInterpType::DALI_INTERP_TRIANGULAR;
   DALIInterpType interp_mag = DALIInterpType::DALI_INTERP_LINEAR;
 
@@ -52,8 +61,8 @@ void ResizeBase::GetResamplingFilters(kernels::FilterDesc &min_filter,
   else if (spec.HasArgument("interp_type"))
     interp_mag = spec.GetArgument<DALIInterpType>("interp_type");
 
-  min_filter = { interp2resample(interp_min), 0 };
-  mag_filter = { interp2resample(interp_mag), 0 };
+  min_filter_ = { interp2resample(interp_min), 0 };
+  mag_filter_ = { interp2resample(interp_mag), 0 };
 }
 
 void ResizeBase::RunGPU(TensorList<GPUBackend> &output,

@@ -24,14 +24,16 @@
 namespace dali {
 
 template<>
-Resize<GPUBackend>::Resize(const OpSpec &spec) : Operator<GPUBackend>(spec), ResizeAttr(spec) {
+Resize<GPUBackend>::Resize(const OpSpec &spec)
+    : Operator<GPUBackend>(spec)
+    , ResizeAttr(spec)
+    , ResamplingFilterAttr(spec) {
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
   ResizeAttr::SetBatchSize(batch_size_);
   InitializeGPU();
   resample_params_.resize(batch_size_);
-  SetupResamplingParams();
 }
 
 template<>
@@ -51,7 +53,6 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
     per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
     resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
   }
-  SetupResamplingParams();
 }
 
 template<>

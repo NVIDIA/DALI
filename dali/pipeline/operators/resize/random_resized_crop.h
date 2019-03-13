@@ -30,10 +30,13 @@
 namespace dali {
 
 template <typename Backend>
-class RandomResizedCrop : public Operator<Backend>, protected ResizeBase {
+class RandomResizedCrop : public Operator<Backend>
+                        , protected ResizeBase
+                        , protected ResamplingFilterAttr {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
+      , ResamplingFilterAttr(spec)
       , num_attempts_(spec.GetArgument<int>("num_attempts"))
       , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, &size_, "size", 2);
@@ -107,13 +110,10 @@ class RandomResizedCrop : public Operator<Backend>, protected ResizeBase {
         { area_range_[0], area_range_[1] },
         num_attempts_);
 
-    kernels::FilterDesc min_filter, mag_filter;
-    GetResamplingFilters(min_filter, mag_filter, spec);
-
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
-    shared_params_[0].min_filter = shared_params_[1].min_filter = min_filter;
-    shared_params_[0].mag_filter = shared_params_[1].mag_filter = mag_filter;
+    shared_params_[0].min_filter = shared_params_[1].min_filter = min_filter_;
+    shared_params_[0].mag_filter = shared_params_[1].mag_filter = mag_filter_;
   }
 
   Params params_;

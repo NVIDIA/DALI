@@ -20,14 +20,6 @@ namespace dali {
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("image_type",
         R"code(The color space of input and output image.)code", DALI_RGB)
-  .AddOptionalArg("interp_type",
-      R"code(Type of interpolation used. Use `min_filter` and `mag_filter` to specify
-      different filtering for downscaling and upscaling.)code",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("mag_filter", "Filter used when scaling up",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("min_filter", "Filter used when scaling down",
-      DALI_INTERP_TRIANGULAR)
   .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
       "This option is mutually exclusive with `resize_shorter`. "
       "If the `resize_y` is left at 0, then the op will keep "
@@ -54,10 +46,14 @@ DALI_SCHEMA(Resize)
   .AllowMultipleInputSets()
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
-  .AddParent("ResizeAttr");
+  .AddParent("ResizeAttr")
+  .AddParent("ResamplingFilterAttr");
 
 template<>
-Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), ResizeAttr(spec) {
+Resize<CPUBackend>::Resize(const OpSpec &spec)
+    : Operator<CPUBackend>(spec)
+    , ResizeAttr(spec)
+    , ResamplingFilterAttr(spec) {
   per_sample_meta_.resize(num_threads_);
   resample_params_.resize(num_threads_);
   out_shape_.resize(num_threads_);
@@ -65,8 +61,6 @@ Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), Res
 
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
-
-  SetupResamplingParams();
 }
 
 template <>
