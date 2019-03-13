@@ -124,6 +124,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       "\"Build()\" has been called are not allowed");
 
   // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
+#ifdef NVJPEG_DECOUPLED_API
   auto operator_name = spec.name();
   if (has_prefix(operator_name, "nvJPEGDecoder") &&
       operator_name.find("CPUStage") == std::string::npos &&
@@ -132,6 +133,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     AddSplitNvJPEGDecoder(spec, inst_name);
     return;
   }
+#endif
 
   // Validate op device
   string device = spec.GetArgument<string>("device");
