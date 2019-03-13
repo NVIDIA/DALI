@@ -15,8 +15,8 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
 #define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
 
-#include <third_party/turing_of/nvOpticalFlowCuda.h>
 #include <sstream>
+#include "third_party/turing_of/nvOpticalFlowCuda.h"
 #include "dali/error_handling.h"
 #include "dali/aux/optical_flow/turing_of/utils.h"
 

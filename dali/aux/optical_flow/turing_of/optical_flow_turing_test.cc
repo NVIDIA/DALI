@@ -12,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/util/cuda_utils.h>
-#include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
-#include <dali/kernels/alloc.h>
-#include <dali/kernels/test/mat2tensor.h>
-#include <dali/kernels/common/copy.h>
-#include <dali/test/dali_test_config.h>
 #include <opencv2/opencv.hpp>
 #include <gtest/gtest.h>
 #include <fstream>
@@ -25,6 +19,12 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include "dali/util/cuda_utils.h"
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/kernels/alloc.h"
+#include "dali/kernels/test/mat2tensor.h"
+#include "dali/kernels/common/copy.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace optical_flow {
@@ -169,13 +169,13 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
 
   OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false};
-  try {
-    OpticalFlowTuring of(params, width, height, channels));
+//  try {
+    OpticalFlowTuring of(params, width, height, channels);
     of.CalcOpticalFlow(tvref, tvin, tvout);
     CUDA_CALL(cudaDeviceSynchronize());
-  } catch (unsupported_exception&) {
-    GTEST_SKIP() << "Test skipped due to module unavailability";
-  }
+//  } catch (unsupported_exception&) {
+//    GTEST_SKIP() << "Test skipped due to module unavailability";
+//  }
 
   // Read reference data
   ifstream reffile(test_data_path + "decoded_flow_vector.dat");

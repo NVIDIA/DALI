@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 #include <dlfcn.h>
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 
 
 namespace dali {
@@ -22,7 +22,7 @@ namespace optical_flow {
 namespace {
 
 void VerifySupport(NV_OF_STATUS status) {
-  switch(status) {
+  switch (status) {
     case NV_OF_SUCCESS:
       return;
     case NV_OF_ERR_OF_NOT_AVAILABLE:
