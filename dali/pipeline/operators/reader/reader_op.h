@@ -122,7 +122,7 @@ class DataReader : public Operator<Backend> {
     // consume sample
     TimeRange tr("DataReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
     Operator<Backend>::Run(ws);
-    auto &sample = prefetched_batch_queue_[curr_batch_consumer_][ws->data_idx()];
+    auto *sample = GetSample(ws->data_idx());
     loader_->ReturnTensor(sample);
     sample = nullptr;
     samples_processed_++;
@@ -199,12 +199,12 @@ class DataReader : public Operator<Backend> {
 
   bool IsPrefetchQueueEmpty() {
     return curr_batch_producer_ == curr_batch_consumer_
-        && consumer_cycle_ == producer_cycle_;
+           && consumer_cycle_ == producer_cycle_;
   }
 
   bool IsPrefetchQueueFull() {
     return curr_batch_producer_ == curr_batch_consumer_
-        && consumer_cycle_ != producer_cycle_;
+           && consumer_cycle_ != producer_cycle_;
   }
 
   std::thread prefetch_thread_;
