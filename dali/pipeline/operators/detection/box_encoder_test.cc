@@ -740,7 +740,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(BoxEncoderTest, Types);
+TYPED_TEST_SUITE(BoxEncoderTest, Types);
 
 TYPED_TEST(BoxEncoderTest, TestOnCocoObjects) {
   this->RunForCocoCpu(this->anchors_, 0.5f);

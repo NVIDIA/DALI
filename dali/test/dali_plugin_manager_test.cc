@@ -29,7 +29,7 @@ class DummyTest : public ::dali::GenericMatchingTest<ImgType> {
 };
 
 typedef ::testing::Types<::dali::RGB> Types;
-TYPED_TEST_CASE(DummyTest, Types);
+TYPED_TEST_SUITE(DummyTest, Types);
 
 static void LoadDummyPlugin() {
   ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());

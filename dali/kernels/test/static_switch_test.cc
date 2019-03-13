@@ -33,7 +33,7 @@ struct StaticSwitch : testing::Test {};
 }  // namespace
 
 typedef testing::Types<int, float, double> MyTypes;
-TYPED_TEST_CASE(StaticSwitch, MyTypes);
+TYPED_TEST_SUITE(StaticSwitch, MyTypes);
 
 TYPED_TEST(StaticSwitch, TypeSwitch) {
   using T = gtest_TypeParam_;

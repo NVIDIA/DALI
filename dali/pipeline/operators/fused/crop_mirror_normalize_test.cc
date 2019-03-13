@@ -83,7 +83,7 @@ const bool doMirroring = true;
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
 
-TYPED_TEST_CASE(CropMirrorNormalizePermuteTest, Types);
+TYPED_TEST_SUITE(CropMirrorNormalizePermuteTest, Types);
 
 TYPED_TEST(CropMirrorNormalizePermuteTest, DISABLED_MultipleDataGPU) {
   this->RunTestByDevice("gpu", !doMirroring);

@@ -204,7 +204,7 @@ TEST_P(BbFlipTest, LtrbRoisTest) {
   this->RunTest(tlin.get(), tlout, args, BbVerify<ltrb>);
 }
 
-INSTANTIATE_TEST_CASE_P(RoisTest, BbFlipTest,
+INSTANTIATE_TEST_SUITE_P(RoisTest, BbFlipTest,
                         ::testing::ValuesIn(testing::cartesian(devices, arguments)));
 
 }  // namespace testing

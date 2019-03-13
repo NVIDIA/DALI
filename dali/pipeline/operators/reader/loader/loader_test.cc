@@ -36,7 +36,7 @@ class DataLoadStoreTest : public DALITest {
 typedef ::testing::Types<CPUBackend> TestTypes;
 string loader_test_image_folder = "/data/dali/benchmark";  // NOLINT
 
-TYPED_TEST_CASE(DataLoadStoreTest, TestTypes);
+TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
 
 const char* path = std::getenv("DALI_TEST_CAFFE_LMDB_PATH");
 

@@ -30,7 +30,7 @@ class ResizeCropMirrorTest : public GenericResizeTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(ResizeCropMirrorTest, Types);
+TYPED_TEST_SUITE(ResizeCropMirrorTest, Types);
 
 // Note: lower accuracy due to TJPG and OCV implementations for BGR/RGB.
 // Difference is consistent, deterministic and goes away if I force OCV

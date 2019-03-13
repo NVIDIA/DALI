@@ -45,7 +45,7 @@ class nvJpegDecoderRandomCropTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvJpegDecoderRandomCropTest, Types);
+TYPED_TEST_SUITE(nvJpegDecoderRandomCropTest, Types);
 
 TYPED_TEST(nvJpegDecoderRandomCropTest, JpegDecode) {
   this->Run(t_jpegImgType);

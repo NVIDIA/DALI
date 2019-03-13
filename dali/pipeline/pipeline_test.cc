@@ -212,7 +212,7 @@ typedef ::testing::Types<ThreadCount<1>,
                          ThreadCount<2>,
                          ThreadCount<3>,
                          ThreadCount<4>> NumThreads;
-TYPED_TEST_CASE(PipelineTest, NumThreads);
+TYPED_TEST_SUITE(PipelineTest, NumThreads);
 
 TEST_F(PipelineTestOnce, TestInputNotKnown) {
   Pipeline pipe(1, 1, 0);

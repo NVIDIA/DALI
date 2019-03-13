@@ -112,7 +112,7 @@ template <typename T>
 class ElementExtractCPUTest : public ElementExtractTest<CPUBackend, T> {};
 
 typedef ::testing::Types<uint8_t, float> Types;
-TYPED_TEST_CASE(ElementExtractCPUTest, Types);
+TYPED_TEST_SUITE(ElementExtractCPUTest, Types);
 
 TYPED_TEST(ElementExtractCPUTest, ExtractFirstElement) {
     this->Run({0});
@@ -138,7 +138,7 @@ template <typename T>
 class ElementExtractGPUTest : public ElementExtractTest<GPUBackend, T> {};
 
 typedef ::testing::Types<uint8_t, float> Types;
-TYPED_TEST_CASE(ElementExtractGPUTest, Types);
+TYPED_TEST_SUITE(ElementExtractGPUTest, Types);
 
 TYPED_TEST(ElementExtractGPUTest, ExtractFirstElement) {
     this->Run({0});

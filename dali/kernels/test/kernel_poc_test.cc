@@ -74,7 +74,7 @@ using PoC_MAD = ::testing::Types<
   MADKernel<int,   int,   int>
 >;
 
-TYPED_TEST_CASE(KernelPoC_CPU, PoC_MAD);
+TYPED_TEST_SUITE(KernelPoC_CPU, PoC_MAD);
 
 TYPED_TEST(KernelPoC_CPU, All) {
   this->RunImpl();

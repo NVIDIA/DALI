@@ -33,7 +33,7 @@ class SliceTest : public GenericBBoxesTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB> Types;
-TYPED_TEST_CASE(SliceTest, Types);
+TYPED_TEST_SUITE(SliceTest, Types);
 
 TYPED_TEST(SliceTest, RunCPUCheckImageCountMatches) {
   this->outputs_ = this->RunSliceCPU({{"images", &this->images_},

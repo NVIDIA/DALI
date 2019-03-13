@@ -87,7 +87,7 @@ using ExecutorTypes =
     ::testing::Types<SimpleExecutor, PipelinedExecutor, SeparatedPipelinedExecutor,
                      AsyncPipelinedExecutor, AsyncSeparatedPipelinedExecutor>;
 
-TYPED_TEST_CASE(ExecutorTest, ExecutorTypes);
+TYPED_TEST_SUITE(ExecutorTest, ExecutorTypes);
 
 template <typename ExecutorToTest>
 using ExecutorSyncTest = ExecutorTest<ExecutorToTest>;
@@ -95,7 +95,7 @@ using ExecutorSyncTest = ExecutorTest<ExecutorToTest>;
 using ExecutorSyncTypes =
     ::testing::Types<SimpleExecutor, PipelinedExecutor, SeparatedPipelinedExecutor>;
 
-TYPED_TEST_CASE(ExecutorSyncTest, ExecutorSyncTypes);
+TYPED_TEST_SUITE(ExecutorSyncTest, ExecutorSyncTypes);
 
 TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
   auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);

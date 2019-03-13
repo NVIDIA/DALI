@@ -71,7 +71,7 @@ class nvJpegDecoderSplitSliceTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvJpegDecoderSplitSliceTest, Types);
+TYPED_TEST_SUITE(nvJpegDecoderSplitSliceTest, Types);
 
 TYPED_TEST(nvJpegDecoderSplitSliceTest, JpegDecode) {
   this->Run(t_jpegImgType);

@@ -21,7 +21,7 @@ class DisplacementTest : public GenericMatchingTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(DisplacementTest, Types);
+TYPED_TEST_SUITE(DisplacementTest, Types);
 
 TYPED_TEST(DisplacementTest, Sphere) {
   this->RunTest("Sphere");

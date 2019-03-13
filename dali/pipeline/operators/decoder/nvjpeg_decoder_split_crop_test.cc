@@ -40,7 +40,7 @@ class nvJpegDecoderSplitCropTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvJpegDecoderSplitCropTest, Types);
+TYPED_TEST_SUITE(nvJpegDecoderSplitCropTest, Types);
 
 TYPED_TEST(nvJpegDecoderSplitCropTest, JpegDecode) {
   this->Run(t_jpegImgType);

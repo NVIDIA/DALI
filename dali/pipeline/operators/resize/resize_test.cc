@@ -58,7 +58,7 @@ class ResizeTest : public GenericResizeTest<ImgType>  {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(ResizeTest, Types);
+TYPED_TEST_SUITE(ResizeTest, Types);
 
 typedef enum {
   t_ResizeShorter_LINEAR,

@@ -90,7 +90,7 @@ DALI_REGISTER_GPU_DUMMY(DummyDerivedThree, DummyDerivedThree<GPUBackend>);
 
 // For now just test w/ CPU backend
 typedef ::testing::Types<CPUBackend> TestTypes;
-TYPED_TEST_CASE(OperatorFactoryTest, TestTypes);
+TYPED_TEST_SUITE(OperatorFactoryTest, TestTypes);
 
 TYPED_TEST(OperatorFactoryTest, TestRegisterAndConstruct) {
   OperatorRegistry<DummyBase<CPUBackend>> &registry = CPUDummyRegistry::Registry();

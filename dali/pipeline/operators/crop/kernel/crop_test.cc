@@ -88,7 +88,7 @@ using CropTypes =
 template <typename T>
 using BasicCropTest = CropTest<T>;
 
-TYPED_TEST_CASE(BasicCropTest, CropTypes);
+TYPED_TEST_SUITE(BasicCropTest, CropTypes);
 
 TYPED_TEST(BasicCropTest, FlatCrop) {
   std::array<Index, 3> in_shape = {TypeParam::H, TypeParam::W, TypeParam::C};
@@ -110,7 +110,7 @@ using CropSequenceTypes =
 template <typename T>
 using SequenceCropTest = CropTest<T>;
 
-TYPED_TEST_CASE(SequenceCropTest, CropSequenceTypes);
+TYPED_TEST_SUITE(SequenceCropTest, CropSequenceTypes);
 
 TYPED_TEST(SequenceCropTest, SequenceCrop) {
   std::array<Index, 4> in_shape = {TypeParam::S, TypeParam::H, TypeParam::W, TypeParam::C};

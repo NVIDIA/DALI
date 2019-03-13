@@ -68,7 +68,7 @@ using PoC_MAD_GPU = ::testing::Types<
   MADKernelGPU<int,   int,   int>
 >;
 
-TYPED_TEST_CASE(KernelPoC_GPU, PoC_MAD_GPU);
+TYPED_TEST_SUITE(KernelPoC_GPU, PoC_MAD_GPU);
 
 TYPED_TEST(KernelPoC_GPU, All) {
   this->RunImpl();

@@ -149,8 +149,8 @@ static std::vector<ResamplingTestEntry> CropResampleTests = {
 
 
 
-INSTANTIATE_TEST_CASE_P(Basic, ResamplingTestCPU, ::testing::ValuesIn(ResampleTests));
-INSTANTIATE_TEST_CASE_P(Crop , ResamplingTestCPU, ::testing::ValuesIn(CropResampleTests));
+INSTANTIATE_TEST_SUITE_P(Basic, ResamplingTestCPU, ::testing::ValuesIn(ResampleTests));
+INSTANTIATE_TEST_SUITE_P(Crop , ResamplingTestCPU, ::testing::ValuesIn(CropResampleTests));
 
 
 }  // namespace resample_test

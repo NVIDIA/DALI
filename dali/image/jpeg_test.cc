@@ -24,7 +24,7 @@ class JpegDecodeTest : public GenericDecoderTest<ImgType> {
 
 // Run RGB & grayscale tests
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(JpegDecodeTest, Types);
+TYPED_TEST_SUITE(JpegDecodeTest, Types);
 
 TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
   this->RunTestDecode(this->jpegs_);

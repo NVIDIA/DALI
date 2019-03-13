@@ -49,7 +49,7 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_CASE(nvjpegDecodeDecoupledAPITest, Types);
+TYPED_TEST_SUITE(nvjpegDecodeDecoupledAPITest, Types);
 
 
 /***********************************************

@@ -82,7 +82,7 @@ class TensorListTest : public DALITest {
 
 typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
-TYPED_TEST_CASE(TensorListTest, Backends);
+TYPED_TEST_SUITE(TensorListTest, Backends);
 
 // Note: A TensorList in a valid state has a type. To get to a valid state, we
 // can aquire our type relative to the allocation and the size of the buffer

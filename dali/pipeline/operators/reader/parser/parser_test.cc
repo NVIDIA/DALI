@@ -62,7 +62,7 @@ class ParserTest : public DALITest {
 
 typedef ::testing::Types<CPUBackend> TestTypes;
 
-TYPED_TEST_CASE(ParserTest, TestTypes);
+TYPED_TEST_SUITE(ParserTest, TestTypes);
 
 TYPED_TEST(ParserTest, BasicTest) {
   const int H = 64, W = 64, C = 3;

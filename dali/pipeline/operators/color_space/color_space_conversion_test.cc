@@ -29,28 +29,28 @@ template <typename InputImgType>
 class ColorSpaceConversionToYCbCrTest : public GenericConversionTest<InputImgType, YCbCr> {};
 
 typedef ::testing::Types<RGB, Gray, YCbCr> ConvertibleToBGR;
-TYPED_TEST_CASE(ColorSpaceConversionToBGRTest, ConvertibleToBGR);
+TYPED_TEST_SUITE(ColorSpaceConversionToBGRTest, ConvertibleToBGR);
 
 TYPED_TEST(ColorSpaceConversionToBGRTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<BGR, Gray, YCbCr> ConvertibleToRGB;
-TYPED_TEST_CASE(ColorSpaceConversionToRGBTest, ConvertibleToRGB);
+TYPED_TEST_SUITE(ColorSpaceConversionToRGBTest, ConvertibleToRGB);
 
 TYPED_TEST(ColorSpaceConversionToRGBTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<RGB, BGR, YCbCr> ConvertibleToGray;
-TYPED_TEST_CASE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
+TYPED_TEST_SUITE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
 
 TYPED_TEST(ColorSpaceConversionToGrayTest, test) {
   this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
-TYPED_TEST_CASE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
+TYPED_TEST_SUITE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
 
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
   this->RunTest("ColorSpaceConversion");
