@@ -98,8 +98,8 @@ class Pipeline(object):
         self._max_streams = max_streams
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
-            self._cpu_queue_size = prefetch_queue_depth["cpu_queue_size"]
-            self._gpu_queue_size = prefetch_queue_depth["gpu_queue_size"]
+            self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
+            self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
             self._prefetch_queue_depth = self._cpu_queue_size  # dummy value, that will be ignored
         elif type(prefetch_queue_depth) is int:
             self._exec_separated = False
