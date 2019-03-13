@@ -66,10 +66,10 @@ def test_tensor_multiple_uses():
 def test_pipeline_separated_exec_setup():
     batch_size = 128
     class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, prefetch_queue_depth):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
-                                             device_id)
+                                             device_id, prefetch_queue_depth = prefetch_queue_depth)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
