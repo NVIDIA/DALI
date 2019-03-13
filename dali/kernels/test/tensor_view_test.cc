@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <numeric>
 
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/tensor_view.h"

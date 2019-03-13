@@ -37,30 +37,6 @@ class PipelineTest : public DALITest {
     DALITest::DecodeJPEGS(DALI_RGB);
   }
 
-  template<typename T>
-  inline void CompareData(const T *data, const T *ground_truth, int n) {
-    CUDA_CALL(cudaDeviceSynchronize());
-    vector<T> tmp_cpu(n);
-    CUDA_CALL(cudaMemcpy(tmp_cpu.data(), data, sizeof(T) * n, cudaMemcpyDefault));
-
-    vector<double> abs_diff(n, 0);
-    for (int i = 0; i < n; ++i) {
-      abs_diff[i] = std::abs(static_cast<double>(tmp_cpu[i])
-          - static_cast<double>(ground_truth[i]));
-    }
-    double mean, std;
-    DALITest::MeanStdDevColorNorm(abs_diff, &mean, &std);
-
-#ifndef NDEBUG
-    cout << "num: " << abs_diff.size() << endl;
-    cout << "mean: " << mean << endl;
-    cout << "std: " << std << endl;
-#endif
-
-    ASSERT_LT(mean, 0.000001);
-    ASSERT_LT(std, 0.000001);
-  }
-
   void RunTestEnforce(const string &dev1, const string &dev2) {
     Pipeline pipe(1, 1, 0);
 
@@ -311,113 +287,182 @@ TYPED_TEST(PipelineTest, TestSerialization) {
             original_graph.NumOp(OpType::GPU));
 }
 
-/*
-TYPED_TEST(PipelineTest, TestSinglePrefetchOp) {
-  int num_thread = TypeParam::nt;
-  int batch_size = this->jpegs_.size();
-  cudaStream_t stream;
-  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-
-  Pipeline pipe(batch_size, num_thread, stream, 0, true);
-
-  // Add an external source
-
-  // Add a single prefetch op
-  pipe.AddTransform(OpSpec("Copy")
-      .AddArg("stage", "Prefetch"));
-
-  // Build the pipeline
-  pipe.Build();
-
-  // Run the pipeline
-  for (int i = 0; i < 5; ++i) {
-    pipe.RunPrefetch();
-    pipe.RunCopy();
-    pipe.RunForward();
-
-    CUDA_CALL(cudaStreamSynchronize(stream));
-
-    // Verify the results
-    this->CompareData(
-        pipe.output_batch().template data<uint8>(),
-        batch->template data<uint8>(),
-        batch->size());
+class DummyPresizeOpCPU : public Operator<CPUBackend> {
+ public:
+  explicit DummyPresizeOpCPU(const OpSpec &spec)
+      : Operator<CPUBackend>(spec) {
   }
-}
 
-TYPED_TEST(PipelineTest, TestNoOps) {
-  int num_thread = TypeParam::nt;
-
-  int batch_size = this->jpegs_.size();
-  Pipeline pipe(batch_size, num_thread, 0, 0, true);
-
-  Batch<CPUBackend> *batch =
-    CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
-
-
-  // Add a data reader
-  pipe.AddDataReader(
-      OpSpec("BatchDataReader")
-      .AddArg("jpeg_folder", image_folder)
-      );
-
-  // Build the pipeline
-  pipe.Build();
-
-  // Run the pipeline
-  for (int i = 0; i < 5; ++i) {
-    pipe.RunPrefetch();
-    pipe.RunCopy();
-    pipe.RunForward();
-
-    CUDA_CALL(cudaStreamSynchronize(0));
-
-    // Verify the results
-    this->CompareData(
-        pipe.output_batch().template data<uint8>(),
-        batch->template data<uint8>(),
-        batch->size());
+  void RunImpl(Workspace<CPUBackend>* ws, int idx) override {
+    auto &input = ws->Input<CPUBackend>(idx);
+    auto &output = ws->Output<CPUBackend>(idx);
+    auto tmp_size = output.capacity();
+    output.mutable_data<size_t>();
+    output.Resize({2});
+    auto out = output.mutable_data<size_t>();
+    out[0] = tmp_size;
+    out[1] = input.capacity();
   }
-}
+};
 
-TYPED_TEST(PipelineTest, TestSingleForwardOp) {
-  int num_thread = TypeParam::nt;
-
-  int batch_size = this->jpegs_.size();
-  Pipeline pipe(batch_size, num_thread, 0, 0, true);
-
-  Batch<CPUBackend> *batch =
-    CreateJPEGBatch<CPUBackend>(this->jpegs_, this->jpeg_sizes_, batch_size);
-
-  // Add a data reader
-  pipe.AddDataReader(
-      OpSpec("BatchDataReader")
-      .AddArg("jpeg_folder", image_folder)
-      );
-
-  // Add a single op to the forward stage
-  pipe.AddTransform(OpSpec("Copy")
-      .AddArg("stage", "Forward")
-      );
-
-  // Build the pipeline
-  pipe.Build();
-
-  // Run the pipeline
-  for (int i = 0; i < 5; ++i) {
-    pipe.RunPrefetch();
-    pipe.RunCopy();
-    pipe.RunForward();
-
-    // Verify the results
-    CUDA_CALL(cudaStreamSynchronize(0));
-    this->CompareData(
-        pipe.output_batch().template data<uint8>(),
-        batch->template data<uint8>(),
-        batch->size());
+class DummyPresizeOpGPU : public Operator<GPUBackend> {
+ public:
+  explicit DummyPresizeOpGPU(const OpSpec &spec)
+      : Operator<GPUBackend>(spec) {
   }
+
+  void RunImpl(Workspace<GPUBackend>* ws, int idx) override {
+    auto &input = ws->Input<GPUBackend>(0);
+    auto &output = ws->Output<GPUBackend>(0);
+    output.mutable_data<size_t>();
+    size_t tmp_size[2] = {output.capacity(), input.capacity()};
+    std::vector< std::vector<Index> > shape {{1}};
+    output.Resize(shape);
+    auto out = output.mutable_data<size_t>();
+    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+  }
+};
+
+class DummyPresizeOpMixed : public Operator<MixedBackend> {
+ public:
+  explicit DummyPresizeOpMixed(const OpSpec &spec)
+      : Operator<MixedBackend>(spec) {
+  }
+
+  using Operator<MixedBackend>::Run;
+  void Run(MixedWorkspace* ws) override {
+    auto &input = ws->Input<CPUBackend>(0, 0);
+    auto &output = ws->Output<GPUBackend>(0);
+    output.mutable_data<size_t>();
+    size_t tmp_size[2] = {output.capacity(), input.capacity()};
+    std::vector< std::vector<Index> > shape {{1}};
+    output.Resize(shape);
+    auto out = output.mutable_data<size_t>();
+    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+  }
+};
+
+DALI_REGISTER_OPERATOR(DummyPresizeOp, DummyPresizeOpCPU, CPU);
+DALI_REGISTER_OPERATOR(DummyPresizeOp, DummyPresizeOpGPU, GPU);
+DALI_REGISTER_OPERATOR(DummyPresizeOp, DummyPresizeOpMixed, Mixed);
+
+DALI_SCHEMA(DummyPresizeOp)
+  .DocStr("Dummy")
+  .NumInput(1)
+  .NumOutput(1);
+
+TEST_F(PipelineTestOnce, TestPresize) {
+  const int batch_size = 1;
+  const int num_thread = 1;
+  const bool pipelined = true;
+  const bool async =  true;
+  DALIImageType img_type = DALI_RGB;
+
+  const int presize_val_CPU = 11;
+  const int presize_val_Mixed = 157;
+  const int presize_val_GPU = 971;
+  const int presize_val_default = 55;
+
+  // Create the pipeline
+  Pipeline pipe(
+      batch_size,
+      num_thread,
+      0, -1, pipelined, 3,
+      async,
+      presize_val_default);
+
+  TensorList<CPUBackend> data;
+  this->MakeJPEGBatch(&data, batch_size);
+  pipe.AddExternalInput("raw_jpegs");
+  pipe.SetExternalInput("raw_jpegs", data);
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "cpu")
+      .AddArg("bytes_per_sample_hint", presize_val_CPU)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("out_1", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "cpu")
+      .AddArg("bytes_per_sample_hint", presize_val_CPU)
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("out_2", "cpu"));
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "mixed")
+      .AddArg("bytes_per_sample_hint", presize_val_Mixed)
+      .AddInput("out_2", "cpu")
+      .AddOutput("out_3", "gpu"));
+
+  pipe.AddOperator(
+      OpSpec("MakeContiguous")
+      .AddArg("device", "mixed")
+      .AddInput("out_2", "cpu")
+      .AddOutput("out_4", "gpu"));
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "gpu")
+      .AddArg("bytes_per_sample_hint", presize_val_GPU)
+      .AddInput("out_4", "gpu")
+      .AddOutput("out_5", "gpu"));
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "gpu")
+      .AddArg("bytes_per_sample_hint", presize_val_GPU)
+      .AddInput("out_4", "gpu")
+      .AddOutput("out_6", "gpu"));
+
+  pipe.AddOperator(
+      OpSpec("DummyPresizeOp")
+      .AddArg("device", "gpu")
+      .AddInput("out_4", "gpu")
+      .AddOutput("out_7", "gpu"));
+
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"out_1", "cpu"}, {"out_2", "cpu"},
+                                               {"out_3", "gpu"}, {"out_5", "gpu"},
+                                               {"out_6", "gpu"}, {"out_7", "gpu"}};
+
+  pipe.Build(outputs);
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  // we should not presize CPU buffers if they are not pined
+  ASSERT_EQ(*(ws.Output<CPUBackend>(0).data<size_t>()), 0);
+
+  ASSERT_EQ(*(ws.Output<CPUBackend>(1).data<size_t>()), presize_val_CPU);
+
+  size_t tmp[2];
+  CUDA_CALL(cudaDeviceSynchronize());
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).mutable_data<size_t>(),
+            sizeof(size_t) * 2, cudaMemcpyDefault));
+  ASSERT_EQ(tmp[0], presize_val_Mixed);
+  ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
+
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).mutable_data<size_t>(),
+            sizeof(size_t) * 2, cudaMemcpyDefault));
+  ASSERT_EQ(tmp[0], presize_val_GPU);
+  ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
+
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(4).mutable_data<size_t>(),
+            sizeof(size_t) * 2, cudaMemcpyDefault));
+  ASSERT_EQ(tmp[0], presize_val_GPU);
+  ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
+
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(5).mutable_data<size_t>(),
+            sizeof(size_t) * 2, cudaMemcpyDefault));
+  ASSERT_EQ(tmp[0], presize_val_default);
+  ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 }
-*/
 
 TYPED_TEST(PipelineTest, TestSeedSet) {
   int num_thread = TypeParam::nt;
