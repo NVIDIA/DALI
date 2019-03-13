@@ -30,7 +30,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   void RunImpl(SampleWorkspace *ws, const int i) override {
     const int idx = ws->data_idx();
 
-    auto* image_label = prefetched_batch_[idx];
+    auto* image_label = GetSample(idx);
 
     // copy from raw_data -> outputs directly
     auto &image_output = ws->Output<CPUBackend>(0);
