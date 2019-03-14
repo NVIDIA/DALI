@@ -94,7 +94,7 @@ TYPED_TEST_SUITE(OperatorFactoryTest, TestTypes);
 
 TYPED_TEST(OperatorFactoryTest, TestRegisterAndConstruct) {
   OperatorRegistry<DummyBase<CPUBackend>> &registry = CPUDummyRegistry::Registry();
-  vector<string> names = registry.RegisteredNames();
+  vector<string> names = registry.RegisteredNames(true);
   vector<string> val_names = {"DummyDerivedOne",
                               "DummyDerivedTwo",
                               "DummyDerivedThree"};

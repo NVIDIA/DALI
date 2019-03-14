@@ -418,33 +418,15 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 }
 
-static void FilterInternalOps(vector<string>& op_names) {
-  for (auto it = op_names.begin(); it != op_names.end();) {
-    auto& schema = SchemaRegistry::GetSchema(*it);
-    if (schema.IsInternal()) {
-      op_names.erase(it);
-    } else {
-      it++;
-    }
-  }
-}
-
-#define GetRegisteredOpsFor(OPTYPE)                                                  \
-static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) {       \
-  vector<string> op_names = OPTYPE##OperatorRegistry::Registry().RegisteredNames(); \
-  if (!internal_ops) {                                                              \
-    FilterInternalOps(op_names);                                                    \
-  }                                                                                 \
-  return op_names;                                                                  \
+#define GetRegisteredOpsFor(OPTYPE)                                           \
+static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) { \
+  return OPTYPE##OperatorRegistry::Registry().RegisteredNames(internal_ops);  \
 }
 GetRegisteredOpsFor(CPU)
 GetRegisteredOpsFor(GPU)
 GetRegisteredOpsFor(Mixed)
+GetRegisteredOpsFor(Support)
 #undef GetRegisteredOpsFor
-
-static vector<string> GetRegisteredSupportOps() {
-  return SupportOperatorRegistry::Registry().RegisteredNames();
-}
 
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
@@ -762,7 +744,7 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps, py::arg("internal_ops") = false);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps, py::arg("internal_ops") = false);
   m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
-  m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
+  m.def("RegisteredSupportOps", &GetRegisteredSupportOps, py::arg("internal_ops") = false);
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
