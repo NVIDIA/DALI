@@ -1,16 +1,25 @@
 from nvidia.dali import backend as b
+from nvidia.dali import ops
 import sys
 
 def main(argv):
     cpu_ops = set(b.RegisteredCPUOps())
     if '_TFRecordReader' in cpu_ops:
-        cpu_ops.remove('_TFRecordReader')
         cpu_ops.add('TFRecordReader')
+        cpu_ops.remove('_TFRecordReader')
     gpu_ops = set(b.RegisteredGPUOps())
     mix_ops = set(b.RegisteredMixedOps())
-    mix_ops.remove('MakeContiguous')
+
     support_ops = set(b.RegisteredSupportOps())
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
+
+    to_remove = set()
+    for bl_op in ops._blacklisted_ops:
+        for elm in cpu_ops.union(mix_ops).union(gpu_ops):
+            if bl_op in elm:
+                to_remove.add(elm)
+    all_ops -= to_remove
+
     link_string = '_'
     op_name_max_len = len(max(all_ops, key=len)) + len(link_string)
     name_bar = op_name_max_len * '='
@@ -21,7 +30,7 @@ def main(argv):
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Support', 'Sequences', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    for op in sorted(all_ops):
+    for op in sorted(all_ops, key=lambda v: str(v).lower()):
         schema = b.GetSchema(op)
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
