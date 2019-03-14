@@ -47,7 +47,7 @@ static constexpr auto frames_used_warning_ratio = 3.0f;
 static constexpr auto frames_used_warning_minimum = 1000;
 static constexpr auto frames_used_warning_interval = 10000;
 
-OpenFile& VideoLoader::get_or_open_file(std::string filename) {
+OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
   auto& file = open_files_[filename];
 
   if (!file.open) {
@@ -366,7 +366,7 @@ void VideoLoader::read_file() {
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
     int total_count = 1 + (count - 1) * stride_;
-    auto req = FrameReq{filename, frame, total_count, stride_};
+    auto req = FrameReq{std::move(filename), frame, total_count, stride_};
     // give both reader thread and decoder a copy of what is coming
     send_queue_.push(req);
 }

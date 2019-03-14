@@ -25,8 +25,8 @@ namespace dali {
 
 namespace {
 
-std::string parent_dir(std::string path) {
-  size_t idx = path.rfind("/");
+std::string parent_dir(const std::string &path) {
+  size_t idx = path.rfind('/');
   DALI_ENFORCE(idx != std::string::npos, "NO PARENT DIRECTORY FOR GIVEN PATH");
   return path.substr(0, idx + 1);  // return with trailing "/"
 }
@@ -35,7 +35,7 @@ std::string parent_dir(std::string path) {
 
 namespace filesystem {
 
-std::vector<Stream> GatherExtractedStreams(string file_root) {
+std::vector<Stream> GatherExtractedStreams(const string &file_root) {
   glob_t glob_buff;
   std::string glob_pattern = file_root + "/*/*";
   const int glob_flags = 0;

@@ -31,7 +31,7 @@ std::string ListSupportedExtensions() {
   return ss.str();
 }
 
-bool HasKnownImageExtension(std::string image_path) {
+bool HasKnownImageExtension(const std::string &image_path) {
   std::string path_low{image_path};
   std::transform(path_low.begin(), path_low.end(), path_low.begin(), ::tolower);
   for (const auto &ext : kKnownImageExtensions) {

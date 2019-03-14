@@ -17,8 +17,9 @@
 
 #ifdef DALI_BUILD_PROTO3
 
-#include <vector>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
@@ -44,15 +45,15 @@ class Feature {
 
   Feature(std::vector<Index> shape, FeatureType type, Value val) {
     has_shape_ = true;
-    shape_ = shape;
+    shape_ = std::move(shape);
     type_ = type;
-    val_ = val;
+    val_ = std::move(val);
   }
 
   Feature(FeatureType type, Value val) {
     has_shape_ = false;
     type_ = type;
-    val_ = val;
+    val_ = std::move(val);
   }
 
   FeatureType GetType() const { return type_; }

@@ -44,7 +44,7 @@ class CocoReaderTest : public ::testing::Test {
 
   std::vector<int> CopyIds(DeviceWorkspace &ws) {
     auto &output = ws.Output<dali::CPUBackend>(3);
-    auto shape = output.shape();
+    const auto &shape = output.shape();
 
     vector<int> ids(shape.size());
 
@@ -59,8 +59,8 @@ class CocoReaderTest : public ::testing::Test {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
 
-    const auto boxes_shape = boxes_output.shape();
-    const auto labels_shape = labels_output.shape();
+    const auto &boxes_shape = boxes_output.shape();
+    const auto &labels_shape = labels_output.shape();
 
     ASSERT_EQ(labels_shape.size(), SmallCocoSize());
     ASSERT_EQ(boxes_shape.size(), SmallCocoSize());

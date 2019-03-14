@@ -281,7 +281,7 @@ auto to_string(const T& t) -> decltype(t.ToString()) {
 template <typename T>
 std::string to_string(const std::vector<T>& v) {
   std::string ret = "[";
-  for (T t : v) {
+  for (const T &t : v) {
     ret += to_string(t);
     ret += ", ";
   }

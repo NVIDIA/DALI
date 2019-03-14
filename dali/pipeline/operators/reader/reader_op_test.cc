@@ -32,7 +32,7 @@ namespace dali {
 
 class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit DummyLoader(const OpSpec& spec, std::string dummyfile = "") :
+  explicit DummyLoader(const OpSpec& spec, const std::string &dummyfile = "") :
     Loader<CPUBackend, Tensor<CPUBackend>>(spec),
     dummyfile_(dummyfile) {}
 
