@@ -418,17 +418,29 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 }
 
-static vector<string> GetRegisteredCPUOps() {
-  return CPUOperatorRegistry::Registry().RegisteredNames();
+static void FilterInternalOps(vector<string>& op_names) {
+  for (auto it = op_names.begin(); it != op_names.end();) {
+    auto& schema = SchemaRegistry::GetSchema(*it);
+    if (schema.IsInternal()) {
+      op_names.erase(it);
+    } else {
+      it++;
+    }
+  }
 }
 
-static vector<string> GetRegisteredGPUOps() {
-  return GPUOperatorRegistry::Registry().RegisteredNames();
+#define GetRegistredOpsFor(OPTYPE)                                                  \
+static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) {       \
+  vector<string> op_names = OPTYPE##OperatorRegistry::Registry().RegisteredNames(); \
+  if (!internal_ops) {                                                              \
+    FilterInternalOps(op_names);                                                    \
+  }                                                                                 \
+  return op_names;                                                                  \
 }
-
-static vector<string> GetRegisteredMixedOps() {
-  return MixedOperatorRegistry::Registry().RegisteredNames();
-}
+GetRegistredOpsFor(CPU)
+GetRegistredOpsFor(GPU)
+GetRegistredOpsFor(Mixed)
+#undef GetRegistredOpsFor
 
 static vector<string> GetRegisteredSupportOps() {
   return SupportOperatorRegistry::Registry().RegisteredNames();
@@ -747,9 +759,9 @@ PYBIND11_MODULE(backend_impl, m) {
         }, py::return_value_policy::take_ownership);
 
   // Registries for cpu, gpu & mixed operators
-  m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
-  m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
-  m.def("RegisteredMixedOps", &GetRegisteredMixedOps);
+  m.def("RegisteredCPUOps", &GetRegisteredCPUOps, py::arg("internal_ops") = false);
+  m.def("RegisteredGPUOps", &GetRegisteredGPUOps, py::arg("internal_ops") = false);
+  m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
   m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
 
   // Registry for OpSchema
