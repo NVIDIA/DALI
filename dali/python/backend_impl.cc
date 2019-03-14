@@ -429,7 +429,7 @@ static void FilterInternalOps(vector<string>& op_names) {
   }
 }
 
-#define GetRegistredOpsFor(OPTYPE)                                                  \
+#define GetRegisteredOpsFor(OPTYPE)                                                  \
 static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) {       \
   vector<string> op_names = OPTYPE##OperatorRegistry::Registry().RegisteredNames(); \
   if (!internal_ops) {                                                              \
@@ -437,10 +437,10 @@ static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) {   
   }                                                                                 \
   return op_names;                                                                  \
 }
-GetRegistredOpsFor(CPU)
-GetRegistredOpsFor(GPU)
-GetRegistredOpsFor(Mixed)
-#undef GetRegistredOpsFor
+GetRegisteredOpsFor(CPU)
+GetRegisteredOpsFor(GPU)
+GetRegisteredOpsFor(Mixed)
+#undef GetRegisteredOpsFor
 
 static vector<string> GetRegisteredSupportOps() {
   return SupportOperatorRegistry::Registry().RegisteredNames();
