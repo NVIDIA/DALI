@@ -29,6 +29,7 @@ Partially decode JPEG images using the nvJPEG library, using a random cropping a
 Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(3)
+  .InternalOp()
   .AddParent("nvJPEGDecoderCPUStage")
   .AddParent("RandomCropAttr");
 

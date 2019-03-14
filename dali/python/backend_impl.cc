@@ -773,7 +773,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "local_only"_a = false)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
-    .def("AllowsSequences", &OpSchema::AllowsSequences);
+    .def("AllowsSequences", &OpSchema::AllowsSequences)
+    .def("IsInternal", &OpSchema::IsInternal);
 
   ExposeTensor(m);
   ExposeTensorList(m);

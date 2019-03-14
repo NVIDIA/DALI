@@ -21,8 +21,6 @@ from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
-_blacklisted_ops = set(["MakeContiguous"])
-
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
     __cpu_ops.add("TFRecordReader")
@@ -260,7 +258,13 @@ def _load_ops():
                 .union(set(b.RegisteredGPUOps()))
                 .union(set(b.RegisteredMixedOps())))
 
-    _cpugpu_ops -= _blacklisted_ops
+    blacklisted_ops  = set()
+    for op_name in _cpugpu_ops:
+        schema = b.GetSchema(op_name)
+        if schema.IsInternal():
+            blacklisted_ops.add(op_name)
+
+    _cpugpu_ops -= blacklisted_ops
 
     _support_ops = set(b.RegisteredSupportOps())
     for op_name in _cpugpu_ops:

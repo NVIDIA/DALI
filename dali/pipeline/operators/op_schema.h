@@ -45,7 +45,8 @@ class DLL_PUBLIC OpSchema {
     , allow_multiple_input_sets_(false)
     , enforce_layout_(false)
     , allow_sequences_(false)
-    , is_sequence_operator_(false) {
+    , is_sequence_operator_(false)
+    , is_internal_(false) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
@@ -173,6 +174,11 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  DLL_PUBLIC inline OpSchema& InternalOp() {
+    is_internal_ = true;
+    return *this;
+  }
+
   /**
    * @brief Adds a required argument to op with its type
    */
@@ -291,6 +297,10 @@ class DLL_PUBLIC OpSchema {
     return allow_sequences_;
   }
 
+  DLL_PUBLIC inline bool IsInternal() const {
+    return is_internal_;
+  }
+
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
@@ -356,6 +366,8 @@ class DLL_PUBLIC OpSchema {
 
   bool allow_sequences_;
   bool is_sequence_operator_;
+
+  bool is_internal_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
