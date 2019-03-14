@@ -135,9 +135,17 @@ struct TensorShape<DynamicDimensions>
   TensorShape(const std::array<int64_t, N> &s)  // NOLINT
       : Base(typename Base::container_type(s.begin(), s.end())) {}
 
-  template <typename... Ts>
+  template <typename... Ts,
+            typename = typename std::enable_if<
+              all_of<std::is_convertible<Ts, int64_t>::value...>::value>::type>
   TensorShape(int64_t i0, Ts... s)  // NOLINT
       : Base(typename Base::container_type{i0, int64_t{s}...}) {}
+
+  template <typename It,
+            typename = typename std::enable_if<
+              std::is_same<typename std::iterator_traits<It>::value_type, int64_t>::value>::type>
+  TensorShape(It first, It last)
+      : Base(typename Base::container_type{first, last}) {}
 
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;

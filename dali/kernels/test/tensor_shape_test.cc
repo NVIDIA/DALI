@@ -79,6 +79,19 @@ TEST(TensorShapeTest, DefaultDynamicShapeConstructor) {
   ASSERT_EQ(zero_tensor.size(), 0);
 }
 
+TEST(TensorShapeTest, DynamicShapeIteratorRangeConstructor) {
+  std::vector<int64_t> test_shape = {1, 2, 3, 4, 5};
+  TensorShape<DynamicDimensions> a(test_shape[0], test_shape[1], test_shape[2], test_shape[3],
+                                   test_shape[4]);
+  TensorShape<DynamicDimensions> b(test_shape.begin(), test_shape.end());
+  ASSERT_EQ(a.size(), test_shape.size());
+  ASSERT_EQ(b.size(), test_shape.size());
+  for (size_t i = 0; i < test_shape.size(); i++) {
+    EXPECT_EQ(a[i], test_shape[i]);
+    EXPECT_EQ(b[i], test_shape[i]);
+  }
+}
+
 TEST(TensorShapeTest, FromArrayDynamicShapeConstructor) {
   constexpr int test_dim = 5;
   std::array<int64_t, test_dim> test_shape_arr = {1, 2, 3, 4, 5};
