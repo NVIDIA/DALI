@@ -20,11 +20,11 @@
 #include <string>
 #include "dali/util/cucontext.h"
 #include "dali/util/custream.h"
+#include "nvOpticalFlowCuda.h"
+#include "nvOpticalFlowCommon.h"
 #include "dali/common.h"
 #include "dali/aux/optical_flow/optical_flow_adapter.h"
 #include "dali/aux/optical_flow/turing_of/optical_flow_buffer.h"
-#include "third_party/turing_of/nvOpticalFlowCuda.h"
-#include "third_party/turing_of/nvOpticalFlowCommon.h"
 
 namespace dali {
 namespace optical_flow {
