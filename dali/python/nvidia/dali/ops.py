@@ -21,7 +21,13 @@ from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
-_blacklisted_ops = set(["MakeContiguous"])
+_blacklisted_ops = set(
+    ["MakeContiguous",
+    "nvJPEGDecoderCPUStage",
+    "nvJPEGDecoderCPUStageCrop",
+    "nvJPEGDecoderCPUStageSlice",
+    "nvJPEGDecoderCPUStageRandomCrop",
+    "nvJPEGDecoderGPUStage"])
 
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
