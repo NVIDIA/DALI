@@ -55,9 +55,20 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                     GetFormat(output_image_type_)));
       NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
     }
+
+
+    // We allocate the pinned buffers here to alliviate the first run
+    const int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+    buffer_initial_pool_.resize(nbuffers);
+    for (int i = 0; i < nbuffers; i++) {
+        NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &buffer_initial_pool_[i]));
+    }
   }
 
   virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
+    for (auto buffer : buffer_initial_pool_) {
+      NVJPEG_CALL(nvjpegBufferPinnedDestroy(buffer));
+    }
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
@@ -181,8 +192,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_hybrid_state));
       });
 
-      // We want to use nvJPEG default pinned allocator
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &state_p->pinned_buffer));
+      {
+        std::lock_guard<std::mutex> l(pool_mutex_);
+        state_p->pinned_buffer = buffer_initial_pool_.back();
+        buffer_initial_pool_.pop_back();
+      }
+
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_host_,
                                         &state_p->decoder_host_state));
@@ -228,6 +243,10 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
   // TODO(spanev): add huffman hybrid decode
   std::vector<nvjpegDecodeParams_t> decode_params_;
+
+
+  std::vector<nvjpegBufferPinned_t> buffer_initial_pool_;
+  std::mutex pool_mutex_;
 };
 
 }  // namespace dali
