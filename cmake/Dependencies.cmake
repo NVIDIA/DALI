@@ -197,3 +197,9 @@ list(APPEND DALI_LIBS ${FFmpeg_LIBS})
 # Exclude stdlib
 ##################################################################
 list(APPEND DALI_EXCLUDES libsupc++.a;libstdc++.a;libstdc++_nonshared.a;)
+
+
+##################################################################
+# Turing Optical flow API
+##################################################################
+include_directories(${PROJECT_SOURCE_DIR}/third_party/turing_of)

@@ -82,23 +82,24 @@ RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 
 
 void
-RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height) {
+RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+          cudaStream_t stream) {
   constexpr int out_channels = 4;
   DALI_ENFORCE(pitch >= out_channels * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
-  RgbToRgbaKernel<<<grid_dim, block_dim>>>(input, output, pitch, width_px, height);
+  RgbToRgbaKernel<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch, width_px, height);
 }
 
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
-                          size_t height) {
+                          size_t height, cudaStream_t stream) {
   DALI_ENFORCE(pitch >= 2 * sizeof(float) * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(sizeof(float) * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
-  DecodeFlowComponentKernel<<<grid_dim, block_dim>>>
+  DecodeFlowComponentKernel<<<grid_dim, block_dim, 0, stream>>>
           (input, output, pitch, sizeof(int16_t) * width_px, height);
 }
 
