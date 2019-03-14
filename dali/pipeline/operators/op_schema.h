@@ -174,6 +174,9 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  /**
+   * @brief Notes that this operator is internal to DALI backend (and shouldn't be exposed in Python API)
+   */
   DLL_PUBLIC inline OpSchema& InternalOp() {
     is_internal_ = true;
     return *this;
