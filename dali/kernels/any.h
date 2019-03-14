@@ -174,7 +174,7 @@ class any {
       "only copy-constructible types can be stored in 'any'");
     static_assert(std::is_destructible<T>::value,
       "objects stored in 'any' must be destructible");
-    assign<T>(std::move(value));
+    assign<T>(std::forward<T>(value));
   }
 
   void reset() {
