@@ -19,6 +19,21 @@
 
 namespace dali {
 
+// __global__ void
+// SequenceRearrangeKernel(const char *input, float *output, size_t pitch, size_t width_px,
+//                           size_t height) {
+  // size_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  // size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  // if (x >= width_px || y >= height) return;
+  // auto value_in = pitch_xy(input, x, y, pitch);
+  // size_t outidx = x + width_px * y;
+  // output[outidx] = decode_flow_component(value_in);
+// }
+
+
+
+
+
 template <>
 void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
@@ -27,7 +42,7 @@ void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) 
   std::vector<std::vector<Index>> new_list_shape;
   std::vector<Index> list_elements_sizes;
 
-  for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
+  for (size_t tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     // TODO(klecki) not sure if we should allow for different length of sequence
     // and different element sizes in one batch
     auto ith_shape = input.tensor_shape(tensor_idx);
@@ -45,7 +60,7 @@ void SequenceRearrange<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) 
   output.set_type(input.type());
   output.SetLayout(input.GetLayout());
 
-  for (decltype(input.ntensor()) tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
+  for (size_t tensor_idx = 0; tensor_idx < input.ntensor(); tensor_idx++) {
     TypeInfo type = input.type();
     for (int elem = 0; elem < GetSeqLength(new_list_shape[tensor_idx]); elem++) {
       Index element_size = list_elements_sizes[tensor_idx];

@@ -35,7 +35,7 @@ inline std::tuple<std::vector<Index>, Index> GetNewShapeAndElementSize(
                      std::to_string(in_seq_length) +
                      ") for new_order argument, but it is: " + std::to_string(src_idx));
   }
-  Index element_size = Product(in_sample_shape) / GetSeqLength(in_sample_shape);
+  Index element_size = volume(in_sample_shape) / GetSeqLength(in_sample_shape);
 
   const int out_seq_length = new_order.size();
   auto new_sample_shape = in_sample_shape;

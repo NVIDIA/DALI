@@ -26,7 +26,7 @@ namespace {
 
 template <typename T>
 void FillSeq(T* ptr, const std::vector<Index>& shape) {
-  auto element_size = Product(shape) / GetSeqLength(shape);
+  auto element_size = volume(shape) / GetSeqLength(shape);
   for (int i = 0; i < GetSeqLength(shape); i++) {
     auto ith_offset = element_size * i;
     for (int j = 0; j < element_size; j++) {
@@ -110,8 +110,8 @@ std::vector<testing::Arguments> devices = {
 template <typename T>
 void CheckRearrange(const T* ptr, const std::vector<Index>& old_shape,
                     const std::vector<Index>& new_shape, const std::vector<int>& new_order) {
-  auto old_element_size = Product(old_shape) / GetSeqLength(old_shape);
-  auto new_element_size = Product(new_shape) / GetSeqLength(new_shape);
+  auto old_element_size = volume(old_shape) / GetSeqLength(old_shape);
+  auto new_element_size = volume(new_shape) / GetSeqLength(new_shape);
   ASSERT_EQ(old_element_size, new_element_size);
   ASSERT_EQ(new_order.size(), GetSeqLength(new_shape));
   for (int i = 0; i < GetSeqLength(new_shape); i++) {
@@ -152,9 +152,9 @@ TEST_P(SequenceRearrangeInvalidTest, InvalidInputs) {
                std::runtime_error);
 }
 
-INSTANTIATE_TEST_CASE_P(SequenceRearrangeSuite, SequenceRearrangeValidTest,
+INSTANTIATE_TEST_SUITE_P(SequenceRearrangeSuite, SequenceRearrangeValidTest,
                         ::testing::ValuesIn(cartesian(devices, reorders)));
-INSTANTIATE_TEST_CASE_P(SequenceRearrangeSuite, SequenceRearrangeInvalidTest,
+INSTANTIATE_TEST_SUITE_P(SequenceRearrangeSuite, SequenceRearrangeInvalidTest,
                         ::testing::ValuesIn(cartesian(devices, wrong_reorders)));
 
 }  // namespace dali
