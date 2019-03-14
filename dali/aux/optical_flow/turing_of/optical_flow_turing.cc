@@ -36,9 +36,9 @@ void VerifySupport(NV_OF_STATUS status) {
 }  // namespace
 
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
-                                     size_t height, size_t channels) :
+                                     size_t height, size_t channels, cudaStream_t stream) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
-        channels_(channels), device_(), context_(), stream_(0, true) {
+        channels_(channels), device_(), context_(), stream_(stream) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
@@ -82,19 +82,17 @@ void OpticalFlowTuring::CalcOpticalFlow(
         dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
         dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
   kernel::RgbToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
-                    inbuf_->GetStride().x, width_, height_);
+                    inbuf_->GetStride().x, width_, height_, stream_);
   kernel::RgbToRgba(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
-                    refbuf_->GetStride().x, width_, height_);
-  cudaStreamSynchronize(stream_);
+                    refbuf_->GetStride().x, width_, height_, stream_);
 
   auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle());
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
-  cudaStreamSynchronize(stream_);
 
   kernel::DecodeFlowComponents(reinterpret_cast<int16_t *>(outbuf_->GetPtr()), output_image.data,
                                outbuf_->GetStride().x, outbuf_->GetDescriptor().width,
-                               outbuf_->GetDescriptor().height);
+                               outbuf_->GetDescriptor().height, stream_);
 }
 
 
@@ -161,8 +159,7 @@ void OpticalFlowTuring::LoadTuringOpticalFlow(const std::string &library_path) {
   init = (decltype(init)) dlsym(handle, kInitSymbol.c_str());
   DALI_ENFORCE(init, "Failed to find symbol " + kInitSymbol + ": " + std::string(dlerror()));
 
-  auto err = (*init)(NV_OF_API_VERSION, &turing_of_);
-  DALI_ENFORCE(err == NV_OF_SUCCESS, "Error: " + std::to_string(err));
+  TURING_OF_API_CALL((*init)(NV_OF_API_VERSION, &turing_of_));
 }
 
 }  // namespace optical_flow

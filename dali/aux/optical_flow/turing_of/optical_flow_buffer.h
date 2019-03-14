@@ -35,8 +35,9 @@ class OpticalFlowBuffer {
           turing_of_(function_list),
           descriptor_(GenerateBufferDescriptor(width, height, format, usage)) {
     // Buffer alloc
-    TURING_OF_API_CALL(
-            turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_, kBufferType, &handle_));
+    TURING_OF_API_CALL(turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_,
+                                                          NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR,
+                                                          &handle_));
     ptr_ = turing_of_.nvOFGPUBufferGetCUdeviceptr(handle_);
     DALI_ENFORCE(ptr_ != 0, "Invalid pointer");
 
@@ -95,7 +96,6 @@ class OpticalFlowBuffer {
   }
 
 
-  const NV_OF_CUDA_BUFFER_TYPE kBufferType = NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
   NV_OF_BUFFER_DESCRIPTOR descriptor_;
   NvOFGPUBufferHandle handle_;

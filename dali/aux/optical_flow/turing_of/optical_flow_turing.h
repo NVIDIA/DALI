@@ -37,9 +37,11 @@ namespace kernel {
  * @param pitch Stride within output memory layout. In bytes.
  * @param width_px In pixels.
  * @param height
+ * @param stream Stream, in which kernel is called
  */
 DLL_PUBLIC void
-RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height);
+RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+          cudaStream_t stream = 0);
 
 /**
  * Decodes components of flow vector and unstrides memory
@@ -48,10 +50,11 @@ RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, 
  * @param pitch Stride within input memory layout. In bytes.
  * @param width_px In pixels.
  * @param height
+ * @param stream Stream, in which kernel is called
  */
 DLL_PUBLIC void
 DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
-                     size_t height);
+                     size_t height, cudaStream_t stream = 0);
 
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
@@ -62,7 +65,8 @@ inline __host__ __device__ float decode_flow_component(int16_t value) {
 
 class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
  public:
-  OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels);
+  OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
+                    cudaStream_t stream = 0);
 
 
   virtual ~OpticalFlowTuring();
@@ -72,7 +76,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
                        TensorView<StorageBackend, const uint8_t, 3> input_image,
                        TensorView<StorageBackend, float, 3> output_image,
                        TensorView<StorageBackend, const float, 3> external_hints =
-                               TensorView<StorageBackend, const float, 3>()) override;
+                       TensorView<StorageBackend, const float, 3>()) override;
 
 
  private:
@@ -94,7 +98,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   const size_t width_, height_, channels_;
   CUdevice device_;
   dali::CUContext context_;
-  dali::CUStream stream_;
+  cudaStream_t stream_;
   NvOFHandle of_handle_;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
   NV_OF_INIT_PARAMS of_params_;
