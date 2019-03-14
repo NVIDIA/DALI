@@ -72,7 +72,12 @@ OpticalFlowTuring::~OpticalFlowTuring() {
   inbuf_.reset(nullptr);
   refbuf_.reset(nullptr);
   outbuf_.reset(nullptr);
-  TURING_OF_API_CALL(turing_of_.nvOFDestroy(of_handle_));
+  auto err = turing_of_.nvOFDestroy(of_handle_);
+  if (err != NV_OF_SUCCESS) {
+    // Failing to destroy OF leads to significant GPU resource leak,
+    // so we'd rather terminate than live with this
+    std::terminate();
+  }
 }
 
 

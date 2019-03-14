@@ -54,7 +54,12 @@ class OpticalFlowBuffer {
 
 
   ~OpticalFlowBuffer() {
-    TURING_OF_API_CALL(turing_of_.nvOFDestroyGPUBufferCuda(handle_));
+    auto err = turing_of_.nvOFDestroyGPUBufferCuda(handle_);
+    if (err != NV_OF_SUCCESS) {
+      // Failing to destroy GPU CUDA buffer leads to significant memory leak,
+      // thus we'll rather terminate, than live with that memleak.
+      std::terminate();
+    }
   }
 
 
