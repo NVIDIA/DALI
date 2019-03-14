@@ -69,6 +69,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
                         const TensorList<GPUBackend> &input,
                         cudaStream_t stream) {
   output.set_type(input.type());
+  output.SetLayout(DALI_NHWC);
 
   using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
   auto &kdata = GetKernelData();
@@ -111,6 +112,7 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
 
   // Resize the output & run
   output.Resize(out_shape_[thread_idx]);
+  output.SetLayout(DALI_NHWC);
   auto out_view = view<uint8_t, 3>(output);
   Kernel::Run(kdata.context, out_view, in_view, resample_params_[thread_idx]);
 }
