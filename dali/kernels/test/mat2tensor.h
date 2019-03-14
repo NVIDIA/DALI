@@ -19,6 +19,8 @@
 #include <opencv2/core.hpp>
 #include <stdexcept>
 #include "dali/kernels/tensor_view.h"
+#include "dali/kernels/alloc.h"
+#include "dali/kernels/common/copy.h"
 
 namespace dali {
 namespace kernels {
@@ -62,6 +64,30 @@ template <typename T, int ndim = 3>
 TensorView<StorageCPU, T, ndim> view_as_tensor(cv::Mat &mat) {
   enforce_type<T>(mat);
   return { mat.ptr<T>(0), tensor_shape<ndim>(mat) };
+}
+
+
+template<typename T = uint8_t, int ndims = 3>
+std::pair<TensorView<StorageGPU, T, ndims>, memory::KernelUniquePtr<T>>
+view_as_tensor_gpu(const cv::Mat &mat) {
+  auto tvcpu = kernels::view_as_tensor<const T, ndims>(mat);
+  auto mem = kernels::memory::alloc_unique<T>(kernels::AllocType::Unified,
+                                              mat.cols * mat.rows * mat.channels());
+  auto tvgpu = kernels::make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+  kernels::copy(tvgpu, tvcpu);
+  return std::make_pair(tvgpu, std::move(mem));
+}
+
+
+template<typename T = uint8_t, int ndims = 3>
+std::pair<TensorView<StorageGPU, T, ndims>, memory::KernelUniquePtr<T>>
+view_as_tensor_gpu(cv::Mat &mat) {
+  auto tvcpu = kernels::view_as_tensor<T, ndims>(mat);
+  auto mem = kernels::memory::alloc_unique<T>(kernels::AllocType::Unified,
+                                              mat.cols * mat.rows * mat.channels());
+  auto tvgpu = kernels::make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+  kernels::copy(tvgpu, tvcpu);
+  return std::make_pair(tvgpu, std::move(mem));
 }
 
 }  // namespace kernels
