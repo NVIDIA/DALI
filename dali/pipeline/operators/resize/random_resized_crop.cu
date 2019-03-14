@@ -44,6 +44,30 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws->stream());
 
+  /*
+   * workaround for out of bound acces from nppiResize
+   * add one more line in the last image
+   * it should not break anything as only one operator at the time can operate on the GPU
+   * and other should not keep any reference to the internals of the input tensor list
+  */
+  vector<Dims> new_shape(input.shape());
+  new_shape[batch_size_ - 1][1] += 1;
+  size_t new_size = 0;
+  for (auto &s : new_shape) {
+    new_size += volume(s);
+  }
+  new_size *= input.type().size();
+
+  if (new_size > input.capacity()) {
+    // reallocate only if current tensor doesn't have enough capcity
+    TensorList<GPUBackend> tmp_tensor_list;
+    auto &mutable_input = const_cast<TensorList<GPUBackend>&>(input);
+    tmp_tensor_list.ShareData(const_cast<TensorList<GPUBackend>*>(&input));
+    mutable_input.Resize(new_shape);
+    // copy data and shape back to new, bigger storage
+    mutable_input.Copy(tmp_tensor_list, ws->stream());
+  }
+
   for (int i = 0; i < batch_size_; ++i) {
     const CropWindow &crop = params_->crops[i];
     NppiRect in_roi, out_roi;
