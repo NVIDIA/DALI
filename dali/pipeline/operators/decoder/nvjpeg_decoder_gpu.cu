@@ -24,7 +24,7 @@ DALI_SCHEMA(nvJPEGDecoderGPUStage)
 It is automatically inserted during the pipeline creation.)code")
   .NumInput(3)
   .NumOutput(1)
-  .InternalOp()
+  .MakeInternal()
   .AddParent("nvJPEGDecoderCPUStage");
 
 }  // namespace dali

@@ -177,7 +177,7 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Notes that this operator is internal to DALI backend (and shouldn't be exposed in Python API)
    */
-  DLL_PUBLIC inline OpSchema& InternalOp() {
+  DLL_PUBLIC inline OpSchema& MakeInternal() {
     is_internal_ = true;
     return *this;
   }
