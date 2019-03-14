@@ -48,9 +48,8 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
 
 template <typename Backend>
 class Resize : public Operator<Backend>
-             , protected ResizeBase
              , protected ResizeAttr
-             , protected ResamplingFilterAttr {
+             , protected ResizeBase {
  public:
   explicit Resize(const OpSpec &spec);
 

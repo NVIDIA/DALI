@@ -31,12 +31,11 @@ namespace dali {
 
 template <typename Backend>
 class RandomResizedCrop : public Operator<Backend>
-                        , protected ResizeBase
-                        , protected ResamplingFilterAttr {
+                        , protected ResizeBase {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , ResamplingFilterAttr(spec)
+      , ResizeBase(spec)
       , num_attempts_(spec.GetArgument<int>("num_attempts"))
       , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, &size_, "size", 2);

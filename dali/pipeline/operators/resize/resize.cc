@@ -53,7 +53,7 @@ template<>
 Resize<CPUBackend>::Resize(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
     , ResizeAttr(spec)
-    , ResamplingFilterAttr(spec) {
+    , ResizeBase(spec) {
   per_sample_meta_.resize(num_threads_);
   resample_params_.resize(num_threads_);
   out_shape_.resize(num_threads_);

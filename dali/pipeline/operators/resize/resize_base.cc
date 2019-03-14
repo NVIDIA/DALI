@@ -45,10 +45,14 @@ DALI_SCHEMA(ResamplingFilterAttr)
   .AddOptionalArg("mag_filter", "Filter used when scaling up",
       DALI_INTERP_LINEAR)
   .AddOptionalArg("min_filter", "Filter used when scaling down",
-      DALI_INTERP_TRIANGULAR);
+      DALI_INTERP_LINEAR)
+  .AddOptionalArg("temp_buffer_hint",
+      "Initial size, in bytes, of a temporary buffer for resampling.\n"
+      "Ingored for CPU variant.\n",
+      0);
 
 ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
-  DALIInterpType interp_min = DALIInterpType::DALI_INTERP_TRIANGULAR;
+  DALIInterpType interp_min = DALIInterpType::DALI_INTERP_LINEAR;
   DALIInterpType interp_mag = DALIInterpType::DALI_INTERP_LINEAR;
 
   if (spec.HasArgument("min_filter"))
@@ -63,6 +67,8 @@ ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
 
   min_filter_ = { interp2resample(interp_min), 0 };
   mag_filter_ = { interp2resample(interp_mag), 0 };
+
+  temp_buffer_hint_ = spec.GetArgument<int64_t>("temp_buffer_hint");
 }
 
 void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
@@ -79,6 +85,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
       kdata.context,
       view<const uint8_t, 3>(input),
       resample_params_);
+
   kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
 
   to_dims_vec(out_shape_, kdata.requirements.output_shapes[0]);
@@ -89,6 +96,21 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   auto in_view = view<const uint8_t, 3>(input);
   auto out_view = view<uint8_t, 3>(output);
   Kernel::Run(kdata.context, out_view, in_view, resample_params_);
+}
+
+void ResizeBase::Initialize(int num_threads) {
+  kernel_data_.resize(num_threads);
+  out_shape_.resize(num_threads);
+  resample_params_.resize(num_threads);
+}
+
+void ResizeBase::InitializeGPU() {
+  kernel_data_.resize(1);
+  auto &kdata = GetKernelData();
+  auto &gpu_scratch = kdata.requirements.scratch_sizes[static_cast<int>(kernels::AllocType::GPU)];
+  if (gpu_scratch < temp_buffer_hint_)
+    gpu_scratch = temp_buffer_hint_;
+  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
 }
 
 void ResizeBase::RunCPU(Tensor<CPUBackend> &output,

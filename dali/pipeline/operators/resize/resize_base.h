@@ -33,10 +33,13 @@ class DLL_PUBLIC ResamplingFilterAttr {
   kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
   /// Filter used when upscaling
   kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
+  /// Initial size, in bytes, of a temporary buffer for resampling.
+  size_t temp_buffer_hint_ = 0;
 };
 
-class DLL_PUBLIC ResizeBase {
+class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
  public:
+  explicit inline ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
   struct KernelData {
     kernels::KernelContext context;
     kernels::KernelRequirements requirements;
@@ -44,14 +47,8 @@ class DLL_PUBLIC ResizeBase {
   };
   std::vector<KernelData> kernel_data_;
 
-  inline void Initialize(int num_threads = 1) {
-    kernel_data_.resize(num_threads);
-    out_shape_.resize(num_threads);
-    resample_params_.resize(num_threads);
-  }
-  inline void InitializeGPU() {
-    kernel_data_.resize(1);
-  }
+  DLL_PUBLIC void Initialize(int num_threads = 1);
+  DLL_PUBLIC void InitializeGPU();
 
   inline KernelData &GetKernelData() {
     DALI_ENFORCE(!kernel_data_.empty(), "Resize kernel data not initialized");

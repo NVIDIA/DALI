@@ -27,7 +27,7 @@ template<>
 Resize<GPUBackend>::Resize(const OpSpec &spec)
     : Operator<GPUBackend>(spec)
     , ResizeAttr(spec)
-    , ResamplingFilterAttr(spec) {
+    , ResizeBase(spec) {
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
