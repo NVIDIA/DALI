@@ -220,7 +220,7 @@ void VideoLoader::read_file() {
     auto& file = get_or_open_file(req.filename);
 
     if (vid_decoder_) {
-        vid_decoder_->push_req(std::move(req));
+        vid_decoder_->push_req(req);
     } else {
         DALI_FAIL("No video decoder even after opening a file");
     }
