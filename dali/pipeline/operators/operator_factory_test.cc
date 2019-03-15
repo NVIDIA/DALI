@@ -18,6 +18,7 @@
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/op_spec.h"
+#include "dali/pipeline/operators/op_schema.h"
 #include "dali/test/dali_test.h"
 
 namespace dali {
@@ -70,10 +71,12 @@ DALI_DECLARE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 DALI_DEFINE_OPTYPE_REGISTRY(CPUDummy, DummyBase<CPUBackend>);
 DALI_DEFINE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 
+
 // Some registration macros
 #define DALI_REGISTER_CPU_DUMMY(OpName, OpType)        \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,        \
-      CPUDummy, DummyBase<CPUBackend>, "CPU")
+      CPUDummy, DummyBase<CPUBackend>, "CPU");         \
+  DALI_SCHEMA_REG(OpName)
 
 #define DALI_REGISTER_GPU_DUMMY(OpName, OpType)         \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,         \
@@ -94,7 +97,7 @@ TYPED_TEST_SUITE(OperatorFactoryTest, TestTypes);
 
 TYPED_TEST(OperatorFactoryTest, TestRegisterAndConstruct) {
   OperatorRegistry<DummyBase<CPUBackend>> &registry = CPUDummyRegistry::Registry();
-  vector<string> names = registry.RegisteredNames();
+  vector<string> names = registry.RegisteredNames(true);
   vector<string> val_names = {"DummyDerivedOne",
                               "DummyDerivedTwo",
                               "DummyDerivedThree"};

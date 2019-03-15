@@ -31,6 +31,7 @@ For both `begin` and `size`, coordinates must be in the interval `[0.0, 1.0]`.
 Output of the decoder is in `HWC` ordering.)code")
     .NumInput(3)
     .NumOutput(3)
+    .MakeInternal()
     .AddParent("nvJPEGDecoderCPUStage");
 
 }  // namespace dali
