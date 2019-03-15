@@ -97,7 +97,7 @@ class OpticalFlow : public Operator<Backend> {
 
   /**
    * Use input TensorList to extract calculation params
-   * Currently only NFHWC layout is supported
+   * Currently only FNHWC layout is supported
    */
   void ExtractParams(const TensorList<Backend> &tl) {
     auto shape = tl.shape();
