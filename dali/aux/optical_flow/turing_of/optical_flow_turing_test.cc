@@ -19,6 +19,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <numeric>
 #include "dali/util/cuda_utils.h"
 #include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 #include "dali/kernels/alloc.h"
