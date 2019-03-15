@@ -46,69 +46,37 @@ constexpr int kNInputDims = 4;
 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
-  if (enable_hints_) {
-    DALI_ENFORCE(false, "Hints currently ignored");
-    // TODO(mszolucha): hints currently ignored, add feature
-    const auto &input = ws->Input<GPUBackend>(0);
-    const auto &external_hints = ws->Input<GPUBackend>(1);
-    auto &output = ws->Output<GPUBackend>(0);
-    size_t nsequences_ = input.ntensor();
+  // TODO(mszolucha): hints currently ignored, add feature
+  // Fetch data
+  // Input is a TensorList, where every Tensor is a sequence
+  const auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
+  // Extract calculation params
+  ExtractParams(input);
+  std::vector<Dims> new_sizes;
+  for (int i = 0; i < nsequences_; i++) {
+    new_sizes.push_back({sequence_sizes_[i], (frames_height_ + 3) / 4, (frames_width_ + 3) / 4,
+                         kNOutputDims});
+  }
+  output.Resize(new_sizes);
 
-    output.Resize(
-            {nsequences_, {2, (frames_height_ + 3) / 4, (frames_width_ + 3) / 4, kNOutputDims}});
+  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
 
-    // Convert to TensorView
-    auto tvlin = view<const uint8_t, kNInputDims>(input);
-//    auto tvlhints = view<const float, kNInputDims>(external_hints);
-    auto tvlout = view<float, kNInputDims>(output);
+  // Prepare input and output TensorViews
+  auto tvlin = view<const uint8_t, kNInputDims>(input);
+  auto tvlout = view<float, kNInputDims>(output);
 
-    for (size_t sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
-      auto sequence_tv = tvlin[sequence_idx];
-//      auto hints_tv = tvlhints[sequence_idx];
-      auto output_tv = tvlout[sequence_idx];
+  for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+    auto sequence_tv = tvlin[sequence_idx];
+    auto output_tv = tvlout[sequence_idx];
 
-      for (int i = 1; i < sequence_tv.shape[0]; i++) {
-        auto ref = kernels::subtensor(sequence_tv, i - 1);
-        auto in = kernels::subtensor(sequence_tv, i);
-        auto out = kernels::subtensor(output_tv, i - 1);
+    for (int i = 1; i < sequence_tv.shape[0]; i++) {
+      auto ref = kernels::subtensor(sequence_tv, i - 1);
+      auto in = kernels::subtensor(sequence_tv, i);
+      auto out = kernels::subtensor(output_tv, i - 1);
 
-        optical_flow_->CalcOpticalFlow(ref, in, out);
-      }
-    }
-  } else {
-    // Fetch data
-    // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws->Input<GPUBackend>(0);
-    auto &output = ws->Output<GPUBackend>(0);
-
-    // Extract calculation params
-    ExtractParams(input);
-    std::vector<Dims> new_sizes;
-    for (int i = 0; i < nsequences_; i++) {
-      new_sizes.push_back({sequence_sizes_[i], (frames_height_ + 3) / 4, (frames_width_ + 3) / 4,
-                           kNOutputDims});
-    }
-    output.Resize(new_sizes);
-
-    of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
-
-    // Prepare input and output TensorViews
-    auto tvlin = view<const uint8_t, kNInputDims>(input);
-    auto tvlout = view<float, kNInputDims>(output);
-
-    for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
-      auto sequence_tv = tvlin[sequence_idx];
-      auto output_tv = tvlout[sequence_idx];
-
-      for (int i = 1; i < sequence_tv.shape[0]; i++) {
-        auto ref = kernels::subtensor(sequence_tv, i - 1);
-        auto in = kernels::subtensor(sequence_tv, i);
-        auto out = kernels::subtensor(output_tv, i - 1);
-
-        optical_flow_->CalcOpticalFlow(ref, in, out);
-      }
+      optical_flow_->CalcOpticalFlow(ref, in, out);
     }
   }
 }
