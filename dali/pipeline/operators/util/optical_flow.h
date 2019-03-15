@@ -19,6 +19,7 @@
 #include <dali/pipeline/data/backend.h>
 #include <dali/pipeline/operators/operator.h>
 #include <dali/aux/optical_flow/optical_flow_stub.h>
+#include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
 #include <memory>
 
 namespace dali {
@@ -80,11 +81,53 @@ class OpticalFlow : public Operator<Backend> {
 
 
  private:
+  /**
+   * Optical flow lazy initialization
+   */
+  void of_lazy_init(size_t width, size_t height, size_t channels, cudaStream_t stream) {
+    std::call_once(of_initialized_,
+                   [&]() {
+                       optical_flow_.reset(
+                               new optical_flow::OpticalFlowTuring(of_params_, width, height,
+                                                                   channels, stream));
+                   }
+    );
+  }
+
+
+  /**
+   * Use input TensorList to extract calculation params
+   * Currently only FNHWC layout is supported
+   */
+  void ExtractParams(const TensorList<Backend> &tl) {
+    auto shape = tl.shape();
+    nsequences_ = shape.size();
+    frames_height_ = shape[0][1];
+    frames_width_ = shape[0][2];
+    depth_ = shape[0][3];
+    sequence_sizes_.reserve(nsequences_);
+    for (size_t i = 0; i < nsequences_; i++) {
+      sequence_sizes_[i] = shape[i][0];
+    }
+
+    DALI_ENFORCE([&]() -> bool {
+        for (const auto &seq : shape) {
+          if (seq[1] != frames_height_ || seq[2] != frames_width_ || seq[3] != depth_)
+            return false;
+        }
+        return true;
+    }(), "Width, height and depth must be equal for all sequences");
+  }
+
+
   const float quality_factor_;
   const int grid_size_;
   const bool enable_hints_;
+  std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
+  int frames_width_, frames_height_, depth_, nsequences_;
+  std::vector<int> sequence_sizes_;
 };
 
 }  // namespace dali
