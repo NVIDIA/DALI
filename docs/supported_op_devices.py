@@ -8,7 +8,6 @@ def main(argv):
         cpu_ops.add('TFRecordReader')
     gpu_ops = set(b.RegisteredGPUOps())
     mix_ops = set(b.RegisteredMixedOps())
-    mix_ops.remove('MakeContiguous')
     support_ops = set(b.RegisteredSupportOps())
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
     link_string = '_'
