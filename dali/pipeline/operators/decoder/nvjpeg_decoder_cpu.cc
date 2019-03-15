@@ -23,6 +23,7 @@ DALI_SCHEMA(nvJPEGDecoderCPUStage)
 It is automatically inserted during the pipeline creation.)code")
   .NumInput(1)
   .NumOutput(3)
+  .MakeInternal()
   .AddOptionalArg("output_type",
       R"code(The color space of output image.)code",
       DALI_RGB)
