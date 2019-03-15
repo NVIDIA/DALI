@@ -21,6 +21,7 @@
 #include <dali/aux/optical_flow/optical_flow_stub.h>
 #include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
 #include <memory>
+#include <vector>
 
 namespace dali {
 
@@ -90,8 +91,7 @@ class OpticalFlow : public Operator<Backend> {
                        optical_flow_.reset(
                                new optical_flow::OpticalFlowTuring(of_params_, width, height,
                                                                    channels, stream));
-                   }
-    );
+                   });
   }
 
 
