@@ -60,15 +60,21 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     // We allocate the pinned buffers here to alliviate the first run
     const int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
     buffer_initial_pool_.resize(nbuffers);
-    for (int i = 0; i < nbuffers; i++) {
-        NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &buffer_initial_pool_[i]));
+    for (auto& state : buffer_initial_pool_) {
+      state = std::make_shared<StateNvJPEG>(handle_, decoder_host_, decoder_hybrid_);
+    }
+
+    const auto output_format = GetFormat(output_image_type_);
+    for (auto& state : buffer_initial_pool_) {
+      state->nvjpeg_backend = NVJPEG_BACKEND_HYBRID;
+      WarmUpNvJPEG(handle_, *state, decoder_host_, output_format);
+      state->nvjpeg_backend = NVJPEG_BACKEND_GPU_HYBRID;
+      WarmUpNvJPEG(handle_, *state, decoder_hybrid_, output_format);
     }
   }
 
   virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
-    for (auto buffer : buffer_initial_pool_) {
-      NVJPEG_CALL(nvjpegBufferPinnedDestroy(buffer));
-    }
+    buffer_initial_pool_.clear();
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
@@ -184,29 +190,11 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       info_tensor.ShareData(info_p, 1, {1});
       info_tensor.set_type(type);
 
-      std::shared_ptr<StateNvJPEG> state_p(new StateNvJPEG(),
-        [](StateNvJPEG* s) {
-          NVJPEG_CALL(nvjpegJpegStreamDestroy(s->jpeg_stream));
-          NVJPEG_CALL(nvjpegBufferPinnedDestroy(s->pinned_buffer));
-          NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_host_state));
-          NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_hybrid_state));
-      });
-
       {
         std::lock_guard<std::mutex> l(pool_mutex_);
-        state_p->pinned_buffer = buffer_initial_pool_.back();
+        state_tensor.ShareData(buffer_initial_pool_.back(), 1, {1});
         buffer_initial_pool_.pop_back();
       }
-
-      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
-                                        decoder_host_,
-                                        &state_p->decoder_host_state));
-      NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
-                                        decoder_hybrid_,
-                                        &state_p->decoder_hybrid_state));
-      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &state_p->jpeg_stream));
-
-      state_tensor.ShareData(state_p, 1, {1});
       state_tensor.set_type(type);
     }
 
@@ -244,8 +232,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   // TODO(spanev): add huffman hybrid decode
   std::vector<nvjpegDecodeParams_t> decode_params_;
 
-
-  std::vector<nvjpegBufferPinned_t> buffer_initial_pool_;
+  std::vector<std::shared_ptr<StateNvJPEG>> buffer_initial_pool_;
   std::mutex pool_mutex_;
 };
 
