@@ -16,6 +16,7 @@
 #define  DALI_PIPELINE_DATA_VIEWS_H_
 
 #include <string>
+#include <vector>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -168,6 +169,18 @@ view_as_tensor(const TensorList<Backend> &data) {
     return {};
   using U = typename std::remove_const<T>::type;
   return { data.template data<U>(), tensor_shape<ndim>(data) };
+}
+
+template <int ndim>
+void to_dims_vec(std::vector<Dims> &dims_vec, const kernels::TensorListShape<ndim> &tls) {
+  const int dim = tls.sample_dim();
+  const int N = tls.num_samples();
+  dims_vec.resize(N);
+  for (int i = 0; i < N; i++) {
+    dims_vec[i].resize(dim);
+    for (int j = 0; j < dim; j++)
+      dims_vec[i][j] = tls.tensor_shape_span(i)[j];
+  }
 }
 
 }  // namespace dali
