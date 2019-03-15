@@ -86,7 +86,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     // Extract calculation params
     ExtractParams(input);
     std::vector<Dims> new_sizes;
-    for (size_t i = 0; i < nsequences_; i++) {
+    for (int i = 0; i < nsequences_; i++) {
       new_sizes.push_back({sequence_sizes_[i], (frames_height_ + 3) / 4, (frames_width_ + 3) / 4,
                            kNOutputDims});
     }
@@ -98,7 +98,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     auto tvlin = view<const uint8_t, kNInputDims>(input);
     auto tvlout = view<float, kNInputDims>(output);
 
-    for (size_t sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+    for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
       auto sequence_tv = tvlin[sequence_idx];
       auto output_tv = tvlout[sequence_idx];
 

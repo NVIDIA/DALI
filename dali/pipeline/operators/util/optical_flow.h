@@ -106,7 +106,7 @@ class OpticalFlow : public Operator<Backend> {
     frames_width_ = shape[0][2];
     depth_ = shape[0][3];
     sequence_sizes_.reserve(nsequences_);
-    for (size_t i = 0; i < nsequences_; i++) {
+    for (int i = 0; i < nsequences_; i++) {
       sequence_sizes_[i] = shape[i][0];
     }
 
