@@ -26,5 +26,9 @@ It is automatically inserted during the pipeline creation.)code")
   .MakeInternal()
   .AddParent("nvJPEGDecoder");
 
-}  // namespace dali
+  std::vector<void*> CustomNvJPEGPinnedAllocator::free_buffers_pool_;
+  size_t CustomNvJPEGPinnedAllocator::element_size_hint_ = 0;
+  std::unordered_set<void*> CustomNvJPEGPinnedAllocator::allocated_buffers_;
 
+  std::mutex CustomNvJPEGPinnedAllocator::m_;
+}  // namespace dali

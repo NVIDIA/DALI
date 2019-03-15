@@ -15,9 +15,12 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CPU_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CPU_H_
 
+#include <cuda_runtime_api.h>
+
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_set>
 #include <vector>
 
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
@@ -28,6 +31,70 @@
 #include "dali/util/ocv.h"
 
 namespace dali {
+
+// TODO(spanev): move in separate file
+class CustomNvJPEGPinnedAllocator {
+ public:
+  static void PreallocateBuffers(size_t element_size_hint, size_t n_elements_hint) {
+    std::lock_guard<std::mutex> l(m_);
+
+    if (element_size_hint_ == 0) {
+      element_size_hint_ = element_size_hint;
+    } else if (element_size_hint_ != element_size_hint) {
+      DALI_FAIL("All instances of nvJPEGDecoder should have the same host_memory_padding.");
+    }
+    free_buffers_pool_.reserve(free_buffers_pool_.size() + n_elements_hint);
+    for (size_t i = 0; i < n_elements_hint; ++i) {
+      void* buffer;
+      CUDA_CALL(cudaHostAlloc(&buffer, element_size_hint, 0));
+      free_buffers_pool_.push_back(buffer);
+    }
+  }
+
+  static void FreeBuffers(size_t n_elements_hint) {
+    std::lock_guard<std::mutex> l(m_);
+    for (size_t i = 0; i < n_elements_hint; ++i) {
+      // Will call std::terminate
+      DALI_ENFORCE(free_buffers_pool_.size() > 0, "Some buffers were not returned by nvJPEG.");
+      cudaFreeHost(free_buffers_pool_.back());
+      free_buffers_pool_.pop_back();
+    }
+  }
+
+  static int Alloc(void** ptr, size_t size, unsigned int flags) {
+    std::lock_guard<std::mutex> l(m_);
+    // Non managed buffer
+    if (size > element_size_hint_ || free_buffers_pool_.empty()) {
+      return cudaHostAlloc(ptr, size, flags) == cudaSuccess ? 0 : 1;
+    }
+
+    // Managed buffer, adding it to the allocated set
+    void* buffer = free_buffers_pool_.back();
+    free_buffers_pool_.pop_back();
+    *ptr = buffer;
+    allocated_buffers_.insert(buffer);
+    return 0;
+  }
+
+  static int Free(void* ptr) {
+    std::lock_guard<std::mutex> l(m_);
+    if (allocated_buffers_.find(ptr) == allocated_buffers_.end()) {
+      // Non managed buffer... just free
+      return cudaFreeHost(ptr) == cudaSuccess ? 0 : 1;
+    }
+    // Managed buffer
+    allocated_buffers_.erase(ptr);
+    free_buffers_pool_.push_back(ptr);
+    return 0;
+  }
+
+ private:
+  static std::vector<void*> free_buffers_pool_;
+  static size_t element_size_hint_;
+  static std::unordered_set<void*> allocated_buffers_;
+
+  static std::mutex m_;
+};
 
 using ImageInfo = EncodedImageInfo<unsigned int>;
 
@@ -55,12 +122,19 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                     GetFormat(output_image_type_)));
       NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
     }
+
+    int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+    CustomNvJPEGPinnedAllocator::PreallocateBuffers(host_memory_padding, nbuffers);
+    pinned_allocator_.pinned_malloc = &CustomNvJPEGPinnedAllocator::Alloc;
+    pinned_allocator_.pinned_free = &CustomNvJPEGPinnedAllocator::Free;
   }
 
   virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
+    int nbuffers = spec_.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+    CustomNvJPEGPinnedAllocator::FreeBuffers(nbuffers);
   }
 
   void RunImpl(SampleWorkspace *ws, const int idx) {
@@ -185,7 +259,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       });
 
       // We want to use nvJPEG default pinned allocator
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &state_p->pinned_buffer));
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, &pinned_allocator_, &state_p->pinned_buffer));
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_host_,
                                         &state_p->decoder_host_state));
@@ -227,6 +301,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
   // TODO(spanev): add huffman hybrid decode
   std::vector<nvjpegDecodeParams_t> decode_params_;
+
+
+  nvjpegPinnedAllocator_t pinned_allocator_;
 };
 
 }  // namespace dali
