@@ -276,6 +276,7 @@ class Buffer {
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       size_t grow = num_bytes_*alloc_mult;
+      grow = (grow + pading) & ~(pading - 1);
       if (grow > new_num_bytes)
         new_num_bytes = grow;
       reserve(new_num_bytes);
@@ -283,6 +284,8 @@ class Buffer {
   }
 
   const double alloc_mult = 1.0;
+  // round to 1kB
+  const size_t pading = 1024;
 
   Backend backend_;
 
