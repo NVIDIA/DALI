@@ -154,9 +154,9 @@ struct TimeRange {
   static const uint32_t knvGreen = 0x76B900;
 
   uint32_t Color(int i_r, int i_g, int i_b) {
-    uint8_t red_comp = i_r ? 129 + ( i_r % 128 );
-    uint8_t green_comp = i_g ? 129 + ( i_g % 128 );
-    uint8_t blue_comp = i_b ? 129 + ( i_b % 128 );
+    uint8_t red_comp = i_r ? 129 + ( i_r % 128 ) : 0;
+    uint8_t green_comp = i_g ? 129 + ( i_g % 128 ) : 0;
+    uint8_t blue_comp = i_b ? 129 + ( i_b % 128 ) : 0;
     uint32_t rgb = (red_comp << 16) + (green_comp << 8) + blue_comp;
     return rgb;
   }
