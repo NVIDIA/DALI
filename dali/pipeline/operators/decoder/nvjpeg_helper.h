@@ -130,7 +130,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
 inline void WarmUpNvJPEG(nvjpegHandle_t handle, StateNvJPEG& state, nvjpegJpegDecoder_t decoder,
                   nvjpegOutputFormat_t output_format) {
   // run dummy
-  const char encoded_jpeg[] =
+  static const char kEncodedJpeg[] =
       "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01\x01\x01\x00\x48"
       "\x00\x48\x00\x00\xFF\xFE\x00\x13\x43\x72\x65\x61\x74\x65\x64\x20"
       "\x77\x69\x74\x68\x20\x47\x49\x4D\x50\xFF\xDB\x00\x43\x00\x03\x02"
@@ -193,8 +193,8 @@ inline void WarmUpNvJPEG(nvjpegHandle_t handle, StateNvJPEG& state, nvjpegJpegDe
       "\x8D\x0E\x93\x80\xA4\x78\x88\xE3\x18\xD3\x32\x7A\x74\x6B\x60\x2D"
       "\x54\x3F\xFF\xD9";
 
-  NVJPEG_CALL(nvjpegJpegStreamParse(handle, (unsigned char*)encoded_jpeg, sizeof(encoded_jpeg)-1, false, false,
-                                    state.jpeg_stream));
+  NVJPEG_CALL(nvjpegJpegStreamParse(handle, (unsigned char *) kEncodedJpeg,
+                                    sizeof(kEncodedJpeg) - 1, false, false, state.jpeg_stream));
   unsigned int C;
   unsigned int widths[NVJPEG_MAX_COMPONENT];
   unsigned int heights[NVJPEG_MAX_COMPONENT];

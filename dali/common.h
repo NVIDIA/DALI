@@ -153,8 +153,29 @@ struct TimeRange {
   static const uint32_t kGreen1 = 0x859900;
   static const uint32_t knvGreen = 0x76B900;
 
-  TimeRange(std::string name, const uint32_t rgb = kBlue) {  // NOLINT
+  uint32_t Color(int i_r, int i_g, int i_b) {
+    uint8_t red_comp = 129 + ( i_b % 128 );
+    uint8_t green_comp = 129 + ( i_b % 128 );
+    uint8_t blue_comp = 129 + ( i_b % 128 );
+    uint32_t rgb = (red_comp << 16) + (green_comp << 8) + blue_comp;
+    return rgb;
+  }
+
+  uint32_t Blue(int i_b) {
+    return Color(0, 0, i_b);
+  }
+
+  uint32_t Blue(const std::string& str) {
+    std::hash<std::string> hasher;
+    int i_b = hasher(str);
+    return Blue(i_b);
+  }
+
+  TimeRange(std::string name, uint32_t rgb = 0) {  // NOLINT
 #ifdef DALI_USE_NVTX
+    if (rgb == 0) {
+      rgb = Blue(name);
+    }
     nvtxEventAttributes_t att;
     att.version = NVTX_VERSION;
     att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
@@ -165,7 +186,6 @@ struct TimeRange {
 
     nvtxRangePushEx(&att);
     started = true;
-
 #endif
   }
 
