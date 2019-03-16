@@ -57,7 +57,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     }
 
 
-    // We allocate the pinned buffers here to alliviate the first run
+    // We allocate the pinned buffers here to alleviate the first run
     const int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
     buffer_initial_pool_.resize(nbuffers);
     for (auto& state : buffer_initial_pool_) {
