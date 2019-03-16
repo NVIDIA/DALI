@@ -14,6 +14,8 @@
 
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder_cpu.h"
 
+#include <unordered_map>
+
 namespace dali {
 
 DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStage, nvJPEGDecoderCPUStage, CPU);
@@ -26,9 +28,14 @@ It is automatically inserted during the pipeline creation.)code")
   .MakeInternal()
   .AddParent("nvJPEGDecoder");
 
-  std::vector<void*> CustomNvJPEGPinnedAllocator::free_buffers_pool_;
-  size_t CustomNvJPEGPinnedAllocator::element_size_hint_ = 0;
-  std::unordered_set<void*> CustomNvJPEGPinnedAllocator::allocated_buffers_;
+std::vector<void*> mem::BasicPinnedAllocator::free_buffers_pool_;
+size_t mem::BasicPinnedAllocator::element_size_hint_ = 0;
+std::unordered_set<void*> mem::BasicPinnedAllocator::allocated_buffers_;
+std::mutex mem::BasicPinnedAllocator::m_;
 
-  std::mutex CustomNvJPEGPinnedAllocator::m_;
+std::vector<mem::ChunkPinnedAllocator::Chunk> mem::ChunkPinnedAllocator::chunks_;
+size_t mem::ChunkPinnedAllocator::element_size_hint_;
+std::unordered_map<void*, std::pair<size_t, size_t>> mem::ChunkPinnedAllocator::allocated_buffers_;
+int mem::ChunkPinnedAllocator::counter_ = 0;
+std::mutex mem::ChunkPinnedAllocator::m_;
 }  // namespace dali
