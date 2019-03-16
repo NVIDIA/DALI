@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/nvjpeg_decoder_cpu.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_allocator.h"
 
 #include <unordered_map>
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStage, nvJPEGDecoderCPUStage, CPU);
+namespace mem {
 
-DALI_SCHEMA(nvJPEGDecoderCPUStage)
-  .DocStr(R"code(This operator is the CPU stage of nvJPEGDecoder, it is not supposed to be called separately.
-It is automatically inserted during the pipeline creation.)code")
-  .NumInput(1)
-  .NumOutput(3)
-  .MakeInternal()
-  .AddParent("nvJPEGDecoder");
+std::vector<void*> BasicPinnedAllocator::free_buffers_pool_;
+size_t BasicPinnedAllocator::element_size_hint_ = 0;
+std::unordered_set<void*> BasicPinnedAllocator::allocated_buffers_;
+std::mutex BasicPinnedAllocator::m_;
+
+std::vector<ChunkPinnedAllocator::Chunk> ChunkPinnedAllocator::chunks_;
+size_t ChunkPinnedAllocator::element_size_hint_;
+std::unordered_map<void*, std::pair<size_t, size_t>> ChunkPinnedAllocator::allocated_buffers_;
+int ChunkPinnedAllocator::counter_ = 0;
+std::mutex ChunkPinnedAllocator::m_;
+
+}  // namespace mem
 
 }  // namespace dali
+
