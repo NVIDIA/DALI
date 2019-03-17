@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <unordered_map>
@@ -111,9 +112,9 @@ class ChunkPinnedAllocator {
 
     Chunk chunk;
     CUDA_CALL(cudaHostAlloc(&chunk.memory, element_size_hint * n_elements_hint, 0));
-    chunk.free_metadata.resize(n_elements_hint, true);
-    chunk.first_free = 0;
-    chunk.size = n_elements_hint;
+    auto& free_b = chunk.free_blocks;
+    free_b.resize(n_elements_hint);
+    std::iota(free_b.begin(), free_b.end(), 0);
     chunks_.push_back(chunk);
   }
 
@@ -131,28 +132,22 @@ class ChunkPinnedAllocator {
 
   static int Alloc(void** ptr, size_t size, unsigned int flags) {
     std::lock_guard<std::mutex> l(m_);
-    // Non managed buffer
+    // Non managed block
     if (size > element_size_hint_) {
       return cudaHostAlloc(ptr, size, flags) == cudaSuccess ? 0 : 1;
     }
 
-    for (size_t c_idx = 0; c_idx < chunks_.size(); ++c_idx) {
-      auto& chunk = chunks_[c_idx];
-      size_t first_free = chunk.first_free;
-      // This chunk is full
-      if (chunk.first_free == chunk.size)
+    for (size_t chunk_idx = 0; chunk_idx < chunks_.size(); ++chunk_idx) {
+      auto& chunk = chunks_[chunk_idx];
+      // This chunk has no free block
+      if (chunk.free_blocks.empty())
         continue;
 
+      size_t block_idx = chunk.free_blocks.back();
       *ptr = static_cast<void*>(
-              static_cast<uint8_t*>(chunk.memory) + (element_size_hint_ * first_free));
-      allocated_buffers_[*ptr] = std::make_pair(c_idx, first_free);
-
-      // Update free metadata and find next first_free
-      chunk.free_metadata[first_free] = false;
-      while (first_free < chunk.size && !chunk.free_metadata[first_free]) {
-        first_free++;
-      }
-      chunk.first_free = first_free;
+              static_cast<uint8_t*>(chunk.memory) + (element_size_hint_ * block_idx));
+      allocated_buffers_[*ptr] = std::make_pair(chunk_idx, block_idx);
+      chunk.free_blocks.pop_back();
       return 0;
     }
 
@@ -166,13 +161,10 @@ class ChunkPinnedAllocator {
       // Non managed buffer... just free
       return cudaFreeHost(ptr) == cudaSuccess ? 0 : 1;
     }
-    size_t c_idx, buff_idx;
-    std::tie(c_idx, buff_idx) = it->second;
-    auto& chunk = chunks_[c_idx];
-    chunk.free_metadata[buff_idx] = true;
-    if (chunk.first_free > buff_idx) {
-      chunk.first_free = buff_idx;
-    }
+    size_t chunk_idx, block_idx;
+    std::tie(chunk_idx, block_idx) = it->second;
+    auto& chunk = chunks_[chunk_idx];
+    chunk.free_blocks.push_back(block_idx);
     allocated_buffers_.erase(it);
     return 0;
   }
@@ -180,13 +172,11 @@ class ChunkPinnedAllocator {
  private:
   struct Chunk {
     void* memory;
-    std::vector<int> free_metadata;
-    size_t first_free;
-    size_t size;
+    std::vector<int> free_blocks;
   };
   static std::vector<Chunk> chunks_;
   static size_t element_size_hint_;
-  // ptr to chunk-offset pos
+  // ptr to (chunk_idx,block_idx)
   static std::unordered_map<void*, std::pair<size_t, size_t>> allocated_buffers_;
 
   static int counter_;
