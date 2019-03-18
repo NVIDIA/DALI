@@ -96,7 +96,7 @@ class HybridTrainPipe(Pipeline):
                                                       random_aspect_ratio=[0.8, 1.25],
                                                       random_area=[0.1, 1.0],
                                                       num_attempts=100)
-        self.res = ops.Resize("gpu", resize_x=crop, resize_y=crop, interp_type=types.INTERP_TRIANGULAR)
+        self.res = ops.Resize(device=dali_device, resize_x=crop, resize_y=crop, interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,
                                             output_layout=types.NCHW,
