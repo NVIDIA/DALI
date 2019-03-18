@@ -167,6 +167,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
  * @brief Policy that is responsible for providing executor with workspaces used
  * during RunX() functions.
  */
+// template <typename QueuePolicy>
 // struct WS_Policy {
 //   // Type trait describing how will the workspace be returned (usually by copy or by ref)
 //   template <OpType op_type>
@@ -213,6 +214,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
  *
  * Intended to be used with SeparateQueuePolicy
  */
+template <typename QueuePolicy>
 struct JIT_WS_Policy {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type>;
@@ -250,7 +252,179 @@ struct JIT_WS_Policy {
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
   std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
   QueueSizes queue_sizes_;
+
+  static_assert(std::is_same<QueuePolicy, SeparateQueuePolicy>::value,
+                "Incompatible QueuePolicy used with this WorkspacePolicy");
 };
+
+inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage) {
+  constexpr static OpType order[] = {OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU};
+  // Horner's method
+  int result = 0;
+  for (auto op_type : order) {
+    result += idxs[op_type];
+    if (op_type == last_stage) {
+      return result;
+    }
+    // We never get here for GPU, so we can safely call next stage
+    result *= depth[NextStage(op_type)];
+  }
+  DALI_FAIL("Error when calculating index - unexpected stage");
+}
+
+
+/**
+ * @brief Ahead Of Time Workspace Policy for Separated Executor
+ *
+ * Intended to be used with SeparateQueuePolicy, creates all workspaces ahead of time
+ */
+template <typename QueuePolicy>
+struct AOT_Sep_WS_Policy {
+  AOT_Sep_WS_Policy() : depths_(0) {}
+
+  template <OpType op_type>
+  using ws_t = op_type_to_workspace_t<op_type> &;
+
+  void InitializeWorkspaceStore(const OpGraph &graph,
+                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                                const std::vector<std::vector<cudaEvent_t>> &mixed_op_events,
+                                const QueueSizes idxs) {
+    depths_ = QueuePolicy::GetQueueSizes(idxs);
+
+    support_workspaces_.resize(depths_[OpType::SUPPORT]);
+    cpu_workspaces_.resize(depths_[OpType::CPU] * depths_[OpType::SUPPORT]);
+    // Mixed and GPU are bound together due to being outputs
+    // We do not create another layer of ws, as we process Mixed and GPU together
+    mixed_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
+                             depths_[OpType::SUPPORT]);
+    gpu_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
+                           depths_[OpType::SUPPORT]);
+
+    // now we do cover possible calls for GetWorkspace - for all possible QueueIdxs idxs that
+    // we may get in this call
+    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
+      // Get sequential index and prepare space all Support Ops
+      auto queue_idxs = QueueIdxs{support_id, 0, 0, 0};
+      PlaceWorkspace<OpType::SUPPORT>(support_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                      mixed_op_stream, gpu_op_stream, mixed_op_events);
+    }
+
+    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
+      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+        // Get sequential index and prepare space all CPU Ops
+        auto queue_idxs = QueueIdxs{support_id, cpu_id, 0, 0};
+        PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                    mixed_op_stream, gpu_op_stream, mixed_op_events);
+      }
+    }
+
+    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
+      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+        for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
+          // Get sequential index and prepare space all MIXED Ops
+          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, 0};
+          PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                        mixed_op_stream, gpu_op_stream, mixed_op_events);
+        }
+      }
+    }
+
+    // we reuse the loop for Mixed with GPU as they are in sync
+    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
+      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+        for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
+          // Get sequential index and prepare space all GPU Ops
+          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, mixed_id};
+          PlaceWorkspace<OpType::GPU, OpType::MIXED>(gpu_workspaces_, queue_idxs, graph,
+                                                     tensor_to_store_queue, mixed_op_stream,
+                                                     gpu_op_stream, mixed_op_events);
+        }
+      }
+    }
+  }
+
+  template <OpType op_type>
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+    // Handle MIXED and GPU indexing together
+    auto index_for_op_type = op_type == OpType::GPU ? OpType::MIXED : op_type;
+    int sequential_ws_idx = SequentialIndex(idxs, depths_, index_for_op_type);
+    auto &workspaces = GetWorkspacesCollection<op_type>();
+    return workspaces[sequential_ws_idx][partition_idx];
+  }
+
+  template <OpType op_type>
+  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
+    DALI_ENFORCE(node.op_type == op_type,
+                 "Wrong variant of method selected. OpType does not match.");
+    return GetWorkspace<op_type>(idxs, graph, node.partition_index);
+  }
+
+ private:
+  StageQueues depths_;
+  // ws_id -> op_id -> workspace
+  std::vector<std::vector<SupportWorkspace>> support_workspaces_;
+  std::vector<std::vector<HostWorkspace>> cpu_workspaces_;
+  std::vector<std::vector<MixedWorkspace>> mixed_workspaces_;
+  std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
+
+  template <OpType op_type>
+  using ws_collection_t = typename std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
+
+  // Access one of `support_workspaces_`, `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
+  // based on op_type. Below are specialization for the sake of simplicity
+  template <OpType op_type>
+  ws_collection_t<op_type> &GetWorkspacesCollection() {
+    return detail::get<ws_collection_t<op_type>&>(
+        std::tie(support_workspaces_, cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
+  }
+
+  template <OpType op_type, OpType group_as = op_type, typename T>
+  void PlaceWorkspace(T &workspaces, QueueIdxs idxs, const OpGraph &graph,
+                      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                      const std::vector<std::vector<cudaEvent_t>> &mixed_op_events) {
+    int sequential_ws_idx = SequentialIndex(idxs, depths_, group_as);
+    workspaces[sequential_ws_idx].resize(graph.NumOp(op_type));
+    for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(op_type); partition_idx++) {
+      auto &node = graph.Node(op_type, partition_idx);
+      workspaces[sequential_ws_idx][partition_idx] =
+          CreateWorkspace<op_type>(graph, node, tensor_to_store_queue, mixed_op_stream,
+                                   gpu_op_stream, mixed_op_events, idxs);
+    }
+  }
+
+  static_assert(std::is_same<QueuePolicy, SeparateQueuePolicy>::value,
+                "Incompatible QueuePolicy used with this WorkspacePolicy");
+};
+
+template <>
+template <>
+inline std::vector<std::vector<SupportWorkspace>>&
+    AOT_Sep_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::SUPPORT>() {
+  return support_workspaces_;
+}
+
+template <>
+template <>
+inline std::vector<std::vector<HostWorkspace>>&
+    AOT_Sep_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::CPU>() {
+  return cpu_workspaces_;
+}
+
+template <>
+template <>
+inline std::vector<std::vector<MixedWorkspace>>&
+    AOT_Sep_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::MIXED>() {
+  return mixed_workspaces_;
+}
+
+template <>
+template <>
+inline std::vector<std::vector<DeviceWorkspace>>&
+    AOT_Sep_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::GPU>() {
+  return gpu_workspaces_;
+}
 
 /**
  * @brief Ahead Of Time Workspace Policy
@@ -259,6 +433,7 @@ struct JIT_WS_Policy {
  * and provides references to the as required.
  * Inteded to be used with UniforQueuePolicy.
  */
+template <typename QueuePolicy>
 struct AOT_WS_Policy {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
@@ -331,6 +506,9 @@ struct AOT_WS_Policy {
   };
   vector<WorkspaceBlob> wss_;
   int queue_size_;
+
+  static_assert(std::is_same<QueuePolicy, UniformQueuePolicy>::value,
+                "Incompatible QueuePolicy used with this WorkspacePolicy");
 };
 
 
