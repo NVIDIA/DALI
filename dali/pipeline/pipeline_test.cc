@@ -446,7 +446,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
   CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).mutable_data<size_t>(),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_Mixed);
-  ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
+  ASSERT_EQ(tmp[1], std::max(Buffer<CPUBackend>::padding(), 2 * sizeof(size_t)));
 
   CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).mutable_data<size_t>(),
             sizeof(size_t) * 2, cudaMemcpyDefault));
