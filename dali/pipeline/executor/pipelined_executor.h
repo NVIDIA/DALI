@@ -127,7 +127,7 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
 
 
 using PipelinedExecutor = PipelinedExecutorImpl<AOT_WS_Policy, UniformQueuePolicy>;
-using SeparatedPipelinedExecutor = PipelinedExecutorImpl<JIT_WS_Policy, SeparateQueuePolicy>;
+using SeparatedPipelinedExecutor = PipelinedExecutorImpl<AOT2_WS_Policy, SeparateQueuePolicy>;
 
 
 }  // namespace dali
