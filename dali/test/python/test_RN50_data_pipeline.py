@@ -107,15 +107,15 @@ class TFRecordPipeline(CommonPipeline):
         return self.base_define_graph(images, labels)
 
 test_data = {
-            FileReadPipeline: [["/data/imagenet/train-jpeg"],
-                               ["/data/imagenet/val-jpeg"]],
+#            FileReadPipeline: [["/data/imagenet/train-jpeg"],
+#                               ["/data/imagenet/val-jpeg"]],
             MXNetReaderPipeline: [["/data/imagenet/train-480-val-256-recordio/train.rec", "/data/imagenet/train-480-val-256-recordio/train.idx"],
                                    ["/data/imagenet/train-480-val-256-recordio/val.rec", "/data/imagenet/train-480-val-256-recordio/val.idx"]],
-            CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"],
-                                 ["/data/imagenet/val-lmdb-256x256"]],
-            Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"],
-                                  ["/data/imagenet/val-c2lmdb-256"]],
-            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
+#            CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"],
+#                                 ["/data/imagenet/val-lmdb-256x256"]],
+#            Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"],
+#                                  ["/data/imagenet/val-c2lmdb-256"]],
+#            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
             }
 
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
@@ -135,13 +135,21 @@ parser.add_argument('--nhwc', action='store_true',
                     help='Use NHWC data instead of default NCHW')
 parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
                     help='Number of iterations to run (default: -1 - whole data set)')
+parser.add_argument('-cpu', '--cpu_size', type=int, metavar='N',
+                    help='cpu queue size, must be used with -gpu to force separte execution')
+parser.add_argument('-gpu', '--gpu_size', type=int, metavar='N',
+                    help='gpu queue size, must be used with -cpu to force separte execution')
+
 args = parser.parse_args()
 
 N = args.gpus             # number of GPUs
 BATCH_SIZE = args.batch   # batch size
 LOG_INTERVAL = args.print_freq
+if args.cpu_size is not None and args.gpu_size is not None:
+    PREFETCH = {"cpu_size": args.cpu_size, "gpu_size": args.gpu_size}
+else:
+    PREFETCH = args.prefetch
 WORKERS = args.workers
-PREFETCH = args.prefetch
 FP16 = args.fp16
 NHWC = args.nhwc
 
