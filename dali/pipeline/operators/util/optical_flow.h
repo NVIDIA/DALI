@@ -15,13 +15,13 @@
 #ifndef DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
 #define DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
 
-#include <dali/pipeline/data/views.h>
-#include <dali/pipeline/data/backend.h>
-#include <dali/pipeline/operators/operator.h>
-#include <dali/aux/optical_flow/optical_flow_stub.h>
-#include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
 #include <memory>
 #include <vector>
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/operators/operator.h"
+#include "dali/aux/optical_flow/optical_flow_stub.h"
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 
 namespace dali {
 
@@ -97,7 +97,7 @@ class OpticalFlow : public Operator<Backend> {
 
   /**
    * Use input TensorList to extract calculation params
-   * Currently only FNHWC layout is supported
+   * Currently only NFHWC layout is supported
    */
   void ExtractParams(const TensorList<Backend> &tl) {
     auto shape = tl.shape();
