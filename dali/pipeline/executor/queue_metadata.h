@@ -25,6 +25,12 @@ struct QueueIdxs {
   const int &operator[](OpType op_type) const { return idxs[static_cast<size_t>(op_type)]; }
 
   explicit QueueIdxs(int uniform_idx) : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
+  QueueIdxs(int support, int cpu, int mixed, int gpu) {
+    operator[](OpType::SUPPORT) = support;
+    operator[](OpType::CPU) = cpu;
+    operator[](OpType::MIXED) = mixed;
+    operator[](OpType::GPU) = gpu;
+  }
 
  private:
   std::array<int, static_cast<size_t>(OpType::COUNT)> idxs = {{0, 0, 0, 0}};
