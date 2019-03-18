@@ -25,7 +25,7 @@ class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, prefetch, fp16, nhwc):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=prefetch)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB, split_stages = True)
         self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
         if nhwc:
             layout = types.NHWC
