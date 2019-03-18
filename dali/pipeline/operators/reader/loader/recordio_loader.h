@@ -83,6 +83,20 @@ class RecordIOLoader : public IndexedFileLoader {
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
 
+    ++current_index_;
+
+    std::string image_key = uris_[current_file_index_] + " at index " + to_string(seek_pos);
+    tensor.SetSourceInfo(image_key);
+    tensor.SetSkipSample(false);
+
+    // if image is cached, skip loading
+    if (ShouldSkipImage(image_key)) {
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({1});
+      tensor.SetSkipSample(true);
+      return;
+    }
+
     shared_ptr<void> p = nullptr;
     int64 n_read = 0;
     bool use_read = copy_read_data_;
@@ -114,10 +128,7 @@ class RecordIOLoader : public IndexedFileLoader {
         current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_);
         continue;
       }
-     tensor.SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
     }
-
-    ++current_index_;
   }
 };
 

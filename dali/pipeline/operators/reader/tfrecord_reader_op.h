@@ -32,7 +32,10 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
-    parser_->Parse(GetSample(ws->data_idx()), ws);
+    const auto& tensor = GetSample(ws->data_idx());
+    if (tensor.ShouldSkipSample())
+      return;
+    parser_->Parse(tensor, ws);
   }
 
  protected:

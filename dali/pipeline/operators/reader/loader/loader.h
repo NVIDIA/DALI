@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 #define DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -28,6 +29,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/operators/decoder/cache/image_cache_factory.h"
 
 namespace dali {
 
@@ -55,7 +57,9 @@ class Loader {
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")),
       read_ahead_(options.GetArgument<bool>("read_ahead")),
-      stick_to_shard_(options.GetArgument<bool>("stick_to_shard")) {
+      stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
+      device_id_(options.GetArgument<int>("device_id")),
+      skip_cached_images_(options.GetArgument<bool>("skip_cached_images")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -171,6 +175,22 @@ class Loader {
             (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
             current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
   }
+
+  bool ShouldSkipImage(const ImageCache::ImageKey& key) {
+    if (!skip_cached_images_)
+      return false;
+
+    // Fetch image cache factory only the first time that we try to load an image
+    // we don't do it in construction because we are not sure that the cache was
+    // created since the order of operator creation is not guaranteed.
+    std::call_once(fetch_cache_, [&](){
+      auto &image_cache_factory = ImageCacheFactory::Instance();
+      if (image_cache_factory.IsInitialized(device_id_))
+        cache_ = image_cache_factory.Get(device_id_);
+    });
+    return cache_ && cache_->IsCached(key);
+  }
+
   std::vector<LoadTargetPtr> sample_buffer_;
 
   std::vector<LoadTargetPtr> empty_tensors_;
@@ -202,6 +222,16 @@ class Loader {
   // if reader for the given GPU should read over and over the same shard or should go through
   // whole data set
   bool stick_to_shard_;
+
+  // Pipeline's device id, used to lookup if an image was cached
+  int device_id_;
+
+  // Option determining whether cached samples (at the decoder phase) should be skipped
+  bool skip_cached_images_;
+
+  // Image cache
+  std::once_flag fetch_cache_;
+  std::shared_ptr<ImageCache> cache_;
 };
 
 };  // namespace dali

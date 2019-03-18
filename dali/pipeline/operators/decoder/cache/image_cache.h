@@ -45,13 +45,11 @@ class DLL_PUBLIC ImageCache {
      * @briefs Try to read from cache
      * @param image_key key representing the image in cache
      * @param destination_data destination buffer
-     * @param expected_shape cached data will be validated against this shape
      * @param stream cuda stream
      * @returns true if successful cache read, false otherwise
      */
     DLL_PUBLIC virtual bool Read(const ImageKey& image_key,
                                  void* destination_data,
-                                 const ImageShape& expected_shape,
                                  cudaStream_t stream) const = 0;
 
     /**

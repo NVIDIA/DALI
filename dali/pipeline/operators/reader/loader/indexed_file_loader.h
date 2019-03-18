@@ -43,6 +43,20 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     int64 seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
+    ++current_index_;
+
+    std::string image_key = uris_[current_file_index_] + " at index " + to_string(seek_pos);
+    tensor.SetSourceInfo(image_key);
+    tensor.SetSkipSample(false);
+
+    // if image is cached, skip loading
+    if (ShouldSkipImage(image_key)) {
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({1});
+      tensor.SetSkipSample(true);
+      return;
+    }
+
     if (file_index != current_file_index_) {
       current_file_->Close();
       current_file_ = FileStream::Open(uris_[file_index], read_ahead_);
@@ -64,8 +78,6 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
     }
 
-    tensor.SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
-    ++current_index_;
     return;
   }
 

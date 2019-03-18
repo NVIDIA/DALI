@@ -126,7 +126,7 @@ TEST_F(ImageCacheLargestTest, ReadWorks) {
   EXPECT_TRUE(IsCached(4));
 
   std::vector<uint8_t> dst(4, 0x00);
-  cache_->Read("4", &dst[0], {4, 1, 1}, 0);
+  cache_->Read("4", &dst[0], 0);
   EXPECT_EQ(data_[4].second, dst);
 }
 

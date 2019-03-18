@@ -38,7 +38,10 @@ RecordIO or TFRecord it will slow down first access but will decrease the time o
 accesses.)code", false)
   .AddOptionalArg("prefetch_queue_depth",
       R"code(Specifies the number of batches prefetched by the internal Loader. To be increased when pipeline
-processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1);
+processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1)
+  .AddOptionalArg("skip_cached_images",
+      R"code(If set to true, loading data will be skipped when the sample is present in the decoder cache.
+In such case the output of the loader will be empty)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,

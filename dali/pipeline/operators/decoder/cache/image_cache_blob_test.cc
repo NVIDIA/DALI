@@ -47,13 +47,13 @@ TEST_F(ImageCacheBlobTest, Add) {
   cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_TRUE(cache_->IsCached(kKey1));
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_TRUE(cache_->Read(kKey1, &cachedData[0], kShape1, 0));
+  EXPECT_TRUE(cache_->Read(kKey1, &cachedData[0], 0));
   EXPECT_EQ(kValue1, cachedData);
 }
 
 TEST_F(ImageCacheBlobTest, ErrorReadNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_FALSE(cache_->Read(kKey1, &cachedData[0], kShape1, 0));
+  EXPECT_FALSE(cache_->Read(kKey1, &cachedData[0], 0));
 }
 
 TEST_F(ImageCacheBlobTest, AddExistingIgnored) {
@@ -85,14 +85,6 @@ TEST_F(ImageCacheBlobTest, AllocateMoreThan2000MB) {
   for (std::size_t i = N; i < N + 10; i++) {
     EXPECT_FALSE(cache_->IsCached(std::to_string(i) + "_mb"));
   }
-}
-
-TEST_F(ImageCacheBlobTest, DifferentExpectedShape) {
-  cache_->Add(kKey1, &kValue1[0], kShape1, 0);
-  EXPECT_TRUE(cache_->IsCached(kKey1));
-  std::vector<uint8_t> cachedData(kValue1.size());
-  ImageCache::ImageShape wrong_shape = {1200, 1, 4};
-  EXPECT_THROW(cache_->Read(kKey1, &cachedData[0], wrong_shape, 0), std::runtime_error);
 }
 
 }  // namespace testing

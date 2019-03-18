@@ -39,7 +39,6 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
 
     bool Read(const ImageKey& image_key,
               void* destination_data,
-              const ImageShape& expected_shape,
               cudaStream_t stream) const override;
 
     const ImageShape& GetShape(const ImageKey& image_key) const override;

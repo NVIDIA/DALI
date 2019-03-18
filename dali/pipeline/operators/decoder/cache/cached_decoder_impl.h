@@ -33,7 +33,6 @@ class CachedDecoderImpl {
 
   virtual bool CacheLoad(
     const std::string& file_name,
-    const ImageCache::ImageShape &expected_shape,
     uint8_t *output_data,
     cudaStream_t stream);
 
@@ -42,6 +41,9 @@ class CachedDecoderImpl {
     uint8_t* data,
     const ImageCache::ImageShape& data_shape,
     cudaStream_t stream);
+
+  ImageCache::ImageShape CacheImageShape(
+    const std::string& file_name);
 
  private:
   std::shared_ptr<ImageCache> cache_;

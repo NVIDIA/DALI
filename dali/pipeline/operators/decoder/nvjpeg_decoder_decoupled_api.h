@@ -141,6 +141,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ParseImagesInfo(MixedWorkspace *ws) {
+    const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws->Input<CPUBackend>(0, i);
@@ -149,6 +150,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto file_name = in.GetSourceInfo();
 
       ImageInfo info;
+
+      auto cached_shape = CacheImageShape(file_name);
+      if (volume(cached_shape) > 0) {
+        output_shape_[i] = Dims({cached_shape[0], cached_shape[1], cached_shape[2]});
+        output_info_[i] = info;
+        continue;
+      }
+
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
@@ -192,7 +201,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           info.heights[0] = crop_window.h;
         }
       }
-      const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
       output_info_[i] = info;
     }
@@ -230,7 +238,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
       thread_pool_.DoWorkWithID(
         [this, i, file_name, stream, &in, output_data, shape](int tid) {
-          if (CacheLoad(file_name, shape, output_data, stream))
+          if (CacheLoad(file_name, output_data, stream))
             return;
 
           SampleWorker(i, file_name, in.size(), tid,
