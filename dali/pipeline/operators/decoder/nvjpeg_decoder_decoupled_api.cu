@@ -31,7 +31,7 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
       R"code(Images of size H*W*C above this threshold will use the nvJPEG hybrid Huffman decoder.
 Images below will use the nvJPEG full host huffman decoder.
 N.B.: Hybrid Huffman decoder still uses mostly the CPU.)code",
-      1000*1000)
+      512u*512u)
   .AddOptionalArg("device_memory_padding",
       R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
@@ -41,7 +41,7 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
       R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024)
+      8*1024*1024)  // based on ImageNet heuristics
   .AddOptionalArg("split_stages",
       R"code(Split into separated CPU stage and GPU stage operators)code",
       false)
