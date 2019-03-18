@@ -28,10 +28,10 @@ namespace dali {
 
 // Policy that passes Queueing/Buffering indexes between stages, handling required synchronization
 // struct QueuePolicy {
-//   static bool IsUniformPolicy();
+//   // Return sizes of stage queues based of Pipeline arguments
+//   static StageQueues GetQueueSizes(QueueSizes init_sizes);
 //   // Initialize the policy during Executor::Build();
-//   void InitializeQueues(
-//       const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths);
+//   void InitializeQueues(const StageQueues &stage_queue_depths);
 //   // Acquire Queue indexes for given stage
 //   QueueIdxs AcquireIdxs(OpType stage);
 //   // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
@@ -54,19 +54,21 @@ namespace dali {
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
   static const int kInvalidIdx = -1;
-  static bool IsUniformPolicy() {
-    return true;
+
+  static StageQueues GetQueueSizes(QueueSizes init_sizes) {
+    DALI_ENFORCE(init_sizes.cpu_size == init_sizes.gpu_size,
+                 "Queue sizes should be equal for UniformQueuePolicy");
+    return StageQueues(init_sizes.cpu_size);
   }
 
-  void InitializeQueues(
-      const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths) {
+  void InitializeQueues(const StageQueues &stage_queue_depths) {
     DALI_ENFORCE(
-        stage_queue_depths[(int)OpType::CPU] == stage_queue_depths[(int)OpType::MIXED] &&
-            stage_queue_depths[(int)OpType::MIXED] == stage_queue_depths[(int)OpType::GPU],
+        stage_queue_depths[OpType::CPU] == stage_queue_depths[OpType::MIXED] &&
+            stage_queue_depths[OpType::MIXED] == stage_queue_depths[OpType::GPU],
         "This policy does not support splited queues");
 
     // All buffers start off as free
-    for (int i = 0; i < stage_queue_depths[static_cast<int>(OpType::CPU)]; ++i) {
+    for (int i = 0; i < stage_queue_depths[OpType::CPU]; ++i) {
       free_queue_.push(i);
     }
   }
@@ -193,6 +195,8 @@ struct UniformQueuePolicy {
 
 struct SeparateQueuePolicy;
 
+namespace detail {
+
 struct ReleaseCommand {
   SeparateQueuePolicy *policy;
   OpType stage;
@@ -201,28 +205,36 @@ struct ReleaseCommand {
 
 static void release_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
+}  // namespace detail
+
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
 // stage
 struct SeparateQueuePolicy {
   static const int kInvalidIdx = -1;
 
-  static bool IsUniformPolicy() {
-    return false;
+  static StageQueues GetQueueSizes(QueueSizes init_sizes) {
+    StageQueues result;
+     // For non-uniform case we buffer for CPU x GPU pair.
+    result[OpType::SUPPORT] = init_sizes.cpu_size * init_sizes.gpu_size;
+    result[OpType::CPU] = init_sizes.cpu_size;
+    // Mixed and GPU are bound together due to being outputs
+    result[OpType::MIXED] = init_sizes.gpu_size;
+    result[OpType::GPU] = init_sizes.gpu_size;
+    return result;
   }
 
-  void InitializeQueues(
-      const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths) {
+  void InitializeQueues(const StageQueues &stage_queue_depths) {
     for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
-      for (int i = 0; i < stage_queue_depths[stage]; i++) {
+      for (int i = 0; i < stage_queue_depths[static_cast<OpType>(stage)]; i++) {
         stage_free_[stage].push(i);
       }
     }
-    support_release_commands_.resize(stage_queue_depths[static_cast<int>(OpType::SUPPORT)]);
-    cpu_release_commands_.resize(stage_queue_depths[static_cast<int>(OpType::CPU)]);
+    support_release_commands_.resize(stage_queue_depths[OpType::SUPPORT]);
+    cpu_release_commands_.resize(stage_queue_depths[OpType::CPU]);
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
-    QueueIdxs result(0);
+    QueueIdxs result;
     // We dine with the philosophers
 
     int current_stage = static_cast<int>(stage);
@@ -265,8 +277,8 @@ struct SeparateQueuePolicy {
     // TODO(klecki) when we move to CUDA 10, we should move to cudaLaunchHostFunc
     if (stage == OpType::MIXED) {
       auto &command = cpu_release_commands_[idxs[OpType::CPU]];
-      command = ReleaseCommand{this, OpType::CPU, idxs[OpType::CPU]};
-      cudaStreamAddCallback(stage_stream, &release_callback, static_cast<void*>(&command), 0);
+      command = detail::ReleaseCommand{this, OpType::CPU, idxs[OpType::CPU]};
+      cudaStreamAddCallback(stage_stream, &detail::release_callback, &command, 0);
     }
     {
       std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
@@ -291,8 +303,8 @@ struct SeparateQueuePolicy {
 
     // In case of GPU we release also the Support Op
     auto &command = support_release_commands_[idxs[OpType::SUPPORT]];
-    command = ReleaseCommand{this, OpType::SUPPORT, idxs[OpType::SUPPORT]};
-    cudaStreamAddCallback(gpu_op_stream, &release_callback, static_cast<void*>(&command), 0);
+    command = detail::ReleaseCommand{this, OpType::SUPPORT, idxs[OpType::SUPPORT]};
+    cudaStreamAddCallback(gpu_op_stream, &detail::release_callback, &command, 0);
   }
 
   OutputIdxs UseOutputIdxs() {
@@ -361,7 +373,7 @@ struct SeparateQueuePolicy {
   }
 
  private:
-  friend void release_callback(cudaStream_t stream, cudaError_t status, void *userData);
+  friend void detail::release_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
   void ReleaseStageIdx(OpType stage, int idx) {
     auto released_stage = static_cast<int>(stage);
@@ -408,9 +420,11 @@ struct SeparateQueuePolicy {
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
-  std::vector<ReleaseCommand> support_release_commands_;
-  std::vector<ReleaseCommand> cpu_release_commands_;
+  std::vector<detail::ReleaseCommand> support_release_commands_;
+  std::vector<detail::ReleaseCommand> cpu_release_commands_;
 };
+
+namespace detail {
 
 // void (CUDART_CB *cudaStreamCallback_t)(cudaStream_t stream, cudaError_t status, void *userData);
 void release_callback(cudaStream_t stream, cudaError_t status, void *userData) {
@@ -418,6 +432,7 @@ void release_callback(cudaStream_t stream, cudaError_t status, void *userData) {
   command->policy->ReleaseStageIdx(command->stage, command->idx);
 }
 
+}  // namespace detail
 
 
 }  // namespace dali
