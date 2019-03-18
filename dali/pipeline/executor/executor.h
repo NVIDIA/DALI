@@ -294,8 +294,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
           for (int j = 0; j < graph_->NumOp(OpType::CPU); ++j) {
             OpNode &op_node = graph_->Node(OpType::CPU, j);
             OperatorBase &op = *op_node.op;
-            WorkspacePolicy::template GetWorkspace<OpType::CPU>(queue_idx, *graph_, op_node)
-                .GetSample(&ws, data_idx, tid);
+            {
+              // TODO(klecki) : investigate why this takes a long time
+              TimeRange tr("GetWorkspace/GetSample", TimeRange::kRed);
+              WorkspacePolicy::template GetWorkspace<OpType::CPU>(queue_idx, *graph_, op_node)
+                  .GetSample(&ws, data_idx, tid);
+            }
             TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
                 + " on " + to_string(data_idx),
                 TimeRange::kBlue1);
