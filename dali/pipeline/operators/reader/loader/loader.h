@@ -15,7 +15,6 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 #define DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 
-#include <list>
 #include <map>
 #include <mutex>
 #include <random>
@@ -107,6 +106,7 @@ class Loader {
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
       TimeRange tr("[Loader] Filling initial buffer", TimeRange::kBlue1);
+      std::lock_guard<std::mutex> lock(return_mutex_);
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
@@ -122,7 +122,6 @@ class Loader {
       for (int i = 0; i < initial_empty_size_; ++i) {
         LoadTarget* tensor = new LoadTarget();
         PrepareEmpty(tensor);
-
         empty_tensors_.push_back(tensor);
       }
 
@@ -130,15 +129,15 @@ class Loader {
     }
     // choose the random index
     int idx = shuffle_ ? dis(e_) % sample_buffer_.size() : 0;
-    LoadTarget* elem = sample_buffer_[idx];
 
     // swap end and idx, return the tensor to empties
-    std::swap(sample_buffer_[idx], sample_buffer_[sample_buffer_.size()-1]);
+    std::swap(sample_buffer_[idx], sample_buffer_.back());
     // remove last element
+    LoadTarget* elem = sample_buffer_.back();
     sample_buffer_.pop_back();
 
     // now grab an empty tensor, fill it and add to filled buffers
-    // empty_tensors_ needs to be thread-safe w.r.t. ReturnTensor()
+    // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
     // being called by multiple consumer threads
     LoadTarget* t;
     {
@@ -155,8 +154,12 @@ class Loader {
 
   // return a tensor to the empty pile
   // called by multiple consumer threads
-  void ReturnTensor(LoadTarget* tensor) {
+  void RecycleTensor(LoadTarget* tensor) {
     std::lock_guard<std::mutex> lock(return_mutex_);
+    const auto it = std::find(empty_tensors_.begin(), empty_tensors_.end(), tensor);
+    DALI_ENFORCE(it == empty_tensors_.end(),
+      "Tensor " + std::to_string(reinterpret_cast<uint64_t>(tensor)) +
+          " is already in empty_tensors_");
     empty_tensors_.push_back(tensor);
   }
 
@@ -185,7 +188,7 @@ class Loader {
   }
   std::vector<LoadTarget*> sample_buffer_;
 
-  std::list<LoadTarget*> empty_tensors_;
+  std::vector<LoadTarget*> empty_tensors_;
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
