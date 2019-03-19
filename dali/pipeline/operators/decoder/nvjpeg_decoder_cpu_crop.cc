@@ -27,6 +27,7 @@ Partially decode JPEG images using the nvJPEG library and a cropping window.
 Output of the decoder is on the GPU and uses `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(3)
+  .MakeInternal()
   .AddParent("nvJPEGDecoderCPUStage")
   .AddParent("CropAttr");
 

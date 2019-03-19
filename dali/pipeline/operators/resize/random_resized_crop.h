@@ -23,18 +23,21 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/resize/resize_base.h"
 #include "dali/util/random_crop_generator.h"
+#include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
 
 template <typename Backend>
-class RandomResizedCrop : public Operator<Backend> {
+class RandomResizedCrop : public Operator<Backend>
+                        , protected ResizeBase {
  public:
-  explicit inline RandomResizedCrop(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    params_(new Params()),
-    num_attempts_(spec.GetArgument<int>("num_attempts")),
-    interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+  explicit inline RandomResizedCrop(const OpSpec &spec)
+      : Operator<Backend>(spec)
+      , ResizeBase(spec)
+      , num_attempts_(spec.GetArgument<int>("num_attempts"))
+      , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, &size_, "size", 2);
     GetSingleOrRepeatedArg(spec, &aspect_ratio_range_, "random_aspect_ratio", 2);
     GetSingleOrRepeatedArg(spec, &area_range_, "random_area", 2);
@@ -43,6 +46,7 @@ class RandomResizedCrop : public Operator<Backend> {
     DALI_ENFORCE(area_range_[0] <= area_range_[1],
         "Provided empty range");
     InitParams(spec);
+    BackendInit();
   }
 
   inline ~RandomResizedCrop() override = default;
@@ -56,6 +60,8 @@ class RandomResizedCrop : public Operator<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
+  void BackendInit();
+
   struct Params {
     void Initialize(
         int num_gens,
@@ -79,21 +85,42 @@ class RandomResizedCrop : public Operator<Backend> {
     std::vector<CropWindow> crops;
   };
 
+
+  void CalcResamplingParams() {
+    const int n = params_.crops.size();
+    resample_params_.resize(n);
+    for (int i = 0; i < n; i++)
+      resample_params_[i] = CalcResamplingParams(i);
+  }
+
+  kernels::ResamplingParams2D CalcResamplingParams(int index) const {
+    auto &wnd = params_.crops[index];
+    auto params = shared_params_;
+    params[0].roi = kernels::ResamplingParams::ROI(wnd.y, wnd.y+wnd.h);
+    params[1].roi = kernels::ResamplingParams::ROI(wnd.x, wnd.x+wnd.w);
+    return params;
+  }
+
   void InitParams(const OpSpec &spec) {
     auto seed = spec.GetArgument<int64_t>("seed");
-    params_->Initialize(
+    params_.Initialize(
         batch_size_, seed,
         { aspect_ratio_range_[0], aspect_ratio_range_[1] },
         { area_range_[0], area_range_[1] },
         num_attempts_);
+
+    shared_params_[0].output_size = size_[0];
+    shared_params_[1].output_size = size_[1];
+    shared_params_[0].min_filter = shared_params_[1].min_filter = min_filter_;
+    shared_params_[0].mag_filter = shared_params_[1].mag_filter = mag_filter_;
   }
 
-
-  unique_ptr<Params> params_;
+  Params params_;
   int num_attempts_;
 
   std::vector<int> size_;
   DALIInterpType interp_type_;
+  kernels::ResamplingParams2D shared_params_;
 
   std::vector<float> aspect_ratio_range_;
   std::vector<float> area_range_;

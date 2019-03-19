@@ -418,21 +418,15 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 }
 
-static vector<string> GetRegisteredCPUOps() {
-  return CPUOperatorRegistry::Registry().RegisteredNames();
+#define GetRegisteredOpsFor(OPTYPE)                                           \
+static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) { \
+  return OPTYPE##OperatorRegistry::Registry().RegisteredNames(internal_ops);  \
 }
-
-static vector<string> GetRegisteredGPUOps() {
-  return GPUOperatorRegistry::Registry().RegisteredNames();
-}
-
-static vector<string> GetRegisteredMixedOps() {
-  return MixedOperatorRegistry::Registry().RegisteredNames();
-}
-
-static vector<string> GetRegisteredSupportOps() {
-  return SupportOperatorRegistry::Registry().RegisteredNames();
-}
+GetRegisteredOpsFor(CPU)
+GetRegisteredOpsFor(GPU)
+GetRegisteredOpsFor(Mixed)
+GetRegisteredOpsFor(Support)
+#undef GetRegisteredOpsFor
 
 static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
@@ -747,10 +741,10 @@ PYBIND11_MODULE(backend_impl, m) {
         }, py::return_value_policy::take_ownership);
 
   // Registries for cpu, gpu & mixed operators
-  m.def("RegisteredCPUOps", &GetRegisteredCPUOps);
-  m.def("RegisteredGPUOps", &GetRegisteredGPUOps);
-  m.def("RegisteredMixedOps", &GetRegisteredMixedOps);
-  m.def("RegisteredSupportOps", &GetRegisteredSupportOps);
+  m.def("RegisteredCPUOps", &GetRegisteredCPUOps, py::arg("internal_ops") = false);
+  m.def("RegisteredGPUOps", &GetRegisteredGPUOps, py::arg("internal_ops") = false);
+  m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
+  m.def("RegisteredSupportOps", &GetRegisteredSupportOps, py::arg("internal_ops") = false);
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
@@ -773,7 +767,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "local_only"_a = false)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
-    .def("AllowsSequences", &OpSchema::AllowsSequences);
+    .def("AllowsSequences", &OpSchema::AllowsSequences)
+    .def("IsInternal", &OpSchema::IsInternal);
 
   ExposeTensor(m);
   ExposeTensorList(m);

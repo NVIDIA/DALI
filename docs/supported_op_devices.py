@@ -8,7 +8,6 @@ def main(argv):
         cpu_ops.add('TFRecordReader')
     gpu_ops = set(b.RegisteredGPUOps())
     mix_ops = set(b.RegisteredMixedOps())
-    mix_ops.remove('MakeContiguous')
     support_ops = set(b.RegisteredSupportOps())
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
     link_string = '_'
@@ -21,7 +20,7 @@ def main(argv):
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Support', 'Sequences', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    for op in sorted(all_ops):
+    for op in sorted(all_ops, key=lambda v: str(v).lower()):
         schema = b.GetSchema(op)
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
