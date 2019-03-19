@@ -44,6 +44,32 @@ RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, 
           cudaStream_t stream = 0);
 
 /**
+ * Convert BGR image to RGBA and puts it in strided memory
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch Stride within output memory layout. In bytes.
+ * @param width_px In pixels.
+ * @param height
+ * @param stream Stream, in which kernel is called
+ */
+DLL_PUBLIC void
+BgrToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+          cudaStream_t stream = 0);
+
+/**
+ * Puts grayscale data in strided memory
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch Stride within output memory layout. In bytes.
+ * @param width_px In pixels.
+ * @param height
+ * @param stream Stream, in which kernel is called
+ */
+DLL_PUBLIC void
+Gray(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+     cudaStream_t stream = 0);
+
+/**
  * Decodes components of flow vector and unstrides memory
  * @param input
  * @param output User is responsible for allocation of output
