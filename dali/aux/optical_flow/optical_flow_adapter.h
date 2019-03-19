@@ -50,7 +50,18 @@ struct OpticalFlowParams {
 
 using dali::kernels::TensorView;
 
-struct unsupported_exception : std::exception {};
+struct unsupported_exception : std::exception {
+  explicit unsupported_exception() = default;
+
+
+  explicit unsupported_exception(const std::string &str) : msg(str) {}
+
+
+  const char *what() const noexcept override { return msg.c_str(); }
+
+
+  std::string msg;
+};
 
 template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
