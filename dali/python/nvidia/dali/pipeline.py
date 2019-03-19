@@ -108,6 +108,10 @@ class Pipeline(object):
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+        self._exec_separated = True
+        self._prefetch_queue_depth = prefetch_queue_depth
+        self._cpu_queue_size = 5
+        self._gpu_queue_size = 2
 
     @property
     def batch_size(self):
