@@ -52,16 +52,19 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
   const auto &input = ws->Input<GPUBackend>(0);
   auto &output = ws->Output<GPUBackend>(0);
 
+  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
+
   // Extract calculation params
   ExtractParams(input);
   std::vector<Dims> new_sizes;
+  auto out_shape = optical_flow_->GetOutputShape();
   for (int i = 0; i < nsequences_; i++) {
-    new_sizes.push_back({sequence_sizes_[i], (frames_height_ + 3) / 4, (frames_width_ + 3) / 4,
-                         kNOutputDims});
+    Dims shape = {sequence_sizes_[i]};
+    shape.insert(shape.end(), out_shape.begin(), out_shape.end());
+    new_sizes.emplace_back(shape);
   }
   output.Resize(new_sizes);
 
-  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
 
   // Prepare input and output TensorViews
   auto tvlin = view<const uint8_t, kNInputDims>(input);

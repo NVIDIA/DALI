@@ -22,6 +22,7 @@ namespace dali {
 namespace optical_flow {
 
 using kernels::TensorView;
+using kernels::TensorShape;
 using kernels::ComputeCPU;
 using kernels::StorageCPU;
 using kernels::ComputeGPU;
@@ -38,6 +39,9 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   of->CalcOpticalFlow(tvref, tvin, tvout);
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue, *tvout(0, 0, 0));
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue / 2, *tvout(0, 0, 1));
+  auto ts = of->GetOutputShape();
+  TensorShape<3> ref_ts{2, 3, 4};
+  EXPECT_EQ(ref_ts, ts);
 }
 
 
@@ -60,6 +64,10 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeGPU>::kStubValue / 2, host[1]);
 
   CUDA_CALL(cudaFree(tvout_data));
+
+  auto ts = of->GetOutputShape();
+  TensorShape<3> ref_ts{2, 3, 4};
+  EXPECT_EQ(ref_ts, ts);
 }
 
 }  // namespace optical_flow
