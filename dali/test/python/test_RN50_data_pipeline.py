@@ -139,6 +139,8 @@ parser.add_argument('-cpu', '--cpu_size', type=int, metavar='N',
                     help='cpu queue size, must be used with -gpu to force separte execution')
 parser.add_argument('-gpu', '--gpu_size', type=int, metavar='N',
                     help='gpu queue size, must be used with -cpu to force separte execution')
+parser.add_argument('-mix', '--mixed_size', type=int, metavar='N',
+                    help='mixed queue size, must be used with -cpu to force separte execution')
 
 args = parser.parse_args()
 
@@ -146,7 +148,7 @@ N = args.gpus             # number of GPUs
 BATCH_SIZE = args.batch   # batch size
 LOG_INTERVAL = args.print_freq
 if args.cpu_size is not None and args.gpu_size is not None:
-    PREFETCH = {"cpu_size": args.cpu_size, "gpu_size": args.gpu_size}
+    PREFETCH = {"cpu_size": args.cpu_size, "mixed_size": args.mixed_size, "gpu_size": args.gpu_size}
 else:
     PREFETCH = args.prefetch
 WORKERS = args.workers
