@@ -260,7 +260,7 @@ class Pipeline(object):
             self._pipe.RunCPU()
             self._cpu_batches_to_consume += 1
 
-    def _run_cpu(self):
+    def _run_mixed(self):
         """Run CPU portion of the pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
