@@ -25,10 +25,10 @@ namespace dali {
 
 // Policy that passes Queueing/Buffering indexes between stages, handling required synchronization
 // struct QueuePolicy {
-//   static bool IsUniformPolicy();
+//   // Return sizes of stage queues based of Pipeline arguments
+//   static StageQueues GetQueueSizes(QueueSizes init_sizes);
 //   // Initialize the policy during Executor::Build();
-//   void InitializeQueues(
-//       const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths);
+//   void InitializeQueues(const StageQueues &stage_queue_depths);
 //   // Acquire Queue indexes for given stage
 //   QueueIdxs AcquireIdxs(OpType stage);
 //   // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
@@ -48,19 +48,20 @@ namespace dali {
 
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
-  static bool IsUniformPolicy() {
-    return true;
+  static StageQueues GetQueueSizes(QueueSizes init_sizes) {
+    DALI_ENFORCE(init_sizes.cpu_size == init_sizes.gpu_size,
+                 "Queue sizes should be equal for UniformQueuePolicy");
+    return StageQueues(init_sizes.cpu_size);
   }
 
-  void InitializeQueues(
-      const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths) {
+  void InitializeQueues(const StageQueues &stage_queue_depths) {
     DALI_ENFORCE(
-        stage_queue_depths[(int)OpType::CPU] == stage_queue_depths[(int)OpType::MIXED] &&
-            stage_queue_depths[(int)OpType::MIXED] == stage_queue_depths[(int)OpType::GPU],
+        stage_queue_depths[OpType::CPU] == stage_queue_depths[OpType::MIXED] &&
+            stage_queue_depths[OpType::MIXED] == stage_queue_depths[OpType::GPU],
         "This policy does not support splited queues");
 
     // All buffers start off as free
-    for (int i = 0; i < stage_queue_depths[static_cast<int>(OpType::CPU)]; ++i) {
+    for (int i = 0; i < stage_queue_depths[OpType::CPU]; ++i) {
       free_queue_.push(i);
     }
   }
@@ -180,14 +181,20 @@ struct UniformQueuePolicy {
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
 // stage
 struct SeparateQueuePolicy {
-  static bool IsUniformPolicy() {
-    return false;
+  static StageQueues GetQueueSizes(QueueSizes init_sizes) {
+    StageQueues result(0);
+     // For non-uniform case we buffer for CPU x GPU pair.
+    result[OpType::SUPPORT] = init_sizes.cpu_size * init_sizes.gpu_size;
+    result[OpType::CPU] = init_sizes.cpu_size;
+    // Mixed and GPU are bound together due to being outputs
+    result[OpType::MIXED] = init_sizes.gpu_size;
+    result[OpType::GPU] = init_sizes.gpu_size;
+    return result;
   }
 
-  void InitializeQueues(
-      const std::array<int, static_cast<int>(OpType::COUNT)> &stage_queue_depths) {
+  void InitializeQueues(const StageQueues &stage_queue_depths) {
     for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
-      for (int i = 0; i < stage_queue_depths[stage]; i++) {
+      for (int i = 0; i < stage_queue_depths[static_cast<OpType>(stage)]; i++) {
         stage_free_[stage].push(i);
       }
     }

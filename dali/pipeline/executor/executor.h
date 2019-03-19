@@ -89,18 +89,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
-    // TODO(klecki) This should be moved to children
-    if (QueuePolicy::IsUniformPolicy()) {
-      // synchronous with CPU, we buffer for the GPU
-      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.gpu_size;
-    } else {
-      // For non-uniform case we buffer for CPU x GPU pair.
-      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.cpu_size * prefetch_queue_depth.gpu_size;
-    }
-    QueueDepth(OpType::CPU) = prefetch_queue_depth.cpu_size;
-    // Mixed and GPU are bound together due to being outputs
-    QueueDepth(OpType::MIXED) = prefetch_queue_depth.gpu_size;
-    QueueDepth(OpType::GPU) = prefetch_queue_depth.gpu_size;
+    stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
@@ -135,8 +124,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    const OpGraph &graph);
 
   void SetupOutputQueuesForGraph();
-
-  int &QueueDepth(OpType stage);
 
   class EventList {
    public:
@@ -184,7 +171,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // unless it becomes an issue in the future.
 
 
-  std::array<int, static_cast<int>(OpType::COUNT)> stage_queue_depths_;
+  StageQueues stage_queue_depths_;
 
   OpGraph *graph_ = nullptr;
   StreamPool stream_pool_;
@@ -239,7 +226,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
-    mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, QueueDepth(OpType::MIXED));
+    mixed_op_events_ =
+        CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);
@@ -584,7 +572,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
     if (tensor.producer.storage_device == StorageDevice::GPU) {
       auto parent_type = graph.Node(tensor.producer.node).op_type;
       gpu_output_events_.push_back(
-          EventList(QueueDepth(parent_type), &event_pool_));
+          EventList(stage_queue_depths_[parent_type], &event_pool_));
     } else {
       gpu_output_events_.push_back(EventList());
     }
@@ -600,7 +588,7 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
   for (auto id : output_ids) {
     auto &tensor = graph.Tensor(id);
     auto parent_type =  graph.Node(tensor.producer.node).op_type;
-    result[id] = QueueDepth(parent_type);
+    result[id] = stage_queue_depths_[parent_type];
   }
   return result;
 }
@@ -680,13 +668,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
   QueuePolicy::InitializeQueues(stage_queue_depths_);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-int &Executor<WorkspacePolicy, QueuePolicy>::QueueDepth(OpType stage) {
-  return stage_queue_depths_[static_cast<int>(stage)];
-}
-
-
-using SimpleExecutor = Executor<AOT_WS_Policy, UniformQueuePolicy>;
+using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
 
 }  // namespace dali
 
