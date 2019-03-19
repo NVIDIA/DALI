@@ -28,6 +28,6 @@
 
 namespace dali {
 
-template class Executor<AOT_WS_Policy, UniformQueuePolicy>;
+template class Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
 
 }  // namespace dali
