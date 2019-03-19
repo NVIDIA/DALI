@@ -15,6 +15,7 @@
 #ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 #define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
 
+#include <string>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/data/backend.h"
@@ -51,7 +52,7 @@ struct OpticalFlowParams {
 using dali::kernels::TensorView;
 
 struct unsupported_exception : std::exception {
-  explicit unsupported_exception() = default;
+  unsupported_exception() = default;
 
 
   explicit unsupported_exception(const std::string &str) : msg(str) {}

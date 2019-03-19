@@ -24,7 +24,6 @@ namespace testing {
 
 
 const std::string &dali_extra_path() {
-
   // Path to DALI_extra repository
   // XXX: In order to avoid Static Initialization Order Fiasco,
   //      _dali_extra_path is a static pointer to string.
