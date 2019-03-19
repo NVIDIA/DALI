@@ -252,6 +252,7 @@ class DALISingleOpTest : public DALITest {
   void RunOperator(DeviceWorkspace *ws) {
     SetTestCheckType(GetTestCheckType());
     pipeline_->RunCPU();
+    pipeline_->RunMixed();
     pipeline_->RunGPU();
     pipeline_->Outputs(ws);
   }

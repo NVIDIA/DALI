@@ -109,6 +109,7 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMixed();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -118,9 +119,11 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMixed();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
@@ -241,6 +244,7 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMixed();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -250,9 +254,11 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMixed();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 

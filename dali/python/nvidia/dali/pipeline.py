@@ -89,6 +89,7 @@ class Pipeline(object):
         self._last_iter = False
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
+        self._mixed_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
         self._prepared = False
         self._names_and_devices = None
@@ -99,12 +100,14 @@ class Pipeline(object):
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
+            self._mixed_queue_size = prefetch_queue_depth["mixed_size"]
             self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
             self._prefetch_queue_depth = self._cpu_queue_size  # dummy value, that will be ignored
         elif type(prefetch_queue_depth) is int:
             self._exec_separated = False
             self._prefetch_queue_depth = prefetch_queue_depth
             self._cpu_queue_size = prefetch_queue_depth
+            self._mixed_queue_size = prefetch_queue_depth
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
@@ -156,7 +159,7 @@ class Pipeline(object):
                                 self._set_affinity,
                                 self._max_streams)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.SetQueueSizes(self._cpu_queue_size, self._mixed_queue_size, self._gpu_queue_size)
         outputs = self.define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
@@ -257,13 +260,22 @@ class Pipeline(object):
             self._pipe.RunCPU()
             self._cpu_batches_to_consume += 1
 
+    def _run_cpu(self):
+        """Run CPU portion of the pipeline."""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if self._cpu_batches_to_consume > 0:
+            self._pipe.RunMixed()
+            self._cpu_batches_to_consume -= 1
+            self._mixed_batches_to_consume += 1
+
     def _run_gpu(self):
         """Run GPU portion of the pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if self._cpu_batches_to_consume > 0:
+        if self._mixed_batches_to_consume > 0:
             self._pipe.RunGPU()
-            self._cpu_batches_to_consume -= 1
+            self._mixed_batches_to_consume -= 1
             self._gpu_batches_to_consume += 1
 
     def outputs(self):
@@ -354,6 +366,9 @@ class Pipeline(object):
                 self._run_cpu()
                 if stage_name == "cpu":
                     return
+                self._run_mixed()
+                if stage_name == "mixed":
+                    return
                 self._run_gpu()
                 if stage_name == "gpu":
                     return
@@ -372,6 +387,8 @@ class Pipeline(object):
             raise RuntimeError("This function should be only used with separated execution.")
         for i in range(self._gpu_queue_size):
             self._run_up_to("gpu")
+        for i in range(self._mixed_queue_size):
+            self._run_up_to("mixed")
         for i in range(self._cpu_queue_size):
             self._run_up_to("cpu")
 
@@ -401,7 +418,7 @@ class Pipeline(object):
                                 self._set_affinity,
                                 self._max_streams)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.SetQueueSizes(self._cpu_queue_size, self._mixed_queue_size, self._gpu_queue_size)
         self._prepared = True
         self._pipe.Build()
         self._built = True

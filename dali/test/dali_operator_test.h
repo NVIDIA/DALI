@@ -125,6 +125,7 @@ inline DeviceWorkspace CreateWorkspace() {
 
 inline void RunPipeline(Pipeline &pipeline) {
   pipeline.RunCPU();
+  pipeline.RunMixed();
   pipeline.RunGPU();
 }
 

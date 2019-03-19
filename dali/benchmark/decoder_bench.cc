@@ -56,6 +56,7 @@ class DecoderBench : public DALIBenchmark {
     // Run once to allocate the memory
     DeviceWorkspace ws;
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
@@ -65,9 +66,11 @@ class DecoderBench : public DALIBenchmark {
         // immediately after issueing work to the gpu to
         // pipeline the cpu/copy/gpu work
         pipe.RunCPU();
+        pipe.RunMixed();
         pipe.RunGPU();
       }
       pipe.RunCPU();
+      pipe.RunMixed();
       pipe.RunGPU();
       pipe.Outputs(&ws);
 

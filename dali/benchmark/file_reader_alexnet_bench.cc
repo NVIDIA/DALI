@@ -109,6 +109,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   // Run once to allocate the memory
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMixed();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -118,9 +119,11 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.RunCPU();
+      pipe.RunMixed();
       pipe.RunGPU();
     }
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 

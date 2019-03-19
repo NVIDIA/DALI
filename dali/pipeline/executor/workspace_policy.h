@@ -294,11 +294,9 @@ struct AOT_Sep_WS_Policy {
 
     support_workspaces_.resize(depths_[OpType::SUPPORT]);
     cpu_workspaces_.resize(depths_[OpType::CPU] * depths_[OpType::SUPPORT]);
-    // Mixed and GPU are bound together due to being outputs
-    // We do not create another layer of ws, as we process Mixed and GPU together
     mixed_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
                              depths_[OpType::SUPPORT]);
-    gpu_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
+    gpu_workspaces_.resize(depths_[OpType::GPU] * depths_[OpType::MIXED] * depths_[OpType::CPU] *
                            depths_[OpType::SUPPORT]);
 
     // now we do cover possible calls for GetWorkspace - for all possible QueueIdxs idxs that
@@ -334,11 +332,13 @@ struct AOT_Sep_WS_Policy {
     for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
       for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
         for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
-          // Get sequential index and prepare space all GPU Ops
-          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, mixed_id};
-          PlaceWorkspace<OpType::GPU, OpType::MIXED>(gpu_workspaces_, queue_idxs, graph,
-                                                     tensor_to_store_queue, mixed_op_stream,
-                                                     gpu_op_stream, mixed_op_events);
+          for (int gpu_id = 0; gpu_id < depths_[OpType::GPU]; gpu_id++) {
+            // Get sequential index and prepare space all GPU Ops
+            auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, gpu_id};
+            PlaceWorkspace<OpType::GPU>(gpu_workspaces_, queue_idxs, graph,
+                                                      tensor_to_store_queue, mixed_op_stream,
+                                                      gpu_op_stream, mixed_op_events);
+          }
         }
       }
     }
@@ -346,9 +346,7 @@ struct AOT_Sep_WS_Policy {
 
   template <OpType op_type>
   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-    // Handle MIXED and GPU indexing together
-    auto index_for_op_type = op_type == OpType::GPU ? OpType::MIXED : op_type;
-    int sequential_ws_idx = SequentialIndex(idxs, depths_, index_for_op_type);
+    int sequential_ws_idx = SequentialIndex(idxs, depths_, op_type);
     auto &workspaces = GetWorkspacesCollection<op_type>();
     return workspaces[sequential_ws_idx][partition_idx];
   }

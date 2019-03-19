@@ -113,6 +113,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   DeviceWorkspace ws;
   for (int i=0; i < 5; ++i) {
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
@@ -134,6 +135,7 @@ TYPED_TEST(ReaderTest, PrefetchQueueTest) {
   DeviceWorkspace ws;
   for (int i=0; i < 5; ++i) {
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
   }
@@ -157,6 +159,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
   DeviceWorkspace ws;
   for (int i = 0; i < 4; ++i) {
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
     pipe.Outputs(&ws);
     auto shape = ws.Output<CPUBackend>(0).AsTensor()->shape();

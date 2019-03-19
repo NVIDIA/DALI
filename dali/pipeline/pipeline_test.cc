@@ -433,6 +433,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.Build(outputs);
   DeviceWorkspace ws;
   pipe.RunCPU();
+  pipe.RunMixed();
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
@@ -553,7 +554,7 @@ class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
 TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
   Pipeline pipe(this->batch_size_, 4, 0);
   // By default we are non-separated execution
-  ASSERT_THROW(pipe.SetQueueSizes(5, 3), std::runtime_error);
+  ASSERT_THROW(pipe.SetQueueSizes(5, 4, 3), std::runtime_error);
 }
 
 TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
@@ -589,13 +590,13 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
-  ASSERT_THROW(pipe.SetQueueSizes(2, 2), std::runtime_error);
+  ASSERT_THROW(pipe.SetQueueSizes(2, 2, 2), std::runtime_error);
 }
 
 TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes
-  constexpr int CPU = 5, GPU = 3;
-  constexpr int N = CPU + GPU + 5;
+  constexpr int CPU = 5, MIXED = 4, GPU = 3;
+  constexpr int N = CPU + MIXED + GPU + 5;
   // this->set_batch_size(this->batch_size_);
   int batch_size = this->batch_size_;
   this->SetEps(1.6);
@@ -604,7 +605,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Cannot test async while setting external input - need to make sure that
   pipe.SetExecutionTypes(true, true, true);
   // Test coprime queue sizes
-  pipe.SetQueueSizes(CPU, GPU);
+  pipe.SetQueueSizes(CPU, MIXED, GPU);
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(OpSpec("HostDecoder")
@@ -647,26 +648,41 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   for (int i = 0; i < GPU; i++) {
     pipe.SetExternalInput("data", splited_tl[i]);
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
   }
+  // We run MIXED stage additional `MIXED`-times, to fill the output queue
+  for (int i = GPU; i < GPU + MIXED; i++) {
+    pipe.SetExternalInput("data", splited_tl[i]);
+    pipe.RunCPU();
+    pipe.RunMixed();
+  }
   // We run CPU stage additional `CPU`-times, to fill the output queue
-  for (int i = GPU; i < GPU + CPU; i++) {
+  for (int i = GPU + MIXED; i < GPU + MIXED + CPU; i++) {
     pipe.SetExternalInput("data", splited_tl[i]);
     pipe.RunCPU();
   }
 
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
   int obtained_outputs = 0;
-  for (int i = GPU + CPU; i < N; i++) {
+  for (int i = GPU + MIXED + CPU; i < N; i++) {
     CheckResults(pipe, batch_size, obtained_outputs++);
     pipe.SetExternalInput("data", splited_tl[i]);
     pipe.RunCPU();
+    pipe.RunMixed();
     pipe.RunGPU();
   }
+
+  // TODO (fin this?)
 
   // We consumed all the data and have it in the Pipeline, now we need to run
   // Mixed and GPU stage to consume what was produced by the CPU
   for (int i = 0; i < CPU; i++) {
+    CheckResults(pipe, batch_size, obtained_outputs++);
+    pipe.RunMixed();
+    pipe.RunGPU();
+  }
+  for (int i = 0; i < MIXED; i++) {
     CheckResults(pipe, batch_size, obtained_outputs++);
     pipe.RunGPU();
   }

@@ -166,11 +166,11 @@ struct UniformQueuePolicy {
 struct SeparateQueuePolicy {
   static StageQueues GetQueueSizes(QueueSizes init_sizes) {
     StageQueues result(0);
-     // For non-uniform case we buffer for CPU x GPU pair.
-    result[OpType::SUPPORT] = init_sizes.cpu_size * init_sizes.gpu_size;
+     // For non-uniform case we buffer for CPU x Mixed x GPU triple.
+    result[OpType::SUPPORT] = init_sizes.cpu_size * init_sizes.mixed_size * init_sizes.gpu_size;
     result[OpType::CPU] = init_sizes.cpu_size;
     // Mixed and GPU are bound together due to being outputs
-    result[OpType::MIXED] = init_sizes.gpu_size;
+    result[OpType::MIXED] = init_sizes.mixed_size;
     result[OpType::GPU] = init_sizes.gpu_size;
     return result;
   }
