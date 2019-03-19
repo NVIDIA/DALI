@@ -167,6 +167,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
  * @brief Policy that is responsible for providing executor with workspaces used
  * during RunX() functions.
  */
+// template <typename QueuePolicy>
 // struct WS_Policy {
 //   // Type trait describing how will the workspace be returned (usually by copy or by ref)
 //   template <OpType op_type>
@@ -300,28 +301,17 @@ struct AOT2_WS_Policy {
     // now we do cover possible calls for GetWorkspace - for all possible QueueIdxs that we may get
     for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
       // Get sequential index and prepare space all Support Ops
-      auto idxs = QueueIdxs{support_id, 0, 0, 0};
-      int sequential_ws_idx = SequentialIndex(idxs, depths_, OpType::SUPPORT);
-      support_workspaces_[sequential_ws_idx].resize(graph.NumOp(OpType::SUPPORT));
-      for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(OpType::SUPPORT);
-           partition_idx++) {
-        support_workspaces_[sequential_ws_idx][partition_idx] = CreateWorkspace<OpType::SUPPORT>(
-            graph, graph.Node(OpType::SUPPORT, partition_idx), tensor_to_store_queue,
-            mixed_op_stream, gpu_op_stream, mixed_op_events, idxs);
-      }
+      auto queue_idxs = QueueIdxs{support_id, 0, 0, 0};
+      PlaceWorkspace<OpType::SUPPORT>(support_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                      mixed_op_stream, gpu_op_stream, mixed_op_events);
     }
+
     for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
       for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
         // Get sequential index and prepare space all CPU Ops
-        auto idxs = QueueIdxs{support_id, cpu_id, 0, 0};
-        int sequential_ws_idx = SequentialIndex(idxs, depths_, OpType::CPU);
-        cpu_workspaces_[sequential_ws_idx].resize(graph.NumOp(OpType::CPU));
-        for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(OpType::CPU);
-             partition_idx++) {
-          cpu_workspaces_[sequential_ws_idx][partition_idx] = CreateWorkspace<OpType::CPU>(
-              graph, graph.Node(OpType::CPU, partition_idx), tensor_to_store_queue, mixed_op_stream,
-              gpu_op_stream, mixed_op_events, idxs);
-        }
+        auto queue_idxs = QueueIdxs{support_id, cpu_id, 0, 0};
+        PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                    mixed_op_stream, gpu_op_stream, mixed_op_events);
       }
     }
 
@@ -329,15 +319,9 @@ struct AOT2_WS_Policy {
       for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
         for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
           // Get sequential index and prepare space all MIXED Ops
-          auto idxs = QueueIdxs{support_id, cpu_id, mixed_id, 0};
-          int sequential_ws_idx = SequentialIndex(idxs, depths_, OpType::MIXED);
-          mixed_workspaces_[sequential_ws_idx].resize(graph.NumOp(OpType::MIXED));
-          for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(OpType::MIXED);
-               partition_idx++) {
-            mixed_workspaces_[sequential_ws_idx][partition_idx] = CreateWorkspace<OpType::MIXED>(
-                graph, graph.Node(OpType::MIXED, partition_idx), tensor_to_store_queue,
-                mixed_op_stream, gpu_op_stream, mixed_op_events, idxs);
-          }
+          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, 0};
+          PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph, tensor_to_store_queue,
+                                        mixed_op_stream, gpu_op_stream, mixed_op_events);
         }
       }
     }
@@ -347,15 +331,10 @@ struct AOT2_WS_Policy {
       for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
         for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
           // Get sequential index and prepare space all GPU Ops
-          auto idxs = QueueIdxs{support_id, cpu_id, mixed_id, mixed_id};
-          int sequential_ws_idx = SequentialIndex(idxs, depths_, OpType::MIXED);
-          gpu_workspaces_[sequential_ws_idx].resize(graph.NumOp(OpType::GPU));
-          for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(OpType::GPU);
-               partition_idx++) {
-            gpu_workspaces_[sequential_ws_idx][partition_idx] = CreateWorkspace<OpType::GPU>(
-                graph, graph.Node(OpType::GPU, partition_idx), tensor_to_store_queue,
-                mixed_op_stream, gpu_op_stream, mixed_op_events, idxs);
-          }
+          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, mixed_id};
+          PlaceWorkspace<OpType::GPU, OpType::MIXED>(gpu_workspaces_, queue_idxs, graph,
+                                                     tensor_to_store_queue, mixed_op_stream,
+                                                     gpu_op_stream, mixed_op_events);
         }
       }
     }
@@ -379,6 +358,21 @@ struct AOT2_WS_Policy {
   std::vector<std::vector<HostWorkspace>> cpu_workspaces_;
   std::vector<std::vector<MixedWorkspace>> mixed_workspaces_;
   std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
+
+  template <OpType op_type, OpType group_as = op_type, typename T>
+  void PlaceWorkspace(T &workspaces, QueueIdxs idxs, const OpGraph &graph,
+                      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
+                      const std::vector<std::vector<cudaEvent_t>> &mixed_op_events) {
+    int sequential_ws_idx = SequentialIndex(idxs, depths_, group_as);
+    workspaces[sequential_ws_idx].resize(graph.NumOp(op_type));
+    for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(op_type); partition_idx++) {
+      auto &node = graph.Node(OpType::GPU, partition_idx);
+      workspaces[sequential_ws_idx][partition_idx] =
+          CreateWorkspace<op_type>(graph, node, tensor_to_store_queue, mixed_op_stream,
+                                   gpu_op_stream, mixed_op_events, idxs);
+    }
+  }
 };
 
 template <>
