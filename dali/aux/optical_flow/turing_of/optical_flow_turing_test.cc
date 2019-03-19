@@ -53,12 +53,10 @@ namespace kernel {
 class OpticalFlowTuringKernelTest : public ::testing::Test {
  protected:
   void SetUp() final {
-
   }
 
 
   void TearDown() final {
-
   }
 
 
@@ -118,6 +116,7 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
           88, 95, 63, 255, 96, 78, 16, 255,
           81, 89, 81, 255, 2, 18, 35, 255,
   };
+
  private:
   size_t width_ = 2, pitch_ = 10, height_ = 6;
   size_t width_gray_ = 8, pitch_gray_ = 10, height_gray_ = 6;

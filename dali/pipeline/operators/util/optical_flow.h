@@ -40,6 +40,7 @@ struct backend_to_compute<GPUBackend> {
 const std::string kPresetArgName = "preset";   // NOLINT
 const std::string kOutputFormatArgName = "output_format";   // NOLINT
 const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
+const std::string kImageTypeArgName = "image_type";   // NOLINT
 
 }  // namespace detail
 
@@ -57,7 +58,8 @@ class OpticalFlow : public Operator<Backend> {
           enable_hints_(spec.GetArgument<typename std::remove_const<
                   decltype(this->enable_hints_)>::type>(detail::kEnableHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
-                  new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))) {
+                  new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
+          image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
     // In case hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -85,12 +87,13 @@ class OpticalFlow : public Operator<Backend> {
   /**
    * Optical flow lazy initialization
    */
-  void of_lazy_init(size_t width, size_t height, size_t channels, cudaStream_t stream) {
+  void of_lazy_init(size_t width, size_t height, size_t channels, DALIImageType image_type,
+                    cudaStream_t stream) {
     std::call_once(of_initialized_,
                    [&]() {
                        optical_flow_.reset(
                                new optical_flow::OpticalFlowTuring(of_params_, width, height,
-                                                                   channels, stream));
+                                                                   channels, image_type, stream));
                    });
   }
 
@@ -128,6 +131,7 @@ class OpticalFlow : public Operator<Backend> {
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
   int frames_width_, frames_height_, depth_, nsequences_;
   std::vector<int> sequence_sizes_;
+  DALIImageType image_type_;
 };
 
 }  // namespace dali

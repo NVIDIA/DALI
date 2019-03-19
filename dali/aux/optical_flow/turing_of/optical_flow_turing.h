@@ -92,7 +92,7 @@ inline __host__ __device__ float decode_flow_component(int16_t value) {
 class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
  public:
   OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
-                    cudaStream_t stream = 0);
+                    DALIImageType image_type, cudaStream_t stream = 0);
 
 
   virtual ~OpticalFlowTuring();
@@ -136,6 +136,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
   NV_OF_INIT_PARAMS of_params_;
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_;
+  DALIImageType image_type_;
 };
 
 }  // namespace optical_flow
