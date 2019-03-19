@@ -164,6 +164,13 @@ class Buffer {
   }
 
   /**
+   * @brief Returns the padding value of allocations caused by Resize() call
+   */
+  static inline size_t padding() {
+    return kPaddding;
+  }
+
+  /**
    * @brief Returns the TypeInfo object that keeps track of the
    * datatype of the underlying storage.
    */
@@ -275,17 +282,17 @@ class Buffer {
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
-      size_t grow = num_bytes_*alloc_mult;
-      grow = (grow + pading) & ~(pading - 1);
+      size_t grow = num_bytes_*kAllocMult;
+      grow = (grow + kPaddding) & ~(kPaddding - 1);
       if (grow > new_num_bytes)
         new_num_bytes = grow;
       reserve(new_num_bytes);
     }
   }
 
-  const double alloc_mult = 1.0;
+  const double kAllocMult = 1.0;
   // round to 1kB
-  const size_t pading = 1024;
+  static constexpr size_t kPaddding = 1024;
 
   Backend backend_;
 
