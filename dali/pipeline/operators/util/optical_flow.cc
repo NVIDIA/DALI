@@ -40,36 +40,43 @@ For values <=0, grid size is undefined. Currently only grid_size=4 is supported.
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
 
+constexpr int kNOutputDims = 2;
+constexpr int kNInputDims = 4;
+
 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
-  if (enable_hints_) {
-    const auto &input = ws->Input<GPUBackend>(0);
-    const auto &external_hints = ws->Input<GPUBackend>(1);
-    auto &output = ws->Output<GPUBackend>(0);
+  // TODO(mszolucha): hints currently ignored, add feature
+  // Fetch data
+  // Input is a TensorList, where every Tensor is a sequence
+  const auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
-    output.ResizeLike(input);
+  // Extract calculation params
+  ExtractParams(input);
+  std::vector<Dims> new_sizes;
+  for (int i = 0; i < nsequences_; i++) {
+    new_sizes.push_back({sequence_sizes_[i], (frames_height_ + 3) / 4, (frames_width_ + 3) / 4,
+                         kNOutputDims});
+  }
+  output.Resize(new_sizes);
 
-    auto in = view<const uint8_t, 3>(input);
-    auto hints = view<const float, 3>(external_hints);
-    auto out = view<float, 3>(output);
-    DALI_ENFORCE(in.size() == out.size(), "Number of tensors in TensorList don't match.");
+  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
 
-    for (decltype(in.size()) i = 1; i < in.size(); i++) {
-      optical_flow_->CalcOpticalFlow(in[i - 1], in[i], out[i - 1], hints[i]);
-    }
-  } else {
-    const auto &input = ws->Input<GPUBackend>(0);
-    auto &output = ws->Output<GPUBackend>(0);
+  // Prepare input and output TensorViews
+  auto tvlin = view<const uint8_t, kNInputDims>(input);
+  auto tvlout = view<float, kNInputDims>(output);
 
-    output.ResizeLike(input);
+  for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+    auto sequence_tv = tvlin[sequence_idx];
+    auto output_tv = tvlout[sequence_idx];
 
-    auto in = view<const uint8_t, 3>(input);
-    auto out = view<float, 3>(output);
-    DALI_ENFORCE(in.size() == out.size(), "Number of tensors in TensorList don't match.");
+    for (int i = 1; i < sequence_tv.shape[0]; i++) {
+      auto ref = kernels::subtensor(sequence_tv, i - 1);
+      auto in = kernels::subtensor(sequence_tv, i);
+      auto out = kernels::subtensor(output_tv, i - 1);
 
-    for (decltype(in.size()) i = 1; i < in.size(); i++) {
-      optical_flow_->CalcOpticalFlow(in[i - 1], in[i], out[i - 1]);
+      optical_flow_->CalcOpticalFlow(ref, in, out);
     }
   }
 }
