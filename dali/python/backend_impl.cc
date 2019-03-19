@@ -615,14 +615,15 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_separated"_a = false,
         "exec_async"_a = true)
     .def("SetQueueSizes",
-        [](Pipeline *p, int cpu_size, int gpu_size) {
-          p->SetQueueSizes(cpu_size, gpu_size);
+        [](Pipeline *p, int cpu_size, int mixed_size, int gpu_size) {
+          p->SetQueueSizes(cpu_size, mixed_size, gpu_size);
         })
     .def("SetOutputNames",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
           p->SetOutputNames(outputs);
           })
     .def("RunCPU", &Pipeline::RunCPU)
+    .def("RunMixed", &Pipeline::RunMixed)
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {

@@ -46,11 +46,11 @@ using QueueIdxs = StageQueues;
 struct QueueSizes {
   QueueSizes() = default;
   explicit QueueSizes(int output_size)
-      : cpu_size(output_size), gpu_size(output_size) {}
-  QueueSizes(int cpu_size, int gpu_size)
-      : cpu_size(cpu_size), gpu_size(gpu_size) {}
+      : cpu_size(output_size), mixed_size(output_size), gpu_size(output_size) {}
+  QueueSizes(int cpu_size, int mixed_size, int gpu_size)
+      : cpu_size(cpu_size), mixed_size(mixed_size), gpu_size(gpu_size) {}
 
-  int cpu_size = 1, gpu_size = 1;
+  int cpu_size = 1, int mixed_size = 1, gpu_size = 1;
 };
 
 struct OutputIdxs {
