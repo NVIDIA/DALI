@@ -352,6 +352,7 @@ class Pipeline(object):
                 self.iter_setup()
                 self._batches_to_consume += 1
             self._run_cpu()
+            self._run_mixed()
             self._run_gpu()
         except StopIteration:
             self._last_iter = True
