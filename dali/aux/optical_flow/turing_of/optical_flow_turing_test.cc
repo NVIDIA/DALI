@@ -170,7 +170,8 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
     // Output
     auto out_shape = of.GetOutputShape().to_static<3>();
-    auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified, volume(out_shape));
+    auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
+		                                       volume(out_shape));
     auto tvout = kernels::make_tensor_gpu(memout.get(), out_shape);
 
     of.CalcOpticalFlow(tvref, tvin, tvout);
