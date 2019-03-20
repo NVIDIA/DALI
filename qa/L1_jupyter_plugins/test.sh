@@ -1,4 +1,7 @@
 #!/bin/bash -e
+
+source ../setup_test.sh
+
 # used pip packages
 pip_packages="jupyter matplotlib opencv-python mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
 
