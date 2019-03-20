@@ -35,10 +35,9 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   explicit DummyLoader(const OpSpec& spec) :
     Loader<CPUBackend, Tensor<CPUBackend>>(spec) {}
 
-  void ReadSample(Tensor<CPUBackend> *t) override {
-    t->Resize({1});
-    t->mutable_data<uint8>();
-    return;
+  void ReadSample(Tensor<CPUBackend> &t) override {
+    t.Resize({1});
+    t.set_type(TypeInfo::Create<uint8_t>());
   }
 
   Index Size() override {
@@ -73,7 +72,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   void RunImpl(SampleWorkspace* ws, int idx) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    ws->Output<CPUBackend>(0).Copy(*GetSample(ws->data_idx()), 0);
+    ws->Output<CPUBackend>(0).Copy(GetSample(ws->data_idx()), 0);
   }
 
  private:
@@ -190,9 +189,7 @@ class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   explicit TestLoader(const OpSpec& spec) :
     Loader<CPUBackend, Tensor<CPUBackend>>(spec), current_index_(0) {}
 
-  void ReadSample(Tensor<CPUBackend> *t) override {
-    return;
-  }
+  void ReadSample(Tensor<CPUBackend> &t) override {}
 
   Index Size() override {
     return 10;

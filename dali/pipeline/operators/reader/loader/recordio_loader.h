@@ -75,7 +75,7 @@ class RecordIOLoader : public IndexedFileLoader {
     index_file.close();
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) override {
+  void ReadSample(Tensor<CPUBackend>& tensor) override {
     // if we moved to next shard wrap up
     MoveToNextShard(current_index_);
 
@@ -87,27 +87,24 @@ class RecordIOLoader : public IndexedFileLoader {
     int64 n_read = 0;
     bool use_read = copy_read_data_;
     if (use_read) {
-      tensor->Resize({size});
+      tensor.Resize({size});
     }
     while (p == nullptr && n_read < size) {
       if (!use_read) {
         p = current_file_->Get(size);
         // file is divided between two files, we need to fallback to read here
         if (p == nullptr) {
-          tensor->Resize({size});
+          tensor.Resize({size});
           use_read = true;
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor->ShareData(p, size, {size});
-
-          TypeInfo type;
-          type.SetType<uint8_t>();
-          tensor->set_type(type);
+          tensor.ShareData(p, size, {size});
+          tensor.set_type(TypeInfo::Create<uint8_t>());
         }
       }
       if (use_read) {
-        n_read += current_file_->Read(tensor->mutable_data<uint8_t>() + n_read,
+        n_read += current_file_->Read(tensor.mutable_data<uint8_t>() + n_read,
                                       size - n_read);
       }
       if (p == nullptr && n_read < size) {
@@ -117,7 +114,7 @@ class RecordIOLoader : public IndexedFileLoader {
         current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_);
         continue;
       }
-     tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
+     tensor.SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
     }
 
     ++current_index_;

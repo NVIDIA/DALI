@@ -30,13 +30,7 @@ class Caffe2Reader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
-    const int idx = ws->data_idx();
-
-    auto* raw_data = GetSample(idx);
-
-    parser_->Parse(*raw_data, ws);
-
-    return;
+    parser_->Parse(GetSample(ws->data_idx()), ws);
   }
 
  protected:

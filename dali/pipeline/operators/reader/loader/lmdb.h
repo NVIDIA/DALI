@@ -91,18 +91,18 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     mdb_env_ = nullptr;
   }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) override {
+  void ReadSample(Tensor<CPUBackend>& tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
     lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
     ++current_index_;
 
     MoveToNextShard(current_index_);
 
-    tensor->Resize({static_cast<Index>(value_.mv_size)});
-    tensor->mutable_data<uint8_t>();
-    tensor->SetSourceInfo(db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data)));
+    tensor.Resize({static_cast<Index>(value_.mv_size)});
+    tensor.set_type(TypeInfo::Create<uint8_t>());
+    tensor.SetSourceInfo(db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data)));
 
-    std::memcpy(tensor->raw_mutable_data(),
+    std::memcpy(tensor.raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value_.mv_data),
                 value_.mv_size*sizeof(uint8_t));
 

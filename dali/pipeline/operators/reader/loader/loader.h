@@ -15,14 +15,14 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 #define DALI_PIPELINE_OPERATORS_READER_LOADER_LOADER_H_
 
-#include <list>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
-#include <type_traits>
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
@@ -44,7 +44,7 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 template <typename Backend, typename LoadTarget>
 class Loader {
  public:
-  using LoadTarget_t = LoadTarget;
+  using LoadTargetPtr = std::unique_ptr<LoadTarget>;
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
@@ -65,36 +65,24 @@ class Loader {
     e_ = std::default_random_engine(seq);
   }
 
-  virtual ~Loader() {
-    // delete all the temporary tensors
-    while (!sample_buffer_.empty()) {
-      LoadTarget * t = sample_buffer_.back();
-      delete t;
-      sample_buffer_.pop_back();
-    }
-    while (!empty_tensors_.empty()) {
-      LoadTarget * t = empty_tensors_.back();
-      delete t;
-      empty_tensors_.pop_back();
-    }
-  }
+  virtual ~Loader() = default;
 
-  virtual void PrepareEmpty(LoadTarget *tensor) {
+  virtual void PrepareEmpty(LoadTarget& tensor) {
     PrepareEmptyTensor(tensor);
   }
 
   template <typename T>
   typename std::enable_if<std::is_same<T, Tensor<CPUBackend>>::value>::type
-  PrepareEmptyTensor(T *tensor) {
-    tensor->set_pinned(false);
+  PrepareEmptyTensor(T& tensor) {
+    tensor.set_pinned(false);
     // Initialize tensors to a set size to limit expensive reallocations
-    tensor->Resize({tensor_init_bytes_});
-    tensor->template mutable_data<uint8_t>();
+    tensor.Resize({tensor_init_bytes_});
+    tensor.template mutable_data<uint8_t>();
   }
 
   template <typename T>
   typename std::enable_if<!std::is_same<T, Tensor<CPUBackend>>::value>::type
-  PrepareEmptyTensor(T *) {
+  PrepareEmptyTensor(T&) {
     constexpr bool T_is_Tensor = std::is_same<T, Tensor<CPUBackend>>::value;
     DALI_ENFORCE(T_is_Tensor,
       "Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
@@ -102,68 +90,68 @@ class Loader {
 
 
   // Get a random read sample
-  LoadTarget* ReadOne() {
+  LoadTargetPtr ReadOne() {
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
       TimeRange tr("[Loader] Filling initial buffer", TimeRange::kBlue1);
+
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
-        LoadTarget* tensor = new LoadTarget();
-        PrepareEmpty(tensor);
-
-        ReadSample(tensor);
-        sample_buffer_.push_back(tensor);
+        auto tensor_ptr = LoadTargetPtr(new LoadTarget());
+        PrepareEmpty(*tensor_ptr);
+        ReadSample(*tensor_ptr);
+        sample_buffer_.push_back(std::move(tensor_ptr));
       }
 
-      TimeRange tr2("[Loader] Filling empty list", TimeRange::kOrange);
       // need some entries in the empty_tensors_ list
+      TimeRange tr2("[Loader] Filling empty list", TimeRange::kOrange);
+      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
       for (int i = 0; i < initial_empty_size_; ++i) {
-        LoadTarget* tensor = new LoadTarget();
-        PrepareEmpty(tensor);
-
-        empty_tensors_.push_back(tensor);
+        auto tensor_ptr = LoadTargetPtr(new LoadTarget());
+        PrepareEmpty(*tensor_ptr);
+        empty_tensors_.push_back(std::move(tensor_ptr));
       }
 
       initial_buffer_filled_ = true;
     }
     // choose the random index
     int idx = shuffle_ ? dis(e_) % sample_buffer_.size() : 0;
-    LoadTarget* elem = sample_buffer_[idx];
 
     // swap end and idx, return the tensor to empties
-    std::swap(sample_buffer_[idx], sample_buffer_[sample_buffer_.size()-1]);
+    std::swap(sample_buffer_[idx], sample_buffer_.back());
     // remove last element
+    LoadTargetPtr sample_ptr = std::move(sample_buffer_.back());
     sample_buffer_.pop_back();
 
     // now grab an empty tensor, fill it and add to filled buffers
-    // empty_tensors_ needs to be thread-safe w.r.t. ReturnTensor()
+    // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
     // being called by multiple consumer threads
-    LoadTarget* t;
+    LoadTargetPtr tensor_ptr;
     {
-      std::lock_guard<std::mutex> lock(return_mutex_);
+      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
       DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-      t = empty_tensors_.back();
+      tensor_ptr = std::move(empty_tensors_.back());
       empty_tensors_.pop_back();
     }
-    ReadSample(t);
-    sample_buffer_.push_back(t);
+    ReadSample(*tensor_ptr);
+    sample_buffer_.push_back(std::move(tensor_ptr));
 
-    return elem;
+    return sample_ptr;
   }
 
   // return a tensor to the empty pile
   // called by multiple consumer threads
-  void ReturnTensor(LoadTarget* tensor) {
-    std::lock_guard<std::mutex> lock(return_mutex_);
-    empty_tensors_.push_back(tensor);
+  void RecycleTensor(LoadTargetPtr&& tensor_ptr) {
+    std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+    empty_tensors_.push_back(std::move(tensor_ptr));
   }
 
   // Read an actual sample from the FileStore,
   // used to populate the sample buffer for "shuffled"
   // reads.
-  virtual void ReadSample(LoadTarget* tensor) = 0;
+  virtual void ReadSample(LoadTarget& tensor) = 0;
 
   // Give the size of the data accessed through the Loader
   virtual Index Size() = 0;
@@ -183,9 +171,9 @@ class Loader {
             (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
             current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
   }
-  std::vector<LoadTarget*> sample_buffer_;
+  std::vector<LoadTargetPtr> sample_buffer_;
 
-  std::list<LoadTarget*> empty_tensors_;
+  std::vector<LoadTargetPtr> empty_tensors_;
 
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
@@ -201,7 +189,7 @@ class Loader {
   Index seed_;
 
   // control return of tensors
-  std::mutex return_mutex_;
+  std::mutex empty_tensors_mutex_;
 
   // sharding
   const int shard_id_;

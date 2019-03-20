@@ -110,8 +110,8 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
     Reset(true);
   }
 
-  void PrepareEmpty(TensorSequence *tensor) override;
-  void ReadSample(TensorSequence *tensor) override;
+  void PrepareEmpty(TensorSequence &tensor) override;
+  void ReadSample(TensorSequence &tensor) override;
   Index Size() override;
 
  private:
