@@ -37,7 +37,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
         Init(options);
     }
 
-  void ReadSample(Tensor<CPUBackend>* tensor) override {
+  void ReadSample(Tensor<CPUBackend>& tensor) override {
     MoveToNextShard(current_index_);
 
     int64 seek_pos, size;
@@ -53,21 +53,18 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
-      tensor->ShareData(p, size, {size});
-
-      TypeInfo type;
-      type.SetType<uint8_t>();
-      tensor->set_type(type);
+      tensor.ShareData(p, size, {size});
+      tensor.set_type(TypeInfo::Create<uint8_t>());
     } else {
-      tensor->Resize({size});
-      tensor->mutable_data<uint8_t>();
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({size});
 
-      int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor->raw_mutable_data()),
+      int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()),
                           size);
       DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
     }
 
-    tensor->SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
+    tensor.SetSourceInfo(uris_[current_file_index_] + " at index " + to_string(seek_pos));
     ++current_index_;
     return;
   }

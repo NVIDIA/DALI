@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "dali/pipeline/operators/reader/loader/loader.h"
@@ -47,6 +48,8 @@ namespace dali {
 template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
+  using LoadTargetPtr = std::unique_ptr<LoadTarget>;
+
   inline explicit DataReader(const OpSpec& spec)
       : Operator<Backend>(spec),
         finished_(false),
@@ -63,7 +66,7 @@ class DataReader : public Operator<Backend> {
     for (auto &batch : prefetched_batch_queue_) {
       for (auto &sample : batch) {
         if (sample)
-          loader_->RecycleTensor(sample);
+          loader_->RecycleTensor(std::move(sample));
       }
     }
   }
@@ -124,9 +127,7 @@ class DataReader : public Operator<Backend> {
     TimeRange tr("DataReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
     Operator<Backend>::Run(ws);
     const auto data_idx = ws->data_idx();
-    auto *sample = GetSample(data_idx);
-    loader_->RecycleTensor(sample);
-    prefetched_batch_queue_[curr_batch_consumer_][data_idx] = nullptr;
+    loader_->RecycleTensor(MoveSample(data_idx));
     auto curr_sample_id = samples_processed_.fetch_add(1);
     // if we've processed the whole batch, notify it
     if (curr_sample_id == Operator<Backend>::batch_size_ - 1) {
@@ -144,9 +145,8 @@ class DataReader : public Operator<Backend> {
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-    for (auto &sample : prefetched_batch_queue_[curr_batch_consumer_]) {
-      loader_->RecycleTensor(sample);
-      sample = nullptr;
+    for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
+      loader_->RecycleTensor(MoveSample(sample_idx));
     }
 
     // Notify we have consumed a batch
@@ -157,8 +157,15 @@ class DataReader : public Operator<Backend> {
     return loader_->Size();
   }
 
-  LoadTarget* GetSample(int sample_idx) {
-    return prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
+  LoadTarget& GetSample(int sample_idx) {
+    return *prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
+  }
+
+  LoadTargetPtr MoveSample(int sample_idx) {
+    auto &sample = prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
+    auto sample_ptr = std::move(sample);
+    sample = {};
+    return sample_ptr;
   }
 
  protected:
@@ -229,7 +236,7 @@ class DataReader : public Operator<Backend> {
 
   // prefetched batch
   int prefetch_queue_depth_;
-  using BatchQueueElement = std::vector<LoadTarget*>;
+  using BatchQueueElement = std::vector<LoadTargetPtr>;
   std::vector<BatchQueueElement> prefetched_batch_queue_;
   int curr_batch_consumer_;
   int curr_batch_producer_;

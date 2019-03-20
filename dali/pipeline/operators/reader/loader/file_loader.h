@@ -89,8 +89,8 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     Reset(true);
   }
 
-  void PrepareEmpty(ImageLabelWrapper *tensor) override;
-  void ReadSample(ImageLabelWrapper *tensor) override;
+  void PrepareEmpty(ImageLabelWrapper &tensor) override;
+  void ReadSample(ImageLabelWrapper &tensor) override;
 
   Index Size() override;
 

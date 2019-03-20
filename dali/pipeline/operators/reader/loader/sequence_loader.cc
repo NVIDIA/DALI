@@ -94,20 +94,20 @@ std::vector<std::vector<std::string>> GenerateSequences(
 
 }  // namespace detail
 
-void SequenceLoader::PrepareEmpty(TensorSequence *sequence) {
-  sequence->tensors.resize(sequence_length_);
-  for (auto &t : sequence->tensors) {
-    PrepareEmptyTensor(&t);
+void SequenceLoader::PrepareEmpty(TensorSequence &sequence) {
+  sequence.tensors.resize(sequence_length_);
+  for (auto &t : sequence.tensors) {
+    PrepareEmptyTensor(t);
   }
 }
 
-void SequenceLoader::ReadSample(TensorSequence *sequence) {
+void SequenceLoader::ReadSample(TensorSequence &sequence) {
   // TODO(klecki) this is written as a prototype for video handling
   const auto &sequence_paths = sequences_[current_sequence_];
   // TODO(klecki) we probably should buffer the "stream", or recently used
   // frames
   for (int i = 0; i < sequence_length_; i++) {
-    LoadFrame(sequence_paths, i, &sequence->tensors[i]);
+    LoadFrame(sequence_paths, i, &sequence.tensors[i]);
   }
   current_sequence_++;
   // wrap-around
@@ -132,10 +132,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     auto p = frame->Get(frame_size);
     // Wrap the raw data in the Tensor object.
     target->ShareData(p, frame_size, {frame_size});
-
-    TypeInfo type;
-    type.SetType<uint8_t>();
-    target->set_type(type);
+    target->set_type(TypeInfo::Create<uint8_t>());
   }
   frame->Close();
 }

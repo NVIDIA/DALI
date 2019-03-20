@@ -49,9 +49,8 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
 
   for (int i = 0; i < 10500; ++i) {
     // grab an entry from the reader
-    auto* sample = reader->ReadOne();
     // return the tensor to the reader for refilling
-    reader->RecycleTensor(sample);
+    reader->RecycleTensor(reader->ReadOne());
   }
 
   return;
@@ -66,9 +65,8 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
 
   for (int i = 0; i < 11; ++i) {
     // grab an entry from the reader
-    auto* sample = reader->ReadOne();
     // return the tensor to the reader for refilling
-    reader->RecycleTensor(sample);
+    reader->RecycleTensor(reader->ReadOne());
   }
 
   return;
