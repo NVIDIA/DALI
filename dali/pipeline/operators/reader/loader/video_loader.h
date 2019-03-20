@@ -165,8 +165,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     }
   }
 
-  void PrepareEmpty(SequenceWrapper *tensor) override;
-  void ReadSample(SequenceWrapper *tensor) override;
+  void PrepareEmpty(SequenceWrapper &tensor) override;
+  void ReadSample(SequenceWrapper &tensor) override;
   Index Size() override;
 
   OpenFile& get_or_open_file(std::string filename);

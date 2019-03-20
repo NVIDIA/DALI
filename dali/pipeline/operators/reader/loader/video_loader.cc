@@ -436,16 +436,16 @@ std::pair<int, int> VideoLoader::load_width_height(const std::string& filename) 
                         codecpar(stream)->height);
 }
 
-void VideoLoader::PrepareEmpty(SequenceWrapper *tensor) {
-  tensor->initialize(count_, height_, width_, 3);
+void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {
+  tensor.initialize(count_, height_, width_, 3);
 }
 
-void VideoLoader::ReadSample(SequenceWrapper* tensor) {
+void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& fileidx_frame = frame_starts_[current_frame_idx_];
     push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
-    receive_frames(*tensor);
-    tensor->wait();
+    receive_frames(tensor);
+    tensor.wait();
     ++current_frame_idx_;
 
     MoveToNextShard(current_frame_idx_);

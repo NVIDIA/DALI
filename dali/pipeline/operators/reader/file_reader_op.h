@@ -30,25 +30,24 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   void RunImpl(SampleWorkspace *ws, const int i) override {
     const int idx = ws->data_idx();
 
-    auto* image_label = GetSample(idx);
+    const auto& image_label = GetSample(idx);
 
     // copy from raw_data -> outputs directly
     auto &image_output = ws->Output<CPUBackend>(0);
     auto &label_output = ws->Output<CPUBackend>(1);
 
-    Index image_size = image_label->image.size();
+    Index image_size = image_label.image.size();
 
     image_output.Resize({image_size});
     image_output.mutable_data<uint8_t>();
     label_output.Resize({1});
 
     std::memcpy(image_output.raw_mutable_data(),
-                image_label->image.raw_data(),
+                image_label.image.raw_data(),
                 image_size);
-    image_output.SetSourceInfo(image_label->image.GetSourceInfo());
+    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
 
-    label_output.mutable_data<int>()[0] = image_label->label;
-    return;
+    label_output.mutable_data<int>()[0] = image_label.label;
   }
 
  protected:
