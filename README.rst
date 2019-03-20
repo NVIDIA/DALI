@@ -192,8 +192,8 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_ or later                | | We recommend using version 3.4+. However previous versions are also compatible.           |
-   |                                        | | *OpenCV 2.x compatibility is provided unofficially.*                                      |
+   | |opencv link|_ or later                | | We recommend using version 3.4+.                                                          |
+   |                                        | | Older versions from the 3.X family are also supported.                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
