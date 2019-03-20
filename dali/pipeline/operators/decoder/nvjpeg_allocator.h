@@ -33,16 +33,20 @@
 
 namespace dali {
 
-namespace mem {
+namespace memory {
+
+using PinnedMemoryPtr = void*;
+
 class BasicPinnedAllocator {
  public:
   static void PreallocateBuffers(size_t element_size_hint, size_t n_elements_hint) {
-    std::lock_guard<std::mutex> l(m_);
+    std::lock_guard<std::mutex> l(mutex_);
 
     if (element_size_hint_ == 0) {
       element_size_hint_ = element_size_hint;
-    } else if (element_size_hint_ != element_size_hint) {
-      DALI_FAIL("All instances of nvJPEGDecoder should have the same host_memory_padding.");
+    } else {
+      DALI_ENFORCE(element_size_hint_ == element_size_hint,
+        "All instances of nvJPEGDecoder should have the same host_memory_padding.");
     }
     free_buffers_pool_.reserve(free_buffers_pool_.size() + n_elements_hint);
     for (size_t i = 0; i < n_elements_hint; ++i) {
@@ -52,25 +56,23 @@ class BasicPinnedAllocator {
     }
   }
 
-  static void FreeBuffers(size_t n_elements_hint) {
-    std::lock_guard<std::mutex> l(m_);
-    for (size_t i = 0; i < n_elements_hint; ++i) {
-      // Will call std::terminate
-      DALI_ENFORCE(free_buffers_pool_.size() > 0, "Some buffers were not returned by nvJPEG.");
-      CUDA_CALL(cudaFreeHost(free_buffers_pool_.back()));
-      free_buffers_pool_.pop_back();
+  static void FreeBuffers() {
+    std::lock_guard<std::mutex> l(mutex_);
+    for (auto buff : free_buffers_pool_) {
+      CUDA_CALL(cudaFreeHost(buff));
     }
   }
 
   static int Alloc(void** ptr, size_t size, unsigned int flags) {
-    std::lock_guard<std::mutex> l(m_);
-    // Non managed buffer
+    std::unique_lock<std::mutex> l(mutex_);
     if (size > element_size_hint_ || free_buffers_pool_.empty()) {
+      // Non managed buffer
+      l.unlock();
       return cudaHostAlloc(ptr, size, flags) == cudaSuccess ? 0 : 1;
     }
 
     // Managed buffer, adding it to the allocated set
-    void* buffer = free_buffers_pool_.back();
+    PinnedMemoryPtr buffer = free_buffers_pool_.back();
     free_buffers_pool_.pop_back();
     *ptr = buffer;
     allocated_buffers_.insert(buffer);
@@ -78,9 +80,10 @@ class BasicPinnedAllocator {
   }
 
   static int Free(void* ptr) {
-    std::lock_guard<std::mutex> l(m_);
+    std::unique_lock<std::mutex> l(mutex_);
     if (allocated_buffers_.find(ptr) == allocated_buffers_.end()) {
       // Non managed buffer... just free
+      l.unlock();
       return cudaFreeHost(ptr) == cudaSuccess ? 0 : 1;
     }
     // Managed buffer
@@ -90,24 +93,25 @@ class BasicPinnedAllocator {
   }
 
  private:
-  static std::vector<void*> free_buffers_pool_;
+  static std::vector<PinnedMemoryPtr> free_buffers_pool_;
   static size_t element_size_hint_;
-  static std::unordered_set<void*> allocated_buffers_;
+  static std::unordered_set<PinnedMemoryPtr> allocated_buffers_;
 
-  static std::mutex m_;
+  static std::mutex mutex_;
 };
 
 class ChunkPinnedAllocator {
  public:
   static void PreallocateBuffers(size_t element_size_hint, size_t n_elements_hint) {
-    std::lock_guard<std::mutex> l(m_);
+    std::lock_guard<std::mutex> l(mutex_);
 
     counter_++;
 
     if (element_size_hint_ == 0) {
       element_size_hint_ = element_size_hint;
-    } else if (element_size_hint_ != element_size_hint) {
-      DALI_FAIL("All instances of nvJPEGDecoder should have the same host_memory_padding.");
+    } else {
+      DALI_ENFORCE(element_size_hint_ == element_size_hint,
+        "All instances of nvJPEGDecoder should have the same host_memory_padding.");
     }
 
     Chunk chunk;
@@ -118,8 +122,8 @@ class ChunkPinnedAllocator {
     chunks_.push_back(chunk);
   }
 
-  static void FreeBuffers(size_t n_elements_hint) {
-    std::lock_guard<std::mutex> l(m_);
+  static void FreeBuffers() {
+    std::lock_guard<std::mutex> l(mutex_);
     counter_--;
     if (counter_ == 0) {
       for (auto chunk : chunks_) {
@@ -131,9 +135,10 @@ class ChunkPinnedAllocator {
   }
 
   static int Alloc(void** ptr, size_t size, unsigned int flags) {
-    std::lock_guard<std::mutex> l(m_);
-    // Non managed block
+    std::unique_lock<std::mutex> l(mutex_);
     if (size > element_size_hint_) {
+      // Non managed block
+      l.unlock();
       return cudaHostAlloc(ptr, size, flags) == cudaSuccess ? 0 : 1;
     }
 
@@ -150,15 +155,17 @@ class ChunkPinnedAllocator {
       chunk.free_blocks.pop_back();
       return 0;
     }
+    l.unlock();
 
     return cudaHostAlloc(ptr, size, flags) == cudaSuccess ? 0 : 1;
   }
 
   static int Free(void* ptr) {
-    std::lock_guard<std::mutex> l(m_);
+    std::unique_lock<std::mutex> l(mutex_);
     auto it = allocated_buffers_.find(ptr);
     if (it == allocated_buffers_.end()) {
       // Non managed buffer... just free
+      l.unlock();
       return cudaFreeHost(ptr) == cudaSuccess ? 0 : 1;
     }
     size_t chunk_idx, block_idx;
@@ -171,18 +178,19 @@ class ChunkPinnedAllocator {
 
  private:
   struct Chunk {
-    void* memory;
-    std::vector<int> free_blocks;
+    PinnedMemoryPtr memory;
+    std::vector<size_t> free_blocks;
   };
   static std::vector<Chunk> chunks_;
   static size_t element_size_hint_;
-  // ptr to (chunk_idx,block_idx)
-  static std::unordered_map<void*, std::pair<size_t, size_t>> allocated_buffers_;
+  // hashmap of ptr to (chunk_idx,block_idx)
+  using ChunkIdxBlockIdx = std::pair<size_t, size_t>;
+  static std::unordered_map<PinnedMemoryPtr, ChunkIdxBlockIdx> allocated_buffers_;
 
-  static int counter_;
-  static std::mutex m_;
+  static size_t counter_;
+  static std::mutex mutex_;
 };
-}  // namespace mem
+}  // namespace memory
 
 }  // namespace dali
 

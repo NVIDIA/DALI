@@ -18,20 +18,22 @@
 
 namespace dali {
 
-namespace mem {
+namespace memory {
 
-std::vector<void*> BasicPinnedAllocator::free_buffers_pool_;
-size_t BasicPinnedAllocator::element_size_hint_ = 0;
-std::unordered_set<void*> BasicPinnedAllocator::allocated_buffers_;
-std::mutex BasicPinnedAllocator::m_;
+using BPA = BasicPinnedAllocator;
+std::vector<void*> BPA::free_buffers_pool_;
+size_t BPA::element_size_hint_ = 0;
+std::unordered_set<void*> BPA::allocated_buffers_;
+std::mutex BPA::mutex_;
 
-std::vector<ChunkPinnedAllocator::Chunk> ChunkPinnedAllocator::chunks_;
-size_t ChunkPinnedAllocator::element_size_hint_;
-std::unordered_map<void*, std::pair<size_t, size_t>> ChunkPinnedAllocator::allocated_buffers_;
-int ChunkPinnedAllocator::counter_ = 0;
-std::mutex ChunkPinnedAllocator::m_;
+using CPA = ChunkPinnedAllocator;
+std::vector<CPA::Chunk> CPA::chunks_;
+size_t CPA::element_size_hint_;
+std::unordered_map<void*, CPA::ChunkIdxBlockIdx> CPA::allocated_buffers_;
+size_t CPA::counter_ = 0;
+std::mutex CPA::mutex_;
 
-}  // namespace mem
+}  // namespace memory
 
 }  // namespace dali
 

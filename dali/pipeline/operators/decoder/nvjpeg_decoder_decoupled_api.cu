@@ -46,6 +46,11 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
   .AddOptionalArg("split_stages",
       R"code(Split into separated CPU stage and GPU stage operators)code",
       false)
+  .AddOptionalArg("use_chunk_allocator",
+      R"code(Use chunk pinned memory allocator, allocating chunk of size
+`batch_size*prefetch_queue_depth` during the construction and suballocate them
+in runtime. Ignored when `split_stages` is false.)code",
+      false)
   .AddParent("CachedDecoderAttr");
 
 }  // namespace dali

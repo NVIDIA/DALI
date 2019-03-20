@@ -37,7 +37,7 @@ namespace dali {
 
 using ImageInfo = EncodedImageInfo<unsigned int>;
 
-using PinnedAllocator = mem::ChunkPinnedAllocator;
+using PinnedAllocator = memory::ChunkPinnedAllocator;
 
 class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
  public:
@@ -45,7 +45,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     Operator<CPUBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
-    decode_params_(batch_size_) {
+    decode_params_(batch_size_),
+    use_chunk_allocator_(spec.GetArgument<bool>("use_chunk_allocator")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     // Do we really need both in both stages ops?
@@ -64,10 +65,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
     }
 
-    int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
-    PinnedAllocator::PreallocateBuffers(host_memory_padding, nbuffers);
-    pinned_allocator_.pinned_malloc = &PinnedAllocator::Alloc;
-    pinned_allocator_.pinned_free = &PinnedAllocator::Free;
+    if (use_chunk_allocator_) {
+      int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+      PinnedAllocator::PreallocateBuffers(host_memory_padding, nbuffers);
+      pinned_allocator_.pinned_malloc = &PinnedAllocator::Alloc;
+      pinned_allocator_.pinned_free = &PinnedAllocator::Free;
+    }
   }
 
   virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
@@ -75,7 +78,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
     int nbuffers = spec_.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
-    PinnedAllocator::FreeBuffers(nbuffers);
+    PinnedAllocator::FreeBuffers();
   }
 
   void RunImpl(SampleWorkspace *ws, const int idx) {
@@ -200,7 +203,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       });
 
       // We want to use nvJPEG default pinned allocator
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, &pinned_allocator_, &state_p->pinned_buffer));
+      auto* allocator = use_chunk_allocator_ ? &pinned_allocator_ : nullptr;
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, allocator, &state_p->pinned_buffer));
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_host_,
                                         &state_p->decoder_host_state));
@@ -244,6 +248,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   std::vector<nvjpegDecodeParams_t> decode_params_;
 
 
+  bool use_chunk_allocator_;
   nvjpegPinnedAllocator_t pinned_allocator_;
 };
 
