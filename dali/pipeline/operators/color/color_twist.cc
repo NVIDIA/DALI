@@ -55,7 +55,7 @@ DALI_SCHEMA(Hue)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
-        R"code(Hue change in angles.)code", 0.f, true)
+        R"code(Hue change, in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Saturation)
@@ -76,7 +76,7 @@ DALI_SCHEMA(ColorTwist)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
-        R"code(Hue change in angles.)code", 0.f, true)
+        R"code(Hue change, in degrees.)code", 0.f, true)
     .AddOptionalArg("saturation",
         R"code(Saturation change factor.
 Values >= 0 are supported. For example:
