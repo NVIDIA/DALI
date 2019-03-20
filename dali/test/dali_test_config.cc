@@ -16,32 +16,33 @@
 #include <cstring>
 #include <cassert>
 #include <iostream>
+#include <memory>
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace testing {
 
-namespace {
-
-/// Path to Dali_extra repository
-std::string _dali_extra_path;  // NOLINT
-
-std::once_flag noninit_warning;
-
-}  // namespace
-
 
 const std::string &dali_extra_path() {
+  // Path to DALI_extra repository
+  // XXX: In order to avoid Static Initialization Order Fiasco,
+  //      _dali_extra_path is a static pointer to string.
+  //      ("Construct on first use" idiom).
+  //      There's a "leak" here, but we don't really care about it.
+  static std::string *_dali_extra_path = new std::string();
+
+  static std::once_flag noninit_warning;
+
   std::call_once(noninit_warning, []() {
       auto ptr = std::getenv("DALI_EXTRA_PATH");
       if (!ptr) {
         std::cerr << "DALI_EXTRA_PATH not initialized." << std::endl;
-        _dali_extra_path = ".";
+        *_dali_extra_path = ".";
       } else {
-        _dali_extra_path = std::string(ptr);
+        *_dali_extra_path = std::string(ptr);
       }
   });
-  return _dali_extra_path;
+  return *_dali_extra_path;
 }
 
 }  // namespace testing

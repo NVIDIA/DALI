@@ -24,6 +24,7 @@
 
 #include "dali/common.h"
 #include "dali/error_handling.h"
+#include "dali/pipeline/operators/op_schema.h"
 
 namespace dali {
 
@@ -54,10 +55,12 @@ class OperatorRegistry {
     return registry_[name](spec);
   }
 
-  vector<std::string> RegisteredNames() {
+  vector<std::string> RegisteredNames(bool internal_ops) {
     vector<std::string> names;
     for (const auto &pair : registry_) {
-      names.push_back(pair.first);
+      auto& schema = SchemaRegistry::GetSchema(pair.first);
+      if (internal_ops || !schema.IsInternal())
+        names.push_back(pair.first);
     }
     return names;
   }

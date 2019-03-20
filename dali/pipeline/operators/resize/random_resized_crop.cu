@@ -16,11 +16,16 @@
 #include <vector>
 #include <cmath>
 
-#include "dali/util/npp.h"
+#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operators/resize/random_resized_crop.h"
 #include "dali/util/random_crop_generator.h"
 
 namespace dali {
+
+template<>
+void RandomResizedCrop<GPUBackend>::BackendInit() {
+  InitializeGPU();
+}
 
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx) {
@@ -32,75 +37,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace * ws, const int idx)
   const int newW = size_[1];
 
   auto &output = ws->Output<GPUBackend>(idx);
-  output.set_type(input.type());
-
-  std::vector<Dims> output_shape(batch_size_);
-  for (int i = 0; i < batch_size_; ++i) {
-    const int C = input.tensor_shape(i)[2];
-    output_shape[i] = {newH, newW, C};
-  }
-  output.Resize(output_shape);
-
-  cudaStream_t old_stream = nppGetStream();
-  nppSetStream(ws->stream());
-
-  for (int i = 0; i < batch_size_; ++i) {
-    const CropWindow &crop = params_->crops[i];
-    NppiRect in_roi, out_roi;
-    in_roi.x = crop.x;
-    in_roi.y = crop.y;
-    in_roi.width = crop.w;
-    in_roi.height = crop.h;
-    out_roi.x = 0;
-    out_roi.y = 0;
-    out_roi.width = newW;
-    out_roi.height = newH;
-
-    const int H = input.tensor_shape(i)[0];  // HWC
-    const int W = input.tensor_shape(i)[1];  // HWC
-    const int C = input.tensor_shape(i)[2];  // HWC
-
-    NppiSize input_size, output_size;
-
-    input_size.width = W;
-    input_size.height = H;
-
-    output_size.width = newW;
-    output_size.height = newH;
-
-    NppiInterpolationMode npp_interp_type;
-    DALI_ENFORCE(NPPInterpForDALIInterp(interp_type_, &npp_interp_type) == DALISuccess,
-        "Unsupported interpolation type");
-
-    switch (C) {
-      case 3:
-        DALI_CHECK_NPP(nppiResize_8u_C3R(input.tensor<uint8_t>(i),
-                                         W*C,
-                                         input_size,
-                                         in_roi,
-                                         output.mutable_tensor<uint8_t>(i),
-                                         newW*C,
-                                         output_size,
-                                         out_roi,
-                                         npp_interp_type));
-        break;
-      case 1:
-        DALI_CHECK_NPP(nppiResize_8u_C1R(input.tensor<uint8_t>(i),
-                                         W*C,
-                                         input_size,
-                                         in_roi,
-                                         output.mutable_tensor<uint8_t>(i),
-                                         newW*C,
-                                         output_size,
-                                         out_roi,
-                                         npp_interp_type));
-        break;
-      default:
-        DALI_FAIL("RandomResizedCrop is implemented only for images"
-            " with C = 1 or 3, but encountered C = " + to_string(C) + ".");
-    }
-  }
-  nppSetStream(old_stream);
+  RunGPU(output, input, ws->stream());
 }
 
 template<>
@@ -108,16 +45,18 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
   auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()),
       "Expected input data as uint8.");
+
   for (int i = 0; i < batch_size_; ++i) {
-    vector<Index> input_shape = input.tensor_shape(i);
+    const auto &input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3,
         "Expects 3-dimensional image input.");
 
     int H = input_shape[0];
     int W = input_shape[1];
 
-    params_->crops[i] = params_->crop_gens[i].GenerateCropWindow(H, W);
+    params_.crops[i] = params_.crop_gens[i].GenerateCropWindow(H, W);
   }
+  CalcResamplingParams();
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);

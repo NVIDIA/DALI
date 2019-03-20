@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace testing {
@@ -44,13 +45,11 @@ std::vector<Arguments> arguments = {
         {{"preset", .5f}, {"enable_hints", false}}
 };
 
-Arguments device_gpu = {{"device", std::string{"gpu"}}};
-
+Arguments device_gpu = {{"device", std::string{"cpu"}}};
 
 }  // namespace
 
-// TODO(mszolucha): update for Dali_extra usage
-std::string kImage = "/data/dali/test/test_images/410.jpg";  // NOLINT
+std::string kImage = dali_extra_path() + "/db/single/jpeg/0/410.jpg";  // NOLINT
 
 TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);
@@ -85,18 +84,8 @@ void verify(const TensorListWrapper &input,
   EXPECT_FLOAT_EQ(333.f, output_data[1]);
 }
 
-
-TEST_P(OpticalFlowTest, StubImplementationTest) {
-  cv::Mat img = cv::imread(kImage);
-  auto tl = ToTensorList({img, img});
-  TensorListWrapper tlout;
-  auto args = GetParam();
-  this->RunTest(tl.get(), tlout, args, verify);
-}
-
-
-INSTANTIATE_TEST_SUITE_P(OpticalFlowStubImplementationsTest, OpticalFlowTest,
-                        ::testing::ValuesIn(testing::cartesian({device_gpu}, arguments)));
+// XXX: There's no way right now to test the OpticalFlow operator,
+//      since there's no support for external input for GPU.
 
 }  // namespace testing
 }  // namespace dali

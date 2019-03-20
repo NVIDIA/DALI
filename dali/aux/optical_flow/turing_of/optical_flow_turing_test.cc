@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/aux/optical_flow/turing_of/optical_flow_turing.h>
-#include <dali/test/dali_test_config.h>
-#include <dali/util/cuda_utils.h>
 #include <opencv2/opencv.hpp>
-#include <cuda_runtime.h>
 #include <gtest/gtest.h>
 #include <fstream>
 #include <vector>
 #include <string>
+#include <tuple>
+#include <utility>
+#include <numeric>
+#include "dali/util/cuda_utils.h"
+#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/kernels/alloc.h"
+#include "dali/kernels/test/mat2tensor.h"
+#include "dali/kernels/common/copy.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace optical_flow {
@@ -28,7 +33,19 @@ namespace testing {
 
 namespace {
 constexpr float kFlowVectorEpsilon = 1.f / 32;
+
+
+std::tuple<kernels::TensorView<kernels::StorageGPU, uint8_t, 3>,
+        kernels::memory::KernelUniquePtr<uint8_t>>
+mat_to_tensor(cv::Mat &mat) {
+  auto tvcpu = kernels::view_as_tensor<uint8_t, 3>(mat);
+  auto mem = kernels::memory::alloc_unique<uint8_t>(kernels::AllocType::Unified,
+                                                    mat.cols * mat.rows * mat.channels());
+  auto tvgpu = kernels::make_tensor_gpu<3>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+  kernels::copy(tvgpu, tvcpu);
+  return std::forward_as_tuple(tvgpu, std::move(mem));
 }
+}  // namespace
 
 
 TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
@@ -77,6 +94,7 @@ TEST(OpticalFlowTuringTest, BgrToAbgrSynteticTest) {
   CUDA_CALL(cudaFree(input));
 }
 
+
 // DISABLED due to lack of test data. Enable on next possible chance
 TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   using std::ifstream;
@@ -118,6 +136,65 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
   CUDA_CALL(cudaFree(outcuda));
 }
 
+// DISABLED due to lack of test data. Enable on next possible chance
+TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
+  using namespace std;  // NOLINT
+
+  auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
+
+  // Reference
+  auto matref = cv::imread(test_data_path + string("frame_reference.png"));
+  cv::cvtColor(matref, matref, CV_BGR2RGB);
+  assert(matref.isContinuous() && matref.channels() == 3);
+  auto ref = mat_to_tensor(matref);
+  auto tvref = get<0>(ref);
+  auto memref = reinterpret_cast<uint8_t *>(get<1>(ref).get());
+
+  // Input
+  auto matin = cv::imread(test_data_path + string("frame_input.png"));
+  cv::cvtColor(matin, matin, CV_BGR2RGB);
+  assert(matin.isContinuous() && matin.channels() == 3);
+  auto in = mat_to_tensor(matin);
+  auto tvin = get<0>(in);
+  auto memin = reinterpret_cast<uint8_t *>(get<1>(in).get());
+
+  ASSERT_EQ(matref.size, matin.size) << "Sizes of test data don't match";
+  auto width = matref.cols;
+  auto height = matref.rows;
+  auto channels = matref.channels();
+
+  // Output
+  auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
+                                                     (width + 3) / 4 * (height + 3) / 4 * 2);
+  auto tvout = kernels::make_tensor_gpu<3>(memout.get(), {(height + 3) / 4, (width + 3) / 4, 2});
+
+
+  OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false};
+  try {
+    OpticalFlowTuring of(params, width, height, channels);
+    of.CalcOpticalFlow(tvref, tvin, tvout);
+    CUDA_CALL(cudaDeviceSynchronize());
+  } catch (unsupported_exception&) {
+    GTEST_SKIP() << "Test skipped due to module unavailability";
+  }
+
+  // Read reference data
+  ifstream reffile(test_data_path + "decoded_flow_vector.dat");
+  vector<float> reference_data;
+  copy(istream_iterator<float>(reffile),
+       istream_iterator<float>(),
+       back_inserter(reference_data));
+
+  ASSERT_EQ(reference_data.size(), tvout.num_elements())
+                        << "Number of output elements doesn't match";
+  vector<float> distances(reference_data.size());
+  for (size_t i = 0; i < distances.size(); i++) {
+    distances[i] = abs(reference_data[i] - tvout.data[i]);
+  }
+  float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
+  // Expecting, that average error would be less than 0.5[px]
+  ASSERT_GT(0.5, mean_err);
+}
 
 }  // namespace testing
 }  // namespace optical_flow

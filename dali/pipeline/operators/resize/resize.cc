@@ -14,21 +14,12 @@
 
 #include "dali/pipeline/operators/resize/resize.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/kernels/imgproc/resample_cpu.h"
 
 namespace dali {
 
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("image_type",
         R"code(The color space of input and output image.)code", DALI_RGB)
-  .AddOptionalArg("interp_type",
-      R"code(Type of interpolation used. Use `min_filter` and `mag_filter` to specify
-      different filtering for downscaling and upscaling.)code",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("mag_filter", "Filter used when scaling up",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("min_filter", "Filter used when scaling down",
-      DALI_INTERP_TRIANGULAR)
   .AddOptionalArg("resize_x", "The length of the X dimension of the resized image. "
       "This option is mutually exclusive with `resize_shorter`. "
       "If the `resize_y` is left at 0, then the op will keep "
@@ -55,20 +46,21 @@ DALI_SCHEMA(Resize)
   .AllowMultipleInputSets()
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
-  .AddParent("ResizeAttr");
+  .AddParent("ResizeAttr")
+  .AddParent("ResamplingFilterAttr");
 
 template<>
-Resize<CPUBackend>::Resize(const OpSpec &spec) : Operator<CPUBackend>(spec), ResizeAttr(spec) {
+Resize<CPUBackend>::Resize(const OpSpec &spec)
+    : Operator<CPUBackend>(spec)
+    , ResizeAttr(spec)
+    , ResizeBase(spec) {
   per_sample_meta_.resize(num_threads_);
   resample_params_.resize(num_threads_);
   out_shape_.resize(num_threads_);
-  kernel_data_.resize(num_threads_);
+  Initialize(num_threads_);
 
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
-
-  kernel_data_.resize(num_threads_);
-  SetupResamplingParams();
 }
 
 template <>
@@ -80,10 +72,9 @@ void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
 
 template <>
 void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
-
   const int thread_idx = ws->thread_idx();
   const auto &input = ws->Input<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
 
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
   DALI_ENFORCE(input.ndim() == 3, "Resize expects 3-dimensional tensor input.");
@@ -92,35 +83,17 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
                  "Resize expects interleaved channel layout (NHWC)");
   }
 
-  auto in_view = view<const uint8_t, 3>(input);
-  auto &kdata = kernel_data_[thread_idx];
-  kdata.requirements = Kernel::GetRequirements(
-      kdata.context,
-      in_view,
-      resample_params_[thread_idx]);
-  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
-  auto scratchpad = kdata.scratch_alloc.GetScratchpad();
-  kdata.context.scratchpad = &scratchpad;
-
-  auto &output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
-  const auto &input_shape = input.shape();
-
-  auto out_shape = kdata.requirements.output_shapes[0][0];
-  out_shape_[thread_idx] = out_shape.shape;
-
-  // Resize the output & run
-  output.Resize(out_shape_[thread_idx]);
-  auto out_view = view<uint8_t, 3>(output);
-  Kernel::Run(kdata.context, out_view, in_view, resample_params_[thread_idx]);
+  RunCPU(output, input, thread_idx);
 
   if (save_attrs_) {
-      auto &attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
+    auto &attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
+    auto &in_shape = input.shape();
 
-      attr_output.Resize(Dims{2});
-      int *t = attr_output.mutable_data<int>();
-      t[0] = out_shape[0];
-      t[1] = out_shape[1];
-    }
+    attr_output.Resize(Dims{2});
+    int *t = attr_output.mutable_data<int>();
+    t[0] = in_shape[0];
+    t[1] = in_shape[1];
+  }
 }
 
 DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
