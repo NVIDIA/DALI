@@ -72,7 +72,7 @@ class COCOReaderPipeline(CommonPipeline):
         images, bb, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels, bb)
 
-test_data = {\
+test_data = {
   COCOReaderPipeline: [["/data/coco/coco-2017/coco2017/train2017", "/data/coco/coco-2017/coco2017/annotations/instances_train2017.json"],
                        ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json"]]
             }
