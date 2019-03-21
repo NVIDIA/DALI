@@ -41,7 +41,7 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
       R"code(Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
-      8*1024*1024)  // based on ImageNet heuristics
+      8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("split_stages",
       R"code(Split into separated CPU stage and GPU stage operators)code",
       false)
