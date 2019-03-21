@@ -35,10 +35,8 @@ mkdir -p $DATA_DIR/val/
 cp ../video_files/* $DATA_DIR/train/
 cp ../video_files/* $DATA_DIR/val/
 
-# Download pre-trained FlowNet2.0
-git clone https://github.com/NVIDIA/flownet2-pytorch
-
-# add weights link
+# Pre-trained FlowNet2.0 weights
+FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
 
 cd ..
 
@@ -51,7 +49,7 @@ test_body() {
 
     cd superres_pytorch
 
-    python main.py --loader DALI --rank 0 --batchsize 2 --frames 3 --root $DATA_DIR --world_size 1 --is_cropped --max_iter 100 --min_lr 0.0001 --max_lr 0.001 --crop_size 512 960
+    python main.py --loader DALI --rank 0 --batchsize 2 --frames 3 --root $DATA_DIR --world_size 1 --is_cropped --max_iter 100 --min_lr 0.0001 --max_lr 0.001 --crop_size 512 960 --flownet_path $FLOWNET_PATH
 
     cd ..
 }
