@@ -72,6 +72,15 @@ class DLL_PUBLIC OpticalFlowAdapter {
   explicit OpticalFlowAdapter(OpticalFlowParams params) {}
 
 
+  /**
+   * Return shape of output tensor for given OpticalFlow class
+   */
+  virtual kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() = 0;
+
+
+  /**
+   * Perform OpticalFlow calculation.
+   */
   virtual void CalcOpticalFlow(TensorView<StorageBackend, const uint8_t, 3> reference_image,
                                TensorView<StorageBackend, const uint8_t, 3> input_image,
                                TensorView<StorageBackend, float, 3> output_image,
