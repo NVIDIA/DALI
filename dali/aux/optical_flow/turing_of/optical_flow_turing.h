@@ -72,6 +72,13 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   virtual ~OpticalFlowTuring();
 
 
+  kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() override {
+    auto sz = of_params_.outGridSize;
+    // There are 2 flow vector components: (x, y)
+    return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
+  }
+
+
   void CalcOpticalFlow(TensorView<StorageBackend, const uint8_t, 3> reference_image,
                        TensorView<StorageBackend, const uint8_t, 3> input_image,
                        TensorView<StorageBackend, float, 3> output_image,

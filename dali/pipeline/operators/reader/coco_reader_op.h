@@ -61,13 +61,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
-    const int idx = ws->data_idx();
-
-    auto* image_label = GetSample(idx);
-
-    parser_->Parse(*image_label, ws);
-
-    return;
+    parser_->Parse(GetSample(ws->data_idx()), ws);
   }
 
  protected:

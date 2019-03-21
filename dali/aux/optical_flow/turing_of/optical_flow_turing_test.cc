@@ -163,37 +163,39 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
   auto height = matref.rows;
   auto channels = matref.channels();
 
-  // Output
-  auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
-                                                     (width + 3) / 4 * (height + 3) / 4 * 2);
-  auto tvout = kernels::make_tensor_gpu<3>(memout.get(), {(height + 3) / 4, (width + 3) / 4, 2});
-
 
   OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false};
   try {
     OpticalFlowTuring of(params, width, height, channels);
+
+    // Output
+    auto out_shape = of.GetOutputShape().to_static<3>();
+    auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
+                                                       volume(out_shape));
+    auto tvout = kernels::make_tensor_gpu(memout.get(), out_shape);
+
     of.CalcOpticalFlow(tvref, tvin, tvout);
     CUDA_CALL(cudaDeviceSynchronize());
-  } catch (unsupported_exception&) {
+
+    // Read reference data
+    ifstream reffile(test_data_path + "decoded_flow_vector.dat");
+    vector<float> reference_data;
+    copy(istream_iterator<float>(reffile),
+         istream_iterator<float>(),
+         back_inserter(reference_data));
+
+    ASSERT_EQ(reference_data.size(), tvout.num_elements())
+                          << "Number of output elements doesn't match";
+    vector<float> distances(reference_data.size());
+    for (size_t i = 0; i < distances.size(); i++) {
+      distances[i] = abs(reference_data[i] - tvout.data[i]);
+    }
+    float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
+    // Expecting, that average error would be less than 0.5[px]
+    ASSERT_GT(0.5, mean_err);
+  } catch (unsupported_exception &) {
     GTEST_SKIP() << "Test skipped due to module unavailability";
   }
-
-  // Read reference data
-  ifstream reffile(test_data_path + "decoded_flow_vector.dat");
-  vector<float> reference_data;
-  copy(istream_iterator<float>(reffile),
-       istream_iterator<float>(),
-       back_inserter(reference_data));
-
-  ASSERT_EQ(reference_data.size(), tvout.num_elements())
-                        << "Number of output elements doesn't match";
-  vector<float> distances(reference_data.size());
-  for (size_t i = 0; i < distances.size(); i++) {
-    distances[i] = abs(reference_data[i] - tvout.data[i]);
-  }
-  float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
-  // Expecting, that average error would be less than 0.5[px]
-  ASSERT_GT(0.5, mean_err);
 }
 
 }  // namespace testing
