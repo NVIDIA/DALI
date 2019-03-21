@@ -124,6 +124,10 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, int idx) {
 
   output.ResizeLike(input);
 
+  if (num_boxes == 0) {
+    return;
+  }
+
   const unsigned block = num_boxes < 1024 ? num_boxes : 1024;
   const unsigned grid = (num_boxes + block - 1) / block;
 
