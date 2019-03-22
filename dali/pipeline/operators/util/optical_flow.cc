@@ -55,7 +55,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
   const auto &input = ws->Input<GPUBackend>(0);
   auto &output = ws->Output<GPUBackend>(0);
 
-  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
+  of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
 
   // Extract calculation params
   ExtractParams(input);
