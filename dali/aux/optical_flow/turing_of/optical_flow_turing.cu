@@ -51,10 +51,26 @@ pitch_xy(T *buffer, ptrdiff_t x, ptrdiff_t y, ptrdiff_t pitch_bytes) {
 }
 
 
-template<typename ConversionMethod>
-void ColorConversion(ConversionMethod cvtm, const uint8_t *input, uint8_t *output, size_t pitch,
-                     size_t width_px, size_t height, int out_channels,
-                     cudaStream_t stream) {
+/**
+ * Trigger-function for kernel. This kernel utilizes 2 things:
+ * 1. Convert color type to RGBA (required by optical flow)
+ * 2. Reshape data to match layout required by optical flow
+ *
+ * @tparam ColorConversionMethod Function, that matches signature:
+ *                               __global__ void (const uint8_t*, uint8_t*, size_t, size_t, size_t)
+ * @param cvtm Kernel to call
+ * @param input
+ * @param output
+ * @param pitch Stride within output memory layout. In bytes
+ * @param width_px In pixels
+ * @param height
+ * @param out_channels How many channels output data has?
+ * @param stream Stream, within which kernel is called
+ */
+template<typename ColorConversionMethod>
+void ConvertToOFLayout(ColorConversionMethod cvtm, const uint8_t *input, uint8_t *output,
+                       size_t pitch, size_t width_px, size_t height, int out_channels,
+                       cudaStream_t stream) {
   DALI_ENFORCE(pitch >= out_channels * width_px);
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
@@ -124,20 +140,20 @@ GrayKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
 void
 RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
           cudaStream_t stream) {
-  ColorConversion(RgbToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
+  ConvertToOFLayout(RgbToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
 }
 
 
 void
 BgrToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
           cudaStream_t stream) {
-  ColorConversion(BgrToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
+  ConvertToOFLayout(BgrToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
 }
 
 
 void Gray(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
           cudaStream_t stream) {
-  ColorConversion(GrayKernel, input, output, pitch, width_px, height, 1, stream);
+  ConvertToOFLayout(GrayKernel, input, output, pitch, width_px, height, 1, stream);
 }
 
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
