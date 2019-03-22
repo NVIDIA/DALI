@@ -60,8 +60,8 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
   }
 
 
-  template<bool Grayscale, typename ColorConvertion>
-  void ColorConvertionTest(ColorConvertion cc, std::vector<uint8_t> input_data,
+  template<bool Grayscale, typename ColorConversion>
+  void ColorConversionTest(ColorConversion cc, std::vector<uint8_t> input_data,
                            std::vector<uint8_t> reference_data) {
     uint8_t *input, *tested;
     CUDA_CALL(cudaMallocManaged(&input, input_data.size()));
@@ -123,19 +123,19 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
 };
 
 TEST_F(OpticalFlowTuringKernelTest, RgbToRgbaTest) {
-  ColorConvertionTest<false>(optical_flow::kernel::RgbToRgba, this->rgb_data_,
+  ColorConversionTest<false>(optical_flow::kernel::RgbToRgba, this->rgb_data_,
                              this->reference_data_);
 }
 
 
 TEST_F(OpticalFlowTuringKernelTest, BgrToRgbaTest) {
-  ColorConvertionTest<false>(optical_flow::kernel::BgrToRgba, this->bgr_data_,
+  ColorConversionTest<false>(optical_flow::kernel::BgrToRgba, this->bgr_data_,
                              this->reference_data_);
 }
 
 
 TEST_F(OpticalFlowTuringKernelTest, GrayTest) {
-  ColorConvertionTest<true>(optical_flow::kernel::Gray, this->gray_data_, this->reference_data_);
+  ColorConversionTest<true>(optical_flow::kernel::Gray, this->gray_data_, this->reference_data_);
 }
 
 }  // namespace kernel
@@ -194,7 +194,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
 }
 
 // DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
+TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";

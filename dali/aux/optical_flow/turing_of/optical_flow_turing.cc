@@ -82,11 +82,15 @@ OpticalFlowTuring::~OpticalFlowTuring() {
 }
 
 
+using dali::kernels::TensorView;
+using dali::kernels::StorageGPU;
+
+
 void OpticalFlowTuring::CalcOpticalFlow(
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> reference_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> input_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
+        TensorView<StorageGPU, const uint8_t, 3> reference_image,
+        TensorView<StorageGPU, const uint8_t, 3> input_image,
+        TensorView<StorageGPU, float, 3> output_image,
+        TensorView<StorageGPU, const float, 3> external_hints) {
   switch (image_type_) {
     case DALI_BGR:
       kernel::BgrToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
