@@ -85,7 +85,8 @@ class BoundingBox {
     return FromXywh(data[0], data[1], data[2], data[3], bounds);
   }
 
-  static BoundingBox FromXywh(float x, float y, float w, float h, array<float, kSize> bounds = UniformSquare()) {
+  static BoundingBox FromXywh(
+    float x, float y, float w, float h, array<float, kSize> bounds = UniformSquare()) {
     CheckBounds(x, bounds[0], bounds[2], "x");
     CheckBounds(y, bounds[0], bounds[2], "y");
     CheckBounds(x + w, bounds[1], bounds[3], "x + w");
