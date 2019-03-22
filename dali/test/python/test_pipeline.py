@@ -113,7 +113,7 @@ def test_pipeline_simple_sync_no_prefetch():
         def __init__(self, batch_size):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads=1,
-                                             device_id=0, prefetch_queue_depth = 1,
+                                             device_id=0, prefetch_queue_depth=1,
                                              exec_async=False, exec_pipelined=False)
             self.input = ops.CaffeReader(path = caffe_db_folder)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
