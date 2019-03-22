@@ -36,6 +36,12 @@ class CommonPipeline(Pipeline):
         self.slice_cpu = ops.Slice(device="cpu")
         self.slice_gpu = ops.Slice(device="gpu")
 
+        self.flip_cpu = ops.Flip(device="cpu")
+        self.bb_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
+
+        self.flip_gpu = ops.Flip(device="gpu")
+        self.bb_flip_gpu = ops.BbFlip(device="gpu", ltrb=True)
+
     def base_define_graph(self, inputs, labels, bboxes):
         images = self.decode_cpu(inputs)
         images_1, bboxes_1, labels_1 = self.crop(images, bboxes, labels)
@@ -43,7 +49,17 @@ class CommonPipeline(Pipeline):
         images_2 = self.decode_crop(inputs, crop_begin, crop_size)
         images_3 = self.slice_cpu(images, crop_begin, crop_size)
         images_4 = self.slice_gpu(images.gpu(), crop_begin, crop_size)
-        return (bboxes_1, labels_1, images_1, bboxes_2, labels_2, images_2, images_3, images_4)
+
+        images_flipped_cpu = self.flip_cpu(images_1)
+        boxes_flipped_cpu = self.bb_flip_cpu(bboxes_1)
+
+        images_flipped_gpu = self.flip_gpu(images_1.gpu())
+        boxes_flipped_gpu = self.bb_flip_gpu(bboxes_1.gpu())
+
+
+        return (bboxes_1, labels_1, images_1, bboxes_2, labels_2, images_2, images_3, images_4, 
+            images_flipped_cpu, boxes_flipped_cpu, 
+            images_flipped_gpu, boxes_flipped_gpu)
 
 class COCOReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, seed):
@@ -101,7 +117,8 @@ for pipe_name in test_data.keys():
         print (data_set)
         for j in range(iters):
             for pipe in pipes:
-                bboxes_1, labels_1, images_1, bboxes_2, labels_2, images_2, images_3, images_4 = pipe.run()
+                bboxes_1, labels_1, images_1, bboxes_2, labels_2, images_2, images_3, images_4, \
+                    images_flipped_cpu, boxes_flipped_cpu, images_flipped_gpu, boxes_flipped_gpu = pipe.run()
                 bboxes_1_arr = np.squeeze(bboxes_1.as_array())
                 bboxes_2_arr = np.squeeze(bboxes_2.as_array())
                 labels_1_arr = np.squeeze(labels_1.as_array())
@@ -110,6 +127,12 @@ for pipe_name in test_data.keys():
                 images_2_arr = images_2.as_array()
                 images_3_arr = images_3.as_array()
                 images_4_arr = images_4.asCPU().as_array()
+
+                images_flipped_cpu_arr = images_flipped_cpu.as_array()
+                boxes_flipped_cpu_arr = np.squeeze(boxes_flipped_cpu.as_array())
+                images_flipped_gpu_arr = images_flipped_gpu.asCPU().as_array()
+                boxes_flipped_gpu_arr = np.squeeze(boxes_flipped_gpu.asCPU().as_array())
+
                 res = np.allclose(labels_1_arr, labels_2_arr)
                 if not res:
                     print(labels_1_arr, "\nvs\n", labels_2_arr)
@@ -121,10 +144,13 @@ for pipe_name in test_data.keys():
                     print(images_1_arr, "\nvs\n", images_2_arr)
                     print(images_1_arr, "\nvs\n", images_3_arr)
                     print(images_1_arr, "\nvs\n", images_4_arr)
-                if not res_bb or not res or not res_img:
+
+                res_flip = np.allclose(images_flipped_cpu_arr, images_flipped_gpu_arr)
+                if not res_bb or not res or not res_img or not res_flip:
                     print("Labels == ", res)
                     print("Bboxes == ", res_bb)
                     print("Images == ", res_img)
+                    print("Flip == ", res_flip)
                     exit(1)
             if not j % LOG_INTERVAL:
                 print("{} {}/ {}".format(pipe_name.__name__, j + 1, iters))

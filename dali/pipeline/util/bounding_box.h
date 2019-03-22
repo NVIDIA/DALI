@@ -81,24 +81,16 @@ class BoundingBox {
     return {l, t, r, b};
   }
 
-  static BoundingBox FromXywh(const float* data) {
-    return FromXywh(data[0], data[1], data[2], data[3]);
+  static BoundingBox FromXywh(const float* data, array<float, kSize> bounds = UniformSquare()) {
+    return FromXywh(data[0], data[1], data[2], data[3], bounds);
   }
 
-  static BoundingBox FromXywh(float x, float y, float w, float h) {
-    DALI_ENFORCE(x >= 0 && x <= 1.f,
-                 "Expected 0 <= x <= 1. Received: " + to_string(x));
-    DALI_ENFORCE(y >= 0 && y <= 1.f,
-                 "Expected 0 <= y <= 1. Received: " + to_string(y));
-    DALI_ENFORCE(w >= 0 && w <= 1.f,
-                 "Expected 0 <= width <= 1. Received: " + to_string(w));
-    DALI_ENFORCE(h >= 0 && h <= 1.f,
-                 "Expected 0 <= height <= 1. Received: " + to_string(h));
-
-    DALI_ENFORCE(x + w <= 1, "Expected x + width <= 1. Received: " +
-                                 to_string(x) + " + " + to_string(w));
-    DALI_ENFORCE(y + h <= 1, "Expected y + height <= 1. Received: " +
-                                 to_string(y) + " + " + to_string(h));
+  static BoundingBox FromXywh(
+    float x, float y, float w, float h, array<float, kSize> bounds = UniformSquare()) {
+    CheckBounds(x, bounds[0], bounds[2], "x");
+    CheckBounds(y, bounds[0], bounds[2], "y");
+    CheckBounds(x + w, bounds[1], bounds[3], "x + w");
+    CheckBounds(y + h, bounds[1], bounds[3], "y + h");
 
     return {x, y, x + w, y + h};
   }
