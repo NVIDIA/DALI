@@ -274,10 +274,9 @@ class Pipeline(object):
         reached its end - usually when iter_setup cannot produce any more data"""
         if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
             raise StopIteration
-        self._release_outputs()
         self._batches_to_consume -= 1
         self._gpu_batches_to_consume -= 1
-        return self._share_outputs()
+        return self._outputs()
 
     def _share_outputs(self):
         """Returns the outputs of the pipeline.
@@ -296,6 +295,15 @@ class Pipeline(object):
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.ReleaseOutputs()
+
+    def _outputs(self):
+        """Release buffers previously returned and returns  the calls.
+
+        Calling this function is equivalent to calling _release_outputs
+        then calling _share_outputs"""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        return self._pipe.Outputs()
 
     def run(self):
         """Run the pipeline and return the result.
@@ -322,13 +330,12 @@ class Pipeline(object):
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if self._first_iter and self._exec_pipelined:
-            if self._exec_separated:
-                self._fill_separated_queues()
-            else:
-                for i in range(self._prefetch_queue_depth):
-                    self._start_run()
-            self._first_iter = False
+        if self._exec_separated:
+            self._fill_separated_queues()
+        else:
+            for i in range(self._prefetch_queue_depth):
+                self._start_run()
+        self._first_iter = False
 
     def _start_run(self):
         """Start running the pipeline without waiting for its results.
@@ -339,6 +346,9 @@ class Pipeline(object):
             if not self._last_iter:
                 self.iter_setup()
                 self._batches_to_consume += 1
+            # Special case to prevent a deadlock if user didn't release the only buffer
+            if not self._exec_async and self._prefetch_queue_depth == 1:
+                self._release_outputs()
             self._run_cpu()
             self._run_gpu()
         except StopIteration:

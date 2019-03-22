@@ -105,6 +105,34 @@ def test_pipeline_separated_exec_setup():
         t_gpu = a_gpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_gpu)) == 0)
 
+def test_pipeline_simple_sync_no_prefetch():
+    batch_size = 16
+    n_iters = 12
+
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads=1,
+                                             device_id=0, prefetch_queue_depth=1,
+                                             exec_async=False, exec_pipelined=False)
+            self.input = ops.CaffeReader(path = caffe_db_folder)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            images_gpu = self.dump_gpu(images.gpu())
+            return (images, images_gpu)
+
+        def iter_setup(self):
+            pass
+
+    pipe = HybridPipe(batch_size=batch_size)
+    pipe.build()
+    for _ in range(n_iters):
+        out = pipe.run()
+
 def test_cropmirrornormalize_layout():
     batch_size = 128
     class HybridPipe(Pipeline):
