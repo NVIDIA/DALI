@@ -170,6 +170,53 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
 
+  DLL_PUBLIC inline void ShareSlice(TensorList<Backend> *other, std::size_t slice_id, std::size_t slice_count) {
+    DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
+    DALI_ENFORCE(IsValidType(other->type_),
+      "To share data the input TensorList must have a valid data type");
+
+    const auto &shape = other->shape_;
+    const auto &offsets = other->offsets_;
+    auto batch_size = shape.size();
+    auto slice_batch_size = batch_size / slice_count;
+    bool is_perfect_slice = batch_size % slice_count == 0;
+    DALI_ENFORCE(slice_id < slice_count && slice_batch_size > 0 && is_perfect_slice,
+      "Wrong slicing arguments: slice_id: " + std::to_string(slice_id) +
+      ", slice_count: " + std::to_string(slice_count) +
+      ", batch_size: " + std::to_string(batch_size));
+
+    auto start_tensor = slice_batch_size * slice_id;
+    auto end_tensor = start_tensor + slice_batch_size;
+    decltype(other->shape_) slice_shape{};
+    decltype(other->offsets_) slice_offsets{};
+    std::size_t slice_size = 0;
+    for (std::size_t tensor_idx = start_tensor; tensor_idx < end_tensor; tensor_idx++) {
+      slice_shape.push_back(shape[tensor_idx]);
+      slice_offsets.push_back(offsets[tensor_idx] - offsets[start_tensor]);
+      slice_size += volume(slice_shape.back());
+    }
+
+    DALI_ENFORCE(static_cast<Index>(slice_size) == slice_offsets.back() + volume(shape[end_tensor-1]));
+
+    // Save the calling TensorLists meta-data
+    data_.reset(static_cast<uint8_t*>(other->data_.get()) + offsets[start_tensor] * other->type_.size(), [](void*) {});
+    shape_ = slice_shape;
+    size_ = slice_size;
+    offsets_ = slice_offsets;
+    type_ = other->type_;
+    num_bytes_ = slice_size * type_.size();
+    device_ = other->device_;
+
+    // Tensor view of this TensorList is no longer valid
+    if (tensor_view_) {
+      tensor_view_->ShareData(this);
+    }
+
+    // If the other tensor has a non-zero size allocation, mark that
+    // we are now sharing an allocation with another buffer
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
   /**
    * @brief Wraps the raw allocation. The input pointer must not be nullptr.
    * if the size of the allocation is zero, the TensorList is reset to
@@ -252,8 +299,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   DLL_PUBLIC inline Index tensor_offset(int idx) const {
 #ifndef NDEBUG
-    DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
+    DALI_ENFORCE(idx >= 0 && (size_t) idx < offsets_.size(),
+                 "Index out of range: " + std::to_string(idx) +
+                 " offsets size: " + std::to_string(offsets_.size()));
 #endif
     return offsets_[idx];
   }
@@ -263,8 +311,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   inline const vector<Index> &tensor_shape(int idx) const {
 #ifndef NDEBUG
-    DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range");
+    DALI_ENFORCE(idx >= 0 && (size_t) idx < shape_.size(),
+                 "Index out of range: " + std::to_string(idx) +
+                 " shape size: " + std::to_string(shape_.size()));
 #endif
     return shape_[idx];
   }
