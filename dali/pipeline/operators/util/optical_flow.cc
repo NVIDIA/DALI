@@ -35,7 +35,10 @@ Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
 For values <=0, grid size is undefined. Currently only grid_size=4 is supported.)code", -1, false)
                 .AddOptionalArg(detail::kEnableHintsArgName,
                                 R"code(enabling/disabling temporal hints for sequences longer than 2 images)code",
-                                false, false);
+                                false, false)
+                .AddOptionalArg(detail::kImageTypeArgName,
+                                R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
+                                false);
 
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
@@ -52,7 +55,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
   const auto &input = ws->Input<GPUBackend>(0);
   auto &output = ws->Output<GPUBackend>(0);
 
-  of_lazy_init(frames_width_, frames_height_, depth_, ws->stream());
+  of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
 
   // Extract calculation params
   ExtractParams(input);

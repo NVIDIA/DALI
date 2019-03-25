@@ -36,9 +36,10 @@ void VerifySupport(NV_OF_STATUS status) {
 }  // namespace
 
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
-                                     size_t height, size_t channels, cudaStream_t stream) :
+                                     size_t height, size_t channels, DALIImageType image_type,
+                                     cudaStream_t stream) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
-        channels_(channels), device_(), context_(), stream_(stream) {
+        channels_(channels), device_(), context_(), stream_(stream), image_type_(image_type) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
@@ -81,15 +82,37 @@ OpticalFlowTuring::~OpticalFlowTuring() {
 }
 
 
+using dali::kernels::TensorView;
+using dali::kernels::StorageGPU;
+
+
 void OpticalFlowTuring::CalcOpticalFlow(
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> reference_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const uint8_t, 3> input_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, float, 3> output_image,
-        dali::kernels::TensorView<dali::kernels::StorageGPU, const float, 3> external_hints) {
-  kernel::RgbToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
-                    inbuf_->GetStride().x, width_, height_, stream_);
-  kernel::RgbToRgba(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
-                    refbuf_->GetStride().x, width_, height_, stream_);
+        TensorView<StorageGPU, const uint8_t, 3> reference_image,
+        TensorView<StorageGPU, const uint8_t, 3> input_image,
+        TensorView<StorageGPU, float, 3> output_image,
+        TensorView<StorageGPU, const float, 3> external_hints) {
+  switch (image_type_) {
+    case DALI_BGR:
+      kernel::BgrToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
+                        inbuf_->GetStride().x, width_, height_, stream_);
+      kernel::BgrToRgba(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
+                        refbuf_->GetStride().x, width_, height_, stream_);
+      break;
+    case DALI_RGB:
+      kernel::RgbToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
+                        inbuf_->GetStride().x, width_, height_, stream_);
+      kernel::RgbToRgba(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
+                        refbuf_->GetStride().x, width_, height_, stream_);
+      break;
+    case DALI_GRAY:
+      kernel::Gray(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
+                   inbuf_->GetStride().x, width_, height_, stream_);
+      kernel::Gray(reference_image.data, reinterpret_cast<uint8_t *>(refbuf_->GetPtr()),
+                   refbuf_->GetStride().x, width_, height_, stream_);
+      break;
+    default:
+      DALI_FAIL("Provided image type not supported");
+  }
 
   auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle());
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());

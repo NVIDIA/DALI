@@ -50,12 +50,40 @@ pitch_xy(T *buffer, ptrdiff_t x, ptrdiff_t y, ptrdiff_t pitch_bytes) {
   return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(buffer) + pitch_bytes * y)[x];
 }
 
+
+/**
+ * Trigger-function for kernel. This kernel utilizes 2 things:
+ * 1. Convert color type to RGBA (required by optical flow)
+ * 2. Reshape data to match layout required by optical flow
+ *
+ * @tparam ColorConversionMethod Function, that matches signature:
+ *                               __global__ void (const uint8_t*, uint8_t*, size_t, size_t, size_t)
+ * @param cvtm Kernel to call
+ * @param input
+ * @param output
+ * @param pitch Stride within output memory layout. In bytes
+ * @param width_px In pixels
+ * @param height
+ * @param out_channels How many channels output data has?
+ * @param stream Stream, within which kernel is called
+ */
+template<typename ColorConversionMethod>
+void ConvertToOFLayout(ColorConversionMethod cvtm, const uint8_t *input, uint8_t *output,
+                       size_t pitch, size_t width_px, size_t height, int out_channels,
+                       cudaStream_t stream) {
+  DALI_ENFORCE(pitch >= out_channels * width_px);
+  dim3 block_dim(kBlockSize, kBlockSize);
+  dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
+                num_blocks(height, block_dim.y));
+  cvtm<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch, width_px, height);
+}
+
 }  // namespace
 
 
 __global__ void
-DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, size_t width_px,
-                          size_t height) {
+DecodeFlowComponentKernel(const int16_t *__restrict__ input, float *__restrict__ output,
+                          size_t pitch, size_t width_px, size_t height) {
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
   if (x >= width_px || y >= height) return;
@@ -66,8 +94,8 @@ DecodeFlowComponentKernel(const int16_t *input, float *output, size_t pitch, siz
 
 
 __global__ void
-RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px,
-                size_t height) {
+RgbToRgbaKernel(const uint8_t *__restrict__ input, uint8_t *__restrict__ output, size_t pitch,
+                size_t width_px, size_t height) {
   constexpr size_t in_channels = 3, out_channels = 4;
   size_t x = threadIdx.x + blockIdx.x * blockDim.x;
   size_t y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -81,15 +109,38 @@ RgbToRgbaKernel(const uint8_t *input, uint8_t *output, size_t pitch, size_t widt
 }
 
 
-void
-RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+__global__ void
+BgrToRgbaKernel(const uint8_t *__restrict__ input, uint8_t *__restrict__ output, size_t pitch,
+                size_t width_px, size_t height) {
+  constexpr size_t in_channels = 3, out_channels = 4;
+  size_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  if (x >= width_px || y >= height) return;
+  size_t in_idx = in_channels * x + in_channels * width_px * y;
+  size_t out_idx = out_channels * x + pitch * y;
+  output[out_idx] = input[in_idx + 2];
+  output[out_idx + 1] = input[in_idx + 1];
+  output[out_idx + 2] = input[in_idx];
+  output[out_idx + 3] = 255;
+}
+
+
+void RgbToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+               cudaStream_t stream) {
+  ConvertToOFLayout(RgbToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
+}
+
+
+void BgrToRgba(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
+               cudaStream_t stream) {
+  ConvertToOFLayout(BgrToRgbaKernel, input, output, pitch, width_px, height, 4, stream);
+}
+
+
+void Gray(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, size_t height,
           cudaStream_t stream) {
-  constexpr int out_channels = 4;
-  DALI_ENFORCE(pitch >= out_channels * width_px);
-  dim3 block_dim(kBlockSize, kBlockSize);
-  dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
-                num_blocks(height, block_dim.y));
-  RgbToRgbaKernel<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch, width_px, height);
+  CUDA_CALL(cudaMemcpy2DAsync(output, pitch, input, width_px * sizeof(uint8_t),
+                              width_px * sizeof(uint8_t), height, cudaMemcpyDefault, stream));
 }
 
 
@@ -99,8 +150,8 @@ void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, siz
   dim3 block_dim(kBlockSize, kBlockSize);
   dim3 grid_dim(num_blocks(sizeof(float) * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
-  DecodeFlowComponentKernel<<<grid_dim, block_dim, 0, stream>>>
-          (input, output, pitch, sizeof(int16_t) * width_px, height);
+  DecodeFlowComponentKernel<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch,
+                                                                sizeof(int16_t) * width_px, height);
 }
 
 }  // namespace kernel
