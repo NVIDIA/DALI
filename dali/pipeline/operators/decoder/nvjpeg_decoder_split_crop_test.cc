@@ -19,13 +19,13 @@ namespace dali {
 template <typename ImgType>
 class nvJpegDecoderSplitCropTest : public DecodeTestBase<ImgType> {
  protected:
-  const OpSpec DecodingOp() const override {
+  OpSpec DecodingOp() const override {
     return this->GetOpSpec("nvJPEGDecoderCrop", "mixed")
       .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W})
       .AddArg("split_stages", true);
   }
 
-  CropWindowGenerator GetCropWindowGenerator() const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return [this] (int H, int W) {
       CropWindow crop_window;
       crop_window.h = crop_H;

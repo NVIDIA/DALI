@@ -54,7 +54,7 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws)
     int H = input_shape[0];
     int W = input_shape[1];
 
-    params_.crops[i] = params_.crop_gens[i].GenerateCropWindow(H, W);
+    crops_[i] = GetCropWindowGenerator(i)(H, W);
   }
   CalcResamplingParams();
 }

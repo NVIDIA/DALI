@@ -19,7 +19,7 @@ namespace dali {
 template <typename ImgType>
 class HostDecodeTest : public DecodeTestBase<ImgType> {
  protected:
-  const OpSpec DecodingOp() const override {
+  OpSpec DecodingOp() const override {
     return this->GetOpSpec("HostDecoder");
   }
 };
