@@ -99,7 +99,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
 
 
   kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() override {
-    auto sz = of_params_.outGridSize;
+    auto sz = init_params_.outGridSize;
     // There are 2 flow vector components: (x, y)
     return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
   }
@@ -134,7 +134,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   cudaStream_t stream_;
   NvOFHandle of_handle_;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
-  NV_OF_INIT_PARAMS of_params_;
+  NV_OF_INIT_PARAMS init_params_;
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_;
   DALIImageType image_type_;
 };

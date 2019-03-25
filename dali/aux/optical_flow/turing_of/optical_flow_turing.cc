@@ -55,7 +55,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
 
   TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(ctx, &of_handle_));
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
-  VerifySupport(turing_of_.nvOFInit(of_handle_, &of_params_));
+  VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
   inbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
@@ -125,32 +125,33 @@ void OpticalFlowTuring::CalcOpticalFlow(
 
 
 void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
-  of_params_.width = static_cast<uint32_t>(width_);
-  of_params_.height = static_cast<uint32_t>(height_);
+  init_params_.width = static_cast<uint32_t>(width_);
+  init_params_.height = static_cast<uint32_t>(height_);
 
   if (api_params.grid_size == VectorGridSize::SIZE_4) {
-    of_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
-    of_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
+    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
+    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
   } else {
-    of_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
-    of_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
+    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
+    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
   }
 
-  of_params_.mode = NV_OF_MODE_OPTICALFLOW;
+  init_params_.mode = NV_OF_MODE_OPTICALFLOW;
 
   if (api_params.perf_quality_factor >= 0.0 && api_params.perf_quality_factor < 0.375f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
   } else if (api_params.perf_quality_factor < 0.75f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_MEDIUM;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_MEDIUM;
   } else if (api_params.perf_quality_factor <= 1.0f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_FAST;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_FAST;
   } else {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
   }
 
-  of_params_.enableExternalHints = api_params.enable_hints ? NV_OF_TRUE : NV_OF_FALSE;
-  of_params_.enableOutputCost = NV_OF_FALSE;
-  of_params_.hPrivData = NULL;
+//  init_params_.enableExternalHints = api_params.enable_hints ? NV_OF_TRUE : NV_OF_FALSE; TODO
+init_params_.enableExternalHints=NV_OF_FALSE;
+  init_params_.enableOutputCost = NV_OF_FALSE;
+  init_params_.hPrivData = NULL;
 }
 
 
@@ -159,7 +160,7 @@ NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
   NV_OF_EXECUTE_INPUT_PARAMS params;
   params.inputFrame = in_handle;
   params.referenceFrame = ref_handle;
-  params.disableTemporalHints = NV_OF_TRUE;
+  params.disableTemporalHints = of_params_.enable_temporal_hints?NV_OF_FALSE:NV_OF_TRUE;
   params.externalHints = nullptr;
   params.padding = 0;
   params.hPrivData = NULL;

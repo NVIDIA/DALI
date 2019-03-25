@@ -46,7 +46,7 @@ enum struct VectorGridSize {
 struct OpticalFlowParams {
   float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
   VectorGridSize grid_size;
-  bool enable_hints;
+  bool enable_temporal_hints;
 };
 
 using dali::kernels::TensorView;
@@ -69,7 +69,7 @@ class DLL_PUBLIC OpticalFlowAdapter {
  protected:
   using StorageBackend = typename detail::compute_to_storage<ComputeBackend>::type;
  public:
-  explicit OpticalFlowAdapter(OpticalFlowParams params) {}
+  explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
 
 
   /**
@@ -88,6 +88,8 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   virtual ~OpticalFlowAdapter() = default;
+ protected:
+  const OpticalFlowParams of_params_;
 };
 
 }  // namespace optical_flow

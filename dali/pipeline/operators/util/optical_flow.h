@@ -37,10 +37,10 @@ struct backend_to_compute<GPUBackend> {
   using type = kernels::ComputeGPU;
 };
 
-const std::string kPresetArgName = "preset";   // NOLINT
-const std::string kOutputFormatArgName = "output_format";   // NOLINT
-const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
-const std::string kImageTypeArgName = "image_type";   // NOLINT
+const std::string kPresetArgName = "preset";                       // NOLINT
+const std::string kOutputFormatArgName = "output_format";          // NOLINT
+const std::string kEnableHintsArgName = "enable_temporal_hints";   // NOLINT
+const std::string kImageTypeArgName = "image_type";                // NOLINT
 
 }  // namespace detail
 
@@ -55,13 +55,13 @@ class OpticalFlow : public Operator<Backend> {
                   decltype(this->quality_factor_)>::type>(detail::kPresetArgName)),
           grid_size_(spec.GetArgument<typename std::remove_const<
                   decltype(this->grid_size_)>::type>(detail::kOutputFormatArgName)),
-          enable_hints_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->enable_hints_)>::type>(detail::kEnableHintsArgName)),
+          enable_temporal_hints_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->enable_temporal_hints_)>::type>(detail::kEnableHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
           image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
     // In case hints are enabled, we need 2 inputs
-    DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
+    DALI_ENFORCE((enable_temporal_hints_ && spec.NumInput() == 2) || !enable_temporal_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
                  std::to_string(spec.NumInput()));
     optical_flow::VectorGridSize grid_size;
@@ -72,7 +72,7 @@ class OpticalFlow : public Operator<Backend> {
     } else {
       grid_size = optical_flow::VectorGridSize::MAX;
     }
-    of_params_ = {quality_factor_, grid_size, enable_hints_};
+    of_params_ = {quality_factor_, grid_size, enable_temporal_hints_};
   }
 
 
@@ -125,7 +125,7 @@ class OpticalFlow : public Operator<Backend> {
 
   const float quality_factor_;
   const int grid_size_;
-  const bool enable_hints_;
+  const bool enable_temporal_hints_;
   std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
