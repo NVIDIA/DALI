@@ -37,10 +37,11 @@ struct backend_to_compute<GPUBackend> {
   using type = kernels::ComputeGPU;
 };
 
-const std::string kPresetArgName = "preset";                       // NOLINT
-const std::string kOutputFormatArgName = "output_format";          // NOLINT
-const std::string kEnableHintsArgName = "enable_temporal_hints";   // NOLINT
-const std::string kImageTypeArgName = "image_type";                // NOLINT
+const std::string kPresetArgName = "preset";                               // NOLINT
+const std::string kOutputFormatArgName = "output_format";                  // NOLINT
+const std::string kEnableTemporalHintsArgName = "enable_temporal_hints";   // NOLINT
+const std::string kEnableExternalHintsArgName = "enable_external_hints";   // NOLINT
+const std::string kImageTypeArgName = "image_type";                        // NOLINT
 
 }  // namespace detail
 
@@ -56,7 +57,11 @@ class OpticalFlow : public Operator<Backend> {
           grid_size_(spec.GetArgument<typename std::remove_const<
                   decltype(this->grid_size_)>::type>(detail::kOutputFormatArgName)),
           enable_temporal_hints_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->enable_temporal_hints_)>::type>(detail::kEnableHintsArgName)),
+                  decltype(this->enable_temporal_hints_)>::type>(
+                  detail::kEnableTemporalHintsArgName)),
+          enable_external_hints_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->enable_external_hints_)>::type>(
+                  detail::kEnableExternalHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
           image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
@@ -72,7 +77,7 @@ class OpticalFlow : public Operator<Backend> {
     } else {
       grid_size = optical_flow::VectorGridSize::MAX;
     }
-    of_params_ = {quality_factor_, grid_size, enable_temporal_hints_};
+    of_params_ = {quality_factor_, grid_size, enable_temporal_hints_, enable_external_hints_};
   }
 
 
@@ -126,6 +131,7 @@ class OpticalFlow : public Operator<Backend> {
   const float quality_factor_;
   const int grid_size_;
   const bool enable_temporal_hints_;
+  const bool enable_external_hints_;
   std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;

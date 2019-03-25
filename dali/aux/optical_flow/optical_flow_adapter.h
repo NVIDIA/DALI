@@ -47,6 +47,7 @@ struct OpticalFlowParams {
   float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
   VectorGridSize grid_size;
   bool enable_temporal_hints;
+  bool enable_external_hints;
 };
 
 using dali::kernels::TensorView;

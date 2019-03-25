@@ -66,6 +66,11 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   outbuf_.reset(
           new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
                                 NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
+  if (of_params_.enable_external_hints) {
+    hintsbuf_.reset(
+            new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
+                                  NV_OF_BUFFER_USAGE_HINT, NV_OF_BUFFER_FORMAT_SHORT2));
+  }
 }
 
 
@@ -91,6 +96,10 @@ void OpticalFlowTuring::CalcOpticalFlow(
         TensorView<StorageGPU, const uint8_t, 3> input_image,
         TensorView<StorageGPU, float, 3> output_image,
         TensorView<StorageGPU, const float, 3> external_hints) {
+  if (of_params_.enable_external_hints) {
+    DALI_ENFORCE(external_hints.shape == output_image.shape,
+                 "If external hint are used, shape must match against output_image");
+  }
   switch (image_type_) {
     case DALI_BGR:
       kernel::BgrToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
@@ -114,7 +123,9 @@ void OpticalFlowTuring::CalcOpticalFlow(
       DALI_FAIL("Provided image type not supported");
   }
 
-  auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle());
+  auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle(),
+                                           of_params_.enable_external_hints ? hintsbuf_->GetHandle()
+                                                                            : nullptr);
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
 
@@ -148,20 +159,20 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
     init_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
   }
 
-//  init_params_.enableExternalHints = api_params.enable_hints ? NV_OF_TRUE : NV_OF_FALSE; TODO
-init_params_.enableExternalHints=NV_OF_FALSE;
+  init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
   init_params_.enableOutputCost = NV_OF_FALSE;
   init_params_.hPrivData = NULL;
 }
 
 
 NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
-        (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle) {
+        (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
+         NvOFGPUBufferHandle hints_handle) {
   NV_OF_EXECUTE_INPUT_PARAMS params;
   params.inputFrame = in_handle;
   params.referenceFrame = ref_handle;
-  params.disableTemporalHints = of_params_.enable_temporal_hints?NV_OF_FALSE:NV_OF_TRUE;
-  params.externalHints = nullptr;
+  params.disableTemporalHints = of_params_.enable_temporal_hints ? NV_OF_FALSE : NV_OF_TRUE;
+  params.externalHints = hints_handle;
   params.padding = 0;
   params.hPrivData = NULL;
   return params;

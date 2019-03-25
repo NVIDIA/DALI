@@ -87,6 +87,11 @@ inline __host__ __device__ float decode_flow_component(int16_t value) {
   return value * (1 / 32.f);
 }
 
+
+inline __host__ __device__ int16_t encode_flow_component(float value) {
+  return static_cast<int16_t>(value * 32);
+}
+
 }  // namespace kernel
 
 class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
@@ -117,7 +122,8 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
 
 
   NV_OF_EXECUTE_INPUT_PARAMS
-  GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle);
+  GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
+                          NvOFGPUBufferHandle hints_handle = nullptr);
 
 
   NV_OF_EXECUTE_OUTPUT_PARAMS GenerateExecuteOutParams(NvOFGPUBufferHandle out_handle);
@@ -135,7 +141,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   NvOFHandle of_handle_;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
   NV_OF_INIT_PARAMS init_params_;
-  std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_;
+  std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_;
 };
 

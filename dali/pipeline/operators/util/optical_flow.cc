@@ -33,7 +33,7 @@ Dali uses Turing optical flow hardware implementation: https://developer.nvidia.
                                 R"code(Setting grid size for output vector.
 Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
 For values <=0, grid size is undefined. Currently only grid_size=4 is supported.)code", -1, false)
-                .AddOptionalArg(detail::kEnableHintsArgName,
+                .AddOptionalArg(detail::kEnableTemporalHintsArgName,
                                 R"code(enabling/disabling temporal hints for sequences longer than 2 images)code",
                                 false, false)
                 .AddOptionalArg(detail::kImageTypeArgName,
