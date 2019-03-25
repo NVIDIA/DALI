@@ -18,13 +18,15 @@ import argparse
 import itertools
 import os
 import random
-from math import sqrt, ceil
+from math import ceil, sqrt
 
 import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import torchvision.transforms as transforms
 from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
+from PIL import Image
 
 
 def coco_anchors():
@@ -78,6 +80,34 @@ def coco_anchors():
     return anchors
 
 
+def horizontal_flip_ref(image, boxes):
+    if len(boxes.shape) == 1:
+        boxes[0], boxes[2] = 1.0 - boxes[2], 1.0 - boxes[0]
+    else:
+        boxes[:, 0], boxes[:, 2] = 1.0 - boxes[:, 2], 1.0 - boxes[:, 0]
+
+    return np.fliplr(image), boxes
+
+
+def normalize_ref(image):
+    normalization_mean = [0.485, 0.456, 0.406]
+    normalization_std = [0.229, 0.224, 0.225]
+
+    normalize = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=normalization_mean,
+            std=normalization_std)])
+
+    return np.array(normalize(Image.fromarray(image)))
+
+
+def resize_ref(image, size):
+    resize = transforms.Resize(size)
+
+    return np.array(resize(Image.fromarray(image)))
+
+
 class DetectionPipeline(Pipeline):
     def __init__(self, args, device_id, file_root, annotations_file):
         super(DetectionPipeline, self).__init__(
@@ -110,26 +140,37 @@ class DetectionPipeline(Pipeline):
         self.slice_cpu = ops.Slice(device="cpu")
         self.slice_gpu = ops.Slice(device="gpu")
 
-        self.resize = ops.Resize(
+        self.resize_cpu = ops.Resize(
             device="cpu",
             resize_x=300,
             resize_y=300,
             min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
+        self.resize_gpu = ops.Resize(
+            device="gpu",
+            resize_x=300,
+            resize_y=300,
+            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
+        mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
+        std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
+        crop_size = (300, 300)
         self.normalize_cpu = ops.CropMirrorNormalize(
             device="cpu",
-            crop=(300, 300),
-            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+            crop=crop_size,
+            mean=mean,
+            std=std,
             mirror=0,
             output_dtype=types.FLOAT)
         self.normalize_gpu = ops.CropMirrorNormalize(
             device="gpu",
-            crop=(300, 300),
-            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+            crop=crop_size,
+            mean=mean,
+            std=std,
             mirror=0,
             output_dtype=types.FLOAT)
+
+        self.twist_cpu = ops.ColorTwist(device="cpu")
+        self.twist_gpu = ops.ColorTwist(device="gpu")
 
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
@@ -161,26 +202,40 @@ class DetectionPipeline(Pipeline):
 
         inputs, boxes, labels = self.input(name="Reader")
 
-        images = self.decode_cpu(inputs)
-        images_ssd_crop, boxes_ssd_crop, labels_ssd_crop = self.ssd_crop(
-            images, boxes, labels)
+        image = self.decode_cpu(inputs)
+        image_ssd_crop, boxes_ssd_crop, labels_ssd_crop = self.ssd_crop(
+            image, boxes, labels)
 
         crop_begin, crop_size, boxes_random_crop, labels_random_crop = \
             self.random_bbox_crop(boxes, labels)
-        images_decode_crop = self.decode_crop(inputs, crop_begin, crop_size)
+        image_decode_crop = self.decode_crop(inputs, crop_begin, crop_size)
 
-        images_slice_cpu = self.slice_cpu(images, crop_begin, crop_size)
-        images_slice_gpu = self.slice_gpu(images.gpu(), crop_begin, crop_size)
+        image_slice_cpu = self.slice_cpu(image, crop_begin, crop_size)
+        image_slice_gpu = self.slice_gpu(image.gpu(), crop_begin, crop_size)
 
-        images_resized = self.resize(images_ssd_crop)
+        image_resized_cpu = self.resize_cpu(image_ssd_crop)
+        image_resized_gpu = self.resize_gpu(image_ssd_crop.gpu())
 
-        images_normalized_cpu = self.normalize_cpu(images_resized)
-        images_normalized_gpu = self.normalize_gpu(images_resized.gpu())
+        image_normalized_cpu = self.normalize_cpu(image_resized_cpu)
+        image_normalized_gpu = self.normalize_gpu(image_resized_cpu.gpu())
 
-        images_flipped_cpu = self.flip_cpu(images_ssd_crop)
+        image_twisted_cpu = self.twist_cpu(
+            image_ssd_crop,
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=hue)
+        image_twisted_gpu = self.twist_gpu(
+            image_ssd_crop.gpu(),
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=hue)
+
+        image_flipped_cpu = self.flip_cpu(image_resized_cpu)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)
 
-        images_flipped_gpu = self.flip_gpu(images_ssd_crop.gpu())
+        image_flipped_gpu = self.flip_gpu(image_resized_cpu.gpu())
         boxes_flipped_gpu = self.bbox_flip_gpu(boxes_ssd_crop.gpu())
 
         encoded_boxes_cpu, encoded_labels_cpu = self.box_encoder_cpu(
@@ -189,15 +244,17 @@ class DetectionPipeline(Pipeline):
             boxes_ssd_crop.gpu(), labels_ssd_crop.gpu())
 
         return (
-            images_ssd_crop, images_decode_crop,
-            images_slice_cpu, images_slice_gpu,
+            image_ssd_crop, image_decode_crop,
+            image_slice_cpu, image_slice_gpu,
             boxes_ssd_crop, boxes_random_crop,
             labels_ssd_crop, labels_random_crop,
-            images_normalized_cpu, images_normalized_gpu,
-            images_flipped_cpu, images_flipped_gpu,
+            image_resized_cpu, image_resized_gpu,
+            image_normalized_cpu, image_normalized_gpu,
+            image_twisted_cpu, image_twisted_gpu,
+            image_flipped_cpu, image_flipped_gpu,
             boxes_flipped_cpu, boxes_flipped_gpu,
             encoded_boxes_cpu, encoded_boxes_gpu,
-            encoded_labels_cpu, encoded_labels_gpu
+            encoded_labels_cpu, encoded_labels_gpu,
         )
 
 
@@ -236,6 +293,31 @@ def compare(val_1, val_2, reference=None):
     return test
 
 
+def crop_border(image, border):
+    return image[border:-border, border:-border, :]
+
+
+def diff_against_eps(image_1, image_2, eps):
+    return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
+
+
+def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
+    test = diff_against_eps(val_1, val_2, eps)
+
+    if reference is not None:
+        if border != 0:
+            reference = crop_border(reference, border)
+            test = test and diff_against_eps(
+                reference, crop_border(val_1, border), eps)
+            test = test and diff_against_eps(
+                reference, crop_border(val_2, border), eps)
+        else:
+            test = test and diff_against_eps(reference, val_1, eps)
+            test = test and diff_against_eps(reference, val_2, eps)
+
+    return test
+
+
 def run_for_dataset(args, dataset):
     print("Build pipeline")
     pipes = [DetectionPipeline(args, device_id, dataset[0], dataset[1])
@@ -246,40 +328,58 @@ def run_for_dataset(args, dataset):
 
     for iter in range(args.iters):
         for pipe in pipes:
-            images_ssd_crop, images_decode_crop, \
-                images_slice_cpu, images_slice_gpu, \
+            image_ssd_crop, image_decode_crop, \
+                image_slice_cpu, image_slice_gpu, \
                 boxes_ssd_crop, boxes_random_crop, \
                 labels_ssd_crop, labels_random_crop,\
-                images_normalized_cpu, images_normalized_gpu, \
-                images_flipped_cpu, images_flipped_gpu,\
+                image_resized_cpu, image_resized_gpu, \
+                image_normalized_cpu, image_normalized_gpu, \
+                image_twisted_cpu, image_twisted_gpu, \
+                image_flipped_cpu, image_flipped_gpu,\
                 boxes_flipped_cpu, boxes_flipped_gpu, \
                 encoded_boxes_cpu, encoded_boxes_gpu, \
                 encoded_labels_cpu, encoded_labels_gpu = \
                 [to_array(out) for out in pipe.run()]
 
             # Check cropping ops
-            decode_crop = compare(images_ssd_crop, images_decode_crop)
-            slice_cpu = compare(images_ssd_crop, images_slice_cpu)
-            slice_gpu = compare(images_ssd_crop, images_slice_gpu)
-            images_crop = decode_crop and slice_cpu and slice_gpu
+            decode_crop = compare(image_ssd_crop, image_decode_crop)
+            slice_cpu = compare(image_ssd_crop, image_slice_cpu)
+            slice_gpu = compare(image_ssd_crop, image_slice_gpu)
+            image_crop = decode_crop and slice_cpu and slice_gpu
             boxes_crop = compare(boxes_ssd_crop, boxes_random_crop)
             labels_crop = compare(labels_ssd_crop, labels_random_crop)
-            crop = images_crop and boxes_crop and labels_crop
+            crop = image_crop and boxes_crop and labels_crop
+
+            # Check resizing ops
+            resize = relaxed_compare(
+                val_1=image_resized_cpu,
+                val_2=image_resized_gpu,
+                reference=resize_ref(image_ssd_crop, (300, 300)),
+                border=1)
 
             # Check normalizing ops
-            normalize = compare(images_normalized_cpu, images_normalized_gpu)
+            image_normalized_ref = normalize_ref(image_resized_cpu)
+            normalize = compare(
+                image_normalized_cpu, image_normalized_gpu, image_normalized_ref)
+
+            # Check twisting ops
+            twist = relaxed_compare(image_twisted_cpu, image_twisted_gpu)
 
             # Check flipping ops
-            images_flip = compare(images_flipped_cpu, images_flipped_gpu)
-            boxes_flip = compare(boxes_flipped_cpu, boxes_flipped_gpu)
-            flip = images_flip and boxes_flip
+            image_flipped_ref, boxes_flipped_ref = horizontal_flip_ref(
+                image_resized_cpu, boxes_ssd_crop)
+            image_flip = compare(
+                image_flipped_cpu, image_flipped_gpu, image_flipped_ref)
+            boxes_flip = compare(
+                boxes_flipped_cpu, boxes_flipped_gpu, boxes_flipped_ref)
+            flip = image_flip and boxes_flip
 
             # Check box encoding ops
             encoded_boxes = compare(encoded_boxes_cpu, encoded_boxes_gpu)
             encoded_labels = compare(encoded_labels_cpu, encoded_labels_gpu)
             box_encoder = encoded_boxes and encoded_labels
 
-            if not crop or not normalize or not flip or not box_encoder:
+            if not crop or not resize or not normalize or not twist or not flip or not box_encoder:
                 print('Error during iteration', iter)
                 print('Crop = ', crop)
                 print('  decode_crop =', decode_crop)
@@ -288,10 +388,14 @@ def run_for_dataset(args, dataset):
                 print('  boxes_crop =', decode_crop)
                 print('  labels_cpu =', labels_crop)
 
+                print('Resize =', resize)
+
                 print('Normalize =', normalize)
 
+                print('Twist =', twist)
+
                 print('Flip =', flip)
-                print('  images_flip =', images_flip)
+                print('  image_flip =', image_flip)
                 print('  boxes_flip =', boxes_flip)
 
                 print('Box encoder =', box_encoder)
@@ -302,7 +406,6 @@ def run_for_dataset(args, dataset):
 
         if not iter % 100:
             print("Iteration: {}/ {}".format(iter + 1, args.iters))
-
     print()
 
 
@@ -343,6 +446,8 @@ def make_parser():
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
 
+    parser.add_argument('--debug', action='store_true')
+
     return parser
 
 
@@ -351,4 +456,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.batch_size = 1
 
+    if args.debug:
+        import ptvsd
+        args.num_workers = 1
+
+        address = ('0.0.0.0', 3000)
+        ptvsd.enable_attach(address)
+        ptvsd.wait_for_attach()
     run_test(args)
