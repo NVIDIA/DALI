@@ -13,89 +13,69 @@
 # limitations under the License.
 
 from __future__ import print_function
-from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.backend_impl import TensorListGPU
+
+import argparse
+import itertools
+import os
+import random
+from math import sqrt, ceil
+
+import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import argparse
-import numpy as np
-import random
-import os
-import math
+from nvidia.dali.backend_impl import TensorListGPU
+from nvidia.dali.pipeline import Pipeline
 
 
-# N = args.gpus             # number of GPUs
-# BATCH_SIZE = 1
-# LOG_INTERVAL = 100
-# WORKERS = 3
-# PREFETCH = 2
+def coco_anchors():
+    anchors = []
 
-# for pipe_name in test_data.keys():
-#     data_set_len = len(test_data[pipe_name])
-#     for i, data_set in enumerate(test_data[pipe_name]):
-#         seed = int(random.random() * (1<<64))
-#         print ("Seed:", seed)
-#         print("Build pipeline")
-#         pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=WORKERS, device_id=n,
-#                            num_gpus=N, data_paths=data_set, prefetch=PREFETCH, seed=1) for n in range(N)]
-#         [pipe.build() for pipe in pipes]
-#         if args.iters < 0:
-#           iters = pipes[0].epoch_size("Reader")
-#           iters_tmp = iters
-#           iters = iters // BATCH_SIZE
-#           if iters_tmp != iters * BATCH_SIZE:
-#               iters += 1
-#           iters_tmp = iters
+    fig_size = 300
+    feat_sizes = [38, 19, 10, 5, 3, 1]
+    feat_count = len(feat_sizes)
+    steps = [8., 16., 32., 64., 100., 300.]
+    scales = [21., 45., 99., 153., 207., 261., 315.]
+    aspect_ratios = [[2], [2, 3], [2, 3], [2, 3], [2], [2]]
 
-#           iters = iters // N
-#           if iters_tmp != iters * N:
-#               iters += 1
-#         else:
-#           iters = args.iters
+    fks = []
+    for step in steps:
+        fks.append(fig_size / step)
 
-#         print ("RUN {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
-#         print (data_set)
-#         for j in range(iters):
-#             for pipe in pipes:
-#                 bboxes_1, labels_1, images_1, bboxes_2, labels_2, images_2, images_3, images_4, \
-#                     images_flipped_cpu, boxes_flipped_cpu, images_flipped_gpu, boxes_flipped_gpu = pipe.run()
-#                 bboxes_1_arr = np.squeeze(bboxes_1.as_array())
-#                 bboxes_2_arr = np.squeeze(bboxes_2.as_array())
-#                 labels_1_arr = np.squeeze(labels_1.as_array())
-#                 labels_2_arr = np.squeeze(labels_2.as_array())
-#                 images_1_arr = images_1.as_array()
-#                 images_2_arr = images_2.as_array()
-#                 images_3_arr = images_3.as_array()
-#                 images_4_arr = images_4.asCPU().as_array()
+    anchor_idx = 0
+    for idx in range(feat_count):
+        sk1 = scales[idx] / fig_size
+        sk2 = scales[idx + 1] / fig_size
+        sk3 = sqrt(sk1 * sk2)
 
-#                 images_flipped_cpu_arr = images_flipped_cpu.as_array()
-#                 boxes_flipped_cpu_arr = np.squeeze(boxes_flipped_cpu.as_array())
-#                 images_flipped_gpu_arr = images_flipped_gpu.asCPU().as_array()
-#                 boxes_flipped_gpu_arr = np.squeeze(boxes_flipped_gpu.asCPU().as_array())
+        all_sizes = [[sk1, sk1], [sk3, sk3]]
 
-#                 res = np.allclose(labels_1_arr, labels_2_arr)
-#                 if not res:
-#                     print(labels_1_arr, "\nvs\n", labels_2_arr)
-#                 res_bb = np.allclose(bboxes_1_arr, bboxes_2_arr)
-#                 if not res_bb:
-#                     print(bboxes_1_arr, "\nvs\n", bboxes_2_arr)
-#                 res_img = np.allclose(images_1_arr, images_2_arr) and np.allclose(images_1_arr, images_3_arr) and np.allclose(images_1_arr, images_4_arr)
-#                 if not res_img:
-#                     print(images_1_arr, "\nvs\n", images_2_arr)
-#                     print(images_1_arr, "\nvs\n", images_3_arr)
-#                     print(images_1_arr, "\nvs\n", images_4_arr)
+        for alpha in aspect_ratios[idx]:
+            w = sk1 * sqrt(alpha)
+            h = sk1 / sqrt(alpha)
+            all_sizes.append([w, h])
+            all_sizes.append([h, w])
 
-#                 res_flip = np.allclose(images_flipped_cpu_arr, images_flipped_gpu_arr)
-#                 if not res_bb or not res or not res_img or not res_flip:
-#                     print("Labels == ", res)
-#                     print("Bboxes == ", res_bb)
-#                     print("Images == ", res_img)
-#                     print("Flip == ", res_flip)
-#                     exit(1)
-#             if not j % LOG_INTERVAL:
-#                 print("{} {}/ {}".format(pipe_name.__name__, j + 1, iters))
+        for sizes in all_sizes:
+            w = sizes[0]
+            h = sizes[1]
 
-#         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
+            for i in range(feat_sizes[idx]):
+                for j in range(feat_sizes[idx]):
+                    cx = (j + 0.5) / fks[idx]
+                    cy = (i + 0.5) / fks[idx]
+
+                    cx = max(min(cx, 1.), 0.)
+                    cy = max(min(cy, 1.), 0.)
+                    w = max(min(w, 1.), 0.)
+                    h = max(min(h, 1.), 0.)
+
+                    anchors.append(cx - 0.5 * w)
+                    anchors.append(cy - 0.5 * h)
+                    anchors.append(cx + 0.5 * w)
+                    anchors.append(cy + 0.5 * h)
+
+                    anchor_idx = anchor_idx + 1
+    return anchors
 
 
 class DetectionPipeline(Pipeline):
@@ -130,13 +110,58 @@ class DetectionPipeline(Pipeline):
         self.slice_cpu = ops.Slice(device="cpu")
         self.slice_gpu = ops.Slice(device="gpu")
 
+        self.twist_cpu = ops.ColorTwist(device="cpu")
+        self.twist_gpu = ops.ColorTwist(device="gpu")
+
+        self.resize = ops.Resize(
+            device="cpu",
+            resize_x=300,
+            resize_y=300,
+            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
+
+        self.normalize_cpu = ops.CropMirrorNormalize(
+            device="cpu",
+            crop=(300, 300),
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+            mirror=0,
+            output_dtype=types.FLOAT)
+        self.normalize_gpu = ops.CropMirrorNormalize(
+            device="gpu",
+            crop=(300, 300),
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+            mirror=0,
+            output_dtype=types.FLOAT)
+
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
 
         self.flip_gpu = ops.Flip(device="gpu")
         self.bbox_flip_gpu = ops.BbFlip(device="gpu", ltrb=True)
 
+        default_boxes = coco_anchors()
+        self.box_encoder_cpu = ops.BoxEncoder(
+            device="cpu",
+            criteria=0.5,
+            anchors=default_boxes)
+        self.box_encoder_gpu = ops.BoxEncoder(
+            device="gpu",
+            criteria=0.5,
+            anchors=default_boxes)
+
+        # Random variables
+        self.rng1 = ops.Uniform(range=[0.5, 1.5])
+        self.rng2 = ops.Uniform(range=[0.875, 1.125])
+        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
+
     def define_graph(self):
+        # Random variables
+        saturation = self.rng1()
+        contrast = self.rng1()
+        brightness = self.rng2()
+        hue = self.rng3()
+
         inputs, boxes, labels = self.input(name="Reader")
 
         images = self.decode_cpu(inputs)
@@ -150,19 +175,32 @@ class DetectionPipeline(Pipeline):
         images_slice_cpu = self.slice_cpu(images, crop_begin, crop_size)
         images_slice_gpu = self.slice_gpu(images.gpu(), crop_begin, crop_size)
 
+        images_resized = self.resize(images_ssd_crop)
+
+        images_normalized_cpu = self.normalize_cpu(images_resized)
+        images_normalized_gpu = self.normalize_gpu(images_resized.gpu())
+
         images_flipped_cpu = self.flip_cpu(images_ssd_crop)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)
 
         images_flipped_gpu = self.flip_gpu(images_ssd_crop.gpu())
         boxes_flipped_gpu = self.bbox_flip_gpu(boxes_ssd_crop.gpu())
 
+        encoded_boxes_cpu, encoded_labels_cpu = self.box_encoder_cpu(
+            boxes_ssd_crop, labels_ssd_crop)
+        encoded_boxes_gpu, encoded_labels_gpu = self.box_encoder_gpu(
+            boxes_ssd_crop.gpu(), labels_ssd_crop.gpu())
+
         return (
             images_ssd_crop, images_decode_crop,
             images_slice_cpu, images_slice_gpu,
             boxes_ssd_crop, boxes_random_crop,
             labels_ssd_crop, labels_random_crop,
+            images_normalized_cpu, images_normalized_gpu,
             images_flipped_cpu, images_flipped_gpu,
             boxes_flipped_cpu, boxes_flipped_gpu,
+            encoded_boxes_cpu, encoded_boxes_gpu,
+            encoded_labels_cpu, encoded_labels_gpu
         )
 
 
@@ -181,7 +219,7 @@ def data_paths():
 
 def set_iters(args, dataset_size):
     if args.iters is None:
-        args.iters = math.ceil(
+        args.iters = ceil(
             dataset_size / (args.batch_size * args.num_gpus))
 
 
@@ -215,8 +253,11 @@ def run_for_dataset(args, dataset):
                 images_slice_cpu, images_slice_gpu, \
                 boxes_ssd_crop, boxes_random_crop, \
                 labels_ssd_crop, labels_random_crop,\
+                images_normalized_cpu, images_normalized_gpu, \
                 images_flipped_cpu, images_flipped_gpu,\
-                boxes_flipped_cpu, boxes_flipped_gpu = \
+                boxes_flipped_cpu, boxes_flipped_gpu, \
+                encoded_boxes_cpu, encoded_boxes_gpu, \
+                encoded_labels_cpu, encoded_labels_gpu = \
                 [to_array(out) for out in pipe.run()]
 
             # Check cropping ops
@@ -228,12 +269,20 @@ def run_for_dataset(args, dataset):
             labels_crop = compare(labels_ssd_crop, labels_random_crop)
             crop = images_crop and boxes_crop and labels_crop
 
+            # Check normalizing ops
+            normalize = compare(images_normalized_cpu, images_normalized_gpu)
+
             # Check flipping ops
             images_flip = compare(images_flipped_cpu, images_flipped_gpu)
             boxes_flip = compare(boxes_flipped_cpu, boxes_flipped_gpu)
             flip = images_flip and boxes_flip
 
-            if not crop or not flip:
+            # Check box encoding ops
+            encoded_boxes = compare(encoded_boxes_cpu, encoded_boxes_gpu)
+            encoded_labels = compare(encoded_labels_cpu, encoded_labels_gpu)
+            box_encoder = encoded_boxes and encoded_labels
+
+            if not crop or not normalize or not flip or not box_encoder:
                 print('Error during iteration', iter)
                 print('Crop = ', crop)
                 print('  decode_crop =', decode_crop)
@@ -241,10 +290,16 @@ def run_for_dataset(args, dataset):
                 print('  slice_gpu =', slice_gpu)
                 print('  boxes_crop =', decode_crop)
                 print('  labels_cpu =', labels_crop)
-                
+
+                print('Normalize =', normalize)
+
                 print('Flip =', flip)
                 print('  images_flip =', images_flip)
                 print('  boxes_flip =', boxes_flip)
+
+                print('Box encoder =', box_encoder)
+                print('  encoded_boxes =', encoded_boxes)
+                print('  encoded_labels =', encoded_labels)
 
                 exit(1)
 
@@ -290,9 +345,6 @@ def make_parser():
     parser.add_argument(
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
-
-    parser.add_argument('--debug', action='store_true')
-    args = parser.parse_args()
 
     return parser
 
