@@ -285,9 +285,6 @@ def make_parser():
         '-s', '--seed', default=random_seed(), type=int, metavar='N',
         help='seed for random ops (default: random seed)')
     parser.add_argument(
-        '-b', '--batch_size', default=1, type=int, metavar='N',
-        help='batch size (default: %(default)s)')
-    parser.add_argument(
         '-w', '--num_workers', default=3, type=int, metavar='N',
         help='number of worker threads (default: %(default)s)')
     parser.add_argument(
@@ -303,5 +300,6 @@ def make_parser():
 if __name__ == "__main__":
     parser = make_parser()
     args = parser.parse_args()
+    args.batch_size = 1
 
     run_test(args)
