@@ -84,6 +84,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
       const StateNvJPEG* nvjpeg_state;
       std::tie(info, nvjpeg_state) = GetInfoState(info_tensor, state_tensor);
 
+      const auto file_name = info_tensor.GetSourceInfo();
+
       auto *output_data = output.mutable_tensor<uint8_t>(sample_idx);
       if (info->nvjpeg_support) {
         nvjpegImage_t nvjpeg_image;
@@ -96,19 +98,19 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
                               device_buffer_));
 
         nvjpegJpegDecoder_t decoder = GetDecoder(nvjpeg_state->nvjpeg_backend);
-        NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
+        NVJPEG_CALL_EX(nvjpegDecodeJpegTransferToDevice(
             handle_,
             decoder,
             state,
             nvjpeg_state->jpeg_stream,
-            ws->stream()));
+            ws->stream()), file_name);
 
-        NVJPEG_CALL(nvjpegDecodeJpegDevice(
+        NVJPEG_CALL_EX(nvjpegDecodeJpegDevice(
             handle_,
             decoder,
             state,
             &nvjpeg_image,
-            ws->stream()));
+            ws->stream()), file_name);
       } else {
         // Fallback was handled by CPU op and wrote OpenCV ouput in Input #2
         // we just need to copy to device
