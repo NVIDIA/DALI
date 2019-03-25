@@ -33,6 +33,32 @@ option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
 option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
 option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
+option(COVERAGE_SOURCE "Use LLVM Source-based Code Coverage build" OFF)
+option(COVERAGE_SANITIZER "Use LLVM Sanitizer-based Code Coverage build" OFF)
+option(USE_ADDITIONAL_CLANG_CXX_FLAGS "Use ADDITIONAL_CLANG_CXX_FLAGS variable that is passed only to Clang, do not propagete those flags to CUDA" OFF)
+
+if (COVERAGE_SOURCE AND NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  message(ERROR "LLVM Source-based Code Coverage build requires Clang compiler")
+endif()
+
+if (COVERAGE_SANITIZER AND NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  message(ERROR "LLVM Sanitizer-based Code Coverage build requires Clang compiler")
+endif()
+
+if (COVERAGE_SOURCE OR COVERAGE_SANITIZER)
+  message(STATUS "Using coverage build, turning on USE_ADDITIONAL_CLANG_CXX_FLAGS")
+  set(USE_ADDITIONAL_CLANG_CXX_FLAGS ON)
+endif()
+
+if (USE_ADDITIONAL_CLANG_CXX_FLAGS)
+  message(WARNING "USE_ADDITIONAL_CLANG_CXX_FLAGS: ON, will generate CUDA_NVCC_FLAGS by hand")
+endif()
+
+if (COVERAGE_SOURCE AND COVERAGE_SANITIZER)
+  message(ERROR "Only one type of LLVM Code Coverage can be used at a time")
+endif()
+
+
 option(WERROR "Threat all warnings as errors" OFF)
 
 # FFmpeg is required when we are using NVDEC for video reader
@@ -100,24 +126,35 @@ endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare")
 
-  # Mimic the generation of -Xcompiler flags by CMake - list separated by commas
-  # presented as espaced strings: -Xcompiler ,\"-Wall\",\"-Wno-unused-variable\"
-  set(XCOMPILER_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(STRIP "${CMAKE_CXX_FLAGS}" XCOMPILER_FLAGS)
-  # String to list
-  string(REPLACE " " ";" XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
-  # Map list `element` to  ,\"element\"
-  list(TRANSFORM XCOMPILER_FLAGS APPEND "\\\"")
-  list(TRANSFORM XCOMPILER_FLAGS PREPEND ",\\\"")
-  # Rebuild a string
-  string(CONCAT XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
-  message(STATUS "${XCOMPILER_FLAGS}")
-  # Turn off flags propagation and do it manually
-  set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -Xcompiler ${XCOMPILER_FLAGS}")
+  if (USE_ADDITIONAL_CLANG_CXX_FLAGS)
+    # Mimic the generation of -Xcompiler flags by CMake - list separated by commas
+    # presented as espaced strings: -Xcompiler ,\"-Wall\",\"-Wno-unused-variable\"
+    set(XCOMPILER_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(STRIP "${CMAKE_CXX_FLAGS}" XCOMPILER_FLAGS)
+    # String to list
+    string(REPLACE " " ";" XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
+    # Map list `element` to  ,\"element\"
+    list(TRANSFORM XCOMPILER_FLAGS APPEND "\\\"")
+    list(TRANSFORM XCOMPILER_FLAGS PREPEND ",\\\"")
+    # Rebuild a string
+    string(CONCAT XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
+    message(STATUS "XCOMPILER_FLAGS = ${XCOMPILER_FLAGS}")
+    # Turn off flags propagation and do it manually
+    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -Xcompiler ${XCOMPILER_FLAGS}")
 
-  # Set Clang specific flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wimplicit-fallthrough")
+    # Set Clang specific flags
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wimplicit-fallthrough ${ADDITIONAL_CLANG_CXX_FLAGS}")
+
+    if (COVERAGE_SOURCE)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+    endif()
+    if (COVERAGE_SANITIZER)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=trace-pc-guard -fsanitize=address")
+    endif()
+  endif()
+
+
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths
