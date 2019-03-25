@@ -555,11 +555,12 @@ PYBIND11_MODULE(backend_impl, m) {
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                bool set_affinity = false, int max_num_stream = -1) {
+                bool set_affinity = false, int max_num_stream = -1,
+                int small_batch_size = -1) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream));
+                      max_num_stream, small_batch_size));
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -570,7 +571,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1
+        "max_num_stream"_a = -1,
+        "small_batch_size"_a = -1
         )
     // initialize from serialized pipeline
     .def(py::init(
@@ -579,12 +581,13 @@ PYBIND11_MODULE(backend_impl, m) {
              bool pipelined_execution = true,  int prefetch_queue_depth = 2,
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false,
-             int max_num_stream = -1) {
+             int max_num_stream = -1,
+             int small_batch_size = -1) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
-                               set_affinity, max_num_stream));
+                               set_affinity, max_num_stream, small_batch_size));
             }),
         "serialized_pipe"_a,
         "batch_size"_a,
@@ -595,7 +598,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1
+        "max_num_stream"_a = -1,
+        "small_batch_size"_a = -1
         )
     .def("AddOperator", &Pipeline::AddOperator)
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)

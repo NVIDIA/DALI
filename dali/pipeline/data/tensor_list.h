@@ -170,36 +170,34 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
 
-  DLL_PUBLIC inline void ShareSlice(TensorList<Backend> *other, std::size_t slice_id, std::size_t slice_count) {
+  DLL_PUBLIC inline void ShareSlice(TensorList<Backend> *other,
+                                    std::size_t from_tensor_id,
+                                    std::size_t to_tensor_id) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(IsValidType(other->type_),
       "To share data the input TensorList must have a valid data type");
-
     const auto &shape = other->shape_;
-    const auto &offsets = other->offsets_;
-    auto batch_size = shape.size();
-    auto slice_batch_size = batch_size / slice_count;
-    bool is_perfect_slice = batch_size % slice_count == 0;
-    DALI_ENFORCE(slice_id < slice_count && slice_batch_size > 0 && is_perfect_slice,
-      "Wrong slicing arguments: slice_id: " + std::to_string(slice_id) +
-      ", slice_count: " + std::to_string(slice_count) +
-      ", batch_size: " + std::to_string(batch_size));
+    const auto batch_size = shape.size();
+    DALI_ENFORCE(to_tensor_id <= batch_size,
+      "Index out of bounds " + std::to_string(to_tensor_id) +
+      " (batch_size: " + std::to_string(batch_size) + ")");
+    DALI_ENFORCE(from_tensor_id < to_tensor_id,
+      "Invalid range [" + std::to_string(from_tensor_id) + ", " + std::to_string(to_tensor_id) + ")");
 
-    auto start_tensor = slice_batch_size * slice_id;
-    auto end_tensor = start_tensor + slice_batch_size;
+    const auto &offsets = other->offsets_;
     decltype(other->shape_) slice_shape{};
     decltype(other->offsets_) slice_offsets{};
     std::size_t slice_size = 0;
-    for (std::size_t tensor_idx = start_tensor; tensor_idx < end_tensor; tensor_idx++) {
+    for (std::size_t tensor_idx = from_tensor_id; tensor_idx < to_tensor_id; tensor_idx++) {
       slice_shape.push_back(shape[tensor_idx]);
-      slice_offsets.push_back(offsets[tensor_idx] - offsets[start_tensor]);
+      slice_offsets.push_back(offsets[tensor_idx] - offsets[from_tensor_id]);
       slice_size += volume(slice_shape.back());
     }
 
-    DALI_ENFORCE(static_cast<Index>(slice_size) == slice_offsets.back() + volume(shape[end_tensor-1]));
+    DALI_ENFORCE(static_cast<Index>(slice_size) == slice_offsets.back() + volume(shape[to_tensor_id-1]));
 
     // Save the calling TensorLists meta-data
-    data_.reset(static_cast<uint8_t*>(other->data_.get()) + offsets[start_tensor] * other->type_.size(), [](void*) {});
+    data_.reset(static_cast<uint8_t*>(other->data_.get()) + offsets[from_tensor_id] * other->type_.size(), [](void*) {});
     shape_ = slice_shape;
     size_ = slice_size;
     offsets_ = slice_offsets;

@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <random>
+#include <queue>
 #include <chrono>
 
 #include "dali/common.h"
@@ -82,10 +83,11 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                             bool set_affinity = false, int max_num_stream = -1)
+                             bool set_affinity = false, int max_num_stream = -1,
+                             int small_batch_size = -1)
       : built_(false), separated_execution_{false} {
     Init(batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
-         async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
+         async_execution, bytes_per_sample_hint, set_affinity, max_num_stream, small_batch_size,
          QueueSizes{prefetch_queue_depth});
   }
 
@@ -93,7 +95,7 @@ class DLL_PUBLIC Pipeline {
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-                      int max_num_stream = -1);
+                      int max_num_stream = -1, int small_batch_size = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 
@@ -294,6 +296,12 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline int batch_size() const { return batch_size_; }
 
   /**
+   * @brief Returns the internal batch size that will be produced by the pipeline.
+   * @remarks Internal batch size might be bigger than batch_size to optimize performance
+   */
+  DLL_PUBLIC inline int small_batch_size() const { return small_batch_size_; }
+
+  /**
    * @brief Returns the map of (node name, node's epoch size)
    * for all nodes that return a valid epoch size
    */
@@ -322,7 +330,8 @@ class DLL_PUBLIC Pipeline {
   void Init(int batch_size, int num_threads, int device_id,
             int64_t seed, bool pipelined_execution, bool separated_execution, bool async_execution,
             size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream, QueueSizes prefetch_queue_depth = QueueSizes{2}) {
+            int max_num_stream, int small_batch_size,
+            QueueSizes prefetch_queue_depth = QueueSizes{2}) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
@@ -333,8 +342,16 @@ class DLL_PUBLIC Pipeline {
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
+    this->small_batch_size_ = small_batch_size;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
+
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+    small_batch_size_ = small_batch_size_ > 0 ? std::min(small_batch_size_, batch_size_) : batch_size_;
+    if (small_batch_size_ != batch_size_) {
+      this->slice_from_tensor_ = 0;
+      this->slice_to_tensor_ = this->small_batch_size_;
+    }
+
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
     if (seed > -1) {
@@ -407,6 +424,7 @@ class DLL_PUBLIC Pipeline {
   size_t bytes_per_sample_hint_;
   int set_affinity_;
   int max_num_stream_;
+  int small_batch_size_;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;
@@ -424,6 +442,11 @@ class DLL_PUBLIC Pipeline {
   vector<std::pair<string, OpSpec>> op_specs_;
   vector<bool> op_specs_to_serialize_;
   vector<std::pair<string, string>> output_names_;
+
+  DeviceWorkspace internal_device_workspace_;
+  DeviceWorkspace internal_slice_device_workspace_;
+  std::size_t slice_from_tensor_;
+  std::size_t slice_to_tensor_;
 };
 
 }  // namespace dali

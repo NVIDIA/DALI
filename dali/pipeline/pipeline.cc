@@ -62,7 +62,8 @@ namespace dali {
 
   Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
                      bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
-                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream)
+                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
+                     int small_batch_size)
       : built_(false), separated_execution_(false) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
@@ -73,6 +74,11 @@ namespace dali {
       this->batch_size_ = def.batch_size();
     } else {
       this->batch_size_ = batch_size;
+    }
+    if (small_batch_size == -1) {
+      this->small_batch_size_ = def.small_batch_size();
+    } else {
+      this->small_batch_size_ = small_batch_size;
     }
     if (device_id == -1) {
       this->device_id_ = def.device_id();
@@ -93,6 +99,7 @@ namespace dali {
          bytes_per_sample_hint,
          set_affinity,
          max_num_stream,
+         small_batch_size_,
          QueueSizes{prefetch_queue_depth});
 
     // from serialized pipeline, construct new pipeline
@@ -437,24 +444,52 @@ void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
 }
 
 void Pipeline::Outputs(DeviceWorkspace *ws) {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to executing the pipeline.");
-    try {
-      executor_->Outputs(ws);
-    } catch (std::runtime_error &e) {
-      throw std::runtime_error("Critical error in pipeline: "
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
-    } catch (...) {
-      throw std::runtime_error("Unknown Critical error in pipeline");
+  ReleaseOutputs();
+  ShareOutputs(ws);
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> SliceOutput(TensorList<Backend> &output_tl,
+                                                 std::size_t from_tensor_id,
+                                                 std::size_t to_tensor_id) {
+  std::shared_ptr<TensorList<Backend>> sliced_tl(new TensorList<Backend>());
+  sliced_tl->ShareSlice(&output_tl, from_tensor_id, to_tensor_id);
+  return sliced_tl;
+}
+
+void SliceWorkspace(DeviceWorkspace *ws, DeviceWorkspace *out_ws, DeviceWorkspace *slice_ws,
+                    std::size_t from_tensor_id, std::size_t to_tensor_id) {
+  DALI_ENFORCE(from_tensor_id < to_tensor_id, "Invalid range");
+  for (int output_id = 0; output_id < ws->NumOutput(); output_id++) {
+    if (ws->OutputIsType<CPUBackend>(output_id)) {
+      auto slice_tl = SliceOutput(ws->Output<CPUBackend>(output_id), from_tensor_id, to_tensor_id);
+      out_ws->AddOutput(slice_tl);
+      slice_ws->AddOutput(slice_tl);
+    } else {
+      auto slice_tl = SliceOutput(ws->Output<GPUBackend>(output_id), from_tensor_id, to_tensor_id);
+      out_ws->AddOutput(slice_tl);
+      slice_ws->AddOutput(slice_tl);
     }
+  }
 }
 
 void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
-      executor_->ShareOutputs(ws);
+      if (small_batch_size_ < batch_size_) {
+        if (slice_from_tensor_ == 0) {
+          executor_->ShareOutputs(&internal_device_workspace_);
+        }
+        DeviceGuard g(device_id_);
+        internal_slice_device_workspace_.Clear();
+        SliceWorkspace(&internal_device_workspace_, ws, &internal_slice_device_workspace_,
+                       slice_from_tensor_, slice_to_tensor_);
+        slice_from_tensor_ = (slice_from_tensor_ + small_batch_size_) % batch_size_;
+        slice_to_tensor_ = slice_from_tensor_ + small_batch_size_;
+      } else {
+        executor_->ShareOutputs(ws);
+      }
     } catch (std::runtime_error &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
@@ -468,7 +503,15 @@ void Pipeline::ReleaseOutputs() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
-      executor_->ReleaseOutputs();
+      if (small_batch_size_ < batch_size_) {
+      	internal_slice_device_workspace_.Clear();
+        if (slice_from_tensor_ == 0) {
+          internal_device_workspace_.Clear();
+          executor_->ReleaseOutputs();
+        }
+      } else {
+        executor_->ReleaseOutputs();
+      }
     } catch (std::runtime_error &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
@@ -565,6 +608,7 @@ string Pipeline::SerializeToProtobuf() const {
   dali_proto::PipelineDef pipe;
   pipe.set_num_threads(this->num_threads());
   pipe.set_batch_size(this->batch_size());
+  pipe.set_small_batch_size(this->small_batch_size());
   pipe.set_device_id(this->device_id());
   pipe.set_seed(this->original_seed_);
 

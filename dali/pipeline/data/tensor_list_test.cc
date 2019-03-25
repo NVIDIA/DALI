@@ -499,22 +499,24 @@ struct ShareSliceTestArgs {
 template <typename ShareSliceArgs>
 class TensorListTest_ShareSlice : public TensorListTest<typename ShareSliceArgs::Backend> {
  public:
-  static const int slice_id = ShareSliceArgs::SLICE_ID;
-  static const int slice_count = ShareSliceArgs::SLICE_COUNT;
-  static const int total_batch_size = ShareSliceArgs::TOTAL_BATCH_SIZE;
-  static const std::size_t size_of_T = sizeof(typename ShareSliceArgs::T);
+  const int slice_id = ShareSliceArgs::SLICE_ID;
+  const int slice_count = ShareSliceArgs::SLICE_COUNT;
+  const int total_batch_size = ShareSliceArgs::TOTAL_BATCH_SIZE;
+  const std::size_t size_of_T = sizeof(typename ShareSliceArgs::T);
 
   void SetUp() override {
+    tensor_list.reset(new TL());
+    tensor_list2.reset(new TL());
     shape = this->GetNRandShape(total_batch_size);
     AllocateTensorList<typename ShareSliceArgs::Backend, typename ShareSliceArgs::T>(
-      tensor_list, shape, offsets);
+      *tensor_list, shape, offsets);
   }
 
-  TensorList<typename ShareSliceArgs::Backend> tensor_list;
-  TensorList<typename ShareSliceArgs::Backend> tensor_list2;
+  using TL = TensorList<typename ShareSliceArgs::Backend>;
+  std::shared_ptr<TL> tensor_list;
+  std::shared_ptr<TL> tensor_list2;
   std::vector<Index> offsets;
   std::vector<Dims> shape;
-
 };
 
 using ShareSliceArgs_OK =
@@ -534,40 +536,45 @@ using ShareSliceArgs_OK =
 TYPED_TEST_SUITE(TensorListTest_ShareSlice, ShareSliceArgs_OK);
 
 TYPED_TEST(TensorListTest_ShareSlice, Test) {
-  this->tensor_list2.ShareSlice(&this->tensor_list, this->slice_id, this->slice_count);
+  ASSERT_TRUE(this->total_batch_size == (int) this->tensor_list->ntensor());
+  std::size_t slice_batch_size = this->total_batch_size / this->slice_count;
+  bool is_perfect_slice = this->total_batch_size % this->slice_count == 0;
+  ASSERT_TRUE(this->slice_id < this->slice_count && slice_batch_size > 0 && is_perfect_slice)
+    << "Wrong slicing arguments: slice_id: " << this->slice_id
+    << ", slice_count: " << this->slice_count
+    << ", batch_size: " << this->total_batch_size;
 
-  std::size_t slice_batch_size = this->tensor_list.ntensor() / this->slice_count;
-  ASSERT_TRUE(this->tensor_list.ntensor() % this->slice_count == 0);
-  ASSERT_TRUE(this->tensor_list.ntensor() / this->slice_count > 0);
+  std::size_t start_tensor_id = this->slice_id * slice_batch_size;
+  std::size_t end_tensor_id = start_tensor_id + slice_batch_size;
 
-  std::cout << std::dec << "slice_batch_size " << slice_batch_size << " slice_id " << this->slice_id << " slice_count " << this->slice_count << " tensor_start " << this->slice_id * slice_batch_size << " tensor_end " << (this->slice_id+1)*slice_batch_size << std::endl;
+  this->tensor_list2->ShareSlice(this->tensor_list.get(), start_tensor_id, end_tensor_id);
+  ASSERT_TRUE(this->tensor_list2->shares_data());
 
-  ASSERT_TRUE(this->tensor_list2.shares_data());
-
-  auto start_tensor_id = this->slice_id * slice_batch_size;
   std::size_t expected_size = 0;
   for (size_t i = start_tensor_id; i < start_tensor_id + slice_batch_size; i++) {
-    ASSERT_EQ(this->tensor_list2.tensor_shape(i-start_tensor_id), this->tensor_list.tensor_shape(i));
-    expected_size += volume(this->tensor_list.tensor_shape(i));
+    ASSERT_EQ(this->tensor_list2->tensor_shape(i-start_tensor_id), this->tensor_list->tensor_shape(i));
+    expected_size += volume(this->tensor_list->tensor_shape(i));
   }
 
-  ASSERT_EQ(this->tensor_list2.size(), expected_size);
-  ASSERT_EQ(this->tensor_list2.nbytes(), this->size_of_T * expected_size);
-  ASSERT_EQ(this->tensor_list2.ntensor(), this->tensor_list.ntensor() / this->slice_count);
-  ASSERT_EQ(this->tensor_list2.raw_tensor(0), this->tensor_list.raw_tensor(start_tensor_id));
-  ASSERT_EQ(this->tensor_list2.raw_data(), this->tensor_list.raw_tensor(start_tensor_id));
+  ASSERT_EQ(this->tensor_list2->size(), expected_size);
+  ASSERT_EQ(this->tensor_list2->nbytes(), this->size_of_T * expected_size);
+  ASSERT_EQ(this->tensor_list2->ntensor(), this->tensor_list->ntensor() / this->slice_count);
+  ASSERT_EQ(this->tensor_list2->raw_tensor(0), this->tensor_list->raw_tensor(start_tensor_id));
+  ASSERT_EQ(this->tensor_list2->raw_data(), this->tensor_list->raw_tensor(start_tensor_id));
   for (size_t i = 0; i < slice_batch_size; ++i) {
-    ASSERT_EQ(this->tensor_list2.tensor_shape(i), this->shape[start_tensor_id + i]);
-    std::cout << "tensor offset " << i << std::endl;
-    ASSERT_EQ(this->tensor_list2.tensor_offset(i), this->offsets[start_tensor_id + i] - this->offsets[start_tensor_id]);
-    ASSERT_EQ(this->tensor_list2.raw_tensor(i),
-              static_cast<const uint8_t *>(this->tensor_list.raw_data()) +
+    ASSERT_EQ(this->tensor_list2->tensor_shape(i), this->shape[start_tensor_id + i]);
+    ASSERT_EQ(this->tensor_list2->tensor_offset(i), this->offsets[start_tensor_id + i] - this->offsets[start_tensor_id]);
+    ASSERT_EQ(this->tensor_list2->raw_tensor(i),
+              static_cast<const uint8_t *>(this->tensor_list->raw_data()) +
                   this->size_of_T * this->offsets[start_tensor_id + i]);
   }
 
-  // Trigger allocation, verify we no longer share
-  this->tensor_list2.Resize(std::vector<Dims>{1000000});
-  ASSERT_FALSE(this->tensor_list2.shares_data());
+  ASSERT_TRUE(this->tensor_list2->shares_data());
+  // Trigger re-allocation, verify we no longer share
+  Index curr_size = this->tensor_list2->size();
+  Index new_size = (curr_size+1) * this->size_of_T;
+  this->tensor_list2->Resize(std::vector<Dims>{{new_size}});
+  ASSERT_FALSE(this->tensor_list2->shares_data());
 }
 
 }  // namespace dali

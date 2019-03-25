@@ -66,4 +66,5 @@ message PipelineDef {
   repeated InputOutput pipe_outputs = 7;
   optional int32 device_id = 8 [default = 0];
   optional int64 seed = 9 [default = -1];
+  optional int32 small_batch_size = 10 [default = -1];
 }
