@@ -110,9 +110,6 @@ class DetectionPipeline(Pipeline):
         self.slice_cpu = ops.Slice(device="cpu")
         self.slice_gpu = ops.Slice(device="gpu")
 
-        self.twist_cpu = ops.ColorTwist(device="cpu")
-        self.twist_gpu = ops.ColorTwist(device="gpu")
-
         self.resize = ops.Resize(
             device="cpu",
             resize_x=300,
