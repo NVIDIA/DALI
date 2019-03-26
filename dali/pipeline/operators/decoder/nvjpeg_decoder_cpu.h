@@ -243,8 +243,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           return marker;
       else {
         // Next segment
-        uint16_t segment_length = *ptr++ << 8 + *ptr++;
-        ptr += segment_length;
+        uint16_t segment_length = (*ptr++ << 8) + *ptr++;
+        ptr += segment_length - 2;
       }
     }
     return 0;
