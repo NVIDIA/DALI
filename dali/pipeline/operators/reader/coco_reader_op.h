@@ -47,16 +47,24 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ParseAnnotationFiles();
 
+    auto shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    auto stick_to_shard = spec.GetArgument<bool>("stick_to_shard");
+
+    if (shuffle_after_epoch || stick_to_shard)
+      DALI_ENFORCE(
+        !shuffle_after_epoch || !stick_to_shard, 
+        "shuffle_after_epoch and stick_to_shard cannot be both true");
+
     if (spec.HasArgument("file_list"))
       loader_.reset(new FileLoader(
         spec,
         std::vector<std::pair<string, int>>(),
-        spec.GetArgument<bool>("shuffle_after_epoch")));
+        shuffle_after_epoch));
     else
       loader_.reset(new FileLoader(
         spec,
         image_id_pairs_,
-        spec.GetArgument<bool>("shuffle_after_epoch")));
+        shuffle_after_epoch));
     parser_.reset(new COCOParser(spec, annotations_multimap_, save_img_ids_));
   }
 
