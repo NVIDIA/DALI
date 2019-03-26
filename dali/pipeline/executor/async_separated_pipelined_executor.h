@@ -44,9 +44,12 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
         device_id_(device_id) {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
+    ShutdownQueue();
+
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
+
     /*
      * We need to call shutdown here and not rely on cpu_thread_ destructor
      * as when WorkerThread destructor is called conditional variables and mutexes
