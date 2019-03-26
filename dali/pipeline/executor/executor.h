@@ -113,6 +113,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
 
+  DLL_PUBLIC void ShutdownQueue() {
+    QueuePolicy::ReleaseOutputIdxs();
+    QueuePolicy::SignalError();
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
