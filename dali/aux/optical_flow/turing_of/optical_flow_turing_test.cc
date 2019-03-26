@@ -233,7 +233,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
 
 
 // DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
+TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
