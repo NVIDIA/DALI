@@ -83,6 +83,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     std::tie(info, state_nvjpeg) = InitAndGet(ws->Output<CPUBackend>(0),
                                               ws->Output<CPUBackend>(1));
 
+    ws->Output<CPUBackend>(0).SetSourceInfo(file_name);
+
     nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                 static_cast<const unsigned char*>(input_data),
                                                 in_size,

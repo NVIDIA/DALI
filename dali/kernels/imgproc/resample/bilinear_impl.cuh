@@ -44,9 +44,10 @@ __device__ void LinearHorz_Channels(
 
   for (int j = x0 + threadIdx.x; j < x1; j += blockDim.x) {
     const float sx0f = j * scale + src_x0;
-    const int sx0 = min(max(0, static_cast<int>(floorf(sx0f))), in_w-1);
-    const int sx1 = min(sx0+1, in_w-1);
-    const float q = sx0f - sx0;
+    const int sx0i = __float2int_rd(sx0f);
+    const float q = sx0f - sx0i;
+    const int sx0 = min(max(0, sx0i), in_w-1);
+    const int sx1 = min(max(0, sx0i+1), in_w-1);
 
     const Src *in_col1 = &in[sx0 * channels];
     const Src *in_col2 = &in[sx1 * channels];
@@ -112,9 +113,10 @@ __device__ void LinearVert(
 
   for (int i = y0 + threadIdx.y; i < y1; i += blockDim.y) {
     const float sy0f = i * scale + src_y0;
-    const int sy0 = min(max(0, static_cast<int>(floorf(sy0f))), in_h-1);
-    const int sy1 = min(sy0+1, in_h-1);
-    const float q = sy0f - sy0;
+    const int sy0i = __float2int_rd(sy0f);
+    const float q = sy0f - sy0i;
+    const int sy0 = min(max(0, sy0i), in_h-1);
+    const int sy1 = min(max(0, sy0i+1), in_h-1);
 
     Dst *out_row = &out[i * out_stride];
     const Src *in1 = &in[sy0 * in_stride];

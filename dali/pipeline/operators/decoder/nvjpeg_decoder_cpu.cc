@@ -24,23 +24,7 @@ It is automatically inserted during the pipeline creation.)code")
   .NumInput(1)
   .NumOutput(3)
   .MakeInternal()
-  .AddOptionalArg("output_type",
-      R"code(The color space of output image.)code",
-      DALI_RGB)
-  .AddOptionalArg("hybrid_huffman_threshold",
-      R"code(Images with size H*W greater than this threshold will use the nvJPEG hybrid huffman decoder.
-Smaller images will use the nvJPEG host huffman decoder.)code",
-      1000u*1000u)
-  .AddOptionalArg("device_memory_padding",
-      R"code(Padding for nvJPEG's device memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024)
-  .AddOptionalArg("host_memory_padding",
-      R"code(Padding for nvJPEG's host memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024);
+  .AddParent("nvJPEGDecoder");
 
 }  // namespace dali
 
