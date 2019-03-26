@@ -78,6 +78,9 @@ OpticalFlowTuring::~OpticalFlowTuring() {
   inbuf_.reset(nullptr);
   refbuf_.reset(nullptr);
   outbuf_.reset(nullptr);
+  if (of_params_.enable_external_hints) {
+    hintsbuf_.reset(nullptr);
+  }
   auto err = turing_of_.nvOFDestroy(of_handle_);
   if (err != NV_OF_SUCCESS) {
     // Failing to destroy OF leads to significant GPU resource leak,
@@ -99,6 +102,9 @@ void OpticalFlowTuring::CalcOpticalFlow(
   if (of_params_.enable_external_hints) {
     DALI_ENFORCE(external_hints.shape == output_image.shape,
                  "If external hint are used, shape must match against output_image");
+  } else {
+    DALI_ENFORCE(external_hints.shape == kernels::TensorShape<3>(),
+            "If external hints aren't used, shape must be empty");
   }
   switch (image_type_) {
     case DALI_BGR:

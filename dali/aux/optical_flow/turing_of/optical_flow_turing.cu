@@ -82,20 +82,6 @@ void ConvertToOFLayout(ColorConversionMethod cvtm, const uint8_t *input, uint8_t
 
 
 __global__ void
-DecodeFlowComponentKernel(const int16_t *__restrict__ input, float *__restrict__ output,
-                          size_t pitch, size_t width_px, size_t height) {
-  size_t x = threadIdx.x + blockIdx.x * blockDim.x;
-  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
-  if (x >= width_px || y >= height) return;
-  auto value_in = pitch_xy(input, x, y, pitch);
-  size_t outidx = x + width_px * y;
-  output[outidx] = decode_flow_component(value_in);
-}
-
-
-
-
-__global__ void
 RgbToRgbaKernel(const uint8_t *__restrict__ input, uint8_t *__restrict__ output, size_t pitch,
                 size_t width_px, size_t height) {
   constexpr size_t in_channels = 3, out_channels = 4;
@@ -146,6 +132,30 @@ void Gray(const uint8_t *input, uint8_t *output, size_t pitch, size_t width_px, 
 }
 
 
+__global__ void
+DecodeFlowComponentKernel(const int16_t *__restrict__ input, float *__restrict__ output,
+                          size_t pitch, size_t width_px, size_t height) {
+  size_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  if (x >= width_px || y >= height) return;
+  auto value_in = pitch_xy(input, x, y, pitch);
+  size_t outidx = x + width_px * y;
+  output[outidx] = decode_flow_component(value_in);
+}
+
+
+__global__ void
+EncodeFlowComponentKernel(const float *__restrict__ input, int16_t *__restrict__ output,
+                          size_t pitch, size_t width_px, size_t height) {
+  size_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  size_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  if (x >= width_px || y >= height) return;
+  size_t in_idx = x + width_px * y;
+  size_t out_idx = x + pitch * y;
+  output[out_idx] = encode_flow_component(input[in_idx]);
+}
+
+
 void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                           size_t height, cudaStream_t stream) {
   DALI_ENFORCE(pitch >= 2 * sizeof(int16_t) * width_px);
@@ -154,6 +164,16 @@ void DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, siz
                 num_blocks(height, block_dim.y));
   DecodeFlowComponentKernel<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch,
                                                                 sizeof(int16_t) * width_px, height);
+}
+
+
+void EncodeFlowComponents(const float *input, int16_t *output, size_t pitch, size_t width_px,
+                          size_t height, cudaStream_t stream) {
+  dim3 block_dim(kBlockSize, kBlockSize);
+  dim3 grid_dim(num_blocks(sizeof(int16_t) * width_px, block_dim.x),
+                num_blocks(height, block_dim.y));
+  EncodeFlowComponentKernel<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch,
+                                                                width_px, height);
 }
 
 }  // namespace kernel

@@ -82,6 +82,19 @@ DLL_PUBLIC void
 DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                      size_t height, cudaStream_t stream = 0);
 
+/**
+ * Encode flow components and put in strided memory (for external hitns)
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch Stride within input memory layout. In bytes.
+ * @param width_px In pixels.
+ * @param height
+ * @param stream Stream, in which kernel is called
+ */
+DLL_PUBLIC void
+EncodeFlowComponents(const float *input, int16_t *output, size_t pitch, size_t width_px,
+                     size_t height, cudaStream_t stream = 0);
+
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
   return value * (1 / 32.f);
