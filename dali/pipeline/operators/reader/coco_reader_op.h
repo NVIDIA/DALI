@@ -52,7 +52,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     if (shuffle_after_epoch || stick_to_shard)
       DALI_ENFORCE(
-        !shuffle_after_epoch || !stick_to_shard, 
+        !shuffle_after_epoch || !stick_to_shard,
         "shuffle_after_epoch and stick_to_shard cannot be both true");
 
     if (spec.HasArgument("file_list"))
