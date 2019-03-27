@@ -72,7 +72,7 @@ struct UniformQueuePolicy {
     if (stage == OpType::SUPPORT) {
       // Block until there is a free buffer to use
       std::unique_lock<std::mutex> lock(free_mutex_);
-      while (free_queue_.empty() && !exec_error_) {
+      while (free_queue_.empty() && !stage_work_stop_[static_cast<int>(stage)]) {
         free_cond_.wait(lock);
       }
       if (exec_error_) {
@@ -84,6 +84,9 @@ struct UniformQueuePolicy {
     }
 
     std::lock_guard<std::mutex> lock(stage_work_mutex_[static_cast<int>(stage)]);
+    if (stage_work_stop_[static_cast<int>(stage)]) {
+      return QueueIdxs{-1};
+    }
     auto queue_idx = stage_work_queue_[static_cast<int>(stage)].front();
     stage_work_queue_[static_cast<int>(stage)].pop();
     return QueueIdxs{queue_idx};
@@ -148,10 +151,14 @@ struct UniformQueuePolicy {
       std::lock_guard<std::mutex> l(free_mutex_);
       exec_error_ = true;
     }
+    for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
+      std::lock_guard<std::mutex> l(stage_work_mutex_[i]);
+      stage_work_stop_[i] = true;
+    }
     NotifyAll();
   }
 
-  bool IsErrorSignaled() {
+  bool IsErrorSignaled() const {
     return exec_error_;
   }
 
@@ -165,6 +172,7 @@ struct UniformQueuePolicy {
 
   std::array<std::queue<int>, static_cast<int>(OpType::COUNT)> stage_work_queue_;
   std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_work_mutex_;
+  std::array<bool, static_cast<int>(OpType::COUNT)> stage_work_stop_ = {{false, false, false, false}};
 };
 
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
@@ -196,7 +204,7 @@ struct SeparateQueuePolicy {
       int previous_stage = static_cast<int>(PreviousStage(stage));
       std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
       stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
-        return !stage_ready_[previous_stage].empty() || exec_error_;
+        return !stage_ready_[previous_stage].empty() || stage_ready_stop_[previous_stage];
       });
       if (exec_error_) {
         return QueueIdxs{-1};
@@ -210,7 +218,7 @@ struct SeparateQueuePolicy {
     {
       std::unique_lock<std::mutex> free_current_lock(stage_free_mutex_[current_stage]);
       stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
-        return !stage_free_[current_stage].empty() || exec_error_;
+        return !stage_free_[current_stage].empty() || stage_free_stop_[current_stage];
       });
       if (exec_error_) {
         return QueueIdxs{-1};
@@ -299,10 +307,20 @@ struct SeparateQueuePolicy {
 
   void SignalError() {
     exec_error_ = true;
+    for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
+      {
+        std::lock_guard<std::mutex> l(stage_free_mutex_[i]);
+        stage_free_stop_[i] = true;
+      }
+      {
+        std::lock_guard<std::mutex> l(stage_ready_mutex_[i]);
+        stage_ready_stop_[i] = true;
+      }
+    }
     NotifyAll();
   }
 
-  bool IsErrorSignaled() {
+  bool IsErrorSignaled() const {
     return exec_error_;
   }
 
@@ -321,6 +339,8 @@ struct SeparateQueuePolicy {
   // For syncing free and ready buffers between stages
   std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_free_mutex_;
   std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_ready_mutex_;
+  std::array<bool, static_cast<int>(OpType::COUNT)> stage_free_stop_ = {{false, false, false, false}};
+  std::array<bool, static_cast<int>(OpType::COUNT)> stage_ready_stop_ = {{false, false, false, false}};
   std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_free_cv_;
   std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_ready_cv_;
 
