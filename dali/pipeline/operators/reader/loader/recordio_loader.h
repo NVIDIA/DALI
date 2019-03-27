@@ -85,7 +85,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
     ++current_index_;
 
-    std::string image_key = uris_[current_file_index_] + " at index " + to_string(seek_pos);
+    std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
     tensor.SetSourceInfo(image_key);
     tensor.SetSkipSample(false);
 
@@ -94,7 +94,13 @@ class RecordIOLoader : public IndexedFileLoader {
       tensor.set_type(TypeInfo::Create<uint8_t>());
       tensor.Resize({1});
       tensor.SetSkipSample(true);
+      should_seek_ = true;
       return;
+    }
+
+    if (should_seek_) {
+      current_file_->Seek(seek_pos);
+      should_seek_ = false;
     }
 
     shared_ptr<void> p = nullptr;
@@ -130,6 +136,9 @@ class RecordIOLoader : public IndexedFileLoader {
       }
     }
   }
+
+ private:
+  bool should_seek_ = false;
 };
 
 }  // namespace dali
