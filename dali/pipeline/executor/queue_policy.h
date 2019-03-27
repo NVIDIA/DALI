@@ -158,16 +158,17 @@ struct UniformQueuePolicy {
   bool IsStopSignaled() {
     std::lock_guard<std::mutex> l(ready_mutex_);
     return ready_stop_;
- }
+  }
 
  private:
   std::queue<int> ready_queue_, free_queue_, in_use_queue_;
   std::mutex ready_mutex_, free_mutex_;
   std::condition_variable ready_cond_, free_cond_;
 
-  std::array<std::queue<int>, static_cast<int>(OpType::COUNT)> stage_work_queue_;
-  std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_work_mutex_;
-  std::array<bool, static_cast<int>(OpType::COUNT)> stage_work_stop_ = {{false, false, false, false}};
+  static const int kOpCount = static_cast<int>(OpType::COUNT);
+  std::array<std::queue<int>, kOpCount> stage_work_queue_;
+  std::array<std::mutex, kOpCount> stage_work_mutex_;
+  std::array<bool, kOpCount> stage_work_stop_ = {{false, false, false, false}};
   bool ready_stop_ = false;
 };
 
@@ -336,14 +337,15 @@ struct SeparateQueuePolicy {
     stage_free_cv_[released_stage].notify_one();
   }
 
+  static const int kOpCount = static_cast<int>(OpType::COUNT);
   // For syncing free and ready buffers between stages
-  std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_free_mutex_;
-  std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_ready_mutex_;
-  std::array<bool, static_cast<int>(OpType::COUNT)> stage_free_stop_ = {{false, false, false, false}};
-  std::array<bool, static_cast<int>(OpType::COUNT)> stage_ready_stop_ = {{false, false, false, false}};
+  std::array<std::mutex, kOpCount> stage_free_mutex_;
+  std::array<std::mutex, kOpCount> stage_ready_mutex_;
+  std::array<bool, kOpCount> stage_free_stop_ = {{false, false, false, false}};
+  std::array<bool, kOpCount> stage_ready_stop_ = {{false, false, false, false}};
   bool ready_stop_ = false;
-  std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_free_cv_;
-  std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_ready_cv_;
+  std::array<std::condition_variable, kOpCount> stage_free_cv_;
+  std::array<std::condition_variable, kOpCount> stage_ready_cv_;
 
   // Buffers are rotated between being 'free', where the
   // pipeline is ok to fill them with data, 'ready', where
@@ -352,8 +354,8 @@ struct SeparateQueuePolicy {
   // is marked as in-use when it is returned as and output.
   // The buffer is then returned the the ready queue the
   // next time Ouputs() is called.
-  std::array<std::queue<int>, static_cast<int>(OpType::COUNT)> stage_free_;
-  std::array<std::queue<QueueIdxs>, static_cast<int>(OpType::COUNT)> stage_ready_;
+  std::array<std::queue<int>, kOpCount> stage_free_;
+  std::array<std::queue<QueueIdxs>, kOpCount> stage_ready_;
 
   std::condition_variable ready_output_cv_, free_cond_;
   // Output ready and in_use mutexes and queues
