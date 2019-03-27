@@ -121,8 +121,7 @@ class DetectionPipeline(Pipeline):
             num_shards=args.num_gpus,
             ratio=True,
             ltrb=True,
-            random_shuffle=True,
-            size_threshold=400)
+            random_shuffle=True)
 
         self.decode_cpu = ops.HostDecoder(device="cpu", output_type=types.RGB)
         self.decode_crop = ops.HostDecoderSlice(
