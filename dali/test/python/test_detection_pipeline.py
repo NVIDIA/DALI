@@ -121,7 +121,8 @@ class DetectionPipeline(Pipeline):
             num_shards=args.num_gpus,
             ratio=True,
             ltrb=True,
-            random_shuffle=True)
+            random_shuffle=True,
+            size_threshold=400)
 
         self.decode_cpu = ops.HostDecoder(device="cpu", output_type=types.RGB)
         self.decode_crop = ops.HostDecoderSlice(
@@ -279,7 +280,15 @@ def set_iters(args, dataset_size):
 
 def to_array(dali_out):
     if isinstance(dali_out, TensorListGPU):
-        dali_out = dali_out.asCPU()
+        # Temporary workaround for empty TensorListGPU containing boxes
+        # Will be addressed by DALI-646
+        try:
+            dali_out = dali_out.asCPU()
+        except:
+            return np.empty((0, 4), np.float32)
+
+        # Proper version
+        # dali_out = dali_out.asCPU()
 
     return np.squeeze(dali_out.as_array())
 
@@ -446,8 +455,6 @@ def make_parser():
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
 
-    parser.add_argument('--debug', action='store_true')
-
     return parser
 
 
@@ -456,11 +463,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.batch_size = 1
 
-    if args.debug:
-        import ptvsd
-        args.num_workers = 1
-
-        address = ('0.0.0.0', 3000)
-        ptvsd.enable_attach(address)
-        ptvsd.wait_for_attach()
     run_test(args)
