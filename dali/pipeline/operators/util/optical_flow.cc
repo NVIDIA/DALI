@@ -62,7 +62,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
 
     // Extract calculation params
-    ExtractParams(input);
+    ExtractParams(input, hints);
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
     for (int i = 0; i < nsequences_; i++) {
