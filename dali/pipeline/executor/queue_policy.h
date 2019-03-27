@@ -40,9 +40,9 @@ namespace dali {
 //   // Release currently used output
 //   void ReleaseOutputIdxs();
 //   // Wake all waiting threads and skip further execution due to error
-//   void SignalError();
+//   void SignalStop();
 //   // Returns true if we signaled an error previously
-//   bool IsErrorSignaled();
+//   bool IsStopSignaled();
 // };
 
 
@@ -66,16 +66,13 @@ struct UniformQueuePolicy {
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
-    if (exec_error_) {
-      return QueueIdxs{-1};
-    }
     if (stage == OpType::SUPPORT) {
       // Block until there is a free buffer to use
       std::unique_lock<std::mutex> lock(free_mutex_);
-      while (free_queue_.empty() && !stage_work_stop_[static_cast<int>(stage)]) {
-        free_cond_.wait(lock);
-      }
-      if (exec_error_) {
+      free_cond_.wait(lock, [stage, this]() {
+        return !free_queue_.empty() || stage_work_stop_[static_cast<int>(stage)];
+      });
+      if (stage_work_stop_[static_cast<int>(stage)]) {
         return QueueIdxs{-1};  // We return anything due to exec error
       }
       int queue_idx = free_queue_.front();
@@ -113,10 +110,10 @@ struct UniformQueuePolicy {
     // Block until the work for a batch has been issued.
     // Move the queue id from ready to in_use
     std::unique_lock<std::mutex> lock(ready_mutex_);
-    while (ready_queue_.empty() && !exec_error_) {
-      ready_cond_.wait(lock);
-    }
-    if (exec_error_) {
+    ready_cond_.wait(lock, [this]() {
+      return !ready_queue_.empty() || ready_stop_;
+    });
+    if (ready_stop_) {
       return OutputIdxs{-1};
     }
     int output_idx = ready_queue_.front();
@@ -146,10 +143,10 @@ struct UniformQueuePolicy {
     free_cond_.notify_all();
   }
 
-  void SignalError() {
+  void SignalStop() {
     {
-      std::lock_guard<std::mutex> l(free_mutex_);
-      exec_error_ = true;
+      std::unique_lock<std::mutex> lock(ready_mutex_);
+      ready_stop_ = true;
     }
     for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
       std::lock_guard<std::mutex> l(stage_work_mutex_[i]);
@@ -158,12 +155,10 @@ struct UniformQueuePolicy {
     NotifyAll();
   }
 
-  bool IsErrorSignaled() const {
-    return exec_error_;
-  }
-
- protected:
-  bool exec_error_ = false;
+  bool IsStopSignaled() {
+    std::lock_guard<std::mutex> l(ready_mutex_);
+    return ready_stop_;
+ }
 
  private:
   std::queue<int> ready_queue_, free_queue_, in_use_queue_;
@@ -173,6 +168,7 @@ struct UniformQueuePolicy {
   std::array<std::queue<int>, static_cast<int>(OpType::COUNT)> stage_work_queue_;
   std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_work_mutex_;
   std::array<bool, static_cast<int>(OpType::COUNT)> stage_work_stop_ = {{false, false, false, false}};
+  bool ready_stop_ = false;
 };
 
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
@@ -192,9 +188,6 @@ struct SeparateQueuePolicy {
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
-    if (exec_error_) {
-      return QueueIdxs{-1};
-    }
     QueueIdxs result(0);
     // We dine with the philosophers
 
@@ -206,7 +199,7 @@ struct SeparateQueuePolicy {
       stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
         return !stage_ready_[previous_stage].empty() || stage_ready_stop_[previous_stage];
       });
-      if (exec_error_) {
+      if (stage_ready_stop_[previous_stage]) {
         return QueueIdxs{-1};
       }
       // We fill the information about all the previous stages herew
@@ -220,7 +213,7 @@ struct SeparateQueuePolicy {
       stage_free_cv_[current_stage].wait(free_current_lock, [current_stage, this]() {
         return !stage_free_[current_stage].empty() || stage_free_stop_[current_stage];
       });
-      if (exec_error_) {
+      if (stage_free_stop_[current_stage]) {
         return QueueIdxs{-1};
       }
       // We add info about current stage
@@ -263,9 +256,10 @@ struct SeparateQueuePolicy {
     // Block until the work for a batch has been issued.
     // Move the queue id from ready to in_use
     std::unique_lock<std::mutex> ready_lock(ready_output_mutex_);
-    ready_output_cv_.wait(ready_lock,
-                          [this]() { return !ready_output_queue_.empty() || exec_error_; });
-    if (exec_error_) {
+    ready_output_cv_.wait(ready_lock, [this]() {
+      return !ready_output_queue_.empty() || ready_stop_;
+    });
+    if (ready_stop_) {
       return OutputIdxs{-1, -1};
     }
     auto output_idx = ready_output_queue_.front();
@@ -305,8 +299,11 @@ struct SeparateQueuePolicy {
     free_cond_.notify_all();
   }
 
-  void SignalError() {
-    exec_error_ = true;
+  void SignalStop() {
+    {
+      std::unique_lock<std::mutex> lock(ready_output_mutex_);
+      ready_stop_ = true;
+    }
     for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
       {
         std::lock_guard<std::mutex> l(stage_free_mutex_[i]);
@@ -320,8 +317,11 @@ struct SeparateQueuePolicy {
     NotifyAll();
   }
 
-  bool IsErrorSignaled() const {
-    return exec_error_;
+  bool IsStopSignaled() {
+    // We only need to check the first one, since they're
+    // always set in the same time
+    std::lock_guard<std::mutex> l(ready_output_mutex_);
+    return ready_stop_;
   }
 
  private:
@@ -341,6 +341,7 @@ struct SeparateQueuePolicy {
   std::array<std::mutex, static_cast<int>(OpType::COUNT)> stage_ready_mutex_;
   std::array<bool, static_cast<int>(OpType::COUNT)> stage_free_stop_ = {{false, false, false, false}};
   std::array<bool, static_cast<int>(OpType::COUNT)> stage_ready_stop_ = {{false, false, false, false}};
+  bool ready_stop_ = false;
   std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_free_cv_;
   std::array<std::condition_variable, static_cast<int>(OpType::COUNT)> stage_ready_cv_;
 
@@ -360,8 +361,6 @@ struct SeparateQueuePolicy {
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
-
-  bool exec_error_ = false;
 };
 
 }  // namespace dali
