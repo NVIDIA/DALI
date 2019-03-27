@@ -308,23 +308,18 @@ class Pipeline(object):
     def run(self):
         """Run the pipeline and return the result.
 
-        If the pipeline was created with `exec_async` option set to `True`,
+        If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
         faster execution."""
+        self._run()
+        return self.outputs()
+
+    def _run(self):
+        """Run the pipeline without returning the results."""
         if self._first_iter and self._exec_pipelined:
             self._prefetch()
         else:
-            self._start_run()
-        return self.outputs()
-
-    def reset(self):
-        """Resets pipeline iterator
-
-        If pipeline iterator reached the end then reset its state to the beggining.
-        """
-        if self._last_iter:
-            self._first_iter = True
-            self._last_iter = False
+            self._run_once()
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
@@ -333,12 +328,13 @@ class Pipeline(object):
         if self._exec_separated:
             self._fill_separated_queues()
         else:
-            for i in range(self._prefetch_queue_depth):
-                self._start_run()
+            for _ in range(self._prefetch_queue_depth):
+                self._run_once()
         self._first_iter = False
 
-    def _start_run(self):
-        """Start running the pipeline without waiting for its results.
+
+    def _run_once(self):
+        """Start running the whole pipeline once without waiting for its results.
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
@@ -384,6 +380,15 @@ class Pipeline(object):
             self._run_up_to("gpu")
         for i in range(self._cpu_queue_size):
             self._run_up_to("cpu")
+
+    def reset(self):
+        """Resets pipeline iterator
+
+        If pipeline iterator reached the end then reset its state to the beginning.
+        """
+        if self._last_iter:
+            self._first_iter = True
+            self._last_iter = False
 
     def serialize(self):
         """Serialize the pipeline to a Protobuf string."""
