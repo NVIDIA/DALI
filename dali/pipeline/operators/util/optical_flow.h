@@ -105,7 +105,7 @@ class OpticalFlow : public Operator<Backend> {
 
   /**
    * Use input TensorList to extract calculation params
-   * Currently only NFHWC layout is supported
+   * Only NFHWC layout is supported
    */
   void ExtractParams(const TensorList<Backend> &tl) {
     auto shape = tl.shape();
@@ -128,6 +128,32 @@ class OpticalFlow : public Operator<Backend> {
   }
 
 
+  /**
+   * Overload for operator that takes also hints as input
+   */
+  void ExtractParams(const TensorList<Backend> &input, const TensorList<Backend> &hints) {
+    ExtractParams(input);
+
+    auto hints_shape = hints.shape();
+    DALI_ENFORCE(hints_shape.size() == nsequences_,
+                 "Number of input sequences and hints must match");
+    hints_height_ = hints_shape[0][1];
+    hints_width_ = hints_shape[0][2];
+    hints_depth_ = hints_shape[0][3];
+    DALI_ENFORCE(hints_depth_ == 2, "Hints shall have depth of 2: flow_x and flow_y");
+    DALI_ENFORCE(
+            hints_height_ == (frames_height_ + 3) / 4 && hints_width_ == (frames_width_ + 3) / 4,
+            "Hints resolution has to be 4 times smaller in each dimension (4x4 grid)");
+    DALI_ENFORCE([&]() -> bool {
+        for (const auto &seq : hints_shape) {
+          if (seq[1] != hints_height_ || seq[2] != hints_width_ || seq[3] != hints_depth_)
+            return false;
+        }
+        return true;
+    }(), "Width, height and depth must be equal for all hints");
+  }
+
+
   const float quality_factor_;
   const int grid_size_;
   const bool enable_temporal_hints_;
@@ -136,6 +162,7 @@ class OpticalFlow : public Operator<Backend> {
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
   int frames_width_, frames_height_, depth_, nsequences_;
+  int hints_width_, hints_height_, hints_depth_;
   std::vector<int> sequence_sizes_;
   DALIImageType image_type_;
 };
