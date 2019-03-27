@@ -84,18 +84,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                               ws->Output<CPUBackend>(1));
 
     ws->Output<CPUBackend>(0).SetSourceInfo(file_name);
-    // We need to save stream if the JPEG is progressive : it could be used by nvJPEG GPU stage op
-    const bool is_progressive = IsProgressiveJPEG(input_data, in_size);
-
-    if (is_progressive) {
-      std::cout << "Progressive image: " << file_name << std::endl;
-    }
 
     nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                 static_cast<const unsigned char*>(input_data),
                                                 in_size,
                                                 false,
-                                                is_progressive, /* save_stream: copying the stream */
+                                                false,
                                                 state_nvjpeg->jpeg_stream);
     info->nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
     auto crop_generator = GetCropWindowGenerator(data_idx);
@@ -130,7 +124,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
       state_nvjpeg->nvjpeg_backend =
-                    ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
+                    ShouldBeHybrid(*info, input_data, in_size)
+                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       if (crop_generator) {
         info->crop_window = crop_generator(info->heights[0], info->widths[0]);
@@ -208,8 +203,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     return std::make_pair(info, nvjpeg_state);
   }
 
-  bool ShouldBeHybrid(ImageInfo& info) const {
-    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
+  inline bool ShouldBeHybrid(ImageInfo& info, const uint8_t* input, size_t size) const {
+    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_
+           && !IsProgressiveJPEG(input, size);
   }
 
   inline nvjpegJpegDecoder_t GetDecoder(nvjpegBackend_t backend) const {
@@ -224,35 +220,40 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     }
   }
 
- inline uint8_t GetJpegEncoding(const uint8_t* input, size_t size) {
+  // TODO(spanev): Replace when it is available in the nvJPEG API
+  inline uint8_t GetJpegEncoding(const uint8_t* input, size_t size) const {
     if (input[0] != 0xff || input[1] != 0xd8)
-        return 0;
+      return 0;
     const uint8_t* ptr = input + 2;
     const uint8_t* end = input + size;
-    uint8_t marker = *ptr++;
+    uint8_t marker = *ptr;
+    ptr++;
     while (ptr < end) {
       do {
         // We ignore padding/custom metadata
-        while (marker != 0xff && ptr != end)
-            marker = *ptr++;
+        while (marker != 0xff && ptr != end) {
+          marker = *ptr;
+          ptr++;
+        }
         if (ptr == end)
-            return 0;
-        marker = *ptr++;
+          return 0;
+        marker = *ptr;
+        ptr++;
       } while (marker == 0 || marker == 0xff);
-      if (marker >= 0xc0 && marker <= 0xcf)
-          return marker;
-      else {
+      if (marker >= 0xc0 && marker <= 0xcf) {
+        return marker;
+      } else {
         // Next segment
-        uint16_t segment_length = (*ptr++ << 8) + *ptr++;
-        ptr += segment_length - 2;
+        uint16_t segment_length = (*ptr << 8) + *(ptr+1);
+        ptr += segment_length;
       }
     }
     return 0;
   }
 
-  inline bool IsProgressiveJPEG(const uint8_t* raw_jpeg, size_t size) {
+  inline bool IsProgressiveJPEG(const uint8_t* raw_jpeg, size_t size) const {
     const uint8_t segment_marker = GetJpegEncoding(raw_jpeg, size);
-    constexpr uint8_t progressive_sof = 0xC2;
+    constexpr uint8_t progressive_sof = 0xc2;
     return segment_marker == progressive_sof;
   }
 
