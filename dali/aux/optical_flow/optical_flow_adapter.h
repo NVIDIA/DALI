@@ -69,6 +69,7 @@ template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
  protected:
   using StorageBackend = typename detail::compute_to_storage<ComputeBackend>::type;
+
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
 
@@ -89,6 +90,7 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   virtual ~OpticalFlowAdapter() = default;
+  
  protected:
   const OpticalFlowParams of_params_;
 };
