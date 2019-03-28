@@ -135,7 +135,7 @@ class OpticalFlow : public Operator<Backend> {
     ExtractParams(input);
 
     auto hints_shape = hints.shape();
-    DALI_ENFORCE(hints_shape.size() == nsequences_,
+    DALI_ENFORCE(hints_shape.size() == static_cast<size_t>(nsequences_),
                  "Number of input sequences and hints must match");
     hints_height_ = hints_shape[0][1];
     hints_width_ = hints_shape[0][2];
