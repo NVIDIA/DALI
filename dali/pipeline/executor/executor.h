@@ -114,7 +114,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
 
   DLL_PUBLIC void ShutdownQueue() {
-    QueuePolicy::ReleaseOutputIdxs();
     QueuePolicy::SignalStop();
   }
 

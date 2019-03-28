@@ -39,9 +39,9 @@ namespace dali {
 //   OutputIdxs UseOutputIdxs();
 //   // Release currently used output
 //   void ReleaseOutputIdxs();
-//   // Wake all waiting threads and skip further execution due to error
+//   // Wake all waiting threads and skip further execution due to stop signaled
 //   void SignalStop();
-//   // Returns true if we signaled an error previously
+//   // Returns true if we signaled stop previously
 //   bool IsStopSignaled();
 // };
 
@@ -156,6 +156,8 @@ struct UniformQueuePolicy {
   }
 
   bool IsStopSignaled() {
+    // We only need to check the first one, since they're
+    // always set in the same time
     std::lock_guard<std::mutex> l(ready_mutex_);
     return ready_stop_;
   }
@@ -168,6 +170,9 @@ struct UniformQueuePolicy {
   static const int kOpCount = static_cast<int>(OpType::COUNT);
   std::array<std::queue<int>, kOpCount> stage_work_queue_;
   std::array<std::mutex, kOpCount> stage_work_mutex_;
+  // We use a dedicated stop flag for every mutex & condition_varialbe pair,
+  // so when using them in cond_var predicate,
+  // we know the changes are propagated properly and we won't miss a notify.
   std::array<bool, kOpCount> stage_work_stop_ = {{false, false, false, false}};
   bool ready_stop_ = false;
 };
@@ -298,6 +303,10 @@ struct SeparateQueuePolicy {
   void NotifyAll() {
     ready_output_cv_.notify_all();
     free_cond_.notify_all();
+    for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
+      stage_ready_cv_[i].notify_all();
+      stage_free_cv_[i].notify_all();
+    }
   }
 
   void SignalStop() {
@@ -341,6 +350,9 @@ struct SeparateQueuePolicy {
   // For syncing free and ready buffers between stages
   std::array<std::mutex, kOpCount> stage_free_mutex_;
   std::array<std::mutex, kOpCount> stage_ready_mutex_;
+  // We use a dedicated stop flag for every mutex & condition_varialbe pair,
+  // so when using them in cond_var predicate,
+  // we know the changes are propagated properly and we won't miss a notify.
   std::array<bool, kOpCount> stage_free_stop_ = {{false, false, false, false}};
   std::array<bool, kOpCount> stage_ready_stop_ = {{false, false, false, false}};
   bool ready_stop_ = false;
