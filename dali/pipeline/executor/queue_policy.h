@@ -238,13 +238,14 @@ struct SeparateQueuePolicy {
 
   void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
     int current_stage = static_cast<int>(stage);
-    // We have a special case for Support ops - they are set free by a GPU stage,
-    // during QueueOutputIdxs
-    if (stage != OpType::CPU) {
-      if (HasPreviousStage(stage)) {
-        ReleaseStageIdx(PreviousStage(stage), idxs);
-      }
-    }
+    // Do not release
+    // // We have a special case for Support ops - they are set free by a GPU stage,
+    // // during QueueOutputIdxs
+    // if (stage != OpType::CPU) {
+    //   if (HasPreviousStage(stage)) {
+    //     ReleaseStageIdx(PreviousStage(stage), idxs);
+    //   }
+    // }
     {
       std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
       // stage_ready_[current_stage].push(idxs[stage]);
@@ -257,12 +258,13 @@ struct SeparateQueuePolicy {
   void QueueOutputIdxs(QueueIdxs idxs) {
     {
       std::lock_guard<std::mutex> ready_output_lock(ready_output_mutex_);
-      ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
+      ready_output_queue_.push(idxs);
     }
     ready_output_cv_.notify_all();
 
     // In case of GPU we release also the Support Op
     ReleaseStageIdx(OpType::SUPPORT, idxs);
+    ReleaseStageIdx(OpType::CPU, idxs);
   }
 
   OutputIdxs UseOutputIdxs() {
@@ -281,7 +283,7 @@ struct SeparateQueuePolicy {
     // python calls
     in_use_queue_.push(output_idx);
     ready_lock.unlock();
-    return output_idx;
+    return {output_idx[OpType::MIXED], output_idx[OpType::GPU]};
   }
 
   void ReleaseOutputIdxs() {
@@ -294,16 +296,20 @@ struct SeparateQueuePolicy {
       // python calls
       auto processed = in_use_queue_.front();
       in_use_queue_.pop();
-      {
-        std::lock_guard<std::mutex> lock(stage_free_mutex_[mixed_idx]);
-        stage_free_[mixed_idx].push(processed.mixed);
-      }
-      stage_free_cv_[mixed_idx].notify_one();
-      {
-        std::lock_guard<std::mutex> lock(stage_free_mutex_[gpu_idx]);
-        stage_free_[gpu_idx].push(processed.gpu);
-      }
-      stage_free_cv_[gpu_idx].notify_one();
+      ReleaseStageIdx(OpType::SUPPORT, processed);
+      ReleaseStageIdx(OpType::CPU, processed);
+      ReleaseStageIdx(OpType::MIXED, processed);
+      ReleaseStageIdx(OpType::GPU, processed);
+      // {
+      //   std::lock_guard<std::mutex> lock(stage_free_mutex_[mixed_idx]);
+      //   stage_free_[mixed_idx].push(processed.mixed);
+      // }
+      // stage_free_cv_[mixed_idx].notify_one();
+      // {
+      //   std::lock_guard<std::mutex> lock(stage_free_mutex_[gpu_idx]);
+      //   stage_free_[gpu_idx].push(processed.gpu);
+      // }
+      // stage_free_cv_[gpu_idx].notify_one();
     }
   }
 
@@ -380,8 +386,8 @@ struct SeparateQueuePolicy {
   // Output ready and in_use mutexes and queues
   std::mutex ready_output_mutex_, in_use_mutex_;
 
-  std::queue<OutputIdxs> ready_output_queue_;
-  std::queue<OutputIdxs> in_use_queue_;
+  std::queue<QueueIdxs> ready_output_queue_;
+  std::queue<QueueIdxs> in_use_queue_;
 };
 
 }  // namespace dali
