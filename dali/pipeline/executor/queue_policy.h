@@ -263,8 +263,8 @@ struct SeparateQueuePolicy {
     ready_output_cv_.notify_all();
 
     // In case of GPU we release also the Support Op
-    ReleaseStageIdx(OpType::SUPPORT, idxs);
-    ReleaseStageIdx(OpType::CPU, idxs);
+    // ReleaseStageIdx(OpType::SUPPORT, idxs);
+    // ReleaseStageIdx(OpType::CPU, idxs);
   }
 
   OutputIdxs UseOutputIdxs() {
