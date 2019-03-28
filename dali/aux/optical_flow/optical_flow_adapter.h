@@ -90,7 +90,7 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   virtual ~OpticalFlowAdapter() = default;
-  
+
  protected:
   const OpticalFlowParams of_params_;
 };
