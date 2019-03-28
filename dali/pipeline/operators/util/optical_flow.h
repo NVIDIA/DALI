@@ -65,8 +65,8 @@ class OpticalFlow : public Operator<Backend> {
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
           image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
-    // In case hints are enabled, we need 2 inputs
-    DALI_ENFORCE((enable_temporal_hints_ && spec.NumInput() == 2) || !enable_temporal_hints_,
+    // In case external hints are enabled, we need 2 inputs
+    DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
                  std::to_string(spec.NumInput()));
     optical_flow::VectorGridSize grid_size;
