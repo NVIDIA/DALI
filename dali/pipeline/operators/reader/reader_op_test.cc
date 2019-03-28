@@ -221,7 +221,8 @@ TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", false)
-      .AddArg("batch_size", 2));
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0));
 
   ASSERT_EQ(tl.IsNextShard(0)            , false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
@@ -260,7 +261,8 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2));
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0));
 
   ASSERT_EQ(tl.IsNextShard(0)            , false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), true);
@@ -299,7 +301,8 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2));
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0));
 
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() - 1), false);

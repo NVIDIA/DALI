@@ -45,7 +45,8 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
       new LMDBReader(
           OpSpec("CaffeReader")
           .AddArg("batch_size", 32)
-          .AddArg("path", string(path))));
+          .AddArg("path", string(path))
+          .AddArg("device_id", 0)));
 
   for (int i = 0; i < 10500; ++i) {
     // grab an entry from the reader
@@ -61,7 +62,8 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
       new FileLoader(
           OpSpec("FileReader")
           .AddArg("file_root", loader_test_image_folder)
-          .AddArg("batch_size", 32)));
+          .AddArg("batch_size", 32)
+          .AddArg("device_id", 0)));
 
   for (int i = 0; i < 11; ++i) {
     // grab an entry from the reader
@@ -78,7 +80,8 @@ TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
         new FileLoader(
             OpSpec("FileReader")
             .AddArg("file_root", loader_test_image_folder + "/benchmark_images")
-            .AddArg("batch_size", 32)));
+            .AddArg("batch_size", 32)
+            .AddArg("device_id", 0)));
   }
   catch (std::runtime_error &e) {
     return;
