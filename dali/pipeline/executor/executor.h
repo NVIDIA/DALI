@@ -509,6 +509,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     }
   }
+  QueuePolicy::ReleaseNonOutputIdxs();
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
