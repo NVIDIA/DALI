@@ -83,7 +83,7 @@ DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t w
                      size_t height, cudaStream_t stream = 0);
 
 /**
- * Encode flow components and put in strided memory (for external hitns)
+ * Encode flow components and put in strided memory (for external hints)
  * @param input
  * @param output User is responsible for allocation of output
  * @param pitch Stride within input memory layout. In bytes.
@@ -102,7 +102,7 @@ inline __host__ __device__ float decode_flow_component(int16_t value) {
 
 
 inline __host__ __device__ int16_t encode_flow_component(float value) {
-  return static_cast<int16_t>(value * 32);
+  return static_cast<int16_t>(value * 32.f);
 }
 
 }  // namespace kernel
