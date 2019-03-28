@@ -145,7 +145,7 @@ struct UniformQueuePolicy {
 
   void SignalStop() {
     {
-      std::unique_lock<std::mutex> lock(ready_mutex_);
+      std::lock_guard<std::mutex> lock(ready_mutex_);
       ready_stop_ = true;
     }
     for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
@@ -311,7 +311,7 @@ struct SeparateQueuePolicy {
 
   void SignalStop() {
     {
-      std::unique_lock<std::mutex> lock(ready_output_mutex_);
+      std::lock_guard<std::mutex> lock(ready_output_mutex_);
       ready_stop_ = true;
     }
     for (int i = 0; i < static_cast<int>(OpType::COUNT); ++i) {
