@@ -34,7 +34,7 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   TensorView<StorageCPU, uint8_t, 3> tvref, tvin;
   std::vector<float> in_data(kTestDataSize);
   TensorView<StorageCPU, float, 3> tvout(in_data.data(), {1, 1, 2});
-  OpticalFlowParams params;
+  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeCPU>> of(new OpticalFlowStub<ComputeCPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue, *tvout(0, 0, 0));
@@ -53,7 +53,7 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   TensorView<StorageGPU, uint8_t, 3> tvref, tvin;
   TensorView<StorageGPU, float, 3> tvout(tvout_data, {1, 1, 2});
-  OpticalFlowParams params;
+  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeGPU>> of(new OpticalFlowStub<ComputeGPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
 
