@@ -80,7 +80,7 @@ class MXNetReaderPipeline(CommonPipeline):
                                      shard_id = kwargs['device_id'],
                                      num_shards = kwargs['num_gpus'],
                                      stick_to_shard = cache_enabled,
-                                     skip_cached_images = cache_enabled,
+                                     #skip_cached_images = cache_enabled,
                                      prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
@@ -95,7 +95,7 @@ class CaffeReadPipeline(CommonPipeline):
                                      shard_id = kwargs['device_id'],
                                      num_shards = kwargs['num_gpus'],
                                      stick_to_shard = cache_enabled,
-                                     skip_cached_images = cache_enabled,
+                                     #skip_cached_images = cache_enabled,
                                      prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
@@ -110,7 +110,7 @@ class Caffe2ReadPipeline(CommonPipeline):
                                       shard_id = kwargs['device_id'],
                                       num_shards = kwargs['num_gpus'],
                                       stick_to_shard = cache_enabled,
-                                      skip_cached_images = cache_enabled,
+                                      #skip_cached_images = cache_enabled,
                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
@@ -125,7 +125,7 @@ class FileReadPipeline(CommonPipeline):
                                     shard_id = kwargs['device_id'],
                                     num_shards = kwargs['num_gpus'],
                                     stick_to_shard = cache_enabled,
-                                    skip_cached_images = cache_enabled,
+                                    #skip_cached_images = cache_enabled,
                                     prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
@@ -143,7 +143,7 @@ class TFRecordPipeline(CommonPipeline):
                                         shard_id = kwargs['device_id'],
                                         num_shards = kwargs['num_gpus'],
                                         stick_to_shard = cache_enabled,
-                                        skip_cached_images = cache_enabled,
+                                        #skip_cached_images = cache_enabled,
                                         features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                     "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
                                         })
