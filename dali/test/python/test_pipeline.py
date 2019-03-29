@@ -651,16 +651,14 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
         def iter_setup(self):
             pass
     
-    NonFused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
-    NonFused_pipe.build()
-    NonFused_pipe_out = NonFused_pipe.run()
-    fused_pipe = FusedPipeline(batch_size=batch_size,
-                          num_threads=1,
-                          device_id = 0, num_gpus = 1)
+    nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    nonfused_pipe.build()
+    nonfused_pipe_out = nonfused_pipe.run()
+    fused_pipe = FusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     fused_pipe.build()
     fused_pipe_out = fused_pipe.run()
     for i in range(batch_size):
-        NonFused_pipe_out_cpu = NonFused_pipe_out[0].as_cpu()
+        NonFused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
         fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
         assert(np.sum(np.abs(NonFused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
 
