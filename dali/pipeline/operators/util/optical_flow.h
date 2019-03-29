@@ -37,10 +37,11 @@ struct backend_to_compute<GPUBackend> {
   using type = kernels::ComputeGPU;
 };
 
-const std::string kPresetArgName = "preset";   // NOLINT
-const std::string kOutputFormatArgName = "output_format";   // NOLINT
-const std::string kEnableHintsArgName = "enable_hints";   // NOLINT
-const std::string kImageTypeArgName = "image_type";   // NOLINT
+const std::string kPresetArgName = "preset";                               // NOLINT
+const std::string kOutputFormatArgName = "output_format";                  // NOLINT
+const std::string kEnableTemporalHintsArgName = "enable_temporal_hints";   // NOLINT
+const std::string kEnableExternalHintsArgName = "enable_external_hints";   // NOLINT
+const std::string kImageTypeArgName = "image_type";                        // NOLINT
 
 }  // namespace detail
 
@@ -55,13 +56,17 @@ class OpticalFlow : public Operator<Backend> {
                   decltype(this->quality_factor_)>::type>(detail::kPresetArgName)),
           grid_size_(spec.GetArgument<typename std::remove_const<
                   decltype(this->grid_size_)>::type>(detail::kOutputFormatArgName)),
-          enable_hints_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->enable_hints_)>::type>(detail::kEnableHintsArgName)),
+          enable_temporal_hints_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->enable_temporal_hints_)>::type>(
+                  detail::kEnableTemporalHintsArgName)),
+          enable_external_hints_(spec.GetArgument<typename std::remove_const<
+                  decltype(this->enable_external_hints_)>::type>(
+                  detail::kEnableExternalHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
           image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
     // In case hints are enabled, we need 2 inputs
-    DALI_ENFORCE((enable_hints_ && spec.NumInput() == 2) || !enable_hints_,
+    DALI_ENFORCE((enable_temporal_hints_ && spec.NumInput() == 2) || !enable_temporal_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
                  std::to_string(spec.NumInput()));
     optical_flow::VectorGridSize grid_size;
@@ -72,7 +77,7 @@ class OpticalFlow : public Operator<Backend> {
     } else {
       grid_size = optical_flow::VectorGridSize::MAX;
     }
-    of_params_ = {quality_factor_, grid_size, enable_hints_};
+    of_params_ = {quality_factor_, grid_size, enable_temporal_hints_, enable_external_hints_};
   }
 
 
@@ -100,7 +105,7 @@ class OpticalFlow : public Operator<Backend> {
 
   /**
    * Use input TensorList to extract calculation params
-   * Currently only NFHWC layout is supported
+   * Only NFHWC layout is supported
    */
   void ExtractParams(const TensorList<Backend> &tl) {
     auto shape = tl.shape();
@@ -123,13 +128,41 @@ class OpticalFlow : public Operator<Backend> {
   }
 
 
+  /**
+   * Overload for operator that takes also hints as input
+   */
+  void ExtractParams(const TensorList<Backend> &input, const TensorList<Backend> &hints) {
+    ExtractParams(input);
+
+    auto hints_shape = hints.shape();
+    DALI_ENFORCE(hints_shape.size() == static_cast<size_t>(nsequences_),
+                 "Number of input sequences and hints must match");
+    hints_height_ = hints_shape[0][1];
+    hints_width_ = hints_shape[0][2];
+    hints_depth_ = hints_shape[0][3];
+    DALI_ENFORCE(hints_depth_ == 2, "Hints shall have depth of 2: flow_x and flow_y");
+    DALI_ENFORCE(
+            hints_height_ == (frames_height_ + 3) / 4 && hints_width_ == (frames_width_ + 3) / 4,
+            "Hints resolution has to be 4 times smaller in each dimension (4x4 grid)");
+    DALI_ENFORCE([&]() -> bool {
+        for (const auto &seq : hints_shape) {
+          if (seq[1] != hints_height_ || seq[2] != hints_width_ || seq[3] != hints_depth_)
+            return false;
+        }
+        return true;
+    }(), "Width, height and depth must be equal for all hints");
+  }
+
+
   const float quality_factor_;
   const int grid_size_;
-  const bool enable_hints_;
+  const bool enable_temporal_hints_;
+  const bool enable_external_hints_;
   std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
   int frames_width_, frames_height_, depth_, nsequences_;
+  int hints_width_, hints_height_, hints_depth_;
   std::vector<int> sequence_sizes_;
   DALIImageType image_type_;
 };

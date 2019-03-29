@@ -33,8 +33,15 @@ Dali uses Turing optical flow hardware implementation: https://developer.nvidia.
                                 R"code(Setting grid size for output vector.
 Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
 For values <=0, grid size is undefined. Currently only grid_size=4 is supported.)code", -1, false)
-                .AddOptionalArg(detail::kEnableHintsArgName,
-                                R"code(enabling/disabling temporal hints for sequences longer than 2 images)code",
+                .AddOptionalArg(detail::kEnableTemporalHintsArgName,
+                                R"code(enabling/disabling temporal hints for sequences longer than 2 images.
+They are used to speed up calculation: previous OF result in sequence is used to calculate current flow. You might
+want to use temporal hints for sequences, that don't have much changes in the scene (e.g. only moving objects))code",
+                                true, false)
+                .AddOptionalArg(detail::kEnableExternalHintsArgName,
+                                R"code(enabling/disabling external hints for OF calculation. External hints
+are analogous to temporal hints, only they come from external source. When this option is enabled,
+Operator requires 2 inputs.)code",
                                 false, false)
                 .AddOptionalArg(detail::kImageTypeArgName,
                                 R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
@@ -49,40 +56,83 @@ constexpr int kNInputDims = 4;
 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
-  // TODO(mszolucha): hints currently ignored, add feature
-  // Fetch data
-  // Input is a TensorList, where every Tensor is a sequence
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+  if (enable_external_hints_) {
+    // Fetch data
+    // Input is a TensorList, where every Tensor is a sequence
+    const auto &input = ws->Input<GPUBackend>(0);
+    const auto &hints = ws->Input<GPUBackend>(1);
+    auto &output = ws->Output<GPUBackend>(0);
 
-  of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
 
-  // Extract calculation params
-  ExtractParams(input);
-  std::vector<Dims> new_sizes;
-  auto out_shape = optical_flow_->GetOutputShape();
-  for (int i = 0; i < nsequences_; i++) {
-    Dims shape = {sequence_sizes_[i]};
-    shape.insert(shape.end(), out_shape.begin(), out_shape.end());
-    new_sizes.emplace_back(shape);
-  }
-  output.Resize(new_sizes);
+    // Extract calculation params
+    ExtractParams(input, hints);
+    std::vector<Dims> new_sizes;
+    auto out_shape = optical_flow_->GetOutputShape();
+    for (int i = 0; i < nsequences_; i++) {
+      Dims shape = {sequence_sizes_[i]};
+      shape.insert(shape.end(), out_shape.begin(), out_shape.end());
+      new_sizes.emplace_back(shape);
+    }
+    output.Resize(new_sizes);
 
 
-  // Prepare input and output TensorViews
-  auto tvlin = view<const uint8_t, kNInputDims>(input);
-  auto tvlout = view<float, kNInputDims>(output);
+    // Prepare input and output TensorViews
+    auto tvlin = view<const uint8_t, kNInputDims>(input);
+    auto tvlout = view<float, kNInputDims>(output);
+    auto tvlhints = view<const float, kNInputDims>(hints);
+    DALI_ENFORCE(tvlhints.size() == nsequences_,
+                 "Number of tensors for hints and inputs doesn't match");
 
-  for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
-    auto sequence_tv = tvlin[sequence_idx];
-    auto output_tv = tvlout[sequence_idx];
+    for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+      auto sequence_tv = tvlin[sequence_idx];
+      auto output_tv = tvlout[sequence_idx];
+      auto hints_tv = tvlhints[sequence_idx];
 
-    for (int i = 1; i < sequence_tv.shape[0]; i++) {
-      auto ref = kernels::subtensor(sequence_tv, i - 1);
-      auto in = kernels::subtensor(sequence_tv, i);
-      auto out = kernels::subtensor(output_tv, i - 1);
+      for (int i = 1; i < sequence_tv.shape[0]; i++) {
+        auto ref = kernels::subtensor(sequence_tv, i - 1);
+        auto in = kernels::subtensor(sequence_tv, i);
+        auto h = kernels::subtensor(hints_tv, i);
+        auto out = kernels::subtensor(output_tv, i - 1);
 
-      optical_flow_->CalcOpticalFlow(ref, in, out);
+        optical_flow_->CalcOpticalFlow(ref, in, out, h);
+      }
+    }
+  } else {
+    // Fetch data
+    // Input is a TensorList, where every Tensor is a sequence
+    const auto &input = ws->Input<GPUBackend>(0);
+    auto &output = ws->Output<GPUBackend>(0);
+
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+
+    // Extract calculation params
+    ExtractParams(input);
+    std::vector<Dims> new_sizes;
+    auto out_shape = optical_flow_->GetOutputShape();
+    for (int i = 0; i < nsequences_; i++) {
+      Dims shape = {sequence_sizes_[i]};
+      shape.insert(shape.end(), out_shape.begin(), out_shape.end());
+      new_sizes.emplace_back(shape);
+    }
+    output.Resize(new_sizes);
+
+
+    // Prepare input and output TensorViews
+    auto tvlin = view<const uint8_t, kNInputDims>(input);
+    auto tvlout = view<float, kNInputDims>(output);
+
+    for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+      auto sequence_tv = tvlin[sequence_idx];
+      auto output_tv = tvlout[sequence_idx];
+
+      for (int i = 1; i < sequence_tv.shape[0]; i++) {
+        auto ref = kernels::subtensor(sequence_tv, i - 1);
+        auto in = kernels::subtensor(sequence_tv, i);
+        auto out = kernels::subtensor(output_tv, i - 1);
+
+        optical_flow_->CalcOpticalFlow(ref, in, out);
+      }
     }
   }
 }
