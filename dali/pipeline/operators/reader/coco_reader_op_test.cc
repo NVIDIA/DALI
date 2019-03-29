@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_bboxes.h"
+#include <gtest/gtest.h>
+
 #include "dali/test/dali_test_config.h"
+#include "dali/pipeline/pipeline.h"
 
 namespace dali {
 
-template <typename Backend>
-class CocoReaderTest : public DALITest {
+class CocoReaderTest : public ::testing::Test {
  public:
-  void SetUp() override {}
-  void TearDown() override {}
-
-  std::vector<std::pair<string, string>> Outputs() {
+  std::vector<std::pair<std::string, std::string>> Outputs() {
     return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
 
@@ -70,19 +68,19 @@ class CocoReaderTest : public DALITest {
     for (int idx = 0; idx < SmallCocoSize(); ++idx) {
       ASSERT_EQ(boxes_shape[idx][0], objects_in_image_[idx]);
       ASSERT_EQ(labels_shape[idx][0], objects_in_image_[idx]);
-      ASSERT_EQ(boxes_shape[idx][1], 4);
-      ASSERT_EQ(boxes_shape[idx][1], 4);
+      ASSERT_EQ(boxes_shape[idx][1], bbox_size);
+      ASSERT_EQ(boxes_shape[idx][1], bbox_size);
     }
 
-    vector<float> boxes(ObjectCount() * 4);
+    vector<float> boxes(ObjectCount() * bbox_size);
     vector<int> labels(ObjectCount());
 
     MemCopy(
       boxes.data(),
       boxes_output.data<float>(),
-      ObjectCount() * 4 * sizeof(float));
+      ObjectCount() * bbox_size * sizeof(float));
 
-    for (int box_coord = 0; box_coord < ObjectCount() * 4; ++box_coord) {
+    for (int box_coord = 0; box_coord < ObjectCount() * bbox_size; ++box_coord) {
       ASSERT_EQ(boxes[box_coord], boxes_coords_[box_coord]);
     }
 
@@ -100,6 +98,8 @@ class CocoReaderTest : public DALITest {
   std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
   std::vector<std::string> annotations_filename_ =
     { dali::testing::dali_extra_path() + "/db/coco/instances.json" };
+
+  const int bbox_size = 4;
 
   std::vector<int> objects_in_image_ = {
     1, 1, 1, 4, 1, 3, 3, 4, 5, 2, 3, 2, 5, 1, 5, 3,
@@ -180,11 +180,7 @@ class CocoReaderTest : public DALITest {
   };
 };
 
-typedef ::testing::Types<CPUBackend> TestTypes;
-
-TYPED_TEST_SUITE(CocoReaderTest, TestTypes);
-
-TYPED_TEST(CocoReaderTest, MutuallyExclusiveOptions) {
+TEST_F(CocoReaderTest, MutuallyExclusiveOptions) {
   Pipeline pipe(1, 1, 0);
 
   pipe.AddOperator(
@@ -195,7 +191,7 @@ TYPED_TEST(CocoReaderTest, MutuallyExclusiveOptions) {
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
 
-TYPED_TEST(CocoReaderTest, SkipEmpty) {
+TEST_F(CocoReaderTest, SkipEmpty) {
   Pipeline pipe(this->SmallCocoSize() - this->EmptyImages(), 1, 0);
 
   pipe.AddOperator(
@@ -220,7 +216,7 @@ TYPED_TEST(CocoReaderTest, SkipEmpty) {
   }
 }
 
-TYPED_TEST(CocoReaderTest, IncludeEmpty) {
+TEST_F(CocoReaderTest, IncludeEmpty) {
   Pipeline pipe(this->SmallCocoSize(), 1, 0);
 
   pipe.AddOperator(
@@ -245,7 +241,7 @@ TYPED_TEST(CocoReaderTest, IncludeEmpty) {
   this->CheckInstances(ws);
 }
 
-TYPED_TEST(CocoReaderTest, BigSizeThreshold) {
+TEST_F(CocoReaderTest, BigSizeThreshold) {
   Pipeline pipe(this->ImagesWithBigObjects(), 1, 0);
 
   pipe.AddOperator(
@@ -269,7 +265,7 @@ TYPED_TEST(CocoReaderTest, BigSizeThreshold) {
   ASSERT_EQ(ids[1], 17);
 }
 
-TYPED_TEST(CocoReaderTest, ShuffleAfterEpoch) {
+TEST_F(CocoReaderTest, ShuffleAfterEpoch) {
   Pipeline pipe(this->SmallCocoSize(), 1, 0);
 
   pipe.AddOperator(
@@ -292,11 +288,14 @@ TYPED_TEST(CocoReaderTest, ShuffleAfterEpoch) {
 
   auto ids_epoch_2 = this->CopyIds(ws);
 
+  bool difference = false;
   for (int id = 0; id < this->SmallCocoSize(); ++id) {
-    if (ids_epoch_1[id] != ids_epoch_2[id])
-      return;
+    difference = ids_epoch_1[id] != ids_epoch_2[id];
+    if (difference) {
+      break;
+    }
   }
-  FAIL();
+  ASSERT_TRUE(difference);
 }
 
 }  // namespace dali
