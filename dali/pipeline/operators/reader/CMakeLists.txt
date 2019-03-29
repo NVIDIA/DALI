@@ -40,5 +40,6 @@ set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 if (BUILD_TEST)
   # get all the test srcs
   list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/reader_op_test.cc")
+  list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/coco_reader_op_test.cc")
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 endif()
