@@ -21,7 +21,7 @@ test_body() {
     ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                    --ExecutePreprocessor.timeout=300 {}
+                    --ExecutePreprocessor.timeout=-1 {}
 }
 
 source ../../qa/test_template.sh

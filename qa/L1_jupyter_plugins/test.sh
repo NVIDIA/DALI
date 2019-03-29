@@ -28,7 +28,7 @@ test_body() {
     find */* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                    --to notebook --inplace --execute \
                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                   --ExecutePreprocessor.timeout=600 {}
+                   --ExecutePreprocessor.timeout=-1 {}
     python${PYVER:0:1} pytorch/resnet50/main.py -t
 }
 
