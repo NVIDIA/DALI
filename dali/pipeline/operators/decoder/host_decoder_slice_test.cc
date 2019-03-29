@@ -44,13 +44,13 @@ class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
       inputs.push_back(std::make_pair("crop", &crop_data));
   }
 
-  const OpSpec DecodingOp() const override {
+  OpSpec DecodingOp() const override {
     return this->GetOpSpec("HostDecoderSlice")
       .AddInput("begin", "cpu")
       .AddInput("crop", "cpu");
   }
 
-  CropWindowGenerator GetCropWindowGenerator() const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return [this] (int H, int W) {
       CropWindow crop_window;
       crop_window.y = crop_y * H;

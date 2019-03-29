@@ -34,35 +34,43 @@ namespace dali {
  * Responsible for accessing image type, starting points and size of crop area.
  */
 class RandomCropAttr {
- protected:
+ public:
   explicit inline RandomCropAttr(const OpSpec &spec) {
-    int64_t seed = spec.GetArgument<int64_t>("seed");
     int num_attempts = spec.GetArgument<int>("num_attempts");
 
     std::vector<float> aspect_ratio;
     GetSingleOrRepeatedArg(spec, &aspect_ratio, "random_aspect_ratio", 2);
+    DALI_ENFORCE(aspect_ratio[0] <= aspect_ratio[1], "Provided empty range");
 
     std::vector<float> area;
     GetSingleOrRepeatedArg(spec, &area, "random_area", 2);
+    DALI_ENFORCE(area[0] <= area[1], "Provided empty range");
 
-    std::shared_ptr<RandomCropGenerator> random_crop_generator(
-      new RandomCropGenerator(
-        {aspect_ratio[0], aspect_ratio[1]},
-        {area[0], area[1]},
-        seed,
-        num_attempts));
+    int64_t seed = spec.GetArgument<int64_t>("seed");
+    std::seed_seq seq{seed};
+    int batch_size = spec.GetArgument<int>("batch_size");
+    DALI_ENFORCE(batch_size > 0, "batch_size should be greater than 0");
+    std::vector<int> seeds(batch_size);
+    seq.generate(seeds.begin(), seeds.end());
 
-    crop_window_generator_ = std::bind(
-      &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
-      std::placeholders::_1, std::placeholders::_2);
+    crop_window_generators_.resize(batch_size);
+
+    for (int i = 0; i < batch_size; i++) {
+      std::shared_ptr<RandomCropGenerator> random_crop_generator(
+        new RandomCropGenerator(
+          {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
+      crop_window_generators_[i] = std::bind(
+        &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
+        std::placeholders::_1, std::placeholders::_2);
+    }
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
-    return crop_window_generator_;
+    return crop_window_generators_[data_idx];
   }
 
  private:
-  CropWindowGenerator crop_window_generator_;
+  std::vector<CropWindowGenerator> crop_window_generators_;
 };
 
 }  // namespace dali

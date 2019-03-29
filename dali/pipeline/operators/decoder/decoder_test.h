@@ -34,7 +34,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     image_type_ = image_type;
   }
 
-  inline virtual CropWindowGenerator GetCropWindowGenerator() const {
+  inline virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};
   }
 
@@ -71,7 +71,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
       auto data_size = volume(encoded_data.tensor_shape(i));
       this->DecodeImage(
         data, data_size, c, this->ImageType(),
-        &out[i], GetCropWindowGenerator());
+        &out[i], GetCropWindowGenerator(i));
     }
 
     vector<TensorList<CPUBackend> *> outputs(1);

@@ -19,7 +19,7 @@ namespace dali {
 template <typename ImgType>
 class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
  protected:
-  const OpSpec DecodingOp() const override {
+  OpSpec DecodingOp() const override {
     return OpSpec("nvJPEGDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
