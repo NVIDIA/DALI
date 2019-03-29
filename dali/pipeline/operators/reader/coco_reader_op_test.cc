@@ -20,7 +20,7 @@
 namespace dali {
 
 class CocoReaderTest : public ::testing::Test {
- public:
+ protected:
   std::vector<std::pair<std::string, std::string>> Outputs() {
     return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
