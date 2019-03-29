@@ -273,13 +273,35 @@ void ExposeTensorList(py::module &m) { // NOLINT
       ----------
       )code")
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
+          if (t.size() == 0) {
+            std::string format;
+            size_t type_size;
+            if (IsValidType(t.type())) {
+              format = FormatStrFromType(t.type());
+              type_size = t.type().size();
+            } else {
+              // Default is float
+              format = py::format_descriptor<float>::format();
+              type_size = sizeof(float);
+            }
+            // Based on default numpy empty array shape and strides
+            std::vector<ssize_t> shape(1, 0);
+            std::vector<ssize_t> strides(1, type_size);
+            return py::array(py::buffer_info(nullptr,
+                                             type_size,
+                                             std::move(format),
+                                             shape.size(),
+                                             shape,
+                                             strides));
+          }
+
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
           DALI_ENFORCE(t.IsDenseTensor(),
                       "Tensors in the list must have the same shape");
 
           std::vector<ssize_t> shape(t.tensor_shape(0).size() + 1);
-          std::vector<ssize_t> stride(t.tensor_shape(0).size() + 1);
+          std::vector<ssize_t> strides(t.tensor_shape(0).size() + 1);
           size_t dim_prod = 1;
           for (size_t i = 0; i < shape.size(); ++i) {
             if (i == 0) {
@@ -289,7 +311,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             }
 
             // We iterate over stride backwards
-            stride[(stride.size()-1) - i] = t.type().size()*dim_prod;
+            strides[(strides.size()-1) - i] = t.type().size()*dim_prod;
             if (i == shape.size() - 1) {
               dim_prod *= t.shape().size();
             } else {
@@ -301,7 +323,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
               t.raw_mutable_data(),
               t.type().size(),
               FormatStrFromType(t.type()),
-              shape.size(), shape, stride));
+              shape.size(), shape, strides));
         },
       R"code(
       Returns TensorList as a numpy array. TensorList must be dense.

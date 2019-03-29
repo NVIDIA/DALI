@@ -67,6 +67,10 @@ class DLL_PUBLIC CPUBackend final {
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
+  // Copying 0 bytes is no-op anyways
+  if (bytes == 0) {
+    return;
+  }
 #ifndef NDEBUG
   DALI_ENFORCE(dst != nullptr);
   DALI_ENFORCE(src != nullptr);

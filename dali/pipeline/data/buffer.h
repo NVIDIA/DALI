@@ -123,6 +123,9 @@ class Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
+    // Empty tensor
+    if (size_ == 0 && data_.get() == nullptr)
+      return nullptr;
     DALI_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
@@ -135,6 +138,9 @@ class Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
+    // Empty tensor
+    if (size_ == 0 && data_.get() == nullptr)
+      return nullptr;
     DALI_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
         "be called on non-const buffer to set valid type");
@@ -272,6 +278,13 @@ class Buffer {
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
+
+    if (new_size == 0) {
+      if (std::is_same<Backend, GPUBackend>::value && device_ == -1) {
+        CUDA_CALL(cudaGetDevice(&device_));
+      }
+      return;
+    }
 
     if (!IsValidType(type_)) {
       size_ = new_size;
