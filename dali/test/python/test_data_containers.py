@@ -149,7 +149,7 @@ for pipe_name in test_data.keys():
         print (data_set)
         for j in range(iters):
             for pipe in pipes:
-                pipe._start_run()
+                pipe._run()
             for pipe in pipes:
                 pipe.outputs()
             if j % LOG_INTERVAL == 0:
