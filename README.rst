@@ -58,7 +58,7 @@ Prerequisites
 3. One or more of the following deep learning frameworks:
 
   - |mxnet link|_ ``mxnet-cu90`` or later.
-  - |pytorch link|_
+  - |pytorch link|_ or later.
   - |tf link|_ or later.
 
 
