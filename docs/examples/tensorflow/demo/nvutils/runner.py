@@ -271,11 +271,12 @@ def train(infer_func, params):
                     input_fn=input_func,
                     steps=nstep//num_epochs,
                     hooks=training_hooks)
-                eval_result = classifier_eval.evaluate(
-                    input_fn=eval_input_func,
-                    steps=eval_steps)
-                print('epoch {} top1: {}%'.format(i, eval_result['top1_accuracy']*100))
-                print('epoch {} top5: {}%'.format(i, eval_result['top5_accuracy']*100))
+                if hvd.rank() == 0:
+                    eval_result = classifier_eval.evaluate(
+                        input_fn=eval_input_func,
+                        steps=eval_steps)
+                    print('epoch {} top1: {}%'.format(i, eval_result['top1_accuracy']*100))
+                    print('epoch {} top5: {}%'.format(i, eval_result['top5_accuracy']*100))
         else:
             classifier.train(
                 input_fn=input_func,
