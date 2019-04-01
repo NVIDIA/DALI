@@ -155,8 +155,8 @@ class Pipeline(object):
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams)
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.SetExecutionTypes(self._exec_pipelined, True, self._exec_async)
+        self._pipe.SetQueueSizes(7, 3)
         outputs = self.define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
@@ -415,8 +415,8 @@ class Pipeline(object):
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams)
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.SetExecutionTypes(self._exec_pipelined, True, self._exec_async)
+        self._pipe.SetQueueSizes(7, 3)
         self._prepared = True
         self._pipe.Build()
         self._built = True
