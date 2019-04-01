@@ -332,6 +332,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
+  separated_execution_ = true;
+  pipelined_execution_ =  true; // for some benchmarks
+  prefetch_queue_depth_ = {7, 3};
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
                           max_num_stream_, prefetch_queue_depth_);
