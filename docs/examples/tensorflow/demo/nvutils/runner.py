@@ -169,6 +169,7 @@ def train(infer_func, params):
     display_every = params['display_every']
     iter_unit = params['iter_unit']
     dali_cpu = params['dali_cpu']
+    epoch_evaluation = params['epoch_evaluation']
 
     # Determinism is not fully supported by all TF ops.
     # Disabling until remaining wrinkles can be ironed out.
@@ -260,19 +261,27 @@ def train(infer_func, params):
         deterministic=deterministic, num_threads=num_preproc_threads,
         dali_cpu=dali_cpu, idx_filenames=train_idx_filenames)
 
-    classifier_eval, eval_input_func, eval_steps = create_validation_estimator(infer_func, params)
+    if epoch_evaluation:
+        classifier_eval, eval_input_func, eval_steps = create_validation_estimator(infer_func, params)
 
     try:
-        for i in range(num_epochs):
+        if epoch_evaluation:
+            for i in range(num_epochs):
+                classifier.train(
+                    input_fn=input_func,
+                    steps=nstep//num_epochs,
+                    hooks=training_hooks)
+                eval_result = classifier_eval.evaluate(
+                    input_fn=eval_input_func,
+                    steps=eval_steps)
+                print('epoch {} top1: {}%'.format(i, eval_result['top1_accuracy']*100))
+                print('epoch {} top5: {}%'.format(i, eval_result['top5_accuracy']*100))
+        else:
             classifier.train(
                 input_fn=input_func,
-                max_steps=nstep//num_epochs,
+                max_steps=nstep,
                 hooks=training_hooks)
-            eval_result = classifier_eval.evaluate(
-                input_fn=eval_input_func,
-                steps=eval_steps)
-            print('epoch {} top1: {}%'.format(i, eval_result['top1_accuracy']*100))
-            print('epoch {} top5: {}%'.format(i, eval_result['top5_accuracy']*100))
+
     except KeyboardInterrupt:
         print("Keyboard interrupt")
 
@@ -362,12 +371,12 @@ def create_validation_estimator(infer_func, params):
         num_preproc_threads = 4
     else:
         num_preproc_threads = 1
-    input_fn=lambda: nvutils.image_set(
+    input_fn = lambda: nvutils.image_set(
         eval_filenames, batch_size, image_height, image_width,
         training=False, distort_color=False,
         deterministic=deterministic,
         dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
-        num_threads=num_preproc_threads),
+        num_threads=num_preproc_threads)
     return classifier_eval, input_fn, (num_eval_samples/batch_size)
 
 
