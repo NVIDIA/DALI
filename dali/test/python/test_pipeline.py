@@ -660,7 +660,7 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
     for i in range(batch_size):
         NonFused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
         fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
-        assert(np.sum(np.abs(NonFused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
+        assert(np.sum(np.abs(nonFused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
 
 def test_iter_setup():
     class TestIterator():
