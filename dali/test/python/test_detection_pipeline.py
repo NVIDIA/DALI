@@ -279,15 +279,7 @@ def set_iters(args, dataset_size):
 
 def to_array(dali_out):
     if isinstance(dali_out, TensorListGPU):
-        # Temporary workaround for empty TensorListGPU containing boxes
-        # Will be addressed by DALI-646
-        try:
-            dali_out = dali_out.asCPU()
-        except:
-            return np.empty((0, 4), np.float32)
-
-        # Proper version
-        # dali_out = dali_out.asCPU()
+        dali_out = dali_out.asCPU()
 
     return np.squeeze(dali_out.as_array())
 
