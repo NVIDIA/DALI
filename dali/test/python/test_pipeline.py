@@ -658,7 +658,7 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
     fused_pipe.build()
     fused_pipe_out = fused_pipe.run()
     for i in range(batch_size):
-        nonFused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
+        nonfused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
         fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
         assert(np.sum(np.abs(nonfused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
 
