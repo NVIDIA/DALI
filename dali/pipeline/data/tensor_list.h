@@ -85,7 +85,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
 
     this->Resize(new_shape);
-    this->set_type(type);
+    if (IsValidType(type)) {
+      this->set_type(type);
+    }
     this->SetLayout(layout);
 
     for (size_t i = 0; i < other.size(); ++i) {
@@ -283,7 +285,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * and they are densely packed in memory.
    */
   inline bool IsDenseTensor() const {
-    if (ntensor() == 0) {
+    if (ntensor() == 0 || size_ == 0) {
       return true;
     }
     const Dims& d = shape_[0];
