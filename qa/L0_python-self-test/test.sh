@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose opencv-python numpy tensorflow-gpu torchvision"
+pip_packages="nose numpy opencv-python tensorflow-gpu torchvision"
 
 pushd ../..
 

@@ -18,7 +18,6 @@ except ImportError:
 # instead of version number, direct link can be used
 # put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
 packages = {"numpy" : ["1.11.1"],
-            "opencv-python" : ["3.1.0"],
             "mxnet-cu90" : ["1.4.0"],
             "mxnet-cu100" : ["1.4.0"],
             "tensorflow-gpu" : ["1.7", "1.11", "1.12.0"],

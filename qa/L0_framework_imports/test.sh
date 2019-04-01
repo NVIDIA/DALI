@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 
-pip_packages="jupyter matplotlib opencv-python mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
+pip_packages=" mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
 
 test_body() {
     # test code
