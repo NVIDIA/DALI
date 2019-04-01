@@ -33,12 +33,16 @@ CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
 }
 
 bool CachedDecoderImpl::CacheLoad(const std::string& file_name,
-                                  const ImageCache::ImageShape& expected_shape,
                                   uint8_t* output_data,
                                   cudaStream_t stream) {
   if (!cache_ || file_name.empty())
     return false;
-  return cache_->Read(file_name, output_data, expected_shape, stream);
+  return cache_->Read(file_name, output_data, stream);
+}
+
+ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {
+  return cache_ && cache_->IsCached(file_name) ?
+    cache_->GetShape(file_name) : ImageCache::ImageShape{};
 }
 
 void CachedDecoderImpl::CacheStore(const std::string& file_name, uint8_t* data,

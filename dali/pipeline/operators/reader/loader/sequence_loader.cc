@@ -122,6 +122,16 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
                                Tensor<CPUBackend> *target) {
   const auto frame_filename = s[frame_idx];
   target->SetSourceInfo(frame_filename);
+  target->SetSkipSample(false);
+
+  // if image is cached, skip loading
+  if (ShouldSkipImage(frame_filename)) {
+    target->set_type(TypeInfo::Create<uint8_t>());
+    target->Resize({1});
+    target->SetSkipSample(true);
+    return;
+  }
+
   auto frame = FileStream::Open(frame_filename, read_ahead_);
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call

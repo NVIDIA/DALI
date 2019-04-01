@@ -56,7 +56,6 @@ const ImageCache::ImageShape& ImageCacheBlob::GetShape(const ImageKey& image_key
 
 bool ImageCacheBlob::Read(const ImageKey& image_key,
                           void* destination_buffer,
-                          const ImageShape& expected_shape,
                           cudaStream_t stream) const {
   std::lock_guard<std::mutex> lock(mutex_);
   LOG_LINE << "Read: image_key[" << image_key << "]" << std::endl;
@@ -65,7 +64,6 @@ bool ImageCacheBlob::Read(const ImageKey& image_key,
   const auto it = cache_.find(image_key);
   if (it == cache_.end())
     return false;
-  DALI_ENFORCE(expected_shape == it->second.dims);
   const auto& data = it->second.data;
   DALI_ENFORCE(data.data() < tail_);
   DALI_ENFORCE(data.data() + data.size() <= tail_);

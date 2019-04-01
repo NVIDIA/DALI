@@ -100,6 +100,19 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
   // handle wrap-around
   MoveToNextShard(current_index_);
 
+  // copy the label
+  image_label.label = image_pair.second;
+  image_label.image.SetSourceInfo(image_pair.first);
+  image_label.image.SetSkipSample(false);
+
+  // if image is cached, skip loading
+  if (ShouldSkipImage(image_pair.first)) {
+    image_label.image.set_type(TypeInfo::Create<uint8_t>());
+    image_label.image.Resize({1});
+    image_label.image.SetSkipSample(true);
+    return;
+  }
+
   auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first, read_ahead_);
   Index image_size = current_image->Size();
 

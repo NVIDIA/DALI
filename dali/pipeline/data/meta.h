@@ -44,9 +44,18 @@ class DALIMeta {
     source_info_ = source_info;
   }
 
+  inline void SetSkipSample(bool skip_sample) {
+    skip_sample_ = skip_sample;
+  }
+
+  inline bool ShouldSkipSample() const {
+    return skip_sample_;
+  }
+
  private:
   DALITensorLayout layout_;
   std::string source_info_;
+  bool skip_sample_ = false;
 };
 
 }  // namespace dali

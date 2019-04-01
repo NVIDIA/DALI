@@ -96,6 +96,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
           other[i].raw_data(),
           other[i].size(), 0);
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
   }
 
@@ -360,6 +361,13 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       meta.SetLayout(layout_);
   }
 
+  inline void SetSkipSample(int idx, bool skip_sample) {
+    return meta_[idx].SetSkipSample(skip_sample);
+  }
+
+  inline bool ShouldSkipSample(int idx) const {
+    return meta_[idx].ShouldSkipSample();
+  }
 
  protected:
   // We store a set of dimension for each tensor in the list.
