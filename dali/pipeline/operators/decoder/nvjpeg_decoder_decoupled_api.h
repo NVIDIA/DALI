@@ -149,15 +149,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
 
-      ImageInfo info;
-
       auto cached_shape = CacheImageShape(file_name);
       if (volume(cached_shape) > 0) {
         output_shape_[i] = Dims({cached_shape[0], cached_shape[1], cached_shape[2]});
-        output_info_[i] = info;
         continue;
       }
 
+      ImageInfo info;
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
