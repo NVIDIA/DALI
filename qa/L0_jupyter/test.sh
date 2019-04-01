@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib opencv-python"
+pip_packages="jupyter numpy matplotlib"
 
 pushd ../..
 
