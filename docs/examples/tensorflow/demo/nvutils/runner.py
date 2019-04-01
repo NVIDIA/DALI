@@ -260,7 +260,7 @@ def train(infer_func, params):
         deterministic=deterministic, num_threads=num_preproc_threads,
         dali_cpu=dali_cpu, idx_filenames=train_idx_filenames)
 
-    classifier_eval, eval_input_func, eval_steps = create_validaiton_estimator(infer_func, params)
+    classifier_eval, eval_input_func, eval_steps = create_validation_estimator(infer_func, params)
 
     try:
         for i in range(num_epochs):
@@ -276,7 +276,7 @@ def train(infer_func, params):
     except KeyboardInterrupt:
         print("Keyboard interrupt")
 
-def create_validaiton_estimator(infer_func, params):
+def create_validation_estimator(infer_func, params):
     image_width = params['image_width']
     image_height = params['image_height']
     image_format = params['image_format']
@@ -372,7 +372,7 @@ def create_validaiton_estimator(infer_func, params):
 
 
 def validate(infer_func, params):
-    classifier_eval, input_func, steps = create_validaiton_estimator(infer_func, params)
+    classifier_eval, input_func, steps = create_validation_estimator(infer_func, params)
     if hvd.rank() == 0:
         print("Evaluating")
         try:
