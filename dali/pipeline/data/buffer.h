@@ -124,7 +124,7 @@ class Buffer {
    */
   inline void* raw_mutable_data() {
     // Empty tensor
-    if (size_ == 0 && data_.get() == nullptr)
+    if (data_ == nullptr)
       return nullptr;
     DALI_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
@@ -139,7 +139,7 @@ class Buffer {
    */
   inline const void* raw_data() const {
     // Empty tensor
-    if (size_ == 0 && data_.get() == nullptr)
+    if (data_ == nullptr)
       return nullptr;
     DALI_ENFORCE(IsValidType(type_),
         "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
