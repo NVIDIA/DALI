@@ -271,8 +271,8 @@ def train(infer_func, params):
             eval_result = classifier_eval.evaluate(
                 input_fn=eval_input_func,
                 steps=eval_steps)
-            print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
-            print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
+            print('epoch {} top1: {}%'.format(i, eval_result['top1_accuracy']*100))
+            print('epoch {} top5: {}%'.format(i, eval_result['top5_accuracy']*100))
     except KeyboardInterrupt:
         print("Keyboard interrupt")
 
