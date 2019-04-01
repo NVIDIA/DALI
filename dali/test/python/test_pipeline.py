@@ -601,6 +601,67 @@ def test_transpose():
             np_transposed = np.ascontiguousarray(np_transposed)
             assert(np.array_equal(np_transposed, images_transposed[b]))
 
+def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
+    """
+        Comparing results of pipeline: (nvJPEGDecoder -> Crop), with the same operation performed by fused operator
+    """
+    batch_size =128
+
+    class NonFusedPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(NonFusedPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
+            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+            self.crop = ops.Crop(device="gpu", crop =(224,224))
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+
+            pos_x = self.pos_rng_x()
+            pos_y = self.pos_rng_y()
+            images = self.decode(self.jpegs)
+            crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
+            return (crop, self.labels)
+
+
+        def iter_setup(self):
+            pass
+
+    class FusedPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(FusedPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
+            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+            self.decode = ops.nvJPEGDecoderCrop(device = 'mixed', output_type = types.RGB, crop = (224, 224))
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            pos_x = self.pos_rng_x()
+            pos_y = self.pos_rng_y()
+            images = self.decode(self.jpegs, crop_pos_x=pos_x, crop_pos_y=pos_y)
+            return (images, self.labels)
+
+        def iter_setup(self):
+            pass
+    
+    nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    nonfused_pipe.build()
+    nonfused_pipe_out = nonfused_pipe.run()
+    fused_pipe = FusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    fused_pipe.build()
+    fused_pipe_out = fused_pipe.run()
+    for i in range(batch_size):
+        nonfused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
+        fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
+        assert(np.sum(np.abs(nonfused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
+
 def test_iter_setup():
     class TestIterator():
         def __init__(self, n):
