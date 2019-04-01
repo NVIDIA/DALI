@@ -14,12 +14,13 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
-#include <dali/pipeline/operators/util/optical_flow.h>
-#include <dali/test/dali_operator_test.h>
-#include <dali/test/dali_operator_test_utils.h>
 #include <vector>
 #include <string>
 #include <memory>
+
+#include "dali/pipeline/operators/optical_flow/optical_flow.h"
+#include "dali/test/dali_operator_test.h"
+#include "dali/test/dali_operator_test_utils.h"
 #include "dali/test/dali_test_config.h"
 
 namespace dali {

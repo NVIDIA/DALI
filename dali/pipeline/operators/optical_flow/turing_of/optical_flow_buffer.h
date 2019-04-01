@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
-#define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
 
 #include <sstream>
 #include "dali/error_handling.h"
-#include "dali/aux/optical_flow/turing_of/utils.h"
+#include "dali/pipeline/operators/optical_flow/turing_of/utils.h"
 #include <nvOpticalFlowCuda.h>
 
 namespace dali {
@@ -110,4 +110,4 @@ class OpticalFlowBuffer {
 
 }  // namespace optical_flow
 }  // namespace dali
-#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_

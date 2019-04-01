@@ -20,12 +20,13 @@
 #include <tuple>
 #include <utility>
 #include <numeric>
-#include "dali/util/cuda_utils.h"
-#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
+
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/test/mat2tensor.h"
+#include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/util/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {
